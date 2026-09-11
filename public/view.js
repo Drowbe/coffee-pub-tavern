@@ -6,6 +6,8 @@
 //            user, plus the optional Player talking / muted overlay images.
 //            Audio always plays; whether it reaches the OBS mixer is OBS's
 //            "Control audio via OBS". plate=1 in the link forces the plate on.
+// Both kinds float the player's reactions up the box; reactions=0 turns
+// that off for a source that should stay clean.
 // character: the Character image (nothing if none is set) with the Talking
 //            image on top while they speak and the Muted image while muted.
 //            Made to sit over a character bar as a second source. No audio.
@@ -20,6 +22,8 @@ const streamKey = params.get('s') || '';
 const legacy = { auto: 'player', video: 'player', avatar: 'character', status: 'character' };
 const kind = params.get('kind') === 'character' || params.get('kind') === 'player' ? params.get('kind') : legacy[params.get('mode')] || 'player';
 const forcePlate = params.get('plate') === '1';
+const withReactions = params.get('reactions') !== '0';
+const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', question: '❓', nat20: '🎲' };
 const withAudio = kind === 'player' && params.get('audio') !== '0';
 const debug = params.get('debug') === '1';
 const room = new Room({ adaptiveStream: false });
@@ -96,7 +100,8 @@ function render() {
     document.body.classList.remove('talking');
     $('badge').hidden = true;
   }
-  const showPlate = kind === 'player' && (forcePlate || settings.plate);
+  // The Player option applies to the player box; plate=1 forces it on either kind.
+  const showPlate = forcePlate || (kind === 'player' && settings.plate);
   $('plate').hidden = !(showPlate && state !== 'blank');
   if (showPlate) $('plate').textContent = participant?.name || settings.displayName || wanted;
   document.body.dataset.state = state;
@@ -116,6 +121,19 @@ function refreshFlags() {
   const mic = participant.getTrackPublication(Track.Source.Microphone);
   cameraOn = !!cam && !cam.isMuted && !!cam.track;
   micOn = !!mic && !mic.isMuted;
+}
+
+// A reaction from the player, sent over the data channel by their table page.
+function showReaction(id) {
+  const glyph = REACTIONS[id];
+  if (!glyph || !withReactions) return;
+  const el = document.createElement('span');
+  el.className = 'reaction';
+  el.textContent = glyph;
+  el.style.left = `${20 + Math.random() * 60}%`;
+  el.addEventListener('animationend', () => el.remove());
+  setTimeout(() => el.remove(), 3000); // a hidden tab never fires animationend
+  document.body.appendChild(el);
 }
 
 function adopt(p) {
@@ -158,6 +176,15 @@ room
   })
   .on(RoomEvent.TrackMuted, (_pub, p) => adopt(p))
   .on(RoomEvent.TrackUnmuted, (_pub, p) => adopt(p))
+  .on(RoomEvent.DataReceived, (payload, p, _kind, topic) => {
+    if (topic !== 'reaction' || !p || p.identity !== wanted) return;
+    try {
+      const data = JSON.parse(new TextDecoder().decode(payload));
+      if (data.type === 'reaction') showReaction(data.id);
+    } catch (err) {
+      // not ours
+    }
+  })
   .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
     const now = speakers.some((s) => s.identity === wanted);
     if (now !== speaking) {

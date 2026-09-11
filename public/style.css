@@ -133,6 +133,105 @@ select {
   font-size: 20px;
 }
 
+/* Who belongs to the table, with a dot for those already at it. */
+.members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.members:empty {
+  display: none;
+}
+
+.member {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 72px;
+  padding: 6px 2px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  opacity: 0.55;
+}
+
+.member.online {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
+}
+
+.member img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--bg-card);
+}
+
+.member .dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 2px solid var(--bg-input);
+  box-sizing: content-box;
+}
+
+.member-name {
+  font-size: 11px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reactions float up from a tile and fade. */
+.tile .reaction {
+  position: absolute;
+  bottom: 30%;
+  font-size: 40px;
+  line-height: 1;
+  pointer-events: none;
+  animation: reaction-float 2.2s ease-out forwards;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+
+.stage.compact .tile .reaction {
+  font-size: 26px;
+}
+
+@keyframes reaction-float {
+  0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+  15% { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, -110px) scale(1); opacity: 0; }
+}
+
+/* The reaction tray: a row of big buttons above the bar. */
+.popover.tray {
+  width: auto;
+  flex-direction: row;
+  gap: 6px;
+  padding: 8px;
+}
+
+.react {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #33281f;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.react:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
 .join label {
   display: flex;
   flex-direction: column;
@@ -302,7 +401,7 @@ select {
 
 .brand.big {
   font-size: 18px;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .brand .icon {

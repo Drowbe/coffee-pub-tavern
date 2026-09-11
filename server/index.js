@@ -375,10 +375,13 @@ app.delete('/api/me/images/player', requireUser, (req, res) => {
   res.json({ ok: true });
 });
 
-// Everyone at the table: names and talking colours for the tiles.
-app.get('/api/table', (req, res) => {
+// Everyone at the table: names, talking colours and Player options for the
+// tiles and view pages, plus who is at the table right now.
+app.get('/api/table', async (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
-  res.json({ ...branding(), users: store.users.map(tableUser) });
+  const online = await participants();
+  const byKey = new Map(online.map((p) => [p.key, p]));
+  res.json({ ...branding(), users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key) })) });
 });
 
 // Stream API (OBS pages and the Studio app) ---------------------------------

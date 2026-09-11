@@ -21,10 +21,45 @@ async function loadTable() {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
     }
+    renderMembers();
   } catch (err) {
     // default colour stands
   }
 }
+
+// The join screen: everyone who belongs to the table, with a green dot for
+// those already at it. Refreshed every few seconds until you join.
+function renderMembers() {
+  const list = $('members');
+  if (!list) return;
+  const keep = new Set();
+  for (const u of tableUsers.values()) {
+    keep.add(u.key);
+    let el = list.querySelector(`[data-key="${CSS.escape(u.key)}"]`);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'member';
+      el.dataset.key = u.key;
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = `/img/${encodeURIComponent(u.key)}/player`;
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      const name = document.createElement('span');
+      name.className = 'member-name';
+      el.append(img, dot, name);
+      list.appendChild(el);
+    }
+    el.querySelector('.member-name').textContent = u.displayName;
+    el.querySelector('.dot').classList.toggle('online', Boolean(u.online));
+    el.classList.toggle('online', Boolean(u.online));
+    el.title = u.online ? `${u.displayName} is at the table` : u.displayName;
+  }
+  for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
+}
+setInterval(() => {
+  if (!$('join').hidden) loadTable();
+}, 5000);
 let unread = 0;
 let installPrompt = null;
 let pipWindow = null;
@@ -373,6 +408,48 @@ function addMessage(message, from, own = false) {
   }
 }
 
+// --- reactions ------------------------------------------------------------------
+// A reaction travels over the data channel (topic "reaction"), like chat but
+// never stored: every table page and every OBS view page of that player
+// floats it up from their tile for a couple of seconds.
+
+const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', question: '❓', nat20: '🎲' };
+const REACTION_KEYS = ['heart', 'up', 'down', 'laugh', 'question', 'nat20'];
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+function showReaction(identity, id) {
+  const glyph = REACTIONS[id];
+  const tile = tiles.get(identity);
+  if (!glyph || !tile) return;
+  const el = tile.ownerDocument.createElement('span');
+  el.className = 'reaction';
+  el.textContent = glyph;
+  el.style.left = `${20 + Math.random() * 60}%`;
+  el.addEventListener('animationend', () => el.remove());
+  setTimeout(() => el.remove(), 3000); // a hidden tab never fires animationend
+  tile.appendChild(el);
+}
+
+async function sendReaction(id) {
+  if (!REACTIONS[id] || room.state !== 'connected') return;
+  showReaction(room.localParticipant.identity, id); // data is not echoed back
+  try {
+    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'reaction', id })), { reliable: true, topic: 'reaction' });
+  } catch (err) {
+    setStatus(`reaction: ${err.message}`, true);
+  }
+}
+
+function toggleTray(open = $('react-tray').hidden) {
+  $('react-tray').hidden = !open;
+  $('react-toggle').classList.toggle('on', open);
+  if (open) {
+    $('settings').hidden = true;
+    $('settings-toggle').classList.remove('on');
+  }
+}
+
 function toggleChat(open = $('chat').hidden) {
   $('chat').hidden = !open;
   $('stage').classList.toggle('chat-open', open);
@@ -553,6 +630,15 @@ room
   .on(RoomEvent.ChatMessage, (message, participant) => {
     addMessage(message.message, participant?.name || participant?.identity || 'someone', participant?.isLocal);
   })
+  .on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+    if (topic !== 'reaction' || !participant) return;
+    try {
+      const data = JSON.parse(decoder.decode(payload));
+      if (data.type === 'reaction') showReaction(participant.identity, data.id);
+    } catch (err) {
+      // not ours
+    }
+  })
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`at ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
@@ -568,6 +654,8 @@ room
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
     toggleChat(false);
+    toggleTray(false);
+    loadTable();
   });
 
 async function fillDevices() {
@@ -774,10 +862,18 @@ window.addEventListener('resize', applyLayout);
 $('settings-toggle').addEventListener('click', () => {
   $('settings').hidden = !$('settings').hidden;
   $('settings-toggle').classList.toggle('on', !$('settings').hidden);
+  if (!$('settings').hidden) toggleTray(false);
+});
+$('react-toggle').addEventListener('click', () => toggleTray());
+$('react-tray').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-reaction]');
+  if (!button) return;
+  sendReaction(button.dataset.reaction);
+  toggleTray(false);
 });
 
-// Keyboard: M mic, V camera, C chat, L layout, Space held = talk (push to
-// talk mode), unless typing in a field.
+// Keyboard: M mic, V camera, C chat, L layout, R reactions, 1 to 6 send a
+// reaction, Space held = talk (push to talk mode), unless typing in a field.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
 function typing(event) {
@@ -807,6 +903,8 @@ function onKey(event) {
   else if (key === 'v') toggleCam();
   else if (key === 'c') toggleChat();
   else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
+  else if (key === 'r') toggleTray();
+  else if (/^[1-6]$/.test(key)) sendReaction(REACTION_KEYS[Number(key) - 1]);
   else return;
   event.preventDefault();
 }
@@ -818,7 +916,7 @@ function wake() {
   $('stage').classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    const keepOpen = !$('chat').hidden || !$('settings').hidden || $('floatbar').matches(':hover');
+    const keepOpen = !$('chat').hidden || !$('settings').hidden || !$('react-tray').hidden || $('floatbar').matches(':hover');
     if (!keepOpen) $('stage').classList.add('idle');
     else wake();
   }, 2500);
@@ -929,6 +1027,7 @@ async function init() {
     $('whoami').textContent = me.displayName;
     $('admin-link').hidden = me.role !== 'admin';
     $('admin-link-2').hidden = me.role !== 'admin';
+    await loadTable(); // the join screen's member grid
   } catch (err) {
     location.href = '/login';
   }

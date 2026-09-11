@@ -76,17 +76,22 @@ and its password is reset to the compose value if it differs. Forgot the admin p
 
 ## The table
 
-Join is one click. The page then becomes the table with nothing else on it; a round bar of
+The join screen lists everyone who belongs to the table, with a green dot on those already at
+it. Join is one click. The page then becomes the table with nothing else on it; a round bar of
 controls floats at the bottom and fades away when the pointer rests, coming back on any
 movement. Left to right: microphone (with a live level meter inside the button), camera, layout,
-chat, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera, **C** chat,
-**L** layout.
+chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera,
+**C** chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
 
 - **Layouts.** Grid; strip (one row, or one column when the window is taller than wide); and
   spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
   click a tile to pin it. Drag tiles into any order. Layout, order and pin are remembered in the
   browser.
 - **Chat.** A drawer for "can you hear me" moments, with an unread badge. Nothing is stored.
+- **Reactions.** The smiley button opens a tray: heart, thumbs up, thumbs down, laugh, question
+  mark and a die for a nat 20, or keys 1 to 6. A reaction floats up from your tile for a couple
+  of seconds on everyone's table, and up your Player and Character sources in OBS. Nothing is
+  stored.
 - **Audio.** In settings: microphone choice, a level slider (0 to 300%), a noise gate that cuts
   the mic below a threshold, the browser's noise suppression, echo cancellation and auto gain
   switches, and open mic or push to talk (hold Space). Hover another player's tile for a volume
@@ -138,6 +143,7 @@ https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 | `kind` | `player` (default): the camera, the player image when it is off, the talking border, the muted badge and the overlays. `character`: the character image and its overlays, never the video. |
 | `plate` | `1` forces the name plate on. Normally the plate follows the **Name plate** option in the user's Player section (server default on the Settings tab). |
 | `audio` | The player view always plays the player's audio; `0` makes it silent. Whether it reaches the OBS mixer is OBS's own "Control audio via OBS" on the source. |
+| `reactions` | Both kinds float the player's reactions up the box; `0` keeps a source clean. |
 | `debug` | `1` shows connection messages on the page. |
 
 In OBS: Sources, +, Browser, paste the link, set width and height, and untick "Shutdown source
