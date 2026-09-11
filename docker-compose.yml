@@ -1,0 +1,35 @@
+# Coffee Pub Tavern on a QNAP (Container Station) or any Docker host.
+#
+# 1. cp .env.example .env and fill it in; put the same key/secret in livekit.yaml.
+# 2. Router: forward 7881/tcp, 7882/udp and 3478/udp to the NAS.
+# 3. Nginx Proxy Manager: proxy host LIVEKIT_HOST -> NAS:7880 (websockets on),
+#    proxy host TAVERN_HOST -> NAS:3000, both with TLS.
+# 4. docker compose up -d
+version: "3.7"
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: tavern-livekit
+    restart: unless-stopped
+    network_mode: bridge
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7880:7880/tcp" # signaling, behind the reverse proxy
+      - "7881:7881/tcp" # media over TCP
+      - "7882:7882/udp" # media over UDP
+      - "3478:3478/udp" # TURN
+    volumes:
+      - /share/appdata/tavern/livekit.yaml:/etc/livekit.yaml:ro
+
+  tavern:
+    build: .
+    image: coffee-pub-tavern:latest
+    container_name: tavern-app
+    restart: unless-stopped
+    network_mode: bridge
+    ports:
+      - "3000:3000/tcp" # behind the reverse proxy
+    env_file: .env
+    volumes:
+      - /share/appdata/tavern/data:/app/data # tables and players (stage 4)

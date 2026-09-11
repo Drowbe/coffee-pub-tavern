@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coffee Pub Tavern</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span>&#9749;</span> Coffee Pub Tavern <span class="status" id="status"></span></div>
+    <div class="controls" id="controls" hidden>
+      <button class="btn" id="mic" type="button">Mic</button>
+      <button class="btn" id="cam" type="button">Camera</button>
+      <select id="mic-select" title="Microphone"></select>
+      <select id="cam-select" title="Camera"></select>
+      <button class="btn btn-danger" id="leave" type="button">Leave</button>
+    </div>
+  </header>
+
+  <form class="join" id="join">
+    <h1>Join the table</h1>
+    <label>Your name<input id="name" type="text" maxlength="40" required autocomplete="nickname"></label>
+    <label>Table key<input id="key" type="password" maxlength="200" required autocomplete="off"></label>
+    <p class="hint">Your browser will ask for camera and microphone once. Nothing to install.</p>
+    <button class="btn btn-primary" type="submit">Join</button>
+    <p class="status error" id="join-error" hidden></p>
+  </form>
+
+  <main class="grid" id="grid" hidden></main>
+
+  <script type="module" src="/room.js"></script>
+</body>
+</html>

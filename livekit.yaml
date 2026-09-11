@@ -1,0 +1,21 @@
+# LiveKit server configuration for the Coffee Pub Tavern.
+# Docs: https://docs.livekit.io/home/self-hosting/deployment/
+
+port: 7880 # signaling (WebSocket); proxied by Nginx Proxy Manager as wss://LIVEKIT_HOST
+
+rtc:
+  tcp_port: 7881 # media over TCP for players whose networks block UDP
+  udp_port: 7882 # all media over one UDP port (no port range to forward)
+  use_external_ip: true # discover the public IP behind the router
+
+turn:
+  enabled: true
+  domain: livekit.coffeepub.live # set to your LIVEKIT_HOST
+  udp_port: 3478
+
+keys:
+  # Must match LIVEKIT_API_KEY: LIVEKIT_API_SECRET in .env
+  changeme-key: changeme-secret
+
+logging:
+  level: info

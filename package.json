@@ -1,0 +1,21 @@
+{
+  "name": "coffee-pub-tavern",
+  "version": "0.1.0",
+  "description": "Self-hosted voice and video for the Coffee Pub table, with per-player OBS views.",
+  "private": true,
+  "license": "MIT",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "check": "node --check server/index.js && node --check public/room.js && node --check public/view.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "livekit-client": "^2.22.3",
+    "livekit-server-sdk": "^2.19.0"
+  }
+}
