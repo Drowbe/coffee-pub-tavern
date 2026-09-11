@@ -10,7 +10,6 @@ const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
 let me = null;
 let tableName = 'The Table';
-let meterStop = null;
 let unread = 0;
 let installPrompt = null;
 let pipWindow = null;
@@ -96,11 +95,21 @@ function placeInOrder(tile) {
   };
   const siblings = [...$('grid').querySelectorAll('.tile')];
   const next = siblings.find((el) => rank(el) > rank(tile));
-  $('grid').insertBefore(tile, next || null);
+  if (next) next.parentNode.insertBefore(tile, next);
+  else ($('grid').querySelector('.rest') || $('grid')).appendChild(tile);
 }
 
 function rememberOrder() {
-  prefs.order = [...$('grid').querySelectorAll('.tile')].map((el) => el.dataset.identity);
+  const order = [...$('grid').querySelectorAll('.tile')].map((el) => el.dataset.identity);
+  // In spotlight the big tile sits apart from the row; keep its remembered place.
+  const spot = $('grid').querySelector('.tile.spot');
+  if (spot && prefs.layout === 'spotlight') {
+    const id = spot.dataset.identity;
+    const previous = prefs.order.indexOf(id);
+    order.splice(order.indexOf(id), 1);
+    order.splice(previous < 0 ? order.length : Math.min(previous, order.length), 0, id);
+  }
+  prefs.order = order;
   savePrefs();
 }
 
@@ -117,15 +126,97 @@ function setLayout(layout, announce = false) {
 function applyLayout() {
   const grid = $('grid');
   grid.dataset.layout = prefs.layout;
-  const stage = $('stage');
-  grid.classList.toggle('portrait', stage.clientHeight > stage.clientWidth);
-  if (prefs.layout !== 'spotlight') {
-    grid.querySelectorAll('.tile.spot').forEach((el) => el.classList.remove('spot'));
-    return;
+  const portrait = grid.clientHeight > grid.clientWidth;
+  grid.classList.toggle('portrait', portrait);
+  const ordered = [...grid.querySelectorAll('.tile')];
+  let rest = grid.querySelector('.rest');
+  if (prefs.layout === 'spotlight' && tiles.size > 1) {
+    // remember where every tile sits before the big one is pulled out
+    let changed = false;
+    for (const tile of ordered) {
+      if (!prefs.order.includes(tile.dataset.identity)) {
+        prefs.order.push(tile.dataset.identity);
+        changed = true;
+      }
+    }
+    if (changed) savePrefs();
+    const wanted = (prefs.pinned && tiles.get(prefs.pinned)) || (prefs.follow && speaker && tiles.get(speaker)) || ordered[0];
+    if (!rest) {
+      rest = document.createElement('div');
+      rest.className = 'rest';
+    }
+    // the big tile stays a direct child; the others share a row underneath
+    for (const tile of ordered) {
+      const isSpot = tile === wanted;
+      tile.classList.toggle('spot', isSpot);
+      if (isSpot && tile.parentNode !== grid) grid.appendChild(tile);
+      else if (!isSpot && tile.parentNode !== rest) rest.appendChild(tile);
+    }
+    if (rest.parentNode !== grid) grid.appendChild(rest);
+  } else {
+    for (const tile of ordered) {
+      tile.classList.remove('spot');
+      if (tile.parentNode !== grid) grid.appendChild(tile);
+    }
+    if (rest) rest.remove();
   }
-  const wanted = (prefs.pinned && tiles.get(prefs.pinned)) || (prefs.follow && speaker && tiles.get(speaker)) || grid.querySelector('.tile');
-  for (const [, tile] of tiles) tile.classList.toggle('spot', tile === wanted);
+  fitTiles(grid, portrait);
 }
+
+// Size the tiles so all of them fit the grid area at 16:9, whatever the
+// window shape. Sizes go into CSS variables the layouts read.
+const RATIO = 16 / 9;
+const GAP = 10;
+function fitTiles(grid, portrait) {
+  const n = tiles.size;
+  const style = getComputedStyle(grid);
+  const W = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const H = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  if (n === 0 || W <= 0 || H <= 0) return;
+  let w = 0;
+  let h = 0;
+  let sw = 0;
+  let sh = 0;
+  if (prefs.layout === 'strip') {
+    if (portrait) {
+      w = Math.min(W, ((H - GAP * (n - 1)) / n) * RATIO);
+      h = w / RATIO;
+    } else {
+      h = Math.min(H, (W - GAP * (n - 1)) / n / RATIO);
+      w = h * RATIO;
+    }
+  } else if (prefs.layout === 'spotlight' && n > 1) {
+    sh = Math.max(64, Math.min(160, H * 0.22));
+    sw = Math.min(sh * RATIO, (W - GAP * (n - 2)) / (n - 1));
+    sh = sw / RATIO;
+    h = H - sh - GAP;
+    w = Math.min(W, h * RATIO);
+    h = w / RATIO;
+  } else {
+    // grid (and a spotlight of one): the column count that gives the biggest tiles
+    for (let cols = 1; cols <= n; cols += 1) {
+      const rows = Math.ceil(n / cols);
+      let tw = (W - GAP * (cols - 1)) / cols;
+      let th = tw / RATIO;
+      if (th * rows + GAP * (rows - 1) > H) {
+        th = (H - GAP * (rows - 1)) / rows;
+        tw = th * RATIO;
+      }
+      if (tw > w) {
+        w = tw;
+        h = th;
+      }
+    }
+  }
+  grid.style.setProperty('--tw', `${Math.floor(w)}px`);
+  grid.style.setProperty('--th', `${Math.floor(h)}px`);
+  grid.style.setProperty('--sw', `${Math.floor(sw)}px`);
+  grid.style.setProperty('--sh', `${Math.floor(sh)}px`);
+}
+
+// Refit whenever the grid area changes (window resize, chat drawer, pop out).
+const refit = new ResizeObserver(() => applyLayout());
+refit.observe($('grid'));
 
 // Click a tile: pin it as the spotlight (click again to unpin).
 function spotlight(identity) {
@@ -157,6 +248,8 @@ function onDragOver(event) {
   event.preventDefault();
   const over = event.currentTarget;
   if (over === dragging) return;
+  // in spotlight only the small row reorders; the big tile stays put
+  if (prefs.layout === 'spotlight' && (over.classList.contains('spot') || dragging.classList.contains('spot'))) return;
   const box = over.getBoundingClientRect();
   const horizontal = box.width >= box.height || $('grid').dataset.layout !== 'strip';
   const before = horizontal ? event.clientX < box.left + box.width / 2 : event.clientY < box.top + box.height / 2;
@@ -205,6 +298,7 @@ function removeParticipant(participant) {
   const tile = tiles.get(participant.identity);
   if (tile) tile.remove();
   tiles.delete(participant.identity);
+  applyLayout();
   stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
 }
 
@@ -279,13 +373,37 @@ function toggleChat(open = $('chat').hidden) {
 // others actually receive. Changing device or filters swaps the input; the
 // published track stays the same.
 
-const mic = { ctx: null, raw: null, source: null, level: null, analyser: null, gate: null, dest: null, track: null, open: true, lastAbove: 0, raf: 0 };
+const mic = { ctx: null, raw: null, source: null, level: null, gate: null, analyser: null, timer: 0, dest: null, track: null, open: true, shown: 0, bypass: false };
 let pttHeld = false;
 
 function micConstraints() {
   const c = { noiseSuppression: prefs.noise, echoCancellation: prefs.echo, autoGainControl: prefs.agc };
   if (prefs.micId) c.deviceId = { exact: prefs.micId };
   return c;
+}
+
+async function buildMicGraph() {
+  mic.ctx = new AudioContext();
+  mic.level = mic.ctx.createGain();
+  mic.dest = mic.ctx.createMediaStreamDestination();
+  try {
+    // The gate lives on the audio thread (see gate-worklet.js), so it keeps
+    // working when the tab is hidden and page timers are throttled.
+    await mic.ctx.audioWorklet.addModule('/gate-worklet.js');
+    mic.gate = new AudioWorkletNode(mic.ctx, 'tavern-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    mic.gate.port.onmessage = (event) => onMicLevel(event.data);
+    mic.level.connect(mic.gate);
+    mic.gate.connect(mic.dest);
+  } catch (err) {
+    console.warn('[tavern] no audio worklet, gate off:', err.message);
+    mic.gate = null;
+    mic.analyser = mic.ctx.createAnalyser();
+    mic.analyser.fftSize = 512;
+    mic.level.connect(mic.analyser);
+    mic.level.connect(mic.dest);
+    mic.timer = setInterval(meterFromAnalyser, 50);
+  }
+  mic.track = mic.dest.stream.getAudioTracks()[0];
 }
 
 async function openMic() {
@@ -299,20 +417,7 @@ async function openMic() {
     stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
   }
   const raw = stream.getAudioTracks()[0];
-  if (!mic.ctx) {
-    mic.ctx = new AudioContext();
-    mic.level = mic.ctx.createGain();
-    mic.analyser = mic.ctx.createAnalyser();
-    mic.analyser.fftSize = 512;
-    mic.analyser.smoothingTimeConstant = 0.6;
-    mic.gate = mic.ctx.createGain();
-    mic.dest = mic.ctx.createMediaStreamDestination();
-    mic.level.connect(mic.analyser);
-    mic.level.connect(mic.gate);
-    mic.gate.connect(mic.dest);
-    mic.track = mic.dest.stream.getAudioTracks()[0];
-    micLoop();
-  }
+  if (!mic.ctx) await buildMicGraph();
   if (mic.source) mic.source.disconnect();
   if (mic.raw) mic.raw.stop();
   mic.raw = raw;
@@ -331,44 +436,41 @@ async function openMic() {
 }
 
 function closeMic() {
-  cancelAnimationFrame(mic.raf);
-  mic.raf = 0;
   if (mic.raw) mic.raw.stop();
   if (mic.source) mic.source.disconnect();
   mic.raw = null;
   mic.source = null;
+  mic.shown = 0;
   $('meter').style.setProperty('--level', '0');
 }
 
 function applyMicSettings() {
   if (!mic.ctx) return;
   mic.level.gain.setTargetAtTime(prefs.gain / 100, mic.ctx.currentTime, 0.02);
+  // slider 0..60 maps to a quiet-to-loud rms range
+  if (mic.gate) mic.gate.parameters.get('threshold').value = prefs.gate / 100 / 4;
   $('gain-value').textContent = `${prefs.gain}%`;
-  $('gate-value').textContent = prefs.gate ? `${prefs.gate}` : 'off';
+  $('gate-value').textContent = !mic.gate && mic.ctx ? 'unavailable' : prefs.gate ? `${prefs.gate}` : 'off';
 }
 
-// Runs every frame: level meter, and the gate (closes the output when the
-// level stays under the threshold for a moment).
+// Level and gate state from the audio thread: peak hold with a quick decay
+// reads better than raw samples.
+function onMicLevel({ level, open }) {
+  mic.shown = Math.max(Math.min(1, level * 4), mic.shown * 0.85);
+  $('meter').style.setProperty('--level', mic.shown.toFixed(2));
+  if (open !== mic.open) {
+    mic.open = open;
+    $('mic').classList.toggle('gated', !open);
+  }
+}
+
 const samples = new Float32Array(512);
-function micLoop() {
-  mic.raf = requestAnimationFrame(micLoop);
+function meterFromAnalyser() {
   if (!mic.analyser) return;
   mic.analyser.getFloatTimeDomainData(samples);
   let sum = 0;
   for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
-  const rms = Math.sqrt(sum / samples.length);
-  // peak hold with a quick decay reads better than the raw sample
-  mic.shown = Math.max(Math.min(1, rms * 4), (mic.shown || 0) * 0.9);
-  $('meter').style.setProperty('--level', mic.shown.toFixed(2));
-  const now = performance.now();
-  const threshold = prefs.gate / 100 / 4; // slider 0..60 maps to a quiet-to-loud rms range
-  if (rms >= threshold) mic.lastAbove = now;
-  const open = !prefs.gate || now - mic.lastAbove < 350;
-  if (open !== mic.open) {
-    mic.open = open;
-    mic.gate.gain.setTargetAtTime(open ? 1 : 0, mic.ctx.currentTime, open ? 0.005 : 0.03);
-    $('mic').classList.toggle('gated', !open);
-  }
+  onMicLevel({ level: Math.sqrt(sum / samples.length), open: true });
 }
 
 function setVolume(participant, volume) {

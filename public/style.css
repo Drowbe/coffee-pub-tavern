@@ -856,7 +856,7 @@ body.at-table {
   }
 }
 
-/* --- layouts ------------------------------------------------------------- */
+/* --- layouts: tile sizes come from fitTiles() as CSS variables --------- */
 
 .tile {
   cursor: pointer;
@@ -867,61 +867,60 @@ body.at-table {
   opacity: 0.4;
 }
 
-.grid[data-layout="strip"] {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: flex-start;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
-.grid[data-layout="strip"] .tile {
-  flex: 0 0 auto;
-  height: min(100%, calc((100vw - 24px) / 3 * 9 / 16));
-  aspect-ratio: 16 / 9;
-}
-
-.grid[data-layout="strip"].portrait {
-  flex-direction: column;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-.grid[data-layout="strip"].portrait .tile {
-  width: 100%;
-  height: auto;
-}
-
-.grid[data-layout="spotlight"] {
+.stage .grid {
   display: flex;
   flex-wrap: wrap;
-  align-content: flex-start;
+  align-content: center;
   justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  height: 100%;
+  overflow: hidden;
 }
 
-.grid[data-layout="spotlight"] .tile {
-  height: 120px;
-  aspect-ratio: 16 / 9;
+.stage .grid .tile {
   flex: 0 0 auto;
-}
-
-.grid[data-layout="spotlight"] .tile.spot {
-  order: -1;
-  flex: 0 0 100%;
-  height: calc(100% - 140px);
+  width: var(--tw, 280px);
+  height: var(--th, 158px);
   aspect-ratio: auto;
 }
 
-.grid[data-layout="spotlight"] .tile.spot .name {
+.stage .grid[data-layout="strip"] {
+  flex-wrap: nowrap;
+  flex-direction: row;
+}
+
+.stage .grid[data-layout="strip"].portrait {
+  flex-direction: column;
+}
+
+.stage .grid[data-layout="spotlight"] {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.stage .grid .rest {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.stage .grid .rest .tile {
+  width: var(--sw, 160px);
+  height: var(--sh, 90px);
+}
+
+.stage .grid[data-layout="spotlight"] .tile.spot .name {
   font-size: 15px;
 }
 
 /* --- audio and video controls ------------------------------------------- */
 
 .stage .grid {
-  padding-bottom: 80px;
   transition: width 0.2s ease;
 }
 
