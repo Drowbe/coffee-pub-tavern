@@ -28,13 +28,11 @@ function imgUrl(key, slot) {
 
 function viewLink(user, card) {
   const kind = card.querySelector('[data-view-kind]').value;
-  const plate = card.querySelector('[data-view-plate]').checked;
   const q = new URLSearchParams({ s: streamKey, kind });
-  if (plate) q.set('plate', '1');
   return `${user.viewUrl}?${q}`;
 }
 
-let defaults = { border: true, borderColor: '#6fae6b', badge: true };
+let defaults = { border: true, borderColor: '#6fae6b', badge: true, plate: false };
 
 // Users / Settings tabs, remembered in the address
 function selectTab(name) {
@@ -97,8 +95,9 @@ function fill(card, user) {
     card.querySelector('[data-pfield="border"]').checked = eff.border;
     card.querySelector('[data-pfield="borderColor"]').value = eff.borderColor;
     card.querySelector('[data-pfield="badge"]').checked = eff.badge;
+    card.querySelector('[data-pfield="plate"]').checked = Boolean(eff.plate);
   }
-  const custom = own.border !== null || own.borderColor || own.badge !== null;
+  const custom = own.border !== null || own.borderColor || own.badge !== null || (own.plate !== null && own.plate !== undefined);
   card.querySelector('[data-player-note]').textContent = custom ? 'custom for this player' : 'server defaults';
   card.querySelector('[data-action="player-defaults"]').hidden = !custom;
   // The last admin cannot be demoted; say so before the click.
@@ -203,7 +202,7 @@ function wire(card) {
       copy(viewLink(user, card), status);
     } else if (action === 'player-defaults') {
       run(async () => {
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '', badge: null } });
+        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '', badge: null, plate: null } });
         replace(updated);
         say(status, 'using the server defaults');
       });
@@ -244,7 +243,7 @@ function wire(card) {
         say(status, 'image saved');
       });
       input.value = '';
-    } else if (input.matches('[data-view-kind], [data-view-plate]')) {
+    } else if (input.matches('[data-view-kind]')) {
       card.querySelector('[data-view-open]').href = viewLink(user, card);
     } else if (input.matches('[data-pfield]')) {
       run(async () => {
@@ -252,6 +251,7 @@ function wire(card) {
           border: card.querySelector('[data-pfield="border"]').checked,
           borderColor: card.querySelector('[data-pfield="borderColor"]').value,
           badge: card.querySelector('[data-pfield="badge"]').checked,
+          plate: card.querySelector('[data-pfield="plate"]').checked,
         };
         const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player });
         replace(updated);
@@ -343,8 +343,9 @@ $('save-defaults').addEventListener('click', async () => {
       border: $('set-border').checked,
       borderColor: $('set-border-color').value,
       badge: $('set-badge').checked,
+      plate: $('set-plate').checked,
     });
-    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge };
+    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge, plate: settings.plate };
     say($('defaults-status'), 'saved');
     await loadUsers(); // effective values on the cards follow the defaults
   } catch (err) {
@@ -412,10 +413,11 @@ async function init() {
     $('set-server').value = settings.serverName;
     $('set-table').value = settings.tableName;
     $('set-login-text').value = settings.loginText;
-    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge };
+    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge, plate: settings.plate };
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
     $('set-badge').checked = settings.badge;
+    $('set-plate').checked = Boolean(settings.plate);
     $('icon-preview').src = `/img/site/icon?v=${Date.now()}`;
     showStreamKey();
     await loadUsers();

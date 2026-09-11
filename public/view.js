@@ -1,10 +1,11 @@
 // OBS view of one user on a transparent background.
-//   /view/<key>?s=<stream key>&kind=player|character&plate=1&debug=1
+//   /view/<key>?s=<stream key>&kind=player|character&debug=1
 //
 // player:    the camera when it is on, the Player image when it is off; the
-//            talking border and the muted badge as set for the user, plus the
-//            optional Player talking / muted overlay images. Audio always plays;
-//            whether it reaches the OBS mixer is OBS's "Control audio via OBS".
+//            talking border, the muted badge and the name plate as set for the
+//            user, plus the optional Player talking / muted overlay images.
+//            Audio always plays; whether it reaches the OBS mixer is OBS's
+//            "Control audio via OBS". plate=1 in the link forces the plate on.
 // character: the Character image (nothing if none is set) with the Talking
 //            image on top while they speak and the Muted image while muted.
 //            Made to sit over a character bar as a second source. No audio.
@@ -18,7 +19,7 @@ const params = new URLSearchParams(location.search);
 const streamKey = params.get('s') || '';
 const legacy = { auto: 'player', video: 'player', avatar: 'character', status: 'character' };
 const kind = params.get('kind') === 'character' || params.get('kind') === 'player' ? params.get('kind') : legacy[params.get('mode')] || 'player';
-const showPlate = params.get('plate') === '1';
+const forcePlate = params.get('plate') === '1';
 const withAudio = kind === 'player' && params.get('audio') !== '0';
 const debug = params.get('debug') === '1';
 const room = new Room({ adaptiveStream: false });
@@ -28,7 +29,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['player', 'playerTalking', 'playerMuted'] : ['character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', badge: true, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', badge: true, plate: false, displayName: '' };
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -59,7 +60,7 @@ async function loadSettings() {
     if (!res.ok) return;
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
-    if (me) settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, displayName: me.displayName };
+    if (me) settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, plate: Boolean(me.plate), displayName: me.displayName };
     document.documentElement.style.setProperty('--talk', settings.borderColor);
   } catch (err) {
     // defaults stand
@@ -95,6 +96,7 @@ function render() {
     document.body.classList.remove('talking');
     $('badge').hidden = true;
   }
+  const showPlate = kind === 'player' && (forcePlate || settings.plate);
   $('plate').hidden = !(showPlate && state !== 'blank');
   if (showPlate) $('plate').textContent = participant?.name || settings.displayName || wanted;
   document.body.dataset.state = state;

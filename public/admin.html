@@ -70,6 +70,7 @@
         <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
         <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-badge"> Muted badge</label>
+        <label class="check"><input type="checkbox" id="set-plate"> Name plate</label>
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
       </div>
@@ -120,18 +121,18 @@
         <div class="row">
           <span class="field-label">OBS link</span>
           <select data-view-kind><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
-          <label class="check"><input type="checkbox" data-view-plate> name plate</label>
           <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
           <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
           <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
         </div>
 
         <h3>Player</h3>
-        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with a drawn border and badge, and optionally with overlay images on top of the video.</p>
+        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with a drawn border and badge, and optionally with overlay images on top of the video. The name plate puts their name in the corner.</p>
         <div class="row">
           <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
           <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
           <label class="check"><input type="checkbox" data-pfield="badge"> Muted badge</label>
+          <label class="check"><input type="checkbox" data-pfield="plate"> Name plate</label>
           <button class="btn btn-small" data-action="player-defaults" type="button" title="Use the server defaults from Settings">Use defaults</button>
           <span class="hint" data-player-note></span>
         </div>

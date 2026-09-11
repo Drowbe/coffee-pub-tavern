@@ -125,11 +125,10 @@ until something is set. The player image falls back to a plate with the player's
 ## OBS
 
 Every player has two view pages on a transparent background. The user's card on the manage
-page builds the links (Player or Character, with or without a name plate, then **Copy link**),
-or write them by hand:
+page builds the links (Player or Character, then **Copy link**), or write them by hand:
 
 ```
-https://tavern.<domain>/view/<key>?s=<stream key>&kind=player&plate=1
+https://tavern.<domain>/view/<key>?s=<stream key>&kind=player
 https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 ```
 
@@ -137,7 +136,7 @@ https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 | --- | --- |
 | `s` | The **stream key** from the Settings tab. Required. Regenerating it breaks every existing link. |
 | `kind` | `player` (default): the camera, the player image when it is off, the talking border, the muted badge and the overlays. `character`: the character image and its overlays, never the video. |
-| `plate` | `1` shows the display name in the corner. |
+| `plate` | `1` forces the name plate on. Normally the plate follows the **Name plate** option in the user's Player section (server default on the Settings tab). |
 | `audio` | The player view always plays the player's audio; `0` makes it silent. Whether it reaches the OBS mixer is OBS's own "Control audio via OBS" on the source. |
 | `debug` | `1` shows connection messages on the page. |
 

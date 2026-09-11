@@ -171,12 +171,12 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function tableUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, badge: p.badge, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, badge: p.badge, plate: p.plate, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge, plate: s.plate };
 }
 
 function initials(name) {
