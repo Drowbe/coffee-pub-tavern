@@ -1091,9 +1091,26 @@ body.at-table {
   gap: 16px;
 }
 
-.icon-stack {
-  align-items: center;
+.site-images {
+  display: flex;
+  gap: 12px;
   flex: none;
+  align-items: flex-start;
+}
+
+.slot-pick.wide {
+  width: 170px;
+}
+
+/* The sign-in page behind a picture: the panel lifts off it. */
+body.has-background {
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+body.has-background .panel.login {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
 }
 
 .fields.grow {

@@ -48,10 +48,9 @@
     <section class="panel" id="tab-settings" hidden>
       <h1>Settings</h1>
       <div class="brand-row">
-        <div class="stack icon-stack">
-          <img class="preview small" id="icon-preview" alt="">
-          <label class="btn btn-small file-btn">Icon<input type="file" id="icon-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
-          <button class="btn btn-small btn-danger" id="icon-remove" type="button">Remove</button>
+        <div class="site-images" id="site-images">
+          <div class="slot" data-site="icon"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Icon</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+          <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Sign-in background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>

@@ -151,8 +151,10 @@ table.
 
 On the manage page's Settings tab: the **server name** shown in the header and browser tab, the
 **table name** shown on the join screen, the **text on the sign-in page**, an **icon** (any
-image; used in
-the header and as the favicon). The **stream key** lives there too.
+image; used in the header and as the favicon) and a **sign-in background** picture that fills
+the page behind the sign-in box. Click either picture to change it, **Remove** to clear it.
+The **stream key** and the **Player video defaults** (talking border, colour, muted badge, name
+plate) live there too.
 
 ## Development
 

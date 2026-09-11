@@ -21,6 +21,11 @@ export async function loadBranding() {
   }
   icon.href = `/img/site/icon?v=${Date.now()}`;
   document.querySelectorAll('img[data-brand="icon"]').forEach((el) => (el.src = icon.href));
+  // The sign-in page carries the background picture when one is set.
+  for (const el of document.querySelectorAll('[data-brand="background"]')) {
+    el.classList.toggle('has-background', Boolean(b.hasBackground));
+    el.style.backgroundImage = b.hasBackground ? `url("/img/site/background?v=${Date.now()}")` : '';
+  }
   return b;
 }
 

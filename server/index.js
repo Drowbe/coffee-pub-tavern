@@ -176,7 +176,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge, plate: s.plate };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge, plate: s.plate };
 }
 
 function initials(name) {
@@ -266,6 +266,12 @@ app.get('/img/site/icon', (_req, res) => {
   const file = store.iconPath();
   if (file) return sendImage(res, file);
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(DEFAULT_ICON_SVG);
+});
+// The sign-in background: nothing until one is set.
+app.get('/img/site/background', (_req, res) => {
+  const file = store.siteImagePath('background');
+  if (file) return sendImage(res, file);
+  res.status(404).end();
 });
 
 // A user's image for a slot. The player image always renders (an initials
@@ -469,12 +475,14 @@ app.patch('/api/settings', requireAdmin, (req, res) => {
   store.updateSettings(req.body || {});
   res.json({ settings: branding() });
 });
-app.put('/api/settings/icon', requireAdmin, rawImage, (req, res) => {
-  store.setIcon(req.body, req.get('content-type'));
+// Site images: icon, background.
+const siteImage = (req, res, next) => (req.params.image === 'icon' || req.params.image === 'background' ? next() : res.status(404).json({ error: 'unknown image' }));
+app.put('/api/settings/:image', requireAdmin, siteImage, rawImage, (req, res) => {
+  store.setSiteImage(req.params.image, req.body, req.get('content-type'));
   res.json({ settings: branding() });
 });
-app.delete('/api/settings/icon', requireAdmin, (_req, res) => {
-  store.removeIcon();
+app.delete('/api/settings/:image', requireAdmin, siteImage, (req, res) => {
+  store.removeSiteImage(req.params.image);
   res.json({ settings: branding() });
 });
 app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {

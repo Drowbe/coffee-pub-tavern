@@ -353,26 +353,46 @@ $('save-defaults').addEventListener('click', async () => {
   }
 });
 
-$('icon-file').addEventListener('change', async () => {
-  const file = $('icon-file').files[0];
+// Site images (icon, sign-in background): click the picture to change it,
+// Remove to clear it. The icon falls back to the built-in one when unset.
+function renderSiteImages(b) {
+  for (const slot of document.querySelectorAll('#site-images .slot')) {
+    const name = slot.dataset.site;
+    const has = name === 'icon' ? b.hasIcon : b.hasBackground;
+    const img = slot.querySelector('img');
+    const showImage = has || name === 'icon';
+    img.hidden = !showImage;
+    img.src = showImage ? `/img/site/${name}?v=${Date.now()}` : '';
+    slot.querySelector('.unset').hidden = showImage;
+    slot.classList.toggle('set', has);
+    slot.querySelector('[data-action="site-clear"]').hidden = !has;
+  }
+}
+
+$('site-images').addEventListener('change', async (event) => {
+  const input = event.target;
+  if (input.type !== 'file') return;
+  const name = input.closest('.slot').dataset.site;
+  const file = input.files[0];
   if (!file) return;
   try {
-    await api('PUT', '/api/settings/icon', file, file.type);
-    await loadBranding();
-    $('icon-preview').src = `/img/site/icon?v=${Date.now()}`;
-    say($('settings-status'), 'icon saved');
+    await api('PUT', `/api/settings/${name}`, file, file.type);
+    renderSiteImages(await loadBranding());
+    say($('settings-status'), `${name} saved`);
   } catch (err) {
     say($('settings-status'), err.message, true);
   }
-  $('icon-file').value = '';
+  input.value = '';
 });
 
-$('icon-remove').addEventListener('click', async () => {
+$('site-images').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="site-clear"]');
+  if (!button) return;
+  const name = button.closest('.slot').dataset.site;
   try {
-    await api('DELETE', '/api/settings/icon');
-    await loadBranding();
-    $('icon-preview').src = `/img/site/icon?v=${Date.now()}`;
-    say($('settings-status'), 'icon removed');
+    await api('DELETE', `/api/settings/${name}`);
+    renderSiteImages(await loadBranding());
+    say($('settings-status'), `${name} removed`);
   } catch (err) {
     say($('settings-status'), err.message, true);
   }
@@ -418,7 +438,7 @@ async function init() {
     $('set-border-color').value = settings.borderColor;
     $('set-badge').checked = settings.badge;
     $('set-plate').checked = Boolean(settings.plate);
-    $('icon-preview').src = `/img/site/icon?v=${Date.now()}`;
+    renderSiteImages(settings);
     showStreamKey();
     await loadUsers();
     setInterval(refreshLive, 5000);

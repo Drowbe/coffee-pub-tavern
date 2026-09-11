@@ -26,6 +26,7 @@ const IMAGE_TYPES = {
   'image/webp': 'webp',
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const SITE_IMAGES = ['icon', 'background'];
 
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern',
@@ -320,28 +321,35 @@ class Store {
     if (previous) fs.rmSync(path.join(this.imagesDir, key, previous), { force: true });
   }
 
-  // Site icon: images/site/icon.<ext>
-  iconPath() {
+  // Site images: images/site/<name>.<ext>. "icon" is the server icon and
+  // "background" the picture behind the sign-in page.
+  siteImagePath(name) {
+    if (!SITE_IMAGES.includes(name)) return null;
     const dir = path.join(this.imagesDir, 'site');
     if (!fs.existsSync(dir)) return null;
-    const file = fs.readdirSync(dir).find((f) => f.startsWith('icon.'));
+    const file = fs.readdirSync(dir).find((f) => f.startsWith(`${name}.`));
     return file ? path.join(dir, file) : null;
   }
 
-  setIcon(buffer, contentType) {
+  setSiteImage(name, buffer, contentType) {
+    if (!SITE_IMAGES.includes(name)) throw new StoreError('unknown image', 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
     if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError('image is larger than 5 MB');
-    this.removeIcon();
+    this.removeSiteImage(name);
     const dir = path.join(this.imagesDir, 'site');
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, `icon.${ext}`), buffer);
+    fs.writeFileSync(path.join(dir, `${name}.${ext}`), buffer);
   }
 
-  removeIcon() {
-    const existing = this.iconPath();
+  removeSiteImage(name) {
+    const existing = this.siteImagePath(name);
     if (existing) fs.rmSync(existing, { force: true });
+  }
+
+  iconPath() {
+    return this.siteImagePath('icon');
   }
 }
 
