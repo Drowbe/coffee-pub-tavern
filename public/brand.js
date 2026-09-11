@@ -10,6 +10,7 @@ export async function loadBranding() {
   document.querySelectorAll('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
   document.querySelectorAll('[data-brand="tableName"]').forEach((el) => (el.textContent = b.tableName));
   document.querySelectorAll('[data-brand="loginText"]').forEach((el) => (el.textContent = b.loginText));
+  document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
   const suffix = document.title.split(' - ').slice(1).join(' - ');
   document.title = suffix ? `${b.serverName} - ${suffix}` : b.serverName;
   let icon = document.querySelector('link[rel="icon"]');

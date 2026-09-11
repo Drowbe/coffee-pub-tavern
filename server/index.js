@@ -19,7 +19,10 @@ const {
   TAVERN_ADMIN_USER = 'admin',
   TAVERN_ADMIN_PASSWORD = '',
   TAVERN_ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
+  TAVERN_REVISION = 'dev',
 } = process.env;
+
+const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
 
 if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
   console.error('LIVEKIT_API_KEY and LIVEKIT_API_SECRET are required.');
@@ -165,7 +168,7 @@ function publicUser(req, u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath() };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION };
 }
 
 function initials(name) {
@@ -450,5 +453,5 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(Number(PORT), () => {
-  console.log(`${store.settings.serverName} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
+  console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
 });
