@@ -196,10 +196,6 @@ function initialsSvg(name) {
     `</svg>`;
 }
 
-const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">` +
-  `<rect width="128" height="128" rx="28" fill="#241c16"/>` +
-  `<text x="64" y="86" text-anchor="middle" font-size="64">&#9749;</text></svg>`;
-
 function sendImage(res, file) {
   res.set('Cache-Control', 'no-cache');
   res.sendFile(file);
@@ -262,10 +258,11 @@ app.get('/view/:key', (req, res) => {
 
 // Images ---------------------------------------------------------------------
 
+// The server icon: the one set on the Settings tab, else the Coffee Pub brandmark.
 app.get('/img/site/icon', (_req, res) => {
   const file = store.iconPath();
   if (file) return sendImage(res, file);
-  res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(DEFAULT_ICON_SVG);
+  res.set('Cache-Control', 'no-cache').sendFile(path.join(publicDir, 'icon.png'));
 });
 // The sign-in background: nothing until one is set.
 app.get('/img/site/background', (_req, res) => {
