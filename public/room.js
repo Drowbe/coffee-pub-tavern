@@ -37,9 +37,125 @@ function tileFor(participant) {
   name.className = 'name';
   name.textContent = participant.name || participant.identity;
   tile.appendChild(name);
+  tile.draggable = true;
+  tile.addEventListener('dragstart', onDragStart);
+  tile.addEventListener('dragover', onDragOver);
+  tile.addEventListener('drop', onDrop);
+  tile.addEventListener('dragend', onDragEnd);
+  tile.addEventListener('click', () => spotlight(participant.identity));
   tiles.set(participant.identity, tile);
-  $('grid').appendChild(tile);
+  placeInOrder(tile);
+  applyLayout();
   return tile;
+}
+
+// --- layouts and ordering -----------------------------------------------------
+
+const prefs = loadPrefs();
+
+function loadPrefs() {
+  try {
+    return { layout: 'grid', order: [], pinned: null, follow: true, ...JSON.parse(localStorage.getItem('tavern.table') || '{}') };
+  } catch (err) {
+    return { layout: 'grid', order: [], pinned: null, follow: true };
+  }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem('tavern.table', JSON.stringify(prefs));
+  } catch (err) {
+    // private mode or storage off: the session still works
+  }
+}
+
+// Insert a tile where the remembered order says; unknown ones go last.
+function placeInOrder(tile) {
+  const rank = (el) => {
+    const i = prefs.order.indexOf(el.dataset.identity);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const siblings = [...$('grid').querySelectorAll('.tile')];
+  const next = siblings.find((el) => rank(el) > rank(tile));
+  $('grid').insertBefore(tile, next || null);
+}
+
+function rememberOrder() {
+  prefs.order = [...$('grid').querySelectorAll('.tile')].map((el) => el.dataset.identity);
+  savePrefs();
+}
+
+const LAYOUTS = ['grid', 'strip', 'spotlight'];
+
+function setLayout(layout, announce = false) {
+  prefs.layout = LAYOUTS.includes(layout) ? layout : 'grid';
+  savePrefs();
+  $('layout-select').value = prefs.layout;
+  applyLayout();
+  if (announce) setStatus(`layout: ${prefs.layout}`);
+}
+
+function applyLayout() {
+  const grid = $('grid');
+  grid.dataset.layout = prefs.layout;
+  const stage = $('stage');
+  grid.classList.toggle('portrait', stage.clientHeight > stage.clientWidth);
+  if (prefs.layout !== 'spotlight') {
+    grid.querySelectorAll('.tile.spot').forEach((el) => el.classList.remove('spot'));
+    return;
+  }
+  const wanted = (prefs.pinned && tiles.get(prefs.pinned)) || (prefs.follow && speaker && tiles.get(speaker)) || grid.querySelector('.tile');
+  for (const [, tile] of tiles) tile.classList.toggle('spot', tile === wanted);
+}
+
+// Click a tile: pin it as the spotlight (click again to unpin).
+function spotlight(identity) {
+  if (dragging || justDragged) return;
+  prefs.pinned = prefs.pinned === identity ? null : identity;
+  if (prefs.layout !== 'spotlight') prefs.layout = 'spotlight';
+  savePrefs();
+  $('layout-select').value = prefs.layout;
+  applyLayout();
+}
+
+let speaker = null;
+let dragging = null;
+let justDragged = false;
+
+function onDragStart(event) {
+  dragging = event.currentTarget;
+  dragging.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+  try {
+    event.dataTransfer.setData('text/plain', dragging.dataset.identity);
+  } catch (err) {
+    // some browsers refuse setData in synthetic events
+  }
+}
+
+function onDragOver(event) {
+  if (!dragging) return;
+  event.preventDefault();
+  const over = event.currentTarget;
+  if (over === dragging) return;
+  const box = over.getBoundingClientRect();
+  const horizontal = box.width >= box.height || $('grid').dataset.layout !== 'strip';
+  const before = horizontal ? event.clientX < box.left + box.width / 2 : event.clientY < box.top + box.height / 2;
+  over.parentNode.insertBefore(dragging, before ? over : over.nextSibling);
+}
+
+function onDrop(event) {
+  event.preventDefault();
+  rememberOrder();
+}
+
+function onDragEnd() {
+  if (dragging) dragging.classList.remove('dragging');
+  dragging = null;
+  rememberOrder();
+  // a click can follow the drop; keep it from toggling the spotlight
+  justDragged = true;
+  setTimeout(() => (justDragged = false), 200);
 }
 
 function attachTrack(participant, track) {
@@ -190,6 +306,11 @@ room
   .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
     const active = new Set(speakers.map((s) => s.identity));
     for (const [identity, tile] of tiles) tile.classList.toggle('speaking', active.has(identity));
+    const loudest = speakers.find((s) => !s.isLocal) || speakers[0];
+    if (loudest && loudest.identity !== speaker) {
+      speaker = loudest.identity;
+      if (prefs.layout === 'spotlight' && !prefs.pinned && prefs.follow) applyLayout();
+    }
   })
   .on(RoomEvent.ChatMessage, (message, participant) => {
     addMessage(message.message, participant?.name || participant?.identity || 'someone', participant?.isLocal);
@@ -344,6 +465,15 @@ $('chat-form').addEventListener('submit', async (event) => {
   }
 });
 
+$('layout').addEventListener('click', () => setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true));
+$('layout-select').addEventListener('change', (e) => setLayout(e.target.value));
+$('follow-speaker').addEventListener('change', (e) => {
+  prefs.follow = e.target.checked;
+  savePrefs();
+  applyLayout();
+});
+window.addEventListener('resize', applyLayout);
+
 $('settings-toggle').addEventListener('click', () => {
   $('settings').hidden = !$('settings').hidden;
   $('settings-toggle').classList.toggle('on', !$('settings').hidden);
@@ -360,6 +490,7 @@ function onKey(event) {
   if (key === 'm') toggleMic();
   else if (key === 'v') toggleCam();
   else if (key === 'c') toggleChat();
+  else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
   else return;
   event.preventDefault();
 }
@@ -426,6 +557,8 @@ async function openPopout() {
     pipWindow.document.body.appendChild($('stage'));
     watchPointer(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
+    pipWindow.addEventListener('resize', applyLayout);
+    setTimeout(applyLayout, 50);
     pipWindow.addEventListener('pagehide', () => {
       document.body.appendChild($('stage'));
       pipWindow = null;
@@ -449,6 +582,9 @@ async function init() {
   const branding = await loadBranding();
   tableName = branding.tableName || tableName;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  $('layout-select').value = prefs.layout;
+  $('follow-speaker').checked = prefs.follow;
+  applyLayout();
   const hint = describeInstall();
   $('install-hint').textContent = hint;
   $('install-hint').hidden = !hint;
