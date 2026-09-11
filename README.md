@@ -119,7 +119,8 @@ https://tavern.<domain>/view/<key>?s=<stream key>&mode=auto&plate=1&audio=1
 | Parameter | Meaning |
 | --- | --- |
 | `s` | The **stream key** from the manage page. Required. Regenerating it breaks every existing link. |
-| `mode` | `auto` (default): the camera when it is on, the images when it is off. `video`: the camera only. `avatar`: the images only, and the page never downloads the video stream. |
+| `mode` | `auto` (default): the camera when it is on, the images when it is off. `video`: the camera only. `avatar`: the images only, and the page never downloads the video stream. `status`: only the Talking image while they speak and the Muted image while their microphone is off, transparent otherwise; made to overlay a character bar as a second source. |
+| `border` | `1` draws a green frame while the player speaks, like the highlight at the table. |
 | `audio` | `1` plays the player's audio through the source, for a per-player mixer strip in OBS. |
 | `plate` | `1` shows the display name in the corner. |
 | `offline` | `avatar` keeps showing the muted image when the player is not at the table; the default is transparent. |

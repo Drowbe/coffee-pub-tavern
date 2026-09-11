@@ -4,22 +4,28 @@
 // video:  the camera when it is on, otherwise nothing.
 // avatar: the user's normal / talking / muted image, following the microphone.
 // auto:   the camera when it is on, the images otherwise (default).
+// status: only the talking image while they speak and the muted image while
+//         their microphone is off; transparent otherwise. Made to overlay a
+//         character bar next to the video.
+// border=1 draws a green frame while they speak (video and images).
 import { Room, RoomEvent, Track } from '/lib/livekit-client.esm.mjs';
 
 const $ = (id) => document.getElementById(id);
 const wanted = decodeURIComponent(location.pathname.split('/')[2] || '');
 const params = new URLSearchParams(location.search);
 const streamKey = params.get('s') || '';
-const mode = ['video', 'avatar', 'auto'].includes(params.get('mode')) ? params.get('mode') : 'auto';
+const mode = ['video', 'avatar', 'auto', 'status'].includes(params.get('mode')) ? params.get('mode') : 'auto';
+const withBorder = params.get('border') === '1' && mode !== 'status';
 const withAudio = params.get('audio') === '1';
 const showPlate = params.get('plate') === '1';
 const offlineAvatar = params.get('offline') === 'avatar';
 const debug = params.get('debug') === '1';
 // An images-only view never needs the video stream: subscribe by hand.
-const room = new Room({ adaptiveStream: false, autoSubscribe: mode !== 'avatar' });
+const imagesOnly = mode === 'avatar' || mode === 'status';
+const room = new Room({ adaptiveStream: false, autoSubscribe: !imagesOnly });
 
 function subscribeWanted(p) {
-  if (mode !== 'avatar' || p.identity !== wanted) return;
+  if (!imagesOnly || p.identity !== wanted) return;
   for (const pub of p.trackPublications.values()) {
     if (typeof pub.setSubscribed === 'function') pub.setSubscribed(pub.kind === Track.Kind.Audio && withAudio);
   }
@@ -40,8 +46,13 @@ function msg(text) {
 async function loadImages() {
   for (const slot of Object.keys(images)) {
     try {
-      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?s=${encodeURIComponent(streamKey)}`);
-      if (!res.ok) continue;
+      const strict = mode === 'status' ? '&strict=1' : '';
+      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?s=${encodeURIComponent(streamKey)}${strict}`);
+      if (!res.ok) {
+        if (images[slot]) URL.revokeObjectURL(images[slot]);
+        images[slot] = null;
+        continue;
+      }
       const url = URL.createObjectURL(await res.blob());
       if (images[slot]) URL.revokeObjectURL(images[slot]);
       images[slot] = url;
@@ -63,11 +74,16 @@ function render() {
   let state;
   if (mode === 'video') state = online && cameraOn && video ? 'video' : 'blank';
   else if (mode === 'avatar') state = online || offlineAvatar ? 'avatar' : 'blank';
-  else state = online && cameraOn && video ? 'video' : online || offlineAvatar ? 'avatar' : 'blank';
+  else if (mode === 'status') {
+    const slot = online ? avatarSlot() : offlineAvatar ? 'muted' : '';
+    state = slot === 'talking' || slot === 'muted' ? 'avatar' : 'blank';
+  } else state = online && cameraOn && video ? 'video' : online || offlineAvatar ? 'avatar' : 'blank';
 
   if (video) video.hidden = state !== 'video';
   const slot = online ? avatarSlot() : 'muted';
-  const src = images[slot] || images.normal || '';
+  // status mode shows only the two indicator images, never the normal one
+  const src = mode === 'status' ? images[slot] || '' : images[slot] || images.normal || '';
+  document.body.classList.toggle('talking', withBorder && online && speaking && state !== 'blank');
   $('avatar').hidden = state !== 'avatar' || !src;
   if (state === 'avatar' && src && $('avatar').getAttribute('src') !== src) $('avatar').src = src;
   $('plate').hidden = !(showPlate && state !== 'blank');

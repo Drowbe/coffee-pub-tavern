@@ -14,15 +14,20 @@
   </header>
 
   <main class="admin">
-    <section class="panel">
-      <div class="section-head">
-        <h1>The party</h1>
-        <span class="status" id="party-status"></span>
-      </div>
-      <div id="users" class="users"></div>
+    <nav class="subtabs" id="subtabs">
+      <button class="subtab active" data-tab="users" type="button">Users</button>
+      <button class="subtab" data-tab="settings" type="button">Settings</button>
+    </nav>
 
-      <form class="add-user" id="add-user">
-        <h2>Add someone</h2>
+    <section class="panel" id="tab-users">
+      <div class="section-head">
+        <h1>Users</h1>
+        <span class="status" id="party-status"></span>
+        <button class="btn btn-primary btn-small" id="add-toggle" type="button">Add user</button>
+      </div>
+
+      <form class="add-user" id="add-user" hidden>
+        <h2>New user</h2>
         <div class="fields">
           <label>Login<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
           <label>Display name<input id="new-name" type="text" maxlength="40" autocomplete="off"></label>
@@ -32,34 +37,35 @@
         </div>
         <div class="row">
           <button class="btn btn-primary" type="submit">Add</button>
+          <button class="btn" id="add-cancel" type="button">Cancel</button>
           <span class="status error" id="add-error" hidden></span>
         </div>
       </form>
+
+      <div id="users" class="users"></div>
     </section>
 
-    <section class="panel" id="settings">
+    <section class="panel" id="tab-settings" hidden>
       <h1>Settings</h1>
-      <div class="fields">
-        <label>Server name<input id="set-server" type="text" maxlength="60"></label>
-        <label>Table name<input id="set-table" type="text" maxlength="60"></label>
-        <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
+      <div class="brand-row">
+        <div class="stack icon-stack">
+          <img class="preview small" id="icon-preview" alt="">
+          <label class="btn btn-small file-btn">Icon<input type="file" id="icon-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+          <button class="btn btn-small btn-danger" id="icon-remove" type="button">Remove</button>
+        </div>
+        <div class="fields grow">
+          <label>Server name<input id="set-server" type="text" maxlength="60"></label>
+          <label>Table name<input id="set-table" type="text" maxlength="60"></label>
+          <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
+        </div>
       </div>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
       </div>
 
-      <h2>Icon</h2>
-      <div class="image-row">
-        <img class="preview small" id="icon-preview" alt="">
-        <div class="stack">
-          <label class="btn file-btn">Choose icon<input type="file" id="icon-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
-          <button class="btn btn-danger" id="icon-remove" type="button">Remove</button>
-        </div>
-      </div>
-
-      <h2>Stream key</h2>
-      <p class="hint">OBS and Coffee Pub Studio use this key to load the view pages and the party list. Regenerating it breaks every existing view link.</p>
+      <h2>OBS access</h2>
+      <p class="hint">OBS never signs in. Each user's OBS view link carries this <strong>stream key</strong> instead of a login, and Coffee Pub Studio fetches it by itself when you sign in there. You only need it here to build a view link by hand. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
       <div class="row">
         <code class="key" id="stream-key">••••••••</code>
         <button class="btn" id="stream-show" type="button">Show</button>
@@ -111,11 +117,13 @@
         </div>
         <p class="hint">Talking and Muted fall back to Normal, Normal falls back to No video, and No video falls back to initials.</p>
 
-        <h3>OBS view</h3>
+        <h3>OBS view link</h3>
+        <p class="hint">A page for an OBS Browser Source. Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</p>
         <div class="row">
-          <select data-view-mode><option value="auto">Video, images when the camera is off</option><option value="video">Video only</option><option value="avatar">Images only</option></select>
+          <select data-view-mode><option value="auto">Video, images when the camera is off</option><option value="video">Video only</option><option value="avatar">Images only</option><option value="status">Talking and muted images only (overlay)</option></select>
           <label class="check"><input type="checkbox" data-view-audio> audio</label>
           <label class="check"><input type="checkbox" data-view-plate> name plate</label>
+          <label class="check"><input type="checkbox" data-view-border checked> talking border</label>
           <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
           <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
         </div>

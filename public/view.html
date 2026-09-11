@@ -11,6 +11,9 @@
     .avatar { object-fit: contain; }
     .plate { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,0.6); font-weight: 600; font-size: 16px; }
     .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a8998a; font-size: 14px; }
+    /* talking frame (border=1): matches the green highlight at the table */
+    .frame { position: absolute; inset: 0; pointer-events: none; border: 4px solid #6fae6b; border-radius: 8px; box-shadow: inset 0 0 12px rgba(111, 174, 107, 0.6); opacity: 0; transition: opacity 0.12s ease; }
+    body.talking .frame { opacity: 1; }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -18,6 +21,7 @@
   <img class="avatar" id="avatar" alt="" hidden>
   <div class="msg" id="msg" hidden></div>
   <span class="plate" id="plate" hidden></span>
+  <div class="frame"></div>
   <script type="module" src="/view.js"></script>
 </body>
 </html>

@@ -267,6 +267,12 @@ app.get('/img/:key/:slot', (req, res) => {
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
   const slot = SLOTS.includes(req.params.slot) ? req.params.slot : 'novideo';
+  // strict=1: that slot only, no fallback chain (the status overlay must stay
+  // transparent when no talking or muted image was set).
+  if (req.query.strict === '1') {
+    const exact = store.imagePath(user.key, slot);
+    return exact ? sendImage(res, exact) : res.status(404).end();
+  }
   const resolved = store.resolveImage(user.key, slot);
   if (resolved) return sendImage(res, resolved.file);
   if (req.query.fallback === 'none') return res.status(404).end();

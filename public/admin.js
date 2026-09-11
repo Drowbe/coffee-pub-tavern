@@ -30,11 +30,38 @@ function viewLink(user, card) {
   const mode = card.querySelector('[data-view-mode]').value;
   const audio = card.querySelector('[data-view-audio]').checked;
   const plate = card.querySelector('[data-view-plate]').checked;
+  const border = card.querySelector('[data-view-border]').checked;
   const q = new URLSearchParams({ s: streamKey, mode });
   if (audio) q.set('audio', '1');
   if (plate) q.set('plate', '1');
+  if (border && mode !== 'status') q.set('border', '1');
   return `${user.viewUrl}?${q}`;
 }
+
+// Users / Settings tabs, remembered in the address
+function selectTab(name) {
+  const tab = name === 'settings' ? 'settings' : 'users';
+  $('tab-users').hidden = tab !== 'users';
+  $('tab-settings').hidden = tab !== 'settings';
+  for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
+  if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+}
+$('subtabs').addEventListener('click', (event) => {
+  const b = event.target.closest('.subtab');
+  if (b) selectTab(b.dataset.tab);
+});
+window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
+selectTab(location.hash.slice(1));
+
+$('add-toggle').addEventListener('click', () => {
+  $('add-user').hidden = !$('add-user').hidden;
+  if (!$('add-user').hidden) $('new-login').focus();
+});
+$('add-cancel').addEventListener('click', () => {
+  $('add-user').hidden = true;
+  $('add-user').reset();
+  $('new-link').checked = true;
+});
 
 function fill(card, user) {
   card.dataset.key = user.key;
@@ -190,7 +217,7 @@ function wire(card) {
         say(status, 'image saved');
       });
       input.value = '';
-    } else if (input.matches('[data-view-mode], [data-view-audio], [data-view-plate]')) {
+    } else if (input.matches('[data-view-mode], [data-view-audio], [data-view-plate], [data-view-border]')) {
       card.querySelector('[data-view-open]').href = viewLink(user, card);
     }
   });
@@ -247,6 +274,7 @@ $('add-user').addEventListener('submit', async (event) => {
     renderUsers();
     $('add-user').reset();
     $('new-link').checked = true;
+    $('add-user').hidden = true;
     const card = cards.get(user.key);
     card.querySelector('.user-body').hidden = false;
     card.querySelector('[data-action="toggle"]').textContent = 'Close';
