@@ -119,7 +119,14 @@ room
   });
 
 async function fillDevices() {
-  const devices = await Room.getLocalDevices();
+  // Do not let the device list ask for permissions again: a denied camera
+  // would throw here and drop an audio-only player out of the table.
+  let devices = [];
+  try {
+    devices = await Room.getLocalDevices(undefined, false);
+  } catch (err) {
+    console.warn('[tavern] device list:', err.message);
+  }
   for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')]]) {
     select.textContent = '';
     for (const d of devices.filter((d) => d.kind === kind)) {
@@ -150,16 +157,38 @@ async function join() {
       tileFor(p);
       updateMuted(p);
     }
-    const tracks = await createLocalTracks({ audio: true, video: { resolution: { width: 1280, height: 720 } } });
-    console.debug('[tavern] local tracks', tracks.map((t) => t.kind).join(','));
+    // Ask for the microphone and the camera separately: a player with no
+    // camera (or who declines it) still joins with audio, and the other way
+    // round. Each one that works is published; each that fails is reported.
+    const missing = [];
+    const tracks = [];
+    try {
+      tracks.push(...(await createLocalTracks({ audio: true })));
+    } catch (err) {
+      console.warn('[tavern] no microphone:', err.message);
+      missing.push('microphone');
+    }
+    try {
+      tracks.push(...(await createLocalTracks({ video: { resolution: { width: 1280, height: 720 } } })));
+    } catch (err) {
+      console.warn('[tavern] no camera:', err.message);
+      missing.push('camera');
+    }
+    console.debug('[tavern] local tracks', tracks.map((t) => t.kind).join(',') || 'none');
     for (const track of tracks) {
       await room.localParticipant.publishTrack(track);
       console.debug('[tavern] published', track.kind);
     }
     updateMuted(room.localParticipant);
+    updateCamera(room.localParticipant);
     await fillDevices();
-    $('mic').classList.add('on');
-    $('cam').classList.add('on');
+    const haveMic = tracks.some((t) => t.kind === Track.Kind.Audio);
+    const haveCam = tracks.some((t) => t.kind === Track.Kind.Video);
+    $('mic').classList.toggle('on', haveMic);
+    $('mic').classList.toggle('off', !haveMic);
+    $('cam').classList.toggle('on', haveCam);
+    $('cam').classList.toggle('off', !haveCam);
+    if (missing.length) setStatus(`at ${tableName} (no ${missing.join(' or ')})`);
   } catch (err) {
     setStatus('', false);
     $('join-error').textContent = err.message;
@@ -174,16 +203,26 @@ $('join-button').addEventListener('click', join);
 
 $('mic').addEventListener('click', async () => {
   const enabled = !room.localParticipant.isMicrophoneEnabled;
-  await room.localParticipant.setMicrophoneEnabled(enabled);
-  $('mic').classList.toggle('on', enabled);
-  $('mic').classList.toggle('off', !enabled);
+  try {
+    await room.localParticipant.setMicrophoneEnabled(enabled);
+  } catch (err) {
+    setStatus(`microphone: ${err.message}`, true);
+  }
+  const on = room.localParticipant.isMicrophoneEnabled;
+  $('mic').classList.toggle('on', on);
+  $('mic').classList.toggle('off', !on);
   updateMuted(room.localParticipant);
 });
 $('cam').addEventListener('click', async () => {
   const enabled = !room.localParticipant.isCameraEnabled;
-  await room.localParticipant.setCameraEnabled(enabled);
-  $('cam').classList.toggle('on', enabled);
-  $('cam').classList.toggle('off', !enabled);
+  try {
+    await room.localParticipant.setCameraEnabled(enabled);
+  } catch (err) {
+    setStatus(`camera: ${err.message}`, true);
+  }
+  const on = room.localParticipant.isCameraEnabled;
+  $('cam').classList.toggle('on', on);
+  $('cam').classList.toggle('off', !on);
   updateCamera(room.localParticipant);
 });
 $('mic-select').addEventListener('change', (e) => room.switchActiveDevice('audioinput', e.target.value));
