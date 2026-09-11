@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
-const { Store, StoreError, SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, randomToken } = require('./store');
+const { Store, StoreError, SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, randomToken } = require('./store');
 const auth = require('./auth');
 
 const {
@@ -161,14 +161,22 @@ function publicUser(req, u) {
     hasPassword: !!u.passwordHash,
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
+    player: { ...u.player, effective: store.effectivePlayer(u) },
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
     createdAt: u.createdAt,
   };
 }
 
+// What the table and the view pages need about everyone: name and the
+// talking colour, so tiles and frames match.
+function tableUser(u) {
+  const p = store.effectivePlayer(u);
+  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, badge: p.badge, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+}
+
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge };
 }
 
 function initials(name) {
@@ -260,22 +268,19 @@ app.get('/img/site/icon', (_req, res) => {
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(DEFAULT_ICON_SVG);
 });
 
-// A user's image for a slot, with the fallback chain and an initials plate at
-// the end, so an <img> always renders. Signed-in users and stream key holders.
+// A user's image for a slot. The player image always renders (an initials
+// plate when none is set); every other slot is optional and 404s when unset,
+// so overlays and the character box stay transparent. Signed-in users and
+// stream key holders.
 app.get('/img/:key/:slot', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
-  const slot = SLOTS.includes(req.params.slot) ? req.params.slot : 'novideo';
-  // strict=1: that slot only, no fallback chain (the status overlay must stay
-  // transparent when no talking or muted image was set).
-  if (req.query.strict === '1') {
-    const exact = store.imagePath(user.key, slot);
-    return exact ? sendImage(res, exact) : res.status(404).end();
-  }
+  const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  const slot = SLOTS.includes(wanted) ? wanted : 'player';
   const resolved = store.resolveImage(user.key, slot);
   if (resolved) return sendImage(res, resolved.file);
-  if (req.query.fallback === 'none') return res.status(404).end();
+  if (slot !== 'player' || req.query.fallback === 'none') return res.status(404).end();
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
 });
 
@@ -355,13 +360,19 @@ app.post('/api/token', async (req, res) => {
 });
 
 // A user may replace or clear their own no-video image.
-app.put('/api/me/images/novideo', requireUser, rawImage, (req, res) => {
-  store.setImage(currentUser(req).key, 'novideo', req.body, req.get('content-type'));
+app.put('/api/me/images/player', requireUser, rawImage, (req, res) => {
+  store.setImage(currentUser(req).key, 'player', req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/me/images/novideo', requireUser, (req, res) => {
-  store.removeImage(currentUser(req).key, 'novideo');
+app.delete('/api/me/images/player', requireUser, (req, res) => {
+  store.removeImage(currentUser(req).key, 'player');
   res.json({ ok: true });
+});
+
+// Everyone at the table: names and talking colours for the tiles.
+app.get('/api/table', (req, res) => {
+  if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({ ...branding(), users: store.users.map(tableUser) });
 });
 
 // Stream API (OBS pages and the Studio app) ---------------------------------
@@ -372,6 +383,7 @@ app.get('/api/status', requireStream, async (req, res) => {
   res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u), online: byKey.get(u.key) || null })),
+    table: store.users.map(tableUser),
   });
 });
 
@@ -389,12 +401,13 @@ app.post('/api/users', requireAdmin, (req, res) => {
 });
 
 app.patch('/api/users/:key', requireAdmin, (req, res) => {
-  const { login, displayName, role, password } = req.body || {};
+  const { login, displayName, role, password, player } = req.body || {};
   const patch = {};
   if (login !== undefined) patch.login = login;
   if (displayName !== undefined) patch.displayName = displayName;
   if (role !== undefined) patch.role = role;
   if (password !== undefined) patch.passwordHash = password ? auth.hashPassword(password) : null;
+  if (player !== undefined) patch.player = player;
   const self = currentUser(req);
   if (self.key === req.params.key && role !== undefined && role !== 'admin') {
     return res.status(400).json({ error: 'you cannot demote yourself' });
@@ -420,12 +433,13 @@ app.delete('/api/users/:key/link', requireAdmin, (req, res) => {
 });
 
 app.put('/api/users/:key/images/:slot', requireAdmin, rawImage, (req, res) => {
-  store.setImage(req.params.key, req.params.slot, req.body, req.get('content-type'));
+  store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'));
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
-  if (!SLOTS.includes(req.params.slot)) return res.status(400).json({ error: 'unknown image slot' });
-  store.removeImage(req.params.key, req.params.slot);
+  const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
+  store.removeImage(req.params.key, slot);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 

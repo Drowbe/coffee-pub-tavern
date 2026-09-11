@@ -1,37 +1,34 @@
 // OBS view of one user on a transparent background.
-//   /view/<key>?s=<stream key>&mode=auto|video|avatar&audio=1&plate=1&offline=blank|avatar&debug=1
+//   /view/<key>?s=<stream key>&kind=player|character&plate=1&debug=1
 //
-// video:  the camera when it is on, otherwise nothing.
-// avatar: the user's normal / talking / muted image, following the microphone.
-// auto:   the camera when it is on, the images otherwise (default).
-// status: only the talking image while they speak and the muted image while
-//         their microphone is off; transparent otherwise. Made to overlay a
-//         character bar next to the video.
-// border=1 draws a green frame while they speak (video and images).
+// player:    the camera when it is on, the Player image when it is off; the
+//            talking border and the muted badge as set for the user, plus the
+//            optional Player talking / muted overlay images. Audio always plays;
+//            whether it reaches the OBS mixer is OBS's "Control audio via OBS".
+// character: the Character image (nothing if none is set) with the Talking
+//            image on top while they speak and the Muted image while muted.
+//            Made to sit over a character bar as a second source. No audio.
+//
+// Older links: mode=auto|video -> player, mode=avatar|status -> character.
 import { Room, RoomEvent, Track } from '/lib/livekit-client.esm.mjs';
 
 const $ = (id) => document.getElementById(id);
 const wanted = decodeURIComponent(location.pathname.split('/')[2] || '');
 const params = new URLSearchParams(location.search);
 const streamKey = params.get('s') || '';
-const mode = ['video', 'avatar', 'auto', 'status'].includes(params.get('mode')) ? params.get('mode') : 'auto';
-const withBorder = params.get('border') === '1' && mode !== 'status';
-const withAudio = params.get('audio') === '1';
+const legacy = { auto: 'player', video: 'player', avatar: 'character', status: 'character' };
+const kind = params.get('kind') === 'character' || params.get('kind') === 'player' ? params.get('kind') : legacy[params.get('mode')] || 'player';
 const showPlate = params.get('plate') === '1';
-const offlineAvatar = params.get('offline') === 'avatar';
+const withAudio = kind === 'player' && params.get('audio') !== '0';
 const debug = params.get('debug') === '1';
-// An images-only view never needs the video stream: subscribe by hand.
-const imagesOnly = mode === 'avatar' || mode === 'status';
-const room = new Room({ adaptiveStream: false, autoSubscribe: !imagesOnly });
+const room = new Room({ adaptiveStream: false });
+// The character box never needs the media: subscribe to nothing.
+const connectOptions = { autoSubscribe: kind === 'player' };
 
-function subscribeWanted(p) {
-  if (!imagesOnly || p.identity !== wanted) return;
-  for (const pub of p.trackPublications.values()) {
-    if (typeof pub.setSubscribed === 'function') pub.setSubscribed(pub.kind === Track.Kind.Audio && withAudio);
-  }
-}
-
-const images = { normal: null, talking: null, muted: null }; // slot -> blob URL
+// Slots this kind draws, as blob URLs (null when the user has none).
+const slots = kind === 'player' ? ['player', 'playerTalking', 'playerMuted'] : ['character', 'talking', 'muted'];
+const images = Object.fromEntries(slots.map((s) => [s, null]));
+let settings = { border: true, borderColor: '#6fae6b', badge: true, displayName: '' };
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -44,18 +41,11 @@ function msg(text) {
 }
 
 async function loadImages() {
-  for (const slot of Object.keys(images)) {
+  for (const slot of slots) {
     try {
-      const strict = mode === 'status' ? '&strict=1' : '';
-      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?s=${encodeURIComponent(streamKey)}${strict}`);
-      if (!res.ok) {
-        if (images[slot]) URL.revokeObjectURL(images[slot]);
-        images[slot] = null;
-        continue;
-      }
-      const url = URL.createObjectURL(await res.blob());
+      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?s=${encodeURIComponent(streamKey)}`);
       if (images[slot]) URL.revokeObjectURL(images[slot]);
-      images[slot] = url;
+      images[slot] = res.ok ? URL.createObjectURL(await res.blob()) : null;
     } catch (err) {
       // keep whatever we had
     }
@@ -63,33 +53,53 @@ async function loadImages() {
   render();
 }
 
-function avatarSlot() {
-  if (!micOn) return 'muted';
-  return speaking ? 'talking' : 'normal';
+async function loadSettings() {
+  try {
+    const res = await fetch(`/api/table?s=${encodeURIComponent(streamKey)}`);
+    if (!res.ok) return;
+    const { users } = await res.json();
+    const me = users.find((u) => u.key === wanted);
+    if (me) settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, displayName: me.displayName };
+    document.documentElement.style.setProperty('--talk', settings.borderColor);
+  } catch (err) {
+    // defaults stand
+  }
+  render();
+}
+
+function setImage(el, src) {
+  el.hidden = !src;
+  if (src && el.getAttribute('src') !== src) el.src = src;
 }
 
 function render() {
   const online = !!participant;
   const video = document.querySelector('video');
-  let state;
-  if (mode === 'video') state = online && cameraOn && video ? 'video' : 'blank';
-  else if (mode === 'avatar') state = online || offlineAvatar ? 'avatar' : 'blank';
-  else if (mode === 'status') {
-    const slot = online ? avatarSlot() : offlineAvatar ? 'muted' : '';
-    state = slot === 'talking' || slot === 'muted' ? 'avatar' : 'blank';
-  } else state = online && cameraOn && video ? 'video' : online || offlineAvatar ? 'avatar' : 'blank';
-
-  if (video) video.hidden = state !== 'video';
-  const slot = online ? avatarSlot() : 'muted';
-  // status mode shows only the two indicator images, never the normal one
-  const src = mode === 'status' ? images[slot] || '' : images[slot] || images.normal || '';
-  document.body.classList.toggle('talking', withBorder && online && speaking && state !== 'blank');
-  $('avatar').hidden = state !== 'avatar' || !src;
-  if (state === 'avatar' && src && $('avatar').getAttribute('src') !== src) $('avatar').src = src;
+  const muted = online && !micOn;
+  const talking = online && speaking && micOn;
+  let state = 'blank';
+  if (kind === 'player') {
+    if (online && cameraOn && video) state = 'video';
+    else if (online) state = 'image';
+    if (video) video.hidden = state !== 'video';
+    setImage($('base'), state === 'image' ? images.player : null);
+    setImage($('overlay-talking'), talking ? images.playerTalking : null);
+    setImage($('overlay-muted'), muted ? images.playerMuted : null);
+    document.body.classList.toggle('talking', settings.border && talking && state !== 'blank');
+    $('badge').hidden = !(settings.badge && muted && state !== 'blank');
+  } else {
+    state = online ? 'image' : 'blank';
+    setImage($('base'), online ? images.character : null);
+    setImage($('overlay-talking'), talking ? images.talking : null);
+    setImage($('overlay-muted'), muted ? images.muted : null);
+    document.body.classList.remove('talking');
+    $('badge').hidden = true;
+  }
   $('plate').hidden = !(showPlate && state !== 'blank');
-  if (showPlate) $('plate').textContent = participant?.name || wanted;
+  if (showPlate) $('plate').textContent = participant?.name || settings.displayName || wanted;
   document.body.dataset.state = state;
-  document.body.dataset.slot = state === 'avatar' ? slot : '';
+  document.body.dataset.talking = talking ? '1' : '';
+  document.body.dataset.muted = muted ? '1' : '';
   msg(online ? '' : 'waiting for player');
 }
 
@@ -109,7 +119,6 @@ function refreshFlags() {
 function adopt(p) {
   if (p.identity !== wanted) return;
   participant = p;
-  subscribeWanted(p);
   refreshFlags();
   render();
 }
@@ -129,6 +138,7 @@ room
   .on(RoomEvent.TrackSubscribed, (track, _pub, p) => {
     if (p.identity !== wanted) return;
     participant = p;
+    if (kind !== 'player') return;
     if (track.kind === Track.Kind.Video) {
       document.querySelector('video')?.remove();
       document.body.prepend(track.attach());
@@ -171,7 +181,7 @@ async function connect() {
     });
     if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
     const { token, livekitUrl } = await res.json();
-    await room.connect(livekitUrl, token);
+    await room.connect(livekitUrl, token, connectOptions);
     for (const p of room.remoteParticipants.values()) adopt(p);
     render();
   } catch (err) {
@@ -180,6 +190,10 @@ async function connect() {
   }
 }
 
+loadSettings();
 loadImages();
-setInterval(loadImages, 5 * 60000); // pick up replaced images without a reload
+setInterval(() => {
+  loadImages();
+  loadSettings();
+}, 5 * 60000); // pick up replaced images and colours without a reload
 connect();

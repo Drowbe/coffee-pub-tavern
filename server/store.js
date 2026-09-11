@@ -11,7 +11,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const SLOTS = ['novideo', 'normal', 'talking', 'muted'];
+// Image slots. Player: what the player's video box shows when the camera is
+// off, plus optional overlays drawn on the video while they talk or are muted.
+// Character: an optional base image plus overlays for the character box.
+const SLOTS = ['player', 'playerTalking', 'playerMuted', 'character', 'talking', 'muted'];
+// Pre-0.3 names, accepted on the way in and on image routes.
+const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
+const DEFAULT_BORDER_COLOR = '#6fae6b';
 const ROLES = ['admin', 'user'];
 const IMAGE_TYPES = {
   'image/png': 'png',
@@ -26,7 +32,19 @@ const DEFAULT_SETTINGS = {
   tableName: 'The Table',
   room: 'tavern',
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
+  // Defaults for every player's video box; a user can override their own.
+  border: true,
+  borderColor: DEFAULT_BORDER_COLOR,
+  badge: true,
 };
+
+function cleanColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : '';
+}
+
+function cleanTri(value) {
+  return value === true || value === false ? value : null;
+}
 
 // Short, URL-safe, unambiguous: 8 lowercase letters and digits, no 0/o/1/l/i.
 const KEY_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -95,9 +113,13 @@ class Store {
     const key = typeof u.key === 'string' && /^[a-z0-9]{4,16}$/.test(u.key) ? u.key : null;
     if (!key) return null;
     const images = {};
+    for (const [legacy, slot] of Object.entries(LEGACY_SLOTS)) {
+      if (typeof u.images?.[legacy] === 'string') images[slot] = u.images[legacy];
+    }
     for (const slot of SLOTS) {
       if (typeof u.images?.[slot] === 'string') images[slot] = u.images[slot];
     }
+    const player = u.player && typeof u.player === 'object' ? u.player : {};
     return {
       key,
       login: cleanLogin(u.login) || key,
@@ -106,6 +128,8 @@ class Store {
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
+      // null means "use the server default"
+      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor), badge: cleanTri(player.badge) },
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
   }
@@ -137,8 +161,21 @@ class Store {
     if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
+    if (patch.border !== undefined) s.border = Boolean(patch.border);
+    if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
+    if (patch.badge !== undefined) s.badge = Boolean(patch.badge);
     this.save();
     return s;
+  }
+
+  // A user's video-box settings with the server defaults filled in.
+  effectivePlayer(user) {
+    const s = this.data.settings;
+    return {
+      border: user.player.border === null ? s.border : user.player.border,
+      borderColor: user.player.borderColor || s.borderColor,
+      badge: user.player.badge === null ? s.badge : user.player.badge,
+    };
   }
 
   // --- users --------------------------------------------------------------
@@ -206,6 +243,15 @@ class Store {
     }
     if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash || null;
     if (patch.linkToken !== undefined) user.linkToken = patch.linkToken || null;
+    if (patch.player && typeof patch.player === 'object') {
+      if (patch.player.border !== undefined) user.player.border = cleanTri(patch.player.border);
+      if (patch.player.borderColor !== undefined) {
+        // an invalid colour is ignored; an empty one goes back to the default
+        const colour = cleanColor(patch.player.borderColor);
+        if (colour || patch.player.borderColor === '') user.player.borderColor = colour;
+      }
+      if (patch.player.badge !== undefined) user.player.badge = cleanTri(patch.player.badge);
+    }
     this.save();
     return user;
   }
@@ -234,15 +280,12 @@ class Store {
     return fs.existsSync(full) ? full : null;
   }
 
-  // The file to serve for a slot, following the fallback chain
-  // talking/muted -> normal -> novideo. Returns null when the user has none.
+  // The file to serve for a slot. Only the player image has a fallback (the
+  // initials plate is drawn by the server); every other slot is optional and
+  // simply absent when not set, so overlays stay transparent.
   resolveImage(key, slot) {
-    const chain = { novideo: ['novideo'], normal: ['normal', 'novideo'], talking: ['talking', 'normal', 'novideo'], muted: ['muted', 'normal', 'novideo'] };
-    for (const s of chain[slot] || []) {
-      const full = this.imagePath(key, s);
-      if (full) return { file: full, slot: s };
-    }
-    return null;
+    const full = this.imagePath(key, slot);
+    return full ? { file: full, slot } : null;
   }
 
   setImage(key, slot, buffer, contentType) {
@@ -305,4 +348,4 @@ class StoreError extends Error {
   }
 }
 
-module.exports = { Store, StoreError, SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, randomToken, cleanText, cleanLogin };
+module.exports = { Store, StoreError, SLOTS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, randomToken, cleanText, cleanLogin };

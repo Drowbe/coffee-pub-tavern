@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 let me = null;
 
 function refreshPreview() {
-  $('preview').src = `/img/${encodeURIComponent(me.key)}/novideo?v=${Date.now()}`;
+  $('preview').src = `/img/${encodeURIComponent(me.key)}/player?v=${Date.now()}`;
 }
 
 function say(text, error = false) {
@@ -17,7 +17,7 @@ $('file').addEventListener('change', async () => {
   if (!file) return;
   try {
     say('uploading...');
-    await api('PUT', '/api/me/images/novideo', file, file.type);
+    await api('PUT', '/api/me/images/player', file, file.type);
     refreshPreview();
     say('saved');
   } catch (err) {
@@ -28,7 +28,7 @@ $('file').addEventListener('change', async () => {
 
 $('remove').addEventListener('click', async () => {
   try {
-    await api('DELETE', '/api/me/images/novideo');
+    await api('DELETE', '/api/me/images/player');
     refreshPreview();
     say('removed');
   } catch (err) {

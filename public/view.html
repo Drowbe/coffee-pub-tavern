@@ -5,23 +5,30 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:">
   <title>Tavern view</title>
   <style>
+    :root { --talk: #6fae6b; }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; }
-    video, .avatar { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; background: transparent; }
-    .avatar { object-fit: contain; }
+    video, .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
+    video { object-fit: cover; }
+    .layer { object-fit: contain; }
     .plate { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,0.6); font-weight: 600; font-size: 16px; }
     .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a8998a; font-size: 14px; }
-    /* talking frame (border=1): matches the green highlight at the table */
-    .frame { position: absolute; inset: 0; pointer-events: none; border: 4px solid #6fae6b; border-radius: 8px; box-shadow: inset 0 0 12px rgba(111, 174, 107, 0.6); opacity: 0; transition: opacity 0.12s ease; }
+    /* talking frame: a real border around the box, any size, never stretched */
+    .frame { position: absolute; inset: 0; pointer-events: none; border: 4px solid var(--talk); border-radius: 8px; box-shadow: inset 0 0 12px color-mix(in srgb, var(--talk) 60%, transparent); opacity: 0; transition: opacity 0.12s ease; }
     body.talking .frame { opacity: 1; }
+    /* muted badge */
+    .badge { position: absolute; right: 12px; top: 12px; width: 34px; height: 34px; border-radius: 50%; background: rgba(184, 80, 63, 0.9); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
     [hidden] { display: none !important; }
   </style>
 </head>
-<body data-state="offline">
-  <img class="avatar" id="avatar" alt="" hidden>
+<body data-state="blank">
+  <img class="layer" id="base" alt="" hidden>
+  <img class="layer" id="overlay-talking" alt="" hidden>
+  <img class="layer" id="overlay-muted" alt="" hidden>
+  <div class="frame"></div>
+  <div class="badge" id="badge" hidden title="muted">&#128263;</div>
   <div class="msg" id="msg" hidden></div>
   <span class="plate" id="plate" hidden></span>
-  <div class="frame"></div>
   <script type="module" src="/view.js"></script>
 </body>
 </html>

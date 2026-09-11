@@ -10,6 +10,21 @@ const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
 let me = null;
 let tableName = 'The Table';
+const tableUsers = new Map(); // key -> { displayName, borderColor, ... } from /api/table
+
+async function loadTable() {
+  try {
+    const { users } = await api('GET', '/api/table');
+    tableUsers.clear();
+    for (const u of users) tableUsers.set(u.key, u);
+    for (const [key, tile] of tiles) {
+      const colour = tableUsers.get(key)?.borderColor;
+      if (colour) tile.style.setProperty('--talk', colour);
+    }
+  } catch (err) {
+    // default colour stands
+  }
+}
 let unread = 0;
 let installPrompt = null;
 let pipWindow = null;
@@ -30,7 +45,9 @@ function tileFor(participant) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/novideo`;
+  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/player`;
+  const colour = tableUsers.get(participant.identity)?.borderColor;
+  if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
   const name = document.createElement('span');
   name.className = 'name';
@@ -583,6 +600,7 @@ async function join() {
   try {
     setStatus('connecting...');
     const { token, livekitUrl } = await api('POST', '/api/token', {});
+    await loadTable();
     await room.connect(livekitUrl, token);
     console.debug('[tavern] connected');
     $('join').hidden = true;

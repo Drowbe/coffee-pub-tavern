@@ -27,16 +27,14 @@ function imgUrl(key, slot) {
 }
 
 function viewLink(user, card) {
-  const mode = card.querySelector('[data-view-mode]').value;
-  const audio = card.querySelector('[data-view-audio]').checked;
+  const kind = card.querySelector('[data-view-kind]').value;
   const plate = card.querySelector('[data-view-plate]').checked;
-  const border = card.querySelector('[data-view-border]').checked;
-  const q = new URLSearchParams({ s: streamKey, mode });
-  if (audio) q.set('audio', '1');
+  const q = new URLSearchParams({ s: streamKey, kind });
   if (plate) q.set('plate', '1');
-  if (border && mode !== 'status') q.set('border', '1');
   return `${user.viewUrl}?${q}`;
 }
+
+let defaults = { border: true, borderColor: '#6fae6b', badge: true };
 
 // Users / Settings tabs, remembered in the address
 function selectTab(name) {
@@ -69,7 +67,7 @@ function fill(card, user) {
   card.querySelector('[data-login]').textContent = user.login;
   card.querySelector('[data-role]').textContent = user.role;
   card.querySelector('[data-key]').textContent = user.key;
-  card.querySelector('[data-thumb]').src = imgUrl(user.key, 'novideo');
+  card.querySelector('[data-thumb]').src = imgUrl(user.key, 'player');
   if (document.activeElement?.closest?.('.user-card') !== card) {
     card.querySelector('[data-field="displayName"]').value = user.displayName;
     card.querySelector('[data-field="login"]').value = user.login;
@@ -84,13 +82,36 @@ function fill(card, user) {
   card.querySelector('[data-action="link-new"]').textContent = user.link ? 'Regenerate' : 'Create';
   for (const slot of card.querySelectorAll('.slot')) {
     const name = slot.dataset.slot;
-    slot.querySelector('img').src = imgUrl(user.key, name);
-    slot.classList.toggle('set', !!user.images[name]);
-    slot.querySelector('[data-action="slot-clear"]').hidden = !user.images[name];
+    const has = !!user.images[name];
+    const img = slot.querySelector('img');
+    img.hidden = !has;
+    if (has) img.src = imgUrl(user.key, name);
+    slot.querySelector('.unset').hidden = has;
+    slot.classList.toggle('set', has);
+    slot.querySelector('[data-action="slot-clear"]').hidden = !has;
   }
-  card.querySelector('[data-view-open]').href = viewLink(user, card);
+  // Player video box: the user's own values, or the defaults when unset
+  const eff = user.player.effective;
+  const own = user.player;
+  if (document.activeElement?.closest?.('.user-card') !== card) {
+    card.querySelector('[data-pfield="border"]').checked = eff.border;
+    card.querySelector('[data-pfield="borderColor"]').value = eff.borderColor;
+    card.querySelector('[data-pfield="badge"]').checked = eff.badge;
+  }
+  const custom = own.border !== null || own.borderColor || own.badge !== null;
+  card.querySelector('[data-player-note]').textContent = custom ? 'custom for this player' : 'server defaults';
+  card.querySelector('[data-action="player-defaults"]').hidden = !custom;
+  // The last admin cannot be demoted; say so before the click.
+  const admins = users.filter((u) => u.role === 'admin').length;
+  const lastAdmin = user.role === 'admin' && admins <= 1;
   const self = me && user.key === me.key;
-  card.querySelector('[data-action="delete"]').hidden = self;
+  const userOption = card.querySelector('[data-field="role"] option[value="user"]');
+  userOption.disabled = lastAdmin || self;
+  card.querySelector('[data-role-note]').hidden = !lastAdmin;
+  if (self && !lastAdmin) card.querySelector('[data-role-note]').textContent = 'Another admin has to change your role.';
+  card.querySelector('[data-role-note]').hidden = !(lastAdmin || self);
+  card.querySelector('[data-view-open]').href = viewLink(user, card);
+  card.querySelector('[data-action="delete"]').hidden = self || lastAdmin;
   renderLive(card, user.online);
 }
 
@@ -180,6 +201,12 @@ function wire(card) {
       });
     } else if (action === 'view-copy') {
       copy(viewLink(user, card), status);
+    } else if (action === 'player-defaults') {
+      run(async () => {
+        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '', badge: null } });
+        replace(updated);
+        say(status, 'using the server defaults');
+      });
     } else if (action === 'mute') {
       run(async () => {
         await api('POST', `/api/users/${user.key}/mute`, { muted: true });
@@ -217,8 +244,19 @@ function wire(card) {
         say(status, 'image saved');
       });
       input.value = '';
-    } else if (input.matches('[data-view-mode], [data-view-audio], [data-view-plate], [data-view-border]')) {
+    } else if (input.matches('[data-view-kind], [data-view-plate]')) {
       card.querySelector('[data-view-open]').href = viewLink(user, card);
+    } else if (input.matches('[data-pfield]')) {
+      run(async () => {
+        const player = {
+          border: card.querySelector('[data-pfield="border"]').checked,
+          borderColor: card.querySelector('[data-pfield="borderColor"]').value,
+          badge: card.querySelector('[data-pfield="badge"]').checked,
+        };
+        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player });
+        replace(updated);
+        say(status, 'saved');
+      });
     }
   });
 }
@@ -299,6 +337,21 @@ $('save-settings').addEventListener('click', async () => {
   }
 });
 
+$('save-defaults').addEventListener('click', async () => {
+  try {
+    const { settings } = await api('PATCH', '/api/settings', {
+      border: $('set-border').checked,
+      borderColor: $('set-border-color').value,
+      badge: $('set-badge').checked,
+    });
+    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge };
+    say($('defaults-status'), 'saved');
+    await loadUsers(); // effective values on the cards follow the defaults
+  } catch (err) {
+    say($('defaults-status'), err.message, true);
+  }
+});
+
 $('icon-file').addEventListener('change', async () => {
   const file = $('icon-file').files[0];
   if (!file) return;
@@ -359,6 +412,10 @@ async function init() {
     $('set-server').value = settings.serverName;
     $('set-table').value = settings.tableName;
     $('set-login-text').value = settings.loginText;
+    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge };
+    $('set-border').checked = settings.border;
+    $('set-border-color').value = settings.borderColor;
+    $('set-badge').checked = settings.badge;
     $('icon-preview').src = `/img/site/icon?v=${Date.now()}`;
     showStreamKey();
     await loadUsers();

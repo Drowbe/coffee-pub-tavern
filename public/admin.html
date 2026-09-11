@@ -64,6 +64,16 @@
         <span class="status" id="settings-status"></span>
       </div>
 
+      <h2>Player video defaults</h2>
+      <p class="hint">Used for every player's video box unless their own Player section overrides it.</p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
+        <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
+        <label class="check"><input type="checkbox" id="set-badge"> Muted badge</label>
+        <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
+        <span class="status" id="defaults-status"></span>
+      </div>
+
       <h2>OBS access</h2>
       <p class="hint">OBS never signs in. Each user's OBS view link carries this <strong>stream key</strong> instead of a login, and Coffee Pub Studio fetches it by itself when you sign in there. You only need it here to build a view link by hand. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
       <div class="row">
@@ -88,10 +98,11 @@
         <button class="btn btn-small" data-action="toggle" type="button">Edit</button>
       </header>
       <div class="user-body" hidden>
+        <h3>Configuration</h3>
         <div class="fields">
           <label>Display name<input data-field="displayName" type="text" maxlength="40"></label>
           <label>Login<input data-field="login" type="text" maxlength="40" autocapitalize="off"></label>
-          <label>Role<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+          <label>Role<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" data-role-note hidden>The only admin. Make someone else an admin first.</small></label>
           <label>New password<input data-field="password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
         </div>
         <div class="row">
@@ -99,33 +110,43 @@
           <button class="btn btn-small" data-action="clear-password" type="button">Remove password</button>
           <span class="status" data-status></span>
         </div>
-
-        <h3>Personal link</h3>
         <div class="row">
+          <span class="field-label">Personal link</span>
           <code class="key link" data-link>off</code>
           <button class="btn btn-small" data-action="link-copy" type="button">Copy</button>
           <button class="btn btn-small" data-action="link-new" type="button">Create</button>
           <button class="btn btn-small btn-danger" data-action="link-off" type="button">Turn off</button>
         </div>
-
-        <h3>Images</h3>
-        <div class="slots">
-          <div class="slot" data-slot="novideo"><img alt=""><span>No video</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="normal"><img alt=""><span>Normal</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="talking"><img alt=""><span>Talking</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="muted"><img alt=""><span>Muted</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-        </div>
-        <p class="hint">Talking and Muted fall back to Normal, Normal falls back to No video, and No video falls back to initials.</p>
-
-        <h3>OBS view link</h3>
-        <p class="hint">A page for an OBS Browser Source. Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</p>
         <div class="row">
-          <select data-view-mode><option value="auto">Video, images when the camera is off</option><option value="video">Video only</option><option value="avatar">Images only</option><option value="status">Talking and muted images only (overlay)</option></select>
-          <label class="check"><input type="checkbox" data-view-audio> audio</label>
+          <span class="field-label">OBS link</span>
+          <select data-view-kind><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
           <label class="check"><input type="checkbox" data-view-plate> name plate</label>
-          <label class="check"><input type="checkbox" data-view-border checked> talking border</label>
           <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
           <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
+          <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
+        </div>
+
+        <h3>Player</h3>
+        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with a drawn border and badge, and optionally with overlay images on top of the video.</p>
+        <div class="row">
+          <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
+          <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
+          <label class="check"><input type="checkbox" data-pfield="badge"> Muted badge</label>
+          <button class="btn btn-small" data-action="player-defaults" type="button" title="Use the server defaults from Settings">Use defaults</button>
+          <span class="hint" data-player-note></span>
+        </div>
+        <div class="slots">
+          <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="playerTalking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking overlay</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="playerMuted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted overlay</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+        </div>
+
+        <h3>Character</h3>
+        <p class="hint">A second box for OBS. The character image, if any, with the talking image on top while they speak and the muted image while their microphone is off. With no character image it is transparent until they talk or mute, so it can sit over a character bar.</p>
+        <div class="slots">
+          <div class="slot" data-slot="character"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="talking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="muted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
         </div>
 
         <div class="row danger-row">

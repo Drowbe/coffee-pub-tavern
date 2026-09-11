@@ -67,7 +67,8 @@ Each account can sign in either way, or both:
   Regenerate it to make the old one stop working; turn it off to require a password.
 
 Sessions last 30 days. Changing someone's password or regenerating their link signs them out
-everywhere.
+everywhere. There is always at least one admin: the last admin cannot be demoted or deleted,
+and an admin cannot change their own role or delete themselves at all; another admin has to.
 
 The admin account named in the compose file is checked on every start: it is created if missing,
 and its password is reset to the compose value if it differs. Forgot the admin password? Change
@@ -99,45 +100,59 @@ an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPh
 use **Share, Add to Home Screen**. In Chrome and Edge the **pop out** button also moves the whole
 table into a small always-on-top window and back.
 
-## Images
+## Player and Character
 
-Each player has four image slots. **No video** shows at the table when their camera is off, and
-the player can set it themselves on the **Your image** page. **Normal**, **Talking** and
-**Muted** are for OBS: the admin sets them on the manage page. Talking and Muted fall back to
-Normal, Normal falls back to No video, and No video falls back to a plate with the player's
-initials, so something always shows. PNG, JPEG, GIF or WebP up to 5 MB; square looks best.
+Each user has two things the recording can show, and both react to the same live signal: who
+is speaking and who is muted.
+
+**Player** is the person. Their video box shows the camera when it is on and the **Player
+image** when it is off (the player can set that one themselves on the **Your image** page).
+While they speak a **talking border** is drawn around the box in the colour set for them, and
+while their microphone is off a **muted badge** appears. Both are drawn, so they fit any source
+size. An admin can also add a **Talking overlay** and a **Muted overlay** image that are laid on
+top of the video, scaled to fit, for something other than a border. The border, its colour and
+the badge have server-wide defaults under Settings and can be overridden per user.
+
+**Character** is a second box for OBS. It shows the **Character image**, if any, with the
+**Talking image** on top while they speak and the **Muted image** while they are muted. With no
+character image it stays transparent until they talk or mute, so it can sit over an existing
+character bar. It carries no audio.
+
+Images are PNG, JPEG, GIF or WebP up to 5 MB. Click an image box to change it, Clear to remove
+it; an empty box says "not set". Overlays and the character image are optional: nothing shows
+until something is set. The player image falls back to a plate with the player's initials.
 
 ## OBS
 
-Every player has a view page on a transparent background. The manage page builds the link for
-you (pick the mode, audio and name plate, then **Copy link**), or write it by hand:
+Every player has two view pages on a transparent background. The user's card on the manage
+page builds the links (Player or Character, with or without a name plate, then **Copy link**),
+or write them by hand:
 
 ```
-https://tavern.<domain>/view/<key>?s=<stream key>&mode=auto&plate=1&audio=1
+https://tavern.<domain>/view/<key>?s=<stream key>&kind=player&plate=1
+https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 ```
 
 | Parameter | Meaning |
 | --- | --- |
-| `s` | The **stream key** from the manage page. Required. Regenerating it breaks every existing link. |
-| `mode` | `auto` (default): the camera when it is on, the images when it is off. `video`: the camera only. `avatar`: the images only, and the page never downloads the video stream. `status`: only the Talking image while they speak and the Muted image while their microphone is off, transparent otherwise; made to overlay a character bar as a second source. |
-| `border` | `1` draws a green frame while the player speaks, like the highlight at the table. |
-| `audio` | `1` plays the player's audio through the source, for a per-player mixer strip in OBS. |
+| `s` | The **stream key** from the Settings tab. Required. Regenerating it breaks every existing link. |
+| `kind` | `player` (default): the camera, the player image when it is off, the talking border, the muted badge and the overlays. `character`: the character image and its overlays, never the video. |
 | `plate` | `1` shows the display name in the corner. |
-| `offline` | `avatar` keeps showing the muted image when the player is not at the table; the default is transparent. |
+| `audio` | The player view always plays the player's audio; `0` makes it silent. Whether it reaches the OBS mixer is OBS's own "Control audio via OBS" on the source. |
 | `debug` | `1` shows connection messages on the page. |
 
 In OBS: Sources, +, Browser, paste the link, set width and height, and untick "Shutdown source
-when not visible". The images switch live: Talking while the player speaks, Muted while their
-microphone is off. With Coffee Pub Studio you skip all of this: its Tavern tab creates and
-maintains the sources for you.
+when not visible". With Coffee Pub Studio you skip all of this: its Tavern tab creates and
+maintains both sources for you.
 
 Kick and mute-microphone buttons are on the manage page next to each player who is at the
 table.
 
 ## Settings
 
-On the manage page: the **server name** shown in the header and browser tab, the **table name**
-shown on the join screen, the **text on the sign-in page**, and an **icon** (any image; used in
+On the manage page's Settings tab: the **server name** shown in the header and browser tab, the
+**table name** shown on the join screen, the **text on the sign-in page**, an **icon** (any
+image; used in
 the header and as the favicon). The **stream key** lives there too.
 
 ## Development
