@@ -273,6 +273,27 @@ app.get('/img/:key/:slot', (req, res) => {
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
 });
 
+// Web app manifest, so the table installs as a chromeless window
+// (Chrome/Edge "Install app", Safari "Add to Dock").
+app.get('/manifest.webmanifest', (_req, res) => {
+  const s = store.settings;
+  const custom = store.iconPath();
+  const icons = [];
+  if (custom && /\.png$/.test(custom)) icons.push({ src: '/img/site/icon', sizes: 'any', type: 'image/png' });
+  icons.push({ src: '/icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' });
+  res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
+    name: s.serverName,
+    short_name: s.serverName.length > 12 ? 'Tavern' : s.serverName,
+    description: `${s.tableName}: voice and video for the table`,
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#1a1410',
+    theme_color: '#1a1410',
+    icons,
+  });
+});
+
 // Static assets, including the LiveKit browser client served from node_modules.
 app.use('/lib/livekit-client.esm.mjs', express.static(path.join(clientDist, 'livekit-client.esm.mjs')));
 app.use(express.static(publicDir, { index: false }));
