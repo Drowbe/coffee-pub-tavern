@@ -1025,6 +1025,8 @@ async function init() {
     const info = await api('GET', '/api/me');
     me = info.user;
     $('whoami').textContent = me.displayName;
+    $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/player?v=${Date.now()}`;
+    $('whoami-img').hidden = false;
     $('admin-link').hidden = me.role !== 'admin';
     $('admin-link-2').hidden = me.role !== 'admin';
     await loadTable(); // the join screen's member grid

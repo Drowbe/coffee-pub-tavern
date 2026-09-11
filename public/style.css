@@ -429,6 +429,108 @@ select {
   text-decoration: none;
 }
 
+/* The signed-in player: their image next to their name, leading to their profile */
+.links a.whoami,
+.whoami {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.whoami img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+/* Icon links in the header: manage, sign out, back to the table */
+.links a.icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--text-dim);
+}
+
+.links a.icon-link:hover {
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.05);
+  text-decoration: none;
+}
+
+.icon-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Profile page */
+.profile-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.profile-head .slot {
+  flex: none;
+}
+
+.profile-title {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-title h1 {
+  margin: 0;
+}
+
+.slot-pick.big {
+  width: 128px;
+  height: 128px;
+}
+
+.slot-pick.still {
+  cursor: default;
+}
+
+.slot-pick.still:hover {
+  outline: none;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 16px;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+}
+
+.fact-key {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fact-value {
+  font-size: 13px;
+}
+
 .links a:hover {
   text-decoration: underline;
 }

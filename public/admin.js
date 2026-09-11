@@ -566,6 +566,9 @@ async function init() {
       location.href = '/';
       return;
     }
+    $('whoami').textContent = me.displayName;
+    $('whoami-img').src = imgUrl(me.key, 'player');
+    $('whoami-img').hidden = false;
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;

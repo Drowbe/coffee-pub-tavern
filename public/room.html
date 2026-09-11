@@ -16,10 +16,9 @@
   <header class="topbar" id="topbar">
     <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
     <nav class="links" id="links">
-      <span id="whoami"></span>
-      <a href="/me">Your image</a>
-      <a href="/admin" id="admin-link" hidden>Manage</a>
-      <a href="/logout">Sign out</a>
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3H9l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L9 21h6l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm7.3 4.3-1.4 1.4L18.2 11H9v2h9.2l-2.3 2.3 1.4 1.4L22 12z"/></svg></a>
       <span class="version" data-brand="version"></span>
     </nav>
   </header>
@@ -92,7 +91,7 @@
         <span class="hint" id="install-note"></span>
       </div>
       <nav class="links">
-        <a href="/me">Your image</a>
+        <a href="/profile">Your profile</a>
         <a href="/admin" id="admin-link-2" hidden>Manage</a>
         <a href="/logout">Sign out</a>
         <span class="version" data-brand="version"></span>

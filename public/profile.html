@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <title>Coffee Pub Tavern - Profile</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
+    <nav class="links">
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 10.5 12 3l9 7.5v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></a>
+      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3H9l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L9 21h6l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm7.3 4.3-1.4 1.4L18.2 11H9v2h9.2l-2.3 2.3 1.4 1.4L22 12z"/></svg></a>
+      <span class="version" data-brand="version"></span>
+    </nav>
+  </header>
+
+  <main class="admin">
+    <section class="panel">
+      <div class="profile-head">
+        <div class="slot" id="portrait-slot"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="portrait-clear" type="button">Remove</button></div>
+        <div class="profile-title">
+          <h1 id="name"></h1>
+          <p class="hint">Your image shows at the table and in the recording whenever your camera is off. Click it to change it; square images look best.</p>
+          <p class="status" id="status"></p>
+        </div>
+      </div>
+
+      <h2>Account</h2>
+      <p class="hint">Set by your admin. Ask them to change any of these.</p>
+      <div class="facts">
+        <div class="fact"><span class="fact-key">Display name</span><span class="fact-value" id="f-name"></span></div>
+        <div class="fact"><span class="fact-key">Login</span><span class="fact-value" id="f-login"></span></div>
+        <div class="fact"><span class="fact-key">Role</span><span class="fact-value" id="f-role"></span></div>
+        <div class="fact"><span class="fact-key">Password</span><span class="fact-value" id="f-password"></span></div>
+        <div class="fact"><span class="fact-key">Personal link</span><span class="fact-value" id="f-link"></span></div>
+      </div>
+
+      <h2>Your video box</h2>
+      <p class="hint">How your box looks at the table and in the recording. Set by your admin.</p>
+      <div class="facts">
+        <div class="fact"><span class="fact-key">Talking border</span><span class="fact-value" id="f-border"></span></div>
+        <div class="fact"><span class="fact-key">Muted badge</span><span class="fact-value" id="f-badge"></span></div>
+        <div class="fact"><span class="fact-key">Name plate</span><span class="fact-value" id="f-plate"></span></div>
+      </div>
+
+      <h2>Other images</h2>
+      <p class="hint">Overlays for your video box and your character box in the recording. Set by your admin.</p>
+      <div class="slots" id="other-images">
+        <div class="slot" data-slot="playerTalking"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Talking overlay</span></div>
+        <div class="slot" data-slot="playerMuted"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Muted overlay</span></div>
+        <div class="slot" data-slot="character"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Character image</span></div>
+        <div class="slot" data-slot="talking"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Talking image</span></div>
+        <div class="slot" data-slot="muted"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Muted image</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/profile.js"></script>
+</body>
+</html>

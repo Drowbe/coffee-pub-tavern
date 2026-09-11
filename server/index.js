@@ -238,10 +238,11 @@ app.get('/logout', (req, res) => {
   res.redirect('/login');
 });
 
-app.get('/me', (req, res) => {
-  if (!currentUser(req)) return res.redirect('/login?next=/me');
-  res.sendFile(page('me.html'));
+app.get('/profile', (req, res) => {
+  if (!currentUser(req)) return res.redirect('/login?next=/profile');
+  res.sendFile(page('profile.html'));
 });
+app.get('/me', (_req, res) => res.redirect('/profile')); // the profile page's old address
 
 app.get('/admin', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login?next=/admin');

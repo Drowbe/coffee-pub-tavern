@@ -10,7 +10,12 @@
 <body>
   <header class="topbar">
     <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span> <span class="status">manage</span></div>
-    <nav class="links"><a href="/">Back to the table</a><a href="/logout">Sign out</a><span class="version" data-brand="version"></span></nav>
+    <nav class="links">
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 10.5 12 3l9 7.5v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm7.3 4.3-1.4 1.4L18.2 11H9v2h9.2l-2.3 2.3 1.4 1.4L22 12z"/></svg></a>
+      <span class="version" data-brand="version"></span>
+    </nav>
   </header>
 
   <main class="admin">

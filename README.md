@@ -123,7 +123,7 @@ Each user has two things the recording can show, and both react to the same live
 is speaking and who is muted.
 
 **Player** is the person. Their video box shows the camera when it is on and the **Player
-image** when it is off (the player can set that one themselves on the **Your image** page).
+image** when it is off (the player can set that one themselves on their **Profile** page, which also shows them everything their admin set).
 While they speak a **talking border** is drawn around the box in the colour set for them, and
 while their microphone is off a **muted badge** appears. Both are drawn, so they fit any source
 size. An admin can also add a **Talking overlay** and a **Muted overlay** image that are laid on
@@ -194,6 +194,6 @@ the WebSocket host.
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
 | `public/login.html` | Sign-in page |
 | `public/room.html` | The table |
-| `public/me.html` | A player's no-video image |
+| `public/profile.html` | A player's profile: their own image, and what the admin set |
 | `public/admin.html` | Manage page |
 | `public/view.html` | OBS view |
