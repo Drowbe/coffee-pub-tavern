@@ -78,11 +78,14 @@ Works in Chrome, Safari, Firefox, and on phones. No install anywhere.
 
 ## Hosting
 
-`docker-compose.yml` with two services:
+`docker-compose.yml` with two services, meant to be pasted into Container Station with no files
+on the NAS:
 
-- `livekit` from the official image, with a small `livekit.yaml` (API key/secret, TURN enabled,
-  ports 7880 for signaling, 7881 and the UDP range for media, 3478 and 5349 for TURN).
-- `tavern` the Node app, environment: LiveKit URL, API key/secret, admin key, public base URL.
+- `livekit` from the official image, configured through the `LIVEKIT_CONFIG` environment
+  variable (API key/secret, TURN enabled, 7880 for signaling, 7881 TCP and 7882 UDP for media,
+  3478 for TURN).
+- `tavern` the Node app from `ghcr.io/drowbe/coffee-pub-tavern`, built by GitHub Actions;
+  environment: LiveKit host, API key/secret, table key, admin key.
 
 A reverse proxy (Caddy in the compose file, or the existing one for Foundry) terminates TLS for
 `tavern.coffeepub.live` and `livekit.coffeepub.live`. Certificates are required: browsers only
