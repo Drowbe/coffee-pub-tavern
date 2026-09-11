@@ -116,16 +116,15 @@ select {
   max-width: 220px;
 }
 
+/* The join screen: the rooms I may join, one card each, on a grid that
+   wraps. Each card is built like the sign-in box. */
 .join {
-  max-width: 720px;
-  margin: 12vh auto;
-  padding: 24px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  max-width: 1180px;
+  margin: 6vh auto;
+  padding: 0 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .join h1 {
@@ -133,61 +132,52 @@ select {
   font-size: 20px;
 }
 
-/* The rooms I may join: picture, name, description, members, Join. */
+.join-note {
+  text-align: center;
+}
+
 .room-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+  align-items: start;
 }
 
 .room-choice {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 12px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
 .room-choice-image {
-  width: 120px;
-  height: 90px;
-  border-radius: 6px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
   object-fit: cover;
-  flex: none;
   border: 1px solid var(--border);
-}
-
-.room-choice-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .room-choice-head {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 10px;
-  font-size: 15px;
+  font-size: 17px;
+}
+
+.room-choice-desc {
+  margin: 0;
 }
 
 .room-choice .btn {
-  flex: none;
-  align-self: center;
-  font-size: 15px;
-  padding: 10px 18px;
-}
-
-@media (max-width: 600px) {
-  .room-choice {
-    flex-wrap: wrap;
-  }
-  .room-choice .btn {
-    width: 100%;
-  }
+  margin-top: auto;
+  font-size: 16px;
+  padding: 10px 16px;
 }
 
 /* Who belongs to a room, with a dot for those in it right now. */
@@ -725,13 +715,13 @@ select {
 .users {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
 
 .user-card {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
+  border-radius: 10px;
+  background: var(--bg-card);
 }
 
 .user-head {
@@ -822,9 +812,6 @@ select {
 }
 
 .add-user {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1358,19 +1345,33 @@ body.at-table {
 
 /* --- rooms ------------------------------------------------------------------ */
 
+/* Every manage tab is a stack of separate boxes: a heading box, then one
+   box per user, room or settings section. */
+.tab-rooms,
+.tab-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-stack .panel h2:first-child,
+.tab-stack .panel .section-head h1 {
+  margin-top: 0;
+}
+
 .rooms {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .room-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
+  padding: 24px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--bg-card);
 }
 
@@ -1390,30 +1391,37 @@ body.at-table {
   gap: 8px;
 }
 
-.member-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 6px;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--bg-input);
-  font-size: 13px;
+/* Member tiles on a room: click to toggle, lit while in the room */
+.member-toggle {
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text);
+  transition: opacity 0.15s ease, border-color 0.15s ease;
 }
 
-.member-check img {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  object-fit: cover;
+.member-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.member-check:has(input:checked) {
+.member-toggle.online {
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
-.member-check:has(input:disabled) {
-  opacity: 0.7;
+.member-toggle:not(.online) {
+  opacity: 0.45;
+}
+
+.member-toggle:hover:not(.locked) {
+  opacity: 1;
+}
+
+.member-toggle.locked {
+  cursor: default;
 }
 
 .slot-pick.wide {

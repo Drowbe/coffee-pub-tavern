@@ -335,22 +335,27 @@ function fillRoom(card, room) {
     keep.add(user.key);
     let label = checks.querySelector(`[data-member="${CSS.escape(user.key)}"]`);
     if (!label) {
+      // A portrait tile that toggles: lit when the user is in the room.
       label = document.createElement('label');
-      label.className = 'check member-check';
+      label.className = 'member member-toggle';
       label.dataset.member = user.key;
+      label.title = 'Click to add or remove';
       const input = document.createElement('input');
       input.type = 'checkbox';
       const thumb = document.createElement('img');
       thumb.alt = '';
       thumb.src = imgUrl(user.key, 'player');
       const name = document.createElement('span');
+      name.className = 'member-name';
       label.append(input, thumb, name);
       checks.appendChild(label);
     }
-    label.querySelector('span').textContent = user.displayName;
+    label.querySelector('.member-name').textContent = user.displayName;
     const input = label.querySelector('input');
     if (!editing) input.checked = room.isLobby || members.has(user.key);
     input.disabled = room.isLobby;
+    label.classList.toggle('online', input.checked);
+    label.classList.toggle('locked', room.isLobby);
   }
   for (const label of [...checks.children]) if (!keep.has(label.dataset.member)) label.remove();
   card.querySelector('[data-members-note]').hidden = !room.isLobby;
@@ -421,6 +426,10 @@ $('rooms').addEventListener('click', async (event) => {
 
 $('rooms').addEventListener('change', async (event) => {
   const input = event.target;
+  if (input.type === 'checkbox' && input.closest('.member-toggle')) {
+    input.closest('.member-toggle').classList.toggle('online', input.checked);
+    return;
+  }
   if (input.type !== 'file') return;
   const card = input.closest('.room-card');
   const room = rooms.find((r) => r.id === card.dataset.room);

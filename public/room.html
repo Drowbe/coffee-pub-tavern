@@ -23,25 +23,21 @@
     </nav>
   </header>
 
-  <div class="panel join" id="join">
-    <h1>Pick a room</h1>
+  <div class="join" id="join">
     <div class="room-list" id="rooms"></div>
-    <p class="hint">Your browser will ask for camera and microphone the first time.</p>
     <p class="status error" id="join-error" hidden></p>
-    <p class="hint install-hint" id="install-hint" hidden></p>
+    <p class="hint join-note">Your browser will ask for camera and microphone the first time. <span id="install-hint" hidden></span></p>
   </div>
 
   <template id="room-choice">
     <article class="room-choice">
       <img class="room-choice-image" alt="" hidden>
-      <div class="room-choice-body">
-        <div class="room-choice-head">
-          <strong class="room-choice-name"></strong>
-          <span class="hint room-choice-count"></span>
-        </div>
-        <p class="hint room-choice-desc"></p>
-        <div class="members"></div>
+      <div class="room-choice-head">
+        <strong class="room-choice-name"></strong>
+        <span class="hint room-choice-count"></span>
       </div>
+      <p class="hint room-choice-desc"></p>
+      <div class="members"></div>
       <button class="btn btn-primary" data-join type="button">Join</button>
     </article>
   </template>

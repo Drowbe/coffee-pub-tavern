@@ -25,14 +25,16 @@
       <button class="subtab" data-tab="settings" type="button">Settings</button>
     </nav>
 
-    <section class="panel" id="tab-users">
-      <div class="section-head">
-        <h1>Users</h1>
-        <span class="status" id="party-status"></span>
-        <button class="btn btn-primary btn-small" id="add-toggle" type="button">Add user</button>
+    <section class="tab-stack" id="tab-users">
+      <div class="panel">
+        <div class="section-head">
+          <h1>Users</h1>
+          <span class="status" id="party-status"></span>
+          <button class="btn btn-primary btn-small" id="add-toggle" type="button">Add user</button>
+        </div>
       </div>
 
-      <form class="add-user" id="add-user" hidden>
+      <form class="panel add-user" id="add-user" hidden>
         <h2>New user</h2>
         <div class="fields">
           <label>Login<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
@@ -51,19 +53,20 @@
       <div id="users" class="users"></div>
     </section>
 
-    <section class="panel" id="tab-rooms" hidden>
-      <div class="section-head">
-        <h1>Rooms</h1>
-        <span class="status" id="rooms-status"></span>
-        <button class="btn btn-primary btn-small" id="add-room" type="button">Add room</button>
+    <section class="tab-rooms" id="tab-rooms" hidden>
+      <div class="panel">
+        <div class="section-head">
+          <h1>Rooms</h1>
+          <span class="status" id="rooms-status"></span>
+          <button class="btn btn-primary btn-small" id="add-room" type="button">Add room</button>
+        </div>
+        <p class="hint">Everyone belongs to the Lobby. Each room is its own conversation for the users you pick; players see their rooms after signing in and choose one. Coffee Pub Studio shows one room at a time.</p>
       </div>
-      <p class="hint">Everyone belongs to the Lobby. A room is a group of users you pick; Coffee Pub Studio shows one room at a time. Rooms do not change who hears whom yet.</p>
       <div id="rooms" class="rooms"></div>
     </section>
 
-    <section class="panel" id="tab-settings" hidden>
-      <h1>Settings</h1>
-
+    <section class="tab-stack" id="tab-settings" hidden>
+      <div class="panel">
       <h2>Server</h2>
       <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page; the table name is the room everyone joins.</p>
       <div class="brand-row">
@@ -79,7 +82,9 @@
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
       </div>
+      </div>
 
+      <div class="panel">
       <h2>Sign-in page</h2>
       <p class="hint">A picture behind the sign-in box, and a note under the password field.</p>
       <div class="brand-row">
@@ -94,7 +99,9 @@
         <button class="btn btn-primary" id="save-login" type="button">Save</button>
         <span class="status" id="login-status"></span>
       </div>
+      </div>
 
+      <div class="panel">
       <h2>Player video defaults</h2>
       <p class="hint">Used for every player's video box unless their own Player section overrides it.</p>
       <div class="row">
@@ -105,7 +112,9 @@
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
       </div>
+      </div>
 
+      <div class="panel">
       <h2>OBS access</h2>
       <p class="hint">OBS never signs in. Each user's OBS view link carries this <strong>stream key</strong> instead of a login, and Coffee Pub Studio fetches it by itself when you sign in there. You only need it here to build a view link by hand. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
       <div class="row">
@@ -113,6 +122,7 @@
         <button class="btn" id="stream-show" type="button">Show</button>
         <button class="btn" id="stream-copy" type="button">Copy</button>
         <button class="btn btn-danger" id="stream-regen" type="button">Regenerate</button>
+      </div>
       </div>
     </section>
   </main>
