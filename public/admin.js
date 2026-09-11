@@ -120,7 +120,8 @@ function renderLive(card, online) {
   dot.classList.toggle('online', !!online);
   dot.title = online ? 'at the table' : 'offline';
   const live = card.querySelector('[data-live]');
-  live.textContent = online ? `${online.micOn ? 'mic on' : 'mic off'} · ${online.cameraOn ? 'camera on' : 'camera off'}` : '';
+  const inRoom = online && online.room ? rooms.find((r) => r.id === online.room) : null;
+  live.textContent = online ? `${inRoom ? `in ${inRoom.name} · ` : ''}${online.micOn ? 'mic on' : 'mic off'} · ${online.cameraOn ? 'camera on' : 'camera off'}` : '';
   card.querySelector('[data-action="mute"]').hidden = !online || !online.micOn;
   card.querySelector('[data-action="kick"]').hidden = !online;
 }

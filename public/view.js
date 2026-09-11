@@ -58,18 +58,30 @@ async function loadImages() {
   render();
 }
 
+// The Tavern room the player is in right now (the Lobby while they are
+// away); this box follows them from room to room.
+let playerRoom = 'lobby';
+let connectedRoom = null;
+
 async function loadSettings() {
   try {
     const res = await fetch(`/api/table?s=${encodeURIComponent(streamKey)}`);
     if (!res.ok) return;
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
-    if (me) settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, plate: Boolean(me.plate), displayName: me.displayName };
+    if (me) {
+      settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, plate: Boolean(me.plate), displayName: me.displayName };
+      playerRoom = (me.online && me.room) || 'lobby';
+    }
     document.documentElement.style.setProperty('--talk', settings.borderColor);
   } catch (err) {
     // defaults stand
   }
   render();
+  if (connectedRoom && playerRoom !== connectedRoom) {
+    msg(`following ${settings.displayName || wanted}...`);
+    await room.disconnect().catch(() => {}); // Disconnected reconnects, to the new room
+  }
 }
 
 function setImage(el, src) {
@@ -203,14 +215,16 @@ room
 
 async function connect() {
   try {
+    const target = playerRoom;
     const res = await fetch(`/api/token?s=${encodeURIComponent(streamKey)}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ role: 'viewer' }),
+      body: JSON.stringify({ role: 'viewer', room: target }),
     });
     if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
     const { token, livekitUrl } = await res.json();
     await room.connect(livekitUrl, token, connectOptions);
+    connectedRoom = target;
     for (const p of room.remoteParticipants.values()) adopt(p);
     render();
   } catch (err) {
@@ -219,10 +233,11 @@ async function connect() {
   }
 }
 
-loadSettings();
+room.on(RoomEvent.Disconnected, () => {
+  connectedRoom = null;
+});
+
 loadImages();
-setInterval(() => {
-  loadImages();
-  loadSettings();
-}, 5 * 60000); // pick up replaced images and colours without a reload
-connect();
+setInterval(loadImages, 5 * 60000); // pick up replaced images without a reload
+setInterval(loadSettings, 5000); // colours, options, and which room the player is in
+loadSettings().then(connect);

@@ -81,15 +81,17 @@ with their player image, use chat and reactions, and can be published to OBS lik
 
 The **Rooms** tab on the manage page holds the **Lobby**, which everyone belongs to and which
 cannot be deleted, plus any rooms an admin adds. A room has a name, a description, a picture
-(click it to change it) and the members the admin ticks. Coffee Pub Studio shows one room at a
-time on its Tavern tab and publishes that room's users. For now a room is a curated group for
-the stream; it does not change who hears whom at the table. Pulling a player aside into a
-private conversation comes next.
+(click it to change it) and the members the admin ticks. Each room is its own conversation:
+after signing in a player sees the rooms they belong to, each with its members and a green dot
+on those in it right now, and joins one. Admins may join any room. A player's OBS view pages
+follow them from room to room. Coffee Pub Studio shows one room at a time on its Tavern tab
+and publishes that room's users. Pulling a player aside into a room, and the stream hearing
+only the room the admin is in, come next.
 
 ## The table
 
-The join screen lists everyone who belongs to the table, with a green dot on those already at
-it. Join is one click. The page then becomes the table with nothing else on it; a round bar of
+The join screen lists the rooms you belong to, each with its members and a green dot on those
+in it right now. Join is one click. The page then becomes the table with nothing else on it; a round bar of
 controls floats at the bottom and fades away when the pointer rests, coming back on any
 movement. Left to right: microphone (with a live level meter inside the button), camera, layout,
 chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera,

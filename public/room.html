@@ -24,13 +24,27 @@
   </header>
 
   <div class="panel join" id="join">
-    <h1 data-brand="tableName">The Table</h1>
-    <div class="members" id="members"></div>
+    <h1>Pick a room</h1>
+    <div class="room-list" id="rooms"></div>
     <p class="hint">Your browser will ask for camera and microphone the first time.</p>
-    <button class="btn btn-primary" id="join-button" type="button">Join</button>
     <p class="status error" id="join-error" hidden></p>
     <p class="hint install-hint" id="install-hint" hidden></p>
   </div>
+
+  <template id="room-choice">
+    <article class="room-choice">
+      <img class="room-choice-image" alt="" hidden>
+      <div class="room-choice-body">
+        <div class="room-choice-head">
+          <strong class="room-choice-name"></strong>
+          <span class="hint room-choice-count"></span>
+        </div>
+        <p class="hint room-choice-desc"></p>
+        <div class="members"></div>
+      </div>
+      <button class="btn btn-primary" data-join type="button">Join</button>
+    </article>
+  </template>
 
   <!-- Everything at the table lives inside the stage so it can pop out as one. -->
   <main class="stage" id="stage" hidden>

@@ -10,30 +10,62 @@ const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
 let me = null;
 let tableName = 'The Table';
-const tableUsers = new Map(); // key -> { displayName, borderColor, ... } from /api/table
+const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
+let tableRooms = []; // the rooms, with `mine` for the ones I may join
+let currentRoom = null; // the room I am in, once joined
 
 async function loadTable() {
   try {
-    const { users } = await api('GET', '/api/table');
+    const { users, rooms } = await api('GET', '/api/table');
     tableUsers.clear();
     for (const u of users) tableUsers.set(u.key, u);
+    tableRooms = rooms || [];
     for (const [key, tile] of tiles) {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
     }
-    renderMembers();
+    renderRooms();
   } catch (err) {
     // default colour stands
   }
 }
 
-// The join screen: everyone who belongs to the table, with a green dot for
-// those already at it. Refreshed every few seconds until you join.
-function renderMembers() {
-  const list = $('members');
+// The join screen: one card per room I belong to, with its members and a
+// green dot on those in that room right now. Refreshed until I join.
+function renderRooms() {
+  const list = $('rooms');
   if (!list) return;
   const keep = new Set();
-  for (const u of tableUsers.values()) {
+  for (const r of tableRooms.filter((x) => x.mine)) {
+    keep.add(r.id);
+    let card = list.querySelector(`[data-room="${CSS.escape(r.id)}"]`);
+    if (!card) {
+      card = document.getElementById('room-choice').content.firstElementChild.cloneNode(true);
+      card.dataset.room = r.id;
+      card.querySelector('[data-join]').dataset.join = r.id;
+      list.appendChild(card);
+    }
+    card.querySelector('.room-choice-name').textContent = r.name;
+    card.querySelector('.room-choice-desc').textContent = r.description;
+    card.querySelector('.room-choice-desc').hidden = !r.description;
+    const img = card.querySelector('.room-choice-image');
+    const src = r.hasImage ? `/img/room/${encodeURIComponent(r.id)}` : '';
+    img.hidden = !src;
+    if (src && img.dataset.src !== src) {
+      img.dataset.src = src;
+      img.src = src;
+    }
+    const members = r.members.map((k) => tableUsers.get(k)).filter(Boolean);
+    const here = members.filter((u) => u.online && u.room === r.id).length;
+    card.querySelector('.room-choice-count').textContent = here ? `${here} of ${members.length} here now` : `${members.length} member${members.length === 1 ? '' : 's'}`;
+    renderMembers(card.querySelector('.members'), members, r.id);
+  }
+  for (const card of [...list.children]) if (!keep.has(card.dataset.room)) card.remove();
+}
+
+function renderMembers(list, members, roomId) {
+  const keep = new Set();
+  for (const u of members) {
     keep.add(u.key);
     let el = list.querySelector(`[data-key="${CSS.escape(u.key)}"]`);
     if (!el) {
@@ -50,16 +82,22 @@ function renderMembers() {
       el.append(img, dot, name);
       list.appendChild(el);
     }
+    const here = Boolean(u.online) && u.room === roomId;
     el.querySelector('.member-name').textContent = u.displayName;
-    el.querySelector('.dot').classList.toggle('online', Boolean(u.online));
-    el.classList.toggle('online', Boolean(u.online));
-    el.title = u.online ? `${u.displayName} is at the table` : u.displayName;
+    el.querySelector('.dot').classList.toggle('online', here);
+    el.classList.toggle('online', here);
+    const elsewhere = u.online && !here ? tableRooms.find((r) => r.id === u.room) : null;
+    el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${elsewhere.name}` : u.displayName;
   }
   for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
 }
 setInterval(() => {
   if (!$('join').hidden) loadTable();
 }, 5000);
+$('rooms').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-join]');
+  if (button) join(button.dataset.join);
+});
 let unread = 0;
 let installPrompt = null;
 let pipWindow = null;
@@ -640,11 +678,12 @@ room
     }
   })
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
-  .on(RoomEvent.Reconnected, () => setStatus(`at ${tableName}`))
+  .on(RoomEvent.Reconnected, () => setStatus(`in ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
     closeMic();
     closePopout();
     setStatus('left the table');
+    currentRoom = null;
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
     $('join').hidden = false;
@@ -682,21 +721,23 @@ async function fillDevices() {
 
 // --- join / leave ---------------------------------------------------------------
 
-async function join() {
+async function join(roomId = 'lobby') {
   $('join-error').hidden = true;
-  $('join-button').disabled = true;
+  for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
   try {
     setStatus('connecting...');
-    const { token, livekitUrl } = await api('POST', '/api/token', {});
+    const { token, livekitUrl } = await api('POST', '/api/token', { room: roomId });
     await loadTable();
+    currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
+    tableName = currentRoom.name;
     await room.connect(livekitUrl, token);
-    console.debug('[tavern] connected');
+    console.debug('[tavern] connected to', roomId);
     $('join').hidden = true;
     $('topbar').hidden = true;
     $('stage').hidden = false;
     document.body.classList.add('at-table');
     wake();
-    setStatus(`at ${tableName}`);
+    setStatus(`in ${tableName}`);
 
     tileFor(room.localParticipant);
     applyMirror();
@@ -743,14 +784,14 @@ async function join() {
     reflectMic();
     $('cam').classList.toggle('on', haveCam);
     $('cam').classList.toggle('off', !haveCam);
-    if (missing.length) setStatus(`at ${tableName} (no ${missing.join(' or ')})`);
+    if (missing.length) setStatus(`in ${tableName} (no ${missing.join(' or ')})`);
   } catch (err) {
     setStatus('', false);
     $('join-error').textContent = err.message;
     $('join-error').hidden = false;
     await room.disconnect().catch(() => {});
   } finally {
-    $('join-button').disabled = false;
+    for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
   }
 }
 
@@ -777,7 +818,6 @@ async function toggleCam() {
   updateCamera(room.localParticipant);
 }
 
-$('join-button').addEventListener('click', join);
 $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
 $('mic-select').addEventListener('change', async (e) => {

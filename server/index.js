@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
-const { Store, StoreError, SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, randomToken } = require('./store');
+const { Store, StoreError, SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken } = require('./store');
 const auth = require('./auth');
 
 const {
@@ -86,27 +86,53 @@ async function mintToken({ identity, name, room, publisher }) {
   return token.toJwt();
 }
 
-// Who is at the table right now, straight from LiveKit.
+// Each Tavern room is its own LiveKit room: the Lobby keeps the base name
+// (so links and the Studio from before rooms still work), the others hang
+// their id off it.
+function livekitRoomName(roomId) {
+  return !roomId || roomId === LOBBY ? store.settings.room : `${store.settings.room}-${roomId}`;
+}
+
+function roomIdOfLivekit(name) {
+  const base = store.settings.room;
+  if (name === base) return LOBBY;
+  return name.startsWith(`${base}-`) ? name.slice(base.length + 1) : null;
+}
+
+// Who is at the table right now, in whichever room, straight from LiveKit.
 async function participants() {
   try {
-    const list = await roomService.listParticipants(store.settings.room);
-    return list
-      .filter((p) => !p.permission?.hidden)
-      .map((p) => {
+    const active = await roomService.listRooms();
+    const out = [];
+    for (const lk of active) {
+      const roomId = roomIdOfLivekit(lk.name);
+      if (!roomId) continue;
+      const list = await roomService.listParticipants(lk.name).catch(() => []);
+      for (const p of list) {
+        if (p.permission?.hidden) continue;
         const tracks = p.tracks || [];
         const mic = tracks.find((t) => t.source === 2 /* MICROPHONE */);
         const cam = tracks.find((t) => t.source === 1 /* CAMERA */);
-        return {
+        out.push({
           key: p.identity,
           name: p.name,
+          room: roomId,
           joinedAt: Number(p.joinedAt || 0),
           micOn: !!mic && !mic.muted,
           cameraOn: !!cam && !cam.muted,
-        };
-      });
+        });
+      }
+    }
+    return out;
   } catch (err) {
     return [];
   }
+}
+
+// The LiveKit room a user is in right now, or null.
+async function roomOf(key) {
+  const p = (await participants()).find((x) => x.key === key);
+  return p ? livekitRoomName(p.room) : null;
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -357,18 +383,23 @@ app.get('/api/me', requireUser, (req, res) => {
   });
 });
 
-// LiveKit token: players need a session; OBS viewers need the stream key.
+// LiveKit token for a room (the Lobby unless asked): players need a session
+// and must belong to the room; OBS viewers need the stream key.
 app.post('/api/token', async (req, res) => {
-  const room = store.settings.room;
+  const roomId = typeof req.body?.room === 'string' && req.body.room ? req.body.room : LOBBY;
+  const tavernRoom = store.roomById(roomId);
+  if (!tavernRoom) return res.status(404).json({ error: 'no such room' });
+  const room = livekitRoomName(roomId);
   if (req.body?.role === 'viewer') {
     if (!hasStreamAccess(req)) return res.status(403).json({ error: 'stream key required' });
     const identity = `obs-${Date.now().toString(36)}-${randomToken(4)}`;
-    return res.json({ token: await mintToken({ identity, name: 'OBS', room, publisher: false }), livekitUrl: livekitWsUrl(req), identity, room });
+    return res.json({ token: await mintToken({ identity, name: 'OBS', room, publisher: false }), livekitUrl: livekitWsUrl(req), identity, room, roomId });
   }
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
+  if (!tavernRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
   const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId });
 });
 
 // A user may replace or clear their own no-video image.
@@ -382,12 +413,18 @@ app.delete('/api/me/images/player', requireUser, (req, res) => {
 });
 
 // Everyone at the table: names, talking colours and Player options for the
-// tiles and view pages, plus who is at the table right now.
+// tiles and view pages, who is at the table right now and in which room,
+// and the rooms themselves (with the ones the caller may join marked).
 app.get('/api/table', async (req, res) => {
-  if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
+  const user = currentUser(req);
+  if (!user && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
-  res.json({ ...branding(), users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key) })) });
+  res.json({
+    ...branding(),
+    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null })),
+    rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
+  });
 });
 
 // Stream API (OBS pages and the Studio app) ---------------------------------
@@ -487,7 +524,9 @@ app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
 
 app.post('/api/users/:key/kick', requireAdmin, async (req, res) => {
   try {
-    await roomService.removeParticipant(store.settings.room, req.params.key);
+    const room = await roomOf(req.params.key);
+    if (!room) return res.status(404).json({ error: 'not at the table' });
+    await roomService.removeParticipant(room, req.params.key);
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
@@ -496,10 +535,12 @@ app.post('/api/users/:key/kick', requireAdmin, async (req, res) => {
 
 app.post('/api/users/:key/mute', requireAdmin, async (req, res) => {
   try {
-    const info = await roomService.getParticipant(store.settings.room, req.params.key);
+    const room = await roomOf(req.params.key);
+    if (!room) return res.status(404).json({ error: 'not at the table' });
+    const info = await roomService.getParticipant(room, req.params.key);
     const mic = (info.tracks || []).find((t) => t.source === 2);
     if (!mic) return res.status(404).json({ error: 'no microphone track' });
-    await roomService.mutePublishedTrack(store.settings.room, req.params.key, mic.sid, req.body?.muted !== false);
+    await roomService.mutePublishedTrack(room, req.params.key, mic.sid, req.body?.muted !== false);
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
