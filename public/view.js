@@ -27,7 +27,8 @@ const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', qu
 const withAudio = kind === 'player' && params.get('audio') !== '0';
 const debug = params.get('debug') === '1';
 const room = new Room({ adaptiveStream: false });
-// The character box never needs the media: subscribe to nothing.
+// The player box takes everything; the character box picks the microphone
+// alone once the player is found (see subscribeForCharacter).
 const connectOptions = { autoSubscribe: kind === 'player' };
 
 // Slots this kind draws, as blob URLs (null when the user has none).
@@ -148,9 +149,20 @@ function showReaction(id) {
   document.body.appendChild(el);
 }
 
+// The character box subscribes to the player's microphone only, and never
+// plays it: LiveKit delivers "who is talking" over the subscriber link, so
+// a box subscribed to nothing would never see them talk.
+function subscribeForCharacter(p) {
+  if (kind === 'player') return;
+  for (const pub of p.trackPublications.values()) {
+    if (pub.kind === Track.Kind.Audio && !pub.isSubscribed) pub.setSubscribed(true);
+  }
+}
+
 function adopt(p) {
   if (p.identity !== wanted) return;
   participant = p;
+  subscribeForCharacter(p);
   refreshFlags();
   render();
 }
