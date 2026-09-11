@@ -1159,3 +1159,20 @@ input[type="color"] {
 .user-body h3:first-child {
   margin-top: 8px;
 }
+
+/* checkbox and picture labels inside panels keep normal text */
+.panel label.check,
+.fields label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.panel label.slot-pick {
+  text-transform: none;
+  letter-spacing: normal;
+}
