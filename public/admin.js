@@ -482,7 +482,7 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, tableName: $('set-table').value }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value }, $('settings-status')));
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
 
 $('save-defaults').addEventListener('click', async () => {
@@ -490,6 +490,7 @@ $('save-defaults').addEventListener('click', async () => {
     const { settings } = await api('PATCH', '/api/settings', {
       border: $('set-border').checked,
       borderColor: $('set-border-color').value,
+      borderWidth: $('set-border-width').value,
       badge: $('set-badge').checked,
       plate: $('set-plate').checked,
     });
@@ -582,11 +583,11 @@ async function init() {
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
-    $('set-table').value = settings.tableName;
     $('set-login-text').value = settings.loginText;
     defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge, plate: settings.plate };
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
+    $('set-border-width').value = settings.borderWidth || 6;
     $('set-badge').checked = settings.badge;
     $('set-plate').checked = Boolean(settings.plate);
     renderSiteImages(settings);

@@ -39,9 +39,15 @@ const DEFAULT_SETTINGS = {
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
+  borderWidth: 6, // px, drawn on the OBS view
   badge: true,
   plate: false,
 };
+
+function cleanWidth(value) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.max(1, Math.min(24, n)) : null;
+}
 
 function cleanColor(value) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : '';
@@ -185,6 +191,7 @@ class Store {
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
+    if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
     if (patch.badge !== undefined) s.badge = Boolean(patch.badge);
     if (patch.plate !== undefined) s.plate = Boolean(patch.plate);
     this.save();
@@ -197,6 +204,7 @@ class Store {
     return {
       border: user.player.border === null ? s.border : user.player.border,
       borderColor: user.player.borderColor || s.borderColor,
+      borderWidth: s.borderWidth || DEFAULT_SETTINGS.borderWidth,
       badge: user.player.badge === null ? s.badge : user.player.badge,
       plate: user.player.plate === null ? s.plate : user.player.plate,
     };

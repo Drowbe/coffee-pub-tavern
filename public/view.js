@@ -34,7 +34,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['player', 'playerTalking', 'playerMuted'] : ['character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', badge: true, plate: false, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, badge: true, plate: false, displayName: '' };
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -71,10 +71,11 @@ async function loadSettings() {
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, badge: me.badge, plate: Boolean(me.plate), displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, badge: me.badge, plate: Boolean(me.plate), displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
     document.documentElement.style.setProperty('--talk', settings.borderColor);
+    document.documentElement.style.setProperty('--talk-w', `${settings.borderWidth}px`);
   } catch (err) {
     // defaults stand
   }

@@ -155,14 +155,25 @@ select {
 }
 
 .room-choice-image {
-  width: 100%;
-  aspect-ratio: 16 / 9;
+  grid-area: img;
+  width: 96px;
+  height: 96px;
   border-radius: 8px;
   object-fit: cover;
   border: 1px solid var(--border);
 }
 
+/* A square room image sits beside the name and description. */
+.room-choice:has(.room-choice-image:not([hidden])) {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "img head" "img desc" "members members" "join join";
+  column-gap: 14px;
+  align-content: start;
+}
+
 .room-choice-head {
+  grid-area: head;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -171,7 +182,17 @@ select {
 }
 
 .room-choice-desc {
+  grid-area: desc;
   margin: 0;
+  align-self: start;
+}
+
+.room-choice .members {
+  grid-area: members;
+}
+
+.room-choice .btn {
+  grid-area: join;
 }
 
 .room-choice .btn {
@@ -1543,6 +1564,37 @@ html.has-background .panel.login {
 
 .fields.grow {
   flex: 1;
+}
+
+/* Sign-in page: the text box stands as tall as the picture box beside it. */
+.brand-row.stretch {
+  align-items: stretch;
+}
+
+.brand-row.stretch .fields.grow {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-row.stretch .fields.grow label {
+  flex: 1;
+}
+
+.brand-row.stretch .fields.grow textarea {
+  flex: 1;
+  min-height: 0;
+  resize: vertical;
+}
+
+.check input[type="number"] {
+  width: 64px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
 }
 
 @media (max-width: 600px) {

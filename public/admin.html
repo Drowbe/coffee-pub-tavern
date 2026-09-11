@@ -68,14 +68,13 @@
     <section class="tab-stack" id="tab-settings" hidden>
       <div class="panel">
       <h2>Server</h2>
-      <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page; the table name is the room everyone joins.</p>
+      <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>
       <div class="brand-row">
         <div class="site-images">
           <div class="slot" data-site="icon"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Icon</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
-          <label>Table name<input id="set-table" type="text" maxlength="60"></label>
         </div>
       </div>
       <div class="row">
@@ -87,12 +86,12 @@
       <div class="panel">
       <h2>Sign-in page</h2>
       <p class="hint">A picture behind the sign-in box, and a note under the password field.</p>
-      <div class="brand-row">
+      <div class="brand-row stretch">
         <div class="site-images">
           <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
         </div>
         <div class="fields grow">
-          <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
+          <label class="wide"><textarea id="set-login-text" rows="3" maxlength="1000" aria-label="Text on the sign-in page" placeholder="A note under the password field"></textarea></label>
         </div>
       </div>
       <div class="row">
@@ -107,6 +106,7 @@
       <div class="row">
         <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
         <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
+        <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
         <label class="check"><input type="checkbox" id="set-badge"> Muted badge</label>
         <label class="check"><input type="checkbox" id="set-plate"> Name plate</label>
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
@@ -131,11 +131,11 @@
     <article class="room-card">
       <div class="brand-row">
         <div class="site-images">
-          <div class="slot" data-room-image><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Room image</span><button class="btn btn-small" data-action="room-image-clear" type="button">Remove</button></div>
+          <div class="slot" data-room-image><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Room image</span><button class="btn btn-small" data-action="room-image-clear" type="button">Remove</button></div>
         </div>
         <div class="fields grow">
           <label>Name<input data-rfield="name" type="text" maxlength="40"></label>
-          <label class="wide">Description<textarea data-rfield="description" rows="2" maxlength="300"></textarea></label>
+          <label class="wide">Description<textarea data-rfield="description" rows="3" maxlength="300"></textarea></label>
         </div>
       </div>
       <div class="room-members">

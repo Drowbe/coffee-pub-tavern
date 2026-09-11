@@ -197,12 +197,12 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function tableUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, badge: p.badge, plate: p.plate, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, badge: p.badge, plate: p.plate, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, badge: s.badge, plate: s.plate };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, badge: s.badge, plate: s.plate };
 }
 
 function initials(name) {
@@ -333,7 +333,7 @@ app.get('/manifest.webmanifest', (_req, res) => {
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
     name: s.serverName,
     short_name: s.serverName.length > 12 ? 'Tavern' : s.serverName,
-    description: `${s.tableName}: voice and video for the table`,
+    description: `${s.serverName}: voice and video for the table`,
     start_url: '/',
     scope: '/',
     display: 'standalone',
