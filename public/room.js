@@ -1,5 +1,5 @@
 // The table: players see and hear each other.
-import { Room, RoomEvent, Track, createLocalTracks, createAudioAnalyser } from '/lib/livekit-client.esm.mjs';
+import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api } from '/brand.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
@@ -37,6 +37,20 @@ function tileFor(participant) {
   name.className = 'name';
   name.textContent = participant.name || participant.identity;
   tile.appendChild(name);
+  if (!participant.isLocal) {
+    const vol = document.createElement('input');
+    vol.type = 'range';
+    vol.className = 'vol';
+    vol.min = '0';
+    vol.max = '100';
+    vol.value = String(Math.round((prefs.volumes[participant.identity] ?? 1) * 100));
+    vol.title = 'Volume';
+    vol.addEventListener('input', () => setVolume(participant, Number(vol.value) / 100));
+    vol.addEventListener('click', (e) => e.stopPropagation());
+    vol.addEventListener('pointerenter', () => (tile.draggable = false));
+    vol.addEventListener('pointerleave', () => (tile.draggable = true));
+    tile.appendChild(vol);
+  }
   tile.draggable = true;
   tile.addEventListener('dragstart', onDragStart);
   tile.addEventListener('dragover', onDragOver);
@@ -51,13 +65,18 @@ function tileFor(participant) {
 
 // --- layouts and ordering -----------------------------------------------------
 
+const DEFAULT_PREFS = {
+  layout: 'grid', order: [], pinned: null, follow: true,
+  micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
+  quality: 720, mirror: true, volumes: {},
+};
 const prefs = loadPrefs();
 
 function loadPrefs() {
   try {
-    return { layout: 'grid', order: [], pinned: null, follow: true, ...JSON.parse(localStorage.getItem('tavern.table') || '{}') };
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tavern.table') || '{}') };
   } catch (err) {
-    return { layout: 'grid', order: [], pinned: null, follow: true };
+    return { ...DEFAULT_PREFS };
   }
 }
 
@@ -171,6 +190,8 @@ function attachTrack(participant, track) {
     const audio = track.attach();
     audio.dataset.identity = participant.identity;
     $('stage').appendChild(audio);
+    const volume = prefs.volumes[participant.identity];
+    if (volume !== undefined) track.setVolume(volume);
   }
 }
 
@@ -240,6 +261,8 @@ function addMessage(message, from, own = false) {
 
 function toggleChat(open = $('chat').hidden) {
   $('chat').hidden = !open;
+  $('stage').classList.toggle('chat-open', open);
+  applyLayout();
   $('chat-toggle').classList.toggle('on', open);
   if (open) {
     unread = 0;
@@ -249,33 +272,134 @@ function toggleChat(open = $('chat').hidden) {
   }
 }
 
-// --- microphone level meter ----------------------------------------------------
+// --- microphone: device -> level -> gate -> what the table hears -----------
+//
+// The mic is processed in the page before it is published, so the level
+// slider and the noise gate work in every browser and the meter shows what
+// others actually receive. Changing device or filters swaps the input; the
+// published track stays the same.
 
-function startMeter(track) {
-  stopMeter();
-  let analyser;
-  try {
-    analyser = createAudioAnalyser(track, { smoothingTimeConstant: 0.7, fftSize: 256 });
-  } catch (err) {
-    return;
-  }
-  let raf = 0;
-  const tick = () => {
-    const level = Math.min(1, analyser.calculateVolume() * 3);
-    $('meter').style.setProperty('--level', level.toFixed(2));
-    raf = requestAnimationFrame(tick);
-  };
-  tick();
-  meterStop = () => {
-    cancelAnimationFrame(raf);
-    analyser.cleanup();
-    $('meter').style.setProperty('--level', '0');
-  };
+const mic = { ctx: null, raw: null, source: null, level: null, analyser: null, gate: null, dest: null, track: null, open: true, lastAbove: 0, raf: 0 };
+let pttHeld = false;
+
+function micConstraints() {
+  const c = { noiseSuppression: prefs.noise, echoCancellation: prefs.echo, autoGainControl: prefs.agc };
+  if (prefs.micId) c.deviceId = { exact: prefs.micId };
+  return c;
 }
 
-function stopMeter() {
-  if (meterStop) meterStop();
-  meterStop = null;
+async function openMic() {
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
+  } catch (err) {
+    if (!prefs.micId) throw err;
+    prefs.micId = ''; // the remembered device is gone
+    savePrefs();
+    stream = await navigator.mediaDevices.getUserMedia({ audio: micConstraints() });
+  }
+  const raw = stream.getAudioTracks()[0];
+  if (!mic.ctx) {
+    mic.ctx = new AudioContext();
+    mic.level = mic.ctx.createGain();
+    mic.analyser = mic.ctx.createAnalyser();
+    mic.analyser.fftSize = 512;
+    mic.analyser.smoothingTimeConstant = 0.6;
+    mic.gate = mic.ctx.createGain();
+    mic.dest = mic.ctx.createMediaStreamDestination();
+    mic.level.connect(mic.analyser);
+    mic.level.connect(mic.gate);
+    mic.gate.connect(mic.dest);
+    mic.track = mic.dest.stream.getAudioTracks()[0];
+    micLoop();
+  }
+  if (mic.source) mic.source.disconnect();
+  if (mic.raw) mic.raw.stop();
+  mic.raw = raw;
+  mic.source = mic.ctx.createMediaStreamSource(new MediaStream([raw]));
+  mic.source.connect(mic.level);
+  applyMicSettings();
+  await mic.ctx.resume();
+  if (mic.ctx.state !== 'running') {
+    // No audio output device or the browser refused to start the graph:
+    // publish the microphone as it is, without level and gate.
+    console.warn('[tavern] audio graph not running; publishing the raw microphone');
+    mic.bypass = true;
+    return raw;
+  }
+  return mic.track;
+}
+
+function closeMic() {
+  cancelAnimationFrame(mic.raf);
+  mic.raf = 0;
+  if (mic.raw) mic.raw.stop();
+  if (mic.source) mic.source.disconnect();
+  mic.raw = null;
+  mic.source = null;
+  $('meter').style.setProperty('--level', '0');
+}
+
+function applyMicSettings() {
+  if (!mic.ctx) return;
+  mic.level.gain.setTargetAtTime(prefs.gain / 100, mic.ctx.currentTime, 0.02);
+  $('gain-value').textContent = `${prefs.gain}%`;
+  $('gate-value').textContent = prefs.gate ? `${prefs.gate}` : 'off';
+}
+
+// Runs every frame: level meter, and the gate (closes the output when the
+// level stays under the threshold for a moment).
+const samples = new Float32Array(512);
+function micLoop() {
+  mic.raf = requestAnimationFrame(micLoop);
+  if (!mic.analyser) return;
+  mic.analyser.getFloatTimeDomainData(samples);
+  let sum = 0;
+  for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+  const rms = Math.sqrt(sum / samples.length);
+  // peak hold with a quick decay reads better than the raw sample
+  mic.shown = Math.max(Math.min(1, rms * 4), (mic.shown || 0) * 0.9);
+  $('meter').style.setProperty('--level', mic.shown.toFixed(2));
+  const now = performance.now();
+  const threshold = prefs.gate / 100 / 4; // slider 0..60 maps to a quiet-to-loud rms range
+  if (rms >= threshold) mic.lastAbove = now;
+  const open = !prefs.gate || now - mic.lastAbove < 350;
+  if (open !== mic.open) {
+    mic.open = open;
+    mic.gate.gain.setTargetAtTime(open ? 1 : 0, mic.ctx.currentTime, open ? 0.005 : 0.03);
+    $('mic').classList.toggle('gated', !open);
+  }
+}
+
+function setVolume(participant, volume) {
+  prefs.volumes[participant.identity] = volume;
+  savePrefs();
+  const pub = participant.getTrackPublication(Track.Source.Microphone);
+  if (pub?.track?.setVolume) pub.track.setVolume(volume);
+}
+
+const RESOLUTIONS = { 360: { width: 640, height: 360 }, 540: { width: 960, height: 540 }, 720: { width: 1280, height: 720 } };
+function videoConstraints() {
+  const c = { resolution: RESOLUTIONS[prefs.quality] || RESOLUTIONS[720] };
+  if (prefs.camId) c.deviceId = { exact: prefs.camId };
+  return c;
+}
+
+async function setPushToTalk(on) {
+  prefs.ptt = on;
+  savePrefs();
+  pttHeld = false;
+  $('mic').title = on ? 'Push to talk: hold Space (M toggles)' : 'Microphone (M)';
+  if (on && room.state === 'connected') await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+  reflectMic();
+}
+
+function reflectMic() {
+  const on = room.localParticipant?.isMicrophoneEnabled;
+  $('mic').classList.toggle('on', !!on);
+  $('mic').classList.toggle('off', !on);
+  $('mic').classList.toggle('ptt', prefs.ptt);
+  if (room.state === 'connected') updateMuted(room.localParticipant);
 }
 
 // --- room events --------------------------------------------------------------
@@ -283,16 +407,8 @@ function stopMeter() {
 room
   .on(RoomEvent.TrackSubscribed, (track, _pub, participant) => attachTrack(participant, track))
   .on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => detachTrack(participant, track))
-  .on(RoomEvent.LocalTrackPublished, (pub) => {
-    if (!pub.track) return;
-    attachTrack(room.localParticipant, pub.track);
-    if (pub.track.kind === Track.Kind.Audio) startMeter(pub.track);
-  })
-  .on(RoomEvent.LocalTrackUnpublished, (pub) => {
-    if (!pub.track) return;
-    detachTrack(room.localParticipant, pub.track);
-    if (pub.track.kind === Track.Kind.Audio) stopMeter();
-  })
+  .on(RoomEvent.LocalTrackPublished, (pub) => pub.track && attachTrack(room.localParticipant, pub.track))
+  .on(RoomEvent.LocalTrackUnpublished, (pub) => pub.track && detachTrack(room.localParticipant, pub.track))
   .on(RoomEvent.ParticipantConnected, (p) => tileFor(p))
   .on(RoomEvent.ParticipantDisconnected, removeParticipant)
   .on(RoomEvent.TrackMuted, (_pub, participant) => {
@@ -318,7 +434,7 @@ room
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`at ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
-    stopMeter();
+    closeMic();
     closePopout();
     setStatus('left the table');
     document.body.classList.remove('at-table');
@@ -349,6 +465,8 @@ async function fillDevices() {
       option.textContent = d.label || kind;
       select.appendChild(option);
     }
+    const wanted = kind === 'audioinput' ? prefs.micId : prefs.camId;
+    if (wanted && [...select.options].some((o) => o.value === wanted)) select.value = wanted;
   }
 }
 
@@ -369,8 +487,8 @@ async function join() {
     wake();
     setStatus(`at ${tableName}`);
 
-    const tile = tileFor(room.localParticipant);
-    tile.classList.add('mirror');
+    tileFor(room.localParticipant);
+    applyMirror();
     for (const p of room.remoteParticipants.values()) {
       tileFor(p);
       updateMuted(p);
@@ -379,31 +497,39 @@ async function join() {
     // camera (or who declines it) still joins with audio, and the other way
     // round. Each one that works is published; each that fails is reported.
     const missing = [];
-    const tracks = [];
+    let haveMic = false;
+    let haveCam = false;
     try {
-      tracks.push(...(await createLocalTracks({ audio: true })));
+      const track = await openMic();
+      await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
+      haveMic = true;
+      console.debug('[tavern] published audio');
+      if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
     } catch (err) {
       console.warn('[tavern] no microphone:', err.message);
       missing.push('microphone');
     }
     try {
-      tracks.push(...(await createLocalTracks({ video: { resolution: { width: 1280, height: 720 } } })));
+      let tracks;
+      try {
+        tracks = await createLocalTracks({ video: videoConstraints() });
+      } catch (err) {
+        if (!prefs.camId) throw err;
+        prefs.camId = ''; // the remembered camera is gone
+        savePrefs();
+        tracks = await createLocalTracks({ video: videoConstraints() });
+      }
+      for (const track of tracks) await room.localParticipant.publishTrack(track);
+      haveCam = true;
+      console.debug('[tavern] published video');
     } catch (err) {
       console.warn('[tavern] no camera:', err.message);
       missing.push('camera');
     }
-    console.debug('[tavern] local tracks', tracks.map((t) => t.kind).join(',') || 'none');
-    for (const track of tracks) {
-      await room.localParticipant.publishTrack(track);
-      console.debug('[tavern] published', track.kind);
-    }
     updateMuted(room.localParticipant);
     updateCamera(room.localParticipant);
     await fillDevices();
-    const haveMic = tracks.some((t) => t.kind === Track.Kind.Audio);
-    const haveCam = tracks.some((t) => t.kind === Track.Kind.Video);
-    $('mic').classList.toggle('on', haveMic);
-    $('mic').classList.toggle('off', !haveMic);
+    reflectMic();
     $('cam').classList.toggle('on', haveCam);
     $('cam').classList.toggle('off', !haveCam);
     if (missing.length) setStatus(`at ${tableName} (no ${missing.join(' or ')})`);
@@ -424,10 +550,7 @@ async function toggleMic() {
   } catch (err) {
     setStatus(`microphone: ${err.message}`, true);
   }
-  const on = room.localParticipant.isMicrophoneEnabled;
-  $('mic').classList.toggle('on', on);
-  $('mic').classList.toggle('off', !on);
-  updateMuted(room.localParticipant);
+  reflectMic();
 }
 
 async function toggleCam() {
@@ -446,8 +569,59 @@ async function toggleCam() {
 $('join-button').addEventListener('click', join);
 $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
-$('mic-select').addEventListener('change', (e) => room.switchActiveDevice('audioinput', e.target.value));
-$('cam-select').addEventListener('change', (e) => room.switchActiveDevice('videoinput', e.target.value));
+$('mic-select').addEventListener('change', async (e) => {
+  prefs.micId = e.target.value;
+  savePrefs();
+  if (mic.ctx) await openMic().catch((err) => setStatus(`microphone: ${err.message}`, true));
+});
+$('cam-select').addEventListener('change', async (e) => {
+  prefs.camId = e.target.value;
+  savePrefs();
+  await restartCamera();
+});
+$('gain').addEventListener('input', (e) => {
+  prefs.gain = Number(e.target.value);
+  savePrefs();
+  applyMicSettings();
+});
+$('gate').addEventListener('input', (e) => {
+  prefs.gate = Number(e.target.value);
+  savePrefs();
+  applyMicSettings();
+});
+for (const id of ['noise', 'echo', 'agc']) {
+  $(id).addEventListener('change', async (e) => {
+    prefs[id] = e.target.checked;
+    savePrefs();
+    if (mic.ctx) await openMic().catch((err) => setStatus(`microphone: ${err.message}`, true));
+  });
+}
+$('talk-mode').addEventListener('change', (e) => setPushToTalk(e.target.value === 'ptt'));
+$('quality').addEventListener('change', async (e) => {
+  prefs.quality = Number(e.target.value);
+  savePrefs();
+  await restartCamera();
+});
+$('mirror').addEventListener('change', (e) => {
+  prefs.mirror = e.target.checked;
+  savePrefs();
+  applyMirror();
+});
+
+function applyMirror() {
+  const tile = room.localParticipant && tiles.get(room.localParticipant.identity);
+  if (tile) tile.classList.toggle('mirror', prefs.mirror);
+}
+
+async function restartCamera() {
+  const pub = room.localParticipant?.getTrackPublication(Track.Source.Camera);
+  if (!pub?.track) return;
+  try {
+    await pub.track.restartTrack(videoConstraints());
+  } catch (err) {
+    setStatus(`camera: ${err.message}`, true);
+  }
+}
 $('leave').addEventListener('click', () => room.disconnect());
 window.addEventListener('beforeunload', () => room.disconnect());
 
@@ -479,12 +653,31 @@ $('settings-toggle').addEventListener('click', () => {
   $('settings-toggle').classList.toggle('on', !$('settings').hidden);
 });
 
-// Keyboard: M mic, V camera, C chat, unless typing in a field.
+// Keyboard: M mic, V camera, C chat, L layout, Space held = talk (push to
+// talk mode), unless typing in a field.
 document.addEventListener('keydown', onKey);
+document.addEventListener('keyup', onKeyUp);
+function typing(event) {
+  const target = event.target;
+  return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+}
+function onKeyUp(event) {
+  if (event.key === ' ' && prefs.ptt && pttHeld && !typing(event)) {
+    pttHeld = false;
+    room.localParticipant.setMicrophoneEnabled(false).then(reflectMic).catch(() => {});
+    event.preventDefault();
+  }
+}
 function onKey(event) {
   if (!document.body.classList.contains('at-table')) return;
-  const target = event.target;
-  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+  if (typing(event)) return;
+  if (event.key === ' ' && prefs.ptt) {
+    event.preventDefault();
+    if (event.repeat || pttHeld) return;
+    pttHeld = true;
+    room.localParticipant.setMicrophoneEnabled(true).then(reflectMic).catch(() => {});
+    return;
+  }
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key === 'm') toggleMic();
@@ -557,6 +750,7 @@ async function openPopout() {
     pipWindow.document.body.appendChild($('stage'));
     watchPointer(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
+    pipWindow.document.addEventListener('keyup', onKeyUp);
     pipWindow.addEventListener('resize', applyLayout);
     setTimeout(applyLayout, 50);
     pipWindow.addEventListener('pagehide', () => {
@@ -584,6 +778,17 @@ async function init() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   $('layout-select').value = prefs.layout;
   $('follow-speaker').checked = prefs.follow;
+  $('gain').value = String(prefs.gain);
+  $('gate').value = String(prefs.gate);
+  $('gain-value').textContent = `${prefs.gain}%`;
+  $('gate-value').textContent = prefs.gate ? `${prefs.gate}` : 'off';
+  $('noise').checked = prefs.noise;
+  $('echo').checked = prefs.echo;
+  $('agc').checked = prefs.agc;
+  $('talk-mode').value = prefs.ptt ? 'ptt' : 'open';
+  $('quality').value = String(prefs.quality);
+  $('mirror').checked = prefs.mirror;
+  $('mic').classList.toggle('ptt', prefs.ptt);
   applyLayout();
   const hint = describeInstall();
   $('install-hint').textContent = hint;

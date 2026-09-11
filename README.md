@@ -72,6 +72,32 @@ The admin account named in the compose file is checked on every start: it is cre
 and its password is reset to the compose value if it differs. Forgot the admin password? Change
 `TAVERN_ADMIN_PASSWORD` in Container Station and restart the container.
 
+## The table
+
+Join is one click. The page then becomes the table with nothing else on it; a round bar of
+controls floats at the bottom and fades away when the pointer rests, coming back on any
+movement. Left to right: microphone (with a live level meter inside the button), camera, layout,
+chat, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera, **C** chat,
+**L** layout.
+
+- **Layouts.** Grid; strip (one row, or one column when the window is taller than wide); and
+  spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
+  click a tile to pin it. Drag tiles into any order. Layout, order and pin are remembered in the
+  browser.
+- **Chat.** A drawer for "can you hear me" moments, with an unread badge. Nothing is stored.
+- **Audio.** In settings: microphone choice, a level slider (0 to 300%), a noise gate that cuts
+  the mic below a threshold, the browser's noise suppression, echo cancellation and auto gain
+  switches, and open mic or push to talk (hold Space). Hover another player's tile for a volume
+  slider that applies only on your side.
+- **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
+- **Without a camera or microphone** you still join; whatever is missing is named in the status
+  line and your no-video image stands in for the camera.
+
+To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
+an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads
+use **Share, Add to Home Screen**. In Chrome and Edge the **pop out** button also moves the whole
+table into a small always-on-top window and back.
+
 ## Images
 
 Each player has four image slots. **No video** shows at the table when their camera is off, and

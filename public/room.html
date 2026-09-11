@@ -42,7 +42,7 @@
     </div>
 
     <div class="float floatbar" id="floatbar">
-      <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph">&#127908;</span></button>
+      <button class="fbtn" id="mic" type="button" title="Microphone (M)" ><span class="meter" id="meter"></span><span class="glyph">&#127908;</span></button>
       <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph">&#127909;</span></button>
       <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph">&#9638;</span></button>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph">&#128172;</span><span class="badge" id="chat-badge" hidden></span></button>
@@ -58,11 +58,24 @@
     </aside>
 
     <div class="popover" id="settings" hidden>
+      <h3>Audio</h3>
       <label>Microphone<select id="mic-select"></select></label>
+      <label>Mic level <span class="hint" id="gain-value">100%</span><input type="range" id="gain" min="0" max="300" step="5" value="100"></label>
+      <label>Noise gate <span class="hint" id="gate-value">off</span><input type="range" id="gate" min="0" max="60" step="1" value="0"></label>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="noise" checked> Noise suppression</label>
+        <label class="check"><input type="checkbox" id="echo" checked> Echo cancellation</label>
+        <label class="check"><input type="checkbox" id="agc" checked> Auto gain</label>
+      </div>
+      <label>Talking<select id="talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
+      <h3>Video</h3>
       <label>Camera<select id="cam-select"></select></label>
+      <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
+      <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
+      <h3>Layout</h3>
       <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
       <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
-      <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it.</p>
+      <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
       <div class="row">
         <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
         <span class="hint" id="install-note"></span>
