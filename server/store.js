@@ -40,7 +40,6 @@ const DEFAULT_SETTINGS = {
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
   borderWidth: 6, // px, drawn on the OBS view
-  badge: true,
   plate: false,
 };
 
@@ -157,7 +156,7 @@ class Store {
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
       // null means "use the server default"
-      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor), badge: cleanTri(player.badge), plate: cleanTri(player.plate) },
+      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor), plate: cleanTri(player.plate) },
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
   }
@@ -192,7 +191,6 @@ class Store {
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
-    if (patch.badge !== undefined) s.badge = Boolean(patch.badge);
     if (patch.plate !== undefined) s.plate = Boolean(patch.plate);
     this.save();
     return s;
@@ -205,7 +203,6 @@ class Store {
       border: user.player.border === null ? s.border : user.player.border,
       borderColor: user.player.borderColor || s.borderColor,
       borderWidth: s.borderWidth || DEFAULT_SETTINGS.borderWidth,
-      badge: user.player.badge === null ? s.badge : user.player.badge,
       plate: user.player.plate === null ? s.plate : user.player.plate,
     };
   }
@@ -282,7 +279,6 @@ class Store {
         const colour = cleanColor(patch.player.borderColor);
         if (colour || patch.player.borderColor === '') user.player.borderColor = colour;
       }
-      if (patch.player.badge !== undefined) user.player.badge = cleanTri(patch.player.badge);
       if (patch.player.plate !== undefined) user.player.plate = cleanTri(patch.player.plate);
     }
     this.save();

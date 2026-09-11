@@ -107,7 +107,6 @@
         <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
         <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
         <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
-        <label class="check"><input type="checkbox" id="set-badge"> Muted badge</label>
         <label class="check"><input type="checkbox" id="set-plate"> Name plate</label>
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
@@ -192,11 +191,10 @@
         </div>
 
         <h3>Player</h3>
-        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with a drawn border and badge, and optionally with overlay images on top of the video. The name plate puts their name in the corner.</p>
+        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking is shown with a drawn border; talking and muted can also show your own overlay images on top of the video. Nothing else is drawn on the box. The name plate puts their name in the corner.</p>
         <div class="row">
           <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
           <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
-          <label class="check"><input type="checkbox" data-pfield="badge"> Muted badge</label>
           <label class="check"><input type="checkbox" data-pfield="plate"> Name plate</label>
           <button class="btn btn-small" data-action="player-defaults" type="button" title="Use the server defaults from Settings">Use defaults</button>
           <span class="hint" data-player-note></span>

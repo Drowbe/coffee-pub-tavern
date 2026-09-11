@@ -130,11 +130,11 @@ is speaking and who is muted.
 
 **Player** is the person. Their video box shows the camera when it is on and the **Player
 image** when it is off (the player can set that one themselves on their **Profile** page, which also shows them everything their admin set).
-While they speak a **talking border** is drawn around the box in the colour set for them, and
-while their microphone is off a **muted badge** appears. Both are drawn, so they fit any source
-size. An admin can also add a **Talking overlay** and a **Muted overlay** image that are laid on
-top of the video, scaled to fit, for something other than a border. The border, its colour and
-the badge have server-wide defaults under Settings and can be overridden per user.
+While they speak a **talking border** is drawn around the box in the colour and width set for
+them; it fits any source size. That border is the only thing the box ever draws. For anything
+more, an admin adds a **Talking overlay** and a **Muted overlay** image that are laid on top of
+the video, scaled to fit; with no muted overlay a muted player simply shows no indicator. The
+border and its colour have server-wide defaults under Settings and can be overridden per user.
 
 **Character** is a second box for OBS. It shows the **Character image**, if any, with the
 **Talking image** on top while they speak and the **Muted image** while they are muted. With no
@@ -158,7 +158,7 @@ https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 | Parameter | Meaning |
 | --- | --- |
 | `s` | The **stream key** from the Settings tab. Required. Regenerating it breaks every existing link. |
-| `kind` | `player` (default): the camera, the player image when it is off, the talking border, the muted badge and the overlays. `character`: the character image and its overlays, never the video. |
+| `kind` | `player` (default): the camera, the player image when it is off, the talking border and the overlays. `character`: the character image and its overlays, never the video. |
 | `plate` | `1` forces the name plate on. Normally the plate follows the **Name plate** option in the user's Player section (server default on the Settings tab). |
 | `audio` | The player view always plays the player's audio; `0` makes it silent. Whether it reaches the OBS mixer is OBS's own "Control audio via OBS" on the source. |
 | `reactions` | Both kinds float the player's reactions up the box; `0` keeps a source clean. |
@@ -177,8 +177,7 @@ The manage page's Settings tab has four sections. **Server**: the icon (any imag
 header, as the favicon and on the sign-in page) and the **server name** shown in the header and
 browser tab. **Sign-in page**: a **background** picture that fills the page behind the sign-in
 box, and the text under the password field. Click either picture to change it, **Remove** to
-clear it. **Player video defaults**: talking border, its colour and width in pixels, muted badge
-and name plate, used unless a user's own Player section overrides them (the width applies to
+clear it. **Player video defaults**: talking border, its colour and width in pixels, and name plate, used unless a user's own Player section overrides them (the width applies to
 everyone). **OBS access**: the stream key. Room images are square; anything else is cropped to
 the middle.
 

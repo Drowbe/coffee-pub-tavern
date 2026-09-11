@@ -32,7 +32,7 @@ function viewLink(user, card) {
   return `${user.viewUrl}?${q}`;
 }
 
-let defaults = { border: true, borderColor: '#6fae6b', badge: true, plate: false };
+let defaults = { border: true, borderColor: '#6fae6b', plate: false };
 
 // Users / Rooms / Settings tabs, remembered in the address
 function selectTab(name) {
@@ -95,10 +95,9 @@ function fill(card, user) {
   if (document.activeElement?.closest?.('.user-card') !== card) {
     card.querySelector('[data-pfield="border"]').checked = eff.border;
     card.querySelector('[data-pfield="borderColor"]').value = eff.borderColor;
-    card.querySelector('[data-pfield="badge"]').checked = eff.badge;
     card.querySelector('[data-pfield="plate"]').checked = Boolean(eff.plate);
   }
-  const custom = own.border !== null || own.borderColor || own.badge !== null || (own.plate !== null && own.plate !== undefined);
+  const custom = own.border !== null || own.borderColor || (own.plate !== null && own.plate !== undefined);
   card.querySelector('[data-player-note]').textContent = custom ? 'custom for this player' : 'server defaults';
   card.querySelector('[data-action="player-defaults"]').hidden = !custom;
   // The last admin cannot be demoted; say so before the click.
@@ -204,7 +203,7 @@ function wire(card) {
       copy(viewLink(user, card), status);
     } else if (action === 'player-defaults') {
       run(async () => {
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '', badge: null, plate: null } });
+        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '', plate: null } });
         replace(updated);
         say(status, 'using the server defaults');
       });
@@ -252,7 +251,6 @@ function wire(card) {
         const player = {
           border: card.querySelector('[data-pfield="border"]').checked,
           borderColor: card.querySelector('[data-pfield="borderColor"]').value,
-          badge: card.querySelector('[data-pfield="badge"]').checked,
           plate: card.querySelector('[data-pfield="plate"]').checked,
         };
         const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player });
@@ -491,10 +489,9 @@ $('save-defaults').addEventListener('click', async () => {
       border: $('set-border').checked,
       borderColor: $('set-border-color').value,
       borderWidth: $('set-border-width').value,
-      badge: $('set-badge').checked,
       plate: $('set-plate').checked,
     });
-    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge, plate: settings.plate };
+    defaults = { border: settings.border, borderColor: settings.borderColor, plate: settings.plate };
     say($('defaults-status'), 'saved');
     await loadUsers(); // effective values on the cards follow the defaults
   } catch (err) {
@@ -584,11 +581,10 @@ async function init() {
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
     $('set-login-text').value = settings.loginText;
-    defaults = { border: settings.border, borderColor: settings.borderColor, badge: settings.badge, plate: settings.plate };
+    defaults = { border: settings.border, borderColor: settings.borderColor, plate: settings.plate };
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
     $('set-border-width').value = settings.borderWidth || 6;
-    $('set-badge').checked = settings.badge;
     $('set-plate').checked = Boolean(settings.plate);
     renderSiteImages(settings);
     showStreamKey();
