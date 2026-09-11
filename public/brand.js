@@ -21,10 +21,14 @@ export async function loadBranding() {
   }
   icon.href = `/img/site/icon?v=${Date.now()}`;
   document.querySelectorAll('img[data-brand="icon"]').forEach((el) => (el.src = icon.href));
-  // The sign-in page carries the background picture when one is set.
-  for (const el of document.querySelectorAll('[data-brand="background"]')) {
-    el.classList.toggle('has-background', Boolean(b.hasBackground));
-    el.style.backgroundImage = b.hasBackground ? `url("/img/site/background?v=${Date.now()}")` : '';
+  // A page marked data-brand="background" (the sign-in page) gets the
+  // background picture when one is set. It goes on the root element: the
+  // root has its own colour, so a picture on the body would stop at the
+  // body's box and leave the collapsed margin above the sign-in box bare.
+  if (document.querySelector('[data-brand="background"]')) {
+    const root = document.documentElement;
+    root.classList.toggle('has-background', Boolean(b.hasBackground));
+    root.style.backgroundImage = b.hasBackground ? `url("/img/site/background?v=${Date.now()}")` : '';
   }
   return b;
 }

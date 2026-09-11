@@ -323,19 +323,17 @@ $('add-user').addEventListener('submit', async (event) => {
   }
 });
 
-$('save-settings').addEventListener('click', async () => {
+async function saveSettings(patch, statusEl) {
   try {
-    await api('PATCH', '/api/settings', {
-      serverName: $('set-server').value,
-      tableName: $('set-table').value,
-      loginText: $('set-login-text').value,
-    });
+    await api('PATCH', '/api/settings', patch);
     await loadBranding();
-    say($('settings-status'), 'saved');
+    say(statusEl, 'saved');
   } catch (err) {
-    say($('settings-status'), err.message, true);
+    say(statusEl, err.message, true);
   }
-});
+}
+$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, tableName: $('set-table').value }, $('settings-status')));
+$('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
 
 $('save-defaults').addEventListener('click', async () => {
   try {
@@ -356,7 +354,7 @@ $('save-defaults').addEventListener('click', async () => {
 // Site images (icon, sign-in background): click the picture to change it,
 // Remove to clear it. The icon falls back to the built-in one when unset.
 function renderSiteImages(b) {
-  for (const slot of document.querySelectorAll('#site-images .slot')) {
+  for (const slot of document.querySelectorAll('#tab-settings [data-site]')) {
     const name = slot.dataset.site;
     const has = name === 'icon' ? b.hasIcon : b.hasBackground;
     const img = slot.querySelector('img');
@@ -369,10 +367,10 @@ function renderSiteImages(b) {
   }
 }
 
-$('site-images').addEventListener('change', async (event) => {
+$('tab-settings').addEventListener('change', async (event) => {
   const input = event.target;
-  if (input.type !== 'file') return;
-  const name = input.closest('.slot').dataset.site;
+  if (input.type !== 'file' || !input.closest('[data-site]')) return;
+  const name = input.closest('[data-site]').dataset.site;
   const file = input.files[0];
   if (!file) return;
   try {
@@ -385,10 +383,10 @@ $('site-images').addEventListener('change', async (event) => {
   input.value = '';
 });
 
-$('site-images').addEventListener('click', async (event) => {
+$('tab-settings').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action="site-clear"]');
   if (!button) return;
-  const name = button.closest('.slot').dataset.site;
+  const name = button.closest('[data-site]').dataset.site;
   try {
     await api('DELETE', `/api/settings/${name}`);
     renderSiteImages(await loadBranding());

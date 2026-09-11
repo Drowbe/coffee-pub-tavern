@@ -149,12 +149,13 @@ table.
 
 ## Settings
 
-On the manage page's Settings tab: the **server name** shown in the header and browser tab, the
-**table name** shown on the join screen, the **text on the sign-in page**, an **icon** (any
-image; used in the header and as the favicon) and a **sign-in background** picture that fills
-the page behind the sign-in box. Click either picture to change it, **Remove** to clear it.
-The **stream key** and the **Player video defaults** (talking border, colour, muted badge, name
-plate) live there too.
+The manage page's Settings tab has four sections. **Server**: the icon (any image; used in the
+header, as the favicon and on the sign-in page), the **server name** shown in the header and
+browser tab, and the **table name** shown on the join screen. **Sign-in page**: a
+**background** picture that fills the page behind the sign-in box, and the **text** under the
+password field. Click either picture to change it, **Remove** to clear it. **Player video
+defaults**: talking border, colour, muted badge and name plate, used unless a user's own Player
+section overrides them. **OBS access**: the stream key.
 
 ## Development
 

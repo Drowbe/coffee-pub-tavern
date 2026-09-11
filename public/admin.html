@@ -47,20 +47,36 @@
 
     <section class="panel" id="tab-settings" hidden>
       <h1>Settings</h1>
+
+      <h2>Server</h2>
+      <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page; the table name is the room everyone joins.</p>
       <div class="brand-row">
-        <div class="site-images" id="site-images">
+        <div class="site-images">
           <div class="slot" data-site="icon"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Icon</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
-          <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Sign-in background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
           <label>Table name<input id="set-table" type="text" maxlength="60"></label>
-          <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
         </div>
       </div>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
+      </div>
+
+      <h2>Sign-in page</h2>
+      <p class="hint">A picture behind the sign-in box, and a note under the password field.</p>
+      <div class="brand-row">
+        <div class="site-images">
+          <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+        </div>
+        <div class="fields grow">
+          <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-login" type="button">Save</button>
+        <span class="status" id="login-status"></span>
       </div>
 
       <h2>Player video defaults</h2>

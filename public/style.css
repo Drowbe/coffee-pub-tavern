@@ -1102,14 +1102,18 @@ body.at-table {
   width: 170px;
 }
 
-/* The sign-in page behind a picture: the panel lifts off it. */
-body.has-background {
+/* The sign-in page behind a picture: it fills the whole viewport and the box lifts off it. */
+html.has-background {
   background-size: cover;
   background-position: center;
   background-attachment: fixed;
 }
 
-body.has-background .panel.login {
+html.has-background body {
+  background: transparent;
+}
+
+html.has-background .panel.login {
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
 }
 
