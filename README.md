@@ -13,7 +13,8 @@ See [DESIGN.md](DESIGN.md) for the plan and the build stages.
 - **LiveKit** media server (one container) with a built-in TURN relay.
 - **Tavern** web app (Node, one container): sign-in, the table page, a per-player view page for
   OBS, and a manage page for the party, images and settings.
-- Coffee Pub Studio talks to the same server to create the OBS sources in one click.
+- Coffee Pub Studio signs in to the same server as an admin and publishes each player as an OBS
+  Browser Source in one click, from its Tavern tab.
 
 ## Run it on the QNAP (Container Station + Nginx Proxy Manager)
 
@@ -126,7 +127,8 @@ https://tavern.<domain>/view/<key>?s=<stream key>&mode=auto&plate=1&audio=1
 
 In OBS: Sources, +, Browser, paste the link, set width and height, and untick "Shutdown source
 when not visible". The images switch live: Talking while the player speaks, Muted while their
-microphone is off.
+microphone is off. With Coffee Pub Studio you skip all of this: its Tavern tab creates and
+maintains the sources for you.
 
 Kick and mute-microphone buttons are on the manage page next to each player who is at the
 table.

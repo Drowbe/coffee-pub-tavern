@@ -3,7 +3,7 @@
 Self-hosted voice and video for the table. One login or personal link per player, nothing to
 install, no upsell. Every player is available to OBS as a separate source that the streamer lays out freely.
 
-Status: stage 1 and 4 running on the QNAP, September 2026.
+Status: stages 1 to 5 built, September 2026; running on the QNAP.
 
 ## Goals
 
@@ -121,7 +121,8 @@ server, so a plan with a few TB a month or a cap on per-player bitrate (default 
    name plate, image modes; a mixed-audio page is still to do.
 4. **Accounts and the manage page** (done): roles, passwords, personal links, images, settings,
    stream key, kick and mute.
-5. **Studio app hook** (1 day): Tavern section on the Session tab, one-click OBS sources.
+5. **Studio app hook** (done): Tavern block on the Session tab, a Tavern tab that publishes each
+   player as an OBS Browser Source and keeps it in sync by the player's key.
 6. **Polish across sessions**: bitrate profiles, noise suppression toggle (browser built-in),
    push-to-talk, the Foundry button, a status page.
 
