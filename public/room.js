@@ -1,14 +1,12 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
+import { loadBranding, api } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const room = new Room({ adaptiveStream: true, dynacast: true });
-const roomName = decodeURIComponent(location.pathname.split('/')[2] || 'tavern');
-const params = new URLSearchParams(location.search);
-const tiles = new Map(); // participant identity -> tile element
-
-$('name').value = params.get('name') || localStorage.getItem('tavern.name') || '';
-$('key').value = params.get('key') || localStorage.getItem('tavern.key') || '';
+const tiles = new Map(); // participant identity (user key) -> tile element
+let me = null;
+let tableName = 'The Table';
 
 function setStatus(text, error = false) {
   $('status').textContent = text;
@@ -21,9 +19,10 @@ function tileFor(participant) {
   tile = document.createElement('div');
   tile.className = 'tile';
   tile.dataset.identity = participant.identity;
-  const placeholder = document.createElement('div');
+  const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
-  placeholder.textContent = '☕';
+  placeholder.alt = '';
+  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/novideo`;
   tile.appendChild(placeholder);
   const name = document.createElement('span');
   name.className = 'name';
@@ -78,6 +77,16 @@ function updateMuted(participant) {
   }
 }
 
+// A camera turned off keeps its publication but mutes it: show the image again.
+function updateCamera(participant) {
+  const tile = tileFor(participant);
+  const cam = participant.getTrackPublication(Track.Source.Camera);
+  const off = !cam || cam.isMuted;
+  const video = tile.querySelector('video');
+  if (video) video.hidden = off;
+  tile.querySelector('.placeholder').hidden = !off && !!video;
+}
+
 room
   .on(RoomEvent.TrackSubscribed, (track, _pub, participant) => attachTrack(participant, track))
   .on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => detachTrack(participant, track))
@@ -85,19 +94,28 @@ room
   .on(RoomEvent.LocalTrackUnpublished, (pub) => pub.track && detachTrack(room.localParticipant, pub.track))
   .on(RoomEvent.ParticipantConnected, (p) => tileFor(p))
   .on(RoomEvent.ParticipantDisconnected, removeParticipant)
-  .on(RoomEvent.TrackMuted, (_pub, participant) => updateMuted(participant))
-  .on(RoomEvent.TrackUnmuted, (_pub, participant) => updateMuted(participant))
+  .on(RoomEvent.TrackMuted, (_pub, participant) => {
+    updateMuted(participant);
+    updateCamera(participant);
+  })
+  .on(RoomEvent.TrackUnmuted, (_pub, participant) => {
+    updateMuted(participant);
+    updateCamera(participant);
+  })
   .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
     const active = new Set(speakers.map((s) => s.identity));
     for (const [identity, tile] of tiles) tile.classList.toggle('speaking', active.has(identity));
   })
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
-  .on(RoomEvent.Reconnected, () => setStatus(`at ${roomName}`))
+  .on(RoomEvent.Reconnected, () => setStatus(`at ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
     setStatus('left the table');
     $('grid').hidden = true;
     $('controls').hidden = true;
     $('join').hidden = false;
+    for (const [, tile] of tiles) tile.remove();
+    tiles.clear();
+    document.querySelectorAll('audio').forEach((el) => el.remove());
   });
 
 async function fillDevices() {
@@ -113,29 +131,18 @@ async function fillDevices() {
   }
 }
 
-$('join').addEventListener('submit', async (event) => {
-  event.preventDefault();
+async function join() {
   $('join-error').hidden = true;
-  const name = $('name').value.trim();
-  const key = $('key').value.trim();
+  $('join-button').disabled = true;
   try {
     setStatus('connecting...');
-    const res = await fetch('/api/token', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ room: roomName, name, key }),
-    });
-    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
-    const { token, livekitUrl } = await res.json();
-    localStorage.setItem('tavern.name', name);
-    localStorage.setItem('tavern.key', key);
-
+    const { token, livekitUrl } = await api('POST', '/api/token', {});
     await room.connect(livekitUrl, token);
     console.debug('[tavern] connected');
     $('join').hidden = true;
     $('grid').hidden = false;
     $('controls').hidden = false;
-    setStatus(`at ${roomName}`);
+    setStatus(`at ${tableName}`);
 
     const tile = tileFor(room.localParticipant);
     tile.classList.add('mirror');
@@ -151,7 +158,6 @@ $('join').addEventListener('submit', async (event) => {
     }
     updateMuted(room.localParticipant);
     await fillDevices();
-    console.debug('[tavern] devices listed');
     $('mic').classList.add('on');
     $('cam').classList.add('on');
   } catch (err) {
@@ -159,8 +165,12 @@ $('join').addEventListener('submit', async (event) => {
     $('join-error').textContent = err.message;
     $('join-error').hidden = false;
     await room.disconnect().catch(() => {});
+  } finally {
+    $('join-button').disabled = false;
   }
-});
+}
+
+$('join-button').addEventListener('click', join);
 
 $('mic').addEventListener('click', async () => {
   const enabled = !room.localParticipant.isMicrophoneEnabled;
@@ -174,8 +184,23 @@ $('cam').addEventListener('click', async () => {
   await room.localParticipant.setCameraEnabled(enabled);
   $('cam').classList.toggle('on', enabled);
   $('cam').classList.toggle('off', !enabled);
+  updateCamera(room.localParticipant);
 });
 $('mic-select').addEventListener('change', (e) => room.switchActiveDevice('audioinput', e.target.value));
 $('cam-select').addEventListener('change', (e) => room.switchActiveDevice('videoinput', e.target.value));
 $('leave').addEventListener('click', () => room.disconnect());
 window.addEventListener('beforeunload', () => room.disconnect());
+
+async function init() {
+  const branding = await loadBranding();
+  tableName = branding.tableName || tableName;
+  try {
+    const info = await api('GET', '/api/me');
+    me = info.user;
+    $('whoami').textContent = me.displayName;
+    $('admin-link').hidden = me.role !== 'admin';
+  } catch (err) {
+    location.href = '/login';
+  }
+}
+init();

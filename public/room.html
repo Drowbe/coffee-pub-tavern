@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span>&#9749;</span> Coffee Pub Tavern <span class="status" id="status"></span></div>
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span> <span class="status" id="status"></span></div>
     <div class="controls" id="controls" hidden>
       <button class="btn" id="mic" type="button">Mic</button>
       <button class="btn" id="cam" type="button">Camera</button>
@@ -17,16 +17,20 @@
       <select id="cam-select" title="Camera"></select>
       <button class="btn btn-danger" id="leave" type="button">Leave</button>
     </div>
+    <nav class="links" id="links">
+      <span id="whoami"></span>
+      <a href="/me">Your image</a>
+      <a href="/admin" id="admin-link" hidden>Manage</a>
+      <a href="/logout">Sign out</a>
+    </nav>
   </header>
 
-  <form class="join" id="join">
-    <h1>Join the table</h1>
-    <label>Your name<input id="name" type="text" maxlength="40" required autocomplete="nickname"></label>
-    <label>Table key<input id="key" type="password" maxlength="200" required autocomplete="off"></label>
-    <p class="hint">Your browser will ask for camera and microphone once. Nothing to install.</p>
-    <button class="btn btn-primary" type="submit">Join</button>
+  <div class="panel join" id="join">
+    <h1 data-brand="tableName">The Table</h1>
+    <p class="hint">Your browser will ask for camera and microphone the first time.</p>
+    <button class="btn btn-primary" id="join-button" type="button">Join</button>
     <p class="status error" id="join-error" hidden></p>
-  </form>
+  </div>
 
   <main class="grid" id="grid" hidden></main>
 

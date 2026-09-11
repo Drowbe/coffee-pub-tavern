@@ -1,6 +1,6 @@
 # Coffee Pub Tavern - paste this into QNAP Container Station (Applications >
 # Create) or run with `docker compose up -d` anywhere. No files to edit on the
-# NAS: everything is set below. Replace the six CHANGE_ME values.
+# NAS: everything is set below. Replace the CHANGE_ME values.
 #
 # Before starting:
 #   DNS:    tavern.<domain> and livekit.<domain> -> your public IP (DNS only, not proxied)
@@ -48,8 +48,10 @@ services:
       LIVEKIT_HOST: "livekit.CHANGE_ME_DOMAIN"
       LIVEKIT_API_KEY: "CHANGE_ME_API_KEY"
       LIVEKIT_API_SECRET: "CHANGE_ME_API_SECRET"
-      TAVERN_JOIN_KEY: "CHANGE_ME_TABLE_KEY"
-      TAVERN_ADMIN_KEY: "CHANGE_ME_ADMIN_KEY"
+      # The game master's account. Created on first start; if you ever forget
+      # the password, change it here and restart the container.
+      TAVERN_ADMIN_USER: "gm"
+      TAVERN_ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
       PORT: "3000"
     volumes:
-      - /share/appdata/tavern:/app/data # tables and players (later stage)
+      - /share/appdata/tavern:/app/data # users, settings and images

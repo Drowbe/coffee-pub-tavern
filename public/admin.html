@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <title>Coffee Pub Tavern - Manage</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span> <span class="status">manage</span></div>
+    <nav class="links"><a href="/">Back to the table</a><a href="/logout">Sign out</a></nav>
+  </header>
+
+  <main class="admin">
+    <section class="panel">
+      <div class="section-head">
+        <h1>The party</h1>
+        <span class="status" id="party-status"></span>
+      </div>
+      <div id="users" class="users"></div>
+
+      <form class="add-user" id="add-user">
+        <h2>Add someone</h2>
+        <div class="fields">
+          <label>Login<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
+          <label>Display name<input id="new-name" type="text" maxlength="40" autocomplete="off"></label>
+          <label>Role<select id="new-role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+          <label>Password<input id="new-password" type="text" maxlength="200" autocomplete="off" placeholder="leave empty for link only"></label>
+          <label class="check"><input id="new-link" type="checkbox" checked> Personal link (no password needed)</label>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Add</button>
+          <span class="status error" id="add-error" hidden></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" id="settings">
+      <h1>Settings</h1>
+      <div class="fields">
+        <label>Server name<input id="set-server" type="text" maxlength="60"></label>
+        <label>Table name<input id="set-table" type="text" maxlength="60"></label>
+        <label class="wide">Text on the sign-in page<textarea id="set-login-text" rows="3" maxlength="1000"></textarea></label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-settings" type="button">Save</button>
+        <span class="status" id="settings-status"></span>
+      </div>
+
+      <h2>Icon</h2>
+      <div class="image-row">
+        <img class="preview small" id="icon-preview" alt="">
+        <div class="stack">
+          <label class="btn file-btn">Choose icon<input type="file" id="icon-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+          <button class="btn btn-danger" id="icon-remove" type="button">Remove</button>
+        </div>
+      </div>
+
+      <h2>Stream key</h2>
+      <p class="hint">OBS and Coffee Pub Studio use this key to load the view pages and the party list. Regenerating it breaks every existing view link.</p>
+      <div class="row">
+        <code class="key" id="stream-key">••••••••</code>
+        <button class="btn" id="stream-show" type="button">Show</button>
+        <button class="btn" id="stream-copy" type="button">Copy</button>
+        <button class="btn btn-danger" id="stream-regen" type="button">Regenerate</button>
+      </div>
+    </section>
+  </main>
+
+  <template id="user-card">
+    <article class="user-card">
+      <header class="user-head">
+        <span class="dot" data-dot title="offline"></span>
+        <img class="thumb" data-thumb alt="">
+        <div class="user-title">
+          <strong data-name></strong>
+          <span class="meta"><span data-login></span> · <span data-role></span> · key <code data-key></code></span>
+        </div>
+        <span class="live" data-live></span>
+        <button class="btn btn-small" data-action="toggle" type="button">Edit</button>
+      </header>
+      <div class="user-body" hidden>
+        <div class="fields">
+          <label>Display name<input data-field="displayName" type="text" maxlength="40"></label>
+          <label>Login<input data-field="login" type="text" maxlength="40" autocapitalize="off"></label>
+          <label>Role<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+          <label>New password<input data-field="password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
+        </div>
+        <div class="row">
+          <button class="btn btn-primary btn-small" data-action="save" type="button">Save</button>
+          <button class="btn btn-small" data-action="clear-password" type="button">Remove password</button>
+          <span class="status" data-status></span>
+        </div>
+
+        <h3>Personal link</h3>
+        <div class="row">
+          <code class="key link" data-link>off</code>
+          <button class="btn btn-small" data-action="link-copy" type="button">Copy</button>
+          <button class="btn btn-small" data-action="link-new" type="button">Create</button>
+          <button class="btn btn-small btn-danger" data-action="link-off" type="button">Turn off</button>
+        </div>
+
+        <h3>Images</h3>
+        <div class="slots">
+          <div class="slot" data-slot="novideo"><img alt=""><span>No video</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="normal"><img alt=""><span>Normal</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="talking"><img alt=""><span>Talking</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="muted"><img alt=""><span>Muted</span><label class="btn btn-small file-btn">Set<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+        </div>
+        <p class="hint">Talking and Muted fall back to Normal, Normal falls back to No video, and No video falls back to initials.</p>
+
+        <h3>OBS view</h3>
+        <div class="row">
+          <select data-view-mode><option value="auto">Video, images when the camera is off</option><option value="video">Video only</option><option value="avatar">Images only</option></select>
+          <label class="check"><input type="checkbox" data-view-audio> audio</label>
+          <label class="check"><input type="checkbox" data-view-plate> name plate</label>
+          <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
+          <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
+        </div>
+
+        <div class="row danger-row">
+          <button class="btn btn-small" data-action="mute" type="button">Mute mic</button>
+          <button class="btn btn-small" data-action="kick" type="button">Kick</button>
+          <button class="btn btn-small btn-danger" data-action="delete" type="button">Delete user</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>
