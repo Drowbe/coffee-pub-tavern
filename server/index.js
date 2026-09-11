@@ -274,6 +274,14 @@ app.get('/img/site/background', (_req, res) => {
   res.status(404).end();
 });
 
+// A room's picture: nothing until one is set.
+app.get('/img/room/:id', (req, res) => {
+  if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
+  const file = store.roomImagePath(req.params.id);
+  if (file) return sendImage(res, file);
+  res.status(404).end();
+});
+
 // A user's image for a slot. The player image always renders (an initials
 // plate when none is set); every other slot is optional and 404s when unset,
 // so overlays and the character box stay transparent. Signed-in users and
@@ -393,7 +401,34 @@ app.get('/api/status', requireStream, async (req, res) => {
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u), online: byKey.get(u.key) || null })),
     table: store.users.map(tableUser),
+    rooms: store.rooms,
   });
+});
+
+// Rooms: the Lobby (everyone) plus the rooms an admin curates. Signed-in
+// users and stream key holders can read them; admins change them.
+app.get('/api/rooms', (req, res) => {
+  if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({ rooms: store.rooms });
+});
+app.post('/api/rooms', requireAdmin, (req, res) => {
+  const { name, description, members } = req.body || {};
+  res.json({ room: store.addRoom({ name, description, members }) });
+});
+app.patch('/api/rooms/:id', requireAdmin, (req, res) => {
+  res.json({ room: store.updateRoom(req.params.id, req.body || {}) });
+});
+app.delete('/api/rooms/:id', requireAdmin, (req, res) => {
+  store.removeRoom(req.params.id);
+  res.json({ ok: true });
+});
+app.put('/api/rooms/:id/image', requireAdmin, rawImage, (req, res) => {
+  store.setRoomImage(req.params.id, req.body, req.get('content-type'));
+  res.json({ room: store.roomById(req.params.id) });
+});
+app.delete('/api/rooms/:id/image', requireAdmin, (req, res) => {
+  store.removeRoomImage(req.params.id);
+  res.json({ room: store.roomById(req.params.id) });
 });
 
 // Admin API -------------------------------------------------------------------

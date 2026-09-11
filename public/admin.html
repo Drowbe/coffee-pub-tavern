@@ -16,6 +16,7 @@
   <main class="admin">
     <nav class="subtabs" id="subtabs">
       <button class="subtab active" data-tab="users" type="button">Users</button>
+      <button class="subtab" data-tab="rooms" type="button">Rooms</button>
       <button class="subtab" data-tab="settings" type="button">Settings</button>
     </nav>
 
@@ -43,6 +44,16 @@
       </form>
 
       <div id="users" class="users"></div>
+    </section>
+
+    <section class="panel" id="tab-rooms" hidden>
+      <div class="section-head">
+        <h1>Rooms</h1>
+        <span class="status" id="rooms-status"></span>
+        <button class="btn btn-primary btn-small" id="add-room" type="button">Add room</button>
+      </div>
+      <p class="hint">Everyone belongs to the Lobby. A room is a group of users you pick; Coffee Pub Studio shows one room at a time. Rooms do not change who hears whom yet.</p>
+      <div id="rooms" class="rooms"></div>
     </section>
 
     <section class="panel" id="tab-settings" hidden>
@@ -100,6 +111,30 @@
       </div>
     </section>
   </main>
+
+  <template id="room-card">
+    <article class="room-card">
+      <div class="brand-row">
+        <div class="site-images">
+          <div class="slot" data-room-image><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Room image</span><button class="btn btn-small" data-action="room-image-clear" type="button">Remove</button></div>
+        </div>
+        <div class="fields grow">
+          <label>Name<input data-rfield="name" type="text" maxlength="40"></label>
+          <label class="wide">Description<textarea data-rfield="description" rows="2" maxlength="300"></textarea></label>
+        </div>
+      </div>
+      <div class="room-members">
+        <span class="field-label">Members</span>
+        <div class="member-checks" data-members></div>
+        <span class="hint" data-members-note hidden>Everyone belongs to the Lobby.</span>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-small" data-action="room-save" type="button">Save</button>
+        <button class="btn btn-small btn-danger" data-action="room-delete" type="button">Delete room</button>
+        <span class="status" data-status></span>
+      </div>
+    </article>
+  </template>
 
   <template id="user-card">
     <article class="user-card">

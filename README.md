@@ -74,6 +74,18 @@ The admin account named in the compose file is checked on every start: it is cre
 and its password is reset to the compose value if it differs. Forgot the admin password? Change
 `TAVERN_ADMIN_PASSWORD` in Container Station and restart the container.
 
+A player with no camera and no microphone still joins: text-only participants sit at the table
+with their player image, use chat and reactions, and can be published to OBS like anyone else.
+
+## Rooms
+
+The **Rooms** tab on the manage page holds the **Lobby**, which everyone belongs to and which
+cannot be deleted, plus any rooms an admin adds. A room has a name, a description, a picture
+(click it to change it) and the members the admin ticks. Coffee Pub Studio shows one room at a
+time on its Tavern tab and publishes that room's users. For now a room is a curated group for
+the stream; it does not change who hears whom at the table. Pulling a player aside into a
+private conversation comes next.
+
 ## The table
 
 The join screen lists everyone who belongs to the table, with a green dot on those already at

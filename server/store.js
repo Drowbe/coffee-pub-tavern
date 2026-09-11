@@ -1,9 +1,10 @@
 'use strict';
 
-// Users, settings and images live in DATA_DIR (a Docker volume in production):
-//   tavern.json          users, settings, secrets
-//   images/<key>/<slot>  one image per user slot (novideo, normal, talking, muted)
-//   images/site/icon     the server icon
+// Users, rooms, settings and images live in DATA_DIR (a Docker volume in production):
+//   tavern.json          users, rooms, settings, secrets
+//   images/<key>/<slot>  one image per user slot (player, character, talking, muted...)
+//   images/site/<name>   the server icon and the sign-in background
+//   images/rooms/<id>    a room's picture
 // Everything is loaded once and written back whole; a table's worth of users
 // does not need a database.
 
@@ -27,6 +28,8 @@ const IMAGE_TYPES = {
 };
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const SITE_IMAGES = ['icon', 'background'];
+// Every user belongs to the Lobby; it cannot be deleted.
+const LOBBY = 'lobby';
 
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern',
@@ -95,12 +98,29 @@ class Store {
       },
       settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
       users: Array.isArray(raw.users) ? raw.users.map((u) => this.sanitizeUser(u)).filter(Boolean) : [],
+      rooms: Array.isArray(raw.rooms) ? raw.rooms.map((r) => this.sanitizeRoom(r)).filter(Boolean) : [],
     };
-    if (!raw.secrets?.session || !raw.secrets?.stream) {
+    if (!data.rooms.some((r) => r.id === LOBBY)) {
+      data.rooms.unshift({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() });
+    }
+    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms)) {
       this.data = data;
       this.save();
     }
     return data;
+  }
+
+  sanitizeRoom(r) {
+    if (!r || typeof r !== 'object') return null;
+    const id = typeof r.id === 'string' && /^[a-z0-9]{4,16}$/.test(r.id) ? r.id : null;
+    if (!id) return null;
+    return {
+      id,
+      name: cleanText(r.name, 40) || (id === LOBBY ? 'Lobby' : 'Room'),
+      description: String(r.description ?? '').trim().slice(0, 300),
+      members: Array.isArray(r.members) ? [...new Set(r.members.filter((k) => typeof k === 'string'))] : [],
+      createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+    };
   }
 
   save() {
@@ -266,6 +286,7 @@ class Store {
     if (!user) throw new StoreError('no such user', 404);
     if (user.role === 'admin' && this.adminCount() <= 1) throw new StoreError('keep at least one admin');
     this.data.users = this.data.users.filter((u) => u.key !== key);
+    for (const room of this.data.rooms) room.members = room.members.filter((k) => k !== key);
     this.save();
     fs.rmSync(path.join(this.imagesDir, key), { recursive: true, force: true });
     return user;
@@ -273,6 +294,81 @@ class Store {
 
   adminCount() {
     return this.data.users.filter((u) => u.role === 'admin').length;
+  }
+
+  // --- rooms --------------------------------------------------------------
+  // The Lobby holds everyone; other rooms hold the members an admin picks.
+
+  get rooms() {
+    const everyone = this.data.users.map((u) => u.key);
+    return this.data.rooms.map((r) => ({
+      ...r,
+      members: r.id === LOBBY ? everyone : r.members.filter((k) => everyone.includes(k)),
+      isLobby: r.id === LOBBY,
+      hasImage: !!this.roomImagePath(r.id),
+    }));
+  }
+
+  roomById(id) {
+    return this.rooms.find((r) => r.id === id) || null;
+  }
+
+  addRoom({ name, description, members }) {
+    let id;
+    do id = randomKey();
+    while (this.data.rooms.some((r) => r.id === id));
+    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, createdAt: new Date().toISOString() });
+    room.members = room.members.filter((k) => this.userByKey(k));
+    this.data.rooms.push(room);
+    this.save();
+    return this.roomById(id);
+  }
+
+  updateRoom(id, patch) {
+    const room = this.data.rooms.find((r) => r.id === id);
+    if (!room) throw new StoreError('no such room', 404);
+    if (patch.name !== undefined) room.name = cleanText(patch.name, 40) || room.name;
+    if (patch.description !== undefined) room.description = String(patch.description ?? '').trim().slice(0, 300);
+    if (patch.members !== undefined && id !== LOBBY) {
+      if (!Array.isArray(patch.members)) throw new StoreError('members must be a list of user keys');
+      room.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
+    }
+    this.save();
+    return this.roomById(id);
+  }
+
+  removeRoom(id) {
+    if (id === LOBBY) throw new StoreError('the Lobby cannot be deleted');
+    const room = this.data.rooms.find((r) => r.id === id);
+    if (!room) throw new StoreError('no such room', 404);
+    this.data.rooms = this.data.rooms.filter((r) => r.id !== id);
+    this.save();
+    this.removeRoomImage(id);
+    return room;
+  }
+
+  roomImagePath(id) {
+    const dir = path.join(this.imagesDir, 'rooms');
+    if (!/^[a-z0-9]{4,16}$/.test(id) || !fs.existsSync(dir)) return null;
+    const file = fs.readdirSync(dir).find((f) => f.startsWith(`${id}.`));
+    return file ? path.join(dir, file) : null;
+  }
+
+  setRoomImage(id, buffer, contentType) {
+    if (!this.data.rooms.some((r) => r.id === id)) throw new StoreError('no such room', 404);
+    const ext = IMAGE_TYPES[contentType];
+    if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
+    if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError('image is larger than 5 MB');
+    this.removeRoomImage(id);
+    const dir = path.join(this.imagesDir, 'rooms');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${id}.${ext}`), buffer);
+  }
+
+  removeRoomImage(id) {
+    const existing = this.roomImagePath(id);
+    if (existing) fs.rmSync(existing, { force: true });
   }
 
   // --- images -------------------------------------------------------------
@@ -360,4 +456,4 @@ class StoreError extends Error {
   }
 }
 
-module.exports = { Store, StoreError, SLOTS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, randomToken, cleanText, cleanLogin };
+module.exports = { Store, StoreError, SLOTS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin };

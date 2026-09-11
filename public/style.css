@@ -187,19 +187,19 @@ select {
   white-space: nowrap;
 }
 
-/* Reactions float up from a tile and fade. */
+/* Reactions float up from a tile and fade, sized by the tile (a third of its height). */
+.tile {
+  container-type: size;
+}
+
 .tile .reaction {
   position: absolute;
-  bottom: 30%;
-  font-size: 40px;
+  bottom: 25%;
+  font-size: min(34cqh, 40cqw);
   line-height: 1;
   pointer-events: none;
   animation: reaction-float 2.2s ease-out forwards;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
-}
-
-.stage.compact .tile .reaction {
-  font-size: 26px;
 }
 
 @keyframes reaction-float {
@@ -1195,6 +1195,66 @@ body.at-table {
   gap: 12px;
   flex: none;
   align-items: flex-start;
+}
+
+/* --- rooms ------------------------------------------------------------------ */
+
+.rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.room-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.room-card.lobby {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.room-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.member-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-input);
+  font-size: 13px;
+}
+
+.member-check img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.member-check:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.member-check:has(input:disabled) {
+  opacity: 0.7;
 }
 
 .slot-pick.wide {

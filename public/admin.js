@@ -34,10 +34,11 @@ function viewLink(user, card) {
 
 let defaults = { border: true, borderColor: '#6fae6b', badge: true, plate: false };
 
-// Users / Settings tabs, remembered in the address
+// Users / Rooms / Settings tabs, remembered in the address
 function selectTab(name) {
-  const tab = name === 'settings' ? 'settings' : 'users';
+  const tab = name === 'settings' || name === 'rooms' ? name : 'users';
   $('tab-users').hidden = tab !== 'users';
+  $('tab-rooms').hidden = tab !== 'rooms';
   $('tab-settings').hidden = tab !== 'settings';
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
@@ -277,6 +278,7 @@ function renderUsers() {
     }
   }
   $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} at the table`;
+  renderRooms(); // the member lists follow the users
 }
 
 async function refreshLive() {
@@ -294,8 +296,146 @@ async function refreshLive() {
 async function loadUsers() {
   const status = await api('GET', '/api/status');
   users = status.users;
+  rooms = status.rooms || rooms;
   renderUsers();
 }
+
+// --- rooms ---------------------------------------------------------------------
+// The Lobby holds everyone; other rooms hold the members the admin ticks.
+
+let rooms = [];
+const roomCards = new Map();
+
+function roomCardFor(room) {
+  let card = roomCards.get(room.id);
+  if (card) return card;
+  card = $('room-card').content.firstElementChild.cloneNode(true);
+  card.dataset.room = room.id;
+  roomCards.set(room.id, card);
+  $('rooms').appendChild(card);
+  return card;
+}
+
+function fillRoom(card, room) {
+  const editing = document.activeElement?.closest?.('.room-card') === card;
+  if (!editing) {
+    card.querySelector('[data-rfield="name"]').value = room.name;
+    card.querySelector('[data-rfield="description"]').value = room.description;
+  }
+  const img = card.querySelector('[data-room-image] img');
+  img.hidden = !room.hasImage;
+  if (room.hasImage) img.src = `/img/room/${room.id}?v=${Date.now()}`;
+  card.querySelector('[data-room-image] .unset').hidden = room.hasImage;
+  card.querySelector('[data-action="room-image-clear"]').hidden = !room.hasImage;
+  const checks = card.querySelector('[data-members]');
+  const members = new Set(room.members);
+  const keep = new Set();
+  for (const user of users) {
+    keep.add(user.key);
+    let label = checks.querySelector(`[data-member="${CSS.escape(user.key)}"]`);
+    if (!label) {
+      label = document.createElement('label');
+      label.className = 'check member-check';
+      label.dataset.member = user.key;
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      const thumb = document.createElement('img');
+      thumb.alt = '';
+      thumb.src = imgUrl(user.key, 'player');
+      const name = document.createElement('span');
+      label.append(input, thumb, name);
+      checks.appendChild(label);
+    }
+    label.querySelector('span').textContent = user.displayName;
+    const input = label.querySelector('input');
+    if (!editing) input.checked = room.isLobby || members.has(user.key);
+    input.disabled = room.isLobby;
+  }
+  for (const label of [...checks.children]) if (!keep.has(label.dataset.member)) label.remove();
+  card.querySelector('[data-members-note]').hidden = !room.isLobby;
+  card.querySelector('[data-action="room-delete"]').hidden = room.isLobby;
+  card.classList.toggle('lobby', room.isLobby);
+}
+
+function renderRooms() {
+  for (const room of rooms) fillRoom(roomCardFor(room), room);
+  for (const [id, card] of roomCards) {
+    if (!rooms.some((r) => r.id === id)) {
+      card.remove();
+      roomCards.delete(id);
+    }
+  }
+  $('rooms-status').textContent = `${rooms.length} room${rooms.length === 1 ? '' : 's'}`;
+}
+
+function replaceRoom(updated) {
+  rooms = rooms.map((r) => (r.id === updated.id ? updated : r));
+  fillRoom(roomCardFor(updated), updated);
+}
+
+$('add-room').addEventListener('click', async () => {
+  try {
+    const { room } = await api('POST', '/api/rooms', { name: `Room ${rooms.length}`, description: '', members: [] });
+    rooms.push(room);
+    renderRooms();
+    const card = roomCards.get(room.id);
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    card.querySelector('[data-rfield="name"]').select();
+  } catch (err) {
+    say($('rooms-status'), err.message, true);
+  }
+});
+
+$('rooms').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const card = button.closest('.room-card');
+  const room = rooms.find((r) => r.id === card.dataset.room);
+  const status = card.querySelector('[data-status]');
+  if (!room) return;
+  try {
+    if (button.dataset.action === 'room-save') {
+      const patch = {
+        name: card.querySelector('[data-rfield="name"]').value,
+        description: card.querySelector('[data-rfield="description"]').value,
+      };
+      if (!room.isLobby) patch.members = [...card.querySelectorAll('[data-member] input:checked')].map((i) => i.closest('[data-member]').dataset.member);
+      const { room: updated } = await api('PATCH', `/api/rooms/${room.id}`, patch);
+      replaceRoom(updated);
+      say(status, 'saved');
+    } else if (button.dataset.action === 'room-delete') {
+      if (!window.confirm(`Delete the room "${room.name}"? Its members stay in the Lobby.`)) return;
+      await api('DELETE', `/api/rooms/${room.id}`);
+      rooms = rooms.filter((r) => r.id !== room.id);
+      renderRooms();
+    } else if (button.dataset.action === 'room-image-clear') {
+      const { room: updated } = await api('DELETE', `/api/rooms/${room.id}/image`);
+      replaceRoom(updated);
+      say(status, 'image removed');
+    }
+  } catch (err) {
+    say(status, err.message, true);
+  }
+});
+
+$('rooms').addEventListener('change', async (event) => {
+  const input = event.target;
+  if (input.type !== 'file') return;
+  const card = input.closest('.room-card');
+  const room = rooms.find((r) => r.id === card.dataset.room);
+  const file = input.files[0];
+  if (!room || !file) return;
+  const status = card.querySelector('[data-status]');
+  try {
+    say(status, 'uploading...');
+    const { room: updated } = await api('PUT', `/api/rooms/${room.id}/image`, file, file.type);
+    replaceRoom(updated);
+    say(status, 'image saved');
+  } catch (err) {
+    say(status, err.message, true);
+  }
+  input.value = '';
+});
 
 $('add-user').addEventListener('submit', async (event) => {
   event.preventDefault();
