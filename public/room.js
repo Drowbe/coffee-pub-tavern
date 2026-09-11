@@ -67,7 +67,7 @@ function tileFor(participant) {
 const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
-  quality: 720, mirror: true, volumes: {},
+  quality: 720, mirror: true, volumes: {}, popout: null,
 };
 const prefs = loadPrefs();
 
@@ -128,6 +128,9 @@ function applyLayout() {
   grid.dataset.layout = prefs.layout;
   const portrait = grid.clientHeight > grid.clientWidth;
   grid.classList.toggle('portrait', portrait);
+  const stage = $('stage');
+  stage.classList.toggle('compact', stage.clientWidth < 460);
+  stage.classList.toggle('tiny', stage.clientWidth < 300 || stage.clientHeight < 220);
   const ordered = [...grid.querySelectorAll('.tile')];
   let rest = grid.querySelector('.rest');
   if (prefs.layout === 'spotlight' && tiles.size > 1) {
@@ -840,10 +843,12 @@ function describeInstall() {
 async function openPopout() {
   if (!('documentPictureInPicture' in window)) return;
   try {
-    const grid = $('grid').getBoundingClientRect();
+    // Open small (or at the last size used) so it fits beside the game;
+    // the tiles fit whatever size the window is dragged to.
+    const size = prefs.popout || { w: 480, h: 300 };
     pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: Math.min(Math.round(grid.width) || 960, 1280),
-      height: Math.min(Math.round(grid.height) || 540, 720),
+      width: Math.max(240, Math.min(size.w, 1280)),
+      height: Math.max(120, Math.min(size.h, 720)),
     });
     for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
       pipWindow.document.head.appendChild(sheet.cloneNode(true));
@@ -853,7 +858,11 @@ async function openPopout() {
     watchPointer(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
     pipWindow.document.addEventListener('keyup', onKeyUp);
-    pipWindow.addEventListener('resize', applyLayout);
+    pipWindow.addEventListener('resize', () => {
+      prefs.popout = { w: pipWindow.innerWidth, h: pipWindow.innerHeight };
+      savePrefs();
+      applyLayout();
+    });
     setTimeout(applyLayout, 50);
     pipWindow.addEventListener('pagehide', () => {
       document.body.appendChild($('stage'));

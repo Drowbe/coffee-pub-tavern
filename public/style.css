@@ -988,3 +988,56 @@ body.at-table {
 .tile:hover .vol {
   opacity: 1;
 }
+
+/* --- small windows (pop out, phones) --------------------------------------- */
+
+.stage.compact .grid {
+  padding: 6px;
+  gap: 6px;
+}
+
+.stage.compact .floatbar {
+  gap: 4px;
+  padding: 5px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+}
+
+.stage.compact .fbtn {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+.stage.compact .status-float {
+  top: 6px;
+  left: 6px;
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.stage.compact .tile .name {
+  font-size: 11px;
+  padding: 2px 6px;
+  left: 5px;
+  bottom: 5px;
+}
+
+.stage.compact .tile .muted {
+  font-size: 10px;
+  padding: 2px 6px;
+  right: 5px;
+  bottom: 5px;
+}
+
+.stage.tiny .status-float,
+.stage.tiny #layout,
+.stage.tiny #settings-toggle {
+  display: none;
+}
+
+.stage.tiny .fbtn {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
