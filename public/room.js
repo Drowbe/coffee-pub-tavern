@@ -131,6 +131,7 @@ $('join').addEventListener('submit', async (event) => {
     localStorage.setItem('tavern.key', key);
 
     await room.connect(livekitUrl, token);
+    console.debug('[tavern] connected');
     $('join').hidden = true;
     $('grid').hidden = false;
     $('controls').hidden = false;
@@ -143,9 +144,14 @@ $('join').addEventListener('submit', async (event) => {
       updateMuted(p);
     }
     const tracks = await createLocalTracks({ audio: true, video: { resolution: { width: 1280, height: 720 } } });
-    for (const track of tracks) await room.localParticipant.publishTrack(track);
+    console.debug('[tavern] local tracks', tracks.map((t) => t.kind).join(','));
+    for (const track of tracks) {
+      await room.localParticipant.publishTrack(track);
+      console.debug('[tavern] published', track.kind);
+    }
     updateMuted(room.localParticipant);
     await fillDevices();
+    console.debug('[tavern] devices listed');
     $('mic').classList.add('on');
     $('cam').classList.add('on');
   } catch (err) {

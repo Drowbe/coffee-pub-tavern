@@ -45,3 +45,4 @@ stages.
    want that player's audio through OBS. The background is transparent.
 
 Camera access requires HTTPS, which the proxy provides. Players need nothing but a browser.
+LiveKit 1.12 or newer is required; the compose file pulls the latest release.
