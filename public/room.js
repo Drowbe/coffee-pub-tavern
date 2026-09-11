@@ -105,6 +105,11 @@ let pipWindow = null;
 function setStatus(text, error = false) {
   $('status').textContent = text;
   $('status').classList.toggle('error', error);
+  // The page header shows the same status, except the plain "in <room>"
+  // which the room name next to the brand already says.
+  const top = document.getElementById('topbar-status');
+  top.textContent = !error && text === `in ${tableName}` ? '' : text;
+  top.classList.toggle('error', error);
 }
 
 // --- tiles -------------------------------------------------------------------
@@ -687,7 +692,9 @@ room
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
     $('join').hidden = false;
-    $('topbar').hidden = false;
+    $('away').hidden = true;
+    $('room-now').hidden = true;
+    $('leave-top').hidden = true;
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
@@ -733,8 +740,11 @@ async function join(roomId = 'lobby') {
     await room.connect(livekitUrl, token);
     console.debug('[tavern] connected to', roomId);
     $('join').hidden = true;
-    $('topbar').hidden = true;
     $('stage').hidden = false;
+    // The header stays, naming the room and offering a way out of it.
+    $('room-now-name').textContent = tableName;
+    $('room-now').hidden = false;
+    $('leave-top').hidden = false;
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
@@ -874,6 +884,7 @@ async function restartCamera() {
   }
 }
 $('leave').addEventListener('click', () => room.disconnect());
+$('leave-top').addEventListener('click', () => room.disconnect());
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());
@@ -1011,6 +1022,7 @@ async function openPopout() {
     }
     pipWindow.document.body.className = 'at-table popout';
     pipWindow.document.body.appendChild($('stage'));
+    $('away').hidden = false;
     watchPointer(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
     pipWindow.document.addEventListener('keyup', onKeyUp);
@@ -1022,6 +1034,7 @@ async function openPopout() {
     setTimeout(applyLayout, 50);
     pipWindow.addEventListener('pagehide', () => {
       document.body.appendChild($('stage'));
+      $('away').hidden = true;
       pipWindow = null;
       $('popout').classList.remove('on');
       wake();
@@ -1035,6 +1048,7 @@ function closePopout() {
   if (pipWindow) pipWindow.close();
 }
 $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
+$('bring-back').addEventListener('click', closePopout);
 if ('documentPictureInPicture' in window) $('popout').hidden = false;
 
 // --- start --------------------------------------------------------------------

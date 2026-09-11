@@ -846,27 +846,97 @@ a.btn {
 
 /* --- the stage: full-window table with floating controls ------------------- */
 
+/* On the page the table is a column: the site header, the tiles, and a
+   toolbar locked to the bottom edge (like Zoom or Meet). Popped out, the
+   stage is the whole window with the floating pill and status instead. */
 body.at-table {
   overflow: hidden;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body.at-table .topbar {
+  flex: none;
+}
+
+.topbar .brand > span {
+  white-space: nowrap;
+}
+
+.topbar .room-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.topbar .room-now .sep {
+  color: var(--text-dim);
+}
+
+.topbar .topbar-status {
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+@media (max-width: 600px) {
+  .topbar .brand {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .topbar .room-now {
+    font-size: 16px;
+  }
+  .topbar .topbar-status {
+    display: none;
+  }
+}
+
+.topbar .topbar-status:empty {
+  display: none;
+}
+
+.away {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--text-dim);
 }
 
 .stage {
+  --barh: 65px; /* what the docked toolbar takes off the bottom */
   position: relative;
   width: 100%;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--bg);
   overflow: hidden;
 }
 
 .popout .stage {
+  --barh: 0px;
   height: 100vh;
+  display: block;
 }
 
 .stage .grid {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  height: auto;
   overflow: auto;
   align-content: center;
+}
+
+.popout .stage .grid {
+  height: 100%;
 }
 
 .float {
@@ -875,16 +945,17 @@ body.at-table {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.stage.idle .float {
+.popout .stage.idle .float {
   opacity: 0;
   pointer-events: none;
 }
 
-.stage.idle {
+.popout .stage.idle {
   cursor: none;
 }
 
 .status-float {
+  display: none;
   top: 10px;
   left: 12px;
   padding: 5px 10px;
@@ -892,16 +963,36 @@ body.at-table {
   background: rgba(0, 0, 0, 0.55);
   font-size: 12px;
   color: var(--text-dim);
-  display: flex;
   gap: 8px;
 }
 
+.popout .status-float {
+  display: flex;
+}
+
+/* docked: a full-width bar at the bottom of the page */
 .floatbar {
+  position: static;
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #201812;
+  border-top: 1px solid var(--border);
+}
+
+/* popped out: the floating pill over the tiles */
+.popout .floatbar {
+  position: absolute;
+  width: max-content;
   left: 50%;
   bottom: 16px;
   transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
+  flex-wrap: nowrap;
   padding: 8px;
   border-radius: 999px;
   background: rgba(20, 15, 12, 0.85);
@@ -909,7 +1000,7 @@ body.at-table {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
 
-.stage.idle .floatbar {
+.popout .stage.idle .floatbar {
   transform: translateX(-50%) translateY(8px);
 }
 
@@ -988,7 +1079,7 @@ body.at-table {
   z-index: 6;
   top: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--barh, 0px);
   width: min(320px, 100%);
   display: flex;
   flex-direction: column;
@@ -1245,9 +1336,16 @@ body.at-table {
   gap: 6px;
 }
 
+.stage.compact {
+  --barh: 45px;
+}
+
 .stage.compact .floatbar {
   gap: 4px;
   padding: 5px;
+}
+
+.popout .stage.compact .floatbar {
   bottom: 8px;
   max-width: calc(100% - 16px);
 }

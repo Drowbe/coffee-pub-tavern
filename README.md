@@ -91,11 +91,12 @@ only the room the admin is in, come next.
 ## The table
 
 The join screen lists the rooms you belong to, each with its members and a green dot on those
-in it right now. Join is one click. The page then becomes the table with nothing else on it; a round bar of
-controls floats at the bottom and fades away when the pointer rests, coming back on any
-movement. Left to right: microphone (with a live level meter inside the button), camera, layout,
-chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera,
-**C** chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
+in it right now. Join is one click. The page then becomes the table: the header stays, now
+naming the room you are in (**Coffee Pub Tavern › Lobby**) with a **Leave room** button, the
+tiles fill the middle, and a bar of controls sits locked to the bottom edge like Zoom or Meet.
+Left to right: microphone (with a live level meter inside the button), camera, layout, chat,
+reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera, **C**
+chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
 
 - **Layouts.** Grid; strip (one row, or one column when the window is taller than wide); and
   spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
@@ -117,7 +118,10 @@ chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **
 To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
 an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads
 use **Share, Add to Home Screen**. In Chrome and Edge the **pop out** button also moves the whole
-table into a small always-on-top window and back.
+table into a small always-on-top window and back. Popped out there is no header: the controls
+become a round bar floating over the tiles that fades away when the pointer rests and comes
+back on any movement, with the server name and status in the corner. The page behind keeps its
+header and offers **Bring it back here**.
 
 ## Player and Character
 
