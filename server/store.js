@@ -161,7 +161,6 @@ class Store {
     for (const slot of SLOTS) {
       if (typeof u.images?.[slot] === 'string') images[slot] = u.images[slot];
     }
-    const player = u.player && typeof u.player === 'object' ? u.player : {};
     return {
       key,
       login: cleanLogin(u.login) || key,
@@ -170,8 +169,7 @@ class Store {
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
-      // null means "use the server default"
-      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor) },
+      player: {}, // borders and the plate are server-wide now; older per-user values are dropped
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
   }
@@ -228,8 +226,8 @@ class Store {
   effectivePlayer(user) {
     const s = this.data.settings;
     return {
-      border: user.player.border === null ? s.border : user.player.border,
-      borderColor: user.player.borderColor || s.borderColor,
+      border: s.border,
+      borderColor: s.borderColor,
       borderWidth: s.borderWidth || DEFAULT_SETTINGS.borderWidth,
       mutedBorder: s.mutedBorder !== false,
       mutedColor: s.mutedColor || DEFAULT_SETTINGS.mutedColor,
@@ -310,14 +308,6 @@ class Store {
     }
     if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash || null;
     if (patch.linkToken !== undefined) user.linkToken = patch.linkToken || null;
-    if (patch.player && typeof patch.player === 'object') {
-      if (patch.player.border !== undefined) user.player.border = cleanTri(patch.player.border);
-      if (patch.player.borderColor !== undefined) {
-        // an invalid colour is ignored; an empty one goes back to the default
-        const colour = cleanColor(patch.player.borderColor);
-        if (colour || patch.player.borderColor === '') user.player.borderColor = colour;
-      }
-    }
     this.save();
     return user;
   }

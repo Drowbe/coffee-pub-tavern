@@ -103,7 +103,7 @@
 
       <div class="panel">
       <h2>Player video defaults</h2>
-      <p class="hint">Borders are drawn around the OBS boxes while the player talks or while their microphone is off. Untick one to never draw it. A user's own Player section can override the player's talking border; everything else here is the same for everyone.</p>
+      <p class="hint">Borders are drawn around the OBS boxes while the player talks or while their microphone is off. Untick one to never draw it. They are the same for everyone.</p>
       <div class="row borders-row">
         <span class="field-label">Player borders</span>
         <label class="check"><input type="checkbox" id="set-border"> Talking <input type="color" id="set-border-color" value="#6fae6b"></label>
@@ -209,13 +209,7 @@
         </div>
 
         <h3>Player</h3>
-        <p class="hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings. Nothing else is drawn on the box. Only the talking border can differ per player.</p>
-        <div class="row">
-          <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
-          <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
-          <button class="btn btn-small" data-action="player-defaults" type="button" title="Use the server defaults from Settings">Use defaults</button>
-          <span class="hint" data-player-note></span>
-        </div>
+        <p class="hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings. Nothing else is drawn on the box.</p>
         <div class="slots">
           <div class="slot" data-slot="playerOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
           <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>

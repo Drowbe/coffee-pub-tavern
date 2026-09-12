@@ -89,16 +89,6 @@ function fill(card, user) {
     slot.classList.toggle('set', has);
     slot.querySelector('[data-action="slot-clear"]').hidden = !has;
   }
-  // Player video box: the user's own values, or the defaults when unset
-  const eff = user.player.effective;
-  const own = user.player;
-  if (document.activeElement?.closest?.('.user-card') !== card) {
-    card.querySelector('[data-pfield="border"]').checked = eff.border;
-    card.querySelector('[data-pfield="borderColor"]').value = eff.borderColor;
-  }
-  const custom = own.border !== null || own.borderColor;
-  card.querySelector('[data-player-note]').textContent = custom ? 'Custom for this player.' : 'Using the defaults from Settings.';
-  card.querySelector('[data-action="player-defaults"]').hidden = !custom;
   // The last admin cannot be demoted; say so before the click.
   const admins = users.filter((u) => u.role === 'admin').length;
   const lastAdmin = user.role === 'admin' && admins <= 1;
@@ -200,12 +190,6 @@ function wire(card) {
       });
     } else if (action === 'view-copy') {
       copy(viewLink(user, card), status);
-    } else if (action === 'player-defaults') {
-      run(async () => {
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player: { border: null, borderColor: '' } });
-        replace(updated);
-        say(status, 'using the server defaults');
-      });
     } else if (action === 'mute') {
       run(async () => {
         await api('POST', `/api/users/${user.key}/mute`, { muted: true });
@@ -245,16 +229,6 @@ function wire(card) {
       input.value = '';
     } else if (input.matches('[data-view-kind]')) {
       card.querySelector('[data-view-open]').href = viewLink(user, card);
-    } else if (input.matches('[data-pfield]')) {
-      run(async () => {
-        const player = {
-          border: card.querySelector('[data-pfield="border"]').checked,
-          borderColor: card.querySelector('[data-pfield="borderColor"]').value,
-        };
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { player });
-        replace(updated);
-        say(status, 'saved');
-      });
     }
   });
 }
@@ -501,7 +475,7 @@ $('save-defaults').addEventListener('click', async () => {
     });
     defaults = { border: settings.border, borderColor: settings.borderColor };
     say($('defaults-status'), 'saved');
-    await loadUsers(); // effective values on the cards follow the defaults
+    await loadUsers();
   } catch (err) {
     say($('defaults-status'), err.message, true);
   }
