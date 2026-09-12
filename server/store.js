@@ -17,7 +17,9 @@ const crypto = require('crypto');
 // Character: an optional base image plus overlays for the character box.
 // Player box: offline, online (the camera-off picture), talking, muted.
 // Character box: characterOffline, character (online), talking, muted.
-const SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'characterOffline', 'character', 'talking', 'muted'];
+// 'profile' is the player's own photo (header, table tiles, profile page); the
+// rest are the admin-set OBS pictures for the Player and Character boxes.
+const SLOTS = ['profile', 'playerOffline', 'player', 'playerTalking', 'playerMuted', 'characterOffline', 'character', 'talking', 'muted'];
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';

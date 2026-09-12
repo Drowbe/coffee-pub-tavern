@@ -1,4 +1,4 @@
-// Your profile: change your player image, see everything else your admin set.
+// Your profile: change your profile photo, see everything else your admin set.
 import { loadBranding, api } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
@@ -14,12 +14,12 @@ function imgUrl(slot) {
 }
 
 function render() {
-  const has = !!me.images.player;
-  $('portrait').src = imgUrl('player'); // the server draws initials when unset
+  const has = !!me.images.profile;
+  $('portrait').src = imgUrl('profile'); // the server draws initials when unset
   $('portrait-slot').classList.toggle('set', has);
   $('portrait-clear').hidden = !has;
   document.querySelector('#portrait-slot .unset').hidden = true;
-  $('whoami-img').src = imgUrl('player');
+  $('whoami-img').src = imgUrl('profile');
   $('whoami-img').hidden = false;
   $('whoami').textContent = me.displayName;
   $('name').textContent = me.displayName;
@@ -53,7 +53,7 @@ $('portrait-file').addEventListener('change', async () => {
   if (!file) return;
   try {
     say('uploading...');
-    await api('PUT', '/api/me/images/player', file, file.type);
+    await api('PUT', '/api/me/images/profile', file, file.type);
     me = (await api('GET', '/api/me')).user;
     render();
     say('image saved');
@@ -65,7 +65,7 @@ $('portrait-file').addEventListener('change', async () => {
 
 $('portrait-clear').addEventListener('click', async () => {
   try {
-    await api('DELETE', '/api/me/images/player');
+    await api('DELETE', '/api/me/images/profile');
     me = (await api('GET', '/api/me')).user;
     render();
     say('image removed');

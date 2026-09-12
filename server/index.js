@@ -306,19 +306,19 @@ app.get('/img/room/:id', (req, res) => {
   res.status(404).end();
 });
 
-// A user's image for a slot. The player image always renders (an initials
+// A user's image for a slot. The profile photo always renders (an initials
 // plate when none is set); every other slot is optional and 404s when unset,
-// so overlays and the character box stay transparent. Signed-in users and
-// stream key holders.
+// so overlays and the Player/Character boxes stay transparent. Signed-in
+// users and stream key holders.
 app.get('/img/:key/:slot', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
   const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
-  const slot = SLOTS.includes(wanted) ? wanted : 'player';
+  const slot = SLOTS.includes(wanted) ? wanted : 'profile';
   const resolved = store.resolveImage(user.key, slot);
   if (resolved) return sendImage(res, resolved.file);
-  if (slot !== 'player' || req.query.fallback === 'none') return res.status(404).end();
+  if (slot !== 'profile' || req.query.fallback === 'none') return res.status(404).end();
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
 });
 
@@ -406,13 +406,15 @@ app.post('/api/token', async (req, res) => {
   res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId });
 });
 
-// A user may replace or clear their own no-video image.
-app.put('/api/me/images/player', requireUser, rawImage, (req, res) => {
-  store.setImage(currentUser(req).key, 'player', req.body, req.get('content-type'));
+// A user may replace or clear their own profile photo. This is separate from
+// the Player box's Online picture, which only an admin sets (it may be part
+// of a matched set of OBS images).
+app.put('/api/me/images/profile', requireUser, rawImage, (req, res) => {
+  store.setImage(currentUser(req).key, 'profile', req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/me/images/player', requireUser, (req, res) => {
-  store.removeImage(currentUser(req).key, 'player');
+app.delete('/api/me/images/profile', requireUser, (req, res) => {
+  store.removeImage(currentUser(req).key, 'profile');
   res.json({ ok: true });
 });
 

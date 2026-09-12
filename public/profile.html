@@ -26,7 +26,7 @@
         <div class="slot" id="portrait-slot"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="portrait-clear" type="button">Remove</button></div>
         <div class="profile-title">
           <h1 id="name"></h1>
-          <p class="hint">Your image shows at the table and in the recording whenever your camera is off. Click it to change it; square images look best.</p>
+          <p class="hint">Your own photo: it shows next to your name in the header and on your tile at the table. Click it to change it; square images look best. It is not the picture used in the recording &mdash; your admin sets that.</p>
           <p class="status" id="status"></p>
         </div>
       </div>
@@ -49,10 +49,11 @@
         <div class="fact"><span class="fact-key">Name plate</span><span class="fact-value" id="f-plate"></span></div>
       </div>
 
-      <h2>Other images</h2>
-      <p class="hint">The rest of your video box and your character box in the recording: offline, then talking and muted laid on top. Set by your admin.</p>
+      <h2>Your video box in the recording</h2>
+      <p class="hint">The pictures OBS shows in your Player and Character boxes: offline, online, then talking and muted laid on top. All set by your admin, and may be part of a matched image set.</p>
       <div class="slots" id="other-images">
         <div class="slot" data-slot="playerOffline"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Player offline</span></div>
+        <div class="slot" data-slot="player"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Player online</span></div>
         <div class="slot" data-slot="playerTalking"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Player talking</span></div>
         <div class="slot" data-slot="playerMuted"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Player muted</span></div>
         <div class="slot" data-slot="characterOffline"><div class="slot-pick still"><img alt=""><span class="unset">not set</span></div><span>Character offline</span></div>

@@ -74,7 +74,7 @@ function renderMembers(list, members, roomId) {
       el.dataset.key = u.key;
       const img = document.createElement('img');
       img.alt = '';
-      img.src = `/img/${encodeURIComponent(u.key)}/player`;
+      img.src = `/img/${encodeURIComponent(u.key)}/profile`;
       const dot = document.createElement('span');
       dot.className = 'dot';
       const name = document.createElement('span');
@@ -123,7 +123,7 @@ function tileFor(participant) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/player`;
+  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/profile`;
   const colour = tableUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
@@ -1245,7 +1245,7 @@ async function init() {
     const info = await api('GET', '/api/me');
     me = info.user;
     $('whoami').textContent = me.displayName;
-    $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/player?v=${Date.now()}`;
+    $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/profile?v=${Date.now()}`;
     $('whoami-img').hidden = false;
     $('admin-link').hidden = me.role !== 'admin';
     $('admin-link-2').hidden = me.role !== 'admin';

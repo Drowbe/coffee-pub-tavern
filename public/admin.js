@@ -66,7 +66,7 @@ function fill(card, user) {
   card.querySelector('[data-login]').textContent = user.login;
   card.querySelector('[data-role]').textContent = user.role;
   card.querySelector('[data-key]').textContent = user.key;
-  card.querySelector('[data-thumb]').src = imgUrl(user.key, 'player');
+  card.querySelector('[data-thumb]').src = imgUrl(user.key, 'profile');
   if (document.activeElement?.closest?.('.user-card') !== card) {
     card.querySelector('[data-field="displayName"]').value = user.displayName;
     card.querySelector('[data-field="login"]').value = user.login;
@@ -314,7 +314,7 @@ function fillRoom(card, room) {
       input.type = 'checkbox';
       const thumb = document.createElement('img');
       thumb.alt = '';
-      thumb.src = imgUrl(user.key, 'player');
+      thumb.src = imgUrl(user.key, 'profile');
       const name = document.createElement('span');
       name.className = 'member-name';
       label.append(input, thumb, name);
@@ -557,7 +557,7 @@ async function init() {
       return;
     }
     $('whoami').textContent = me.displayName;
-    $('whoami-img').src = imgUrl(me.key, 'player');
+    $('whoami-img').src = imgUrl(me.key, 'profile');
     $('whoami-img').hidden = false;
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');

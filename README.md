@@ -52,7 +52,7 @@ recreate it. Users, images and settings live in `/share/appdata/tavern`, so noth
 ## Accounts
 
 There are two roles. **Admins** run the table: they add people, set passwords, upload images and
-change settings. **Users** join the table and can set their own no-video image, nothing else.
+change settings. **Users** join the table and can set their own **profile photo**, nothing else.
 Nobody changes their own password; an admin sets it.
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
@@ -118,7 +118,7 @@ chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
   slider that applies only on your side.
 - **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
 - **Without a camera or microphone** you still join; whatever is missing is named in the status
-  line and your no-video image stands in for the camera.
+  line and your Online picture (set by your admin) stands in for the camera.
 
 To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
 an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads
@@ -138,9 +138,11 @@ Offline or Online depending on whether the person is at the table, and lays Talk
 top while they speak or while their microphone is off. Any picture left unset is simply not
 drawn.
 
-**Player** is the person. Their box shows the camera when it is on and the **Online** picture
-when it is off (the player can set that one themselves on their **Profile** page, which also
-shows them everything their admin set); away from the table it shows **Offline**, or nothing.
+**Player** is the person. Their box shows the camera when it is on and the **Online** picture,
+set by an admin, when it is off; away from the table it shows **Offline**, or nothing. This is
+separate from the player's own **profile photo**, which only shows in the app itself (the
+header, table tiles, their **Profile** page) and never in the recording, since the Online
+picture may be part of a matched set of OBS images the admin built.
 While they speak a **talking border** is drawn around the box, and while their microphone is
 off a **muted border** in its own colour; both share one width and fit any source size. Those
 borders are the only things the box ever draws (no icons); for anything more, use the Talking
@@ -222,6 +224,6 @@ the WebSocket host.
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
 | `public/login.html` | Sign-in page |
 | `public/room.html` | The table |
-| `public/profile.html` | A player's profile: their own image, and what the admin set |
+| `public/profile.html` | A player's profile: their own photo, and what the admin set |
 | `public/admin.html` | Manage page |
 | `public/view.html` | OBS view |
