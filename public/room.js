@@ -13,13 +13,16 @@ let tableName = 'The Table';
 const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
 let tableRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
+const LOBBY = 'lobby';
+let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
 
 async function loadTable() {
   try {
-    const { users, rooms } = await api('GET', '/api/table');
+    const { users, rooms, activeRoom: active } = await api('GET', '/api/table');
     tableUsers.clear();
     for (const u of users) tableUsers.set(u.key, u);
     tableRooms = rooms || [];
+    activeRoom = active || LOBBY;
     for (const [key, tile] of tiles) {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
@@ -28,6 +31,14 @@ async function loadTable() {
   } catch (err) {
     // default colour stands
   }
+}
+
+// A room's name for display: ephemeral "pull aside" rooms carry no useful
+// stored name, so build one from whoever else is in it.
+function roomDisplayName(r) {
+  if (!r?.ephemeral) return r?.name || tableName;
+  const others = r.members.filter((k) => k !== me?.key).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
+  return others.length ? `Aside with ${others.join(' & ')}` : 'Aside';
 }
 
 // The join screen: one card per room I belong to, with its members and a
@@ -45,11 +56,12 @@ function renderRooms() {
       card.querySelector('[data-join]').dataset.join = r.id;
       list.appendChild(card);
     }
-    card.querySelector('.room-choice-name').textContent = r.name;
+    card.classList.toggle('aside', Boolean(r.ephemeral));
+    card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
     card.querySelector('.room-choice-desc').textContent = r.description;
-    card.querySelector('.room-choice-desc').hidden = !r.description;
+    card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;
     const img = card.querySelector('.room-choice-image');
-    const src = r.hasImage ? `/img/room/${encodeURIComponent(r.id)}` : '';
+    const src = !r.ephemeral && r.hasImage ? `/img/room/${encodeURIComponent(r.id)}` : '';
     img.hidden = !src;
     if (src && img.dataset.src !== src) {
       img.dataset.src = src;
@@ -57,7 +69,7 @@ function renderRooms() {
     }
     const members = r.members.map((k) => tableUsers.get(k)).filter(Boolean);
     const here = members.filter((u) => u.online && u.room === r.id).length;
-    card.querySelector('.room-choice-count').textContent = here ? `${here} of ${members.length} here now` : `${members.length} member${members.length === 1 ? '' : 's'}`;
+    card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : here ? `${here} of ${members.length} here now` : `${members.length} member${members.length === 1 ? '' : 's'}`;
     renderMembers(card.querySelector('.members'), members, r.id);
   }
   for (const card of [...list.children]) if (!keep.has(card.dataset.room)) card.remove();
@@ -87,7 +99,24 @@ function renderMembers(list, members, roomId) {
     el.querySelector('.dot').classList.toggle('online', here);
     el.classList.toggle('online', here);
     const elsewhere = u.online && !here ? tableRooms.find((r) => r.id === u.room) : null;
-    el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${elsewhere.name}` : u.displayName;
+    el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
+    // Off stream: this member is online but not in the room the stream
+    // currently hears; "aside" is the more specific case of a pulled-aside
+    // private word, which implies off stream too.
+    const inAside = u.online && tableRooms.find((r) => r.id === u.room)?.ephemeral;
+    const offStream = u.online && u.room !== activeRoom;
+    let badge = el.querySelector('.stream-badge');
+    if (inAside || offStream) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'stream-badge';
+        el.appendChild(badge);
+      }
+      badge.textContent = inAside ? 'aside' : 'off stream';
+      badge.classList.toggle('aside', Boolean(inAside));
+    } else if (badge) {
+      badge.remove();
+    }
   }
   for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
 }
@@ -144,6 +173,15 @@ function tileFor(participant) {
     vol.addEventListener('pointerenter', () => (tile.draggable = false));
     vol.addEventListener('pointerleave', () => (tile.draggable = true));
     tile.appendChild(vol);
+    if (me?.role === 'admin') {
+      const aside = document.createElement('button');
+      aside.type = 'button';
+      aside.className = 'tile-aside';
+      aside.title = `Pull ${participant.name || participant.identity} aside for a private word`;
+      aside.innerHTML = '<i class="fa-solid fa-door-open" aria-hidden="true"></i>';
+      aside.addEventListener('click', (e) => { e.stopPropagation(); pullAside(participant.identity); });
+      tile.appendChild(aside);
+    }
   }
   tile.draggable = true;
   tile.addEventListener('dragstart', onDragStart);
@@ -818,10 +856,14 @@ room
     addMessage(message.message, participant?.name || participant?.identity || 'someone', participant?.isLocal);
   })
   .on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
-    if (topic !== 'reaction' || !participant) return;
     try {
       const data = JSON.parse(decoder.decode(payload));
-      if (data.type === 'reaction') showReaction(participant.identity, data.id);
+      if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
+      // A server push (no sending participant): the admin pulled me aside.
+      // Deferred a tick so this event's own dispatch finishes first.
+      else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
+        setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
+      }
     } catch (err) {
       // not ours
     }
@@ -839,6 +881,7 @@ room
     $('away').hidden = true;
     $('room-now').hidden = true;
     $('leave-top').hidden = true;
+    $('back-to-table').hidden = true;
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
@@ -872,6 +915,26 @@ async function fillDevices() {
 
 // --- join / leave ---------------------------------------------------------------
 
+// Disconnect (if connected) and join a different room. Used for the admin's
+// own "pull aside" click, for the pulled player's push notification, and
+// for "Back to the table".
+async function reconnectTo(roomId, statusText) {
+  if (statusText) setStatus(statusText);
+  await room.disconnect().catch(() => {});
+  await join(roomId);
+}
+
+// Admin only: pull someone who is currently at the table into a new room
+// with just the two of us, for a private word.
+async function pullAside(identity) {
+  try {
+    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identity });
+    await reconnectTo(asideRoom.id, 'stepping aside...');
+  } catch (err) {
+    setStatus(`pull aside: ${err.message}`, true);
+  }
+}
+
 async function join(roomId = 'lobby') {
   $('join-error').hidden = true;
   for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
@@ -880,15 +943,18 @@ async function join(roomId = 'lobby') {
     const { token, livekitUrl } = await api('POST', '/api/token', { room: roomId });
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
-    tableName = currentRoom.name;
+    tableName = roomDisplayName(currentRoom);
     await room.connect(livekitUrl, token);
     console.debug('[tavern] connected to', roomId);
     $('join').hidden = true;
     $('stage').hidden = false;
-    // The header stays, naming the room and offering a way out of it.
+    // The header stays, naming the room and offering a way out of it. A
+    // pulled-aside room also gets a quicker way back than "Leave" (which
+    // would drop to the join screen instead of straight back to the Lobby).
     $('room-now-name').textContent = tableName;
     $('room-now').hidden = false;
     $('leave-top').hidden = false;
+    $('back-to-table').hidden = !currentRoom.ephemeral;
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
@@ -1029,6 +1095,7 @@ async function restartCamera() {
 }
 $('leave').addEventListener('click', () => room.disconnect());
 $('leave-top').addEventListener('click', () => room.disconnect());
+$('back-to-table').addEventListener('click', () => reconnectTo(LOBBY));
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());

@@ -85,8 +85,21 @@ cannot be deleted, plus any rooms an admin adds. A room has a name, a descriptio
 after signing in a player sees the rooms they belong to, each with its members and a green dot
 on those in it right now, and joins one. Admins may join any room. A player's OBS view pages
 follow them from room to room. Coffee Pub Studio shows one room at a time on its Tavern tab
-and publishes that room's users. Pulling a player aside into a room, and the stream hearing
-only the room the admin is in, come next.
+and publishes that room's users.
+
+**Pull aside.** While at the table, an admin can pull anyone else in their current room into a
+private word: hover their tile and click the door icon. Both move to a new room together at
+once, with nobody clicking anything on the other end. The pulled player (and the admin) get a
+**Back to the table** button in place of the usual room name, returning them straight to the
+Lobby. The private room itself is never shown as something to pick from a list; it disappears
+on its own once both of you have left it. Everyone else, still in whatever room they were in,
+sees the two of you tagged **aside** where their tile would show a room; anyone else who isn't
+in the room the admin currently occupies is tagged **off stream** the same way, since Coffee
+Pub Studio's Tavern tab follows the admin's room automatically (a **Follow the admin** tick,
+on by default) and only publishes whoever is in it — so being off stream there really does mean
+off the recording, not just a label. A pull-aside room is a private word by design, though, so
+while the admin is in one, that rule flips: nobody is on stream, the admin and the pulled player
+included, not just everyone left behind at the table.
 
 ## The table
 

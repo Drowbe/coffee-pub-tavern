@@ -5,7 +5,7 @@
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { AccessToken, RoomServiceClient } = require('livekit-server-sdk');
+const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const { Store, StoreError, SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken } = require('./store');
 const auth = require('./auth');
 
@@ -133,6 +133,19 @@ async function participants() {
 async function roomOf(key) {
   const p = (await participants()).find((x) => x.key === key);
   return p ? livekitRoomName(p.room) : null;
+}
+
+// The room the stream currently hears: the first online admin's room, or the
+// Lobby if no admin is at the table. With the usual single GM this is
+// exactly "wherever the GM is"; with more than one online admin, whichever
+// is earliest in the user list wins.
+function activeRoomId(online) {
+  for (const u of store.users) {
+    if (u.role !== 'admin') continue;
+    const p = online.get(u.key);
+    if (p) return p.room;
+  }
+  return LOBBY;
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -426,11 +439,39 @@ app.get('/api/table', async (req, res) => {
   if (!user && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
+  store.pruneAsideRooms(byKey);
   res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null })),
     rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
+    activeRoom: activeRoomId(byKey),
   });
+});
+
+// An admin pulls a player (or another admin) who is currently at the table
+// into a new private room with them, for a word away from everyone else.
+// LiveKit here is a single, un-clustered node, so there is no server-side
+// "move a live participant" primitive to lean on: the admin's own browser
+// gets the new room directly in this response and reconnects itself; the
+// other party gets a data-channel nudge (the same mechanism chat already
+// uses) telling their page which room to reconnect to.
+app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
+  try {
+    const admin = currentUser(req);
+    const target = typeof req.body?.with === 'string' && store.userByKey(req.body.with);
+    if (!target) return res.status(400).json({ error: 'no such user' });
+    if (target.key === admin.key) return res.status(400).json({ error: 'pick someone else' });
+    const adminRoom = await roomOf(admin.key);
+    if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
+    const targetRoom = await roomOf(target.key);
+    if (!targetRoom) return res.status(404).json({ error: `${target.displayName} is not at the table` });
+    const room = store.addAsideRoom([admin.key, target.key]);
+    const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
+    await roomService.sendData(targetRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: [target.key], topic: 'pull-aside' });
+    res.json({ room });
+  } catch (err) {
+    res.status(502).json({ error: `LiveKit: ${err.message}` });
+  }
 });
 
 // Stream API (OBS pages and the Studio app) ---------------------------------
@@ -438,11 +479,13 @@ app.get('/api/table', async (req, res) => {
 app.get('/api/status', requireStream, async (req, res) => {
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
+  store.pruneAsideRooms(byKey);
   res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u), online: byKey.get(u.key) || null })),
     table: store.users.map(tableUser),
     rooms: store.rooms,
+    activeRoom: activeRoomId(byKey),
   });
 });
 

@@ -259,6 +259,28 @@ select {
   white-space: nowrap;
 }
 
+/* Off stream: online, but not in the room the admin currently is. "aside"
+   is the more specific case of being in a private pulled-aside room. */
+.stream-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: var(--bg-card);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.stream-badge.aside {
+  color: var(--accent);
+}
+
+/* A "pull aside" room's join card: no image or member counts worth showing. */
+.room-choice.aside .room-choice-image,
+.room-choice.aside .room-choice-count {
+  display: none;
+}
+
 /* Reactions float up from a tile and fade, sized by the tile (a third of its height). */
 .tile {
   container-type: size;
@@ -1442,6 +1464,36 @@ body.at-table .topbar {
 
 .tile:hover .vol {
   opacity: 1;
+}
+
+/* Admin only: pull this person into a private room. */
+.tile-aside {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(20, 15, 12, 0.85);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+
+.tile:hover .tile-aside {
+  opacity: 1;
+}
+
+.tile-aside:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* --- small windows (pop out, phones) --------------------------------------- */

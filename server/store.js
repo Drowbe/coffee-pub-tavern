@@ -142,6 +142,9 @@ class Store {
       description: String(r.description ?? '').trim().slice(0, 300),
       members: Array.isArray(r.members) ? [...new Set(r.members.filter((k) => typeof k === 'string'))] : [],
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
+      // A "pull aside" room: not shown on the manage page's Rooms tab, not
+      // hand-editable, and swept away once nobody online is actually in it.
+      ephemeral: Boolean(r.ephemeral),
     };
   }
 
@@ -355,6 +358,40 @@ class Store {
     this.data.rooms.push(room);
     this.save();
     return this.roomById(id);
+  }
+
+  // A private "pull aside" room for exactly the members given (typically an
+  // admin and one player). No name worth keeping server-side; the client
+  // builds one from the other member's display name.
+  addAsideRoom(members) {
+    let id;
+    do id = randomKey();
+    while (this.data.rooms.some((r) => r.id === id));
+    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, createdAt: new Date().toISOString() });
+    room.members = room.members.filter((k) => this.userByKey(k));
+    this.data.rooms.push(room);
+    this.save();
+    return this.roomById(id);
+  }
+
+  // Sweep aside rooms nobody is actually in any more. `online` is the
+  // key -> { room, ... } map this request already built from LiveKit, so
+  // this costs nothing extra to call on every /api/table and /api/status.
+  // A room this young is spared even if it looks empty: the members who are
+  // meant to be in it were only just told to reconnect there (a disconnect,
+  // a fresh token and a new WebRTC connect all take a moment), and the very
+  // first poll after creation would otherwise see nobody there yet and
+  // delete it before anyone arrives.
+  pruneAsideRooms(online) {
+    const GRACE_MS = 20000;
+    const now = Date.now();
+    const before = this.data.rooms.length;
+    this.data.rooms = this.data.rooms.filter((r) => {
+      if (!r.ephemeral) return true;
+      if (now - new Date(r.createdAt).getTime() < GRACE_MS) return true;
+      return r.members.some((k) => online.get(k)?.room === r.id);
+    });
+    if (this.data.rooms.length !== before) this.save();
   }
 
   updateRoom(id, patch) {
