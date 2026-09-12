@@ -1690,6 +1690,10 @@ html.has-background .panel.login {
   resize: vertical;
 }
 
+.borders-row .field-label {
+  min-width: 130px;
+}
+
 .check input[type="number"] {
   width: 64px;
   background: var(--bg-input);

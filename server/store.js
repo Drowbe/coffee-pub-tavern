@@ -44,6 +44,12 @@ const DEFAULT_SETTINGS = {
   borderWidth: 6, // px, drawn on the OBS view, talking and muted alike
   mutedBorder: true,
   mutedColor: '#b8503f',
+  // Character box borders: off unless the admin wants them, same colours.
+  charBorder: false,
+  charBorderColor: DEFAULT_BORDER_COLOR,
+  charMutedBorder: false,
+  charMutedColor: '#b8503f',
+  charBorderWidth: 6,
   plate: false, // the name plate is server-wide
   // Behind the Offline / Online picture in the player box: a colour (or
   // transparent) and the picture's size as a percentage of the box.
@@ -202,6 +208,11 @@ class Store {
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
     if (patch.mutedBorder !== undefined) s.mutedBorder = Boolean(patch.mutedBorder);
     if (patch.mutedColor !== undefined && cleanColor(patch.mutedColor)) s.mutedColor = cleanColor(patch.mutedColor);
+    if (patch.charBorder !== undefined) s.charBorder = Boolean(patch.charBorder);
+    if (patch.charBorderColor !== undefined && cleanColor(patch.charBorderColor)) s.charBorderColor = cleanColor(patch.charBorderColor);
+    if (patch.charMutedBorder !== undefined) s.charMutedBorder = Boolean(patch.charMutedBorder);
+    if (patch.charMutedColor !== undefined && cleanColor(patch.charMutedColor)) s.charMutedColor = cleanColor(patch.charMutedColor);
+    if (patch.charBorderWidth !== undefined && cleanWidth(patch.charBorderWidth)) s.charBorderWidth = cleanWidth(patch.charBorderWidth);
     if (patch.plate !== undefined) s.plate = Boolean(patch.plate);
     if (patch.pictureBackground !== undefined) s.pictureBackground = Boolean(patch.pictureBackground);
     if (patch.pictureColor !== undefined && cleanColor(patch.pictureColor)) s.pictureColor = cleanColor(patch.pictureColor);
@@ -223,6 +234,11 @@ class Store {
       mutedBorder: s.mutedBorder !== false,
       mutedColor: s.mutedColor || DEFAULT_SETTINGS.mutedColor,
       plate: Boolean(s.plate),
+      charBorder: Boolean(s.charBorder),
+      charBorderColor: s.charBorderColor || DEFAULT_BORDER_COLOR,
+      charMutedBorder: Boolean(s.charMutedBorder),
+      charMutedColor: s.charMutedColor || '#b8503f',
+      charBorderWidth: s.charBorderWidth || 6,
       pictureBackground: Boolean(s.pictureBackground),
       pictureColor: s.pictureColor || DEFAULT_SETTINGS.pictureColor,
       pictureScale: s.pictureScale || 100,

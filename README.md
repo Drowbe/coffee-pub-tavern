@@ -151,8 +151,9 @@ the picture**, so the video area stays visible on the recording, and a **picture
 percentage of the box, which leaves a margin around the picture instead of filling the height.
 The camera always fills the box.
 
-**Character** is a second box for OBS with the same four pictures and no borders. With no
-Online picture it stays transparent until they talk or mute, so it can sit over an existing
+**Character** is a second box for OBS with the same four pictures and its own talking and muted
+borders (off by default, set server-wide under **Character borders**). With no Online picture
+and no borders it stays transparent until they talk or mute, so it can sit over an existing
 character bar. It carries no audio.
 
 Images are PNG, JPEG, GIF or WebP up to 5 MB. Click an image box to change it, Clear to remove

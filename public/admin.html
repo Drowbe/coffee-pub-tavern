@@ -103,13 +103,18 @@
 
       <div class="panel">
       <h2>Player video defaults</h2>
-      <p class="hint">Borders are drawn around every player's OBS box while they talk or while their microphone is off, both at the same width. A user's own Player section can override the talking border; everything else here is the same for everyone.</p>
-      <div class="row">
-        <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
-        <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
-        <label class="check"><input type="checkbox" id="set-muted-border"> Muted border</label>
-        <label class="check">Colour <input type="color" id="set-muted-color" value="#b8503f"></label>
+      <p class="hint">Borders are drawn around the OBS boxes while the player talks or while their microphone is off. Untick one to never draw it. A user's own Player section can override the player's talking border; everything else here is the same for everyone.</p>
+      <div class="row borders-row">
+        <span class="field-label">Player borders</span>
+        <label class="check"><input type="checkbox" id="set-border"> Talking <input type="color" id="set-border-color" value="#6fae6b"></label>
+        <label class="check"><input type="checkbox" id="set-muted-border"> Muted <input type="color" id="set-muted-color" value="#b8503f"></label>
         <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
+      </div>
+      <div class="row borders-row">
+        <span class="field-label">Character borders</span>
+        <label class="check"><input type="checkbox" id="set-char-border"> Talking <input type="color" id="set-char-border-color" value="#6fae6b"></label>
+        <label class="check"><input type="checkbox" id="set-char-muted-border"> Muted <input type="color" id="set-char-muted-color" value="#b8503f"></label>
+        <label class="check">Width <input type="number" id="set-char-border-width" min="1" max="24" step="1" value="6"> px</label>
       </div>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-plate"> Name plate with the player's name in the corner</label>

@@ -489,6 +489,11 @@ $('save-defaults').addEventListener('click', async () => {
       borderWidth: $('set-border-width').value,
       mutedBorder: $('set-muted-border').checked,
       mutedColor: $('set-muted-color').value,
+      charBorder: $('set-char-border').checked,
+      charBorderColor: $('set-char-border-color').value,
+      charMutedBorder: $('set-char-muted-border').checked,
+      charMutedColor: $('set-char-muted-color').value,
+      charBorderWidth: $('set-char-border-width').value,
       plate: $('set-plate').checked,
       pictureBackground: $('set-picture-bg').checked,
       pictureColor: $('set-picture-color').value,
@@ -591,6 +596,11 @@ async function init() {
     $('set-muted-border').checked = settings.mutedBorder !== false;
     $('set-muted-color').value = settings.mutedColor || '#b8503f';
     $('set-plate').checked = Boolean(settings.plate);
+    $('set-char-border').checked = Boolean(settings.charBorder);
+    $('set-char-border-color').value = settings.charBorderColor || '#6fae6b';
+    $('set-char-muted-border').checked = Boolean(settings.charMutedBorder);
+    $('set-char-muted-color').value = settings.charMutedColor || '#b8503f';
+    $('set-char-border-width').value = settings.charBorderWidth || 6;
     $('set-picture-bg').checked = Boolean(settings.pictureBackground);
     $('set-picture-color').value = settings.pictureColor || '#1a1410';
     $('set-picture-scale').value = settings.pictureScale || 100;

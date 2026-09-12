@@ -36,6 +36,11 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
 let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
+// Each kind draws its own borders: the player's (per user) or the character's (server-wide).
+function borders() {
+  if (kind === 'player') return { talk: settings.border, talkColor: settings.borderColor, mute: settings.mutedBorder, muteColor: settings.mutedColor, width: settings.borderWidth };
+  return { talk: settings.charBorder, talkColor: settings.charBorderColor, mute: settings.charMutedBorder, muteColor: settings.charMutedColor, width: settings.charBorderWidth };
+}
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -72,12 +77,13 @@ async function loadSettings() {
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
-    document.documentElement.style.setProperty('--talk', settings.borderColor);
-    document.documentElement.style.setProperty('--talk-w', `${settings.borderWidth}px`);
-    document.documentElement.style.setProperty('--mute', settings.mutedColor);
+    const b = borders();
+    document.documentElement.style.setProperty('--talk', b.talkColor);
+    document.documentElement.style.setProperty('--talk-w', `${b.width}px`);
+    document.documentElement.style.setProperty('--mute', b.muteColor);
     // Player box only: the picture's size and the colour behind it.
     const scale = kind === 'player' ? settings.pictureScale : 100;
     document.documentElement.style.setProperty('--pic-inset', `${(100 - scale) / 2}%`);
@@ -114,16 +120,15 @@ function render() {
     setImage($('base'), state === 'image' ? images.player : state === 'offline' ? images.playerOffline : null);
     setImage($('overlay-talking'), talking ? images.playerTalking : null);
     setImage($('overlay-muted'), muted ? images.playerMuted : null);
-    document.body.classList.toggle('talking', settings.border && talking && state !== 'blank');
-    document.body.classList.toggle('muted-frame', settings.mutedBorder && muted && state !== 'blank');
   } else {
     state = online ? 'image' : images.characterOffline ? 'offline' : 'blank';
     setImage($('base'), online ? images.character : state === 'offline' ? images.characterOffline : null);
     setImage($('overlay-talking'), talking ? images.talking : null);
     setImage($('overlay-muted'), muted ? images.muted : null);
-    document.body.classList.remove('talking');
-    document.body.classList.remove('muted-frame');
   }
+  const b = borders();
+  document.body.classList.toggle('talking', b.talk && talking && state !== 'blank');
+  document.body.classList.toggle('muted-frame', b.mute && muted && state !== 'blank');
   // The Player option applies to the player box; plate=1 forces it on either kind.
   const showPlate = forcePlate || (kind === 'player' && settings.plate);
   $('plate').hidden = !(showPlate && state !== 'blank');
