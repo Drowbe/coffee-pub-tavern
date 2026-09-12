@@ -198,7 +198,7 @@
         </div>
 
         <h3>Player</h3>
-        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with the borders set under Settings, and optionally with your own overlay images laid on top of the video. Nothing else is drawn on the box. Only the talking border can differ per player.</p>
+        <p class="hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings. Nothing else is drawn on the box. Only the talking border can differ per player.</p>
         <div class="row">
           <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
           <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
@@ -206,17 +206,19 @@
           <span class="hint" data-player-note></span>
         </div>
         <div class="slots">
-          <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerTalking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking overlay</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerMuted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted overlay</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="playerOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="playerTalking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="playerMuted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
         </div>
 
         <h3>Character</h3>
-        <p class="hint">A second box for OBS. The character image, if any, with the talking image on top while they speak and the muted image while their microphone is off. With no character image it is transparent until they talk or mute, so it can sit over a character bar.</p>
+        <p class="hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
         <div class="slots">
-          <div class="slot" data-slot="character"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="talking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="muted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted image</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="characterOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="character"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="talking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
+          <div class="slot" data-slot="muted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
         </div>
 
         <div class="row danger-row">

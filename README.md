@@ -3,7 +3,7 @@
 Self-hosted voice and video for the table. Each player signs in once with a login and password,
 or with a personal link, allows camera and microphone, and is in. Nothing to install. Every
 player is available to OBS as a separate Browser Source: their camera, or a set of images the
-game master assigns (normal, talking, muted) when the camera is off. Built for recording
+game master assigns (offline, online, talking, muted) when the camera is off. Built for recording
 Foundry VTT sessions alongside [Coffee Pub Studio](https://github.com/Drowbe/coffee-pub-studio).
 
 See [DESIGN.md](DESIGN.md) for the plan and the build stages.
@@ -133,18 +133,22 @@ header and offers **Bring it back here**.
 Each user has two things the recording can show, and both react to the same live signal: who
 is speaking and who is muted.
 
-**Player** is the person. Their video box shows the camera when it is on and the **Player
-image** when it is off (the player can set that one themselves on their **Profile** page, which also shows them everything their admin set).
+Each has four pictures, **Offline**, **Online**, **Talking** and **Muted**: the box always shows
+Offline or Online depending on whether the person is at the table, and lays Talking or Muted on
+top while they speak or while their microphone is off. Any picture left unset is simply not
+drawn.
+
+**Player** is the person. Their box shows the camera when it is on and the **Online** picture
+when it is off (the player can set that one themselves on their **Profile** page, which also
+shows them everything their admin set); away from the table it shows **Offline**, or nothing.
 While they speak a **talking border** is drawn around the box, and while their microphone is
 off a **muted border** in its own colour; both share one width and fit any source size. Those
-borders are the only things the box ever draws (no icons). For anything more, an admin adds a
-**Talking overlay** and a **Muted overlay** image that are laid on top of the video, scaled to
-fit. The borders, their colours, the width and the **name plate** are set once under Settings;
-only the talking border can be switched off or recoloured per user.
+borders are the only things the box ever draws (no icons); for anything more, use the Talking
+and Muted pictures. The borders, their colours, the width and the **name plate** are set once
+under Settings; only the talking border can be switched off or recoloured per user.
 
-**Character** is a second box for OBS. It shows the **Character image**, if any, with the
-**Talking image** on top while they speak and the **Muted image** while they are muted. With no
-character image it stays transparent until they talk or mute, so it can sit over an existing
+**Character** is a second box for OBS with the same four pictures and no borders. With no
+Online picture it stays transparent until they talk or mute, so it can sit over an existing
 character bar. It carries no audio.
 
 Images are PNG, JPEG, GIF or WebP up to 5 MB. Click an image box to change it, Clear to remove

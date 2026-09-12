@@ -1,16 +1,16 @@
 // OBS view of one user on a transparent background.
 //   /view/<key>?s=<stream key>&kind=player|character&debug=1
 //
-// player:    the camera when it is on, the Player image when it is off; the
-//            talking or muted border and the name plate as set for the user, plus the
-//            optional Player talking / muted overlay images. Nothing else is
-//            drawn: muted shows only through the user's own overlay image.
+// player:    the camera when it is on, the Online picture when it is off, the
+//            Offline picture (or nothing) away from the table; the talking or
+//            muted border and the name plate as set for the user, plus the
+//            Talking / Muted pictures laid on top. Nothing else is drawn.
 //            Audio always plays; whether it reaches the OBS mixer is OBS's
 //            "Control audio via OBS". plate=1 in the link forces the plate on.
 // Both kinds float the player's reactions up the box; reactions=0 turns
 // that off for a source that should stay clean.
-// character: the Character image (nothing if none is set) with the Talking
-//            image on top while they speak and the Muted image while muted.
+// character: the Online picture (Offline away from the table, nothing when
+//            unset) with Talking on top while they speak and Muted while muted.
 //            Made to sit over a character bar as a second source. No audio.
 //
 // Older links: mode=auto|video -> player, mode=avatar|status -> character.
@@ -33,7 +33,7 @@ const room = new Room({ adaptiveStream: false });
 const connectOptions = { autoSubscribe: kind === 'player' };
 
 // Slots this kind draws, as blob URLs (null when the user has none).
-const slots = kind === 'player' ? ['player', 'playerTalking', 'playerMuted'] : ['character', 'talking', 'muted'];
+const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
 let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, displayName: '' };
 let participant = null;
@@ -98,19 +98,22 @@ function render() {
   const video = document.querySelector('video');
   const muted = online && !micOn;
   const talking = online && speaking && micOn;
+  // blank: nothing at all; offline: the Offline picture; image: the online
+  // picture (player or character); video: the camera.
   let state = 'blank';
   if (kind === 'player') {
     if (online && cameraOn && video) state = 'video';
     else if (online) state = 'image';
+    else if (images.playerOffline) state = 'offline';
     if (video) video.hidden = state !== 'video';
-    setImage($('base'), state === 'image' ? images.player : null);
+    setImage($('base'), state === 'image' ? images.player : state === 'offline' ? images.playerOffline : null);
     setImage($('overlay-talking'), talking ? images.playerTalking : null);
     setImage($('overlay-muted'), muted ? images.playerMuted : null);
     document.body.classList.toggle('talking', settings.border && talking && state !== 'blank');
     document.body.classList.toggle('muted-frame', settings.mutedBorder && muted && state !== 'blank');
   } else {
-    state = online ? 'image' : 'blank';
-    setImage($('base'), online ? images.character : null);
+    state = online ? 'image' : images.characterOffline ? 'offline' : 'blank';
+    setImage($('base'), online ? images.character : state === 'offline' ? images.characterOffline : null);
     setImage($('overlay-talking'), talking ? images.talking : null);
     setImage($('overlay-muted'), muted ? images.muted : null);
     document.body.classList.remove('talking');

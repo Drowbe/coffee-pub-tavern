@@ -15,7 +15,9 @@ const crypto = require('crypto');
 // Image slots. Player: what the player's video box shows when the camera is
 // off, plus optional overlays drawn on the video while they talk or are muted.
 // Character: an optional base image plus overlays for the character box.
-const SLOTS = ['player', 'playerTalking', 'playerMuted', 'character', 'talking', 'muted'];
+// Player box: offline, online (the camera-off picture), talking, muted.
+// Character box: characterOffline, character (online), talking, muted.
+const SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'characterOffline', 'character', 'talking', 'muted'];
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
