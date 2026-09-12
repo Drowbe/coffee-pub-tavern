@@ -102,7 +102,12 @@ chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
   spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
   click a tile to pin it. Drag tiles into any order. Layout, order and pin are remembered in the
   browser.
-- **Chat.** A drawer for "can you hear me" moments, with an unread badge. Nothing is stored.
+- **Chat.** A drawer for "can you hear me" moments, with an unread badge. A little markup
+  works: `**bold**`, `*italic*`, `` `code` `` and bare links. Paste, drop or pick a picture to
+  send it; pictures larger than 1600 px or 1.5 MB are shrunk first. Hover a message for
+  **Copy** (text, or the picture itself) and, on pictures, **Save**; the download button in the
+  drawer's header saves the whole chat as a text file. Everything travels over the media
+  server's data channel and nothing is stored: a late joiner sees only what comes after them.
 - **Reactions.** The smiley button opens a tray: heart, thumbs up, thumbs down, laugh, question
   mark and a die for a nat 20, or keys 1 to 6. A reaction floats up from your tile for a couple
   of seconds on everyone's table, and up your Player and Character sources in OBS. Nothing is
@@ -130,11 +135,12 @@ is speaking and who is muted.
 
 **Player** is the person. Their video box shows the camera when it is on and the **Player
 image** when it is off (the player can set that one themselves on their **Profile** page, which also shows them everything their admin set).
-While they speak a **talking border** is drawn around the box in the colour and width set for
-them; it fits any source size. That border is the only thing the box ever draws. For anything
-more, an admin adds a **Talking overlay** and a **Muted overlay** image that are laid on top of
-the video, scaled to fit; with no muted overlay a muted player simply shows no indicator. The
-border and its colour have server-wide defaults under Settings and can be overridden per user.
+While they speak a **talking border** is drawn around the box, and while their microphone is
+off a **muted border** in its own colour; both share one width and fit any source size. Those
+borders are the only things the box ever draws (no icons). For anything more, an admin adds a
+**Talking overlay** and a **Muted overlay** image that are laid on top of the video, scaled to
+fit. The borders, their colours, the width and the **name plate** are set once under Settings;
+only the talking border can be switched off or recoloured per user.
 
 **Character** is a second box for OBS. It shows the **Character image**, if any, with the
 **Talking image** on top while they speak and the **Muted image** while they are muted. With no
@@ -180,6 +186,13 @@ box, and the text under the password field. Click either picture to change it, *
 clear it. **Player video defaults**: talking border, its colour and width in pixels, and name plate, used unless a user's own Player section overrides them (the width applies to
 everyone). **OBS access**: the stream key. Room images are square; anything else is cropped to
 the middle.
+
+## Icons
+
+Every button icon comes from [Font Awesome Free](https://fontawesome.com) (solid style), served
+by the app itself from `/fa/`, so they match and stay one size. Reactions are the emoji
+themselves, not icons. Font Awesome Free is used under its CC BY 4.0 (icons), SIL OFL 1.1
+(fonts) and MIT (code) licences.
 
 ## Development
 

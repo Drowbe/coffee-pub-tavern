@@ -39,8 +39,10 @@ const DEFAULT_SETTINGS = {
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
-  borderWidth: 6, // px, drawn on the OBS view
-  plate: false,
+  borderWidth: 6, // px, drawn on the OBS view, talking and muted alike
+  mutedBorder: true,
+  mutedColor: '#b8503f',
+  plate: false, // the name plate is server-wide
 };
 
 function cleanWidth(value) {
@@ -156,7 +158,7 @@ class Store {
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
       // null means "use the server default"
-      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor), plate: cleanTri(player.plate) },
+      player: { border: cleanTri(player.border), borderColor: cleanColor(player.borderColor) },
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
   }
@@ -191,6 +193,8 @@ class Store {
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
+    if (patch.mutedBorder !== undefined) s.mutedBorder = Boolean(patch.mutedBorder);
+    if (patch.mutedColor !== undefined && cleanColor(patch.mutedColor)) s.mutedColor = cleanColor(patch.mutedColor);
     if (patch.plate !== undefined) s.plate = Boolean(patch.plate);
     this.save();
     return s;
@@ -203,7 +207,9 @@ class Store {
       border: user.player.border === null ? s.border : user.player.border,
       borderColor: user.player.borderColor || s.borderColor,
       borderWidth: s.borderWidth || DEFAULT_SETTINGS.borderWidth,
-      plate: user.player.plate === null ? s.plate : user.player.plate,
+      mutedBorder: s.mutedBorder !== false,
+      mutedColor: s.mutedColor || DEFAULT_SETTINGS.mutedColor,
+      plate: Boolean(s.plate),
     };
   }
 
@@ -279,7 +285,6 @@ class Store {
         const colour = cleanColor(patch.player.borderColor);
         if (colour || patch.player.borderColor === '') user.player.borderColor = colour;
       }
-      if (patch.player.plate !== undefined) user.player.plate = cleanTri(patch.player.plate);
     }
     this.save();
     return user;

@@ -197,12 +197,12 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function tableUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, plate: p.plate, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, plate: s.plate };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate) };
 }
 
 function initials(name) {
@@ -343,8 +343,12 @@ app.get('/manifest.webmanifest', (_req, res) => {
   });
 });
 
-// Static assets, including the LiveKit browser client served from node_modules.
+// Static assets, including the LiveKit browser client and Font Awesome Free
+// (the one icon set every page uses) served from node_modules.
 app.use('/lib/livekit-client.esm.mjs', express.static(path.join(clientDist, 'livekit-client.esm.mjs')));
+const faDir = path.dirname(require.resolve('@fortawesome/fontawesome-free/package.json'));
+app.use('/fa/css', express.static(path.join(faDir, 'css'), { maxAge: '7d' }));
+app.use('/fa/webfonts', express.static(path.join(faDir, 'webfonts'), { maxAge: '30d' }));
 app.use(express.static(publicDir, { index: false }));
 
 // Public API ------------------------------------------------------------------

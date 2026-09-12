@@ -2,7 +2,7 @@
 //   /view/<key>?s=<stream key>&kind=player|character&debug=1
 //
 // player:    the camera when it is on, the Player image when it is off; the
-//            talking border and the name plate as set for the user, plus the
+//            talking or muted border and the name plate as set for the user, plus the
 //            optional Player talking / muted overlay images. Nothing else is
 //            drawn: muted shows only through the user's own overlay image.
 //            Audio always plays; whether it reaches the OBS mixer is OBS's
@@ -35,7 +35,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['player', 'playerTalking', 'playerMuted'] : ['character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, plate: false, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, displayName: '' };
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -72,11 +72,12 @@ async function loadSettings() {
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, plate: Boolean(me.plate), displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
     document.documentElement.style.setProperty('--talk', settings.borderColor);
     document.documentElement.style.setProperty('--talk-w', `${settings.borderWidth}px`);
+    document.documentElement.style.setProperty('--mute', settings.mutedColor);
   } catch (err) {
     // defaults stand
   }
@@ -106,12 +107,14 @@ function render() {
     setImage($('overlay-talking'), talking ? images.playerTalking : null);
     setImage($('overlay-muted'), muted ? images.playerMuted : null);
     document.body.classList.toggle('talking', settings.border && talking && state !== 'blank');
+    document.body.classList.toggle('muted-frame', settings.mutedBorder && muted && state !== 'blank');
   } else {
     state = online ? 'image' : 'blank';
     setImage($('base'), online ? images.character : null);
     setImage($('overlay-talking'), talking ? images.talking : null);
     setImage($('overlay-muted'), muted ? images.muted : null);
     document.body.classList.remove('talking');
+    document.body.classList.remove('muted-frame');
   }
   // The Player option applies to the player box; plate=1 forces it on either kind.
   const showPlate = forcePlate || (kind === 'player' && settings.plate);

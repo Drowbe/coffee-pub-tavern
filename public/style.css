@@ -140,7 +140,7 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 18px;
-  align-items: start;
+  align-items: stretch; /* every card as tall as the tallest, Join at the bottom */
 }
 
 .room-choice {
@@ -168,8 +168,8 @@ select {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas: "img head" "img desc" "members members" "join join";
+  grid-template-rows: auto auto 1fr auto;
   column-gap: 14px;
-  align-content: start;
 }
 
 .room-choice-head {
@@ -189,6 +189,7 @@ select {
 
 .room-choice .members {
   grid-area: members;
+  align-self: start;
 }
 
 .room-choice .btn {
@@ -532,9 +533,8 @@ select {
   text-decoration: none;
 }
 
-.icon-link svg {
-  width: 18px;
-  height: 18px;
+.icon-link i {
+  font-size: 16px;
 }
 
 /* Profile page */
@@ -1054,8 +1054,21 @@ body.at-table .topbar {
   background: rgba(184, 80, 63, 0.35);
 }
 
-.fbtn.off .glyph {
-  opacity: 0.6;
+.fbtn .glyph i {
+  font-size: 17px;
+}
+
+/* the off state swaps to the slashed icon */
+.fbtn .icon-off {
+  display: none;
+}
+
+.fbtn.off .icon-on {
+  display: none;
+}
+
+.fbtn.off .icon-off {
+  display: inline-block;
 }
 
 .fbtn.danger {
@@ -1112,9 +1125,41 @@ body.at-table .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 8px 8px 12px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+}
+
+.chat-tools {
+  display: flex;
+  gap: 2px;
+}
+
+.msg-btn {
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.msg-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chat.drop {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+}
+
+.chat-hint {
+  margin: 0;
+  padding: 0 12px 6px;
+  font-size: 11px;
 }
 
 .chat .messages {
@@ -1128,9 +1173,50 @@ body.at-table .topbar {
 }
 
 .message {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+.message .actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: none;
+  gap: 1px;
+  background: rgba(26, 20, 16, 0.9);
+  border-radius: 4px;
+}
+
+.message:hover .actions,
+.message:focus-within .actions {
+  display: flex;
+}
+
+.message .text {
+  overflow-wrap: anywhere;
+}
+
+.message .text img {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 6px;
+  cursor: zoom-in;
+  margin-top: 2px;
+}
+
+.message .text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.message .text a {
+  color: var(--accent);
 }
 
 .message .who {
@@ -1150,9 +1236,14 @@ body.at-table .topbar {
 
 .chat form {
   display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 6px;
   border-top: 1px solid var(--border);
+}
+
+.chat form .msg-btn {
+  font-size: 16px;
 }
 
 .chat input {
@@ -1377,6 +1468,10 @@ body.at-table .topbar {
   font-size: 15px;
 }
 
+.stage.compact .fbtn .glyph i {
+  font-size: 14px;
+}
+
 .stage.compact .status-float {
   top: 6px;
   left: 6px;
@@ -1408,6 +1503,15 @@ body.at-table .topbar {
   width: 30px;
   height: 30px;
   font-size: 13px;
+}
+
+.stage.tiny .fbtn .glyph i {
+  font-size: 12px;
+}
+
+/* room pictures fill their square */
+.slot[data-room-image] .slot-pick img {
+  object-fit: cover;
 }
 
 /* --- manage page tabs and settings layout ---------------------------------- */

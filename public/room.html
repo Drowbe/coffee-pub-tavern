@@ -10,6 +10,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icon.png">
   <title>Coffee Pub Tavern</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -22,8 +23,8 @@
     <nav class="links" id="links">
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
       <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3H9l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1L9 21h6l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></a>
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm7.3 4.3-1.4 1.4L18.2 11H9v2h9.2l-2.3 2.3 1.4 1.4L22 12z"/></svg></a>
+      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
   </header>
@@ -63,20 +64,32 @@
     </div>
 
     <div class="float floatbar" id="floatbar">
-      <button class="fbtn" id="mic" type="button" title="Microphone (M)" ><span class="meter" id="meter"></span><span class="glyph">&#127908;</span></button>
-      <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph">&#127909;</span></button>
-      <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph">&#9638;</span></button>
-      <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph">&#128172;</span><span class="badge" id="chat-badge" hidden></span></button>
-      <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph">&#128578;</span></button>
-      <button class="fbtn" id="settings-toggle" type="button" title="Settings"><span class="glyph">&#9881;</span></button>
-      <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph">&#10697;</span></button>
-      <button class="fbtn danger" id="leave" type="button" title="Leave the table"><span class="glyph">&#9742;</span></button>
+      <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
+      <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="settings-toggle" type="button" title="Settings"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
     </div>
 
     <aside class="chat" id="chat" hidden>
-      <header><span>Chat</span><button class="btn btn-small" id="chat-close" type="button">Close</button></header>
+      <header>
+        <span>Chat</span>
+        <span class="chat-tools">
+          <button class="msg-btn" id="chat-save" type="button" title="Save the chat as a text file" aria-label="Save the chat"><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="chat-close" type="button" title="Close" aria-label="Close chat"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>
+        </span>
+      </header>
       <div class="messages" id="messages"></div>
-      <form id="chat-form"><input id="chat-input" type="text" maxlength="500" placeholder="Say something..." autocomplete="off"><button class="btn btn-primary btn-small" type="submit">Send</button></form>
+      <p class="hint chat-hint">**bold**, *italic*, `code` and links work. Paste or drop a picture to send it.</p>
+      <form id="chat-form">
+        <button class="msg-btn" id="chat-pic" type="button" title="Send a picture" aria-label="Send a picture"><i class="fa-solid fa-image fa-fw" aria-hidden="true"></i></button>
+        <input id="chat-input" type="text" maxlength="500" placeholder="Say something..." autocomplete="off">
+        <button class="btn btn-primary btn-small" type="submit">Send</button>
+        <input type="file" id="chat-file" accept="image/*" hidden>
+      </form>
     </aside>
 
     <div class="popover tray" id="react-tray" hidden>

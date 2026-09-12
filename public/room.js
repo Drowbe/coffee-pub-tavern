@@ -215,7 +215,6 @@ function setLayout(layout, announce = false) {
   savePrefs();
   $('layout-select').value = prefs.layout;
   applyLayout();
-  if (announce) setStatus(`layout: ${prefs.layout}`);
 }
 
 function applyLayout() {
@@ -432,23 +431,168 @@ function stageDoc() {
 
 // --- chat ---------------------------------------------------------------------
 
-function addMessage(message, from, own = false) {
+// Text and pictures travel over LiveKit's data channel; nothing is stored.
+// The log lives here for Save and for late reads; it goes when you leave.
+const chatLog = []; // { who, at, text } or { who, at, blob, name }
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+// A little markup: `code`, **bold**, *italic* or _italic_, bare links, line breaks.
+function renderMarkup(text) {
+  let html = escapeHtml(text);
+  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  html = html.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
+  html = html.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
+  return html.replace(/\n/g, '<br>');
+}
+
+function iconButton(icon, title, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'msg-btn';
+  b.title = title;
+  b.setAttribute('aria-label', title);
+  b.innerHTML = `<i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i>`;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function flashIcon(btn, icon) {
+  const i = btn.querySelector('i');
+  const was = i.className;
+  i.className = `fa-solid fa-${icon} fa-fw`;
+  setTimeout(() => (i.className = was), 1200);
+}
+
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name || 'picture.png';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+
+async function toPng(blob) {
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement('canvas');
+  c.width = bmp.width;
+  c.height = bmp.height;
+  c.getContext('2d').drawImage(bmp, 0, 0);
+  bmp.close();
+  return new Promise((resolve) => c.toBlob(resolve, 'image/png'));
+}
+
+async function copyEntry(entry, btn) {
+  try {
+    if (entry.blob) {
+      const png = entry.blob.type === 'image/png' ? entry.blob : await toPng(entry.blob);
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+    } else {
+      await navigator.clipboard.writeText(entry.text);
+    }
+    flashIcon(btn, 'check');
+  } catch (err) {
+    setStatus(`copy: ${err.message}`, true);
+  }
+}
+
+function messageEl(entry, own) {
   const el = document.createElement('div');
   el.className = `message${own ? ' own' : ''}`;
   const who = document.createElement('span');
   who.className = 'who';
-  who.textContent = from;
-  const text = document.createElement('span');
-  text.className = 'text';
-  text.textContent = message;
-  el.append(who, text);
-  $('messages').appendChild(el);
+  who.textContent = entry.who;
+  const body = document.createElement('span');
+  body.className = 'text';
+  if (entry.blob) {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(entry.blob);
+    img.alt = entry.name || 'picture';
+    img.title = 'Open full size';
+    img.addEventListener('click', () => window.open(img.src, '_blank'));
+    body.appendChild(img);
+  } else {
+    body.innerHTML = renderMarkup(entry.text);
+  }
+  const actions = document.createElement('span');
+  actions.className = 'actions';
+  const copyBtn = iconButton('copy', entry.blob ? 'Copy picture' : 'Copy text', () => copyEntry(entry, copyBtn));
+  actions.appendChild(copyBtn);
+  if (entry.blob) actions.appendChild(iconButton('download', 'Save picture', () => saveBlob(entry.blob, entry.name)));
+  el.append(who, body, actions);
+  return el;
+}
+
+function addEntry(entry, own = false) {
+  entry.at = new Date();
+  chatLog.push(entry);
+  $('messages').appendChild(messageEl(entry, own));
   $('messages').scrollTop = $('messages').scrollHeight;
   if ($('chat').hidden && !own) {
     unread += 1;
     $('chat-badge').textContent = String(unread);
     $('chat-badge').hidden = false;
   }
+}
+
+function addMessage(message, from, own = false) {
+  addEntry({ who: from, text: message }, own);
+}
+
+function saveChat() {
+  if (!chatLog.length) return;
+  const lines = chatLog.map((e) => `[${e.at.toLocaleTimeString()}] ${e.who}: ${e.blob ? `[picture${e.name ? ' ' + e.name : ''}]` : e.text}`);
+  saveBlob(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }), `${tableName.replace(/[^\w-]+/g, '-').toLowerCase()}-chat-${new Date().toISOString().slice(0, 10)}.txt`);
+}
+
+// Pictures: pasted, dropped or picked, shrunk to a sensible size, then sent
+// as a LiveKit byte stream on topic "chat-image" (no server involved).
+const MAX_IMAGE_SIDE = 1600;
+async function shrinkImage(file) {
+  const bmp = await createImageBitmap(file);
+  const keep = file.size <= 1.5e6 && Math.max(bmp.width, bmp.height) <= MAX_IMAGE_SIDE && /^image\/(png|jpeg|gif|webp)$/.test(file.type);
+  if (keep) {
+    bmp.close();
+    return file;
+  }
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * scale));
+  c.height = Math.max(1, Math.round(bmp.height * scale));
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
+  const blob = await new Promise((resolve) => c.toBlob(resolve, 'image/jpeg', 0.85));
+  return new File([blob], `${(file.name || 'picture').replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
+}
+
+async function sendImage(file) {
+  if (!file || !file.type.startsWith('image/') || room.state !== 'connected') return;
+  try {
+    const out = await shrinkImage(file);
+    addEntry({ who: room.localParticipant.name || room.localParticipant.identity, blob: out, name: out.name }, true);
+    await room.localParticipant.sendFile(out, { topic: 'chat-image', mimeType: out.type });
+  } catch (err) {
+    setStatus(`picture: ${err.message}`, true);
+  }
+}
+
+room.registerByteStreamHandler('chat-image', async (reader, { identity }) => {
+  try {
+    const chunks = await reader.readAll();
+    const blob = new Blob(chunks, { type: reader.info.mimeType || 'image/png' });
+    const from = room.remoteParticipants.get(identity);
+    addEntry({ who: from?.name || identity, blob, name: reader.info.name }, false);
+  } catch (err) {
+    setStatus(`picture: ${err.message}`, true);
+  }
+});
+
+function imageFiles(list) {
+  return [...(list || [])].filter((f) => f && f.type && f.type.startsWith('image/'));
 }
 
 // --- reactions ------------------------------------------------------------------
@@ -889,6 +1033,28 @@ window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());
 $('chat-close').addEventListener('click', () => toggleChat(false));
+$('chat-save').addEventListener('click', saveChat);
+$('chat-pic').addEventListener('click', () => $('chat-file').click());
+$('chat-file').addEventListener('change', () => {
+  for (const f of imageFiles($('chat-file').files)) sendImage(f);
+  $('chat-file').value = '';
+});
+$('chat').addEventListener('paste', (event) => {
+  const files = imageFiles(event.clipboardData?.files);
+  if (!files.length) return;
+  event.preventDefault();
+  for (const f of files) sendImage(f);
+});
+$('chat').addEventListener('dragover', (event) => {
+  event.preventDefault();
+  $('chat').classList.add('drop');
+});
+$('chat').addEventListener('dragleave', () => $('chat').classList.remove('drop'));
+$('chat').addEventListener('drop', (event) => {
+  event.preventDefault();
+  $('chat').classList.remove('drop');
+  for (const f of imageFiles(event.dataTransfer?.files)) sendImage(f);
+});
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();

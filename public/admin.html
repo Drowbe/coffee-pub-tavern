@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
   <title>Coffee Pub Tavern - Manage</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -12,8 +13,8 @@
     <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span> <span class="status">manage</span></div>
     <nav class="links">
       <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 10.5 12 3l9 7.5v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></a>
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm7.3 4.3-1.4 1.4L18.2 11H9v2h9.2l-2.3 2.3 1.4 1.4L22 12z"/></svg></a>
+      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
   </header>
@@ -102,12 +103,18 @@
 
       <div class="panel">
       <h2>Player video defaults</h2>
-      <p class="hint">Used for every player's video box unless their own Player section overrides it.</p>
+      <p class="hint">Borders are drawn around every player's OBS box while they talk or while their microphone is off, both at the same width. A user's own Player section can override the talking border; the muted border and the name plate are the same for everyone.</p>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
         <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
+        <label class="check"><input type="checkbox" id="set-muted-border"> Muted border</label>
+        <label class="check">Colour <input type="color" id="set-muted-color" value="#b8503f"></label>
         <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
-        <label class="check"><input type="checkbox" id="set-plate"> Name plate</label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the player's name in the corner</label>
+      </div>
+      <div class="row">
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
       </div>
@@ -191,11 +198,10 @@
         </div>
 
         <h3>Player</h3>
-        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking is shown with a drawn border; talking and muted can also show your own overlay images on top of the video. Nothing else is drawn on the box. The name plate puts their name in the corner.</p>
+        <p class="hint">The player's video box. When the camera is off it shows the player image. Talking and muted are shown with the borders set under Settings, and optionally with your own overlay images laid on top of the video. Nothing else is drawn on the box. Only the talking border can differ per player.</p>
         <div class="row">
           <label class="check"><input type="checkbox" data-pfield="border"> Talking border</label>
           <label class="check">Colour <input type="color" data-pfield="borderColor"></label>
-          <label class="check"><input type="checkbox" data-pfield="plate"> Name plate</label>
           <button class="btn btn-small" data-action="player-defaults" type="button" title="Use the server defaults from Settings">Use defaults</button>
           <span class="hint" data-player-note></span>
         </div>

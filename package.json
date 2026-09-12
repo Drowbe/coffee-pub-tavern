@@ -14,6 +14,7 @@
     "check": "node --check public/gate-worklet.js && node --check server/index.js && node --check server/store.js && node --check server/auth.js && node --check public/room.js && node --check public/view.js && node --check public/admin.js && node --check public/login.js && node --check public/me.js && node --check public/brand.js"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.3.1",
     "express": "^5.2.1",
     "livekit-client": "^2.22.3",
     "livekit-server-sdk": "^2.19.0"

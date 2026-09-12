@@ -33,6 +33,7 @@ function render() {
 
   const p = me.player.effective;
   $('f-border').textContent = p.border ? `On, in ${p.borderColor}` : 'Off';
+  $('f-muted').textContent = p.mutedBorder ? `On, in ${p.mutedColor}` : 'Off';
   $('f-plate').textContent = p.plate ? 'On, your name in the corner' : 'Off';
   for (const el of document.querySelectorAll('#f-border')) el.style.setProperty('--swatch', p.borderColor);
 
