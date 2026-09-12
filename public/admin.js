@@ -490,6 +490,9 @@ $('save-defaults').addEventListener('click', async () => {
       mutedBorder: $('set-muted-border').checked,
       mutedColor: $('set-muted-color').value,
       plate: $('set-plate').checked,
+      pictureBackground: $('set-picture-bg').checked,
+      pictureColor: $('set-picture-color').value,
+      pictureScale: $('set-picture-scale').value,
     });
     defaults = { border: settings.border, borderColor: settings.borderColor };
     say($('defaults-status'), 'saved');
@@ -588,6 +591,9 @@ async function init() {
     $('set-muted-border').checked = settings.mutedBorder !== false;
     $('set-muted-color').value = settings.mutedColor || '#b8503f';
     $('set-plate').checked = Boolean(settings.plate);
+    $('set-picture-bg').checked = Boolean(settings.pictureBackground);
+    $('set-picture-color').value = settings.pictureColor || '#1a1410';
+    $('set-picture-scale').value = settings.pictureScale || 100;
     renderSiteImages(settings);
     showStreamKey();
     await loadUsers();

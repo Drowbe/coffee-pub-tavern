@@ -45,6 +45,11 @@ const DEFAULT_SETTINGS = {
   mutedBorder: true,
   mutedColor: '#b8503f',
   plate: false, // the name plate is server-wide
+  // Behind the Offline / Online picture in the player box: a colour (or
+  // transparent) and the picture's size as a percentage of the box.
+  pictureBackground: false,
+  pictureColor: '#1a1410',
+  pictureScale: 100,
 };
 
 function cleanWidth(value) {
@@ -198,6 +203,12 @@ class Store {
     if (patch.mutedBorder !== undefined) s.mutedBorder = Boolean(patch.mutedBorder);
     if (patch.mutedColor !== undefined && cleanColor(patch.mutedColor)) s.mutedColor = cleanColor(patch.mutedColor);
     if (patch.plate !== undefined) s.plate = Boolean(patch.plate);
+    if (patch.pictureBackground !== undefined) s.pictureBackground = Boolean(patch.pictureBackground);
+    if (patch.pictureColor !== undefined && cleanColor(patch.pictureColor)) s.pictureColor = cleanColor(patch.pictureColor);
+    if (patch.pictureScale !== undefined) {
+      const n = Math.round(Number(patch.pictureScale));
+      if (Number.isFinite(n)) s.pictureScale = Math.max(20, Math.min(100, n));
+    }
     this.save();
     return s;
   }
@@ -212,6 +223,9 @@ class Store {
       mutedBorder: s.mutedBorder !== false,
       mutedColor: s.mutedColor || DEFAULT_SETTINGS.mutedColor,
       plate: Boolean(s.plate),
+      pictureBackground: Boolean(s.pictureBackground),
+      pictureColor: s.pictureColor || DEFAULT_SETTINGS.pictureColor,
+      pictureScale: s.pictureScale || 100,
     };
   }
 

@@ -11,6 +11,9 @@
     video, .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
     video { object-fit: cover; }
     .layer { object-fit: contain; }
+    /* the Offline / Online picture can sit smaller than the box, on a colour */
+    #base { inset: var(--pic-inset, 0%); width: calc(100% - 2 * var(--pic-inset, 0%)); height: calc(100% - 2 * var(--pic-inset, 0%)); }
+    body.picture-bg[data-state="image"], body.picture-bg[data-state="offline"] { background: var(--pic-bg); }
     .plate { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,0.6); font-weight: 600; font-size: 16px; }
     .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a8998a; font-size: 14px; }
     /* talking frame: a real border around the box, any size, never stretched */

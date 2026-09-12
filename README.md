@@ -145,7 +145,11 @@ While they speak a **talking border** is drawn around the box, and while their m
 off a **muted border** in its own colour; both share one width and fit any source size. Those
 borders are the only things the box ever draws (no icons); for anything more, use the Talking
 and Muted pictures. The borders, their colours, the width and the **name plate** are set once
-under Settings; only the talking border can be switched off or recoloured per user.
+under Settings; only the talking border can be switched off or recoloured per user. Two more
+defaults shape the Player box while it shows a picture rather than the camera: a **colour behind
+the picture**, so the video area stays visible on the recording, and a **picture size** as a
+percentage of the box, which leaves a margin around the picture instead of filling the height.
+The camera always fills the box.
 
 **Character** is a second box for OBS with the same four pictures and no borders. With no
 Online picture it stays transparent until they talk or mute, so it can sit over an existing

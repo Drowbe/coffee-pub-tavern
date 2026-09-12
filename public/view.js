@@ -35,7 +35,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
 let participant = null;
 let speaking = false;
 let cameraOn = false;
@@ -72,12 +72,17 @@ async function loadSettings() {
     const { users } = await res.json();
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
     document.documentElement.style.setProperty('--talk', settings.borderColor);
     document.documentElement.style.setProperty('--talk-w', `${settings.borderWidth}px`);
     document.documentElement.style.setProperty('--mute', settings.mutedColor);
+    // Player box only: the picture's size and the colour behind it.
+    const scale = kind === 'player' ? settings.pictureScale : 100;
+    document.documentElement.style.setProperty('--pic-inset', `${(100 - scale) / 2}%`);
+    document.documentElement.style.setProperty('--pic-bg', settings.pictureColor);
+    document.body.classList.toggle('picture-bg', kind === 'player' && settings.pictureBackground);
   } catch (err) {
     // defaults stand
   }

@@ -103,7 +103,7 @@
 
       <div class="panel">
       <h2>Player video defaults</h2>
-      <p class="hint">Borders are drawn around every player's OBS box while they talk or while their microphone is off, both at the same width. A user's own Player section can override the talking border; the muted border and the name plate are the same for everyone.</p>
+      <p class="hint">Borders are drawn around every player's OBS box while they talk or while their microphone is off, both at the same width. A user's own Player section can override the talking border; everything else here is the same for everyone.</p>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-border"> Talking border</label>
         <label class="check">Colour <input type="color" id="set-border-color" value="#6fae6b"></label>
@@ -113,6 +113,12 @@
       </div>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-plate"> Name plate with the player's name in the corner</label>
+      </div>
+      <p class="hint">While the Player box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-picture-bg"> Colour behind the picture</label>
+        <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
+        <label class="check">Picture size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> % of the box</label>
       </div>
       <div class="row">
         <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
