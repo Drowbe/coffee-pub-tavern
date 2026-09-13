@@ -90,9 +90,10 @@ and publishes that room's users.
 **Pull aside.** While at the table, an admin can pull anyone else in their current room into a
 private word: hover their tile and click the door icon. Both move to a new room together at
 once, with nobody clicking anything on the other end. The pulled player (and the admin) get a
-**Back to the table** button in place of the usual room name, returning them straight to the
-Lobby. The private room itself is never shown as something to pick from a list; it disappears
-on its own once both of you have left it. Everyone else, still in whatever room they were in,
+**Back to the table** button in place of the usual room name, returning them together to
+whichever room they were pulled out of -- clicking it on either side brings the other one back
+too, the same as pulling aside itself needs only one click. The private room itself is never
+shown as something to pick from a list; it disappears on its own once both of you have left it. Everyone else, still in whatever room they were in,
 sees the two of you tagged **aside** where their tile would show a room; anyone else who isn't
 in the room the admin currently occupies is tagged **off stream** the same way, since Coffee
 Pub Studio's Tavern tab follows the admin's room automatically (a **Follow the admin** tick,
