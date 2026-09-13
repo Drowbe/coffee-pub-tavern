@@ -864,6 +864,11 @@ room
       else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
         setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
       }
+      // The other member of a pull-aside room clicked "Back to the table";
+      // follow them there instead of being left behind.
+      else if (topic === 'return-to-table' && data.type === 'return-to-table' && data.roomId) {
+        setTimeout(() => reconnectTo(data.roomId, 'back to the table...'), 0);
+      }
     } catch (err) {
       // not ours
     }
@@ -932,6 +937,18 @@ async function pullAside(identity) {
     await reconnectTo(asideRoom.id, 'stepping aside...');
   } catch (err) {
     setStatus(`pull aside: ${err.message}`, true);
+  }
+}
+
+// "Back to the table": return to the room a pull-aside room came from
+// (whichever room that was, not always the Lobby), and bring whoever else
+// is still in there with me.
+async function returnToTable() {
+  try {
+    const { room: homeRoom } = await api('POST', '/api/table/return');
+    await reconnectTo(homeRoom.id, 'back to the table...');
+  } catch (err) {
+    setStatus(`back to the table: ${err.message}`, true);
   }
 }
 
@@ -1095,7 +1112,7 @@ async function restartCamera() {
 }
 $('leave').addEventListener('click', () => room.disconnect());
 $('leave-top').addEventListener('click', () => room.disconnect());
-$('back-to-table').addEventListener('click', () => reconnectTo(LOBBY));
+$('back-to-table').addEventListener('click', () => returnToTable());
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());

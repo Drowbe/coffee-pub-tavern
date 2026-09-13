@@ -465,10 +465,37 @@ app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
     if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
     const targetRoom = await roomOf(target.key);
     if (!targetRoom) return res.status(404).json({ error: `${target.displayName} is not at the table` });
-    const room = store.addAsideRoom([admin.key, target.key]);
+    const room = store.addAsideRoom([admin.key, target.key], roomIdOfLivekit(adminRoom));
     const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
     await roomService.sendData(targetRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: [target.key], topic: 'pull-aside' });
     res.json({ room });
+  } catch (err) {
+    res.status(502).json({ error: `LiveKit: ${err.message}` });
+  }
+});
+
+// Whoever clicks "Back to the table" while in a pull-aside room returns to
+// the room it was pulled from (the Lobby if that room is gone by now), and
+// takes the room's other member(s) with them the same way pull-aside does:
+// a data-channel nudge, since leaving would otherwise be as one-sided as
+// arriving used to be.
+app.post('/api/table/return', requireUser, async (req, res) => {
+  try {
+    const me = currentUser(req);
+    const mine = (await participants()).find((p) => p.key === me.key);
+    if (!mine) return res.status(400).json({ error: 'you need to be at the table' });
+    const current = store.roomById(mine.room);
+    if (!current || !current.ephemeral) return res.status(400).json({ error: 'not in a pull-aside room' });
+    const dest = (current.origin && store.roomById(current.origin)) || store.roomById(LOBBY);
+    const others = current.members.filter((k) => k !== me.key);
+    if (others.length) {
+      const payload = new TextEncoder().encode(JSON.stringify({ type: 'return-to-table', roomId: dest.id }));
+      // Best-effort: I still get to leave even if the others cannot be nudged.
+      await roomService
+        .sendData(livekitRoomName(mine.room), payload, DataPacket_Kind.RELIABLE, { destinationIdentities: others, topic: 'return-to-table' })
+        .catch(() => {});
+    }
+    res.json({ room: dest });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }

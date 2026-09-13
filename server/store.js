@@ -145,6 +145,9 @@ class Store {
       // A "pull aside" room: not shown on the manage page's Rooms tab, not
       // hand-editable, and swept away once nobody online is actually in it.
       ephemeral: Boolean(r.ephemeral),
+      // The room an ephemeral room was pulled out of, so "Back to the table"
+      // can return everyone there instead of always landing on the Lobby.
+      origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
     };
   }
 
@@ -362,12 +365,13 @@ class Store {
 
   // A private "pull aside" room for exactly the members given (typically an
   // admin and one player). No name worth keeping server-side; the client
-  // builds one from the other member's display name.
-  addAsideRoom(members) {
+  // builds one from the other member's display name. `origin` is the room
+  // they were pulled out of, so they can all be sent back to it later.
+  addAsideRoom(members, origin) {
     let id;
     do id = randomKey();
     while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, createdAt: new Date().toISOString() });
+    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, origin, createdAt: new Date().toISOString() });
     room.members = room.members.filter((k) => this.userByKey(k));
     this.data.rooms.push(room);
     this.save();
