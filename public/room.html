@@ -23,9 +23,9 @@
     <nav class="links" id="links">
       <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
-      <a class="whoami" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="whoami" id="whoami-link" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" id="logout-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
   </header>
@@ -35,6 +35,15 @@
     <p class="status error" id="join-error" hidden></p>
     <p class="hint join-note">Your browser will ask for camera and microphone the first time. <span id="install-hint" hidden></span></p>
   </div>
+
+  <!-- A guest link (/guest/<token>) shows this instead: a name, nothing else. -->
+  <form class="join guest-join" id="guest-join" hidden>
+    <h1 id="guest-room-name">Join as a guest</h1>
+    <label>Your name<input id="guest-name" type="text" maxlength="40" required autocomplete="name"></label>
+    <button class="btn btn-primary" type="submit">Join</button>
+    <p class="status error" id="guest-join-error" hidden></p>
+    <p class="hint join-note">Your browser will ask for camera and microphone. Nothing about you is kept once you leave.</p>
+  </form>
 
   <template id="room-choice">
     <article class="room-choice">
@@ -139,7 +148,19 @@
         <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
         <span class="hint" id="install-note"></span>
       </div>
-      <nav class="links">
+      <div id="guest-section">
+        <h3>Guests</h3>
+        <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed.</p>
+        <div class="row">
+          <code class="key link" id="guest-link-value">off</code>
+          <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
+          <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
+          <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
+          <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+        </div>
+        <p class="status" id="guest-link-status"></p>
+      </div>
+      <nav class="links" id="settings-links">
         <a href="/profile" data-overlay-link title="Your profile">Your profile</a>
         <a href="/admin" id="admin-link-2" data-overlay-link title="Manage" hidden>Manage</a>
         <a href="/logout">Sign out</a>

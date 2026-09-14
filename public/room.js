@@ -18,9 +18,29 @@ let currentRoom = null; // the room I am in, once joined
 const LOBBY = 'lobby';
 let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
 
+// A guest link (/guest/<token>): no account, just a name and this room. The
+// token both identifies which room's guest link this is and, appended to
+// our own reads below, is this tab's only credential -- there's no session.
+const GUEST_PREFIX = 'guest-';
+const guestToken = location.pathname.startsWith('/guest/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : null;
+
+// A picture URL for a slot, guest-aware: a guest identity (however many
+// different guests are at the table) always shows the one shared guest
+// picture set, and our own guest token (if we are the guest looking) rides
+// along so the server recognises this tab without a session.
+function imgUrl(key, slot, params = {}) {
+  const isGuest = key.startsWith(GUEST_PREFIX);
+  const urlKey = isGuest ? 'guest' : key;
+  const urlSlot = isGuest && slot === 'profile' ? 'player' : slot;
+  const q = new URLSearchParams(params);
+  if (guestToken) q.set('guest', guestToken);
+  const qs = q.toString();
+  return `/img/${encodeURIComponent(urlKey)}/${urlSlot}${qs ? `?${qs}` : ''}`;
+}
+
 async function loadTable() {
   try {
-    const { users, rooms, activeRoom: active } = await api('GET', '/api/table');
+    const { users, rooms, activeRoom: active } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
     tableUsers.clear();
     for (const u of users) tableUsers.set(u.key, u);
     tableRooms = rooms || [];
@@ -32,6 +52,7 @@ async function loadTable() {
     }
     renderRooms();
     reconcileGhostTiles();
+    renderGuestLink();
   } catch (err) {
     // default colour stands
   }
@@ -60,7 +81,7 @@ function ghostTile(key) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = `/img/${encodeURIComponent(key)}/profile`;
+  placeholder.src = imgUrl(key, 'profile');
   tile.appendChild(placeholder);
   const overlay = document.createElement('div');
   overlay.className = 'tile-ghost-overlay';
@@ -166,7 +187,7 @@ function renderMembers(list, members, roomId) {
       el.dataset.key = u.key;
       const img = document.createElement('img');
       img.alt = '';
-      img.src = `/img/${encodeURIComponent(u.key)}/profile`;
+      img.src = imgUrl(u.key, 'profile');
       const dot = document.createElement('span');
       dot.className = 'dot';
       const name = document.createElement('span');
@@ -207,6 +228,24 @@ $('rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-join]');
   if (button) join(button.dataset.join);
 });
+$('guest-join').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  $('guest-join-error').hidden = true;
+  const name = $('guest-name').value.trim();
+  if (!name) return;
+  const submit = $('guest-join').querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const { token, livekitUrl, identity, roomId, roomName } = await api('POST', '/api/guest-join', { token: guestToken, name });
+    me = { key: identity, displayName: name, role: 'guest' };
+    await joinAsGuest(token, livekitUrl, roomId, roomName);
+  } catch (err) {
+    $('guest-join-error').textContent = err.message;
+    $('guest-join-error').hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
+});
 let unread = 0;
 let installPrompt = null;
 let pipWindow = null;
@@ -232,7 +271,7 @@ function updateBackgroundPlaceholder(tile, key) {
   const hasBg = !!user?.images?.background;
   tile.classList.toggle('has-bg-image', hasBg);
   const bg = tile.querySelector('.placeholder-bg');
-  if (bg) bg.src = hasBg ? `/img/${encodeURIComponent(key)}/background` : '';
+  if (bg) bg.src = hasBg ? imgUrl(key, 'background') : '';
   tile.style.setProperty('--pic-scale', user?.pictureScale || 100);
 }
 
@@ -250,7 +289,7 @@ function tileFor(participant) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/profile`;
+  placeholder.src = imgUrl(participant.identity, 'profile');
   const colour = tableUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
@@ -1135,9 +1174,43 @@ async function join(roomId = 'lobby') {
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
+    await connectAndSetup(token, livekitUrl);
+  } catch (err) {
+    setStatus('', false);
+    $('join-error').textContent = err.message;
+    $('join-error').hidden = false;
+    await room.disconnect().catch(() => {});
+  } finally {
+    for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
+  }
+}
+
+// A guest link: locked to the one room the link is for, no room picker, no
+// account -- everything past "connect" is identical to a real member's join.
+async function joinAsGuest(token, livekitUrl, roomId, roomName) {
+  $('guest-join-error').hidden = true;
+  try {
+    setStatus('connecting...');
+    currentRoom = { id: roomId, name: roomName };
+    tableName = roomName;
+    await loadTable();
+    await connectAndSetup(token, livekitUrl);
+  } catch (err) {
+    setStatus('', false);
+    $('guest-join-error').textContent = err.message;
+    $('guest-join-error').hidden = false;
+    await room.disconnect().catch(() => {});
+  }
+}
+
+// Shared by join() and joinAsGuest() once a LiveKit token is in hand:
+// connect, reveal the stage, publish mic/camera. Errors propagate to
+// whichever of those called it, to land on the right error message.
+async function connectAndSetup(token, livekitUrl) {
     await room.connect(livekitUrl, token);
-    console.debug('[tavern] connected to', roomId);
+    console.debug('[tavern] connected to', currentRoom.id);
     $('join').hidden = true;
+    $('guest-join').hidden = true;
     $('stage').hidden = false;
     setChatWidth(prefs.chatWidth, { remember: false });
     // The header stays, naming the room and offering a way out of it. A
@@ -1199,14 +1272,6 @@ async function join(roomId = 'lobby') {
     $('cam').classList.toggle('on', haveCam);
     $('cam').classList.toggle('off', !haveCam);
     if (missing.length) setStatus(`in ${tableName} (no ${missing.join(' or ')})`);
-  } catch (err) {
-    setStatus('', false);
-    $('join-error').textContent = err.message;
-    $('join-error').hidden = false;
-    await room.disconnect().catch(() => {});
-  } finally {
-    for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
-  }
 }
 
 async function toggleMic() {
@@ -1417,6 +1482,45 @@ $('settings-toggle').addEventListener('click', () => {
   $('settings-toggle').classList.toggle('on', !$('settings').hidden);
   if (!$('settings').hidden) toggleTray(false);
 });
+
+// Guests: the room's own reusable join link, same door for everyone at the
+// table to open (see the guest-link routes) -- not just an admin.
+function say(el, text, error = false) {
+  el.textContent = text;
+  el.classList.toggle('error', error);
+  if (text && !error) setTimeout(() => el.textContent === text && (el.textContent = ''), 3000);
+}
+async function copyText(text, statusEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (statusEl) say(statusEl, 'copied');
+  } catch (err) {
+    window.prompt('Copy this:', text);
+  }
+}
+function renderGuestLink() {
+  if (guestToken || !currentRoom) return; // a guest has no session to manage this with
+  const token = tableRooms.find((r) => r.id === currentRoom.id)?.guestToken || null;
+  $('guest-link-value').textContent = token ? `${location.origin}/guest/${token}` : 'off';
+  $('guest-link-on').hidden = !!token;
+  $('guest-link-copy').hidden = !token;
+  $('guest-link-new').hidden = !token;
+  $('guest-link-off').hidden = !token;
+}
+async function setGuestLink(body) {
+  try {
+    if (body === null) await api('DELETE', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`);
+    else await api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
+    await loadTable();
+    renderGuestLink();
+  } catch (err) {
+    say($('guest-link-status'), err.message, true);
+  }
+}
+$('guest-link-on').addEventListener('click', () => setGuestLink({}));
+$('guest-link-new').addEventListener('click', () => setGuestLink({ regenerate: true }));
+$('guest-link-off').addEventListener('click', () => setGuestLink(null));
+$('guest-link-copy').addEventListener('click', () => copyText($('guest-link-value').textContent, $('guest-link-status')));
 $('react-toggle').addEventListener('click', () => toggleTray());
 $('react-tray').addEventListener('click', (event) => {
   const button = event.target.closest('[data-reaction]');
@@ -1632,6 +1736,33 @@ async function init() {
   $('install-hint').textContent = hint;
   $('install-hint').hidden = !hint;
   $('install-note').textContent = hint;
+
+  if (guestToken) {
+    // No account: no whoami, no Manage, no Sign out, no Guests section (that
+    // needs a real session too) -- just the name field and, past that,
+    // everything the room itself already handles the same for everyone.
+    $('join').hidden = true;
+    $('whoami-link').hidden = true;
+    $('logout-link').hidden = true;
+    $('guest-section').hidden = true;
+    $('settings-links').hidden = true;
+    try {
+      const info = await api('GET', `/api/guest-link/${encodeURIComponent(guestToken)}`);
+      $('guest-room-name').textContent = `Join ${info.roomName}`;
+      $('guest-join').hidden = false;
+      $('guest-join').dataset.roomId = info.roomId;
+      $('guest-join').dataset.roomName = info.roomName;
+    } catch (err) {
+      $('guest-room-name').textContent = 'This link is off';
+      $('guest-join-error').textContent = err.message;
+      $('guest-join-error').hidden = false;
+      $('guest-join').hidden = false;
+      $('guest-join').querySelector('button[type="submit"]').hidden = true;
+      $('guest-name').hidden = true;
+    }
+    return;
+  }
+
   try {
     const info = await api('GET', '/api/me');
     me = info.user;

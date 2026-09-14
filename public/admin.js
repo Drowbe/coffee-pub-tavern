@@ -417,6 +417,47 @@ $('tab-settings').addEventListener('click', async (event) => {
   }
 });
 
+// The shared guest Participant picture set, same click-to-change/Clear
+// shape as every other image slot in the app.
+function renderGuestImages(b) {
+  for (const slot of document.querySelectorAll('#guest-images [data-guest-slot]')) {
+    const name = slot.dataset.guestSlot;
+    const has = !!b.guestImages?.[name];
+    const img = slot.querySelector('img');
+    img.hidden = !has;
+    img.src = has ? `/img/guest/${name}?v=${Date.now()}` : '';
+    slot.querySelector('.unset').hidden = has;
+    slot.classList.toggle('set', has);
+    slot.querySelector('[data-action="guest-image-clear"]').hidden = !has;
+  }
+}
+
+$('guest-images').addEventListener('change', async (event) => {
+  const input = event.target;
+  if (input.type !== 'file' || !input.closest('[data-guest-slot]')) return;
+  const slot = input.closest('[data-guest-slot]').dataset.guestSlot;
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    await api('PUT', `/api/settings/guest-images/${slot}`, file, file.type);
+    renderGuestImages(await loadBranding());
+  } catch (err) {
+    say($('defaults-status'), err.message, true);
+  }
+  input.value = '';
+});
+$('guest-images').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="guest-image-clear"]');
+  if (!button) return;
+  const slot = button.closest('[data-guest-slot]').dataset.guestSlot;
+  try {
+    await api('DELETE', `/api/settings/guest-images/${slot}`);
+    renderGuestImages(await loadBranding());
+  } catch (err) {
+    say($('defaults-status'), err.message, true);
+  }
+});
+
 function showStreamKey() {
   $('stream-key').textContent = streamShown ? streamKey : '••••••••';
   $('stream-show').textContent = streamShown ? 'Hide' : 'Show';
@@ -472,6 +513,7 @@ async function init() {
     $('set-picture-scale').value = settings.pictureScale || 100;
     renderReactionRows(settings.reactions);
     renderSiteImages(settings);
+    renderGuestImages(settings);
     showStreamKey();
     await loadUsers();
     setInterval(refreshLive, 5000);

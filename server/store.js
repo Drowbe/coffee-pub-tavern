@@ -206,6 +206,9 @@ class Store {
       // Which image sections a member's per-room section (and Studio) offer
       // for this room -- see ROOM_PROFILE_SLOTS.
       profile: ROOM_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
+      // A standing door code: anyone with this room's guest link joins it
+      // with just a name, no account. null while off. See enableGuestLink.
+      guestToken: typeof r.guestToken === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(r.guestToken) ? r.guestToken : null,
     };
   }
 
@@ -519,6 +522,43 @@ class Store {
     return room;
   }
 
+  // --- guests -----------------------------------------------------------
+  // A room's guest link: reusable until turned off or regenerated, unlike
+  // the sign-up invites above. Anyone already in the room can manage it --
+  // there's no account behind it to gate on.
+
+  enableGuestLink(id) {
+    const room = this.data.rooms.find((r) => r.id === id);
+    if (!room) throw new StoreError('no such room', 404);
+    if (!room.guestToken) {
+      room.guestToken = randomToken(20);
+      this.save();
+    }
+    return room.guestToken;
+  }
+
+  regenerateGuestLink(id) {
+    const room = this.data.rooms.find((r) => r.id === id);
+    if (!room) throw new StoreError('no such room', 404);
+    room.guestToken = randomToken(20);
+    this.save();
+    return room.guestToken;
+  }
+
+  disableGuestLink(id) {
+    const room = this.data.rooms.find((r) => r.id === id);
+    if (!room) throw new StoreError('no such room', 404);
+    if (room.guestToken) {
+      room.guestToken = null;
+      this.save();
+    }
+  }
+
+  roomByGuestToken(token) {
+    if (typeof token !== 'string' || !token) return null;
+    return this.data.rooms.find((r) => r.guestToken && r.guestToken === token) || null;
+  }
+
   // --- invites --------------------------------------------------------------
   // A link an admin hands out that signs someone up and drops them straight
   // into the rooms picked when it was made (the Lobby always, everyone is
@@ -685,6 +725,34 @@ class Store {
 
   iconPath() {
     return this.siteImagePath('icon');
+  }
+
+  // Guest images: images/guest/<slot>.<ext>, one shared Participant-only
+  // picture set standing in for a real member's own images (guests have no
+  // profile, no account, nothing to hang per-guest pictures off of).
+  guestImagePath(slot) {
+    if (!PARTICIPANT_SLOTS.includes(slot)) return null;
+    const dir = path.join(this.imagesDir, 'guest');
+    if (!fs.existsSync(dir)) return null;
+    const file = fs.readdirSync(dir).find((f) => f.startsWith(`${slot}.`));
+    return file ? path.join(dir, file) : null;
+  }
+
+  setGuestImage(slot, buffer, contentType) {
+    if (!PARTICIPANT_SLOTS.includes(slot)) throw new StoreError('unknown image', 404);
+    const ext = IMAGE_TYPES[contentType];
+    if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
+    if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
+    this.removeGuestImage(slot);
+    const dir = path.join(this.imagesDir, 'guest');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${slot}.${ext}`), buffer);
+  }
+
+  removeGuestImage(slot) {
+    const existing = this.guestImagePath(slot);
+    if (existing) fs.rmSync(existing, { force: true });
   }
 }
 

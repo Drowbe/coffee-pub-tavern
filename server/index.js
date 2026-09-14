@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
-const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken } = require('./store');
+const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 
 const {
@@ -175,6 +175,16 @@ function hasStreamAccess(req) {
   return isAdmin(req) || hasStreamKey(req);
 }
 
+// A guest's own reads (the table roster, everyone's pictures): any request
+// carrying a room's current guest token, on top of a real session or the
+// stream key. Not scoped to that one room -- same broad-but-low-stakes
+// trust as the stream key above, and lets a guest see the table they're
+// actually sitting at without an account to check room membership against.
+function hasGuestAccess(req) {
+  const token = req.query.guest;
+  return typeof token === 'string' && !!store.roomByGuestToken(token);
+}
+
 function requireUser(req, res, next) {
   if (!currentUser(req)) return res.status(401).json({ error: 'sign in first' });
   next();
@@ -225,7 +235,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, reactions: Array.isArray(s.reactions) ? s.reactions : [] };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -250,6 +260,17 @@ function sendImage(res, file) {
   res.sendFile(file);
 }
 
+// The generic guest picture, when the admin hasn't set one -- a person
+// glyph rather than initials, since a guest tile has no name to draw from
+// server-side (that only lives in the LiveKit token, not in our data).
+function guestSvg() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">` +
+    `<rect width="400" height="400" rx="24" fill="#241c16"/>` +
+    `<circle cx="200" cy="155" r="70" fill="#c8873a"/>` +
+    `<path d="M60 360c0-90 63-150 140-150s140 60 140 150" fill="#c8873a"/>` +
+    `</svg>`;
+}
+
 // --- app -------------------------------------------------------------------
 
 const app = express();
@@ -266,6 +287,13 @@ const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_
 
 app.get('/', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login');
+  res.sendFile(page('room.html'));
+});
+
+// A guest link: the same page, in guest mode (room.js reads the token from
+// the URL itself -- see guestToken there). No account, so no redirect to
+// sign in; a dead or turned-off link is handled client-side instead.
+app.get('/guest/:token', (_req, res) => {
   res.sendFile(page('room.html'));
 });
 
@@ -358,14 +386,29 @@ app.get('/img/room/:id', (req, res) => {
   res.status(404).end();
 });
 
+// The shared guest picture set (see the guest-link routes): one Participant
+// box, standing in for every guest's own images since they have none. The
+// room tile asks for 'profile' the same way it does for a real member, so
+// that falls back to the Online picture (or the generic glyph) same as it.
+app.get('/img/guest/:slot', (req, res) => {
+  if (!currentUser(req) && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(403).end();
+  const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  const slot = PARTICIPANT_SLOTS.includes(wanted) ? wanted : 'player';
+  const file = store.guestImagePath(slot);
+  if (file) return sendImage(res, file);
+  if (slot !== 'player' || req.query.fallback === 'none') return res.status(404).end();
+  res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(guestSvg());
+});
+
 // A user's image for a slot. The profile photo always renders (an initials
 // plate when none is set); every other slot is optional and 404s when unset,
 // so overlays and the Participant/Character boxes stay transparent. Signed-in
-// users and stream key holders. ?room=<id> resolves that room's own picture
-// for this slot if it has one, falling back to the default the same as OBS
-// would -- 'profile' never has a room override, so the param is ignored for it.
+// users, stream key holders and guests with a valid room link. ?room=<id>
+// resolves that room's own picture for this slot if it has one, falling
+// back to the default the same as OBS would -- 'profile' never has a room
+// override, so the param is ignored for it.
 app.get('/img/:key/:slot', (req, res) => {
-  if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
+  if (!currentUser(req) && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(403).end();
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
   const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
@@ -514,6 +557,24 @@ app.post('/api/token', async (req, res) => {
   res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId });
 });
 
+// Guests: no account, just a name and a room's guest link (see the
+// guest-link routes above). Public -- there's nothing to sign in with.
+app.get('/api/guest-link/:token', (req, res) => {
+  const tavernRoom = store.roomByGuestToken(req.params.token);
+  if (!tavernRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  res.json({ roomId: tavernRoom.id, roomName: tavernRoom.name });
+});
+app.post('/api/guest-join', async (req, res) => {
+  const tavernRoom = store.roomByGuestToken(req.body?.token);
+  if (!tavernRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  const name = cleanText(req.body?.name, 40);
+  if (!name) return res.status(400).json({ error: 'a name is required' });
+  const identity = `guest-${randomToken(8)}`;
+  const room = livekitRoomName(tavernRoom.id);
+  const token = await mintToken({ identity, name, room, publisher: true });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token });
+});
+
 // A user may replace or clear their own profile photo. This is separate from
 // the Player box's Online picture, which only an admin sets (it may be part
 // of a matched set of OBS images).
@@ -542,7 +603,7 @@ app.delete('/api/me/images/background', requireUser, (req, res) => {
 // and the rooms themselves (with the ones the caller may join marked).
 app.get('/api/table', async (req, res) => {
   const user = currentUser(req);
-  if (!user && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
+  if (!user && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(401).json({ error: 'sign in first' });
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
   store.pruneAsideRooms(byKey);
@@ -665,6 +726,25 @@ app.delete('/api/rooms/:id/image', requireAdmin, (req, res) => {
   res.json({ room: store.roomById(req.params.id) });
 });
 
+// A room's guest link: anyone actually in the room can turn it on, copy it,
+// regenerate it or turn it off -- there's no account behind a guest to gate
+// this on, unlike everything else admin-only above. create/regenerate
+// (POST) mirror the personal-link routes above; DELETE turns it off.
+function requireRoomMember(req, res, next) {
+  const room = store.roomById(req.params.id);
+  if (!room) return res.status(404).json({ error: 'no such room' });
+  if (!room.members.includes(currentUser(req).key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
+  next();
+}
+app.post('/api/rooms/:id/guest-link', requireUser, requireRoomMember, (req, res) => {
+  const guestToken = req.body?.regenerate ? store.regenerateGuestLink(req.params.id) : store.enableGuestLink(req.params.id);
+  res.json({ room: store.roomById(req.params.id), guestUrl: `${baseUrl(req)}/guest/${guestToken}` });
+});
+app.delete('/api/rooms/:id/guest-link', requireUser, requireRoomMember, (req, res) => {
+  store.disableGuestLink(req.params.id);
+  res.json({ room: store.roomById(req.params.id) });
+});
+
 // Admin API -------------------------------------------------------------------
 
 app.get('/api/users', requireAdmin, (req, res) => {
@@ -781,6 +861,16 @@ app.put('/api/settings/:image', requireAdmin, siteImage, rawImage, (req, res) =>
 app.delete('/api/settings/:image', requireAdmin, siteImage, (req, res) => {
   store.removeSiteImage(req.params.image);
   res.json({ settings: branding() });
+});
+// The shared guest Participant picture set (see /img/guest/:slot above).
+const guestImageSlot = (req, res, next) => (PARTICIPANT_SLOTS.includes(req.params.slot) ? next() : res.status(404).json({ error: 'unknown image slot' }));
+app.put('/api/settings/guest-images/:slot', requireAdmin, guestImageSlot, rawImage, (req, res) => {
+  store.setGuestImage(req.params.slot, req.body, req.get('content-type'));
+  res.json({ ok: true });
+});
+app.delete('/api/settings/guest-images/:slot', requireAdmin, guestImageSlot, (req, res) => {
+  store.removeGuestImage(req.params.slot);
+  res.json({ ok: true });
 });
 app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {
   res.json({ streamKey: store.regenerateStreamKey() });

@@ -73,6 +73,15 @@ someone straight into specific rooms: pick the rooms and **Generate invite link*
 Settings panel, then send the link -- it works whether or not general sign-up is on, expires
 after 7 days, and works once.
 
+**Guests.** No account at all, for someone dropping in once. Open the settings popover (the
+gear, next to chat and reactions) while at the table and, under **Guests**, turn on that room's
+link -- anyone with it lands on a page asking only for a name, then joins straight into that
+room: video, mic, chat, reactions, the works, standing in on the generic **guest images** set
+under Manage > Settings if their camera is off. Unlike the invite link above, it's not admin-only
+(anyone at the table can turn it on, copy it or turn it off) and it's a standing door rather
+than single-use -- reusable for as many guests as show up, until someone turns it off or
+generates a new one. Nothing about a guest is kept once they leave: no account, no history.
+
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a
 login or a display name without touching anything in OBS.
@@ -258,16 +267,18 @@ table.
 
 ## Settings
 
-The manage page's Settings tab has six sections. **Server**: the icon (any image; used in the
+The manage page's Settings tab has seven sections. **Server**: the icon (any image; used in the
 header, as the favicon and on the sign-in page) and the **server name** shown in the header and
 browser tab. **Sign-in page**: a **background** picture that fills the page behind the sign-in
-box, and the text under the password field. Click either picture to change it, **Remove** to
-clear it. **Sign-up**: turn self-service `/register` on or off, and generate invite links into
-specific rooms -- see Accounts, above. **Participant video defaults**: talking border, its
-colour and width in pixels, and name plate -- server-wide, the same for everyone. **Reactions**:
-the emoji tray at the table and on stream; add, remove, reorder, edit glyph and label, or leave
-it empty to turn reactions off. **OBS access**: the stream key. Room images are square; anything
-else is cropped to the middle.
+box, and the text under the password field. Click either picture to change it, the small **x**
+over its corner to clear it. **Sign-up**: turn self-service `/register` on or off, and generate
+invite links into specific rooms -- see Accounts, above. **Participant video defaults**: talking
+border, its colour and width in pixels, name plate, and the **Video Background Color** and
+**Portrait Size** behind the Participant box's picture -- server-wide, the same for everyone.
+**Guest images**: the Participant picture set a guest shows instead of a real member's own --
+see Accounts, above. **Reactions**: the emoji tray at the table and on stream; add, remove,
+reorder, edit glyph and label, or leave it empty to turn reactions off. **OBS access**: the
+stream key. Room images are square; anything else is cropped to the middle.
 
 ## Icons
 

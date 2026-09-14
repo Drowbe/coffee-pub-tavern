@@ -35,13 +35,14 @@ Not started. A way to schedule when a room's session happens next (date/time, ma
 recurrence) and let members see it -- session logistics currently live outside the app
 entirely.
 
-## Guest participants
+## Studio/OBS needs to know about guests
 
-Not started. Someone joins with just a name -- no account, no profile, a generic "guest" set
-of Participant images standing in for the usual per-user ones -- and is removed the moment
-they leave, with nothing kept about them afterward. Needs its own join path (distinct from
-signing in or a personal link) and a way for the table/OBS side to render a guest tile
-without a real user key behind it.
+Guests (join with just a name, no account -- see the "Guests" section in a room's own
+Settings popover, and Guest images under Manage > Settings) show up fine at the table and in
+chat, but only there: there's no `/view/<key>` OBS source for a guest, since that's keyed by
+a real user's key and guests don't have one. Nobody asked for OBS boxes for guests yet, but
+if that changes it's a bigger cross-repo feature (Studio would need to build a source for an
+identity it never configured in advance).
 
 ## Follow the admin: who drives the stream
 
