@@ -202,7 +202,7 @@ function tileFor(participant) {
 const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
-  quality: 720, mirror: true, volumes: {}, popout: null,
+  quality: 720, mirror: true, volumes: {}, popout: null, deafened: false,
 };
 const prefs = loadPrefs();
 
@@ -419,6 +419,7 @@ function attachTrack(participant, track) {
     if (participant.isLocal) return; // never play your own voice back
     const audio = track.attach();
     audio.dataset.identity = participant.identity;
+    audio.muted = prefs.deafened;
     $('stage').appendChild(audio);
     const volume = prefs.volumes[participant.identity];
     if (volume !== undefined) track.setVolume(volume);
@@ -641,10 +642,29 @@ function imageFiles(list) {
 // never stored: every table page and every OBS view page of that player
 // floats it up from their tile for a couple of seconds.
 
-const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', question: '❓', nat20: '🎲' };
-const REACTION_KEYS = ['heart', 'up', 'down', 'laugh', 'question', 'nat20'];
+// The reaction tray, as the admin has set it up (Manage > Settings); keys 1
+// to 6 reach only the first six, however many are configured.
+let REACTIONS = {}; // id -> glyph
+let REACTION_KEYS = []; // id, in tray order
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+function renderReactionTray(list) {
+  const reactions = Array.isArray(list) ? list : [];
+  REACTIONS = Object.fromEntries(reactions.map((r) => [r.id, r.glyph]));
+  REACTION_KEYS = reactions.map((r) => r.id);
+  const tray = $('react-tray');
+  tray.textContent = '';
+  reactions.forEach((r, i) => {
+    const button = document.createElement('button');
+    button.className = 'react';
+    button.type = 'button';
+    button.dataset.reaction = r.id;
+    button.title = i < 6 ? `${r.label} (${i + 1})` : r.label;
+    button.textContent = r.glyph;
+    tray.appendChild(button);
+  });
+}
 
 function showReaction(identity, id) {
   const glyph = REACTIONS[id];
@@ -1077,8 +1097,26 @@ async function toggleCam() {
   updateCamera(room.localParticipant);
 }
 
+// Mute what I hear: everyone else's audio, not my own mic -- for when a
+// phone call or something else needs the room quiet for a minute without
+// actually leaving or muting yourself to the others.
+function applyDeafen() {
+  stageDoc().querySelectorAll('audio').forEach((el) => { el.muted = prefs.deafened; });
+  $('deafen').classList.toggle('on', !prefs.deafened);
+  $('deafen').classList.toggle('off', prefs.deafened);
+  $('deafen').title = prefs.deafened ? 'Unmute what you hear (D)' : 'Mute what you hear (D)';
+}
+
+function toggleDeafen() {
+  prefs.deafened = !prefs.deafened;
+  savePrefs();
+  applyDeafen();
+}
+
 $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
+$('deafen').addEventListener('click', toggleDeafen);
+applyDeafen();
 $('mic-select').addEventListener('change', async (e) => {
   prefs.micId = e.target.value;
   savePrefs();
@@ -1196,8 +1234,8 @@ $('react-tray').addEventListener('click', (event) => {
   toggleTray(false);
 });
 
-// Keyboard: M mic, V camera, C chat, L layout, R reactions, 1 to 6 send a
-// reaction, Space held = talk (push to talk mode), unless typing in a field.
+// Keyboard: M mic, V camera, D deafen, C chat, L layout, R reactions, 1 to 6
+// send a reaction, Space held = talk (push to talk mode), unless typing in a field.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
 function typing(event) {
@@ -1225,6 +1263,7 @@ function onKey(event) {
   const key = event.key.toLowerCase();
   if (key === 'm') toggleMic();
   else if (key === 'v') toggleCam();
+  else if (key === 'd') toggleDeafen();
   else if (key === 'c') toggleChat();
   else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
   else if (key === 'r') toggleTray();
@@ -1329,6 +1368,7 @@ if ('documentPictureInPicture' in window) $('popout').hidden = false;
 async function init() {
   const branding = await loadBranding();
   tableName = branding.tableName || tableName;
+  renderReactionTray(branding.reactions);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   $('layout-select').value = prefs.layout;
   $('follow-speaker').checked = prefs.follow;

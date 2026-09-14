@@ -481,6 +481,57 @@ $('save-defaults').addEventListener('click', async () => {
   }
 });
 
+// --- reactions --------------------------------------------------------------
+
+function reactionRow(reaction) {
+  const row = $('reaction-row').content.firstElementChild.cloneNode(true);
+  row.dataset.id = reaction?.id || '';
+  row.querySelector('.reaction-glyph').value = reaction?.glyph || '';
+  row.querySelector('.reaction-label').value = reaction?.label || '';
+  return row;
+}
+
+function renderReactionRows(reactions) {
+  const list = $('reactions-list');
+  list.textContent = '';
+  for (const r of reactions || []) list.appendChild(reactionRow(r));
+}
+
+function slugify(text) {
+  return String(text || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+}
+
+$('reactions-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const row = button.closest('.reaction-row');
+  if (button.dataset.action === 'reaction-remove') row.remove();
+  else if (button.dataset.action === 'reaction-up' && row.previousElementSibling) row.parentElement.insertBefore(row, row.previousElementSibling);
+  else if (button.dataset.action === 'reaction-down' && row.nextElementSibling) row.parentElement.insertBefore(row.nextElementSibling, row);
+});
+$('reaction-add').addEventListener('click', () => $('reactions-list').appendChild(reactionRow()));
+
+$('save-reactions').addEventListener('click', async () => {
+  const seen = new Set();
+  const reactions = [...$('reactions-list').querySelectorAll('.reaction-row')]
+    .map((row) => {
+      const glyph = row.querySelector('.reaction-glyph').value.trim();
+      const label = row.querySelector('.reaction-label').value.trim();
+      let id = row.dataset.id || slugify(label) || slugify(glyph);
+      if (!id || seen.has(id)) id = `r${Math.random().toString(36).slice(2, 8)}`;
+      seen.add(id);
+      return { id, glyph, label };
+    })
+    .filter((r) => r.glyph);
+  try {
+    const { settings } = await api('PATCH', '/api/settings', { reactions });
+    renderReactionRows(settings.reactions);
+    say($('reactions-status'), 'saved');
+  } catch (err) {
+    say($('reactions-status'), err.message, true);
+  }
+});
+
 // Site images (icon, sign-in background): click the picture to change it,
 // Remove to clear it. The icon falls back to the built-in one when unset.
 function renderSiteImages(b) {
@@ -578,6 +629,7 @@ async function init() {
     $('set-picture-bg').checked = Boolean(settings.pictureBackground);
     $('set-picture-color').value = settings.pictureColor || '#1a1410';
     $('set-picture-scale').value = settings.pictureScale || 100;
+    renderReactionRows(settings.reactions);
     renderSiteImages(settings);
     showStreamKey();
     await loadUsers();

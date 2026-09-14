@@ -1684,6 +1684,30 @@ body.at-table .topbar {
   gap: 8px;
 }
 
+.reactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.reaction-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reaction-row .reaction-glyph {
+  width: 44px;
+  text-align: center;
+  flex: none;
+}
+
+.reaction-row .reaction-label {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Member tiles on a room: click to toggle, lit while in the room */
 .member-toggle {
   cursor: pointer;

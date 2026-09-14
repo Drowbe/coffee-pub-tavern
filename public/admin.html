@@ -132,6 +132,17 @@
       </div>
 
       <div class="panel">
+      <h2>Reactions</h2>
+      <p class="hint">The emoji tray at the table, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
+      <div class="reactions-list" id="reactions-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
+        <button class="btn btn-primary btn-small" id="save-reactions" type="button">Save</button>
+        <span class="status" id="reactions-status"></span>
+      </div>
+      </div>
+
+      <div class="panel">
       <h2>OBS access</h2>
       <p class="hint">OBS never signs in. Each user's OBS view link carries this <strong>stream key</strong> instead of a login, and Coffee Pub Studio fetches it by itself when you sign in there. You only need it here to build a view link by hand. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
       <div class="row">
@@ -143,6 +154,16 @@
       </div>
     </section>
   </main>
+
+  <template id="reaction-row">
+    <div class="reaction-row">
+      <input class="reaction-glyph" type="text" maxlength="8" placeholder="🙂" aria-label="Emoji">
+      <input class="reaction-label" type="text" maxlength="40" placeholder="Label" aria-label="Label">
+      <button class="btn btn-small" data-action="reaction-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="reaction-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
+      <button class="btn btn-small btn-danger" data-action="reaction-remove" type="button">Remove</button>
+    </div>
+  </template>
 
   <template id="room-card">
     <article class="room-card">

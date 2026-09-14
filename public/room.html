@@ -23,8 +23,8 @@
     <nav class="links" id="links">
       <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
-      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="whoami" href="/profile" target="_blank" rel="noopener" title="Your profile (opens in a new tab, so it doesn't leave the call)"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/admin" id="admin-link" target="_blank" rel="noopener" title="Manage (opens in a new tab, so it doesn't leave the call)" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
@@ -70,6 +70,7 @@
 
     <div class="float floatbar" id="floatbar">
       <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="deafen" type="button" title="Mute what you hear (D)"><span class="glyph"><i class="fa-solid fa-volume-high fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-volume-xmark fa-fw icon-off" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
@@ -97,14 +98,9 @@
       </form>
     </aside>
 
-    <div class="popover tray" id="react-tray" hidden>
-      <button class="react" type="button" data-reaction="heart" title="Heart (1)">&#10084;&#65039;</button>
-      <button class="react" type="button" data-reaction="up" title="Thumbs up (2)">&#128077;</button>
-      <button class="react" type="button" data-reaction="down" title="Thumbs down (3)">&#128078;</button>
-      <button class="react" type="button" data-reaction="laugh" title="Laugh (4)">&#128514;</button>
-      <button class="react" type="button" data-reaction="question" title="Question (5)">&#10067;</button>
-      <button class="react" type="button" data-reaction="nat20" title="Nat 20! (6)">&#127922;</button>
-    </div>
+    <!-- Filled in from the server's reaction list (Manage > Settings); the
+         admin can add, remove or reorder what shows up here. -->
+    <div class="popover tray" id="react-tray" hidden></div>
 
     <div class="popover" id="settings" hidden>
       <h3>Audio</h3>
@@ -130,8 +126,8 @@
         <span class="hint" id="install-note"></span>
       </div>
       <nav class="links">
-        <a href="/profile">Your profile</a>
-        <a href="/admin" id="admin-link-2" hidden>Manage</a>
+        <a href="/profile" target="_blank" rel="noopener" title="Opens in a new tab, so it doesn't leave the call">Your profile</a>
+        <a href="/admin" id="admin-link-2" target="_blank" rel="noopener" title="Opens in a new tab, so it doesn't leave the call" hidden>Manage</a>
         <a href="/logout">Sign out</a>
         <span class="version" data-brand="version"></span>
       </nav>

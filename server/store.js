@@ -58,6 +58,16 @@ const DEFAULT_SETTINGS = {
   pictureBackground: false,
   pictureColor: '#1a1410',
   pictureScale: 100,
+  // The reaction tray at the table: id (also the 1-6 shortcut order and the
+  // data-channel payload), glyph (what's drawn), label (button title/alt).
+  reactions: [
+    { id: 'heart', glyph: '❤️', label: 'Heart' },
+    { id: 'up', glyph: '👍', label: 'Thumbs up' },
+    { id: 'down', glyph: '👎', label: 'Thumbs down' },
+    { id: 'laugh', glyph: '😂', label: 'Laugh' },
+    { id: 'question', glyph: '❓', label: 'Question' },
+    { id: 'nat20', glyph: '🎲', label: 'Nat 20!' },
+  ],
 };
 
 function cleanWidth(value) {
@@ -71,6 +81,30 @@ function cleanColor(value) {
 
 function cleanTri(value) {
   return value === true || value === false ? value : null;
+}
+
+// A reaction tray: up to 12 { id, glyph, label } entries, ids unique and
+// URL/topic-safe. An empty array is valid -- an admin can turn the tray off.
+// A caller need not supply an id (the admin page's own editor does not
+// track one either): one is made up from the label or glyph, falling back
+// to a random one, rather than silently dropping the entry.
+function cleanReactions(value) {
+  if (!Array.isArray(value)) return null;
+  const slug = (text) => String(text || '').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+  const seen = new Set();
+  const out = [];
+  for (const r of value) {
+    if (!r || typeof r !== 'object' || out.length >= 12) continue;
+    const glyph = cleanText(r.glyph, 8);
+    if (!glyph) continue;
+    const label = cleanText(r.label, 40) || glyph;
+    let id = typeof r.id === 'string' ? r.id.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) : '';
+    if (!id) id = slug(label) || slug(glyph);
+    if (!id || seen.has(id)) id = `r${randomKey(6)}`;
+    seen.add(id);
+    out.push({ id, glyph, label });
+  }
+  return out;
 }
 
 // Short, URL-safe, unambiguous: 8 lowercase letters and digits, no 0/o/1/l/i.
@@ -225,6 +259,10 @@ class Store {
     if (patch.pictureScale !== undefined) {
       const n = Math.round(Number(patch.pictureScale));
       if (Number.isFinite(n)) s.pictureScale = Math.max(20, Math.min(100, n));
+    }
+    if (patch.reactions !== undefined) {
+      const reactions = cleanReactions(patch.reactions);
+      if (reactions) s.reactions = reactions;
     }
     this.save();
     return s;

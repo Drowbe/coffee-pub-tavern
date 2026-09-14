@@ -24,7 +24,7 @@ const legacy = { auto: 'player', video: 'player', avatar: 'character', status: '
 const kind = params.get('kind') === 'character' || params.get('kind') === 'player' ? params.get('kind') : legacy[params.get('mode')] || 'player';
 const forcePlate = params.get('plate') === '1';
 const withReactions = params.get('reactions') !== '0';
-const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', question: '❓', nat20: '🎲' };
+let REACTIONS = {}; // id -> glyph, from the server's reaction list (Manage > Settings)
 const withAudio = kind === 'player' && params.get('audio') !== '0';
 const debug = params.get('debug') === '1';
 const room = new Room({ adaptiveStream: false });
@@ -74,7 +74,8 @@ async function loadSettings() {
   try {
     const res = await fetch(`/api/table?s=${encodeURIComponent(streamKey)}`);
     if (!res.ok) return;
-    const { users } = await res.json();
+    const { users, reactions } = await res.json();
+    REACTIONS = Object.fromEntries((reactions || []).map((r) => [r.id, r.glyph]));
     const me = users.find((u) => u.key === wanted);
     if (me) {
       settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
