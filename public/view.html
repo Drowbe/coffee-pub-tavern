@@ -10,11 +10,29 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; }
     video, .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
     video { object-fit: cover; }
-    .layer { object-fit: contain; }
+    /* Offline/Online picture and its talking/muted overlays -- not the
+       camera itself, which always fills the box edge to edge. */
+    .layer { object-fit: contain; border-radius: 10px; }
     /* the Offline / Online picture can sit smaller than the box, on a colour */
     #base { inset: var(--pic-inset, 0%); width: calc(100% - 2 * var(--pic-inset, 0%)); height: calc(100% - 2 * var(--pic-inset, 0%)); }
     body.picture-bg[data-state="image"], body.picture-bg[data-state="offline"] { background: var(--pic-bg); }
-    .plate { position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 4px; background: rgba(0,0,0,0.6); font-weight: 600; font-size: 16px; }
+    /* Name plate: position (data-plate, set from the Nameplate settings),
+       box colour + opacity combined via color-mix, font colour and size. */
+    .plate {
+      position: absolute;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--plate-bg, #000) var(--plate-opacity, 60%), transparent);
+      color: var(--plate-color, inherit);
+      font-weight: 600;
+      font-size: var(--plate-size, 16px);
+    }
+    .plate[data-plate="upper-left"] { top: 12px; left: 12px; }
+    .plate[data-plate="upper-right"] { top: 12px; right: 12px; }
+    .plate[data-plate="lower-left"] { bottom: 12px; left: 12px; }
+    .plate[data-plate="lower-right"] { bottom: 12px; right: 12px; }
+    .plate[data-plate="bottom-center"] { bottom: 12px; left: 50%; transform: translateX(-50%); }
+    .plate[data-plate="bottom-full"] { bottom: 0; left: 0; right: 0; width: 100%; border-radius: 0; text-align: center; }
     .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a8998a; font-size: 14px; }
     /* talking frame: a real border around the box, any size, never stretched */
     .frame { position: absolute; inset: 0; pointer-events: none; border: var(--talk-w, 6px) solid var(--frame, var(--talk)); border-radius: 8px; box-shadow: inset 0 0 12px color-mix(in srgb, var(--frame, var(--talk)) 60%, transparent); opacity: 0; transition: opacity 0.12s ease; }

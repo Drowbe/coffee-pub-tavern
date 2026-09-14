@@ -273,7 +273,9 @@ browser tab. **Sign-in page**: a **background** picture that fills the page behi
 box, and the text under the password field. Click either picture to change it, the small **x**
 over its corner to clear it. **Sign-up**: turn self-service `/register` on or off, and generate
 invite links into specific rooms -- see Accounts, above. **Participant video defaults**: talking
-border, its colour and width in pixels, name plate, and the **Video Background Color** and
+border, its colour and width in pixels; the name plate, its **Layout** (one of six corner/edge
+positions, including a full-width strip flush with the bottom), **Box Color**, **Font Color**,
+**Font Size** and **Nameplate Transparency**; and the **Video Background Color** and
 **Portrait Size** behind the Participant box's picture -- server-wide, the same for everyone.
 **Guest images**: the Participant picture set a guest shows instead of a real member's own --
 see Accounts, above. **Reactions**: the emoji tray at the table and on stream; add, remove,

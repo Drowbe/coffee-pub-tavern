@@ -152,7 +152,31 @@
         <label class="check">Width <input type="number" id="set-char-border-width" min="1" max="24" step="1" value="6"> px</label>
       </div>
       <div class="row">
-        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the participant's name in the corner</label>
+        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the participant's name</label>
+      </div>
+      <div class="row">
+        <label class="check">Layout
+          <select id="set-plate-layout">
+            <option value="upper-left">Upper left</option>
+            <option value="upper-right">Upper right</option>
+            <option value="lower-left">Lower left</option>
+            <option value="lower-right">Lower right</option>
+            <option value="bottom-center">Centered bottom</option>
+            <option value="bottom-full">Full width bottom</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="check">Box Color <input type="color" id="set-plate-color" value="#000000"></label>
+      </div>
+      <div class="row">
+        <label class="check">Font Color <input type="color" id="set-plate-text-color" value="#f1e6d8"></label>
+      </div>
+      <div class="row">
+        <label class="check">Font Size <input type="number" id="set-plate-font-size" min="10" max="40" step="1" value="16"> px</label>
+      </div>
+      <div class="row">
+        <label class="check">Nameplate Transparency <input type="number" id="set-plate-opacity" min="0" max="100" step="5" value="60"> %</label>
       </div>
       <p class="hint">While the Participant box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
       <div class="row">

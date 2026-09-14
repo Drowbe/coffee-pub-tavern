@@ -35,7 +35,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, plateLayout: 'lower-left', plateColor: '#000000', plateTextColor: '#f1e6d8', plateFontSize: 16, plateOpacity: 60, pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
 // Each kind draws its own borders: the player's (per user) or the character's (server-wide).
 function borders() {
   if (kind === 'player') return { talk: settings.border, talkColor: settings.borderColor, mute: settings.mutedBorder, muteColor: settings.mutedColor, width: settings.borderWidth };
@@ -87,7 +87,7 @@ async function loadSettings() {
     REACTIONS = Object.fromEntries((reactions || []).map((r) => [r.id, r.glyph]));
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), plateLayout: me.plateLayout || 'lower-left', plateColor: me.plateColor || '#000000', plateTextColor: me.plateTextColor || '#f1e6d8', plateFontSize: me.plateFontSize || 16, plateOpacity: me.plateOpacity ?? 60, charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
     const b = borders();
@@ -99,6 +99,11 @@ async function loadSettings() {
     document.documentElement.style.setProperty('--pic-inset', `${(100 - scale) / 2}%`);
     document.documentElement.style.setProperty('--pic-bg', settings.pictureColor);
     document.body.classList.toggle('picture-bg', kind === 'player' && settings.pictureBackground);
+    document.documentElement.style.setProperty('--plate-bg', settings.plateColor);
+    document.documentElement.style.setProperty('--plate-opacity', `${settings.plateOpacity}%`);
+    document.documentElement.style.setProperty('--plate-color', settings.plateTextColor);
+    document.documentElement.style.setProperty('--plate-size', `${settings.plateFontSize}px`);
+    $('plate').dataset.plate = settings.plateLayout;
     if (playerRoom !== lastImageRoom) {
       lastImageRoom = playerRoom;
       loadImages();
