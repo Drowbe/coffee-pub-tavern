@@ -719,12 +719,15 @@ select {
   inset: auto;
   top: 50%;
   left: 50%;
-  width: 38%;
-  height: 38%;
+  /* sized off the tile's height on both axes (via container query units, since
+     .tile is a size container) so it comes out square no matter the tile's
+     own aspect ratio, instead of stretching into an ellipse */
+  width: 38cqh;
+  height: 38cqh;
   min-width: 72px;
   min-height: 72px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
+  border-radius: 16%;
   object-fit: cover;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
