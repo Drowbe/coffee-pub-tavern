@@ -358,8 +358,8 @@ class Store {
 
   addUser({ login, displayName, role, passwordHash }) {
     const cleaned = cleanLogin(login);
-    if (!cleaned) throw new StoreError('login is required');
-    if (this.userByLogin(cleaned)) throw new StoreError('that login is taken');
+    if (!cleaned) throw new StoreError('username is required');
+    if (this.userByLogin(cleaned)) throw new StoreError('that username is taken');
     const user = this.sanitizeUser({
       key: this.newKey(),
       login: cleaned,
@@ -379,9 +379,9 @@ class Store {
     if (!user) throw new StoreError('no such user', 404);
     if (patch.login !== undefined) {
       const cleaned = cleanLogin(patch.login);
-      if (!cleaned) throw new StoreError('login is required');
+      if (!cleaned) throw new StoreError('username is required');
       const other = this.userByLogin(cleaned);
-      if (other && other.key !== key) throw new StoreError('that login is taken');
+      if (other && other.key !== key) throw new StoreError('that username is taken');
       user.login = cleaned;
     }
     if (patch.displayName !== undefined) user.displayName = cleanText(patch.displayName, 40) || user.login;

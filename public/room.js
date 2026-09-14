@@ -28,6 +28,7 @@ async function loadTable() {
     for (const [key, tile] of tiles) {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
+      updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
     reconcileGhostTiles();
@@ -222,6 +223,17 @@ function setStatus(text, error = false) {
 
 // --- tiles -------------------------------------------------------------------
 
+// While the camera is off, a chosen background image (the same one used
+// live when the camera is on -- see room.js's video settings) shows behind
+// the profile photo too, instead of a plain fill, so the box looks like
+// them even without video.
+function updateBackgroundPlaceholder(tile, key) {
+  const hasBg = !!tableUsers.get(key)?.images?.background;
+  tile.classList.toggle('has-bg-image', hasBg);
+  const bg = tile.querySelector('.placeholder-bg');
+  if (bg) bg.src = hasBg ? `/img/${encodeURIComponent(key)}/background` : '';
+}
+
 function tileFor(participant) {
   let tile = tiles.get(participant.identity);
   if (tile) return tile;
@@ -229,6 +241,10 @@ function tileFor(participant) {
   tile = document.createElement('div');
   tile.className = 'tile';
   tile.dataset.identity = participant.identity;
+  const placeholderBg = document.createElement('img');
+  placeholderBg.className = 'placeholder-bg';
+  placeholderBg.alt = '';
+  tile.appendChild(placeholderBg);
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
@@ -236,6 +252,7 @@ function tileFor(participant) {
   const colour = tableUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
+  updateBackgroundPlaceholder(tile, participant.identity);
   const name = document.createElement('span');
   name.className = 'name';
   name.textContent = participant.name || participant.identity;
@@ -543,7 +560,9 @@ function updateCamera(participant) {
   const off = !cam || cam.isMuted;
   const video = tile.querySelector('video');
   if (video) video.hidden = off;
-  tile.querySelector('.placeholder').hidden = !off && !!video;
+  const hidden = !off && !!video;
+  tile.querySelector('.placeholder').hidden = hidden;
+  tile.querySelector('.placeholder-bg').hidden = hidden;
 }
 
 // The document the stage currently lives in (the page, or the pop-out window).

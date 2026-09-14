@@ -431,7 +431,7 @@ app.post('/api/login', (req, res) => {
   const ok = user && user.passwordHash && auth.verifyPassword(req.body?.password || '', user.passwordHash);
   if (!ok) {
     limiter.fail(ip);
-    return res.status(401).json({ error: 'wrong login or password' });
+    return res.status(401).json({ error: 'wrong username or password' });
   }
   limiter.clear(ip);
   const token = auth.issueSession(store.sessionSecret, user);
