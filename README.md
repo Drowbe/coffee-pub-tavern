@@ -53,7 +53,13 @@ recreate it. Users, images and settings live in `/share/appdata/tavern`, so noth
 
 There are two roles. **Admins** run the table: they add people, set passwords, upload images and
 change settings. **Users** join the table and can set their own **profile photo**, nothing else.
-Nobody changes their own password; an admin sets it.
+Nobody changes their own password; an admin sets it. Nothing on an account is off-limits to an
+admin, the player's own photo included -- opening `/profile/<key>` from Manage gives an admin
+the exact same editing power over it a player has for themselves.
+
+Each person's `/profile` page is split into sections -- **User** (account, photo, personal
+link) and **Default Images** (the Player and Character image sets) -- with a quick-jump nav
+between them rather than one long scroll.
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a
@@ -141,7 +147,10 @@ chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **
   the mic below a threshold, the browser's noise suppression, echo cancellation and auto gain
   switches, and open mic or push to talk (hold Space). Hover another player's tile for a volume
   slider that applies only on your side.
-- **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
+- **Video.** Camera choice, quality (360p, 540p, 720p), mirror for your own preview, and a
+  background blur toggle. Blur runs entirely on your own device (MediaPipe segmentation via
+  LiveKit's `@livekit/track-processors`, self-hosted -- no CDN, nothing external fetched) and
+  only loads its model the first time you actually turn it on.
 - **Without a camera or microphone** you still join; whatever is missing is named in the status
   line and your Online picture (set by your admin) stands in for the camera.
 - **Your profile and Manage** open in an in-page overlay from inside a call rather than

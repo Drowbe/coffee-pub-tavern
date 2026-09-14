@@ -281,7 +281,7 @@ function tileFor(participant) {
 const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
-  quality: 720, mirror: true, volumes: {}, popout: null, deafened: false,
+  quality: 720, mirror: true, blur: false, volumes: {}, popout: null, deafened: false,
 };
 const prefs = loadPrefs();
 
@@ -1148,6 +1148,7 @@ async function join(roomId = 'lobby') {
       for (const track of tracks) await room.localParticipant.publishTrack(track);
       haveCam = true;
       console.debug('[tavern] published video');
+      if (prefs.blur) await applyBlur();
     } catch (err) {
       console.warn('[tavern] no camera:', err.message);
       missing.push('camera');
@@ -1183,6 +1184,7 @@ async function toggleCam() {
   const enabled = !room.localParticipant.isCameraEnabled;
   try {
     await room.localParticipant.setCameraEnabled(enabled);
+    if (enabled && prefs.blur) await applyBlur(); // a fresh track on re-enable needs the processor reapplied
   } catch (err) {
     setStatus(`camera: ${err.message}`, true);
   }
@@ -1250,10 +1252,41 @@ $('mirror').addEventListener('change', (e) => {
   savePrefs();
   applyMirror();
 });
+$('blur').addEventListener('change', async (e) => {
+  prefs.blur = e.target.checked;
+  savePrefs();
+  await applyBlur();
+});
 
 function applyMirror() {
   const tile = room.localParticipant && tiles.get(room.localParticipant.identity);
   if (tile) tile.classList.toggle('mirror', prefs.mirror);
+}
+
+// A blurred background on your own camera, entirely client-side (LiveKit's
+// server never sees the unblurred frame or the other way around -- this
+// runs on the same track before it's published, same idea as a mirror
+// flip). The model is real weight -- a WASM runtime plus an ML segmenter --
+// so it's only ever fetched the first time someone actually turns this on,
+// not on every join.
+async function applyBlur() {
+  const pub = room.localParticipant?.getTrackPublication(Track.Source.Camera);
+  if (!pub?.track) return; // camera off right now; applied when it comes back on
+  try {
+    if (prefs.blur) {
+      const { BackgroundBlur } = await import('/lib/track-processors.mjs');
+      await pub.track.setProcessor(BackgroundBlur(10, undefined, undefined, {
+        assetPaths: { tasksVisionFileSet: '/lib/mediapipe-wasm', modelAssetPath: '/models/selfie_segmenter.tflite' },
+      }));
+    } else {
+      await pub.track.stopProcessor();
+    }
+  } catch (err) {
+    setStatus(`background blur: ${err.message}`, true);
+    prefs.blur = false;
+    savePrefs();
+    $('blur').checked = false;
+  }
 }
 
 async function restartCamera() {
@@ -1529,6 +1562,7 @@ async function init() {
   $('talk-mode').value = prefs.ptt ? 'ptt' : 'open';
   $('quality').value = String(prefs.quality);
   $('mirror').checked = prefs.mirror;
+  $('blur').checked = prefs.blur;
   $('mic').classList.toggle('ptt', prefs.ptt);
   applyLayout();
   const hint = describeInstall();

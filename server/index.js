@@ -378,6 +378,18 @@ app.use('/lib/livekit-client.esm.mjs', express.static(path.join(clientDist, 'liv
 const faDir = path.dirname(require.resolve('@fortawesome/fontawesome-free/package.json'));
 app.use('/fa/css', express.static(path.join(faDir, 'css'), { maxAge: '7d' }));
 app.use('/fa/webfonts', express.static(path.join(faDir, 'webfonts'), { maxAge: '30d' }));
+
+// Background blur's own dependencies, all self-hosted for the same reason
+// livekit-client is: nothing this page needs is fetched from a CDN at
+// runtime. track-processors imports "livekit-client" and
+// "@mediapipe/tasks-vision" by bare package name -- room.html's import map
+// points those at the second and third routes below.
+const trackProcessorsDist = path.join(__dirname, '..', 'node_modules', '@livekit', 'track-processors', 'dist');
+const visionDir = path.join(__dirname, '..', 'node_modules', '@mediapipe', 'tasks-vision');
+app.use('/lib/track-processors.mjs', express.static(path.join(trackProcessorsDist, 'index.mjs')));
+app.use('/lib/tasks-vision.mjs', express.static(path.join(visionDir, 'vision_bundle.mjs')));
+app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { maxAge: '30d' }));
+
 app.use(express.static(publicDir, { index: false }));
 
 // Public API ------------------------------------------------------------------

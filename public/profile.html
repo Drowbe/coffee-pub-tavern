@@ -13,7 +13,7 @@
     <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
     <nav class="links">
       <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/" target="_top" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
@@ -21,88 +21,98 @@
   </header>
 
   <main class="admin">
-    <section class="panel">
-      <div class="profile-head">
-        <div class="slot" id="portrait-slot"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="portrait-clear" type="button">Remove</button></div>
-        <div class="profile-title">
-          <h1 id="name"></h1>
-          <span class="tag" id="editing-tag" hidden>Editing as admin</span>
-          <p class="hint" id="portrait-hint"></p>
-          <p class="status" id="status"></p>
-        </div>
-      </div>
+    <nav class="subtabs section-nav">
+      <a class="subtab" href="#section-user">User</a>
+      <a class="subtab" href="#section-images">Default Images</a>
+    </nav>
 
-      <h2>Account</h2>
-      <p class="hint" id="account-hint">Set by your admin. Ask them to change any of these.</p>
-      <div class="facts" id="account-facts">
-        <div class="fact"><span class="fact-key">Display name</span><span class="fact-value" id="f-name"></span></div>
-        <div class="fact"><span class="fact-key">Login</span><span class="fact-value" id="f-login"></span></div>
-        <div class="fact"><span class="fact-key">Role</span><span class="fact-value" id="f-role"></span></div>
-        <div class="fact"><span class="fact-key">Password</span><span class="fact-value" id="f-password"></span></div>
-        <div class="fact"><span class="fact-key">Personal link</span><span class="fact-value" id="f-link"></span></div>
-      </div>
-      <div class="fields" id="account-fields" hidden>
-        <label>Display name<input id="e-name" type="text" maxlength="40"></label>
-        <label>Login<input id="e-login" type="text" maxlength="40" autocapitalize="off"></label>
-        <label>Role<select id="e-role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" id="e-role-note" hidden>The only admin. Make someone else an admin first.</small></label>
-        <label>New password<input id="e-password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
-      </div>
-      <div class="row" id="account-save-row" hidden>
-        <button class="btn btn-primary btn-small" id="account-save" type="button">Save</button>
-        <button class="btn btn-small" id="account-clear-password" type="button">Remove password</button>
-        <span class="status" id="account-status"></span>
-      </div>
-      <div class="row" id="link-row" hidden>
-        <span class="field-label">Personal link</span>
-        <code class="key link" id="link-value">off</code>
-        <button class="btn btn-small" id="link-copy" type="button">Copy</button>
-        <button class="btn btn-small" id="link-new" type="button">Create</button>
-        <button class="btn btn-small btn-danger" id="link-off" type="button">Turn off</button>
-      </div>
-
-      <h2>Your video box</h2>
-      <p class="hint">How your box looks at the table and in the recording. Set for everyone under Manage &gt; Settings.</p>
-      <div class="facts">
-        <div class="fact"><span class="fact-key">Talking border</span><span class="fact-value" id="f-border"></span></div>
-        <div class="fact"><span class="fact-key">Muted border</span><span class="fact-value" id="f-muted"></span></div>
-        <div class="fact"><span class="fact-key">Name plate</span><span class="fact-value" id="f-plate"></span></div>
-      </div>
-
-      <h2 id="images-heading">Your video box in the recording</h2>
-      <div id="other-images">
-        <h3>Player</h3>
-        <p class="hint" id="player-images-hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.</p>
-        <div class="slots">
-          <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+    <div class="tab-stack">
+      <section class="panel" id="section-user">
+        <div class="profile-head">
+          <div class="slot" id="portrait-slot"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="portrait-clear" type="button">Remove</button></div>
+          <div class="profile-title">
+            <h1 id="name"></h1>
+            <span class="tag" id="editing-tag" hidden>Editing as admin</span>
+            <p class="hint" id="portrait-hint"></p>
+            <p class="status" id="status"></p>
+          </div>
         </div>
 
-        <h3>Character</h3>
-        <p class="hint" id="character-images-hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
-        <div class="slots">
-          <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+        <h2>Account</h2>
+        <p class="hint" id="account-hint">Set by your admin. Ask them to change any of these.</p>
+        <div class="facts" id="account-facts">
+          <div class="fact"><span class="fact-key">Display name</span><span class="fact-value" id="f-name"></span></div>
+          <div class="fact"><span class="fact-key">Login</span><span class="fact-value" id="f-login"></span></div>
+          <div class="fact"><span class="fact-key">Role</span><span class="fact-value" id="f-role"></span></div>
+          <div class="fact"><span class="fact-key">Password</span><span class="fact-value" id="f-password"></span></div>
+          <div class="fact"><span class="fact-key">Personal link</span><span class="fact-value" id="f-link"></span></div>
         </div>
-      </div>
+        <div class="fields" id="account-fields" hidden>
+          <label>Display name<input id="e-name" type="text" maxlength="40"></label>
+          <label>Login<input id="e-login" type="text" maxlength="40" autocapitalize="off"></label>
+          <label>Role<select id="e-role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" id="e-role-note" hidden>The only admin. Make someone else an admin first.</small></label>
+          <label>New password<input id="e-password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
+        </div>
+        <div class="row" id="account-save-row" hidden>
+          <button class="btn btn-primary btn-small" id="account-save" type="button">Save</button>
+          <button class="btn btn-small" id="account-clear-password" type="button">Remove password</button>
+          <span class="status" id="account-status"></span>
+        </div>
+        <div class="row" id="link-row" hidden>
+          <span class="field-label">Personal link</span>
+          <code class="key link" id="link-value">off</code>
+          <button class="btn btn-small" id="link-copy" type="button">Copy</button>
+          <button class="btn btn-small" id="link-new" type="button">Create</button>
+          <button class="btn btn-small btn-danger" id="link-off" type="button">Turn off</button>
+        </div>
 
-      <div class="row" id="obs-link-row" hidden>
-        <span class="field-label">OBS link</span>
-        <select id="view-kind"><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
-        <button class="btn btn-small" id="view-copy" type="button">Copy link</button>
-        <a class="btn btn-small" id="view-open" target="_blank" rel="noopener">Open</a>
-        <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
-      </div>
+        <h2>Your video box</h2>
+        <p class="hint">How your box looks at the table and in the recording. Set for everyone under Manage &gt; Settings.</p>
+        <div class="facts">
+          <div class="fact"><span class="fact-key">Talking border</span><span class="fact-value" id="f-border"></span></div>
+          <div class="fact"><span class="fact-key">Muted border</span><span class="fact-value" id="f-muted"></span></div>
+          <div class="fact"><span class="fact-key">Name plate</span><span class="fact-value" id="f-plate"></span></div>
+        </div>
 
-      <div class="row danger-row" id="danger-row" hidden>
-        <button class="btn btn-small" id="mute-btn" type="button">Mute mic</button>
-        <button class="btn btn-small" id="kick-btn" type="button">Kick</button>
-        <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete user</button>
-      </div>
-    </section>
+        <div class="row danger-row" id="danger-row" hidden>
+          <button class="btn btn-small" id="mute-btn" type="button">Mute mic</button>
+          <button class="btn btn-small" id="kick-btn" type="button">Kick</button>
+          <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete user</button>
+        </div>
+      </section>
+
+      <section class="panel" id="section-images">
+        <h2 id="images-heading">Default Images</h2>
+        <p class="hint">The pictures OBS shows when nothing more specific applies. Once a room has its own set, that room's pictures take over there instead of these.</p>
+        <div id="other-images">
+          <h3>Player</h3>
+          <p class="hint" id="player-images-hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.</p>
+          <div class="slots">
+            <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          </div>
+
+          <h3>Character</h3>
+          <p class="hint" id="character-images-hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
+          <div class="slots">
+            <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          </div>
+        </div>
+
+        <div class="row" id="obs-link-row" hidden>
+          <span class="field-label">OBS link</span>
+          <select id="view-kind"><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
+          <button class="btn btn-small" id="view-copy" type="button">Copy link</button>
+          <a class="btn btn-small" id="view-open" target="_blank" rel="noopener">Open</a>
+          <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script type="module" src="/profile.js"></script>

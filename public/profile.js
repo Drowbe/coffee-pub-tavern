@@ -49,8 +49,7 @@ function render() {
   const has = !!user.images.profile;
   $('portrait').src = imgUrl('profile'); // the server draws initials when unset
   $('portrait-slot').classList.toggle('set', has);
-  $('portrait-clear').hidden = !has || editing; // self-service only, even for an admin viewing it
-  $('portrait-slot').querySelector('.slot-pick').classList.toggle('still', editing);
+  $('portrait-clear').hidden = !has; // nothing on an account is off-limits to an admin, this included
   document.querySelector('#portrait-slot .unset').hidden = true;
   $('whoami-img').src = `/img/${encodeURIComponent(me ? me.key : user.key)}/profile?v=${Date.now()}`;
   $('whoami-img').hidden = false;
@@ -59,7 +58,7 @@ function render() {
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
   $('editing-tag').hidden = !editing;
   $('portrait-hint').textContent = editing
-    ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile at the table. Only they can change it -- it is not the picture used in the recording, that's below.`
+    ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile at the table. Click it to change it -- it is not the picture used in the recording, that's below.`
     : 'Your own photo: it shows next to your name in the header and on your tile at the table. Click it to change it; square images look best. It is not the picture used in the recording — your admin sets that.';
 
   // Account: read-only facts normally, editable fields for an admin.
@@ -98,7 +97,7 @@ function render() {
   $('f-plate').textContent = p.plate ? 'On, your name in the corner' : 'Off';
   for (const el of document.querySelectorAll('#f-border')) el.style.setProperty('--swatch', p.borderColor);
 
-  $('images-heading').textContent = editing ? 'Video box in the recording' : 'Your video box in the recording';
+  $('images-heading').textContent = editing ? 'Default Images' : 'Your Default Images';
   $('player-images-hint').textContent = editing
     ? "The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings."
     : 'Your video box. Offline shows the Offline picture (or nothing). Online shows your camera, or the Online picture when your camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.';
@@ -127,16 +126,18 @@ function render() {
   }
 }
 
-// --- self-service portrait -------------------------------------------------
+// --- portrait: self-service, or an admin overriding it for someone else ----
+// Nothing on a user's account is admin-proof, this photo included -- an
+// admin editing someone else's profile can replace or clear it exactly like
+// their own, via the same per-user image route every other slot already uses.
 
 $('portrait-file').addEventListener('change', async () => {
-  if (editingKey) return; // admin view: read-only, see the CSS/pointer-events guard too
   const file = $('portrait-file').files[0];
   if (!file) return;
   try {
     say('uploading...');
-    await api('PUT', '/api/me/images/profile', file, file.type);
-    await reload();
+    if (editingKey) user = (await api('PUT', `/api/users/${user.key}/images/profile`, file, file.type)).user;
+    else { await api('PUT', '/api/me/images/profile', file, file.type); await reload(); }
     render();
     say('image saved');
   } catch (err) {
@@ -146,10 +147,9 @@ $('portrait-file').addEventListener('change', async () => {
 });
 
 $('portrait-clear').addEventListener('click', async () => {
-  if (editingKey) return;
   try {
-    await api('DELETE', '/api/me/images/profile');
-    await reload();
+    if (editingKey) user = (await api('DELETE', `/api/users/${user.key}/images/profile`)).user;
+    else { await api('DELETE', '/api/me/images/profile'); await reload(); }
     render();
     say('image removed');
   } catch (err) {

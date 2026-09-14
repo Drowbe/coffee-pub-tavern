@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; worker-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-RSFQ4kBODG/uIrLH6ZkOwXOV5IL1fQqU0V3hyYny3xM='; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; worker-src 'self'">
   <meta name="theme-color" content="#1a1410">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -124,6 +124,7 @@
       <label>Camera<select id="cam-select"></select></label>
       <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
       <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
+      <label class="check"><input type="checkbox" id="blur"> Blur my background <span class="hint">(fetches a small ML model the first time)</span></label>
       <h3>Layout</h3>
       <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
       <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
@@ -141,6 +142,11 @@
     </div>
   </main>
 
+  <!-- @livekit/track-processors (background blur) imports these two by bare
+       package name; there's no bundler here to resolve that, so this maps
+       them to the same self-hosted files everything else already uses. Its
+       exact text is pinned by a CSP hash above -- change one, change both. -->
+  <script type="importmap">{"imports":{"livekit-client":"/lib/livekit-client.esm.mjs","@mediapipe/tasks-vision":"/lib/tasks-vision.mjs"}}</script>
   <script type="module" src="/room.js"></script>
 </body>
 </html>
