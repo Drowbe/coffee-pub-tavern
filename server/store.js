@@ -186,7 +186,7 @@ class Store {
       invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
     };
     if (!data.rooms.some((r) => r.id === LOBBY)) {
-      data.rooms.unshift({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() });
+      data.rooms.unshift(this.sanitizeRoom({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() }));
     }
     if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms)) {
       this.data = data;
@@ -217,6 +217,9 @@ class Store {
       // A standing door code: anyone with this room's guest link joins it
       // with just a name, no account. null while off. See enableGuestLink.
       guestToken: typeof r.guestToken === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(r.guestToken) ? r.guestToken : null,
+      // Whether this room allows a guest link at all. Default on: existing
+      // rooms from before this setting existed keep working as before.
+      allowGuests: r.allowGuests === undefined ? true : Boolean(r.allowGuests),
     };
   }
 
@@ -532,6 +535,10 @@ class Store {
       if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
       room.profile = patch.profile;
     }
+    if (patch.allowGuests !== undefined) {
+      room.allowGuests = Boolean(patch.allowGuests);
+      if (!room.allowGuests && room.guestToken) room.guestToken = null;
+    }
     this.save();
     return this.roomById(id);
   }
@@ -554,6 +561,7 @@ class Store {
   enableGuestLink(id) {
     const room = this.data.rooms.find((r) => r.id === id);
     if (!room) throw new StoreError('no such room', 404);
+    if (!room.allowGuests) throw new StoreError('this room does not allow guests', 403);
     if (!room.guestToken) {
       room.guestToken = randomToken(20);
       this.save();
@@ -564,6 +572,7 @@ class Store {
   regenerateGuestLink(id) {
     const room = this.data.rooms.find((r) => r.id === id);
     if (!room) throw new StoreError('no such room', 404);
+    if (!room.allowGuests) throw new StoreError('this room does not allow guests', 403);
     room.guestToken = randomToken(20);
     this.save();
     return room.guestToken;

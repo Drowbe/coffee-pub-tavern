@@ -81,6 +81,8 @@ under Manage > Settings if their camera is off. Unlike the invite link above, it
 (anyone at the table can turn it on, copy it or turn it off) and it's a standing door rather
 than single-use -- reusable for as many guests as show up, until someone turns it off or
 generates a new one. Nothing about a guest is kept once they leave: no account, no history.
+A room can also turn guests off entirely -- **Allow Guests** on its own config page, on by
+default -- which also turns off any link already in use there.
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a

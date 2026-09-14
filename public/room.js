@@ -350,6 +350,7 @@ function screenTileFor(participant) {
   name.className = 'name';
   name.textContent = `${participant.name || participant.identity}'s screen`;
   tile.appendChild(name);
+  tile.addEventListener('click', () => spotlight(key));
   tiles.set(key, tile);
   $('grid').appendChild(tile);
   applyLayout();
@@ -1619,11 +1620,14 @@ async function copyText(text, statusEl) {
 }
 function renderGuestLink() {
   if (guestToken || !currentRoom) return; // a guest has no session to manage this with
-  const token = tableRooms.find((r) => r.id === currentRoom.id)?.guestToken || null;
+  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const token = room?.guestToken || null;
+  const allowed = room?.allowGuests !== false;
+  $('guest-link-off-note').hidden = allowed;
   $('guest-link-value').textContent = token ? `${location.origin}/guest/${token}` : 'off';
-  $('guest-link-on').hidden = !!token;
+  $('guest-link-on').hidden = !allowed || !!token;
   $('guest-link-copy').hidden = !token;
-  $('guest-link-new').hidden = !token;
+  $('guest-link-new').hidden = !allowed || !token;
   $('guest-link-off').hidden = !token;
 }
 async function setGuestLink(body) {
