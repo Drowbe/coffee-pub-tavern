@@ -23,8 +23,8 @@
     <nav class="links" id="links">
       <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
-      <a class="whoami" href="/profile" target="_blank" rel="noopener" title="Your profile (opens in a new tab, so it doesn't leave the call)"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/admin" id="admin-link" target="_blank" rel="noopener" title="Manage (opens in a new tab, so it doesn't leave the call)" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="whoami" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
@@ -53,6 +53,17 @@
   <div class="away" id="away" hidden>
     <p>Your room is in its own window.</p>
     <button class="btn" id="bring-back" type="button">Bring it back here</button>
+  </div>
+
+  <!-- Your profile or Manage, opened from inside a call: loads for real in
+       an iframe so the call underneath keeps running untouched, with a
+       header of its own since the page's own topbar is covered. -->
+  <div class="page-overlay" id="page-overlay" hidden>
+    <div class="page-overlay-bar">
+      <span class="page-overlay-away" id="page-overlay-away"></span>
+      <button class="btn btn-small" id="page-overlay-back" type="button">&larr; Back to <span id="page-overlay-room"></span></button>
+    </div>
+    <iframe id="page-overlay-frame" title="Page"></iframe>
   </div>
 
   <!-- Everything at the table lives inside the stage so it can pop out as one. -->
@@ -126,8 +137,8 @@
         <span class="hint" id="install-note"></span>
       </div>
       <nav class="links">
-        <a href="/profile" target="_blank" rel="noopener" title="Opens in a new tab, so it doesn't leave the call">Your profile</a>
-        <a href="/admin" id="admin-link-2" target="_blank" rel="noopener" title="Opens in a new tab, so it doesn't leave the call" hidden>Manage</a>
+        <a href="/profile" data-overlay-link title="Your profile">Your profile</a>
+        <a href="/admin" id="admin-link-2" data-overlay-link title="Manage" hidden>Manage</a>
         <a href="/logout">Sign out</a>
         <span class="version" data-brand="version"></span>
       </nav>

@@ -1363,6 +1363,30 @@ $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPop
 $('bring-back').addEventListener('click', closePopout);
 if ('documentPictureInPicture' in window) $('popout').hidden = false;
 
+// --- your profile / Manage, without leaving the call -------------------------
+// A real navigation would drop the WebRTC connection (it's tied to the page),
+// so these load in an iframe instead: the call keeps running underneath,
+// untouched, with a bar of its own standing in for the page's own topbar,
+// which the overlay covers.
+function openOverlay(path, label) {
+  $('page-overlay-room').textContent = tableName;
+  $('page-overlay-away').textContent = `Away · viewing ${label}`;
+  $('page-overlay-frame').src = path;
+  $('page-overlay').hidden = false;
+}
+function closeOverlay() {
+  $('page-overlay').hidden = true;
+  $('page-overlay-frame').src = 'about:blank';
+}
+for (const link of document.querySelectorAll('[data-overlay-link]')) {
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    const href = link.getAttribute('href');
+    openOverlay(href, href === '/admin' ? 'Manage' : 'your profile');
+  });
+}
+$('page-overlay-back').addEventListener('click', closeOverlay);
+
 // --- start --------------------------------------------------------------------
 
 async function init() {
