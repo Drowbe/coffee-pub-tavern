@@ -297,6 +297,14 @@ app.get('/admin', (req, res) => {
   res.sendFile(page('admin.html'));
 });
 
+// A room's own page, the same idea as a user's profile page: click it in
+// Manage > Rooms and land here instead of editing it inline in the list.
+app.get('/rooms/:id', (req, res) => {
+  if (!currentUser(req)) return res.redirect(`/login?next=/rooms/${encodeURIComponent(req.params.id)}`);
+  if (!isAdmin(req)) return res.status(403).send('Admins only.');
+  res.sendFile(page('roomconfig.html'));
+});
+
 // OBS view of one user: /view/<key>?s=<stream key>&mode=auto|video|avatar&audio=1&plate=1
 app.get('/view/:key', (req, res) => {
   if (!hasStreamAccess(req)) return res.status(403).send('This view needs the stream key (?s=...).');
@@ -542,6 +550,11 @@ app.get('/api/rooms', (req, res) => {
 app.post('/api/rooms', requireAdmin, (req, res) => {
   const { name, description, members } = req.body || {};
   res.json({ room: store.addRoom({ name, description, members }) });
+});
+app.get('/api/rooms/:id', requireAdmin, (req, res) => {
+  const room = store.roomById(req.params.id);
+  if (!room) return res.status(404).json({ error: 'no such room' });
+  res.json({ room });
 });
 app.patch('/api/rooms/:id', requireAdmin, (req, res) => {
   res.json({ room: store.updateRoom(req.params.id, req.body || {}) });

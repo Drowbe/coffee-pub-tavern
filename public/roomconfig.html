@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <title>Coffee Pub Tavern - Room</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
+    <nav class="links">
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/admin#rooms" title="Rooms" aria-label="Rooms"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+      <span class="version" data-brand="version"></span>
+    </nav>
+  </header>
+
+  <main class="admin">
+    <section class="panel">
+      <div class="profile-head">
+        <div class="slot" id="room-image-slot" data-room-image><label class="slot-pick" title="Click to change"><img id="room-image" alt=""><span class="unset">not set</span><input type="file" id="room-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="room-image-clear" type="button">Remove</button></div>
+        <div class="profile-title">
+          <h1 id="room-title"></h1>
+          <span class="tag" id="lobby-tag" hidden>Everyone's room</span>
+          <p class="status" id="status"></p>
+        </div>
+      </div>
+
+      <h2>Room</h2>
+      <div class="fields">
+        <label>Name<input id="e-name" type="text" maxlength="40"></label>
+        <label class="wide">Description<textarea id="e-description" rows="3" maxlength="300"></textarea></label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-small" id="save-btn" type="button">Save</button>
+        <span class="status" id="save-status"></span>
+      </div>
+
+      <h2>Members</h2>
+      <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
+      <div class="member-checks" id="members"></div>
+
+      <div class="row danger-row" id="danger-row">
+        <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="/roomconfig.js"></script>
+</body>
+</html>

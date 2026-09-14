@@ -63,7 +63,7 @@
         </div>
         <p class="hint">Everyone belongs to the Lobby. Each room is its own conversation for the users you pick; players see their rooms after signing in and choose one. Coffee Pub Studio shows one room at a time.</p>
       </div>
-      <div id="rooms" class="rooms"></div>
+      <div id="rooms" class="users"></div>
     </section>
 
     <section class="tab-stack" id="tab-settings" hidden>
@@ -166,26 +166,13 @@
   </template>
 
   <template id="room-card">
-    <article class="room-card">
-      <div class="brand-row">
-        <div class="site-images">
-          <div class="slot" data-room-image><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Room image</span><button class="btn btn-small" data-action="room-image-clear" type="button">Remove</button></div>
-        </div>
-        <div class="fields grow">
-          <label>Name<input data-rfield="name" type="text" maxlength="40"></label>
-          <label class="wide">Description<textarea data-rfield="description" rows="3" maxlength="300"></textarea></label>
-        </div>
+    <article class="user-card">
+      <span class="thumb room-thumb"><img data-thumb alt="" hidden><i class="fa-solid fa-door-open" aria-hidden="true" data-thumb-fallback></i></span>
+      <div class="user-title">
+        <strong data-name></strong>
+        <span class="meta" data-meta></span>
       </div>
-      <div class="room-members">
-        <span class="field-label">Members</span>
-        <div class="member-checks" data-members></div>
-        <span class="hint" data-members-note hidden>Everyone belongs to the Lobby.</span>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-small" data-action="room-save" type="button">Save</button>
-        <button class="btn btn-small btn-danger" data-action="room-delete" type="button">Delete room</button>
-        <span class="status" data-status></span>
-      </div>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit room</a>
     </article>
   </template>
 

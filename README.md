@@ -80,12 +80,13 @@ with their player image, use chat and reactions, and can be published to OBS lik
 ## Rooms
 
 The **Rooms** tab on the manage page holds the **Lobby**, which everyone belongs to and which
-cannot be deleted, plus any rooms an admin adds. A room has a name, a description, a picture
-(click it to change it) and the members the admin ticks. Each room is its own conversation:
-after signing in a player sees the rooms they belong to, each with its members and a green dot
-on those in it right now, and joins one. Admins may join any room. A player's OBS view pages
-follow them from room to room. Coffee Pub Studio shows one room at a time on its Tavern tab
-and publishes that room's users.
+cannot be deleted, plus any rooms an admin adds. It is a roster, same as Users: click a room
+to open its own page (name, description, picture, and the members an admin ticks) rather than
+editing it inline in the list. Each room is its own conversation: after signing in a player
+sees the rooms they belong to, each with its members and a green dot on those in it right now,
+and joins one. Admins may join any room. A player's OBS view pages follow them from room to
+room. Coffee Pub Studio shows one room at a time on its Tavern tab and publishes that room's
+users.
 
 **Pull aside.** While at the table, an admin can pull one or more people in their current room
 into a private word: click the door icon on each tile to pick who (it toggles a selection, it

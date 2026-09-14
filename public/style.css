@@ -1725,30 +1725,16 @@ body.at-table .topbar {
   margin-top: 0;
 }
 
-.rooms {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.room-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
-}
-
-.room-card.lobby {
+.user-card.lobby {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
-.room-members {
+.room-thumb {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 14px;
 }
 
 .member-checks {
