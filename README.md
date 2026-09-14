@@ -87,20 +87,24 @@ on those in it right now, and joins one. Admins may join any room. A player's OB
 follow them from room to room. Coffee Pub Studio shows one room at a time on its Tavern tab
 and publishes that room's users.
 
-**Pull aside.** While at the table, an admin can pull anyone else in their current room into a
-private word: hover their tile and click the door icon. Both move to a new room together at
-once, with nobody clicking anything on the other end. The pulled player (and the admin) get a
-**Back to the table** button in place of the usual room name, returning them together to
-whichever room they were pulled out of -- clicking it on either side brings the other one back
-too, the same as pulling aside itself needs only one click. The private room itself is never
-shown as something to pick from a list; it disappears on its own once both of you have left it. Everyone else, still in whatever room they were in,
-sees the two of you tagged **aside** where their tile would show a room; anyone else who isn't
-in the room the admin currently occupies is tagged **off stream** the same way, since Coffee
-Pub Studio's Tavern tab follows the admin's room automatically (a **Follow the admin** tick,
-on by default) and only publishes whoever is in it — so being off stream there really does mean
-off the recording, not just a label. A pull-aside room is a private word by design, though, so
-while the admin is in one, that rule flips: nobody is on stream, the admin and the pulled player
-included, not just everyone left behind at the table.
+**Pull aside.** While at the table, an admin can pull one or more people in their current room
+into a private word: click the door icon on each tile to pick who (it toggles a selection, it
+does not move anyone yet), then confirm with **Step aside with N**. Everyone picked moves
+together at once, with nobody clicking anything on their own end. The pulled players (and the
+admin) get a **Back to the table** button in place of the usual room name, returning everyone
+together to whichever room they were pulled out of -- clicking it on any one of their screens
+brings the rest back too, the same as pulling aside itself only needed the admin's click. The
+private room itself is never shown as something to pick from a list; it disappears on its own
+once everyone has left it.
+
+This is private from the *rest of the table*, not from the recording: Coffee Pub Studio's
+Tavern tab follows whichever room the admin is actually in (a **Follow the admin** tick, on by
+default) and only publishes whoever is in that room, so while the admin is aside with someone,
+that conversation is what's on stream, exactly as it would be in any other room -- and everyone
+left behind in the room they stepped out of goes quiet on stream, same as stepping out of any
+other room. Everyone not with the admin right now, aside room or not, sees that group tagged
+**aside** where their tile would show a room, or **off stream** for anyone who has simply left
+the admin's room some other way.
 
 ## The table
 
@@ -108,9 +112,9 @@ The join screen lists the rooms you belong to, each with its members and a green
 in it right now. Join is one click. The page then becomes the table: the header stays, now
 naming the room you are in (**Coffee Pub Tavern › Lobby**) with a **Leave room** button, the
 tiles fill the middle, and a bar of controls sits locked to the bottom edge like Zoom or Meet.
-Left to right: microphone (with a live level meter inside the button), camera, layout, chat,
-reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera, **C**
-chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
+Left to right: microphone (with a live level meter inside the button), deafen, camera, layout,
+chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **D** deafen,
+**V** camera, **C** chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
 
 - **Layouts.** Grid; strip (one row, or one column when the window is taller than wide); and
   spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
@@ -122,10 +126,14 @@ chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
   **Copy** (text, or the picture itself) and, on pictures, **Save**; the download button in the
   drawer's header saves the whole chat as a text file. Everything travels over the media
   server's data channel and nothing is stored: a late joiner sees only what comes after them.
-- **Reactions.** The smiley button opens a tray: heart, thumbs up, thumbs down, laugh, question
-  mark and a die for a nat 20, or keys 1 to 6. A reaction floats up from your tile for a couple
+- **Reactions.** The smiley button opens a tray, set up by the admin under Manage > Settings
+  (six by default: heart, thumbs up, thumbs down, laugh, question mark and a die for a nat 20),
+  reachable by keys 1 to 6 for the first six. A reaction floats up from your tile for a couple
   of seconds on everyone's table, and up your Player and Character sources in OBS. Nothing is
   stored.
+- **Deafen.** Mutes everyone else's audio on your end without touching your own microphone or
+  leaving the call -- for when something else, a phone call say, needs the room quiet for a
+  minute. Local only; nobody else is affected or notified.
 - **Audio.** In settings: microphone choice, a level slider (0 to 300%), a noise gate that cuts
   the mic below a threshold, the browser's noise suppression, echo cancellation and auto gain
   switches, and open mic or push to talk (hold Space). Hover another player's tile for a volume
@@ -133,6 +141,9 @@ chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
 - **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
 - **Without a camera or microphone** you still join; whatever is missing is named in the status
   line and your Online picture (set by your admin) stands in for the camera.
+- **Your profile and Manage** open in a new tab from inside a call, rather than navigating away
+  in the same one -- leaving the page would drop the call (it is a plain WebRTC connection, tied
+  to that page), so this is the only way to reach either without actually hanging up.
 
 To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
 an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads
@@ -204,13 +215,14 @@ table.
 
 ## Settings
 
-The manage page's Settings tab has four sections. **Server**: the icon (any image; used in the
+The manage page's Settings tab has five sections. **Server**: the icon (any image; used in the
 header, as the favicon and on the sign-in page) and the **server name** shown in the header and
 browser tab. **Sign-in page**: a **background** picture that fills the page behind the sign-in
 box, and the text under the password field. Click either picture to change it, **Remove** to
-clear it. **Player video defaults**: talking border, its colour and width in pixels, and name plate, used unless a user's own Player section overrides them (the width applies to
-everyone). **OBS access**: the stream key. Room images are square; anything else is cropped to
-the middle.
+clear it. **Player video defaults**: talking border, its colour and width in pixels, and name
+plate -- server-wide, the same for everyone. **Reactions**: the emoji tray at the table and on
+stream; add, remove, reorder, edit glyph and label, or leave it empty to turn reactions off.
+**OBS access**: the stream key. Room images are square; anything else is cropped to the middle.
 
 ## Icons
 
