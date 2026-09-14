@@ -947,7 +947,10 @@ a.btn {
    stage is the whole window with the floating pill and status instead. */
 body.at-table {
   overflow: hidden;
-  height: 100vh;
+  height: 100vh; /* fallback for browsers without dvh */
+  height: 100dvh; /* the actual visible viewport, so the toolbar at the
+                      bottom isn't hidden under a phone browser's own
+                      address/tab bar when it's showing */
   display: flex;
   flex-direction: column;
 }
@@ -1089,6 +1092,7 @@ body.at-table .topbar {
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
   background: #201812;
   border-top: 1px solid var(--border);
 }
@@ -1388,6 +1392,7 @@ body.at-table .topbar {
   .floatbar {
     gap: 6px;
     padding: 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
   .fbtn {
     width: 40px;
@@ -1647,6 +1652,7 @@ body.at-table .topbar {
 .stage.compact .floatbar {
   gap: 4px;
   padding: 5px;
+  padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
 .popout .stage.compact .floatbar {
