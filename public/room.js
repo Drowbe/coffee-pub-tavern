@@ -1586,6 +1586,19 @@ function watchPointer(doc) {
 }
 watchPointer(document);
 
+// Click anywhere outside the settings popover (but still on the page) closes
+// it, same as any other dropdown -- doesn't fire for the gear that opens it,
+// or for clicks inside the popover itself (a link, a colour picker, ...).
+function watchOutsideClick(doc) {
+  doc.addEventListener('click', (event) => {
+    if ($('settings').hidden) return;
+    if (event.target.closest('#settings') || event.target.closest('#settings-toggle')) return;
+    $('settings').hidden = true;
+    $('settings-toggle').classList.remove('on');
+  });
+}
+watchOutsideClick(document);
+
 // --- install as an app / pop out ------------------------------------------------
 
 window.addEventListener('beforeinstallprompt', (event) => {
@@ -1631,6 +1644,7 @@ async function openPopout() {
     pipWindow.document.body.appendChild($('stage'));
     $('away').hidden = false;
     watchPointer(pipWindow.document);
+    watchOutsideClick(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
     pipWindow.document.addEventListener('keyup', onKeyUp);
     pipWindow.addEventListener('resize', () => {
