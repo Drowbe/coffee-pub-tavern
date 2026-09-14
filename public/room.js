@@ -228,10 +228,12 @@ function setStatus(text, error = false) {
 // the profile photo too, instead of a plain fill, so the box looks like
 // them even without video.
 function updateBackgroundPlaceholder(tile, key) {
-  const hasBg = !!tableUsers.get(key)?.images?.background;
+  const user = tableUsers.get(key);
+  const hasBg = !!user?.images?.background;
   tile.classList.toggle('has-bg-image', hasBg);
   const bg = tile.querySelector('.placeholder-bg');
   if (bg) bg.src = hasBg ? `/img/${encodeURIComponent(key)}/background` : '';
+  tile.style.setProperty('--pic-scale', user?.pictureScale || 100);
 }
 
 function tileFor(participant) {
