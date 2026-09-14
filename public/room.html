@@ -85,13 +85,26 @@
     <button class="float btn btn-primary" id="aside-confirm" type="button" hidden>Step aside</button>
 
     <div class="float floatbar" id="floatbar">
-      <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="deafen" type="button" title="Mute what you hear (D)"><span class="glyph"><i class="fa-solid fa-volume-high fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-volume-xmark fa-fw icon-off" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="mic" title="Microphone settings" aria-label="Microphone settings">&#94;</button>
+      </div>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="deafen" type="button" title="Mute what you hear (D)"><span class="glyph"><i class="fa-solid fa-volume-high fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-volume-xmark fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="audio" title="Audio output settings" aria-label="Audio output settings">&#94;</button>
+      </div>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="camera" title="Camera settings" aria-label="Camera settings">&#94;</button>
+      </div>
+      <button class="fbtn" id="screen-share" type="button" title="Share your screen (S)" hidden><span class="glyph"><i class="fa-solid fa-desktop fa-fw" aria-hidden="true"></i></span></button>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings">&#94;</button>
+      </div>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="settings-toggle" type="button" title="Settings"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
     </div>
@@ -120,52 +133,66 @@
     <div class="popover tray" id="react-tray" hidden></div>
 
     <div class="popover" id="settings" hidden>
-      <h3>Audio</h3>
-      <label>Microphone<select id="mic-select"></select></label>
-      <label>Mic level <span class="hint" id="gain-value">100%</span><input type="range" id="gain" min="0" max="300" step="5" value="100"></label>
-      <label>Noise gate <span class="hint" id="gate-value">off</span><input type="range" id="gate" min="0" max="60" step="1" value="0"></label>
-      <div class="checks">
-        <label class="check"><input type="checkbox" id="noise" checked> Noise suppression</label>
-        <label class="check"><input type="checkbox" id="echo" checked> Echo cancellation</label>
-        <label class="check"><input type="checkbox" id="agc" checked> Auto gain</label>
-      </div>
-      <label>Talking<select id="talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
-      <h3>Video</h3>
-      <label>Camera<select id="cam-select"></select></label>
-      <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
-      <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
-      <label>Background<select id="background-mode">
-        <option value="none">Off (your real background)</option>
-        <option value="blur">Blur</option>
-        <option value="image">Custom image (set on your profile page)</option>
-      </select></label>
-      <p class="hint">Blur or a custom image fetch a small ML model the first time you turn either on.</p>
-      <h3>Layout</h3>
-      <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
-      <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
-      <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
-      <div class="row">
-        <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
-        <span class="hint" id="install-note"></span>
-      </div>
-      <div id="guest-section">
-        <h3>Guests</h3>
-        <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed.</p>
-        <div class="row">
-          <code class="key link" id="guest-link-value">off</code>
-          <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
-          <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
-          <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
-          <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+      <div class="settings-group" data-group="mic">
+        <h3>Microphone</h3>
+        <label>Microphone<select id="mic-select"></select></label>
+        <label>Mic level <span class="hint" id="gain-value">100%</span><input type="range" id="gain" min="0" max="300" step="5" value="100"></label>
+        <label>Noise gate <span class="hint" id="gate-value">off</span><input type="range" id="gate" min="0" max="60" step="1" value="0"></label>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="noise" checked> Noise suppression</label>
+          <label class="check"><input type="checkbox" id="echo" checked> Echo cancellation</label>
+          <label class="check"><input type="checkbox" id="agc" checked> Auto gain</label>
         </div>
-        <p class="status" id="guest-link-status"></p>
+        <label>Talking<select id="talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
       </div>
-      <nav class="links" id="settings-links">
-        <a href="/profile" data-overlay-link title="Your profile">Your profile</a>
-        <a href="/admin" id="admin-link-2" data-overlay-link title="Manage" hidden>Manage</a>
-        <a href="/logout">Sign out</a>
-        <span class="version" data-brand="version"></span>
-      </nav>
+      <div class="settings-group" data-group="audio">
+        <h3>Audio output</h3>
+        <label>Speaker<select id="speaker-select"></select></label>
+        <label>Volume <span class="hint" id="volume-value">100%</span><input type="range" id="master-volume" min="0" max="100" step="5" value="100"></label>
+        <p class="hint">A single person too loud or quiet? Hover their tile at the table for their own volume.</p>
+      </div>
+      <div class="settings-group" data-group="camera">
+        <h3>Video</h3>
+        <label>Camera<select id="cam-select"></select></label>
+        <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
+        <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
+        <label>Background<select id="background-mode">
+          <option value="none">Off (your real background)</option>
+          <option value="blur">Blur</option>
+          <option value="image">Custom image (set on your profile page)</option>
+        </select></label>
+        <p class="hint">Blur or a custom image fetch a small ML model the first time you turn either on.</p>
+      </div>
+      <div class="settings-group" data-group="layout">
+        <h3>Layout</h3>
+        <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
+        <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
+        <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
+      </div>
+      <div class="settings-group" data-group="more">
+        <div class="row">
+          <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
+          <span class="hint" id="install-note"></span>
+        </div>
+        <div id="guest-section">
+          <h3>Guests</h3>
+          <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed.</p>
+          <div class="row">
+            <code class="key link" id="guest-link-value">off</code>
+            <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
+            <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
+            <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
+            <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+          </div>
+          <p class="status" id="guest-link-status"></p>
+        </div>
+        <nav class="links" id="settings-links">
+          <a href="/profile" data-overlay-link title="Your profile">Your profile</a>
+          <a href="/admin" id="admin-link-2" data-overlay-link title="Manage" hidden>Manage</a>
+          <a href="/logout">Sign out</a>
+          <span class="version" data-brand="version"></span>
+        </nav>
+      </div>
     </div>
   </main>
 

@@ -334,13 +334,43 @@ function tileFor(participant) {
   return tile;
 }
 
+// A shared screen gets its own tile, separate from the sharer's camera one
+// -- someone can keep their camera up while sharing, and both stay visible.
+function screenTileId(identity) {
+  return `${identity}::screen`;
+}
+function screenTileFor(participant) {
+  const key = screenTileId(participant.identity);
+  let tile = tiles.get(key);
+  if (tile) return tile;
+  tile = document.createElement('div');
+  tile.className = 'tile tile-screen';
+  tile.dataset.identity = key;
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = `${participant.name || participant.identity}'s screen`;
+  tile.appendChild(name);
+  tiles.set(key, tile);
+  $('grid').appendChild(tile);
+  applyLayout();
+  return tile;
+}
+function removeScreenTile(identity) {
+  const key = screenTileId(identity);
+  const tile = tiles.get(key);
+  if (!tile) return;
+  tile.remove();
+  tiles.delete(key);
+  applyLayout();
+}
+
 // --- layouts and ordering -----------------------------------------------------
 
 const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
   quality: 720, mirror: true, background: 'none', volumes: {}, popout: null, deafened: false,
-  chatWidth: 320,
+  chatWidth: 320, speakerId: '', masterVolume: 100,
 };
 const prefs = loadPrefs();
 
@@ -546,6 +576,14 @@ function onDragEnd() {
 }
 
 function attachTrack(participant, track) {
+  if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+    const screenTile = screenTileFor(participant);
+    screenTile.querySelector('video')?.remove();
+    const video = track.attach();
+    video.muted = true;
+    screenTile.prepend(video);
+    return;
+  }
   const tile = tileFor(participant);
   if (track.kind === Track.Kind.Video) {
     tile.querySelector('video')?.remove();
@@ -558,14 +596,18 @@ function attachTrack(participant, track) {
     const audio = track.attach();
     audio.dataset.identity = participant.identity;
     audio.muted = prefs.deafened;
+    if (prefs.speakerId && audio.setSinkId) audio.setSinkId(prefs.speakerId).catch(() => {});
     $('stage').appendChild(audio);
-    const volume = prefs.volumes[participant.identity];
-    if (volume !== undefined) track.setVolume(volume);
+    track.setVolume(effectiveVolume(participant.identity));
   }
 }
 
 function detachTrack(participant, track) {
   track.detach().forEach((el) => el.remove());
+  if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+    removeScreenTile(participant.identity);
+    return;
+  }
   const tile = tiles.get(participant.identity);
   if (tile && track.kind === Track.Kind.Video) tile.querySelector('.placeholder').hidden = false;
 }
@@ -574,6 +616,7 @@ function removeParticipant(participant) {
   const tile = tiles.get(participant.identity);
   if (tile) tile.remove();
   tiles.delete(participant.identity);
+  removeScreenTile(participant.identity);
   if (asideSelection.delete(participant.identity)) updateAsideConfirm();
   stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
   reconcileGhostTiles(); // they may have just stepped into a private aside, not actually left
@@ -833,10 +876,30 @@ async function sendReaction(id) {
 function toggleTray(open = $('react-tray').hidden) {
   $('react-tray').hidden = !open;
   $('react-toggle').classList.toggle('on', open);
-  if (open) {
-    $('settings').hidden = true;
-    $('settings-toggle').classList.remove('on');
+  if (open) closeSettings();
+}
+
+// The settings popover shows one focused group at a time: mic, audio
+// (speaker + volume), camera, layout, or "more" (everything else -- guests,
+// install, account links) for the gear. Each of mic/audio/camera/layout's
+// own caret opens straight to its group; clicking the same one again (or
+// anywhere outside) closes it, same as any dropdown.
+function closeSettings() {
+  $('settings').hidden = true;
+  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+}
+function openSettings(group) {
+  const trigger = stageDoc().querySelector(`[data-settings="${group}"]`);
+  if (!$('settings').hidden && $('settings').dataset.group === group) {
+    closeSettings();
+    return;
   }
+  for (const el of stageDoc().querySelectorAll('.settings-group')) el.hidden = el.dataset.group !== group;
+  $('settings').dataset.group = group;
+  $('settings').hidden = false;
+  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+  if (trigger) trigger.classList.add('on');
+  toggleTray(false);
 }
 
 // The chat's own width, dragged from its left edge (see the chat-resize
@@ -975,11 +1038,33 @@ function meterFromAnalyser() {
   onMicLevel({ level: Math.sqrt(sum / samples.length), open: true });
 }
 
+// The master volume (Settings > Audio output) multiplies every remote
+// participant's own volume (set by hovering their tile) rather than
+// replacing it, so both stay independently adjustable.
+function effectiveVolume(identity) {
+  return (prefs.masterVolume / 100) * (prefs.volumes[identity] ?? 1);
+}
+
 function setVolume(participant, volume) {
   prefs.volumes[participant.identity] = volume;
   savePrefs();
   const pub = participant.getTrackPublication(Track.Source.Microphone);
-  if (pub?.track?.setVolume) pub.track.setVolume(volume);
+  if (pub?.track?.setVolume) pub.track.setVolume(effectiveVolume(participant.identity));
+}
+
+function applyMasterVolume() {
+  for (const p of room.remoteParticipants.values()) {
+    const pub = p.getTrackPublication(Track.Source.Microphone);
+    if (pub?.track?.setVolume) pub.track.setVolume(effectiveVolume(p.identity));
+  }
+}
+
+// The output device every remote participant's audio plays through.
+async function applySpeaker() {
+  if (!prefs.speakerId) return;
+  for (const audio of stageDoc().querySelectorAll('audio')) {
+    if (audio.setSinkId) await audio.setSinkId(prefs.speakerId).catch(() => {});
+  }
 }
 
 const RESOLUTIONS = { 360: { width: 640, height: 360 }, 540: { width: 960, height: 540 }, 720: { width: 1280, height: 720 } };
@@ -1105,7 +1190,8 @@ async function fillDevices() {
   } catch (err) {
     console.warn('[tavern] device list:', err.message);
   }
-  for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')]]) {
+  const wantedFor = { audioinput: prefs.micId, videoinput: prefs.camId, audiooutput: prefs.speakerId };
+  for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')], ['audiooutput', $('speaker-select')]]) {
     select.textContent = '';
     for (const d of devices.filter((d) => d.kind === kind)) {
       const option = document.createElement('option');
@@ -1113,7 +1199,7 @@ async function fillDevices() {
       option.textContent = d.label || kind;
       select.appendChild(option);
     }
-    const wanted = kind === 'audioinput' ? prefs.micId : prefs.camId;
+    const wanted = wantedFor[kind];
     if (wanted && [...select.options].some((o) => o.value === wanted)) select.value = wanted;
   }
 }
@@ -1305,6 +1391,20 @@ async function toggleCam() {
   updateCamera(room.localParticipant);
 }
 
+// Desktop sharing: LiveKit's own screen-share track (getDisplayMedia under
+// the hood), published and rendered as its own tile -- see screenTileFor.
+async function toggleScreenShare() {
+  try {
+    await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true });
+  } catch (err) {
+    // cancelling the browser's own share picker throws too -- not a real error
+    if (err?.name !== 'NotAllowedError') setStatus(`screen share: ${err.message}`, true);
+  }
+  const on = room.localParticipant.isScreenShareEnabled;
+  $('screen-share').classList.toggle('on', on);
+  $('screen-share').title = on ? 'Stop sharing your screen (S)' : 'Share your screen (S)';
+}
+
 // Mute what I hear: everyone else's audio, not my own mic -- for when a
 // phone call or something else needs the room quiet for a minute without
 // actually leaving or muting yourself to the others.
@@ -1324,6 +1424,8 @@ function toggleDeafen() {
 $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
 $('deafen').addEventListener('click', toggleDeafen);
+$('screen-share').addEventListener('click', toggleScreenShare);
+if (navigator.mediaDevices?.getDisplayMedia) $('screen-share').hidden = false;
 applyDeafen();
 $('mic-select').addEventListener('change', async (e) => {
   prefs.micId = e.target.value;
@@ -1334,6 +1436,17 @@ $('cam-select').addEventListener('change', async (e) => {
   prefs.camId = e.target.value;
   savePrefs();
   await restartCamera();
+});
+$('speaker-select').addEventListener('change', async (e) => {
+  prefs.speakerId = e.target.value;
+  savePrefs();
+  await applySpeaker();
+});
+$('master-volume').addEventListener('input', (e) => {
+  prefs.masterVolume = Number(e.target.value);
+  savePrefs();
+  $('volume-value').textContent = `${prefs.masterVolume}%`;
+  applyMasterVolume();
 });
 $('gain').addEventListener('input', (e) => {
   prefs.gain = Number(e.target.value);
@@ -1484,10 +1597,9 @@ $('follow-speaker').addEventListener('change', (e) => {
 });
 window.addEventListener('resize', applyLayout);
 
-$('settings-toggle').addEventListener('click', () => {
-  $('settings').hidden = !$('settings').hidden;
-  $('settings-toggle').classList.toggle('on', !$('settings').hidden);
-  if (!$('settings').hidden) toggleTray(false);
+$('floatbar').addEventListener('click', (event) => {
+  const trigger = event.target.closest('[data-settings]');
+  if (trigger) openSettings(trigger.dataset.settings);
 });
 
 // Guests: the room's own reusable join link, same door for everyone at the
@@ -1536,8 +1648,9 @@ $('react-tray').addEventListener('click', (event) => {
   toggleTray(false);
 });
 
-// Keyboard: M mic, V camera, D deafen, C chat, L layout, R reactions, 1 to 6
-// send a reaction, Space held = talk (push to talk mode), unless typing in a field.
+// Keyboard: M mic, V camera, D deafen, C chat, L layout, R reactions, S
+// screen share (once available), 1 to 6 send a reaction, Space held = talk
+// (push to talk mode), unless typing in a field.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
 function typing(event) {
@@ -1569,6 +1682,7 @@ function onKey(event) {
   else if (key === 'c') toggleChat();
   else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
   else if (key === 'r') toggleTray();
+  else if (key === 's' && !$('screen-share').hidden) toggleScreenShare();
   else if (/^[1-6]$/.test(key)) sendReaction(REACTION_KEYS[Number(key) - 1]);
   else return;
   event.preventDefault();
@@ -1594,14 +1708,14 @@ function watchPointer(doc) {
 watchPointer(document);
 
 // Click anywhere outside the settings popover (but still on the page) closes
-// it, same as any other dropdown -- doesn't fire for the gear that opens it,
-// or for clicks inside the popover itself (a link, a colour picker, ...).
+// it, same as any other dropdown -- doesn't fire for the gear or any of the
+// per-button carets that open it, or for clicks inside the popover itself
+// (a link, a colour picker, ...).
 function watchOutsideClick(doc) {
   doc.addEventListener('click', (event) => {
     if ($('settings').hidden) return;
-    if (event.target.closest('#settings') || event.target.closest('#settings-toggle')) return;
-    $('settings').hidden = true;
-    $('settings-toggle').classList.remove('on');
+    if (event.target.closest('#settings') || event.target.closest('[data-settings]')) return;
+    closeSettings();
   });
 }
 watchOutsideClick(document);
@@ -1751,6 +1865,8 @@ async function init() {
   $('quality').value = String(prefs.quality);
   $('mirror').checked = prefs.mirror;
   $('background-mode').value = prefs.background;
+  $('master-volume').value = String(prefs.masterVolume);
+  $('volume-value').textContent = `${prefs.masterVolume}%`;
   $('mic').classList.toggle('ptt', prefs.ptt);
   applyLayout();
   const hint = describeInstall();

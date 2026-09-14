@@ -24,16 +24,19 @@ sources for a Participants-only room (and vice versa) with nothing behind them. 
 TODO.md should pick this up: fetch the room's profile alongside its members and grey out (or
 just not build) the source kind the profile doesn't offer.
 
-## Desktop sharing
-
-Not started. A way to share a screen or window into the room, alongside (or instead of)
-the camera -- the usual video-call feature, not yet offered here.
-
 ## Scheduling
 
 Not started. A way to schedule when a room's session happens next (date/time, maybe a
 recurrence) and let members see it -- session logistics currently live outside the app
 entirely.
+
+## Desktop sharing has no OBS side
+
+Screen sharing (the monitor icon at the table) works live -- a shared screen gets its
+own tile, camera stays up alongside it -- but `/view/<key>` (the OBS Participant box)
+only ever draws the camera or a picture, never a screen-share track. Someone sharing
+their screen doesn't show up on stream unless OBS is separately capturing the app
+window itself. Not attempted here; would need its own view.js/Studio work if wanted.
 
 ## Studio/OBS needs to know about guests
 

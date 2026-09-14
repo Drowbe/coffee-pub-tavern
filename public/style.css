@@ -420,6 +420,16 @@ select {
   display: block;
 }
 
+/* A shared screen shouldn't crop like a camera does -- the whole thing
+   fits inside the tile, letterboxed rather than losing the edges. */
+.tile-screen {
+  background: #000;
+}
+
+.tile-screen video {
+  object-fit: contain;
+}
+
 .tile.mirror video {
   transform: scaleX(-1);
 }
@@ -1165,9 +1175,9 @@ body.at-table .topbar {
 
 .fbtn {
   position: relative;
-  width: 44px;
+  width: 48px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: #33281f;
   color: var(--text);
@@ -1177,6 +1187,39 @@ body.at-table .topbar {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+/* mic, audio, camera and layout each carry a small caret over their corner
+   that opens just that control's own settings, instead of the whole thing. */
+.fbtn-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.fbtn-caret {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #33281f;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fbtn-caret:hover,
+.fbtn-caret.on {
+  background: var(--accent);
+  color: #1a1206;
 }
 
 .fbtn:hover {
@@ -1462,6 +1505,13 @@ body.at-table .topbar {
     width: 40px;
     height: 40px;
   }
+  .fbtn-caret {
+    width: 15px;
+    height: 15px;
+    font-size: 9px;
+    top: -5px;
+    right: -5px;
+  }
 }
 
 /* --- layouts: tile sizes come from fitTiles() as CSS variables --------- */
@@ -1742,6 +1792,14 @@ body.at-table .topbar {
   font-size: 14px;
 }
 
+.stage.compact .fbtn-caret {
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
+  top: -4px;
+  right: -4px;
+}
+
 .stage.compact .status-float {
   top: 6px;
   left: 6px;
@@ -1764,7 +1822,7 @@ body.at-table .topbar {
 }
 
 .stage.tiny .status-float,
-.stage.tiny #layout,
+.stage.tiny .fbtn-wrap:has(#layout),
 .stage.tiny #settings-toggle {
   display: none;
 }
