@@ -1152,7 +1152,7 @@ body.at-table .topbar {
    it wrap to more than one row rather than spill under the chat. */
 .popout .stage.chat-open .floatbar {
   left: 16px;
-  right: min(320px, 100%);
+  right: var(--chat-w, min(320px, 100%));
   width: auto;
   max-width: none;
   transform: none;
@@ -1252,11 +1252,28 @@ body.at-table .topbar {
   top: 0;
   right: 0;
   bottom: var(--barh, 0px);
-  width: min(320px, 100%);
+  width: var(--chat-w, min(320px, 100%));
   display: flex;
   flex-direction: column;
   background: rgba(26, 20, 16, 0.96);
   border-left: 1px solid var(--border);
+}
+
+/* a thin strip over the chat's left edge, to drag it wider or narrower */
+.chat-resize {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 1;
+  touch-action: none;
+}
+
+.chat-resize:hover,
+.chat-resize.dragging {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .chat header {

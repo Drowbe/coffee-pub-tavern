@@ -301,6 +301,7 @@ const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
   quality: 720, mirror: true, background: 'none', volumes: {}, popout: null, deafened: false,
+  chatWidth: 320,
 };
 const prefs = loadPrefs();
 
@@ -799,6 +800,22 @@ function toggleTray(open = $('react-tray').hidden) {
   }
 }
 
+// The chat's own width, dragged from its left edge (see the chat-resize
+// listeners below) and remembered like any other preference. --chat-w lives
+// on the stage so both the chat panel and the popped-out floatbar (which
+// keeps clear of the chat) can read it.
+const CHAT_MIN_WIDTH = 240;
+// remember: false for applying the stored width on join, where the stage may
+// not be laid out to its real size yet -- a clamp there shouldn't overwrite
+// what the user actually asked for.
+function setChatWidth(px, { remember = true } = {}) {
+  const max = Math.max(CHAT_MIN_WIDTH, Math.round($('stage').clientWidth * 0.7));
+  const clamped = Math.min(Math.max(Math.round(px), CHAT_MIN_WIDTH), max);
+  $('stage').style.setProperty('--chat-w', `${clamped}px`);
+  if (remember) prefs.chatWidth = clamped;
+  return clamped;
+}
+
 function toggleChat(open = $('chat').hidden) {
   $('chat').hidden = !open;
   $('stage').classList.toggle('chat-open', open);
@@ -1122,6 +1139,7 @@ async function join(roomId = 'lobby') {
     console.debug('[tavern] connected to', roomId);
     $('join').hidden = true;
     $('stage').hidden = false;
+    setChatWidth(prefs.chatWidth, { remember: false });
     // The header stays, naming the room and offering a way out of it. A
     // pulled-aside room also gets a quicker way back than "Leave" (which
     // would drop to the join screen instead of straight back to the Lobby).
@@ -1352,6 +1370,27 @@ $('chat').addEventListener('drop', (event) => {
   $('chat').classList.remove('drop');
   for (const f of imageFiles(event.dataTransfer?.files)) sendImage(f);
 });
+let chatDragStartX = 0;
+let chatDragStartWidth = 0;
+$('chat-resize').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  chatDragStartX = event.clientX;
+  chatDragStartWidth = $('chat').getBoundingClientRect().width;
+  $('chat-resize').classList.add('dragging');
+  $('chat-resize').setPointerCapture(event.pointerId);
+});
+$('chat-resize').addEventListener('pointermove', (event) => {
+  if (!$('chat-resize').classList.contains('dragging')) return;
+  setChatWidth(chatDragStartWidth + (chatDragStartX - event.clientX)); // chat is on the right: dragging left widens it
+});
+function stopChatDrag() {
+  if (!$('chat-resize').classList.contains('dragging')) return;
+  $('chat-resize').classList.remove('dragging');
+  savePrefs();
+}
+$('chat-resize').addEventListener('pointerup', stopChatDrag);
+$('chat-resize').addEventListener('pointercancel', stopChatDrag);
+
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
