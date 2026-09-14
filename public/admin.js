@@ -1,4 +1,4 @@
-import { loadBranding, api } from '/brand.js';
+import { loadBranding, api, wireOverlayBack } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -462,6 +462,7 @@ $('stream-regen').addEventListener('click', async () => {
 
 async function init() {
   await loadBranding();
+  wireOverlayBack();
   try {
     const info = await api('GET', '/api/me');
     me = info.user;

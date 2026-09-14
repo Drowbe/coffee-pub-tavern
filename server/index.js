@@ -479,6 +479,12 @@ app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
     const room = store.addAsideRoom([admin.key, ...targets.map((t) => t.key)], roomIdOfLivekit(adminRoom));
     const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
     await roomService.sendData(adminRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
+    // Everyone left behind: a private word is private from the table, not
+    // invisible to it -- this is what lets their tiles turn into "in an
+    // aside" placeholders right away instead of just looking like they hung
+    // up until the next poll catches up.
+    const bystanderPayload = new TextEncoder().encode(JSON.stringify({ type: 'aside-started', roomId: room.id, members: room.members }));
+    await roomService.sendData(adminRoom, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: 'aside-started' }).catch(() => {});
     res.json({ room });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });

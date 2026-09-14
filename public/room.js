@@ -8,6 +8,7 @@ const stageEl = document.getElementById('stage');
 const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`));
 const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
+const ghostTiles = new Map(); // identity -> tile element, for room members aside elsewhere
 const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
 let tableName = 'The Table';
@@ -29,9 +30,86 @@ async function loadTable() {
       if (colour) tile.style.setProperty('--talk', colour);
     }
     renderRooms();
+    reconcileGhostTiles();
   } catch (err) {
     // default colour stands
   }
+}
+
+// A member of the room I'm in who is online but not actually connected
+// here -- they're in a private aside elsewhere -- gets a placeholder tile:
+// their picture stands in for video, dimmed, with who they stepped aside
+// with, so they read as "still at the table" rather than looking like they
+// hung up. Reconciled from the same polled /api/table data that already
+// drives the join screen's badges, since a genuine LiveKit disconnect
+// alone can't tell "went to a private aside" apart from "actually left".
+function othersLabel(members, exclude) {
+  const names = members.filter((k) => k !== exclude).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
+  if (!names.length) return '';
+  if (names.length === 1) return `with ${names[0]}`;
+  return `with ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
+}
+
+function ghostTile(key) {
+  let tile = ghostTiles.get(key);
+  if (tile) return tile;
+  tile = document.createElement('div');
+  tile.className = 'tile tile-ghost';
+  tile.dataset.identity = key;
+  const placeholder = document.createElement('img');
+  placeholder.className = 'placeholder';
+  placeholder.alt = '';
+  placeholder.src = `/img/${encodeURIComponent(key)}/profile`;
+  tile.appendChild(placeholder);
+  const overlay = document.createElement('div');
+  overlay.className = 'tile-ghost-overlay';
+  const status = document.createElement('span');
+  status.className = 'tile-ghost-status';
+  status.textContent = 'In an aside';
+  const withLine = document.createElement('span');
+  withLine.className = 'tile-ghost-with';
+  overlay.append(status, withLine);
+  tile.appendChild(overlay);
+  const name = document.createElement('span');
+  name.className = 'name';
+  tile.appendChild(name);
+  ghostTiles.set(key, tile);
+  placeInOrder(tile);
+  return tile;
+}
+
+function removeGhost(key) {
+  const tile = ghostTiles.get(key);
+  if (!tile) return;
+  tile.remove();
+  ghostTiles.delete(key);
+}
+
+function reconcileGhostTiles() {
+  if (!currentRoom || !document.body.classList.contains('at-table')) return;
+  let changed = false;
+  for (const key of currentRoom.members) {
+    if (key === me?.key) continue;
+    if (tiles.has(key)) {
+      if (ghostTiles.has(key)) { removeGhost(key); changed = true; }
+      continue;
+    }
+    const user = tableUsers.get(key);
+    const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? tableRooms.find((r) => r.id === user.room) : null;
+    if (asideRoom?.ephemeral) {
+      const tile = ghostTile(key);
+      tile.querySelector('.name').textContent = user.displayName;
+      tile.querySelector('.tile-ghost-with').textContent = othersLabel(asideRoom.members, key);
+      changed = true;
+    } else if (ghostTiles.has(key)) {
+      removeGhost(key);
+      changed = true;
+    }
+  }
+  for (const key of [...ghostTiles.keys()]) {
+    if (!currentRoom.members.includes(key)) { removeGhost(key); changed = true; }
+  }
+  if (changed) applyLayout();
 }
 
 // A room's name for display: ephemeral "pull aside" rooms carry no useful
@@ -122,7 +200,7 @@ function renderMembers(list, members, roomId) {
   for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
 }
 setInterval(() => {
-  if (!$('join').hidden) loadTable();
+  if (!$('join').hidden || document.body.classList.contains('at-table')) loadTable();
 }, 5000);
 $('rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-join]');
@@ -147,6 +225,7 @@ function setStatus(text, error = false) {
 function tileFor(participant) {
   let tile = tiles.get(participant.identity);
   if (tile) return tile;
+  removeGhost(participant.identity); // they're back live, the placeholder can go
   tile = document.createElement('div');
   tile.className = 'tile';
   tile.dataset.identity = participant.identity;
@@ -437,8 +516,9 @@ function removeParticipant(participant) {
   if (tile) tile.remove();
   tiles.delete(participant.identity);
   if (asideSelection.delete(participant.identity)) updateAsideConfirm();
-  applyLayout();
   stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
+  reconcileGhostTiles(); // they may have just stepped into a private aside, not actually left
+  applyLayout();
 }
 
 function updateMuted(participant) {
@@ -882,6 +962,7 @@ room
     try {
       const data = JSON.parse(decoder.decode(payload));
       if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
+      else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on);
       // A server push (no sending participant): the admin pulled me aside.
       // Deferred a tick so this event's own dispatch finishes first.
       else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
@@ -891,6 +972,17 @@ room
       // follow them there instead of being left behind.
       else if (topic === 'return-to-table' && data.type === 'return-to-table' && data.roomId) {
         setTimeout(() => reconnectTo(data.roomId, 'back to the table...'), 0);
+      }
+      // Someone just got pulled into a private aside, myself excluded: prime
+      // the local data so their tile can turn into an "in an aside"
+      // placeholder right away, without waiting for the next /api/table poll.
+      else if (topic === 'aside-started' && data.type === 'aside-started' && data.roomId && Array.isArray(data.members)) {
+        if (!tableRooms.some((r) => r.id === data.roomId)) tableRooms.push({ id: data.roomId, name: 'Aside', members: data.members, ephemeral: true });
+        for (const key of data.members) {
+          const user = tableUsers.get(key);
+          if (user) { user.online = true; user.room = data.roomId; }
+        }
+        reconcileGhostTiles();
       }
     } catch (err) {
       // not ours
@@ -914,6 +1006,8 @@ room
     updateAsideConfirm();
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
+    for (const [, tile] of ghostTiles) tile.remove();
+    ghostTiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
     toggleChat(false);
@@ -1024,6 +1118,7 @@ async function join(roomId = 'lobby') {
       tileFor(p);
       updateMuted(p);
     }
+    reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
     // Ask for the microphone and the camera separately: a player with no
     // camera (or who declines it) still joins with audio, and the other way
     // round. Each one that works is published; each that fails is reported.
@@ -1366,26 +1461,54 @@ if ('documentPictureInPicture' in window) $('popout').hidden = false;
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),
 // so these load in an iframe instead: the call keeps running underneath,
-// untouched, with a bar of its own standing in for the page's own topbar,
-// which the overlay covers.
-function openOverlay(path, label) {
-  $('page-overlay-room').textContent = tableName;
-  $('page-overlay-away').textContent = `Away · viewing ${label}`;
-  $('page-overlay-frame').src = path;
-  $('page-overlay').hidden = false;
+// untouched. The loaded page (same origin) gets a "Back to [room]" link
+// added to its own header -- see wireOverlayBack in brand.js -- rather than
+// this page stacking a second bar of its own on top of it. Everyone else at
+// the table sees your own tile marked "Away" while you're in there; you
+// don't, since you already know.
+function openOverlay(path) {
+  const params = new URLSearchParams({ from: 'room', room: tableName });
+  $('page-overlay-frame').src = `${path}${path.includes('?') ? '&' : '?'}${params}`;
+  $('page-overlay-frame').hidden = false;
+  sendAway(true);
 }
 function closeOverlay() {
-  $('page-overlay').hidden = true;
+  $('page-overlay-frame').hidden = true;
   $('page-overlay-frame').src = 'about:blank';
+  sendAway(false);
 }
+window.closeProfileOverlay = closeOverlay; // called directly by the (same-origin) iframe
 for (const link of document.querySelectorAll('[data-overlay-link]')) {
   link.addEventListener('click', (event) => {
     event.preventDefault();
-    const href = link.getAttribute('href');
-    openOverlay(href, href === '/admin' ? 'Manage' : 'your profile');
+    openOverlay(link.getAttribute('href'));
   });
 }
-$('page-overlay-back').addEventListener('click', closeOverlay);
+
+function updateAwayOverlay(identity, on) {
+  const tile = tiles.get(identity);
+  if (!tile) return;
+  tile.classList.toggle('tile-away', on);
+  let overlay = tile.querySelector('.tile-away-overlay');
+  if (on && !overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'tile-away-overlay';
+    overlay.textContent = 'Away';
+    tile.appendChild(overlay);
+  } else if (!on && overlay) {
+    overlay.remove();
+  }
+}
+
+async function sendAway(on) {
+  updateAwayOverlay(room.localParticipant?.identity, on);
+  if (room.state !== 'connected') return;
+  try {
+    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on })), { reliable: true, topic: 'away' });
+  } catch (err) {
+    // best-effort: not worth surfacing to the person who just wants their profile
+  }
+}
 
 // --- start --------------------------------------------------------------------
 

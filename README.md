@@ -95,7 +95,9 @@ admin) get a **Back to the table** button in place of the usual room name, retur
 together to whichever room they were pulled out of -- clicking it on any one of their screens
 brings the rest back too, the same as pulling aside itself only needed the admin's click. The
 private room itself is never shown as something to pick from a list; it disappears on its own
-once everyone has left it.
+once everyone has left it. Anyone left behind doesn't see those tiles just vanish, as if they'd
+hung up -- each one dims to a placeholder reading **In an aside**, naming who they stepped out
+with, until they return.
 
 This is private from the *rest of the table*, not from the recording: Coffee Pub Studio's
 Tavern tab follows whichever room the admin is actually in (a **Follow the admin** tick, on by
@@ -141,9 +143,11 @@ chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **
 - **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
 - **Without a camera or microphone** you still join; whatever is missing is named in the status
   line and your Online picture (set by your admin) stands in for the camera.
-- **Your profile and Manage** open in a new tab from inside a call, rather than navigating away
-  in the same one -- leaving the page would drop the call (it is a plain WebRTC connection, tied
-  to that page), so this is the only way to reach either without actually hanging up.
+- **Your profile and Manage** open in an in-page overlay from inside a call rather than
+  navigating away -- leaving the page would drop the call (it is a plain WebRTC connection,
+  tied to that page), so this keeps the call running underneath while you're there. A "Back
+  to [room]" button appears in that page's own header; other people at the table see your
+  tile dim with an "Away" label while you're on it, not a message on the page itself.
 
 To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
 an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads

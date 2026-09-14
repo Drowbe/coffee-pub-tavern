@@ -20,15 +20,25 @@ for that app's side of things (Windows OBS capture work, mainly).
   touch your mic or leave the call.
 - **Admin-editable reactions** (Manage > Settings): add, remove, reorder, edit glyph and
   label. No longer a hardcoded six baked into the client.
-- **Profile/Manage from inside a call load in an in-page overlay** (an iframe, with an
-  "Away · viewing ..." bar and a Back to [room] button), not a new tab and not a real
-  navigation -- the call keeps running underneath the whole time, verified end to end (the
-  first version used a new tab; that was a workaround, not this fix).
+- **Profile/Manage from inside a call load in an in-page overlay** (an iframe), not a new
+  tab and not a real navigation -- the call keeps running underneath the whole time,
+  verified end to end (the first version used a new tab; that was a workaround, not this
+  fix). No separate bar of our own on top of it: a "Back to [room]" button is injected into
+  the loaded page's own header instead (`wireOverlayBack()` in brand.js). What stepping away
+  means is shown where a bystander would actually look for it -- dimmed on the person's own
+  tile back in the room ("Away") -- not as a message on the page only they can see.
+- **A bystander sees "in an aside", not a vanished tile.** While someone (or the admin) is
+  off in a private pull-aside room, anyone left behind in the room they came from sees a
+  dimmed placeholder in their place -- their picture, "In an aside", who they stepped out
+  with -- instead of their video just disappearing as if they'd hung up. Clears back to a
+  live tile the moment they return.
 - **Editing moved from one flat admin table to each user's own profile page.** An admin
   visiting `/profile/<key>` gets the same page a player sees at `/profile`, in edit mode
   for that person (account, images, personal link, OBS link, mute/kick/delete); a player's
   own `/profile` stays limited to their own photo, same as before. The Manage roster is now
-  just status + a link to each profile, not a second editor.
+  just status + a link to each profile, not a second editor. Images keep the same Player /
+  Character grouping (each its own heading, hint, and 4-slot row) the old admin table used
+  -- not one flat undifferentiated grid of all eight.
 
 ## Follow the admin: who drives the stream
 

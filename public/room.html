@@ -56,15 +56,11 @@
   </div>
 
   <!-- Your profile or Manage, opened from inside a call: loads for real in
-       an iframe so the call underneath keeps running untouched, with a
-       header of its own since the page's own topbar is covered. -->
-  <div class="page-overlay" id="page-overlay" hidden>
-    <div class="page-overlay-bar">
-      <span class="page-overlay-away" id="page-overlay-away"></span>
-      <button class="btn btn-small" id="page-overlay-back" type="button">&larr; Back to <span id="page-overlay-room"></span></button>
-    </div>
-    <iframe id="page-overlay-frame" title="Page"></iframe>
-  </div>
+       an iframe so the call underneath keeps running untouched. The page's
+       own header gets a "Back to [room]" link added to it (see brand.js'
+       wireOverlayBack, called from profile.js/admin.js) rather than
+       stacking a second bar of ours on top of it. -->
+  <iframe class="page-overlay" id="page-overlay-frame" title="Page" hidden></iframe>
 
   <!-- Everything at the table lives inside the stage so it can pop out as one. -->
   <main class="stage" id="stage" hidden>

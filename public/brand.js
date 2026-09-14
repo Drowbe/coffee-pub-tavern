@@ -53,6 +53,31 @@ export async function api(method, url, body, contentType) {
   return data;
 }
 
+// Your profile or Manage, opened from inside a call (room.js loads either
+// one in an iframe rather than navigating away, so the call underneath
+// keeps running). Adds a "Back to [room]" link to this page's own header,
+// which closes the overlay via the parent window -- same origin, so a
+// direct call, no postMessage plumbing needed.
+export function wireOverlayBack() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('from') !== 'room' || window.parent === window) return;
+  const nav = document.querySelector('.topbar nav.links');
+  if (!nav) return;
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'btn btn-small';
+  const room = params.get('room');
+  back.textContent = room ? `← Back to ${room}` : '← Back to the table';
+  back.addEventListener('click', () => {
+    try {
+      window.parent.closeProfileOverlay?.();
+    } catch (err) {
+      // not actually framed by our own page for some reason; nothing to do
+    }
+  });
+  nav.prepend(back);
+}
+
 export function initialsOf(name) {
   const words = String(name || '').trim().split(/\s+/).filter(Boolean);
   const text = words.length > 1 ? words[0][0] + words[words.length - 1][0] : (words[0] || '?').slice(0, 2);

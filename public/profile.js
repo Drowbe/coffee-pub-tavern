@@ -2,7 +2,7 @@
 // set. An admin visiting /profile/<key> gets the same page in edit mode
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
-import { loadBranding, api } from '/brand.js';
+import { loadBranding, api, wireOverlayBack } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
@@ -99,9 +99,12 @@ function render() {
   for (const el of document.querySelectorAll('#f-border')) el.style.setProperty('--swatch', p.borderColor);
 
   $('images-heading').textContent = editing ? 'Video box in the recording' : 'Your video box in the recording';
-  $('images-hint').textContent = editing
-    ? 'The pictures OBS shows in their Player and Character boxes: offline, online, then talking and muted laid on top. May be part of a matched image set.'
-    : 'The pictures OBS shows in your Player and Character boxes: offline, online, then talking and muted laid on top. All set by your admin, and may be part of a matched image set.';
+  $('player-images-hint').textContent = editing
+    ? "The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings."
+    : 'Your video box. Offline shows the Offline picture (or nothing). Online shows your camera, or the Online picture when your camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.';
+  $('character-images-hint').textContent = editing
+    ? 'A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.'
+    : 'A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while you speak or while your microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.';
   for (const slot of document.querySelectorAll('#other-images .slot')) {
     const name = slot.dataset.slot;
     const set = !!user.images[name];
@@ -237,6 +240,7 @@ $('delete-btn').addEventListener('click', () => run(async () => {
 
 async function init() {
   await loadBranding();
+  wireOverlayBack();
   try {
     if (editingKey) {
       const mine = await api('GET', '/api/me');

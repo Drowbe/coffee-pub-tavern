@@ -69,16 +69,24 @@
       </div>
 
       <h2 id="images-heading">Your video box in the recording</h2>
-      <p class="hint" id="images-hint">The pictures OBS shows in your Player and Character boxes: offline, online, then talking and muted laid on top. All set by your admin, and may be part of a matched image set.</p>
-      <div class="slots" id="other-images">
-        <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Player muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-        <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Character muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+      <div id="other-images">
+        <h3>Player</h3>
+        <p class="hint" id="player-images-hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.</p>
+        <div class="slots">
+          <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+        </div>
+
+        <h3>Character</h3>
+        <p class="hint" id="character-images-hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
+        <div class="slots">
+          <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+        </div>
       </div>
 
       <div class="row" id="obs-link-row" hidden>
