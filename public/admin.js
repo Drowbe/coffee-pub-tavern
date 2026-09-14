@@ -154,20 +154,31 @@ function roomRowFor(room) {
   return row;
 }
 
-function fillRoomRow(row, room) {
+const PROFILE_LABELS = { roleplaying: 'Roleplaying', participants: 'Participants', characters: 'Characters' };
+
+function fillRoomRow(row, room, index) {
   const img = row.querySelector('[data-thumb]');
   img.hidden = !room.hasImage;
   if (room.hasImage) img.src = `/img/room/${room.id}?v=${Date.now()}`;
   row.querySelector('[data-thumb-fallback]').hidden = room.hasImage;
   row.querySelector('[data-name]').textContent = room.name;
   const count = room.isLobby ? users.length : room.members.length;
-  row.querySelector('[data-meta]').textContent = room.isLobby ? 'Everyone at the table' : `${count} member${count === 1 ? '' : 's'}`;
+  const who = room.isLobby ? 'Everyone at the table' : `${count} member${count === 1 ? '' : 's'}`;
+  row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[room.profile] || 'Roleplaying'}`;
   row.querySelector('[data-action="edit"]').href = `/rooms/${encodeURIComponent(room.id)}`;
   row.classList.toggle('lobby', room.isLobby);
+  // The Lobby always sits first and isn't reorderable; among the rest, hide
+  // whichever arrow would be a no-op at that end of the list.
+  row.querySelector('[data-action="room-up"]').hidden = room.isLobby || index <= 1;
+  row.querySelector('[data-action="room-down"]').hidden = room.isLobby || index >= rooms.length - 1;
 }
 
 function renderRooms() {
-  for (const room of rooms) fillRoomRow(roomRowFor(room), room);
+  rooms.forEach((room, index) => {
+    const row = roomRowFor(room);
+    fillRoomRow(row, room, index);
+    $('rooms').appendChild(row); // also fixes the row's position after a reorder
+  });
   for (const [id, row] of roomRows) {
     if (!rooms.some((r) => r.id === id)) {
       row.remove();
@@ -175,7 +186,28 @@ function renderRooms() {
     }
   }
   $('rooms-status').textContent = `${rooms.length} room${rooms.length === 1 ? '' : 's'}`;
+  renderInviteRooms();
 }
+
+async function saveRoomOrder() {
+  try {
+    await api('POST', '/api/rooms/order', { order: rooms.filter((r) => !r.isLobby).map((r) => r.id) });
+  } catch (err) {
+    say($('rooms-status'), err.message, true);
+  }
+}
+
+$('rooms').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action="room-up"], [data-action="room-down"]');
+  if (!button) return;
+  const id = button.closest('.user-card').dataset.room;
+  const index = rooms.findIndex((r) => r.id === id);
+  const swapWith = button.dataset.action === 'room-up' ? index - 1 : index + 1;
+  if (index < 0 || swapWith < 0 || swapWith >= rooms.length || rooms[swapWith].isLobby) return;
+  [rooms[index], rooms[swapWith]] = [rooms[swapWith], rooms[index]];
+  renderRooms();
+  saveRoomOrder();
+});
 
 $('add-room').addEventListener('click', async () => {
   try {
@@ -220,6 +252,49 @@ async function saveSettings(patch, statusEl) {
 }
 $('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value }, $('settings-status')));
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
+$('save-registration').addEventListener('click', () => saveSettings({ allowRegistration: $('set-allow-registration').checked }, $('registration-status')));
+
+// --- invites -----------------------------------------------------------------
+
+function renderInviteRooms() {
+  const container = $('invite-rooms');
+  const keep = new Set();
+  for (const room of rooms) {
+    if (room.isLobby) continue; // everyone is already there; nothing to pick
+    keep.add(room.id);
+    let label = container.querySelector(`[data-room="${CSS.escape(room.id)}"]`);
+    if (!label) {
+      label = document.createElement('label');
+      label.className = 'member member-toggle';
+      label.dataset.room = room.id;
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      const name = document.createElement('span');
+      name.className = 'member-name';
+      label.append(input, name);
+      container.appendChild(label);
+    }
+    label.querySelector('.member-name').textContent = room.name;
+  }
+  for (const label of [...container.children]) if (!keep.has(label.dataset.room)) label.remove();
+}
+
+$('invite-rooms').addEventListener('change', (event) => {
+  event.target.closest('.member-toggle')?.classList.toggle('online', event.target.checked);
+});
+
+$('make-invite').addEventListener('click', async () => {
+  try {
+    const roomIds = [...$('invite-rooms').querySelectorAll('input:checked')].map((i) => i.closest('[data-room]').dataset.room);
+    const { invite } = await api('POST', '/api/invites', { rooms: roomIds });
+    $('invite-link').textContent = invite.url;
+    $('invite-link-row').hidden = false;
+    say($('invite-status'), 'link made');
+  } catch (err) {
+    say($('invite-status'), err.message, true);
+  }
+});
+$('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
 $('save-defaults').addEventListener('click', async () => {
   try {
@@ -380,6 +455,7 @@ async function init() {
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
     $('set-login-text').value = settings.loginText;
+    $('set-allow-registration').checked = Boolean(settings.allowRegistration);
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
     $('set-border-width').value = settings.borderWidth || 6;

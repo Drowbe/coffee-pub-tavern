@@ -52,10 +52,17 @@ function msg(text) {
   $('msg').hidden = !text;
 }
 
+// Whichever room this person is in right now (playerRoom, from loadSettings)
+// may have its own picture for a slot; falls back to their default when it
+// doesn't, same as the server does. Re-run whenever playerRoom changes, not
+// just on the slow 5-minute poll, so following someone into a differently
+// cast room shows the right picture promptly.
 async function loadImages() {
+  const q = new URLSearchParams({ s: streamKey });
+  if (playerRoom) q.set('room', playerRoom);
   for (const slot of slots) {
     try {
-      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?s=${encodeURIComponent(streamKey)}`);
+      const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?${q}`);
       if (images[slot]) URL.revokeObjectURL(images[slot]);
       images[slot] = res.ok ? URL.createObjectURL(await res.blob()) : null;
     } catch (err) {
@@ -66,8 +73,10 @@ async function loadImages() {
 }
 
 // The Tavern room the player is in right now (the Lobby while they are
-// away); this box follows them from room to room.
+// away); this box follows them from room to room, and its own per-room
+// images (if that room has any) follow along too.
 let playerRoom = 'lobby';
+let lastImageRoom = playerRoom;
 let connectedRoom = null;
 
 async function loadSettings() {
@@ -90,6 +99,10 @@ async function loadSettings() {
     document.documentElement.style.setProperty('--pic-inset', `${(100 - scale) / 2}%`);
     document.documentElement.style.setProperty('--pic-bg', settings.pictureColor);
     document.body.classList.toggle('picture-bg', kind === 'player' && settings.pictureBackground);
+    if (playerRoom !== lastImageRoom) {
+      lastImageRoom = playerRoom;
+      loadImages();
+    }
   } catch (err) {
     // defaults stand
   }

@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
-const { Store, StoreError, SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken } = require('./store');
+const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken } = require('./store');
 const auth = require('./auth');
 
 const {
@@ -192,6 +192,15 @@ function requireStream(req, res, next) {
 }
 
 function publicUser(req, u) {
+  // Every room this person actually belongs to right now (never the Lobby --
+  // per-room images are for the rooms an admin picked them into, not the
+  // one everyone is always in), each with which of their own images override
+  // the defaults there.
+  const rooms = {};
+  for (const room of store.rooms) {
+    if (room.isLobby || !room.members.includes(u.key)) continue;
+    rooms[room.id] = { images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.rooms[room.id]?.images?.[slot]])) };
+  }
   return {
     key: u.key,
     login: u.login,
@@ -200,6 +209,7 @@ function publicUser(req, u) {
     hasPassword: !!u.passwordHash,
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
+    rooms,
     player: { ...u.player, effective: store.effectivePlayer(u) },
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
     createdAt: u.createdAt,
@@ -215,7 +225,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, reactions: Array.isArray(s.reactions) ? s.reactions : [] };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, reactions: Array.isArray(s.reactions) ? s.reactions : [] };
 }
 
 function initials(name) {
@@ -262,6 +272,19 @@ app.get('/', (req, res) => {
 app.get('/login', (req, res) => {
   if (currentUser(req)) return res.redirect(String(req.query.next || '/').startsWith('/') ? String(req.query.next || '/') : '/');
   res.sendFile(page('login.html'));
+});
+
+// Self sign-up (only does anything once an admin turns it on in Settings)
+// and accepting an invite (always works, whether or not sign-up is open --
+// an admin handed it out on purpose) share the same page; register.js tells
+// the two apart from the URL.
+app.get('/register', (req, res) => {
+  if (currentUser(req)) return res.redirect('/');
+  res.sendFile(page('register.html'));
+});
+app.get('/invite/:token', (req, res) => {
+  if (currentUser(req)) return res.redirect('/');
+  res.sendFile(page('register.html'));
 });
 
 // Personal link: signs the user in and drops them at the table.
@@ -337,15 +360,18 @@ app.get('/img/room/:id', (req, res) => {
 
 // A user's image for a slot. The profile photo always renders (an initials
 // plate when none is set); every other slot is optional and 404s when unset,
-// so overlays and the Player/Character boxes stay transparent. Signed-in
-// users and stream key holders.
+// so overlays and the Participant/Character boxes stay transparent. Signed-in
+// users and stream key holders. ?room=<id> resolves that room's own picture
+// for this slot if it has one, falling back to the default the same as OBS
+// would -- 'profile' never has a room override, so the param is ignored for it.
 app.get('/img/:key/:slot', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
   const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   const slot = SLOTS.includes(wanted) ? wanted : 'profile';
-  const resolved = store.resolveImage(user.key, slot);
+  const roomId = slot !== 'profile' && typeof req.query.room === 'string' ? req.query.room : null;
+  const resolved = store.effectiveImage(user.key, slot, roomId);
   if (resolved) return sendImage(res, resolved.file);
   if (slot !== 'profile' || req.query.fallback === 'none') return res.status(404).end();
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
@@ -413,6 +439,47 @@ app.post('/api/login', (req, res) => {
   res.json({ user: publicUser(req, user), token });
 });
 
+// Self sign-up: only works while an admin has it turned on. A self-signed
+// account is a normal user, in the Lobby like everyone (that's automatic,
+// not something to grant).
+app.post('/api/register', (req, res) => {
+  if (!store.settings.allowRegistration) return res.status(403).json({ error: 'sign-up is turned off' });
+  const { login, displayName, password } = req.body || {};
+  if (!password) throw new StoreError('a password is required');
+  const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
+  const token = auth.issueSession(store.sessionSecret, user);
+  auth.setSessionCookie(req, res, token);
+  res.status(201).json({ user: publicUser(req, user) });
+});
+
+// An admin-made invite: signs someone up straight into the rooms it was
+// made with. Works even while general sign-up is off -- an admin handed
+// this out on purpose.
+app.post('/api/invites', requireAdmin, (req, res) => {
+  const invite = store.createInvite((req.body || {}).rooms);
+  res.status(201).json({ invite: { ...invite, url: `${baseUrl(req)}/invite/${invite.token}` } });
+});
+app.get('/api/invites/:token', (req, res) => {
+  const invite = store.inviteByToken(req.params.token);
+  if (!invite) return res.status(404).json({ error: 'this invite is gone or has expired' });
+  res.json({ invite: { rooms: invite.rooms.map((id) => store.roomById(id)).filter(Boolean).map((r) => r.name), expiresAt: invite.expiresAt } });
+});
+app.post('/api/invites/:token/accept', (req, res) => {
+  const invite = store.inviteByToken(req.params.token);
+  if (!invite) return res.status(404).json({ error: 'this invite is gone or has expired' });
+  const { login, displayName, password } = req.body || {};
+  if (!password) throw new StoreError('a password is required');
+  const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
+  for (const roomId of invite.rooms) {
+    const room = store.roomById(roomId);
+    if (room) store.updateRoom(roomId, { members: [...room.members, user.key] });
+  }
+  store.removeInvite(invite.token);
+  const token = auth.issueSession(store.sessionSecret, user);
+  auth.setSessionCookie(req, res, token);
+  res.status(201).json({ user: publicUser(req, user) });
+});
+
 app.post('/api/logout', (req, res) => {
   auth.clearSessionCookie(req, res);
   res.json({ ok: true });
@@ -456,6 +523,17 @@ app.put('/api/me/images/profile', requireUser, rawImage, (req, res) => {
 });
 app.delete('/api/me/images/profile', requireUser, (req, res) => {
   store.removeImage(currentUser(req).key, 'profile');
+  res.json({ ok: true });
+});
+
+// A still image behind a player's own camera in the call, in place of the
+// real background -- an alternative to blur, picked on the profile page.
+app.put('/api/me/images/background', requireUser, rawImage, (req, res) => {
+  store.setImage(currentUser(req).key, 'background', req.body, req.get('content-type'));
+  res.json({ ok: true });
+});
+app.delete('/api/me/images/background', requireUser, (req, res) => {
+  store.removeImage(currentUser(req).key, 'background');
   res.json({ ok: true });
 });
 
@@ -560,8 +638,11 @@ app.get('/api/rooms', (req, res) => {
   res.json({ rooms: store.rooms });
 });
 app.post('/api/rooms', requireAdmin, (req, res) => {
-  const { name, description, members } = req.body || {};
-  res.json({ room: store.addRoom({ name, description, members }) });
+  const { name, description, members, profile } = req.body || {};
+  res.json({ room: store.addRoom({ name, description, members, profile }) });
+});
+app.post('/api/rooms/order', requireAdmin, (req, res) => {
+  res.json({ rooms: store.reorderRooms((req.body || {}).order) });
 });
 app.get('/api/rooms/:id', requireAdmin, (req, res) => {
   const room = store.roomById(req.params.id);
@@ -646,6 +727,21 @@ app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 
+// A room-specific override for one of that same person's image slots --
+// stands in for their default only inside that one room (someone in two
+// campaigns with two different characters). Admin-only, same as the
+// defaults themselves.
+app.put('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, rawImage, (req, res) => {
+  store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.roomId);
+  res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
+});
+app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, (req, res) => {
+  const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
+  store.removeImage(req.params.key, slot, req.params.roomId);
+  res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
+});
+
 app.post('/api/users/:key/kick', requireAdmin, async (req, res) => {
   try {
     const room = await roomOf(req.params.key);
@@ -696,7 +792,7 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 app.use((err, _req, res, _next) => {
   if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
-  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'image is larger than 5 MB' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: `image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB` });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'bad JSON' });
   console.error(err);
   res.status(500).json({ error: 'server error' });

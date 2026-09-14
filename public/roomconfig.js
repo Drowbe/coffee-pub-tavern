@@ -27,6 +27,7 @@ function render() {
   if (document.activeElement?.closest?.('.fields') == null) {
     $('e-name').value = room.name;
     $('e-description').value = room.description;
+    $('e-profile').value = room.profile;
   }
 
   const img = $('room-image');
@@ -85,7 +86,7 @@ $('members').addEventListener('change', (event) => {
 
 $('save-btn').addEventListener('click', async () => {
   try {
-    const patch = { name: $('e-name').value, description: $('e-description').value };
+    const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value };
     if (!room.isLobby) patch.members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
     room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
     render();

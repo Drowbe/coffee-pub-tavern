@@ -12,14 +12,30 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// Image slots. Player: what the player's video box shows when the camera is
+// Image slots. Participant: what the video box shows when the camera is
 // off, plus optional overlays drawn on the video while they talk or are muted.
 // Character: an optional base image plus overlays for the character box.
-// Player box: offline, online (the camera-off picture), talking, muted.
+// Participant box: offline, online (the camera-off picture), talking, muted.
 // Character box: characterOffline, character (online), talking, muted.
 // 'profile' is the player's own photo (header, table tiles, profile page); the
-// rest are the admin-set OBS pictures for the Player and Character boxes.
-const SLOTS = ['profile', 'playerOffline', 'player', 'playerTalking', 'playerMuted', 'characterOffline', 'character', 'talking', 'muted'];
+// rest are the admin-set OBS pictures for the Participant and Character boxes.
+// The slot keys themselves stay the old "player*" names underneath -- OBS
+// scenes and view links already reference them -- only their label changed.
+const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted'];
+const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
+// 'background' is a player's own chosen still image behind their camera in
+// the call itself (an alternative to blur) -- unrelated to the OBS
+// Participant/Character boxes above, but self-service the same way 'profile' is.
+const SLOTS = ['profile', 'background', ...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS];
+// A room's profile decides which of the two image groups above are even
+// offered for it, on a member's per-room section and (eventually) in
+// Studio's publish UI: Roleplaying wants both, the other two just one.
+const ROOM_PROFILES = ['roleplaying', 'participants', 'characters'];
+const ROOM_PROFILE_SLOTS = {
+  roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
+  participants: PARTICIPANT_SLOTS,
+  characters: CHARACTER_SLOTS,
+};
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
@@ -30,7 +46,7 @@ const IMAGE_TYPES = {
   'image/gif': 'gif',
   'image/webp': 'webp',
 };
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const SITE_IMAGES = ['icon', 'background'];
 // Every user belongs to the Lobby; it cannot be deleted.
 const LOBBY = 'lobby';
@@ -40,6 +56,10 @@ const DEFAULT_SETTINGS = {
   tableName: 'The Table',
   room: 'tavern',
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
+  // Self-service sign-up at /register, off by default. A self-registered
+  // account is a normal user, added automatically like everyone is to the
+  // Lobby, with no password requirement beyond what they pick.
+  allowRegistration: false,
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
@@ -155,6 +175,7 @@ class Store {
       settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
       users: Array.isArray(raw.users) ? raw.users.map((u) => this.sanitizeUser(u)).filter(Boolean) : [],
       rooms: Array.isArray(raw.rooms) ? raw.rooms.map((r) => this.sanitizeRoom(r)).filter(Boolean) : [],
+      invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
     };
     if (!data.rooms.some((r) => r.id === LOBBY)) {
       data.rooms.unshift({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() });
@@ -182,6 +203,9 @@ class Store {
       // The room an ephemeral room was pulled out of, so "Back to the table"
       // can return everyone there instead of always landing on the Lobby.
       origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
+      // Which image sections a member's per-room section (and Studio) offer
+      // for this room -- see ROOM_PROFILE_SLOTS.
+      profile: ROOM_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
     };
   }
 
@@ -203,6 +227,20 @@ class Store {
     for (const slot of SLOTS) {
       if (typeof u.images?.[slot] === 'string') images[slot] = u.images[slot];
     }
+    // Per-room image overrides: a room's picture set stands in for the
+    // defaults above only for that room, so the same person can be one
+    // character in one campaign and another in a different one.
+    const rooms = {};
+    if (u.rooms && typeof u.rooms === 'object') {
+      for (const [roomId, r] of Object.entries(u.rooms)) {
+        if (!r || typeof r !== 'object') continue;
+        const roomImages = {};
+        for (const slot of SLOTS) {
+          if (typeof r.images?.[slot] === 'string') roomImages[slot] = r.images[slot];
+        }
+        rooms[roomId] = { images: roomImages };
+      }
+    }
     return {
       key,
       login: cleanLogin(u.login) || key,
@@ -211,6 +249,7 @@ class Store {
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
+      rooms,
       player: {}, // borders and the plate are server-wide now; older per-user values are dropped
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
@@ -243,6 +282,7 @@ class Store {
     if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
+    if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
@@ -390,11 +430,27 @@ class Store {
     return this.rooms.find((r) => r.id === id) || null;
   }
 
-  addRoom({ name, description, members }) {
+  // The Rooms tab's own order (the Lobby always stays first): reorder to
+  // match `order`, a full or partial list of room ids -- anything named
+  // that exists moves into that order, anything left out keeps its place
+  // relative to the rest, nothing is ever dropped.
+  reorderRooms(order) {
+    if (!Array.isArray(order)) throw new StoreError('order must be a list of room ids');
+    const rest = this.data.rooms.filter((r) => r.id !== LOBBY);
+    const wanted = order.filter((id) => id !== LOBBY && rest.some((r) => r.id === id));
+    const byId = new Map(rest.map((r) => [r.id, r]));
+    const reordered = [...wanted.map((id) => byId.get(id)), ...rest.filter((r) => !wanted.includes(r.id))];
+    const lobby = this.data.rooms.find((r) => r.id === LOBBY);
+    this.data.rooms = lobby ? [lobby, ...reordered] : reordered;
+    this.save();
+    return this.rooms;
+  }
+
+  addRoom({ name, description, members, profile }) {
     let id;
     do id = randomKey();
     while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, createdAt: new Date().toISOString() });
+    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, profile, createdAt: new Date().toISOString() });
     room.members = room.members.filter((k) => this.userByKey(k));
     this.data.rooms.push(room);
     this.save();
@@ -445,6 +501,10 @@ class Store {
       if (!Array.isArray(patch.members)) throw new StoreError('members must be a list of user keys');
       room.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
     }
+    if (patch.profile !== undefined) {
+      if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
+      room.profile = patch.profile;
+    }
     this.save();
     return this.roomById(id);
   }
@@ -459,6 +519,51 @@ class Store {
     return room;
   }
 
+  // --- invites --------------------------------------------------------------
+  // A link an admin hands out that signs someone up and drops them straight
+  // into the rooms picked when it was made (the Lobby always, everyone is
+  // there already). Single use, expires on its own after a week.
+
+  sanitizeInvite(i) {
+    if (!i || typeof i !== 'object') return null;
+    const token = typeof i.token === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(i.token) ? i.token : null;
+    if (!token) return null;
+    return {
+      token,
+      rooms: Array.isArray(i.rooms) ? [...new Set(i.rooms.filter((id) => typeof id === 'string'))] : [],
+      createdAt: typeof i.createdAt === 'string' ? i.createdAt : new Date().toISOString(),
+      expiresAt: typeof i.expiresAt === 'string' ? i.expiresAt : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+    };
+  }
+
+  // Live invites only -- expired ones are swept out the moment anything asks.
+  get invites() {
+    const now = Date.now();
+    const live = this.data.invites.filter((i) => new Date(i.expiresAt).getTime() > now);
+    if (live.length !== this.data.invites.length) {
+      this.data.invites = live;
+      this.save();
+    }
+    return live;
+  }
+
+  createInvite(rooms) {
+    const wanted = (Array.isArray(rooms) ? rooms : []).filter((id) => id !== LOBBY && this.data.rooms.some((r) => r.id === id));
+    const invite = this.sanitizeInvite({ token: randomToken(24), rooms: wanted });
+    this.data.invites.push(invite);
+    this.save();
+    return invite;
+  }
+
+  inviteByToken(token) {
+    return this.invites.find((i) => i.token === token) || null;
+  }
+
+  removeInvite(token) {
+    this.data.invites = this.data.invites.filter((i) => i.token !== token);
+    this.save();
+  }
+
   roomImagePath(id) {
     const dir = path.join(this.imagesDir, 'rooms');
     if (!/^[a-z0-9]{4,16}$/.test(id) || !fs.existsSync(dir)) return null;
@@ -471,7 +576,7 @@ class Store {
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
-    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError('image is larger than 5 MB');
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
     this.removeRoomImage(id);
     const dir = path.join(this.imagesDir, 'rooms');
     fs.mkdirSync(dir, { recursive: true });
@@ -484,49 +589,71 @@ class Store {
   }
 
   // --- images -------------------------------------------------------------
+  // A slot's file lives at images/<key>/<file>, or images/<key>/rooms/<roomId>/<file>
+  // for a room-specific override -- a second, independent picture set for
+  // the same slot, that only applies inside that one room.
 
-  imagePath(key, slot) {
+  imageDir(key, roomId) {
+    return roomId ? path.join(this.imagesDir, key, 'rooms', roomId) : path.join(this.imagesDir, key);
+  }
+
+  imageBucket(user, roomId) {
+    if (!roomId) return user.images;
+    return (user.rooms[roomId] ??= { images: {} }).images;
+  }
+
+  imagePath(key, slot, roomId) {
     const user = this.userByKey(key);
-    const file = user?.images?.[slot];
+    if (!user) return null;
+    const file = roomId ? user.rooms[roomId]?.images?.[slot] : user.images[slot];
     if (!file) return null;
-    const full = path.join(this.imagesDir, key, file);
+    const full = path.join(this.imageDir(key, roomId), file);
     return fs.existsSync(full) ? full : null;
   }
 
-  // The file to serve for a slot. Only the player image has a fallback (the
-  // initials plate is drawn by the server); every other slot is optional and
-  // simply absent when not set, so overlays stay transparent.
-  resolveImage(key, slot) {
-    const full = this.imagePath(key, slot);
+  // The file to serve for a slot. Only the profile picture has a fallback
+  // (the initials plate is drawn by the server); every other slot is
+  // optional and simply absent when not set, so overlays stay transparent.
+  resolveImage(key, slot, roomId) {
+    const full = this.imagePath(key, slot, roomId);
     return full ? { file: full, slot } : null;
   }
 
-  setImage(key, slot, buffer, contentType) {
+  // The room's own picture if it has one for this slot, else the global
+  // default -- what OBS actually wants to show for that room.
+  effectiveImage(key, slot, roomId) {
+    return (roomId && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
+  }
+
+  setImage(key, slot, buffer, contentType, roomId) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
     if (!SLOTS.includes(slot)) throw new StoreError('unknown image slot');
+    if (roomId && !this.roomById(roomId)) throw new StoreError('no such room', 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
-    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError('image is larger than 5 MB');
-    const dir = path.join(this.imagesDir, key);
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
+    const dir = this.imageDir(key, roomId);
     fs.mkdirSync(dir, { recursive: true });
-    const previous = user.images[slot];
+    const bucket = this.imageBucket(user, roomId);
+    const previous = bucket[slot];
     const file = `${slot}-${Date.now().toString(36)}.${ext}`;
     fs.writeFileSync(path.join(dir, file), buffer);
-    user.images[slot] = file;
+    bucket[slot] = file;
     this.save();
     if (previous && previous !== file) fs.rmSync(path.join(dir, previous), { force: true });
     return file;
   }
 
-  removeImage(key, slot) {
+  removeImage(key, slot, roomId) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
-    const previous = user.images[slot];
-    delete user.images[slot];
+    const bucket = roomId ? user.rooms[roomId]?.images : user.images;
+    const previous = bucket?.[slot];
+    if (bucket) delete bucket[slot];
     this.save();
-    if (previous) fs.rmSync(path.join(this.imagesDir, key, previous), { force: true });
+    if (previous) fs.rmSync(path.join(this.imageDir(key, roomId), previous), { force: true });
   }
 
   // Site images: images/site/<name>.<ext>. "icon" is the server icon and
@@ -544,7 +671,7 @@ class Store {
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
-    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError('image is larger than 5 MB');
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
     this.removeSiteImage(name);
     const dir = path.join(this.imagesDir, 'site');
     fs.mkdirSync(dir, { recursive: true });
@@ -568,4 +695,7 @@ class StoreError extends Error {
   }
 }
 
-module.exports = { Store, StoreError, SLOTS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin };
+module.exports = {
+  Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
+  LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+};

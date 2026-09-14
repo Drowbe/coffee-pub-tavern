@@ -14,26 +14,23 @@ name, a status line, a link. Keep new admin surfaces to this shape rather than g
 another inline editor on a list -- it is why the two existing ones scaled badly enough to
 need rebuilding.
 
-## Profile page: a section per room, once per-room overrides exist
+## Studio needs to read a room's profile
 
-`/profile` (and its admin edit mode) already splits into **User** and **Default Images**,
-with a quick-jump nav between them instead of one long scroll. What's still missing: a
-section *per room* the user belongs to, below the defaults, so a player in two campaigns
-can give each its own Character images without one overwriting the other -- this needs the
-per-room override data model to exist first (there's nowhere to save it yet). Decide, field
-by field, which settings stay self-service and which stay admin-only as each section
-lands -- the split already exists at the global level (a player's own photo is
-self-service, the Player box's admin-set "Online" picture is not, because it can be part
-of a matched OBS image set) and needs re-deciding per room, not assumed uniform.
+A room's **profile** (Roleplaying / Participants / Characters, set on its config page) now
+decides which of the Participant and Character image groups actually exist for it -- both
+on a member's per-room profile section and, in principle, in what Coffee Pub Studio should
+offer to publish. Studio doesn't read `room.profile` yet, so today it still offers Character
+sources for a Participants-only room (and vice versa) with nothing behind them. Studio's own
+TODO.md should pick this up: fetch the room's profile alongside its members and grey out (or
+just not build) the source kind the profile doesn't offer.
 
-## Room profiles: a room's type gates its own settings
+## Guest participants
 
-A room picks a **profile** (e.g. "Gaming", "Conference") that decides which settings even
-exist for it and which options Studio's publish UI offers for it -- a Gaming room offers
-both Player and Character images (and their per-room overrides above); a Conference room
-offers only Player images, with no Character concept to configure or publish at all.
-Design this alongside the per-room section work above, not before it -- what a room's own
-config page and a user's per-room section show both depend on the room's profile.
+Not started. Someone joins with just a name -- no account, no profile, a generic "guest" set
+of Participant images standing in for the usual per-user ones -- and is removed the moment
+they leave, with nothing kept about them afterward. Needs its own join path (distinct from
+signing in or a personal link) and a way for the table/OBS side to render a guest tile
+without a real user key behind it.
 
 ## Follow the admin: who drives the stream
 

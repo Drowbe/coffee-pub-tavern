@@ -35,7 +35,14 @@
       <div class="fields">
         <label>Name<input id="e-name" type="text" maxlength="40"></label>
         <label class="wide">Description<textarea id="e-description" rows="3" maxlength="300"></textarea></label>
+        <label>Profile<select id="e-profile">
+          <option value="roleplaying">Roleplaying -- Participant and Character images</option>
+          <option value="participants">Participants -- Participant images only</option>
+          <option value="characters">Characters -- Character images only</option>
+        </select></label>
       </div>
+      <p class="hint">Decides which image sections show up for this room on a member's own profile page,
+        and which ones Coffee Pub Studio offers to publish for it.</p>
       <div class="row">
         <button class="btn btn-primary btn-small" id="save-btn" type="button">Save</button>
         <span class="status" id="save-status"></span>

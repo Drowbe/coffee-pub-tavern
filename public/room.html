@@ -124,7 +124,12 @@
       <label>Camera<select id="cam-select"></select></label>
       <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
       <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
-      <label class="check"><input type="checkbox" id="blur"> Blur my background <span class="hint">(fetches a small ML model the first time)</span></label>
+      <label>Background<select id="background-mode">
+        <option value="none">Off (your real background)</option>
+        <option value="blur">Blur</option>
+        <option value="image">Custom image (set on your profile page)</option>
+      </select></label>
+      <p class="hint">Blur or a custom image fetch a small ML model the first time you turn either on.</p>
       <h3>Layout</h3>
       <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
       <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>

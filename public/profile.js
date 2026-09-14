@@ -4,11 +4,16 @@
 // changed, rather than a flat table of everyone on the Manage page.
 import { loadBranding, api, wireOverlayBack } from '/brand.js';
 
+const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted'];
+const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
+const ROOM_PROFILE_SLOTS = { roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS], participants: PARTICIPANT_SLOTS, characters: CHARACTER_SLOTS };
+
 const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
 let me = null; // the signed-in admin, only used for the "last admin" check
 let user = null; // whose profile this is: me, or the person being edited
 let streamKey = '';
+let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
 
 function say(text, error = false) {
   $('status').textContent = text;
@@ -55,6 +60,15 @@ function render() {
   $('whoami-img').hidden = false;
   $('whoami').textContent = me ? me.displayName : user.displayName;
   $('name').textContent = user.displayName;
+
+  const hasBg = !!user.images.background;
+  $('background').hidden = !hasBg;
+  if (hasBg) $('background').src = imgUrl('background');
+  $('background-slot').querySelector('.unset').hidden = hasBg;
+  $('background-clear').hidden = !hasBg;
+  $('background-hint').textContent = editing
+    ? `${user.displayName}'s background image in the call, an alternative to blur. Unset uses blur or their real background instead.`
+    : 'A still picture behind you in the call, instead of your real background -- an alternative to blur, in Settings. Leave it unset to use blur or your actual background instead.';
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
   $('editing-tag').hidden = !editing;
   $('portrait-hint').textContent = editing
@@ -91,15 +105,9 @@ function render() {
     $('link-new').textContent = user.link ? 'Regenerate' : 'Create';
   }
 
-  const p = user.player.effective;
-  $('f-border').textContent = p.border ? `On, in ${p.borderColor}` : 'Off';
-  $('f-muted').textContent = p.mutedBorder ? `On, in ${p.mutedColor}` : 'Off';
-  $('f-plate').textContent = p.plate ? 'On, your name in the corner' : 'Off';
-  for (const el of document.querySelectorAll('#f-border')) el.style.setProperty('--swatch', p.borderColor);
-
   $('images-heading').textContent = editing ? 'Default Images' : 'Your Default Images';
   $('player-images-hint').textContent = editing
-    ? "The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings."
+    ? "The participant's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings."
     : 'Your video box. Offline shows the Offline picture (or nothing). Online shows your camera, or the Online picture when your camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.';
   $('character-images-hint').textContent = editing
     ? 'A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.'
@@ -124,7 +132,96 @@ function render() {
     const self = me && user.key === me.key;
     $('delete-btn').hidden = self;
   }
+
+  renderRoomSections();
 }
+
+// --- per-room images -------------------------------------------------------
+// One section per real room this person belongs to (never the Lobby --
+// per-room images are for rooms an admin actually picked them into). A
+// room's profile decides which of the two groups it even offers; an unset
+// slot here simply uses the Default Images above, so someone in two
+// campaigns can give each its own Character images without the other
+// campaign's set ever needing to be touched.
+
+function buildRoomSection(roomId) {
+  const section = $('room-section-template').content.firstElementChild.cloneNode(true);
+  section.id = `section-room-${roomId}`;
+  section.dataset.room = roomId;
+  $('room-sections').appendChild(section);
+  const link = document.createElement('a');
+  link.className = 'subtab';
+  link.href = `#section-room-${roomId}`;
+  document.querySelector('.section-nav').appendChild(link);
+  return section;
+}
+
+function fillRoomSection(section, room, roomImages) {
+  const editing = !!editingKey;
+  section.querySelector('.room-section-title').textContent = room.name;
+  section.querySelector('.room-section-hint').textContent = editing
+    ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Images above.`
+    : `Your images just for ${room.name}. Anything left unset here uses your Default Images above.`;
+  document.querySelector(`a[href="#section-room-${room.id}"]`).textContent = room.name;
+
+  const allowed = ROOM_PROFILE_SLOTS[room.profile] || ROOM_PROFILE_SLOTS.roleplaying;
+  section.querySelector('[data-group="participant"]').hidden = !PARTICIPANT_SLOTS.some((s) => allowed.includes(s));
+  section.querySelector('[data-group="character"]').hidden = !CHARACTER_SLOTS.some((s) => allowed.includes(s));
+
+  for (const slot of section.querySelectorAll('.slot')) {
+    const name = slot.dataset.slot;
+    const hasOwn = !!roomImages.images[name];
+    const hasEffective = hasOwn || !!user.images[name];
+    const img = slot.querySelector('img');
+    img.hidden = !hasEffective;
+    if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?room=${encodeURIComponent(room.id)}&v=${Date.now()}`;
+    slot.querySelector('.unset').hidden = hasEffective;
+    slot.classList.toggle('set', hasOwn);
+    slot.querySelector('.slot-pick').classList.toggle('still', !editing);
+    slot.querySelector('[data-action="slot-clear"]').hidden = !editing || !hasOwn;
+  }
+}
+
+function renderRoomSections() {
+  const userRooms = user.rooms || {};
+  const keep = new Set(Object.keys(userRooms));
+  for (const [roomId, roomImages] of Object.entries(userRooms)) {
+    const room = roomsById.get(roomId);
+    if (!room) continue; // a room we don't know about yet (shouldn't happen); skip rather than crash
+    const section = $(`section-room-${roomId}`) || buildRoomSection(roomId);
+    fillRoomSection(section, room, roomImages);
+  }
+  for (const section of [...$('room-sections').children]) {
+    if (keep.has(section.dataset.room)) continue;
+    document.querySelector(`a[href="#section-room-${section.dataset.room}"]`)?.remove();
+    section.remove();
+  }
+}
+
+$('room-sections').addEventListener('change', (event) => {
+  if (!editingKey || event.target.type !== 'file') return;
+  const roomId = event.target.closest('.room-section').dataset.room;
+  const slot = event.target.closest('.slot').dataset.slot;
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  run(async () => {
+    say(`uploading ${slot}...`);
+    user = (await api('PUT', `/api/users/${user.key}/rooms/${roomId}/images/${slot}`, file, file.type)).user;
+    render();
+    say('image saved');
+  });
+});
+$('room-sections').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action="slot-clear"]');
+  if (!button || !editingKey) return;
+  const roomId = button.closest('.room-section').dataset.room;
+  const slot = button.closest('.slot').dataset.slot;
+  run(async () => {
+    user = (await api('DELETE', `/api/users/${user.key}/rooms/${roomId}/images/${slot}`)).user;
+    render();
+  });
+});
 
 // --- portrait: self-service, or an admin overriding it for someone else ----
 // Nothing on a user's account is admin-proof, this photo included -- an
@@ -150,6 +247,32 @@ $('portrait-clear').addEventListener('click', async () => {
   try {
     if (editingKey) user = (await api('DELETE', `/api/users/${user.key}/images/profile`)).user;
     else { await api('DELETE', '/api/me/images/profile'); await reload(); }
+    render();
+    say('image removed');
+  } catch (err) {
+    say(err.message, true);
+  }
+});
+
+$('background-file').addEventListener('change', async () => {
+  const file = $('background-file').files[0];
+  if (!file) return;
+  try {
+    say('uploading...');
+    if (editingKey) user = (await api('PUT', `/api/users/${user.key}/images/background`, file, file.type)).user;
+    else { await api('PUT', '/api/me/images/background', file, file.type); await reload(); }
+    render();
+    say('image saved');
+  } catch (err) {
+    say(err.message, true);
+  }
+  $('background-file').value = '';
+});
+
+$('background-clear').addEventListener('click', async () => {
+  try {
+    if (editingKey) user = (await api('DELETE', `/api/users/${user.key}/images/background`)).user;
+    else { await api('DELETE', '/api/me/images/background'); await reload(); }
     render();
     say('image removed');
   } catch (err) {
@@ -248,7 +371,8 @@ async function init() {
       if (me.role !== 'admin') { location.href = '/'; return; }
       streamKey = mine.streamKey || '';
     }
-    await reload();
+    const [, { rooms }] = await Promise.all([reload(), api('GET', '/api/rooms')]);
+    roomsById = new Map(rooms.map((r) => [r.id, r]));
   } catch (err) {
     location.href = editingKey ? '/admin' : '/login?next=/profile';
     return;

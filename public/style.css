@@ -302,10 +302,14 @@ select {
   100% { transform: translate(-50%, -110px) scale(1); opacity: 0; }
 }
 
-/* The reaction tray: a row of big buttons above the bar. */
+/* The reaction tray: big buttons above the bar, wrapping to more rows
+   rather than running off the edges of the screen (or, worse, the much
+   narrower popped-out window) once there are enough of them. */
 .popover.tray {
-  width: auto;
+  width: min(360px, calc(100% - 24px));
   flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
   padding: 8px;
 }
@@ -598,6 +602,15 @@ select {
 .slot-pick.big {
   width: 128px;
   height: 128px;
+}
+
+/* A profile photo is a real photo, not a transparent OBS overlay -- fill
+   the square properly (cropping instead of letterboxing) at the size the
+   slot actually is, rather than the smaller generic .slot img default. */
+.slot-pick.big img {
+  width: 128px;
+  height: 128px;
+  object-fit: cover;
 }
 
 .slot-pick.still {
@@ -1705,7 +1718,8 @@ body.at-table .topbar {
 }
 
 #section-user,
-#section-images {
+#section-images,
+.room-section {
   scroll-margin-top: 70px;
 }
 

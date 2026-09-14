@@ -1,7 +1,7 @@
 import { loadBranding, api } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
-loadBranding();
+loadBranding().then((b) => { $('register-note').hidden = !b.allowRegistration; });
 
 $('login').addEventListener('submit', async (event) => {
   event.preventDefault();

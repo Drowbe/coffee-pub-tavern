@@ -102,10 +102,35 @@
       </div>
 
       <div class="panel">
-      <h2>Player video defaults</h2>
-      <p class="hint">Borders are drawn around the OBS boxes while the player talks or while their microphone is off. Untick one to never draw it. They are the same for everyone.</p>
+      <h2>Sign-up</h2>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-allow-registration"> Let anyone at /register sign themselves up (they land in the Lobby, same as everyone)</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-registration" type="button">Save</button>
+        <span class="status" id="registration-status"></span>
+      </div>
+      <p class="hint">Or invite someone straight into specific rooms without opening sign-up to everyone:</p>
+      <div class="row">
+        <span class="field-label">Rooms</span>
+        <div class="member-checks" id="invite-rooms"></div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="make-invite" type="button">Generate invite link</button>
+        <span class="status" id="invite-status"></span>
+      </div>
+      <div class="row" id="invite-link-row" hidden>
+        <code class="key link" id="invite-link"></code>
+        <button class="btn btn-small" id="invite-copy" type="button">Copy</button>
+        <span class="hint">Expires in 7 days, works once.</span>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Participant video defaults</h2>
+      <p class="hint">Borders are drawn around the OBS boxes while the participant talks or while their microphone is off. Untick one to never draw it. They are the same for everyone.</p>
       <div class="row borders-row">
-        <span class="field-label">Player borders</span>
+        <span class="field-label">Participant borders</span>
         <label class="check"><input type="checkbox" id="set-border"> Talking <input type="color" id="set-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-muted-border"> Muted <input type="color" id="set-muted-color" value="#b8503f"></label>
         <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
@@ -117,9 +142,9 @@
         <label class="check">Width <input type="number" id="set-char-border-width" min="1" max="24" step="1" value="6"> px</label>
       </div>
       <div class="row">
-        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the player's name in the corner</label>
+        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the participant's name in the corner</label>
       </div>
-      <p class="hint">While the Player box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
+      <p class="hint">While the Participant box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-picture-bg"> Colour behind the picture</label>
         <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
@@ -172,6 +197,8 @@
         <strong data-name></strong>
         <span class="meta" data-meta></span>
       </div>
+      <button class="btn btn-small" data-action="room-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="room-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
       <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit room</a>
     </article>
   </template>
