@@ -1074,7 +1074,11 @@ room
     currentRoom = null;
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
-    $('join').hidden = false;
+    // A guest has no session and no room to pick from -- back to their own
+    // name-only form for the one room their link is for, not the real
+    // members' room list (which they can't do anything with anyway).
+    $('join').hidden = !!guestToken;
+    $('guest-join').hidden = !guestToken;
     $('away').hidden = true;
     $('room-now').hidden = true;
     $('leave-top').hidden = true;
