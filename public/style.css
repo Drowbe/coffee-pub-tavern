@@ -1496,6 +1496,21 @@ body.at-table .topbar {
   border-color: var(--accent);
 }
 
+/* Picked to step aside together, pending confirmation: stays visible even
+   without hovering, so a multi-person selection is easy to keep track of. */
+.tile-aside.selected {
+  opacity: 1;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+#aside-confirm {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* --- small windows (pop out, phones) --------------------------------------- */
 
 .stage.compact .grid {

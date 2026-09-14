@@ -448,26 +448,29 @@ app.get('/api/table', async (req, res) => {
   });
 });
 
-// An admin pulls a player (or another admin) who is currently at the table
-// into a new private room with them, for a word away from everyone else.
-// LiveKit here is a single, un-clustered node, so there is no server-side
-// "move a live participant" primitive to lean on: the admin's own browser
-// gets the new room directly in this response and reconnects itself; the
-// other party gets a data-channel nudge (the same mechanism chat already
-// uses) telling their page which room to reconnect to.
+// An admin pulls one or more people who are currently in their room into a
+// new room with them, for a word away from the rest of the table. LiveKit
+// here is a single, un-clustered node, so there is no server-side "move a
+// live participant" primitive to lean on: the admin's own browser gets the
+// new room directly in this response and reconnects itself; everyone else
+// pulled gets a data-channel nudge (the same mechanism chat already uses)
+// telling their page which room to reconnect to.
 app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
   try {
     const admin = currentUser(req);
-    const target = typeof req.body?.with === 'string' && store.userByKey(req.body.with);
-    if (!target) return res.status(400).json({ error: 'no such user' });
-    if (target.key === admin.key) return res.status(400).json({ error: 'pick someone else' });
+    const raw = req.body?.with;
+    const keys = [...new Set(Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [])];
+    const targets = keys.filter((k) => k !== admin.key).map((k) => store.userByKey(k)).filter(Boolean);
+    if (!targets.length) return res.status(400).json({ error: 'pick someone to pull aside' });
     const adminRoom = await roomOf(admin.key);
     if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
-    const targetRoom = await roomOf(target.key);
-    if (!targetRoom) return res.status(404).json({ error: `${target.displayName} is not at the table` });
-    const room = store.addAsideRoom([admin.key, target.key], roomIdOfLivekit(adminRoom));
+    for (const target of targets) {
+      const targetRoom = await roomOf(target.key);
+      if (targetRoom !== adminRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
+    }
+    const room = store.addAsideRoom([admin.key, ...targets.map((t) => t.key)], roomIdOfLivekit(adminRoom));
     const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
-    await roomService.sendData(targetRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: [target.key], topic: 'pull-aside' });
+    await roomService.sendData(adminRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
     res.json({ room });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });

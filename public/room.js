@@ -8,6 +8,7 @@ const stageEl = document.getElementById('stage');
 const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`));
 const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
+const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
 let tableName = 'The Table';
 const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
@@ -177,9 +178,10 @@ function tileFor(participant) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
-      aside.title = `Pull ${participant.name || participant.identity} aside for a private word`;
+      aside.title = `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`;
       aside.innerHTML = '<i class="fa-solid fa-door-open" aria-hidden="true"></i>';
-      aside.addEventListener('click', (e) => { e.stopPropagation(); pullAside(participant.identity); });
+      aside.classList.toggle('selected', asideSelection.has(participant.identity));
+      aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
     }
   }
@@ -433,6 +435,7 @@ function removeParticipant(participant) {
   const tile = tiles.get(participant.identity);
   if (tile) tile.remove();
   tiles.delete(participant.identity);
+  if (asideSelection.delete(participant.identity)) updateAsideConfirm();
   applyLayout();
   stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
 }
@@ -887,6 +890,8 @@ room
     $('room-now').hidden = true;
     $('leave-top').hidden = true;
     $('back-to-table').hidden = true;
+    asideSelection.clear();
+    updateAsideConfirm();
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
@@ -929,11 +934,28 @@ async function reconnectTo(roomId, statusText) {
   await join(roomId);
 }
 
-// Admin only: pull someone who is currently at the table into a new room
-// with just the two of us, for a private word.
-async function pullAside(identity) {
+// Admin only: pick who to pull into a private room with me -- click a
+// tile's door icon to add or remove them, then confirm once ready.
+function toggleAsideSelection(identity, button) {
+  if (asideSelection.has(identity)) asideSelection.delete(identity);
+  else asideSelection.add(identity);
+  button.classList.toggle('selected', asideSelection.has(identity));
+  updateAsideConfirm();
+}
+
+function updateAsideConfirm() {
+  const button = $('aside-confirm');
+  if (!button) return;
+  button.hidden = asideSelection.size === 0;
+  button.textContent = asideSelection.size === 1 ? 'Step aside' : `Step aside with ${asideSelection.size}`;
+}
+
+// Admin only: pull one or more people who are currently at the table into a
+// new room with me, for a word away from the rest.
+async function pullAside(identities) {
   try {
-    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identity });
+    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identities });
+    asideSelection.clear();
     await reconnectTo(asideRoom.id, 'stepping aside...');
   } catch (err) {
     setStatus(`pull aside: ${err.message}`, true);
@@ -1113,6 +1135,7 @@ async function restartCamera() {
 $('leave').addEventListener('click', () => room.disconnect());
 $('leave-top').addEventListener('click', () => room.disconnect());
 $('back-to-table').addEventListener('click', () => returnToTable());
+$('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());

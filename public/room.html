@@ -21,7 +21,7 @@
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
     <nav class="links" id="links">
-      <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the Lobby" hidden>Back to the table</button>
+      <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
       <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
@@ -63,6 +63,10 @@
       <span data-brand="serverName">Coffee Pub Tavern</span>
       <span class="status" id="status"></span>
     </div>
+
+    <!-- Admin only: shown once one or more tiles are picked with the door
+         icon, to confirm pulling all of them into a private room together. -->
+    <button class="float btn btn-primary" id="aside-confirm" type="button" hidden>Step aside</button>
 
     <div class="float floatbar" id="floatbar">
       <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
