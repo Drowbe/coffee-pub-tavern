@@ -1141,6 +1141,23 @@ body.at-table .topbar {
   transform: translateX(-50%) translateY(8px);
 }
 
+/* Popped out, the pill centres on the whole window -- with chat open that
+   puts it right under the chat panel on the right. Keep it centred on the
+   video area instead (the chat's own width, so they stay in sync), and let
+   it wrap to more than one row rather than spill under the chat. */
+.popout .stage.chat-open .floatbar {
+  left: 16px;
+  right: min(320px, 100%);
+  width: auto;
+  max-width: none;
+  transform: none;
+  flex-wrap: wrap;
+}
+
+.popout .stage.idle.chat-open .floatbar {
+  transform: translateY(8px);
+}
+
 .fbtn {
   position: relative;
   width: 44px;
