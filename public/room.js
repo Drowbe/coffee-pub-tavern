@@ -1195,9 +1195,12 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
   $('guest-join-error').hidden = true;
   try {
     setStatus('connecting...');
-    currentRoom = { id: roomId, name: roomName };
     tableName = roomName;
     await loadTable();
+    // The full room object (members, ephemeral, ...), same as a real
+    // member's join -- not just the {id, name} guest-join handed back, or
+    // anything reading currentRoom.members downstream breaks.
+    currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);
