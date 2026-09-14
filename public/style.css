@@ -691,9 +691,9 @@ select {
 }
 
 .tile.has-bg-image .placeholder {
+  inset: auto;
   top: 50%;
   left: 50%;
-  inset: auto;
   width: 38%;
   height: 38%;
   min-width: 72px;
@@ -1494,6 +1494,14 @@ body.at-table .topbar {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
+}
+
+/* .popover label defaults to a column (field label above its input), but a
+   checkbox's own label reads left to right: the box, then its text. */
+.popover label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .fbtn.gated .meter {
