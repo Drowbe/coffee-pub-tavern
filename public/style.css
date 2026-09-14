@@ -1533,7 +1533,7 @@ body.at-table .topbar {
 }
 
 .stage.chat-open .grid {
-  width: calc(100% - min(320px, 100%));
+  width: calc(100% - var(--chat-w, min(320px, 100%)));
 }
 
 .popover {
