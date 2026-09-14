@@ -1692,6 +1692,23 @@ body.at-table .topbar {
   margin-top: 0;
 }
 
+/* A quick-jump nav for a page split into sections (the profile page): plain
+   anchor links styled like the subtabs, but they scroll instead of
+   switching a hidden panel -- every section stays on the page at once. */
+.section-nav {
+  margin-bottom: 16px;
+}
+
+.section-nav a.subtab {
+  text-decoration: none;
+  display: inline-block;
+}
+
+#section-user,
+#section-images {
+  scroll-margin-top: 70px;
+}
+
 .section-head .btn {
   margin-left: auto;
 }
@@ -1730,11 +1747,21 @@ body.at-table .topbar {
 }
 
 .room-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-dim);
   font-size: 14px;
+}
+
+.room-thumb .thumb {
+  width: 100%;
+  height: 100%;
 }
 
 .member-checks {

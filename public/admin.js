@@ -365,7 +365,7 @@ $('stream-regen').addEventListener('click', async () => {
 
 async function init() {
   await loadBranding();
-  wireOverlayBack();
+  wireOverlayBack('Rooms');
   try {
     const info = await api('GET', '/api/me');
     me = info.user;

@@ -57,8 +57,10 @@ export async function api(method, url, body, contentType) {
 // one in an iframe rather than navigating away, so the call underneath
 // keeps running). Adds a "Back to [room]" link to this page's own header,
 // which closes the overlay via the parent window -- same origin, so a
-// direct call, no postMessage plumbing needed.
-export function wireOverlayBack() {
+// direct call, no postMessage plumbing needed. A page that isn't "about"
+// the room itself (Manage, say) can pass its own label instead of the
+// room's name.
+export function wireOverlayBack(label) {
   const params = new URLSearchParams(location.search);
   if (params.get('from') !== 'room' || window.parent === window) return;
   const nav = document.querySelector('.topbar nav.links');
@@ -67,7 +69,7 @@ export function wireOverlayBack() {
   back.type = 'button';
   back.className = 'btn btn-small';
   const room = params.get('room');
-  back.textContent = room ? `← Back to ${room}` : '← Back to the table';
+  back.textContent = label ? `← Back to ${label}` : room ? `← Back to ${room}` : '← Back to the table';
   back.addEventListener('click', () => {
     try {
       window.parent.closeProfileOverlay?.();
