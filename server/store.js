@@ -83,7 +83,7 @@ function cleanTri(value) {
   return value === true || value === false ? value : null;
 }
 
-// A reaction tray: up to 12 { id, glyph, label } entries, ids unique and
+// A reaction tray: { id, glyph, label } entries, ids unique and
 // URL/topic-safe. An empty array is valid -- an admin can turn the tray off.
 // A caller need not supply an id (the admin page's own editor does not
 // track one either): one is made up from the label or glyph, falling back
@@ -94,7 +94,7 @@ function cleanReactions(value) {
   const seen = new Set();
   const out = [];
   for (const r of value) {
-    if (!r || typeof r !== 'object' || out.length >= 12) continue;
+    if (!r || typeof r !== 'object') continue;
     const glyph = cleanText(r.glyph, 8);
     if (!glyph) continue;
     const label = cleanText(r.label, 40) || glyph;
