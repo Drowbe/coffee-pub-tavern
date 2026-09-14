@@ -20,9 +20,15 @@ for that app's side of things (Windows OBS capture work, mainly).
   touch your mic or leave the call.
 - **Admin-editable reactions** (Manage > Settings): add, remove, reorder, edit glyph and
   label. No longer a hardcoded six baked into the client.
-- **Profile/Manage links open in a new tab** from inside a call, so they no longer drop
-  the WebRTC connection (which is unavoidable on a same-tab navigation -- there is no way
-  to navigate away and back without actually leaving the call).
+- **Profile/Manage from inside a call load in an in-page overlay** (an iframe, with an
+  "Away · viewing ..." bar and a Back to [room] button), not a new tab and not a real
+  navigation -- the call keeps running underneath the whole time, verified end to end (the
+  first version used a new tab; that was a workaround, not this fix).
+- **Editing moved from one flat admin table to each user's own profile page.** An admin
+  visiting `/profile/<key>` gets the same page a player sees at `/profile`, in edit mode
+  for that person (account, images, personal link, OBS link, mute/kick/delete); a player's
+  own `/profile` stays limited to their own photo, same as before. The Manage roster is now
+  just status + a link to each profile, not a second editor.
 
 ## Follow the admin: who drives the stream
 
@@ -49,28 +55,19 @@ design pass, not a quick extension. The data model already allows more than one 
 room to exist at once; what's missing is a way to move between existing asides (today you
 can only create a new one) and the operator-switch capability above.
 
-## User/room model: editing moves to each user's own profile
-
-The admin page currently edits every user's settings (borders, images, publish state) on
-one flat page. That gets worse once settings are per-room (next item) -- move editing onto
-each user's own profile page (admin can open/edit someone else's, same as today, just not
-from one giant table). Keep a separate, lightweight admin overview/roster page for
-cross-user things that genuinely need one place: bulk publish-all, "who's missing a
-character image," at a glance -- that page reads the same per-room data but does not
-become the place edits happen.
-
-Decide, field by field, which settings stay self-service and which stay admin-only when
-this lands -- the split already exists at the global level (a player's own photo is
-self-service, the Player box's admin-set "Online" picture is not, because it can be part
-of a matched OBS image set) and needs re-deciding per room, not assumed uniform.
-
 ## Per-room character settings
 
-A user's character settings (images, in the future border overrides -- to be decided
-field by field, see above) become per-(user, room) instead of purely global: someone in
-two campaigns needs two characters. The current global values become the default a room
-falls back to when it has no override of its own; changing the default should not
-retroactively touch a room that already has its own override.
+A user's character settings (images, in the future border overrides) become per-(user,
+room) instead of purely global: someone in two campaigns needs two characters. The current
+global values become the default a room falls back to when it has no override of its own;
+changing the default should not retroactively touch a room that already has its own
+override.
+
+Decide, field by field, which settings stay self-service and which stay admin-only when
+this lands on top of the new profile pages -- the split already exists at the global level
+(a player's own photo is self-service, the Player box's admin-set "Online" picture is not,
+because it can be part of a matched OBS image set) and needs re-deciding per room, not
+assumed uniform.
 
 ## Room "type"
 
