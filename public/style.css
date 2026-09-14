@@ -2075,3 +2075,42 @@ input[type="color"] {
   text-transform: none;
   letter-spacing: normal;
 }
+
+/* Icon/background pickers on the settings page: a small round remove button
+   over the corner instead of a separate Remove button and a label that just
+   repeats the heading above it. */
+.slot-pick-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.slot-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.slot-remove:hover {
+  background: color-mix(in srgb, var(--danger) 85%, white);
+}
+
+/* The icon shows at 24-40px in real use (the header, the sign-in page); a
+   preview close to that size shows how it'll actually read instead of a
+   detailed picture that turns to mush once it's shrunk down. */
+.slot-pick.icon-size {
+  width: 40px;
+  height: 40px;
+}

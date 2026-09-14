@@ -72,7 +72,12 @@
       <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>
       <div class="brand-row">
         <div class="site-images">
-          <div class="slot" data-site="icon"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Icon</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+          <div class="slot" data-site="icon">
+            <div class="slot-pick-wrap">
+              <label class="slot-pick icon-size" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+              <button class="slot-remove" data-action="site-clear" type="button" title="Remove" aria-label="Remove">&times;</button>
+            </div>
+          </div>
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
@@ -89,7 +94,12 @@
       <p class="hint">A picture behind the sign-in box, and a note under the password field.</p>
       <div class="brand-row stretch">
         <div class="site-images">
-          <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+          <div class="slot" data-site="background">
+            <div class="slot-pick-wrap">
+              <label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+              <button class="slot-remove" data-action="site-clear" type="button" title="Remove" aria-label="Remove">&times;</button>
+            </div>
+          </div>
         </div>
         <div class="fields grow">
           <label class="wide"><textarea id="set-login-text" rows="3" maxlength="1000" aria-label="Text on the sign-in page" placeholder="A note under the password field"></textarea></label>
@@ -146,12 +156,16 @@
       </div>
       <p class="hint">While the Participant box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
       <div class="row">
-        <label class="check"><input type="checkbox" id="set-picture-bg"> Colour behind the picture</label>
-        <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
-        <label class="check">Picture size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> % of the box</label>
+        <label class="check"><input type="checkbox" id="set-picture-bg"> Video Background Color</label>
       </div>
       <div class="row">
-        <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
+        <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
+      </div>
+      <div class="row">
+        <label class="check">Portrait Size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> (Percentage of Video Area)</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
       </div>
       </div>
@@ -162,7 +176,7 @@
       <div class="reactions-list" id="reactions-list"></div>
       <div class="row">
         <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
-        <button class="btn btn-primary btn-small" id="save-reactions" type="button">Save</button>
+        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
         <span class="status" id="reactions-status"></span>
       </div>
       </div>

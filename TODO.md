@@ -24,6 +24,11 @@ sources for a Participants-only room (and vice versa) with nothing behind them. 
 TODO.md should pick this up: fetch the room's profile alongside its members and grey out (or
 just not build) the source kind the profile doesn't offer.
 
+## Desktop sharing
+
+Not started. A way to share a screen or window into the room, alongside (or instead of)
+the camera -- the usual video-call feature, not yet offered here.
+
 ## Guest participants
 
 Not started. Someone joins with just a name -- no account, no profile, a generic "guest" set
