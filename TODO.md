@@ -29,6 +29,12 @@ just not build) the source kind the profile doesn't offer.
 Not started. A way to share a screen or window into the room, alongside (or instead of)
 the camera -- the usual video-call feature, not yet offered here.
 
+## Scheduling
+
+Not started. A way to schedule when a room's session happens next (date/time, maybe a
+recurrence) and let members see it -- session logistics currently live outside the app
+entirely.
+
 ## Guest participants
 
 Not started. Someone joins with just a name -- no account, no profile, a generic "guest" set
