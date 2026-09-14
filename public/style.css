@@ -584,6 +584,17 @@ select {
   margin: 0;
 }
 
+.profile-title .tag {
+  align-self: flex-start;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--bg-card);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
 .slot-pick.big {
   width: 128px;
   height: 128px;
@@ -591,6 +602,7 @@ select {
 
 .slot-pick.still {
   cursor: default;
+  pointer-events: none;
 }
 
 .slot-pick.still:hover {
@@ -768,9 +780,6 @@ select {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-card);
-}
-
-.user-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -817,14 +826,6 @@ select {
 .live {
   color: var(--text-dim);
   font-size: 12px;
-}
-
-.user-body {
-  padding: 4px 12px 14px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .slots {
@@ -1886,10 +1887,6 @@ input[type="color"] {
   border-radius: 4px;
   background: var(--bg-input);
   cursor: pointer;
-}
-
-.user-body h3:first-child {
-  margin-top: 8px;
 }
 
 /* checkbox and picture labels inside panels keep normal text */

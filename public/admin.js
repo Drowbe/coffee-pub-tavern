@@ -26,14 +26,6 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
-function viewLink(user, card) {
-  const kind = card.querySelector('[data-view-kind]').value;
-  const q = new URLSearchParams({ s: streamKey, kind });
-  return `${user.viewUrl}?${q}`;
-}
-
-let defaults = { border: true, borderColor: '#6fae6b' };
-
 // Users / Rooms / Settings tabs, remembered in the address
 function selectTab(name) {
   const tab = name === 'settings' || name === 'rooms' ? name : 'users';
@@ -60,6 +52,9 @@ $('add-cancel').addEventListener('click', () => {
   $('new-link').checked = true;
 });
 
+// A card is just a roster row now: status, a thumbnail, quick mute/kick for
+// whoever is live, and a link to their profile page, which is the one place
+// any of a user's own settings actually get edited (see profile.js).
 function fill(card, user) {
   card.dataset.key = user.key;
   card.querySelector('[data-name]').textContent = user.displayName;
@@ -67,39 +62,7 @@ function fill(card, user) {
   card.querySelector('[data-role]').textContent = user.role;
   card.querySelector('[data-key]').textContent = user.key;
   card.querySelector('[data-thumb]').src = imgUrl(user.key, 'profile');
-  if (document.activeElement?.closest?.('.user-card') !== card) {
-    card.querySelector('[data-field="displayName"]').value = user.displayName;
-    card.querySelector('[data-field="login"]').value = user.login;
-    card.querySelector('[data-field="role"]').value = user.role;
-  }
-  card.querySelector('[data-action="clear-password"]').hidden = !user.hasPassword;
-  const link = card.querySelector('[data-link]');
-  link.textContent = user.link || 'off';
-  link.classList.toggle('dim', !user.link);
-  card.querySelector('[data-action="link-copy"]').hidden = !user.link;
-  card.querySelector('[data-action="link-off"]').hidden = !user.link;
-  card.querySelector('[data-action="link-new"]').textContent = user.link ? 'Regenerate' : 'Create';
-  for (const slot of card.querySelectorAll('.slot')) {
-    const name = slot.dataset.slot;
-    const has = !!user.images[name];
-    const img = slot.querySelector('img');
-    img.hidden = !has;
-    if (has) img.src = imgUrl(user.key, name);
-    slot.querySelector('.unset').hidden = has;
-    slot.classList.toggle('set', has);
-    slot.querySelector('[data-action="slot-clear"]').hidden = !has;
-  }
-  // The last admin cannot be demoted; say so before the click.
-  const admins = users.filter((u) => u.role === 'admin').length;
-  const lastAdmin = user.role === 'admin' && admins <= 1;
-  const self = me && user.key === me.key;
-  const userOption = card.querySelector('[data-field="role"] option[value="user"]');
-  userOption.disabled = lastAdmin || self;
-  card.querySelector('[data-role-note]').hidden = !lastAdmin;
-  if (self && !lastAdmin) card.querySelector('[data-role-note]').textContent = 'Another admin has to change your role.';
-  card.querySelector('[data-role-note]').hidden = !(lastAdmin || self);
-  card.querySelector('[data-view-open]').href = viewLink(user, card);
-  card.querySelector('[data-action="delete"]').hidden = self || lastAdmin;
+  card.querySelector('[data-action="edit"]').href = `/profile/${encodeURIComponent(user.key)}`;
   renderLive(card, user.online);
 }
 
@@ -129,115 +92,18 @@ function userOf(card) {
 }
 
 function wire(card) {
-  const status = card.querySelector('[data-status]');
-  const run = async (fn) => {
-    try {
-      await fn();
-    } catch (err) {
-      say(status, err.message, true);
-    }
-  };
   card.addEventListener('click', (event) => {
     const button = event.target.closest('[data-action]');
     if (!button || !card.contains(button)) return;
     const user = userOf(card);
     const action = button.dataset.action;
-    if (action === 'toggle') {
-      const body = card.querySelector('.user-body');
-      body.hidden = !body.hidden;
-      button.textContent = body.hidden ? 'Edit' : 'Close';
-    } else if (action === 'save') {
-      run(async () => {
-        const patch = {
-          displayName: card.querySelector('[data-field="displayName"]').value,
-          login: card.querySelector('[data-field="login"]').value,
-          role: card.querySelector('[data-field="role"]').value,
-        };
-        const password = card.querySelector('[data-field="password"]').value;
-        if (password) patch.password = password;
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, patch);
-        card.querySelector('[data-field="password"]').value = '';
-        replace(updated);
-        say(status, 'saved');
-      });
-    } else if (action === 'clear-password') {
-      run(async () => {
-        if (!user.link && !window.confirm(`${user.displayName} has no personal link. Without a password they cannot sign in. Remove it anyway?`)) return;
-        const { user: updated } = await api('PATCH', `/api/users/${user.key}`, { password: '' });
-        replace(updated);
-        say(status, 'password removed');
-      });
-    } else if (action === 'link-copy') {
-      copy(user.link, status);
-    } else if (action === 'link-new') {
-      run(async () => {
-        if (user.link && !window.confirm('Regenerate the link? The old one stops working.')) return;
-        const { user: updated } = await api('POST', `/api/users/${user.key}/link`);
-        replace(updated);
-        say(status, user.link ? 'new link made' : 'link created');
-      });
-    } else if (action === 'link-off') {
-      run(async () => {
-        const { user: updated } = await api('DELETE', `/api/users/${user.key}/link`);
-        replace(updated);
-        say(status, 'link turned off');
-      });
-    } else if (action === 'slot-clear') {
-      const slot = button.closest('.slot').dataset.slot;
-      run(async () => {
-        const { user: updated } = await api('DELETE', `/api/users/${user.key}/images/${slot}`);
-        replace(updated);
-      });
-    } else if (action === 'view-copy') {
-      copy(viewLink(user, card), status);
-    } else if (action === 'mute') {
-      run(async () => {
-        await api('POST', `/api/users/${user.key}/mute`, { muted: true });
-        say(status, 'muted');
-        refreshLive();
-      });
+    if (action === 'mute') {
+      api('POST', `/api/users/${user.key}/mute`, { muted: true }).then(refreshLive).catch((err) => say($('party-status'), err.message, true));
     } else if (action === 'kick') {
-      run(async () => {
-        if (!window.confirm(`Kick ${user.displayName} from the table? They can rejoin.`)) return;
-        await api('POST', `/api/users/${user.key}/kick`);
-        say(status, 'kicked');
-        refreshLive();
-      });
-    } else if (action === 'delete') {
-      run(async () => {
-        if (!window.confirm(`Delete ${user.displayName}? Their images and links go with them.`)) return;
-        await api('DELETE', `/api/users/${user.key}`);
-        card.remove();
-        cards.delete(user.key);
-        users = users.filter((u) => u.key !== user.key);
-      });
+      if (!window.confirm(`Kick ${user.displayName} from the table? They can rejoin.`)) return;
+      api('POST', `/api/users/${user.key}/kick`).then(refreshLive).catch((err) => say($('party-status'), err.message, true));
     }
   });
-  card.addEventListener('change', (event) => {
-    const user = userOf(card);
-    const input = event.target;
-    if (input.type === 'file') {
-      const slot = input.closest('.slot').dataset.slot;
-      const file = input.files[0];
-      if (!file) return;
-      run(async () => {
-        say(status, `uploading ${slot}...`);
-        const { user: updated } = await api('PUT', `/api/users/${user.key}/images/${slot}`, file, file.type);
-        replace(updated);
-        say(status, 'image saved');
-      });
-      input.value = '';
-    } else if (input.matches('[data-view-kind]')) {
-      card.querySelector('[data-view-open]').href = viewLink(user, card);
-    }
-  });
-}
-
-function replace(updated) {
-  const previous = users.find((u) => u.key === updated.key);
-  const merged = { ...updated, online: previous?.online || null };
-  users = users.map((u) => (u.key === updated.key ? merged : u));
-  fill(cardFor(merged), merged);
 }
 
 function renderUsers() {
@@ -433,10 +299,7 @@ $('add-user').addEventListener('submit', async (event) => {
     $('add-user').reset();
     $('new-link').checked = true;
     $('add-user').hidden = true;
-    const card = cards.get(user.key);
-    card.querySelector('.user-body').hidden = false;
-    card.querySelector('[data-action="toggle"]').textContent = 'Close';
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    location.href = `/profile/${encodeURIComponent(user.key)}`; // set up their images etc. right away
   } catch (err) {
     $('add-error').textContent = err.message;
     $('add-error').hidden = false;
@@ -473,7 +336,6 @@ $('save-defaults').addEventListener('click', async () => {
       pictureColor: $('set-picture-color').value,
       pictureScale: $('set-picture-scale').value,
     });
-    defaults = { border: settings.border, borderColor: settings.borderColor };
     say($('defaults-status'), 'saved');
     await loadUsers();
   } catch (err) {
@@ -614,7 +476,6 @@ async function init() {
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
     $('set-login-text').value = settings.loginText;
-    defaults = { border: settings.border, borderColor: settings.borderColor };
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
     $('set-border-width').value = settings.borderWidth || 6;

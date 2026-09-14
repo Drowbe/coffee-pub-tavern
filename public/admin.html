@@ -191,68 +191,16 @@
 
   <template id="user-card">
     <article class="user-card">
-      <header class="user-head">
-        <span class="dot" data-dot title="offline"></span>
-        <img class="thumb" data-thumb alt="">
-        <div class="user-title">
-          <strong data-name></strong>
-          <span class="meta"><span data-login></span> · <span data-role></span> · key <code data-key></code></span>
-        </div>
-        <span class="live" data-live></span>
-        <button class="btn btn-small" data-action="toggle" type="button">Edit</button>
-      </header>
-      <div class="user-body" hidden>
-        <h3>Configuration</h3>
-        <div class="fields">
-          <label>Display name<input data-field="displayName" type="text" maxlength="40"></label>
-          <label>Login<input data-field="login" type="text" maxlength="40" autocapitalize="off"></label>
-          <label>Role<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" data-role-note hidden>The only admin. Make someone else an admin first.</small></label>
-          <label>New password<input data-field="password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
-        </div>
-        <div class="row">
-          <button class="btn btn-primary btn-small" data-action="save" type="button">Save</button>
-          <button class="btn btn-small" data-action="clear-password" type="button">Remove password</button>
-          <span class="status" data-status></span>
-        </div>
-        <div class="row">
-          <span class="field-label">Personal link</span>
-          <code class="key link" data-link>off</code>
-          <button class="btn btn-small" data-action="link-copy" type="button">Copy</button>
-          <button class="btn btn-small" data-action="link-new" type="button">Create</button>
-          <button class="btn btn-small btn-danger" data-action="link-off" type="button">Turn off</button>
-        </div>
-        <div class="row">
-          <span class="field-label">OBS link</span>
-          <select data-view-kind><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
-          <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
-          <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
-          <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
-        </div>
-
-        <h3>Player</h3>
-        <p class="hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings. Nothing else is drawn on the box.</p>
-        <div class="slots">
-          <div class="slot" data-slot="playerOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerTalking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerMuted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-        </div>
-
-        <h3>Character</h3>
-        <p class="hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
-        <div class="slots">
-          <div class="slot" data-slot="characterOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="character"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="talking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="muted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-        </div>
-
-        <div class="row danger-row">
-          <button class="btn btn-small" data-action="mute" type="button">Mute mic</button>
-          <button class="btn btn-small" data-action="kick" type="button">Kick</button>
-          <button class="btn btn-small btn-danger" data-action="delete" type="button">Delete user</button>
-        </div>
+      <span class="dot" data-dot title="offline"></span>
+      <img class="thumb" data-thumb alt="">
+      <div class="user-title">
+        <strong data-name></strong>
+        <span class="meta"><span data-login></span> · <span data-role></span> · key <code data-key></code></span>
       </div>
+      <span class="live" data-live></span>
+      <button class="btn btn-small" data-action="mute" type="button">Mute mic</button>
+      <button class="btn btn-small" data-action="kick" type="button">Kick</button>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit profile</a>
     </article>
   </template>
 

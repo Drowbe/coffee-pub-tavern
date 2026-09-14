@@ -283,6 +283,14 @@ app.get('/profile', (req, res) => {
 });
 app.get('/me', (_req, res) => res.redirect('/profile')); // the profile page's old address
 
+// An admin editing someone else's profile: the same page, in edit mode --
+// see public/profile.js, which tells the two apart by the URL.
+app.get('/profile/:key', (req, res) => {
+  if (!currentUser(req)) return res.redirect(`/login?next=/profile/${encodeURIComponent(req.params.key)}`);
+  if (!isAdmin(req)) return res.status(403).send('Admins only.');
+  res.sendFile(page('profile.html'));
+});
+
 app.get('/admin', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login?next=/admin');
   if (!isAdmin(req)) return res.status(403).send('Admins only.');
@@ -549,6 +557,12 @@ app.delete('/api/rooms/:id/image', requireAdmin, (req, res) => {
 
 app.get('/api/users', requireAdmin, (req, res) => {
   res.json({ users: store.users.map((u) => publicUser(req, u)) });
+});
+
+app.get('/api/users/:key', requireAdmin, (req, res) => {
+  const user = store.userByKey(req.params.key);
+  if (!user) return res.status(404).json({ error: 'no such user' });
+  res.json({ user: publicUser(req, user) });
 });
 
 app.post('/api/users', requireAdmin, (req, res) => {
