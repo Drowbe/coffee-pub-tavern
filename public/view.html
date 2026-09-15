@@ -11,11 +11,19 @@
     video, .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
     video { object-fit: cover; }
     /* Offline/Online picture and its talking/muted overlays -- not the
-       camera itself, which always fills the box edge to edge. */
-    .layer { object-fit: contain; border-radius: 10px; }
-    /* the Offline / Online picture can sit smaller than the box, on a colour */
+       camera itself, which always fills the box edge to edge. Rounded only
+       for the Participant box; the Character box sits over a character bar
+       and stays square. */
+    .layer { object-fit: contain; }
+    body[data-kind="player"] .layer { border-radius: 10px; }
+    /* the Offline / Online picture can sit smaller than the box, on a colour
+       or, when the player has their own video-background image (set on the
+       profile page, used to replace their real background live), that same
+       picture instead -- so a paused camera reads as "them, backed by their
+       own background" rather than a flat colour underneath a small portrait. */
     #base { inset: var(--pic-inset, 0%); width: calc(100% - 2 * var(--pic-inset, 0%)); height: calc(100% - 2 * var(--pic-inset, 0%)); }
     body.picture-bg[data-state="image"], body.picture-bg[data-state="offline"] { background: var(--pic-bg); }
+    #bg-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
     /* Name plate: position (data-plate, set from the Nameplate settings),
        box colour + opacity combined via color-mix, font colour and size. */
     .plate {
@@ -50,6 +58,7 @@
   </style>
 </head>
 <body data-state="blank">
+  <img id="bg-image" alt="" hidden>
   <img class="layer" id="base" alt="" hidden>
   <img class="layer" id="overlay-talking" alt="" hidden>
   <img class="layer" id="overlay-muted" alt="" hidden>

@@ -22,6 +22,7 @@ const params = new URLSearchParams(location.search);
 const streamKey = params.get('s') || '';
 const legacy = { auto: 'player', video: 'player', avatar: 'character', status: 'character' };
 const kind = params.get('kind') === 'character' || params.get('kind') === 'player' ? params.get('kind') : legacy[params.get('mode')] || 'player';
+document.body.dataset.kind = kind;
 const forcePlate = params.get('plate') === '1';
 const withReactions = params.get('reactions') !== '0';
 let REACTIONS = {}; // id -> glyph, from the server's reaction list (Manage > Settings)
@@ -72,6 +73,24 @@ async function loadImages() {
   render();
 }
 
+// The player's own video-background picture (profile page, used live to
+// replace their real background) -- reused here as what sits behind a
+// paused camera's portrait, in place of the flat picture colour, when
+// they have one set. Player box only; the character box never shows it.
+let bgImage = null;
+async function loadBgImage() {
+  const q = new URLSearchParams({ s: streamKey });
+  if (playerRoom) q.set('room', playerRoom);
+  try {
+    const res = await fetch(`/img/${encodeURIComponent(wanted)}/background?${q}`);
+    if (bgImage) URL.revokeObjectURL(bgImage);
+    bgImage = res.ok ? URL.createObjectURL(await res.blob()) : null;
+  } catch (err) {
+    // keep whatever we had
+  }
+  render();
+}
+
 // The Tavern room the player is in right now (the Lobby while they are
 // away); this box follows them from room to room, and its own per-room
 // images (if that room has any) follow along too.
@@ -107,6 +126,7 @@ async function loadSettings() {
     if (playerRoom !== lastImageRoom) {
       lastImageRoom = playerRoom;
       loadImages();
+      if (kind === 'player') loadBgImage();
     }
   } catch (err) {
     // defaults stand
@@ -145,6 +165,8 @@ function render() {
     setImage($('overlay-talking'), talking ? images.talking : null);
     setImage($('overlay-muted'), muted ? images.muted : null);
   }
+  const showBgImage = kind === 'player' && settings.pictureBackground && (state === 'image' || state === 'offline') && !!bgImage;
+  setImage($('bg-image'), showBgImage ? bgImage : null);
   const b = borders();
   document.body.classList.toggle('talking', b.talk && talking && state !== 'blank');
   document.body.classList.toggle('muted-frame', b.mute && muted && state !== 'blank');
@@ -286,5 +308,9 @@ room.on(RoomEvent.Disconnected, () => {
 
 loadImages();
 setInterval(loadImages, 5 * 60000); // pick up replaced images without a reload
+if (kind === 'player') {
+  loadBgImage();
+  setInterval(loadBgImage, 5 * 60000);
+}
 setInterval(loadSettings, 5000); // colours, options, and which room the player is in
 loadSettings().then(connect);

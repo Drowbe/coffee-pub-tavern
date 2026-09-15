@@ -235,12 +235,16 @@ input[type="range"] {
   align-self: start;
 }
 
-.room-choice .btn {
+.room-choice-actions {
   grid-area: join;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
 }
 
-.room-choice .btn {
-  margin-top: auto;
+.room-choice-actions .btn-primary {
+  flex: 1;
   font-size: 16px;
   padding: 10px 16px;
 }
@@ -1925,6 +1929,7 @@ body.at-table .topbar {
 #section-images,
 #section-room,
 #section-members,
+#section-access,
 .room-section {
   scroll-margin-top: 70px;
 }

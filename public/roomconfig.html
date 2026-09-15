@@ -24,6 +24,7 @@
     <nav class="subtabs section-nav">
       <a class="subtab" href="#section-room">Room</a>
       <a class="subtab" href="#section-members">Members</a>
+      <a class="subtab" href="#section-access">Access</a>
     </nav>
 
     <div class="tab-stack">
@@ -65,6 +66,31 @@
         <h2>Members</h2>
         <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
         <div class="member-checks" id="members"></div>
+      </section>
+
+      <section class="panel" id="section-access">
+        <h2>Invite to register</h2>
+        <p class="hint">A link that signs someone up with a real account and drops them straight into this room (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
+        <div class="row">
+          <button class="btn btn-small" id="make-invite" type="button">Generate invite link</button>
+          <span class="status" id="invite-status"></span>
+        </div>
+        <div class="row" id="invite-link-row" hidden>
+          <code class="key link" id="invite-link"></code>
+          <button class="btn btn-small" id="invite-copy" type="button">Copy</button>
+        </div>
+
+        <h2>Guest link</h2>
+        <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the room itself, not just here.</p>
+        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on under Room to use this.</p>
+        <div class="row">
+          <code class="key link" id="guest-link-value">off</code>
+          <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
+          <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
+          <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
+          <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+        </div>
+        <p class="status" id="guest-link-status"></p>
       </section>
     </div>
   </main>

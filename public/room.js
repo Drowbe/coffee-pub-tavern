@@ -158,6 +158,9 @@ function renderRooms() {
       list.appendChild(card);
     }
     card.classList.toggle('aside', Boolean(r.ephemeral));
+    const edit = card.querySelector('[data-edit]');
+    edit.hidden = r.ephemeral || me?.role !== 'admin';
+    edit.href = `/rooms/${encodeURIComponent(r.id)}`;
     card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
     card.querySelector('.room-choice-desc').textContent = r.description;
     card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;

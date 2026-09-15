@@ -19,6 +19,15 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
+async function copy(text, statusEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+    say(statusEl, 'copied');
+  } catch (err) {
+    window.prompt('Copy this:', text);
+  }
+}
+
 function render() {
   document.title = `${document.title.split(' - ')[0]} - ${room.name}`;
   $('room-title').textContent = room.name;
@@ -44,6 +53,28 @@ function render() {
   $('danger-row').hidden = room.isLobby;
 
   renderMembers();
+  renderGuestLink();
+}
+
+function renderGuestLink() {
+  const token = room.guestToken;
+  const allowed = room.allowGuests !== false;
+  $('guest-link-off-note').hidden = allowed;
+  $('guest-link-value').textContent = token ? `${location.origin}/guest/${token}` : 'off';
+  $('guest-link-on').hidden = !allowed || !!token;
+  $('guest-link-copy').hidden = !token;
+  $('guest-link-new').hidden = !allowed || !token;
+  $('guest-link-off').hidden = !token;
+}
+
+async function setGuestLink(body) {
+  try {
+    if (body === null) room = (await api('DELETE', `/api/rooms/${room.id}/guest-link`)).room;
+    else room = (await api('POST', `/api/rooms/${room.id}/guest-link`, body)).room;
+    renderGuestLink();
+  } catch (err) {
+    say($('guest-link-status'), err.message, true);
+  }
 }
 
 function renderMembers() {
@@ -120,6 +151,23 @@ $('room-image-clear').addEventListener('click', async () => {
     say($('status'), err.message, true);
   }
 });
+
+$('guest-link-on').addEventListener('click', () => setGuestLink({}));
+$('guest-link-new').addEventListener('click', () => setGuestLink({ regenerate: true }));
+$('guest-link-off').addEventListener('click', () => setGuestLink(null));
+$('guest-link-copy').addEventListener('click', () => copy($('guest-link-value').textContent, $('guest-link-status')));
+
+$('make-invite').addEventListener('click', async () => {
+  try {
+    const { invite } = await api('POST', '/api/invites', { rooms: [room.id] });
+    $('invite-link').textContent = invite.url;
+    $('invite-link-row').hidden = false;
+    say($('invite-status'), 'link made');
+  } catch (err) {
+    say($('invite-status'), err.message, true);
+  }
+});
+$('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
 $('delete-btn').addEventListener('click', async () => {
   if (!window.confirm(`Delete the room "${room.name}"? Its members stay in the Lobby.`)) return;
