@@ -20,6 +20,20 @@
        corners across renderers. 20px reads clearly at typical box sizes --
        10px was correct but too subtle to actually notice. */
     body[data-kind="player"] .layer-wrap { border-radius: 20px; overflow: hidden; }
+    /* contain (the .layer default) can letterbox the base picture inside
+       its box when the upload's aspect ratio doesn't match the box's --
+       real content never reaching the box's own edges, so the corners
+       above only ever clip empty space, not the picture. cover crops
+       instead, guaranteeing the picture always fills the box its corners
+       are rounding. No object-position override: there's no anchor a
+       server-side rule can safely assume for an arbitrary uploaded photo
+       (a face isn't reliably in any one spot), so this stays at cover's
+       own default centre -- crops evenly from whichever side overflows,
+       the same call the table tile's own placeholder badge already makes
+       for this exact situation. Character keeps contain (never crop
+       character art); the talking/muted overlays keep contain too,
+       meant to sit over the picture rather than fill the box themselves. */
+    body[data-kind="player"] #base { object-fit: cover; }
     /* the Offline / Online picture can sit smaller than the box, on a colour
        or, when the player has their own video-background image (set on the
        profile page, used to replace their real background live), that same
