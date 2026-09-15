@@ -1867,12 +1867,15 @@ function closeOverlay() {
   sendAway(false);
 }
 window.closeProfileOverlay = closeOverlay; // called directly by the (same-origin) iframe
-for (const link of document.querySelectorAll('[data-overlay-link]')) {
-  link.addEventListener('click', (event) => {
-    event.preventDefault();
-    openOverlay(link.getAttribute('href'));
-  });
-}
+// Delegated (not one-time-queried) since a room card's own Edit link is
+// built later, once tableRooms comes back -- a static query here would
+// miss it and open it as a real navigation instead, with no way back.
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('[data-overlay-link]');
+  if (!link) return;
+  event.preventDefault();
+  openOverlay(link.getAttribute('href'));
+});
 
 function updateAwayOverlay(identity, on) {
   const tile = tiles.get(identity);

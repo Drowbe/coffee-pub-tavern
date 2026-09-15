@@ -23,8 +23,8 @@
   <main class="admin">
     <nav class="subtabs section-nav">
       <a class="subtab" href="#section-room">Room</a>
-      <a class="subtab" href="#section-members">Members</a>
       <a class="subtab" href="#section-access">Access</a>
+      <a class="subtab" href="#section-members">Members</a>
     </nav>
 
     <div class="tab-stack">
@@ -47,11 +47,9 @@
             <option value="participants">Participants -- Participant images only</option>
             <option value="characters">Characters -- Character images only</option>
           </select></label>
-          <label class="wide check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
         </div>
         <p class="hint">Decides which image sections show up for this room on a member's own profile page,
           and which ones Coffee Pub Studio offers to publish for it.</p>
-        <p class="hint">Allow Guests lets anyone already at this table hand out a reusable link that joins with just a name, no account. Turning it off also turns off any link already in use.</p>
         <div class="row">
           <button class="btn btn-primary btn-small" id="save-btn" type="button">Save</button>
           <span class="status" id="save-status"></span>
@@ -60,12 +58,6 @@
         <div class="row danger-row" id="danger-row">
           <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
         </div>
-      </section>
-
-      <section class="panel" id="section-members">
-        <h2>Members</h2>
-        <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
-        <div class="member-checks" id="members"></div>
       </section>
 
       <section class="panel" id="section-access">
@@ -82,7 +74,10 @@
 
         <h2>Guest link</h2>
         <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the room itself, not just here.</p>
-        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on under Room to use this.</p>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
+        </div>
+        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on above to use this.</p>
         <div class="row">
           <code class="key link" id="guest-link-value">off</code>
           <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
@@ -91,6 +86,12 @@
           <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
         </div>
         <p class="status" id="guest-link-status"></p>
+      </section>
+
+      <section class="panel" id="section-members">
+        <h2>Members</h2>
+        <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
+        <div class="member-checks" id="members"></div>
       </section>
     </div>
   </main>

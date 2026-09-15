@@ -37,8 +37,8 @@ function render() {
     $('e-name').value = room.name;
     $('e-description').value = room.description;
     $('e-profile').value = room.profile;
-    $('e-allow-guests').checked = room.allowGuests;
   }
+  $('e-allow-guests').checked = room.allowGuests;
 
   const img = $('room-image');
   img.hidden = !room.hasImage;
@@ -118,13 +118,23 @@ $('members').addEventListener('change', (event) => {
 
 $('save-btn').addEventListener('click', async () => {
   try {
-    const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value, allowGuests: $('e-allow-guests').checked };
+    const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value };
     if (!room.isLobby) patch.members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
     room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
     render();
     say($('save-status'), 'saved');
   } catch (err) {
     say($('save-status'), err.message, true);
+  }
+});
+
+$('e-allow-guests').addEventListener('change', async (event) => {
+  try {
+    room = (await api('PATCH', `/api/rooms/${room.id}`, { allowGuests: event.target.checked })).room;
+    renderGuestLink();
+  } catch (err) {
+    event.target.checked = room.allowGuests;
+    say($('guest-link-status'), err.message, true);
   }
 });
 
