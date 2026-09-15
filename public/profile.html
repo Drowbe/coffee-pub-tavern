@@ -29,7 +29,7 @@
     <div class="tab-stack">
       <section class="panel" id="section-user">
         <div class="profile-head">
-          <div class="slot" id="portrait-slot"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="portrait-clear" type="button">Remove</button></div>
+          <div class="slot" id="portrait-slot"><div class="slot-pick-wrap"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="portrait-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
             <h1 id="name"></h1>
             <span class="tag" id="editing-tag" hidden>Editing as admin</span>
@@ -41,7 +41,29 @@
         <h2>Video background</h2>
         <p class="hint" id="background-hint">A still picture behind you in the call, instead of your real background -- an alternative to blur, in Settings. Leave it unset to use blur or your actual background instead.</p>
         <div class="row">
-          <div class="slot" id="background-slot"><label class="slot-pick" title="Click to change"><img id="background" alt=""><span class="unset">not set</span><input type="file" id="background-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="btn btn-small" id="background-clear" type="button">Remove</button></div>
+          <div class="slot" id="background-slot"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="background" alt=""><span class="unset">not set</span><input type="file" id="background-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="background-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
+        </div>
+
+        <h2>Call settings</h2>
+        <p class="hint" id="call-prefs-hint"></p>
+        <div class="fields" id="call-prefs-fields">
+          <label>Mic level <span class="hint" id="cp-gain-value">100%</span><input type="range" id="cp-gain" min="0" max="300" step="5"></label>
+          <label>Noise gate <span class="hint" id="cp-gate-value">off</span><input type="range" id="cp-gate" min="0" max="60" step="1"></label>
+          <label class="check"><input type="checkbox" id="cp-noise"> Noise suppression</label>
+          <label class="check"><input type="checkbox" id="cp-echo"> Echo cancellation</label>
+          <label class="check"><input type="checkbox" id="cp-agc"> Auto gain</label>
+          <label>Talking<select id="cp-talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
+          <label>Quality<select id="cp-quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720">720p</option></select></label>
+          <label class="check"><input type="checkbox" id="cp-mirror"> Mirror my own preview</label>
+          <label class="wide">Background<select id="cp-background">
+            <option value="none">Off (real background)</option>
+            <option value="blur">Blur</option>
+            <option value="image">Custom image (above)</option>
+          </select></label>
+          <label>Speaker volume <span class="hint" id="cp-volume-value">100%</span><input type="range" id="cp-master-volume" min="0" max="100" step="5"></label>
+        </div>
+        <div class="row">
+          <span class="status" id="call-prefs-status"></span>
         </div>
 
         <h2>Account</h2>
@@ -86,19 +108,19 @@
           <h3>Participant</h3>
           <p class="hint" id="player-images-hint">The participant's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.</p>
           <div class="slots">
-            <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+            <div class="slot" data-slot="player"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+            <div class="slot" data-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+            <div class="slot" data-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
           </div>
 
           <h3>Character</h3>
           <p class="hint" id="character-images-hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
           <div class="slots">
-            <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-            <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+            <div class="slot" data-slot="characterOffline"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+            <div class="slot" data-slot="character"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+            <div class="slot" data-slot="talking"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+            <div class="slot" data-slot="muted"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
           </div>
         </div>
 
@@ -122,19 +144,19 @@
       <div class="group" data-group="participant" hidden>
         <h3>Participant</h3>
         <div class="slots">
-          <div class="slot" data-slot="playerOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="player"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="playerTalking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="playerMuted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+          <div class="slot" data-slot="player"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+          <div class="slot" data-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+          <div class="slot" data-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
         </div>
       </div>
       <div class="group" data-group="character" hidden>
         <h3>Character</h3>
         <div class="slots">
-          <div class="slot" data-slot="characterOffline"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="character"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="talking"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
-          <div class="slot" data-slot="muted"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button" hidden>Clear</button></div>
+          <div class="slot" data-slot="characterOffline"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+          <div class="slot" data-slot="character"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+          <div class="slot" data-slot="talking"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+          <div class="slot" data-slot="muted"><div class="slot-pick-wrap"><label class="slot-pick still" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="slot-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
         </div>
       </div>
     </section>

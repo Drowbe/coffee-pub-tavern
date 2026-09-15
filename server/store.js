@@ -54,6 +54,17 @@ const SITE_IMAGES = ['icon', 'background'];
 // Every user belongs to the Lobby; it cannot be deleted.
 const LOBBY = 'lobby';
 
+// A user's own mic/camera processing settings -- everything in the call
+// settings popover except which physical device to use (that's per-machine,
+// stays in the browser's own localStorage) so they follow the account
+// wherever it signs in, not just the browser that last set them.
+const QUALITY_OPTIONS = [360, 540, 720];
+const BACKGROUND_MODES = ['none', 'blur', 'image'];
+const DEFAULT_CALL_PREFS = {
+  gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
+  quality: 720, mirror: true, background: 'none', masterVolume: 100,
+};
+
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern',
   tableName: 'The Table',
@@ -265,8 +276,37 @@ class Store {
       images,
       rooms,
       player: {}, // borders and the plate are server-wide now; older per-user values are dropped
+      callPrefs: this.sanitizeCallPrefs(u.callPrefs),
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
+  }
+
+  // Validates just the fields present in `patch` against `base` (the
+  // existing value, or the defaults when there is none yet) -- an invalid
+  // field is dropped rather than falling back to the default, so a bad
+  // value on one field in a PATCH never resets an already-valid other one.
+  sanitizeCallPrefs(patch, base = DEFAULT_CALL_PREFS) {
+    const p = patch && typeof patch === 'object' ? patch : {};
+    const c = { ...base };
+    if (p.gain !== undefined) { const n = Math.round(Number(p.gain)); if (Number.isFinite(n)) c.gain = Math.max(0, Math.min(300, n)); }
+    if (p.gate !== undefined) { const n = Math.round(Number(p.gate)); if (Number.isFinite(n)) c.gate = Math.max(0, Math.min(60, n)); }
+    if (p.noise !== undefined) c.noise = Boolean(p.noise);
+    if (p.echo !== undefined) c.echo = Boolean(p.echo);
+    if (p.agc !== undefined) c.agc = Boolean(p.agc);
+    if (p.ptt !== undefined) c.ptt = Boolean(p.ptt);
+    if (p.quality !== undefined && QUALITY_OPTIONS.includes(Number(p.quality))) c.quality = Number(p.quality);
+    if (p.mirror !== undefined) c.mirror = Boolean(p.mirror);
+    if (p.background !== undefined && BACKGROUND_MODES.includes(p.background)) c.background = p.background;
+    if (p.masterVolume !== undefined) { const n = Math.round(Number(p.masterVolume)); if (Number.isFinite(n)) c.masterVolume = Math.max(0, Math.min(100, n)); }
+    return c;
+  }
+
+  setCallPrefs(key, patch) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    user.callPrefs = this.sanitizeCallPrefs(patch, user.callPrefs);
+    this.save();
+    return user.callPrefs;
   }
 
   // --- secrets ------------------------------------------------------------

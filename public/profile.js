@@ -69,6 +69,27 @@ function render() {
   $('background-hint').textContent = editing
     ? `${user.displayName}'s background image in the call, an alternative to blur. Unset uses blur or their real background instead.`
     : 'A still picture behind you in the call, instead of your real background -- an alternative to blur, in Settings. Leave it unset to use blur or your actual background instead.';
+
+  $('call-prefs-hint').textContent = editing
+    ? `${user.displayName}'s own mic and camera settings, applied automatically wherever they join a call from. Which device to use is separate -- that stays on their own device.`
+    : 'Your own mic and camera settings, applied automatically wherever you join a call from. Which device to use is separate -- that stays on this device, in the call itself.';
+  if (document.activeElement?.closest?.('#call-prefs-fields') == null) {
+    const cp = user.callPrefs;
+    $('cp-gain').value = String(cp.gain);
+    $('cp-gain-value').textContent = `${cp.gain}%`;
+    $('cp-gate').value = String(cp.gate);
+    $('cp-gate-value').textContent = cp.gate ? `${cp.gate}` : 'off';
+    $('cp-noise').checked = cp.noise;
+    $('cp-echo').checked = cp.echo;
+    $('cp-agc').checked = cp.agc;
+    $('cp-talk-mode').value = cp.ptt ? 'ptt' : 'open';
+    $('cp-quality').value = String(cp.quality);
+    $('cp-mirror').checked = cp.mirror;
+    $('cp-background').value = cp.background;
+    $('cp-master-volume').value = String(cp.masterVolume);
+    $('cp-volume-value').textContent = `${cp.masterVolume}%`;
+  }
+
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
   $('editing-tag').hidden = !editing;
   $('portrait-hint').textContent = editing
@@ -278,6 +299,46 @@ $('background-clear').addEventListener('click', async () => {
   } catch (err) {
     say(err.message, true);
   }
+});
+
+// --- call settings: mic/camera processing, applied wherever this account
+// joins a call from. Saves as you change it, debounced (and accumulated
+// across fields) so dragging a slider doesn't fire a request per tick.
+
+let pendingCallPrefs = {};
+let callPrefsTimer = 0;
+function patchCallPrefs(patch) {
+  Object.assign(pendingCallPrefs, patch);
+  clearTimeout(callPrefsTimer);
+  callPrefsTimer = setTimeout(async () => {
+    const body = pendingCallPrefs;
+    pendingCallPrefs = {};
+    try {
+      if (editingKey) user.callPrefs = (await api('PATCH', `/api/users/${user.key}/call-prefs`, body)).callPrefs;
+      else user.callPrefs = (await api('PATCH', '/api/me/call-prefs', body)).callPrefs;
+      sayField($('call-prefs-status'), 'saved');
+    } catch (err) {
+      sayField($('call-prefs-status'), err.message, true);
+    }
+  }, 500);
+}
+$('cp-gain').addEventListener('input', (e) => {
+  $('cp-gain-value').textContent = `${e.target.value}%`;
+  patchCallPrefs({ gain: Number(e.target.value) });
+});
+$('cp-gate').addEventListener('input', (e) => {
+  $('cp-gate-value').textContent = e.target.value !== '0' ? e.target.value : 'off';
+  patchCallPrefs({ gate: Number(e.target.value) });
+});
+for (const id of ['noise', 'echo', 'agc', 'mirror']) {
+  $(`cp-${id}`).addEventListener('change', (e) => patchCallPrefs({ [id]: e.target.checked }));
+}
+$('cp-talk-mode').addEventListener('change', (e) => patchCallPrefs({ ptt: e.target.value === 'ptt' }));
+$('cp-quality').addEventListener('change', (e) => patchCallPrefs({ quality: Number(e.target.value) }));
+$('cp-background').addEventListener('change', (e) => patchCallPrefs({ background: e.target.value }));
+$('cp-master-volume').addEventListener('input', (e) => {
+  $('cp-volume-value').textContent = `${e.target.value}%`;
+  patchCallPrefs({ masterVolume: Number(e.target.value) });
 });
 
 // --- admin editing someone else -----------------------------------------

@@ -408,6 +408,29 @@ function savePrefs() {
   }
 }
 
+// The mic/camera processing fields (not device selection) also live on the
+// account -- see populateCallSettingsUI -- so a change here follows to the
+// profile page and to wherever else this account joins from. A guest has no
+// account to save it to; localStorage above is all they get. Debounced and
+// accumulated across fields so dragging a slider doesn't fire a request per
+// tick.
+let pendingCallPrefs = {};
+let callPrefsTimer = 0;
+function syncCallPrefs(patch) {
+  if (guestToken) return;
+  Object.assign(pendingCallPrefs, patch);
+  clearTimeout(callPrefsTimer);
+  callPrefsTimer = setTimeout(async () => {
+    const body = pendingCallPrefs;
+    pendingCallPrefs = {};
+    try {
+      await api('PATCH', '/api/me/call-prefs', body);
+    } catch (err) {
+      // best-effort: the local change already applied, this just fails to follow the account
+    }
+  }, 500);
+}
+
 // Insert a tile where the remembered order says; unknown ones go last.
 function placeInOrder(tile) {
   const rank = (el) => {
@@ -1463,23 +1486,27 @@ $('speaker-select').addEventListener('change', async (e) => {
 $('master-volume').addEventListener('input', (e) => {
   prefs.masterVolume = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ masterVolume: prefs.masterVolume });
   $('volume-value').textContent = `${prefs.masterVolume}%`;
   applyMasterVolume();
 });
 $('gain').addEventListener('input', (e) => {
   prefs.gain = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ gain: prefs.gain });
   applyMicSettings();
 });
 $('gate').addEventListener('input', (e) => {
   prefs.gate = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ gate: prefs.gate });
   applyMicSettings();
 });
 for (const id of ['noise', 'echo', 'agc']) {
   $(id).addEventListener('change', async (e) => {
     prefs[id] = e.target.checked;
     savePrefs();
+    syncCallPrefs({ [id]: prefs[id] });
     if (mic.ctx) await openMic().catch((err) => setStatus(`microphone: ${err.message}`, true));
   });
 }
@@ -1487,16 +1514,19 @@ $('talk-mode').addEventListener('change', (e) => setPushToTalk(e.target.value ==
 $('quality').addEventListener('change', async (e) => {
   prefs.quality = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ quality: prefs.quality });
   await restartCamera();
 });
 $('mirror').addEventListener('change', (e) => {
   prefs.mirror = e.target.checked;
   savePrefs();
+  syncCallPrefs({ mirror: prefs.mirror });
   applyMirror();
 });
 $('background-mode').addEventListener('change', async (e) => {
   prefs.background = e.target.value;
   savePrefs();
+  syncCallPrefs({ background: prefs.background });
   await applyBackground();
 });
 
@@ -1868,13 +1898,12 @@ async function sendAway(on) {
 
 // --- start --------------------------------------------------------------------
 
-async function init() {
-  const branding = await loadBranding();
-  tableName = branding.tableName || tableName;
-  renderReactionTray(branding.reactions);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  $('layout-select').value = prefs.layout;
-  $('follow-speaker').checked = prefs.follow;
+// The mic/camera processing fields (not device selection -- that's kept
+// local, per machine) also live on the account, set from the profile page
+// or here; this reflects prefs into the settings-popover controls, called
+// once from local defaults at startup and again once the account's own
+// values come back from /api/me.
+function populateCallSettingsUI() {
   $('gain').value = String(prefs.gain);
   $('gate').value = String(prefs.gate);
   $('gain-value').textContent = `${prefs.gain}%`;
@@ -1889,6 +1918,16 @@ async function init() {
   $('master-volume').value = String(prefs.masterVolume);
   $('volume-value').textContent = `${prefs.masterVolume}%`;
   $('mic').classList.toggle('ptt', prefs.ptt);
+}
+
+async function init() {
+  const branding = await loadBranding();
+  tableName = branding.tableName || tableName;
+  renderReactionTray(branding.reactions);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  $('layout-select').value = prefs.layout;
+  $('follow-speaker').checked = prefs.follow;
+  populateCallSettingsUI();
   applyLayout();
   const hint = describeInstall();
   $('install-hint').textContent = hint;
@@ -1929,6 +1968,14 @@ async function init() {
     $('whoami-img').hidden = false;
     $('admin-link').hidden = me.role !== 'admin';
     $('admin-link-2').hidden = me.role !== 'admin';
+    // The account's own mic/camera processing settings take over from
+    // whatever this browser had locally, so joining from anywhere lands
+    // already set up the way the account is configured.
+    if (me.callPrefs) {
+      Object.assign(prefs, me.callPrefs);
+      savePrefs();
+      populateCallSettingsUI();
+    }
     await loadTable(); // the join screen's member grid
   } catch (err) {
     location.href = '/login';

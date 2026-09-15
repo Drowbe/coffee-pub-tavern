@@ -221,6 +221,7 @@ function publicUser(req, u) {
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
     rooms,
     player: { ...u.player, effective: store.effectivePlayer(u) },
+    callPrefs: u.callPrefs,
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
     createdAt: u.createdAt,
   };
@@ -596,6 +597,18 @@ app.put('/api/me/images/background', requireUser, rawImage, (req, res) => {
 app.delete('/api/me/images/background', requireUser, (req, res) => {
   store.removeImage(currentUser(req).key, 'background');
   res.json({ ok: true });
+});
+
+// A user's own mic/camera processing settings (gain, noise suppression,
+// echo cancellation, auto gain, push to talk, quality, mirror, background
+// mode, master volume) -- not which physical device to use, that stays
+// local to the browser. Self-service, and admin can set it for someone
+// else from their profile page the same way images work.
+app.patch('/api/me/call-prefs', requireUser, (req, res) => {
+  res.json({ callPrefs: store.setCallPrefs(currentUser(req).key, req.body || {}) });
+});
+app.patch('/api/users/:key/call-prefs', requireAdmin, (req, res) => {
+  res.json({ callPrefs: store.setCallPrefs(req.params.key, req.body || {}) });
 });
 
 // Everyone at the table: names, talking colours and Player options for the
