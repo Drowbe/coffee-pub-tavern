@@ -350,6 +350,20 @@ function screenTileFor(participant) {
   name.className = 'name';
   name.textContent = `${participant.name || participant.identity}'s screen`;
   tile.appendChild(name);
+  if (document.pictureInPictureEnabled) {
+    const pip = document.createElement('button');
+    pip.type = 'button';
+    pip.className = 'tile-pip';
+    pip.title = 'Pop out this screen share';
+    pip.innerHTML = '<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>';
+    pip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const video = tile.querySelector('video');
+      if (!video) return;
+      (document.pictureInPictureElement === video ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {});
+    });
+    tile.appendChild(pip);
+  }
   tile.addEventListener('click', () => spotlight(key));
   tiles.set(key, tile);
   $('grid').appendChild(tile);
@@ -360,6 +374,9 @@ function removeScreenTile(identity) {
   const key = screenTileId(identity);
   const tile = tiles.get(key);
   if (!tile) return;
+  if (document.pictureInPictureElement && tile.contains(document.pictureInPictureElement)) {
+    document.exitPictureInPicture().catch(() => {});
+  }
   tile.remove();
   tiles.delete(key);
   applyLayout();

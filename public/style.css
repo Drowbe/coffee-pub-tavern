@@ -1685,6 +1685,37 @@ body.at-table .topbar {
   border-color: var(--accent);
 }
 
+/* Float a shared screen into its own always-on-top window (native video
+   Picture-in-Picture), separate from the whole-stage pop out. */
+.tile-pip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(20, 15, 12, 0.85);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+
+.tile:hover .tile-pip {
+  opacity: 1;
+}
+
+.tile-pip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* A room member who is online but currently in a private aside elsewhere:
    their picture stands in for video, dimmed, with who they stepped away
    with -- so they read as "still at the table, just aside" rather than
