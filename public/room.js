@@ -1,6 +1,7 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api } from '/brand.js';
+import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
@@ -392,6 +393,7 @@ const DEFAULT_PREFS = {
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
   quality: 720, mirror: true, background: 'none', volumes: {}, popout: null, deafened: false,
   chatWidth: 320, speakerId: '', masterVolume: 100,
+  pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
 const prefs = loadPrefs();
 
@@ -1122,7 +1124,7 @@ async function setPushToTalk(on) {
   prefs.ptt = on;
   savePrefs();
   pttHeld = false;
-  $('mic').title = on ? 'Push to talk: hold Space (M toggles)' : 'Microphone (M)';
+  $('mic').title = on ? `Push to talk: hold ${formatHotkey(prefs.pttKey)} (M toggles)` : 'Microphone (M)';
   if (on && room.state === 'connected') await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
   reflectMic();
 }
@@ -1703,8 +1705,11 @@ $('react-tray').addEventListener('click', (event) => {
 });
 
 // Keyboard: M mic, V camera, D deafen, C chat, L layout, R reactions, S
-// screen share (once available), 1 to 6 send a reaction, Space held = talk
-// (push to talk mode), unless typing in a field.
+// screen share (once available), 1 to 6 send a reaction, the account's own
+// push-to-talk key held = talk while in that mode, unless typing in a
+// field. The account's mute and camera hotkeys (Cmd/Ctrl+D and +E by
+// default, set on the profile page) work alongside M and V, not instead
+// of them.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
 function typing(event) {
@@ -1712,7 +1717,7 @@ function typing(event) {
   return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
 }
 function onKeyUp(event) {
-  if (event.key === ' ' && prefs.ptt && pttHeld && !typing(event)) {
+  if (prefs.ptt && pttHeld && !typing(event) && hotkeyMatches(event, prefs.pttKey)) {
     pttHeld = false;
     room.localParticipant.setMicrophoneEnabled(false).then(reflectMic).catch(() => {});
     event.preventDefault();
@@ -1721,13 +1726,18 @@ function onKeyUp(event) {
 function onKey(event) {
   if (!document.body.classList.contains('at-table')) return;
   if (typing(event)) return;
-  if (event.key === ' ' && prefs.ptt) {
+  if (prefs.ptt && hotkeyMatches(event, prefs.pttKey)) {
     event.preventDefault();
     if (event.repeat || pttHeld) return;
     pttHeld = true;
     room.localParticipant.setMicrophoneEnabled(true).then(reflectMic).catch(() => {});
     return;
   }
+  // Configurable mute/camera shortcuts (Cmd/Ctrl+D and +E by default, same
+  // as Google Meet) check first since they carry a modifier the plain
+  // single-letter shortcuts below intentionally reject.
+  if (hotkeyMatches(event, prefs.muteKey)) { toggleMic(); event.preventDefault(); return; }
+  if (hotkeyMatches(event, prefs.camKey)) { toggleCam(); event.preventDefault(); return; }
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key === 'm') toggleMic();

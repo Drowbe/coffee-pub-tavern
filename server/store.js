@@ -63,9 +63,13 @@ const LOBBY = 'lobby';
 // wherever it signs in, not just the browser that last set them.
 const QUALITY_OPTIONS = [360, 540, 720];
 const BACKGROUND_MODES = ['none', 'blur', 'image'];
+// "Mod+KeyD" style strings (see public/hotkeys.js): Mod is Cmd on a Mac,
+// Ctrl elsewhere, same as Google Meet's own mute/camera shortcuts.
+const HOTKEY_RE = /^(?:(?:Mod|Ctrl|Meta|Alt|Shift)\+){0,4}[A-Za-z0-9]{1,20}$/;
 const DEFAULT_CALL_PREFS = {
   gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
   quality: 720, mirror: true, background: 'none', masterVolume: 100,
+  pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
 
 const DEFAULT_SETTINGS = {
@@ -302,6 +306,9 @@ class Store {
     if (p.mirror !== undefined) c.mirror = Boolean(p.mirror);
     if (p.background !== undefined && BACKGROUND_MODES.includes(p.background)) c.background = p.background;
     if (p.masterVolume !== undefined) { const n = Math.round(Number(p.masterVolume)); if (Number.isFinite(n)) c.masterVolume = Math.max(0, Math.min(100, n)); }
+    if (p.pttKey !== undefined && HOTKEY_RE.test(p.pttKey)) c.pttKey = p.pttKey;
+    if (p.muteKey !== undefined && HOTKEY_RE.test(p.muteKey)) c.muteKey = p.muteKey;
+    if (p.camKey !== undefined && HOTKEY_RE.test(p.camKey)) c.camKey = p.camKey;
     return c;
   }
 

@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "check": "node --check public/gate-worklet.js && node --check server/index.js && node --check server/store.js && node --check server/auth.js && node --check public/room.js && node --check public/view.js && node --check public/admin.js && node --check public/login.js && node --check public/profile.js && node --check public/brand.js && node --check public/roomconfig.js && node --check public/register.js"
+    "check": "node --check public/gate-worklet.js && node --check server/index.js && node --check server/store.js && node --check server/auth.js && node --check public/room.js && node --check public/view.js && node --check public/admin.js && node --check public/login.js && node --check public/profile.js && node --check public/brand.js && node --check public/roomconfig.js && node --check public/register.js && node --check public/hotkeys.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.3.1",

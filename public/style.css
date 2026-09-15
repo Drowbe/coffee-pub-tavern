@@ -826,6 +826,30 @@ input[type="range"] {
   grid-column: 1 / -1;
 }
 
+/* A hotkey field looks like the other .fields inputs at rest, then turns
+   into an obvious "waiting for you to press something" state once clicked. */
+.hotkey-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hotkey-input:hover {
+  border-color: var(--accent);
+}
+
+.hotkey-input.recording {
+  border-color: var(--accent);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 .fields .check,
 .check {
   flex-direction: row;

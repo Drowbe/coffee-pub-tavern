@@ -95,9 +95,11 @@
         <div id="call-prefs-fields">
           <h3>Microphone</h3>
           <div class="fields">
+            <label>Talking<select id="cp-talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk</option></select></label>
+            <label>Mute / unmute key<button type="button" class="hotkey-input" id="cp-mute-key" title="Click, then press a key"></button></label>
+            <label>Push-to-talk key<button type="button" class="hotkey-input" id="cp-ptt-key" title="Click, then press a key"></button></label>
             <label>Mic level <span class="hint" id="cp-gain-value">100%</span><input type="range" id="cp-gain" min="0" max="300" step="5"></label>
             <label>Noise gate <span class="hint" id="cp-gate-value">off</span><input type="range" id="cp-gate" min="0" max="60" step="1"></label>
-            <label>Talking<select id="cp-talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
             <div class="check-group wide">
               <label class="check"><input type="checkbox" id="cp-noise"> Noise suppression</label>
               <label class="check"><input type="checkbox" id="cp-echo"> Echo cancellation</label>
@@ -107,6 +109,7 @@
 
           <h3>Video</h3>
           <div class="fields">
+            <label>Toggle video key<button type="button" class="hotkey-input" id="cp-cam-key" title="Click, then press a key"></button></label>
             <label>Quality<select id="cp-quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720">720p</option></select></label>
             <div class="check-group wide">
               <label class="check"><input type="checkbox" id="cp-mirror"> Mirror my own preview</label>
@@ -115,7 +118,7 @@
 
           <h3>Speaker</h3>
           <div class="fields">
-            <label>Speaker volume <span class="hint" id="cp-volume-value">100%</span><input type="range" id="cp-master-volume" min="0" max="100" step="5"></label>
+            <label class="wide" aria-label="Speaker volume"><span class="hint" id="cp-volume-value">100%</span><input type="range" id="cp-master-volume" min="0" max="100" step="5"></label>
           </div>
         </div>
         <div class="row">

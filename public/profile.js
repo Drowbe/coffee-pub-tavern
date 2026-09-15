@@ -3,6 +3,7 @@
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
 import { loadBranding, api, wireOverlayBack } from '/brand.js';
+import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted'];
 const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
@@ -88,6 +89,9 @@ function render() {
     $('cp-background').value = cp.background;
     $('cp-master-volume').value = String(cp.masterVolume);
     $('cp-volume-value').textContent = `${cp.masterVolume}%`;
+    $('cp-mute-key').textContent = formatHotkey(cp.muteKey);
+    $('cp-ptt-key').textContent = formatHotkey(cp.pttKey);
+    $('cp-cam-key').textContent = formatHotkey(cp.camKey);
   }
 
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
@@ -340,6 +344,39 @@ $('cp-master-volume').addEventListener('input', (e) => {
   $('cp-volume-value').textContent = `${e.target.value}%`;
   patchCallPrefs({ masterVolume: Number(e.target.value) });
 });
+
+// --- hotkeys: click a button, then press the combo you want -------------
+// Escape or clicking away cancels without changing anything; any other key
+// (with or without modifiers) is captured as soon as it lands, since a
+// bare modifier alone isn't a usable combo yet.
+
+function startHotkeyCapture(btn, prefKey) {
+  btn.textContent = 'Press a key…';
+  btn.classList.add('recording');
+  const onKeyDown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Escape') { stop(); return; }
+    const combo = comboFromEvent(event);
+    if (!combo) return; // only a modifier so far -- keep waiting
+    user.callPrefs[prefKey] = combo;
+    patchCallPrefs({ [prefKey]: combo });
+    stop();
+  };
+  const onBlur = () => stop();
+  function stop() {
+    document.removeEventListener('keydown', onKeyDown, true);
+    btn.removeEventListener('blur', onBlur);
+    btn.classList.remove('recording');
+    btn.textContent = formatHotkey(user.callPrefs[prefKey]);
+  }
+  document.addEventListener('keydown', onKeyDown, true);
+  btn.addEventListener('blur', onBlur);
+  btn.focus();
+}
+for (const [id, prefKey] of [['cp-mute-key', 'muteKey'], ['cp-ptt-key', 'pttKey'], ['cp-cam-key', 'camKey']]) {
+  $(id).addEventListener('click', () => startHotkeyCapture($(id), prefKey));
+}
 
 // --- admin editing someone else -----------------------------------------
 
