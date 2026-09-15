@@ -116,6 +116,7 @@ async function loadSettings() {
     // Player box only: the picture's size and the colour behind it.
     const scale = kind === 'player' ? settings.pictureScale : 100;
     document.documentElement.style.setProperty('--pic-inset', `${(100 - scale) / 2}%`);
+    document.documentElement.style.setProperty('--pic-scale', scale);
     document.documentElement.style.setProperty('--pic-bg', settings.pictureColor);
     document.body.classList.toggle('picture-bg', kind === 'player' && settings.pictureBackground);
     document.documentElement.style.setProperty('--plate-bg', settings.plateColor);
