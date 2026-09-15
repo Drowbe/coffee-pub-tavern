@@ -36,7 +36,7 @@ const connectOptions = { autoSubscribe: kind === 'player' };
 // Slots this kind draws, as blob URLs (null when the user has none).
 const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
-let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, plateLayout: 'lower-left', plateColor: '#000000', plateTextColor: '#f1e6d8', plateFontSize: 16, plateOpacity: 60, pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
+let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, plateLayout: 'lower-left', plateColor: '#000000', plateTextColor: '#f1e6d8', plateFontSize: 16, plateOpacity: 60, plateTextCase: 'default', pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
 // Each kind draws its own borders: the player's (per user) or the character's (server-wide).
 function borders() {
   if (kind === 'player') return { talk: settings.border, talkColor: settings.borderColor, mute: settings.mutedBorder, muteColor: settings.mutedColor, width: settings.borderWidth };
@@ -106,7 +106,7 @@ async function loadSettings() {
     REACTIONS = Object.fromEntries((reactions || []).map((r) => [r.id, r.glyph]));
     const me = users.find((u) => u.key === wanted);
     if (me) {
-      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), plateLayout: me.plateLayout || 'lower-left', plateColor: me.plateColor || '#000000', plateTextColor: me.plateTextColor || '#f1e6d8', plateFontSize: me.plateFontSize || 16, plateOpacity: me.plateOpacity ?? 60, charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
+      settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), plateLayout: me.plateLayout || 'lower-left', plateColor: me.plateColor || '#000000', plateTextColor: me.plateTextColor || '#f1e6d8', plateFontSize: me.plateFontSize || 16, plateOpacity: me.plateOpacity ?? 60, plateTextCase: me.plateTextCase || 'default', charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
     }
     const b = borders();
@@ -143,6 +143,17 @@ function setImage(el, src) {
   if (src && el.getAttribute('src') !== src) el.src = src;
 }
 
+// The plate's own casing, independent of however the name was actually typed.
+function applyPlateCase(text) {
+  if (settings.plateTextCase === 'upper') return text.toUpperCase();
+  if (settings.plateTextCase === 'lower') return text.toLowerCase();
+  if (settings.plateTextCase === 'sentence') {
+    const lower = text.toLowerCase();
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }
+  return text;
+}
+
 function render() {
   const online = !!participant;
   const video = document.querySelector('video');
@@ -173,7 +184,7 @@ function render() {
   // The Player option applies to the player box; plate=1 forces it on either kind.
   const showPlate = forcePlate || (kind === 'player' && settings.plate);
   $('plate').hidden = !(showPlate && state !== 'blank');
-  if (showPlate) $('plate').textContent = participant?.name || settings.displayName || wanted;
+  if (showPlate) $('plate').textContent = applyPlateCase(participant?.name || settings.displayName || wanted);
   document.body.dataset.state = state;
   document.body.dataset.talking = talking ? '1' : '';
   document.body.dataset.muted = muted ? '1' : '';

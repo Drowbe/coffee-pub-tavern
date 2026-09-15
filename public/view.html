@@ -8,26 +8,31 @@
     :root { --talk: #6fae6b; }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; }
-    video, .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
+    video, .layer-wrap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
     video { object-fit: cover; }
+    .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
     /* Offline/Online picture and its talking/muted overlays -- not the
        camera itself, which always fills the box edge to edge. Rounded only
        for the Participant box; the Character box sits over a character bar
-       and stays square. */
-    .layer { object-fit: contain; }
-    body[data-kind="player"] .layer { border-radius: 10px; }
+       and stays square. The radius (and the clip) sits on a wrapping div,
+       not the <img> itself -- OBS's Browser Source runs Chromium offscreen,
+       which does not reliably clip a replaced element's own border-radius
+       the way an ordinary on-screen tab does; overflow:hidden on a plain
+       block element is the one thing every renderer honours. */
+    body[data-kind="player"] .layer-wrap { border-radius: 10px; overflow: hidden; }
     /* the Offline / Online picture can sit smaller than the box, on a colour
        or, when the player has their own video-background image (set on the
        profile page, used to replace their real background live), that same
        picture instead -- so a paused camera reads as "them, backed by their
        own background" rather than a flat colour underneath a small portrait. */
-    #base { inset: var(--pic-inset, 0%); width: calc(100% - 2 * var(--pic-inset, 0%)); height: calc(100% - 2 * var(--pic-inset, 0%)); }
+    #base-wrap { inset: var(--pic-inset, 0%); width: calc(100% - 2 * var(--pic-inset, 0%)); height: calc(100% - 2 * var(--pic-inset, 0%)); }
     body.picture-bg[data-state="image"], body.picture-bg[data-state="offline"] { background: var(--pic-bg); }
     #bg-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
     /* Name plate: position (data-plate, set from the Nameplate settings),
        box colour + opacity combined via color-mix, font colour and size. */
     .plate {
       position: absolute;
+      box-sizing: border-box;
       padding: 4px 10px;
       border-radius: 4px;
       background: color-mix(in srgb, var(--plate-bg, #000) var(--plate-opacity, 60%), transparent);
@@ -40,7 +45,7 @@
     .plate[data-plate="lower-left"] { bottom: 12px; left: 12px; }
     .plate[data-plate="lower-right"] { bottom: 12px; right: 12px; }
     .plate[data-plate="bottom-center"] { bottom: 12px; left: 50%; transform: translateX(-50%); }
-    .plate[data-plate="bottom-full"] { bottom: 0; left: 0; right: 0; width: 100%; border-radius: 0; text-align: center; }
+    .plate[data-plate="bottom-full"] { bottom: 0; left: 0; right: 0; border-radius: 0; text-align: center; }
     .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #a8998a; font-size: 14px; }
     /* talking frame: a real border around the box, any size, never stretched */
     .frame { position: absolute; inset: 0; pointer-events: none; border: var(--talk-w, 6px) solid var(--frame, var(--talk)); border-radius: 8px; box-shadow: inset 0 0 12px color-mix(in srgb, var(--frame, var(--talk)) 60%, transparent); opacity: 0; transition: opacity 0.12s ease; }
@@ -59,9 +64,8 @@
 </head>
 <body data-state="blank">
   <img id="bg-image" alt="" hidden>
-  <img class="layer" id="base" alt="" hidden>
-  <img class="layer" id="overlay-talking" alt="" hidden>
-  <img class="layer" id="overlay-muted" alt="" hidden>
+  <div id="base-wrap" class="layer-wrap"><img class="layer" id="base" alt="" hidden></div>
+  <div class="layer-wrap"><img class="layer" id="overlay-talking" alt="" hidden><img class="layer" id="overlay-muted" alt="" hidden></div>
   <div class="frame"></div>
   <div class="msg" id="msg" hidden></div>
   <span class="plate" id="plate" hidden></span>

@@ -39,6 +39,9 @@ const ROOM_PROFILE_SLOTS = {
 // Where the name plate sits on the Participant box. bottom-full spans the
 // whole width, flush with the bottom edge (no side margin, unlike the rest).
 const PLATE_LAYOUTS = ['upper-left', 'upper-right', 'lower-left', 'lower-right', 'bottom-center', 'bottom-full'];
+// How the plate's text is cased, independent of however it was actually
+// typed as a display name.
+const PLATE_TEXT_CASES = ['default', 'upper', 'lower', 'sentence'];
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
@@ -92,6 +95,7 @@ const DEFAULT_SETTINGS = {
   plateTextColor: '#f1e6d8',
   plateFontSize: 16,
   plateOpacity: 60,
+  plateTextCase: 'default',
   // Behind the Offline / Online picture in the player box: a colour (or
   // transparent) and the picture's size as a percentage of the box.
   pictureBackground: false,
@@ -359,6 +363,7 @@ class Store {
       const n = Math.round(Number(patch.plateOpacity));
       if (Number.isFinite(n)) s.plateOpacity = Math.max(0, Math.min(100, n));
     }
+    if (patch.plateTextCase !== undefined && PLATE_TEXT_CASES.includes(patch.plateTextCase)) s.plateTextCase = patch.plateTextCase;
     if (patch.pictureBackground !== undefined) s.pictureBackground = Boolean(patch.pictureBackground);
     if (patch.pictureColor !== undefined && cleanColor(patch.pictureColor)) s.pictureColor = cleanColor(patch.pictureColor);
     if (patch.pictureScale !== undefined) {
@@ -388,6 +393,7 @@ class Store {
       plateTextColor: s.plateTextColor || DEFAULT_SETTINGS.plateTextColor,
       plateFontSize: s.plateFontSize || DEFAULT_SETTINGS.plateFontSize,
       plateOpacity: s.plateOpacity ?? DEFAULT_SETTINGS.plateOpacity,
+      plateTextCase: PLATE_TEXT_CASES.includes(s.plateTextCase) ? s.plateTextCase : DEFAULT_SETTINGS.plateTextCase,
       charBorder: Boolean(s.charBorder),
       charBorderColor: s.charBorderColor || DEFAULT_BORDER_COLOR,
       charMutedBorder: Boolean(s.charMutedBorder),

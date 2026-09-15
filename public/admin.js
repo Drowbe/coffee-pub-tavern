@@ -315,6 +315,7 @@ $('save-defaults').addEventListener('click', async () => {
       plateTextColor: $('set-plate-text-color').value,
       plateFontSize: $('set-plate-font-size').value,
       plateOpacity: $('set-plate-opacity').value,
+      plateTextCase: $('set-plate-text-case').value,
       pictureBackground: $('set-picture-bg').checked,
       pictureColor: $('set-picture-color').value,
       pictureScale: $('set-picture-scale').value,
@@ -513,6 +514,7 @@ async function init() {
     $('set-plate-text-color').value = settings.plateTextColor || '#f1e6d8';
     $('set-plate-font-size').value = settings.plateFontSize || 16;
     $('set-plate-opacity').value = settings.plateOpacity ?? 60;
+    $('set-plate-text-case').value = settings.plateTextCase || 'default';
     $('set-char-border').checked = Boolean(settings.charBorder);
     $('set-char-border-color').value = settings.charBorderColor || '#6fae6b';
     $('set-char-muted-border').checked = Boolean(settings.charMutedBorder);
