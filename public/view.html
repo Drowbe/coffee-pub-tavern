@@ -14,12 +14,12 @@
     /* Offline/Online picture and its talking/muted overlays -- not the
        camera itself, which always fills the box edge to edge. Rounded only
        for the Participant box; the Character box sits over a character bar
-       and stays square. The radius (and the clip) sits on a wrapping div,
-       not the <img> itself -- OBS's Browser Source runs Chromium offscreen,
-       which does not reliably clip a replaced element's own border-radius
-       the way an ordinary on-screen tab does; overflow:hidden on a plain
-       block element is the one thing every renderer honours. */
-    body[data-kind="player"] .layer-wrap { border-radius: 10px; overflow: hidden; }
+       and stays square. The radius (and the clip) sits on a wrapping div
+       rather than the <img> itself, since overflow:hidden on a plain block
+       element is the most broadly reliable way to clip a replaced element's
+       corners across renderers. 20px reads clearly at typical box sizes --
+       10px was correct but too subtle to actually notice. */
+    body[data-kind="player"] .layer-wrap { border-radius: 20px; overflow: hidden; }
     /* the Offline / Online picture can sit smaller than the box, on a colour
        or, when the player has their own video-background image (set on the
        profile page, used to replace their real background live), that same
