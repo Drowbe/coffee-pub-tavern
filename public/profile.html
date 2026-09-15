@@ -22,12 +22,14 @@
 
   <main class="admin">
     <nav class="subtabs section-nav">
-      <a class="subtab" href="#section-user">User</a>
+      <a class="subtab" href="#section-account">Account</a>
+      <a class="subtab" href="#section-background">Background</a>
+      <a class="subtab" href="#section-call">Call Settings</a>
       <a class="subtab" href="#section-images">Default Images</a>
     </nav>
 
     <div class="tab-stack">
-      <section class="panel" id="section-user">
+      <section class="panel" id="section-account">
         <div class="profile-head">
           <div class="slot" id="portrait-slot"><div class="slot-pick-wrap"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="portrait-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
@@ -38,35 +40,6 @@
           </div>
         </div>
 
-        <h2>Video background</h2>
-        <p class="hint" id="background-hint">A still picture behind you in the call, instead of your real background -- an alternative to blur, in Settings. Leave it unset to use blur or your actual background instead.</p>
-        <div class="row">
-          <div class="slot" id="background-slot"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="background" alt=""><span class="unset">not set</span><input type="file" id="background-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="background-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
-        </div>
-
-        <h2>Call settings</h2>
-        <p class="hint" id="call-prefs-hint"></p>
-        <div class="fields" id="call-prefs-fields">
-          <label>Mic level <span class="hint" id="cp-gain-value">100%</span><input type="range" id="cp-gain" min="0" max="300" step="5"></label>
-          <label>Noise gate <span class="hint" id="cp-gate-value">off</span><input type="range" id="cp-gate" min="0" max="60" step="1"></label>
-          <label class="check"><input type="checkbox" id="cp-noise"> Noise suppression</label>
-          <label class="check"><input type="checkbox" id="cp-echo"> Echo cancellation</label>
-          <label class="check"><input type="checkbox" id="cp-agc"> Auto gain</label>
-          <label>Talking<select id="cp-talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
-          <label>Quality<select id="cp-quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720">720p</option></select></label>
-          <label class="check"><input type="checkbox" id="cp-mirror"> Mirror my own preview</label>
-          <label class="wide">Background<select id="cp-background">
-            <option value="none">Off (real background)</option>
-            <option value="blur">Blur</option>
-            <option value="image">Custom image (above)</option>
-          </select></label>
-          <label>Speaker volume <span class="hint" id="cp-volume-value">100%</span><input type="range" id="cp-master-volume" min="0" max="100" step="5"></label>
-        </div>
-        <div class="row">
-          <span class="status" id="call-prefs-status"></span>
-        </div>
-
-        <h2>Account</h2>
         <p class="hint" id="account-hint">Set by your admin. Ask them to change any of these.</p>
         <div class="facts" id="account-facts">
           <div class="fact"><span class="fact-key">Display name</span><span class="fact-value" id="f-name"></span></div>
@@ -98,6 +71,55 @@
           <button class="btn btn-small" id="mute-btn" type="button">Mute mic</button>
           <button class="btn btn-small" id="kick-btn" type="button">Kick</button>
           <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete user</button>
+        </div>
+      </section>
+
+      <section class="panel" id="section-background">
+        <h2>Background</h2>
+        <p class="hint" id="background-hint"></p>
+        <div class="row">
+          <div class="slot" id="background-slot"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="background" alt=""><span class="unset">not set</span><input type="file" id="background-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="background-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
+        </div>
+        <div class="fields">
+          <label class="wide">Background Style<select id="cp-background">
+            <option value="none">Off (real background)</option>
+            <option value="blur">Blur</option>
+            <option value="image">Image Background</option>
+          </select></label>
+        </div>
+      </section>
+
+      <section class="panel" id="section-call">
+        <h2>Call Settings</h2>
+        <p class="hint" id="call-prefs-hint"></p>
+        <div id="call-prefs-fields">
+          <h3>Microphone</h3>
+          <div class="fields">
+            <label>Mic level <span class="hint" id="cp-gain-value">100%</span><input type="range" id="cp-gain" min="0" max="300" step="5"></label>
+            <label>Noise gate <span class="hint" id="cp-gate-value">off</span><input type="range" id="cp-gate" min="0" max="60" step="1"></label>
+            <label>Talking<select id="cp-talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
+            <div class="check-group wide">
+              <label class="check"><input type="checkbox" id="cp-noise"> Noise suppression</label>
+              <label class="check"><input type="checkbox" id="cp-echo"> Echo cancellation</label>
+              <label class="check"><input type="checkbox" id="cp-agc"> Auto gain</label>
+            </div>
+          </div>
+
+          <h3>Video</h3>
+          <div class="fields">
+            <label>Quality<select id="cp-quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720">720p</option></select></label>
+            <div class="check-group wide">
+              <label class="check"><input type="checkbox" id="cp-mirror"> Mirror my own preview</label>
+            </div>
+          </div>
+
+          <h3>Speaker</h3>
+          <div class="fields">
+            <label>Speaker volume <span class="hint" id="cp-volume-value">100%</span><input type="range" id="cp-master-volume" min="0" max="100" step="5"></label>
+          </div>
+        </div>
+        <div class="row">
+          <span class="status" id="call-prefs-status"></span>
         </div>
       </section>
 

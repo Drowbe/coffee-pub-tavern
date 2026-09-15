@@ -67,13 +67,13 @@ function render() {
   $('background-slot').querySelector('.unset').hidden = hasBg;
   $('background-clear').hidden = !hasBg;
   $('background-hint').textContent = editing
-    ? `${user.displayName}'s background image in the call, an alternative to blur. Unset uses blur or their real background instead.`
-    : 'A still picture behind you in the call, instead of your real background -- an alternative to blur, in Settings. Leave it unset to use blur or your actual background instead.';
+    ? `Shown behind ${user.displayName}'s portrait when their camera is off, and used as their real call background too if Background Style below is set to Image Background. Unset shows the plain color instead.`
+    : 'Shown behind your portrait when your camera is off, and used as your real call background too if Background Style below is set to Image Background. Leave it unset to use the plain color instead.';
 
   $('call-prefs-hint').textContent = editing
     ? `${user.displayName}'s own mic and camera settings, applied automatically wherever they join a call from. Which device to use is separate -- that stays on their own device.`
     : 'Your own mic and camera settings, applied automatically wherever you join a call from. Which device to use is separate -- that stays on this device, in the call itself.';
-  if (document.activeElement?.closest?.('#call-prefs-fields') == null) {
+  if (!document.activeElement?.id?.startsWith('cp-')) {
     const cp = user.callPrefs;
     $('cp-gain').value = String(cp.gain);
     $('cp-gain-value').textContent = `${cp.gain}%`;

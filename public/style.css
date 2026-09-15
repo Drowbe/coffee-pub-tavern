@@ -837,6 +837,16 @@ input[type="range"] {
   color: var(--text);
 }
 
+/* A row of checkboxes belongs together, not scattered one per grid cell
+   like every other .fields item -- group them into one compact,
+   wrapping row instead. */
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -1925,7 +1935,9 @@ body.at-table .topbar {
   display: inline-block;
 }
 
-#section-user,
+#section-account,
+#section-background,
+#section-call,
 #section-images,
 #section-room,
 #section-members,
