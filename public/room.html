@@ -85,15 +85,23 @@
     </div>
 
     <!-- Admin only: shown once one or more tiles are picked with the door
-         icon, to confirm pulling all of them aside together. Two separate,
-         always-explicit buttons rather than one button plus a toggle --
-         which one gets clicked should never depend on remembering to flip
-         a checkbox back. An aside is still recorded (Studio mutes/dims
-         whoever stepped out, the pair stays on stream); "Privately" is a
-         real off-the-record word Studio hides from the recording entirely. -->
-    <div class="float aside-confirm-bar" id="aside-confirm-bar" hidden>
-      <button class="btn btn-primary" id="aside-confirm" type="button">Step aside</button>
-      <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
+         icon, to confirm pulling all of them aside together. A centered
+         overlay (not a small edge-of-screen pill) so the choice is
+         unmissable, with three always-explicit actions rather than one
+         button plus a toggle -- which one gets clicked should never depend
+         on remembering to flip a checkbox back. An aside is still recorded
+         (Studio mutes/dims whoever stepped out, the pair stays on stream);
+         "Privately" is a real off-the-record word Studio hides from the
+         recording entirely. Clicking the backdrop cancels too. -->
+    <div class="aside-overlay" id="aside-overlay" hidden>
+      <div class="aside-overlay-card">
+        <p id="aside-overlay-prompt"></p>
+        <div class="aside-overlay-actions">
+          <button class="btn btn-primary" id="aside-confirm" type="button">Step aside</button>
+          <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
+          <button class="btn btn-small" id="aside-cancel" type="button">Cancel</button>
+        </div>
+      </div>
     </div>
 
     <div class="float floatbar" id="floatbar">

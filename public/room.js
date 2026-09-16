@@ -346,7 +346,7 @@ function tileFor(participant) {
     vol.addEventListener('pointerenter', () => (tile.draggable = false));
     vol.addEventListener('pointerleave', () => (tile.draggable = true));
     tile.appendChild(vol);
-    if (me?.role === 'admin') {
+    if (me?.role === 'admin' && !currentRoom?.ephemeral) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -1310,12 +1310,21 @@ function toggleAsideSelection(identity, button) {
 }
 
 function updateAsideConfirm() {
-  const bar = $('aside-confirm-bar');
-  if (!bar) return;
-  bar.hidden = asideSelection.size === 0;
+  const overlay = $('aside-overlay');
+  if (!overlay) return;
+  overlay.hidden = asideSelection.size === 0;
   const n = asideSelection.size;
+  const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
+  $('aside-overlay-prompt').textContent = `Step aside with ${names.join(' & ')}?`;
   $('aside-confirm').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
   $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
+}
+
+// Back out without pulling anyone: un-pick everyone, door icons included.
+function cancelAsideSelection() {
+  for (const key of asideSelection) tiles.get(key)?.querySelector('.tile-aside')?.classList.remove('selected');
+  asideSelection.clear();
+  updateAsideConfirm();
 }
 
 // Admin only: pull one or more people who are currently at the table into a
@@ -1631,6 +1640,8 @@ $('leave-top').addEventListener('click', () => room.disconnect());
 $('back-to-table').addEventListener('click', () => returnToTable());
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
+$('aside-cancel').addEventListener('click', cancelAsideSelection);
+$('aside-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) cancelAsideSelection(); });
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());

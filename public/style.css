@@ -1897,12 +1897,40 @@ body.at-table .topbar {
   border-color: var(--accent);
 }
 
-.aside-confirm-bar {
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+.aside-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.aside-overlay-card {
+  background: rgba(36, 28, 22, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  max-width: min(360px, calc(100% - 32px));
+  text-align: center;
+}
+
+.aside-overlay-card p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.aside-overlay-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* Visually distinct from the ordinary (still-recorded) Step aside button on
