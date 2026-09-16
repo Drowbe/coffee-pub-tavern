@@ -351,7 +351,7 @@ function tileFor(participant) {
       aside.type = 'button';
       aside.className = 'tile-aside';
       aside.title = `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`;
-      aside.innerHTML = '<i class="fa-solid fa-door-open" aria-hidden="true"></i>';
+      aside.innerHTML = '<i class="fa-solid fa-people-arrows" aria-hidden="true"></i>';
       aside.classList.toggle('selected', asideSelection.has(participant.identity));
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
@@ -1332,7 +1332,7 @@ function updateAsideConfirm() {
   const n = asideSelection.size;
   const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
   $('aside-overlay-prompt').textContent = `Step aside with ${names.join(' & ')}?`;
-  $('aside-confirm').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
+  $('aside-confirm-label').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
   $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
 }
 

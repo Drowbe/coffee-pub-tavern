@@ -1788,13 +1788,13 @@ body.at-table .topbar {
   position: absolute;
   top: 8px;
   left: 8px;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: rgba(20, 15, 12, 0.85);
   color: var(--text);
-  font-size: 12px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
