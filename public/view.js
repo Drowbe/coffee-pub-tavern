@@ -109,8 +109,9 @@ let connectedRoom = null;
 // currently following (activeRoom) -- only meaningful when an admin is
 // actually online, otherwise there's no reference room to be aside from.
 let tableOnline = false;
-let isAside = false;
-let isPrivate = false;
+let isAside = false; // relative to the admin: for the DIM/TINT of whoever stayed behind
+let inAside = false; // self-referential: for the Aside overlay IMAGE, on whoever actually stepped away
+let isPrivate = false; // already self-referential -- drives both the dim/tint AND the overlay image
 // Two independent effects per state: Dim (a plain brightness filter over
 // the whole box) and Tint (a colour overlay with its own opacity) --
 // deliberately not combined into one, so either can be used alone.
@@ -148,10 +149,12 @@ async function loadSettings() {
       // (see isPrivate there); the picture/name plate still show, same as
       // camera-off, dressed with its own dim+tint below rather than aside's.
       const room = tableOnline ? (data.rooms || []).find((r) => r.id === me.room) : null;
+      inAside = tableOnline && Boolean(room?.ephemeral) && !room?.private;
       isPrivate = Boolean(room?.ephemeral && room?.private);
     } else {
       tableOnline = false;
       isAside = false;
+      inAside = false;
       isPrivate = false;
     }
     dimSettings = {
@@ -231,7 +234,7 @@ function render() {
     setImage($('base'), state === 'image' ? images.player : state === 'offline' ? images.playerOffline : null);
     setImage($('overlay-talking'), talking ? images.playerTalking : null);
     setImage($('overlay-muted'), muted ? images.playerMuted : null);
-    setImage($('overlay-aside'), isAside ? images.playerAside : null);
+    setImage($('overlay-aside'), inAside ? images.playerAside : null);
     setImage($('overlay-private'), isPrivate ? images.playerPrivate : null);
   } else {
     state = online ? 'image' : images.characterOffline ? 'offline' : 'blank';
