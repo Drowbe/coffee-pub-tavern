@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; worker-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-RSFQ4kBODG/uIrLH6ZkOwXOV5IL1fQqU0V3hyYny3xM='; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; worker-src 'self'">
   <meta name="theme-color" content="#1a1410">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/img/site/icon">
   <link rel="apple-touch-icon" href="/icon.png">
   <title>Coffee Pub Tavern</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
@@ -21,11 +22,12 @@
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
     <nav class="links" id="links">
-      <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the Lobby" hidden>Back to the table</button>
+      <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
+      <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
-      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+      <a class="whoami" id="whoami-link" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" id="logout-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
   </header>
@@ -33,8 +35,17 @@
   <div class="join" id="join">
     <div class="room-list" id="rooms"></div>
     <p class="status error" id="join-error" hidden></p>
-    <p class="hint join-note">Your browser will ask for camera and microphone the first time. <span id="install-hint" hidden></span></p>
+    <p class="hint join-note">Your browser will ask for your microphone the first time. You join with your camera off; turn it on whenever you're ready, and your browser will ask for it then. <span id="install-hint" hidden></span></p>
   </div>
+
+  <!-- A guest link (/guest/<token>) shows this instead: a name, nothing else. -->
+  <form class="join guest-join" id="guest-join" hidden>
+    <h1 id="guest-room-name">Join as a guest</h1>
+    <label>Your name<input id="guest-name" type="text" maxlength="40" required autocomplete="name"></label>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
+    <p class="status error" id="guest-join-error" hidden></p>
+    <p class="hint join-note">Your browser will ask for your microphone. You join with your camera off; turn it on whenever you're ready. Nothing about you is kept once you leave.</p>
+  </form>
 
   <template id="room-choice">
     <article class="room-choice">
@@ -45,7 +56,11 @@
       </div>
       <p class="hint room-choice-desc"></p>
       <div class="members"></div>
-      <button class="btn btn-primary" data-join type="button">Join</button>
+      <div class="room-choice-actions">
+        <a class="btn btn-small" data-link target="_blank" rel="noopener" href="#" title="Open this room's link" hidden><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></a>
+        <button class="btn btn-primary" data-join type="button"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
+        <a class="btn btn-small" data-edit data-overlay-link href="#" title="Room settings" hidden><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></a>
+      </div>
     </article>
   </template>
 
@@ -54,6 +69,13 @@
     <p>Your room is in its own window.</p>
     <button class="btn" id="bring-back" type="button">Bring it back here</button>
   </div>
+
+  <!-- Your profile or Manage, opened from inside a call: loads for real in
+       an iframe so the call underneath keeps running untouched. The page's
+       own header gets a "Back to [room]" link added to it (see brand.js'
+       wireOverlayBack, called from profile.js/admin.js) rather than
+       stacking a second bar of ours on top of it. -->
+  <iframe class="page-overlay" id="page-overlay-frame" title="Page" hidden></iframe>
 
   <!-- Everything at the table lives inside the stage so it can pop out as one. -->
   <main class="stage" id="stage" hidden>
@@ -64,18 +86,66 @@
       <span class="status" id="status"></span>
     </div>
 
+    <!-- Admin only: shown once one or more tiles are picked with the door
+         icon, to confirm pulling all of them aside together. A centered
+         overlay (not a small edge-of-screen pill) so the choice is
+         unmissable, with three always-explicit actions rather than one
+         button plus a toggle -- which one gets clicked should never depend
+         on remembering to flip a checkbox back. An aside is still recorded
+         (Studio mutes/dims whoever stepped out, the pair stays on stream);
+         "Privately" is a real off-the-record word Studio hides from the
+         recording entirely. Clicking the backdrop cancels too. -->
+    <div class="aside-overlay" id="aside-overlay" hidden>
+      <div class="aside-overlay-card">
+        <p id="aside-overlay-prompt"></p>
+        <div class="aside-overlay-actions">
+          <button class="btn btn-primary" id="aside-confirm" type="button"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> <span id="aside-confirm-label">Step aside</span></button>
+          <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
+          <button class="btn btn-small" id="aside-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shown on a Private Conversation participant's own screen once the
+         admin clicks "Pull Participants Back" in the room they stepped out
+         of -- a warned countdown, not an instant yank, so it doesn't cut
+         someone off mid-sentence. No cancel: this is the admin's call, not
+         theirs to override. -->
+    <div class="aside-overlay" id="recall-overlay" hidden>
+      <div class="aside-overlay-card">
+        <p>You are being pulled back to <strong id="recall-room-name"></strong> in...</p>
+        <p class="recall-countdown" id="recall-countdown"></p>
+      </div>
+    </div>
+
     <div class="float floatbar" id="floatbar">
-      <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="mic" title="Microphone settings" aria-label="Microphone settings">&#94;</button>
+      </div>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="deafen" type="button" title="Mute what you hear (D)"><span class="glyph"><i class="fa-solid fa-volume-high fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-volume-xmark fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="audio" title="Audio output settings" aria-label="Audio output settings">&#94;</button>
+      </div>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="camera" title="Camera settings" aria-label="Camera settings">&#94;</button>
+      </div>
+      <button class="fbtn" id="screen-share" type="button" title="Share your screen (S)" hidden><span class="glyph"><i class="fa-solid fa-desktop fa-fw" aria-hidden="true"></i></span></button>
+      <div class="fbtn-wrap">
+        <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells-large fa-fw" id="layout-glyph" aria-hidden="true"></i></span></button>
+        <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings">&#94;</button>
+      </div>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="settings-toggle" type="button" title="Settings"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="room-link" type="button" title="Open this room's link" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
     </div>
 
     <aside class="chat" id="chat" hidden>
+      <div class="chat-resize" id="chat-resize" title="Drag to resize"></div>
       <header>
         <span>Chat</span>
         <span class="chat-tools">
@@ -93,47 +163,85 @@
       </form>
     </aside>
 
-    <div class="popover tray" id="react-tray" hidden>
-      <button class="react" type="button" data-reaction="heart" title="Heart (1)">&#10084;&#65039;</button>
-      <button class="react" type="button" data-reaction="up" title="Thumbs up (2)">&#128077;</button>
-      <button class="react" type="button" data-reaction="down" title="Thumbs down (3)">&#128078;</button>
-      <button class="react" type="button" data-reaction="laugh" title="Laugh (4)">&#128514;</button>
-      <button class="react" type="button" data-reaction="question" title="Question (5)">&#10067;</button>
-      <button class="react" type="button" data-reaction="nat20" title="Nat 20! (6)">&#127922;</button>
-    </div>
+    <!-- Filled in from the server's reaction list (Manage > Settings); the
+         admin can add, remove or reorder what shows up here. -->
+    <div class="popover tray" id="react-tray" hidden></div>
 
     <div class="popover" id="settings" hidden>
-      <h3>Audio</h3>
-      <label>Microphone<select id="mic-select"></select></label>
-      <label>Mic level <span class="hint" id="gain-value">100%</span><input type="range" id="gain" min="0" max="300" step="5" value="100"></label>
-      <label>Noise gate <span class="hint" id="gate-value">off</span><input type="range" id="gate" min="0" max="60" step="1" value="0"></label>
-      <div class="checks">
-        <label class="check"><input type="checkbox" id="noise" checked> Noise suppression</label>
-        <label class="check"><input type="checkbox" id="echo" checked> Echo cancellation</label>
-        <label class="check"><input type="checkbox" id="agc" checked> Auto gain</label>
+      <div class="settings-group" data-group="mic">
+        <h3>Microphone</h3>
+        <label>Microphone<select id="mic-select"></select></label>
+        <label>Mic level <span class="hint" id="gain-value">100%</span><input type="range" id="gain" min="0" max="300" step="5" value="100"></label>
+        <label>Noise gate <span class="hint" id="gate-value">off</span><input type="range" id="gate" min="0" max="60" step="1" value="0"></label>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="noise" checked> Noise suppression</label>
+          <label class="check"><input type="checkbox" id="echo" checked> Echo cancellation</label>
+          <label class="check"><input type="checkbox" id="agc" checked> Auto gain</label>
+        </div>
+        <label>Talking<select id="talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk</option></select></label>
       </div>
-      <label>Talking<select id="talk-mode"><option value="open">Open mic</option><option value="ptt">Push to talk (hold Space)</option></select></label>
-      <h3>Video</h3>
-      <label>Camera<select id="cam-select"></select></label>
-      <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
-      <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
-      <h3>Layout</h3>
-      <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
-      <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
-      <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
-      <div class="row">
-        <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
-        <span class="hint" id="install-note"></span>
+      <div class="settings-group" data-group="audio">
+        <h3>Audio output</h3>
+        <label>Speaker<select id="speaker-select"></select></label>
+        <label>Volume <span class="hint" id="volume-value">100%</span><input type="range" id="master-volume" min="0" max="100" step="5" value="100"></label>
+        <p class="hint">A single person too loud or quiet? Hover their tile at the table for their own volume.</p>
       </div>
-      <nav class="links">
-        <a href="/profile">Your profile</a>
-        <a href="/admin" id="admin-link-2" hidden>Manage</a>
-        <a href="/logout">Sign out</a>
-        <span class="version" data-brand="version"></span>
-      </nav>
+      <div class="settings-group" data-group="camera">
+        <h3>Video</h3>
+        <label>Camera<select id="cam-select"></select></label>
+        <label>Quality<select id="quality"><option value="360">360p (weak connection)</option><option value="540">540p</option><option value="720" selected>720p</option></select></label>
+        <label class="check"><input type="checkbox" id="mirror" checked> Mirror my own preview</label>
+        <label>Background<select id="background-mode">
+          <option value="none">Off (your real background)</option>
+          <option value="blur">Blur</option>
+          <option value="image">Custom image (set on your profile page)</option>
+        </select></label>
+        <p class="hint">Blur or a custom image fetch a small ML model the first time you turn either on.</p>
+      </div>
+      <div class="settings-group" data-group="layout">
+        <h3>Layout</h3>
+        <span class="field-label">Layout</span>
+        <div class="layout-pick" id="layout-pick" role="group" aria-label="Layout">
+          <button type="button" data-layout="grid"><i class="fa-solid fa-table-cells-large fa-fw" aria-hidden="true"></i> Grid</button>
+          <button type="button" data-layout="strip" title="Strip: one row or column"><i class="fa-solid fa-grip fa-fw" aria-hidden="true"></i> Strip</button>
+          <button type="button" data-layout="spotlight" title="Spotlight: one big, rest small"><i class="fa-regular fa-square fa-fw" aria-hidden="true"></i> Spotlight</button>
+        </div>
+        <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
+        <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
+      </div>
+      <div class="settings-group" data-group="more">
+        <div class="row">
+          <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
+          <span class="hint" id="install-note"></span>
+        </div>
+        <div id="guest-section">
+          <h3>Guests</h3>
+          <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed.</p>
+          <p class="hint" id="guest-link-off-note" hidden>An admin has turned guests off for this room.</p>
+          <div class="row">
+            <code class="key link" id="guest-link-value">off</code>
+            <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
+            <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
+            <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
+            <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+          </div>
+          <p class="status" id="guest-link-status"></p>
+        </div>
+        <nav class="links" id="settings-links">
+          <a href="/profile" data-overlay-link title="Your profile">Your profile</a>
+          <a href="/admin" id="admin-link-2" data-overlay-link title="Manage" hidden>Manage</a>
+          <a href="/logout">Sign out</a>
+          <span class="version" data-brand="version"></span>
+        </nav>
+      </div>
     </div>
   </main>
 
+  <!-- @livekit/track-processors (background blur) imports these two by bare
+       package name; there's no bundler here to resolve that, so this maps
+       them to the same self-hosted files everything else already uses. Its
+       exact text is pinned by a CSP hash above -- change one, change both. -->
+  <script type="importmap">{"imports":{"livekit-client":"/lib/livekit-client.esm.mjs","@mediapipe/tasks-vision":"/lib/tasks-vision.mjs"}}</script>
   <script type="module" src="/room.js"></script>
 </body>
 </html>

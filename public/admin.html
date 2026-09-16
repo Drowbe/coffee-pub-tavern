@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
   <title>Coffee Pub Tavern - Manage</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
@@ -13,7 +14,7 @@
     <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span> <span class="status">manage</span></div>
     <nav class="links">
       <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/" target="_top" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
       <span class="version" data-brand="version"></span>
     </nav>
@@ -38,7 +39,7 @@
       <form class="panel add-user" id="add-user" hidden>
         <h2>New user</h2>
         <div class="fields">
-          <label>Login<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
+          <label>Username<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
           <label>Display name<input id="new-name" type="text" maxlength="40" autocomplete="off"></label>
           <label>Role<select id="new-role"><option value="user">User</option><option value="admin">Admin</option></select></label>
           <label>Password<input id="new-password" type="text" maxlength="200" autocomplete="off" placeholder="leave empty for link only"></label>
@@ -63,7 +64,7 @@
         </div>
         <p class="hint">Everyone belongs to the Lobby. Each room is its own conversation for the users you pick; players see their rooms after signing in and choose one. Coffee Pub Studio shows one room at a time.</p>
       </div>
-      <div id="rooms" class="rooms"></div>
+      <div id="rooms" class="users"></div>
     </section>
 
     <section class="tab-stack" id="tab-settings" hidden>
@@ -72,7 +73,12 @@
       <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>
       <div class="brand-row">
         <div class="site-images">
-          <div class="slot" data-site="icon"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Icon</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+          <div class="slot" data-site="icon">
+            <div class="slot-pick-wrap">
+              <label class="slot-pick icon-size" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+              <button class="slot-remove" data-action="site-clear" type="button" title="Remove" aria-label="Remove">&times;</button>
+            </div>
+          </div>
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
@@ -89,7 +95,12 @@
       <p class="hint">A picture behind the sign-in box, and a note under the password field.</p>
       <div class="brand-row stretch">
         <div class="site-images">
-          <div class="slot" data-site="background"><label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Background</span><button class="btn btn-small" data-action="site-clear" type="button">Remove</button></div>
+          <div class="slot" data-site="background">
+            <div class="slot-pick-wrap">
+              <label class="slot-pick wide" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label>
+              <button class="slot-remove" data-action="site-clear" type="button" title="Remove" aria-label="Remove">&times;</button>
+            </div>
+          </div>
         </div>
         <div class="fields grow">
           <label class="wide"><textarea id="set-login-text" rows="3" maxlength="1000" aria-label="Text on the sign-in page" placeholder="A note under the password field"></textarea></label>
@@ -102,32 +113,151 @@
       </div>
 
       <div class="panel">
-      <h2>Player video defaults</h2>
-      <p class="hint">Borders are drawn around the OBS boxes while the player talks or while their microphone is off. Untick one to never draw it. They are the same for everyone.</p>
+      <h2>Sign-up</h2>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-allow-registration"> Let anyone at /register sign themselves up (they land in the Lobby, same as everyone)</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-registration" type="button">Save</button>
+        <span class="status" id="registration-status"></span>
+      </div>
+      <p class="hint">Or invite someone straight into specific rooms without opening sign-up to everyone:</p>
+      <div class="row">
+        <span class="field-label">Rooms</span>
+        <div class="member-checks" id="invite-rooms"></div>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="make-invite" type="button">Generate invite link</button>
+        <span class="status" id="invite-status"></span>
+      </div>
+      <div class="row" id="invite-link-row" hidden>
+        <code class="key link" id="invite-link"></code>
+        <button class="btn btn-small" id="invite-copy" type="button">Copy</button>
+        <span class="hint">Expires in 7 days, works once.</span>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Participant video defaults</h2>
+      <p class="hint">Borders are drawn around the OBS boxes while the participant talks or while their microphone is off. Untick one to never draw it. They are the same for everyone.</p>
       <div class="row borders-row">
-        <span class="field-label">Player borders</span>
+        <span class="field-label">Participant borders</span>
         <label class="check"><input type="checkbox" id="set-border"> Talking <input type="color" id="set-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-muted-border"> Muted <input type="color" id="set-muted-color" value="#b8503f"></label>
-        <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
+        <label class="check">Width <span class="hint" id="set-border-width-value">6px</span><input type="range" id="set-border-width" min="1" max="24" step="1" value="6"></label>
       </div>
       <div class="row borders-row">
         <span class="field-label">Character borders</span>
         <label class="check"><input type="checkbox" id="set-char-border"> Talking <input type="color" id="set-char-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-char-muted-border"> Muted <input type="color" id="set-char-muted-color" value="#b8503f"></label>
-        <label class="check">Width <input type="number" id="set-char-border-width" min="1" max="24" step="1" value="6"> px</label>
+        <label class="check">Width <span class="hint" id="set-char-border-width-value">6px</span><input type="range" id="set-char-border-width" min="1" max="24" step="1" value="6"></label>
       </div>
       <div class="row">
-        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the player's name in the corner</label>
+        <label class="check"><input type="checkbox" id="set-plate"> Name plate with the participant's name</label>
       </div>
-      <p class="hint">While the Player box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
       <div class="row">
-        <label class="check"><input type="checkbox" id="set-picture-bg"> Colour behind the picture</label>
+        <label class="check">Layout
+          <select id="set-plate-layout">
+            <option value="upper-left">Upper left</option>
+            <option value="upper-right">Upper right</option>
+            <option value="lower-left">Lower left</option>
+            <option value="lower-right">Lower right</option>
+            <option value="bottom-center">Centered bottom</option>
+            <option value="bottom-full">Full width bottom</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="check">Box Color <input type="color" id="set-plate-color" value="#000000"></label>
+      </div>
+      <div class="row">
+        <label class="check">Font Color <input type="color" id="set-plate-text-color" value="#f1e6d8"></label>
+      </div>
+      <div class="row">
+        <label class="check">Font Size <span class="hint" id="set-plate-font-size-value">16px</span><input type="range" id="set-plate-font-size" min="10" max="40" step="1" value="16"></label>
+      </div>
+      <div class="row">
+        <label class="check">Nameplate Transparency <span class="hint" id="set-plate-opacity-value">60%</span><input type="range" id="set-plate-opacity" min="0" max="100" step="1" value="60"></label>
+      </div>
+      <div class="row">
+        <label class="check">Font Style
+          <select id="set-plate-text-case">
+            <option value="default">Default -- however it's typed</option>
+            <option value="upper">UPPER CASE</option>
+            <option value="lower">lower case</option>
+            <option value="sentence">Sentence case</option>
+          </select>
+        </label>
+      </div>
+      <p class="hint">While the Participant box shows a picture instead of the camera (offline, or camera off), it can sit on a colour so the video area stays visible, and smaller than the box to leave a margin around it. The camera always fills the box.</p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="set-picture-bg"> Video Background Color</label>
+      </div>
+      <div class="row">
         <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
-        <label class="check">Picture size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> % of the box</label>
       </div>
       <div class="row">
-        <button class="btn btn-small" id="save-defaults" type="button">Save defaults</button>
+        <label class="check">Portrait Size <span class="hint" id="set-picture-scale-value">100%</span><input type="range" id="set-picture-scale" min="20" max="100" step="1" value="100"></label>
+      </div>
+      <p class="hint">A member's Participant and Character boxes dim and/or tint like this in OBS whenever they aren't actually here right now: fully offline, online but pulled into an aside while the stream is following someone else, or in a Private Conversation specifically (which also always forces their live video off, on top of whatever's set here). The two people actually in an ordinary aside stay untouched. Dim and Tint are independent -- Dim darkens the whole box, Tint lays a colour over it at its own opacity -- use either, both, or neither.</p>
+      <div class="row">
+        <span class="field-label">Offline</span>
+        <label class="check">Dim <span class="hint" id="set-offline-dim-value">0%</span><input type="range" id="set-offline-dim" min="0" max="100" step="1" value="0"></label>
+        <label class="check">Tint <input type="color" id="set-offline-tint" value="#000000"></label>
+        <label class="check">Tint Opacity <span class="hint" id="set-offline-tint-opacity-value">0%</span><input type="range" id="set-offline-tint-opacity" min="0" max="100" step="1" value="0"></label>
+      </div>
+      <div class="row">
+        <span class="field-label">Aside</span>
+        <label class="check">Dim <span class="hint" id="set-aside-dim-value">0%</span><input type="range" id="set-aside-dim" min="0" max="100" step="1" value="0"></label>
+        <label class="check">Tint <input type="color" id="set-aside-tint" value="#000000"></label>
+        <label class="check">Tint Opacity <span class="hint" id="set-aside-tint-opacity-value">0%</span><input type="range" id="set-aside-tint-opacity" min="0" max="100" step="1" value="0"></label>
+      </div>
+      <div class="row">
+        <span class="field-label">Private</span>
+        <label class="check">Dim <span class="hint" id="set-private-dim-value">0%</span><input type="range" id="set-private-dim" min="0" max="100" step="1" value="0"></label>
+        <label class="check">Tint <input type="color" id="set-private-tint" value="#000000"></label>
+        <label class="check">Tint Opacity <span class="hint" id="set-private-tint-opacity-value">0%</span><input type="range" id="set-private-tint-opacity" min="0" max="100" step="1" value="0"></label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-defaults" type="button">Save defaults</button>
         <span class="status" id="defaults-status"></span>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Default Images</h2>
+      <p class="hint">The Participant box a member shows once neither they nor the room they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
+      <div class="slots" id="default-images">
+        <div class="slot" data-default-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+        <div class="slot" data-default-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+        <div class="slot" data-default-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+        <div class="slot" data-default-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
+        <div class="slot" data-default-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
+        <div class="slot" data-default-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Guest images</h2>
+      <p class="hint">The Participant box a guest shows in place of a real member's own pictures -- anyone can hand out a room's guest link from inside it (Settings, in the room itself); no account behind them to hang per-guest images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
+      <div class="slots" id="guest-images">
+        <div class="slot" data-guest-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+        <div class="slot" data-guest-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+        <div class="slot" data-guest-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+        <div class="slot" data-guest-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
+        <div class="slot" data-guest-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
+        <div class="slot" data-guest-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Reactions</h2>
+      <p class="hint">The emoji tray at the table, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
+      <div class="reactions-list" id="reactions-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
+        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
+        <span class="status" id="reactions-status"></span>
       </div>
       </div>
 
@@ -144,94 +274,41 @@
     </section>
   </main>
 
+  <template id="reaction-row">
+    <div class="reaction-row">
+      <input class="reaction-glyph" type="text" maxlength="8" placeholder="🙂" aria-label="Emoji">
+      <input class="reaction-label" type="text" maxlength="40" placeholder="Label" aria-label="Label">
+      <button class="btn btn-small" data-action="reaction-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="reaction-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
+      <button class="btn btn-small btn-danger" data-action="reaction-remove" type="button">Remove</button>
+    </div>
+  </template>
+
   <template id="room-card">
-    <article class="room-card">
-      <div class="brand-row">
-        <div class="site-images">
-          <div class="slot" data-room-image><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Room image</span><button class="btn btn-small" data-action="room-image-clear" type="button">Remove</button></div>
-        </div>
-        <div class="fields grow">
-          <label>Name<input data-rfield="name" type="text" maxlength="40"></label>
-          <label class="wide">Description<textarea data-rfield="description" rows="3" maxlength="300"></textarea></label>
-        </div>
+    <article class="user-card">
+      <span class="room-thumb"><img class="thumb" data-thumb alt="" hidden><i class="fa-solid fa-door-open" aria-hidden="true" data-thumb-fallback></i></span>
+      <div class="user-title">
+        <strong data-name></strong>
+        <span class="meta" data-meta></span>
       </div>
-      <div class="room-members">
-        <span class="field-label">Members</span>
-        <div class="member-checks" data-members></div>
-        <span class="hint" data-members-note hidden>Everyone belongs to the Lobby.</span>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary btn-small" data-action="room-save" type="button">Save</button>
-        <button class="btn btn-small btn-danger" data-action="room-delete" type="button">Delete room</button>
-        <span class="status" data-status></span>
-      </div>
+      <button class="btn btn-small" data-action="room-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="room-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit room</a>
     </article>
   </template>
 
   <template id="user-card">
     <article class="user-card">
-      <header class="user-head">
-        <span class="dot" data-dot title="offline"></span>
-        <img class="thumb" data-thumb alt="">
-        <div class="user-title">
-          <strong data-name></strong>
-          <span class="meta"><span data-login></span> · <span data-role></span> · key <code data-key></code></span>
-        </div>
-        <span class="live" data-live></span>
-        <button class="btn btn-small" data-action="toggle" type="button">Edit</button>
-      </header>
-      <div class="user-body" hidden>
-        <h3>Configuration</h3>
-        <div class="fields">
-          <label>Display name<input data-field="displayName" type="text" maxlength="40"></label>
-          <label>Login<input data-field="login" type="text" maxlength="40" autocapitalize="off"></label>
-          <label>Role<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" data-role-note hidden>The only admin. Make someone else an admin first.</small></label>
-          <label>New password<input data-field="password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
-        </div>
-        <div class="row">
-          <button class="btn btn-primary btn-small" data-action="save" type="button">Save</button>
-          <button class="btn btn-small" data-action="clear-password" type="button">Remove password</button>
-          <span class="status" data-status></span>
-        </div>
-        <div class="row">
-          <span class="field-label">Personal link</span>
-          <code class="key link" data-link>off</code>
-          <button class="btn btn-small" data-action="link-copy" type="button">Copy</button>
-          <button class="btn btn-small" data-action="link-new" type="button">Create</button>
-          <button class="btn btn-small btn-danger" data-action="link-off" type="button">Turn off</button>
-        </div>
-        <div class="row">
-          <span class="field-label">OBS link</span>
-          <select data-view-kind><option value="player">Player (video, image when the camera is off)</option><option value="character">Character (image and overlays)</option></select>
-          <button class="btn btn-small" data-action="view-copy" type="button">Copy link</button>
-          <a class="btn btn-small" data-view-open target="_blank" rel="noopener">Open</a>
-          <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
-        </div>
-
-        <h3>Player</h3>
-        <p class="hint">The player's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings. Nothing else is drawn on the box.</p>
-        <div class="slots">
-          <div class="slot" data-slot="playerOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="player"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerTalking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="playerMuted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-        </div>
-
-        <h3>Character</h3>
-        <p class="hint">A second box for OBS. Offline shows the Offline picture, Online the character picture, with Talking and Muted laid on top while they speak or while their microphone is off. Any picture left unset is transparent, so with no Online picture the box can sit over a character bar.</p>
-        <div class="slots">
-          <div class="slot" data-slot="characterOffline"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Offline</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="character"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Online</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="talking"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Talking</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-          <div class="slot" data-slot="muted"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><span>Muted</span><button class="btn btn-small" data-action="slot-clear" type="button">Clear</button></div>
-        </div>
-
-        <div class="row danger-row">
-          <button class="btn btn-small" data-action="mute" type="button">Mute mic</button>
-          <button class="btn btn-small" data-action="kick" type="button">Kick</button>
-          <button class="btn btn-small btn-danger" data-action="delete" type="button">Delete user</button>
-        </div>
+      <span class="dot" data-dot title="offline"></span>
+      <img class="thumb" data-thumb alt="">
+      <div class="user-title">
+        <strong data-name></strong>
+        <span class="meta"><span data-login></span> · <span data-role></span> · key <code data-key></code></span>
       </div>
+      <span class="live" data-live></span>
+      <button class="btn btn-small" data-action="mute" type="button">Mute mic</button>
+      <button class="btn btn-small" data-action="kick" type="button">Kick</button>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit profile</a>
     </article>
   </template>
 

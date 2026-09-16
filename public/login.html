@@ -4,17 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
   <title>Coffee Pub Tavern - Sign in</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body data-brand="background">
   <form class="panel login" id="login">
     <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
-    <label>Login<input id="login-name" type="text" maxlength="40" required autocomplete="username" autocapitalize="off"></label>
+    <label>Username<input id="login-name" type="text" maxlength="40" required autocomplete="username" autocapitalize="off"></label>
     <label>Password<input id="password" type="password" maxlength="200" required autocomplete="current-password"></label>
     <p class="hint" data-brand="loginText"></p>
     <button class="btn btn-primary" type="submit">Sign in</button>
     <p class="status error" id="error" hidden></p>
+    <p class="hint" id="register-note" hidden><a href="/register">New here? Sign up</a></p>
     <span class="version" data-brand="version"></span>
   </form>
   <script type="module" src="/login.js"></script>

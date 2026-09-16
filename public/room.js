@@ -1,6 +1,7 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api } from '/brand.js';
+import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
@@ -8,6 +9,8 @@ const stageEl = document.getElementById('stage');
 const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`));
 const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
+const ghostTiles = new Map(); // identity -> tile element, for room members aside elsewhere
+const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
 let tableName = 'The Table';
 const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
@@ -15,22 +18,234 @@ let tableRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
 const LOBBY = 'lobby';
 let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
+let adminOnline = false; // whether that's actually backed by a real online admin right now
+
+// A guest link (/guest/<token>): no account, just a name and this room. The
+// token both identifies which room's guest link this is and, appended to
+// our own reads below, is this tab's only credential -- there's no session.
+const GUEST_PREFIX = 'guest-';
+const guestToken = location.pathname.startsWith('/guest/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : null;
+
+// A picture URL for a slot, guest-aware: a guest identity (however many
+// different guests are at the table) always shows the one shared guest
+// picture set, and our own guest token (if we are the guest looking) rides
+// along so the server recognises this tab without a session.
+function imgUrl(key, slot, params = {}) {
+  const isGuest = key.startsWith(GUEST_PREFIX);
+  const urlKey = isGuest ? 'guest' : key;
+  const urlSlot = isGuest && slot === 'profile' ? 'player' : slot;
+  const q = new URLSearchParams(params);
+  if (guestToken) q.set('guest', guestToken);
+  const qs = q.toString();
+  return `/img/${encodeURIComponent(urlKey)}/${urlSlot}${qs ? `?${qs}` : ''}`;
+}
 
 async function loadTable() {
   try {
-    const { users, rooms, activeRoom: active } = await api('GET', '/api/table');
+    const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
     tableUsers.clear();
     for (const u of users) tableUsers.set(u.key, u);
     tableRooms = rooms || [];
     activeRoom = active || LOBBY;
+    adminOnline = Boolean(hasAdmin);
     for (const [key, tile] of tiles) {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
+      updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
+    reconcileGhostTiles();
+    renderGuestLink();
+    renderRoomLink();
+    updateRecallButton();
   } catch (err) {
     // default colour stands
   }
+}
+
+// The room's own launch link, mirrored in the floatbar so it's reachable
+// without leaving the call. Reads live off tableRooms (like renderGuestLink)
+// rather than the frozen currentRoom, so an admin editing the link mid-call
+// is reflected here on the next poll.
+function renderRoomLink() {
+  const btn = $('room-link');
+  if (!btn || !currentRoom) return;
+  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const link = room?.link;
+  btn.hidden = !link;
+  if (link) btn.querySelector('.glyph').innerHTML = `<i class="fa-solid fa-${room.linkIcon || 'link'} fa-fw" aria-hidden="true"></i>`;
+}
+$('room-link').addEventListener('click', () => {
+  const room = currentRoom && tableRooms.find((r) => r.id === currentRoom.id);
+  if (room?.link) window.open(room.link, '_blank', 'noopener');
+});
+
+// Admin only: shows "Pull Participants Back" whenever a Private
+// Conversation was pulled out of the room I'm currently in -- the admin
+// is never part of those (see /api/table/pull-aside), so without this
+// there'd be no way to know one is even happening, let alone end it.
+let recallButtonTimer = 0;
+let recallButtonCountingDown = false;
+
+function updateRecallButton() {
+  const btn = $('recall-button');
+  if (!btn || recallButtonCountingDown) return;
+  btn.hidden = !(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+}
+
+function resetRecallButton() {
+  clearInterval(recallButtonTimer);
+  recallButtonCountingDown = false;
+  const btn = $('recall-button');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back';
+}
+
+$('recall-button').addEventListener('click', async () => {
+  const btn = $('recall-button');
+  try {
+    await api('POST', '/api/table/recall');
+    recallButtonCountingDown = true;
+    btn.disabled = true;
+    let n = 10;
+    btn.textContent = `Rejoining in... ${n}`;
+    clearInterval(recallButtonTimer);
+    recallButtonTimer = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        resetRecallButton();
+        updateRecallButton();
+        return;
+      }
+      btn.textContent = `Rejoining in... ${n}`;
+    }, 1000);
+  } catch (err) {
+    setStatus(`pull participants back: ${err.message}`, true);
+  }
+});
+
+// The countdown a Private Conversation's own participants see once the
+// admin recalls them -- a warning, not an instant yank, so it doesn't cut
+// anyone off mid-sentence. Re-triggering (e.g. the admin clicks it twice)
+// restarts the same countdown rather than stacking a second one.
+let recallTimer = 0;
+function startRecallCountdown(roomId, roomName) {
+  clearInterval(recallTimer);
+  $('recall-room-name').textContent = roomName || 'the table';
+  $('recall-overlay').hidden = false;
+  let n = 10;
+  $('recall-countdown').textContent = n;
+  recallTimer = setInterval(() => {
+    n -= 1;
+    if (n <= 0) {
+      clearInterval(recallTimer);
+      $('recall-overlay').hidden = true;
+      reconnectTo(roomId, 'pulled back to the table...');
+      return;
+    }
+    $('recall-countdown').textContent = n;
+  }, 1000);
+}
+
+// A member of the room I'm in who is online but not actually connected
+// here -- they're in a private aside elsewhere -- gets a placeholder tile:
+// their picture stands in for video, dimmed, with who they stepped aside
+// with, so they read as "still at the table" rather than looking like they
+// hung up. Reconciled from the same polled /api/table data that already
+// drives the join screen's badges, since a genuine LiveKit disconnect
+// alone can't tell "went to a private aside" apart from "actually left".
+function othersLabel(members, exclude) {
+  const names = members.filter((k) => k !== exclude).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
+  if (!names.length) return '';
+  if (names.length === 1) return `with ${names[0]}`;
+  return `with ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
+}
+
+// The Aside/Private picture (their own, their room's, or the server-wide
+// Default Images fallback) laid over their profile photo, same as OBS
+// shows it over the Online/Offline picture -- a badge, not a replacement.
+// Optional, so unlike the profile photo it simply stays hidden rather
+// than falling back to anything when nothing resolves for that slot.
+function setGhostBadge(img, key, slot) {
+  img.hidden = true;
+  img.onerror = () => { img.hidden = true; };
+  img.onload = () => { img.hidden = false; };
+  img.src = imgUrl(key, slot);
+}
+
+function ghostTile(key) {
+  let tile = ghostTiles.get(key);
+  if (tile) return tile;
+  tile = document.createElement('div');
+  tile.className = 'tile tile-ghost';
+  tile.dataset.identity = key;
+  const placeholder = document.createElement('img');
+  placeholder.className = 'placeholder';
+  placeholder.alt = '';
+  placeholder.src = imgUrl(key, 'profile');
+  tile.appendChild(placeholder);
+  const badge = document.createElement('img');
+  badge.className = 'tile-ghost-badge';
+  badge.alt = '';
+  badge.hidden = true;
+  tile.appendChild(badge);
+  const overlay = document.createElement('div');
+  overlay.className = 'tile-ghost-overlay';
+  const status = document.createElement('span');
+  status.className = 'tile-ghost-status';
+  status.textContent = 'In an aside';
+  const withLine = document.createElement('span');
+  withLine.className = 'tile-ghost-with';
+  overlay.append(status, withLine);
+  tile.appendChild(overlay);
+  const name = document.createElement('span');
+  name.className = 'name';
+  tile.appendChild(name);
+  ghostTiles.set(key, tile);
+  placeInOrder(tile);
+  return tile;
+}
+
+function removeGhost(key) {
+  const tile = ghostTiles.get(key);
+  if (!tile) return;
+  tile.remove();
+  ghostTiles.delete(key);
+}
+
+function reconcileGhostTiles() {
+  if (!currentRoom || !document.body.classList.contains('at-table')) return;
+  let changed = false;
+  for (const key of currentRoom.members) {
+    if (key === me?.key) continue;
+    if (tiles.has(key)) {
+      if (ghostTiles.has(key)) { removeGhost(key); changed = true; }
+      continue;
+    }
+    const user = tableUsers.get(key);
+    const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? tableRooms.find((r) => r.id === user.room) : null;
+    if (asideRoom?.ephemeral) {
+      const tile = ghostTile(key);
+      const isPrivate = Boolean(asideRoom.private);
+      tile.classList.toggle('tile-ghost-private', isPrivate);
+      setGhostBadge(tile.querySelector('.tile-ghost-badge'), key, isPrivate ? 'playerPrivate' : 'playerAside');
+      tile.querySelector('.name').textContent = user.displayName;
+      tile.querySelector('.tile-ghost-status').textContent = isPrivate ? 'In a private conversation' : 'In an aside';
+      // Who a private word is with stays off the record here too, same as
+      // it's kept off the OBS-facing recording -- everyone else at the
+      // table only gets to know that it's happening, not with whom.
+      tile.querySelector('.tile-ghost-with').textContent = isPrivate ? '' : othersLabel(asideRoom.members, key);
+      changed = true;
+    } else if (ghostTiles.has(key)) {
+      removeGhost(key);
+      changed = true;
+    }
+  }
+  for (const key of [...ghostTiles.keys()]) {
+    if (!currentRoom.members.includes(key)) { removeGhost(key); changed = true; }
+  }
+  if (changed) applyLayout();
 }
 
 // A room's name for display: ephemeral "pull aside" rooms carry no useful
@@ -38,7 +253,11 @@ async function loadTable() {
 function roomDisplayName(r) {
   if (!r?.ephemeral) return r?.name || tableName;
   const others = r.members.filter((k) => k !== me?.key).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
-  return others.length ? `Aside with ${others.join(' & ')}` : 'Aside';
+  // Says "Private" rather than "Aside" whenever it is one -- whoever's in
+  // here should be able to tell at a glance that this one is genuinely off
+  // the record, not just infer it from which button someone clicked earlier.
+  const label = r.private ? 'Private' : 'Aside';
+  return others.length ? `${label} with ${others.join(' & ')}` : label;
 }
 
 // The join screen: one card per room I belong to, with its members and a
@@ -57,6 +276,15 @@ function renderRooms() {
       list.appendChild(card);
     }
     card.classList.toggle('aside', Boolean(r.ephemeral));
+    const edit = card.querySelector('[data-edit]');
+    edit.hidden = r.ephemeral || me?.role !== 'admin';
+    edit.href = `/rooms/${encodeURIComponent(r.id)}`;
+    const link = card.querySelector('[data-link]');
+    link.hidden = !r.link;
+    if (r.link) {
+      link.href = r.link;
+      link.querySelector('i').className = `fa-solid fa-${r.linkIcon || 'link'} fa-fw`;
+    }
     card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
     card.querySelector('.room-choice-desc').textContent = r.description;
     card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;
@@ -86,7 +314,7 @@ function renderMembers(list, members, roomId) {
       el.dataset.key = u.key;
       const img = document.createElement('img');
       img.alt = '';
-      img.src = `/img/${encodeURIComponent(u.key)}/profile`;
+      img.src = imgUrl(u.key, 'profile');
       const dot = document.createElement('span');
       dot.className = 'dot';
       const name = document.createElement('span');
@@ -101,10 +329,13 @@ function renderMembers(list, members, roomId) {
     const elsewhere = u.online && !here ? tableRooms.find((r) => r.id === u.room) : null;
     el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
     // Off stream: this member is online but not in the room the stream
-    // currently hears; "aside" is the more specific case of a pulled-aside
-    // private word, which implies off stream too.
+    // currently hears (wherever the admin/GM actually is); "aside" is the
+    // more specific case of a pulled-aside private word, which implies off
+    // stream too. Only meaningful when an admin is actually online -- with
+    // none, activeRoom is just the Lobby fallback, not a real "here's where
+    // the stream is" signal, so nobody should read as off stream against it.
     const inAside = u.online && tableRooms.find((r) => r.id === u.room)?.ephemeral;
-    const offStream = u.online && u.room !== activeRoom;
+    const offStream = u.online && adminOnline && u.room !== activeRoom;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
       if (!badge) {
@@ -121,11 +352,29 @@ function renderMembers(list, members, roomId) {
   for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
 }
 setInterval(() => {
-  if (!$('join').hidden) loadTable();
+  if (!$('join').hidden || document.body.classList.contains('at-table')) loadTable();
 }, 5000);
 $('rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-join]');
   if (button) join(button.dataset.join);
+});
+$('guest-join').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  $('guest-join-error').hidden = true;
+  const name = $('guest-name').value.trim();
+  if (!name) return;
+  const submit = $('guest-join').querySelector('button[type="submit"]');
+  submit.disabled = true;
+  try {
+    const { token, livekitUrl, identity, roomId, roomName } = await api('POST', '/api/guest-join', { token: guestToken, name });
+    me = { key: identity, displayName: name, role: 'guest' };
+    await joinAsGuest(token, livekitUrl, roomId, roomName);
+  } catch (err) {
+    $('guest-join-error').textContent = err.message;
+    $('guest-join-error').hidden = false;
+  } finally {
+    submit.disabled = false;
+  }
 });
 let unread = 0;
 let installPrompt = null;
@@ -143,19 +392,41 @@ function setStatus(text, error = false) {
 
 // --- tiles -------------------------------------------------------------------
 
+// While the camera is off, a chosen background image (the same one used
+// live when the camera is on -- see room.js's video settings) shows behind
+// the profile photo too, instead of a plain fill, so the box looks like
+// them even without video.
+function updateBackgroundPlaceholder(tile, key) {
+  const user = tableUsers.get(key);
+  const hasBg = !!user?.images?.background;
+  tile.classList.toggle('has-bg-image', hasBg);
+  const bg = tile.querySelector('.placeholder-bg');
+  // removeAttribute, not src='' -- an empty string still makes the browser
+  // fetch the current page as an "image" and show a broken-image icon once
+  // it fails to decode; only actually removing the attribute stays invisible.
+  if (bg) { if (hasBg) bg.src = imgUrl(key, 'background'); else bg.removeAttribute('src'); }
+  tile.style.setProperty('--pic-scale', user?.pictureScale || 100);
+}
+
 function tileFor(participant) {
   let tile = tiles.get(participant.identity);
   if (tile) return tile;
+  removeGhost(participant.identity); // they're back live, the placeholder can go
   tile = document.createElement('div');
   tile.className = 'tile';
   tile.dataset.identity = participant.identity;
+  const placeholderBg = document.createElement('img');
+  placeholderBg.className = 'placeholder-bg';
+  placeholderBg.alt = '';
+  tile.appendChild(placeholderBg);
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = `/img/${encodeURIComponent(participant.identity)}/profile`;
+  placeholder.src = imgUrl(participant.identity, 'profile');
   const colour = tableUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
+  updateBackgroundPlaceholder(tile, participant.identity);
   const name = document.createElement('span');
   name.className = 'name';
   name.textContent = participant.name || participant.identity;
@@ -173,13 +444,16 @@ function tileFor(participant) {
     vol.addEventListener('pointerenter', () => (tile.draggable = false));
     vol.addEventListener('pointerleave', () => (tile.draggable = true));
     tile.appendChild(vol);
-    if (me?.role === 'admin') {
+    if (!currentRoom?.ephemeral) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
-      aside.title = `Pull ${participant.name || participant.identity} aside for a private word`;
-      aside.innerHTML = '<i class="fa-solid fa-door-open" aria-hidden="true"></i>';
-      aside.addEventListener('click', (e) => { e.stopPropagation(); pullAside(participant.identity); });
+      aside.title = me?.role === 'admin'
+        ? `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`
+        : `Have a private word with ${participant.name || participant.identity} (pick one or more, then confirm)`;
+      aside.innerHTML = '<i class="fa-solid fa-people-arrows" aria-hidden="true"></i>';
+      aside.classList.toggle('selected', asideSelection.has(participant.identity));
+      aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
     }
   }
@@ -195,12 +469,62 @@ function tileFor(participant) {
   return tile;
 }
 
+// A shared screen gets its own tile, separate from the sharer's camera one
+// -- someone can keep their camera up while sharing, and both stay visible.
+function screenTileId(identity) {
+  return `${identity}::screen`;
+}
+function screenTileFor(participant) {
+  const key = screenTileId(participant.identity);
+  let tile = tiles.get(key);
+  if (tile) return tile;
+  tile = document.createElement('div');
+  tile.className = 'tile tile-screen';
+  tile.dataset.identity = key;
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = `${participant.name || participant.identity}'s screen`;
+  tile.appendChild(name);
+  if (document.pictureInPictureEnabled) {
+    const pip = document.createElement('button');
+    pip.type = 'button';
+    pip.className = 'tile-pip';
+    pip.title = 'Pop out this screen share';
+    pip.innerHTML = '<i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i>';
+    pip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const video = tile.querySelector('video');
+      if (!video) return;
+      (document.pictureInPictureElement === video ? document.exitPictureInPicture() : video.requestPictureInPicture()).catch(() => {});
+    });
+    tile.appendChild(pip);
+  }
+  tile.addEventListener('click', () => spotlight(key));
+  tiles.set(key, tile);
+  $('grid').appendChild(tile);
+  applyLayout();
+  return tile;
+}
+function removeScreenTile(identity) {
+  const key = screenTileId(identity);
+  const tile = tiles.get(key);
+  if (!tile) return;
+  if (document.pictureInPictureElement && tile.contains(document.pictureInPictureElement)) {
+    document.exitPictureInPicture().catch(() => {});
+  }
+  tile.remove();
+  tiles.delete(key);
+  applyLayout();
+}
+
 // --- layouts and ordering -----------------------------------------------------
 
 const DEFAULT_PREFS = {
   layout: 'grid', order: [], pinned: null, follow: true,
   micId: '', camId: '', gain: 100, gate: 0, noise: true, echo: true, agc: true, ptt: false,
-  quality: 720, mirror: true, volumes: {}, popout: null,
+  quality: 720, mirror: true, background: 'none', volumes: {}, popout: null, deafened: false,
+  chatWidth: 320, speakerId: '', masterVolume: 100,
+  pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
 const prefs = loadPrefs();
 
@@ -218,6 +542,29 @@ function savePrefs() {
   } catch (err) {
     // private mode or storage off: the session still works
   }
+}
+
+// The mic/camera processing fields (not device selection) also live on the
+// account -- see populateCallSettingsUI -- so a change here follows to the
+// profile page and to wherever else this account joins from. A guest has no
+// account to save it to; localStorage above is all they get. Debounced and
+// accumulated across fields so dragging a slider doesn't fire a request per
+// tick.
+let pendingCallPrefs = {};
+let callPrefsTimer = 0;
+function syncCallPrefs(patch) {
+  if (guestToken) return;
+  Object.assign(pendingCallPrefs, patch);
+  clearTimeout(callPrefsTimer);
+  callPrefsTimer = setTimeout(async () => {
+    const body = pendingCallPrefs;
+    pendingCallPrefs = {};
+    try {
+      await api('PATCH', '/api/me/call-prefs', body);
+    } catch (err) {
+      // best-effort: the local change already applied, this just fails to follow the account
+    }
+  }, 500);
 }
 
 // Insert a tile where the remembered order says; unknown ones go last.
@@ -247,11 +594,19 @@ function rememberOrder() {
 }
 
 const LAYOUTS = ['grid', 'strip', 'spotlight'];
+// Same icon on the floatbar's own layout button as its matching picker
+// button, so the button always shows the view you're actually in.
+const LAYOUT_ICONS = { grid: 'fa-solid fa-table-cells-large', strip: 'fa-solid fa-grip', spotlight: 'fa-regular fa-square' };
+
+function syncLayoutPick() {
+  for (const b of $('layout-pick').children) b.classList.toggle('selected', b.dataset.layout === prefs.layout);
+  $('layout-glyph').className = `${LAYOUT_ICONS[prefs.layout]} fa-fw`;
+}
 
 function setLayout(layout, announce = false) {
   prefs.layout = LAYOUTS.includes(layout) ? layout : 'grid';
   savePrefs();
-  $('layout-select').value = prefs.layout;
+  syncLayoutPick();
   applyLayout();
 }
 
@@ -265,7 +620,7 @@ function applyLayout() {
   stage.classList.toggle('tiny', stage.clientWidth < 300 || stage.clientHeight < 220);
   const ordered = [...grid.querySelectorAll('.tile')];
   let rest = grid.querySelector('.rest');
-  if (prefs.layout === 'spotlight' && tiles.size > 1) {
+  if (prefs.layout === 'spotlight' && ordered.length > 1) {
     // remember where every tile sits before the big one is pulled out
     let changed = false;
     for (const tile of ordered) {
@@ -303,7 +658,10 @@ function applyLayout() {
 const RATIO = 16 / 9;
 const GAP = 10;
 function fitTiles(grid, portrait) {
-  const n = tiles.size;
+  // Ghost tiles (members stepped into an aside) are real .tile elements in
+  // the grid too -- size for all of them, or the ones left out get the
+  // sizing meant for a smaller crowd and spill past the grid's own edges.
+  const n = tiles.size + ghostTiles.size;
   const style = getComputedStyle(grid);
   const W = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   const H = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
@@ -359,7 +717,7 @@ function spotlight(identity) {
   prefs.pinned = prefs.pinned === identity ? null : identity;
   if (prefs.layout !== 'spotlight') prefs.layout = 'spotlight';
   savePrefs();
-  $('layout-select').value = prefs.layout;
+  syncLayoutPick();
   applyLayout();
 }
 
@@ -406,35 +764,60 @@ function onDragEnd() {
 }
 
 function attachTrack(participant, track) {
+  if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+    const screenTile = screenTileFor(participant);
+    screenTile.querySelector('video')?.remove();
+    const video = track.attach();
+    video.muted = true;
+    screenTile.prepend(video);
+    return;
+  }
   const tile = tileFor(participant);
   if (track.kind === Track.Kind.Video) {
     tile.querySelector('video')?.remove();
     const video = track.attach();
     video.muted = true; // audio comes through its own element
     tile.prepend(video);
+    // placeholder-bg sits later in the tile than the just-prepended video,
+    // so it paints on top and hides live video behind whoever's custom
+    // background picture unless it's hidden here too -- updateCamera()
+    // already knew to do both, but this is the only path a remote viewer's
+    // very first subscribe to someone's camera ever goes through.
     tile.querySelector('.placeholder').hidden = true;
+    tile.querySelector('.placeholder-bg').hidden = true;
   } else if (track.kind === Track.Kind.Audio) {
     if (participant.isLocal) return; // never play your own voice back
     const audio = track.attach();
     audio.dataset.identity = participant.identity;
+    audio.muted = prefs.deafened;
+    if (prefs.speakerId && audio.setSinkId) audio.setSinkId(prefs.speakerId).catch(() => {});
     $('stage').appendChild(audio);
-    const volume = prefs.volumes[participant.identity];
-    if (volume !== undefined) track.setVolume(volume);
+    track.setVolume(effectiveVolume(participant.identity));
   }
 }
 
 function detachTrack(participant, track) {
   track.detach().forEach((el) => el.remove());
+  if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+    removeScreenTile(participant.identity);
+    return;
+  }
   const tile = tiles.get(participant.identity);
-  if (tile && track.kind === Track.Kind.Video) tile.querySelector('.placeholder').hidden = false;
+  if (tile && track.kind === Track.Kind.Video) {
+    tile.querySelector('.placeholder').hidden = false;
+    tile.querySelector('.placeholder-bg').hidden = false;
+  }
 }
 
 function removeParticipant(participant) {
   const tile = tiles.get(participant.identity);
   if (tile) tile.remove();
   tiles.delete(participant.identity);
-  applyLayout();
+  removeScreenTile(participant.identity);
+  if (asideSelection.delete(participant.identity)) updateAsideConfirm();
   stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
+  reconcileGhostTiles(); // they may have just stepped into a private aside, not actually left
+  applyLayout();
 }
 
 function updateMuted(participant) {
@@ -459,7 +842,12 @@ function updateCamera(participant) {
   const off = !cam || cam.isMuted;
   const video = tile.querySelector('video');
   if (video) video.hidden = off;
-  tile.querySelector('.placeholder').hidden = !off && !!video;
+  // Not gated on the <video> element already existing: attachTrack() hides
+  // these the moment it runs regardless, and if this fires first there's
+  // nothing to gain by leaving them showing for however long that takes --
+  // an empty tile reads better than the wrong picture stuck on top of live video.
+  tile.querySelector('.placeholder').hidden = !off;
+  tile.querySelector('.placeholder-bg').hidden = !off;
 }
 
 // The document the stage currently lives in (the page, or the pop-out window).
@@ -638,10 +1026,29 @@ function imageFiles(list) {
 // never stored: every table page and every OBS view page of that player
 // floats it up from their tile for a couple of seconds.
 
-const REACTIONS = { heart: '❤️', up: '👍', down: '👎', laugh: '😂', question: '❓', nat20: '🎲' };
-const REACTION_KEYS = ['heart', 'up', 'down', 'laugh', 'question', 'nat20'];
+// The reaction tray, as the admin has set it up (Manage > Settings); keys 1
+// to 6 reach only the first six, however many are configured.
+let REACTIONS = {}; // id -> glyph
+let REACTION_KEYS = []; // id, in tray order
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+function renderReactionTray(list) {
+  const reactions = Array.isArray(list) ? list : [];
+  REACTIONS = Object.fromEntries(reactions.map((r) => [r.id, r.glyph]));
+  REACTION_KEYS = reactions.map((r) => r.id);
+  const tray = $('react-tray');
+  tray.textContent = '';
+  reactions.forEach((r, i) => {
+    const button = document.createElement('button');
+    button.className = 'react';
+    button.type = 'button';
+    button.dataset.reaction = r.id;
+    button.title = i < 6 ? `${r.label} (${i + 1})` : r.label;
+    button.textContent = r.glyph;
+    tray.appendChild(button);
+  });
+}
 
 function showReaction(identity, id) {
   const glyph = REACTIONS[id];
@@ -669,10 +1076,46 @@ async function sendReaction(id) {
 function toggleTray(open = $('react-tray').hidden) {
   $('react-tray').hidden = !open;
   $('react-toggle').classList.toggle('on', open);
-  if (open) {
-    $('settings').hidden = true;
-    $('settings-toggle').classList.remove('on');
+  if (open) closeSettings();
+}
+
+// The settings popover shows one focused group at a time: mic, audio
+// (speaker + volume), camera, layout, or "more" (everything else -- guests,
+// install, account links) for the gear. Each of mic/audio/camera/layout's
+// own caret opens straight to its group; clicking the same one again (or
+// anywhere outside) closes it, same as any dropdown.
+function closeSettings() {
+  $('settings').hidden = true;
+  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+}
+function openSettings(group) {
+  const trigger = stageDoc().querySelector(`[data-settings="${group}"]`);
+  if (!$('settings').hidden && $('settings').dataset.group === group) {
+    closeSettings();
+    return;
   }
+  for (const el of stageDoc().querySelectorAll('.settings-group')) el.hidden = el.dataset.group !== group;
+  $('settings').dataset.group = group;
+  $('settings').hidden = false;
+  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+  if (trigger) trigger.classList.add('on');
+  toggleTray(false);
+}
+
+// The chat's own width, dragged from its left edge (see the chat-resize
+// listeners below) and remembered like any other preference. --chat-w lives
+// on the stage so both the chat panel and the popped-out floatbar (which
+// keeps clear of the chat) can read it.
+const CHAT_MIN_WIDTH = 240;
+// remember: false for applying the stored width on join, where the stage may
+// not be laid out to its real size yet -- a clamp there shouldn't overwrite
+// what the user actually asked for.
+function setChatWidth(px, { remember = true } = {}) {
+  const max = Math.max(CHAT_MIN_WIDTH, Math.round($('stage').clientWidth * 0.7));
+  const clamped = Math.min(Math.max(Math.round(px), CHAT_MIN_WIDTH), max);
+  $('stage').style.setProperty('--chat-w', `${clamped}px`);
+  if (remember) prefs.chatWidth = clamped;
+  return clamped;
 }
 
 function toggleChat(open = $('chat').hidden) {
@@ -795,11 +1238,33 @@ function meterFromAnalyser() {
   onMicLevel({ level: Math.sqrt(sum / samples.length), open: true });
 }
 
+// The master volume (Settings > Audio output) multiplies every remote
+// participant's own volume (set by hovering their tile) rather than
+// replacing it, so both stay independently adjustable.
+function effectiveVolume(identity) {
+  return (prefs.masterVolume / 100) * (prefs.volumes[identity] ?? 1);
+}
+
 function setVolume(participant, volume) {
   prefs.volumes[participant.identity] = volume;
   savePrefs();
   const pub = participant.getTrackPublication(Track.Source.Microphone);
-  if (pub?.track?.setVolume) pub.track.setVolume(volume);
+  if (pub?.track?.setVolume) pub.track.setVolume(effectiveVolume(participant.identity));
+}
+
+function applyMasterVolume() {
+  for (const p of room.remoteParticipants.values()) {
+    const pub = p.getTrackPublication(Track.Source.Microphone);
+    if (pub?.track?.setVolume) pub.track.setVolume(effectiveVolume(p.identity));
+  }
+}
+
+// The output device every remote participant's audio plays through.
+async function applySpeaker() {
+  if (!prefs.speakerId) return;
+  for (const audio of stageDoc().querySelectorAll('audio')) {
+    if (audio.setSinkId) await audio.setSinkId(prefs.speakerId).catch(() => {});
+  }
 }
 
 const RESOLUTIONS = { 360: { width: 640, height: 360 }, 540: { width: 960, height: 540 }, 720: { width: 1280, height: 720 } };
@@ -813,7 +1278,7 @@ async function setPushToTalk(on) {
   prefs.ptt = on;
   savePrefs();
   pttHeld = false;
-  $('mic').title = on ? 'Push to talk: hold Space (M toggles)' : 'Microphone (M)';
+  $('mic').title = on ? `Push to talk: hold ${formatHotkey(prefs.pttKey)} (M toggles)` : 'Microphone (M)';
   if (on && room.state === 'connected') await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
   reflectMic();
 }
@@ -859,10 +1324,32 @@ room
     try {
       const data = JSON.parse(decoder.decode(payload));
       if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
+      else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on);
       // A server push (no sending participant): the admin pulled me aside.
       // Deferred a tick so this event's own dispatch finishes first.
       else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
         setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
+      }
+      // The other member of a pull-aside room clicked "Back to the table";
+      // follow them there instead of being left behind.
+      else if (topic === 'return-to-table' && data.type === 'return-to-table' && data.roomId) {
+        setTimeout(() => reconnectTo(data.roomId, 'back to the table...'), 0);
+      }
+      // Someone just got pulled into a private aside, myself excluded: prime
+      // the local data so their tile can turn into an "in an aside"
+      // placeholder right away, without waiting for the next /api/table poll.
+      else if (topic === 'aside-started' && data.type === 'aside-started' && data.roomId && Array.isArray(data.members)) {
+        if (!tableRooms.some((r) => r.id === data.roomId)) tableRooms.push({ id: data.roomId, name: 'Aside', members: data.members, ephemeral: true });
+        for (const key of data.members) {
+          const user = tableUsers.get(key);
+          if (user) { user.online = true; user.room = data.roomId; }
+        }
+        reconcileGhostTiles();
+      }
+      // The admin clicked "Pull Participants Back" in the room this Private
+      // Conversation came from: warn, don't yank -- a countdown, then go.
+      else if (topic === 'recall' && data.type === 'recall' && data.roomId) {
+        startRecallCountdown(data.roomId, data.roomName);
       }
     } catch (err) {
       // not ours
@@ -873,17 +1360,30 @@ room
   .on(RoomEvent.Disconnected, () => {
     closeMic();
     closePopout();
-    setStatus('left the table');
+    setStatus('left the call');
     currentRoom = null;
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
-    $('join').hidden = false;
+    $('room-link').hidden = true;
+    resetRecallButton();
+    $('recall-button').hidden = true;
+    clearInterval(recallTimer);
+    $('recall-overlay').hidden = true;
+    // A guest has no session and no room to pick from -- back to their own
+    // name-only form for the one room their link is for, not the real
+    // members' room list (which they can't do anything with anyway).
+    $('join').hidden = !!guestToken;
+    $('guest-join').hidden = !guestToken;
     $('away').hidden = true;
     $('room-now').hidden = true;
     $('leave-top').hidden = true;
     $('back-to-table').hidden = true;
+    asideSelection.clear();
+    updateAsideConfirm();
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
+    for (const [, tile] of ghostTiles) tile.remove();
+    ghostTiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
     toggleChat(false);
@@ -900,7 +1400,8 @@ async function fillDevices() {
   } catch (err) {
     console.warn('[tavern] device list:', err.message);
   }
-  for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')]]) {
+  const wantedFor = { audioinput: prefs.micId, videoinput: prefs.camId, audiooutput: prefs.speakerId };
+  for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')], ['audiooutput', $('speaker-select')]]) {
     select.textContent = '';
     for (const d of devices.filter((d) => d.kind === kind)) {
       const option = document.createElement('option');
@@ -908,7 +1409,7 @@ async function fillDevices() {
       option.textContent = d.label || kind;
       select.appendChild(option);
     }
-    const wanted = kind === 'audioinput' ? prefs.micId : prefs.camId;
+    const wanted = wantedFor[kind];
     if (wanted && [...select.options].some((o) => o.value === wanted)) select.value = wanted;
   }
 }
@@ -924,15 +1425,77 @@ async function reconnectTo(roomId, statusText) {
   await join(roomId);
 }
 
-// Admin only: pull someone who is currently at the table into a new room
-// with just the two of us, for a private word.
-async function pullAside(identity) {
+// Admin only: pick who to pull into a private room with me -- click a
+// tile's door icon to add or remove them, then confirm once ready.
+function toggleAsideSelection(identity, button) {
+  if (asideSelection.has(identity)) asideSelection.delete(identity);
+  else asideSelection.add(identity);
+  button.classList.toggle('selected', asideSelection.has(identity));
+  updateAsideConfirm();
+}
+
+function updateAsideConfirm() {
+  const overlay = $('aside-overlay');
+  if (!overlay) return;
+  overlay.hidden = asideSelection.size === 0;
+  const n = asideSelection.size;
+  const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
+  const isAdmin = me?.role === 'admin';
+  // An ordinary (recorded) aside is a GM move; anyone can ask for a real
+  // off-the-record word, admin or not -- see /api/table/pull-aside.
+  $('aside-confirm').hidden = !isAdmin;
+  $('aside-overlay-prompt').textContent = isAdmin ? `Step aside with ${names.join(' & ')}?` : `Have a private word with ${names.join(' & ')}?`;
+  $('aside-confirm-label').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
+  $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
+}
+
+// Back out without pulling anyone: un-pick everyone, door icons included.
+function cancelAsideSelection() {
+  for (const key of asideSelection) tiles.get(key)?.querySelector('.tile-aside')?.classList.remove('selected');
+  asideSelection.clear();
+  updateAsideConfirm();
+}
+
+// Admin only: pull one or more people who are currently at the table into a
+// new room with me, for a word away from the rest. `priv` marks a real
+// off-the-record word (Studio hides it from the recording, and the stream
+// doesn't follow me there) rather than an in-fiction private moment (still
+// recorded, just muted/dimmed on the main feed while it's happening).
+async function pullAside(identities, priv = false) {
   try {
-    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identity });
-    await reconnectTo(asideRoom.id, 'stepping aside...');
+    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identities, private: priv });
+    asideSelection.clear();
+    await reconnectTo(asideRoom.id, priv ? 'stepping aside privately...' : 'stepping aside...');
   } catch (err) {
     setStatus(`pull aside: ${err.message}`, true);
   }
+}
+
+// "Back to the table": return to the room a pull-aside room came from
+// (whichever room that was, not always the Lobby), and bring whoever else
+// is still in there with me.
+async function returnToTable() {
+  try {
+    const { room: homeRoom } = await api('POST', '/api/table/return');
+    await reconnectTo(homeRoom.id, 'back to the table...');
+  } catch (err) {
+    setStatus(`back to the table: ${err.message}`, true);
+  }
+}
+
+// Leaving entirely (not "back to the table" -- I'm not going anywhere
+// myself). If I'm in a pulled-aside room, regular or private, whoever's
+// still in there with me would otherwise be stranded -- an aside/private
+// room is normally just the two (or few) of us, so without me there's no
+// reason for them to still be off in a room by themselves. Applies to
+// anyone, not just an admin: a Private Conversation doesn't need one.
+// Same nudge /api/table/return already sends the others in
+// returnToTable() above; I just never reconnect anywhere myself afterward.
+async function leaveRoom() {
+  if (currentRoom?.ephemeral) {
+    await api('POST', '/api/table/return').catch(() => {});
+  }
+  room.disconnect();
 }
 
 async function join(roomId = 'lobby') {
@@ -944,17 +1507,61 @@ async function join(roomId = 'lobby') {
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
+    renderRoomLink();
+    updateRecallButton();
+    await connectAndSetup(token, livekitUrl);
+  } catch (err) {
+    setStatus('', false);
+    $('join-error').textContent = err.message;
+    $('join-error').hidden = false;
+    await room.disconnect().catch(() => {});
+  } finally {
+    for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
+  }
+}
+
+// A guest link: locked to the one room the link is for, no room picker, no
+// account -- everything past "connect" is identical to a real member's join.
+async function joinAsGuest(token, livekitUrl, roomId, roomName) {
+  $('guest-join-error').hidden = true;
+  try {
+    setStatus('connecting...');
+    tableName = roomName;
+    await loadTable();
+    // The full room object (members, ephemeral, ...), same as a real
+    // member's join -- not just the {id, name} guest-join handed back, or
+    // anything reading currentRoom.members downstream breaks.
+    currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
+    renderRoomLink();
+    updateRecallButton();
+    await connectAndSetup(token, livekitUrl);
+  } catch (err) {
+    setStatus('', false);
+    $('guest-join-error').textContent = err.message;
+    $('guest-join-error').hidden = false;
+    await room.disconnect().catch(() => {});
+  }
+}
+
+// Shared by join() and joinAsGuest() once a LiveKit token is in hand:
+// connect, reveal the stage, publish mic/camera. Errors propagate to
+// whichever of those called it, to land on the right error message.
+async function connectAndSetup(token, livekitUrl) {
     await room.connect(livekitUrl, token);
-    console.debug('[tavern] connected to', roomId);
+    console.debug('[tavern] connected to', currentRoom.id);
     $('join').hidden = true;
+    $('guest-join').hidden = true;
     $('stage').hidden = false;
+    setChatWidth(prefs.chatWidth, { remember: false });
     // The header stays, naming the room and offering a way out of it. A
     // pulled-aside room also gets a quicker way back than "Leave" (which
     // would drop to the join screen instead of straight back to the Lobby).
     $('room-now-name').textContent = tableName;
     $('room-now').hidden = false;
     $('leave-top').hidden = false;
+    const originRoom = currentRoom.ephemeral && currentRoom.origin ? tableRooms.find((r) => r.id === currentRoom.origin) : null;
     $('back-to-table').hidden = !currentRoom.ephemeral;
+    $('back-to-table').textContent = originRoom ? `Back to ${roomDisplayName(originRoom)}` : 'Back to the table';
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
@@ -965,12 +1572,14 @@ async function join(roomId = 'lobby') {
       tileFor(p);
       updateMuted(p);
     }
-    // Ask for the microphone and the camera separately: a player with no
-    // camera (or who declines it) still joins with audio, and the other way
-    // round. Each one that works is published; each that fails is reported.
-    const missing = [];
+    reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
+    // Only the microphone publishes on join. The camera stays off until
+    // deliberately turned on -- a safety default, so nobody's video goes out
+    // before they mean it to, and camera permission is only ever asked for
+    // once someone actually reaches for it. toggleCam()'s setCameraEnabled
+    // call already handles publishing a fresh track the first time, same as
+    // it does for anyone who declined the camera here and turns it on later.
     let haveMic = false;
-    let haveCam = false;
     try {
       const track = await openMic();
       await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
@@ -979,40 +1588,14 @@ async function join(roomId = 'lobby') {
       if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
     } catch (err) {
       console.warn('[tavern] no microphone:', err.message);
-      missing.push('microphone');
-    }
-    try {
-      let tracks;
-      try {
-        tracks = await createLocalTracks({ video: videoConstraints() });
-      } catch (err) {
-        if (!prefs.camId) throw err;
-        prefs.camId = ''; // the remembered camera is gone
-        savePrefs();
-        tracks = await createLocalTracks({ video: videoConstraints() });
-      }
-      for (const track of tracks) await room.localParticipant.publishTrack(track);
-      haveCam = true;
-      console.debug('[tavern] published video');
-    } catch (err) {
-      console.warn('[tavern] no camera:', err.message);
-      missing.push('camera');
     }
     updateMuted(room.localParticipant);
     updateCamera(room.localParticipant);
     await fillDevices();
     reflectMic();
-    $('cam').classList.toggle('on', haveCam);
-    $('cam').classList.toggle('off', !haveCam);
-    if (missing.length) setStatus(`in ${tableName} (no ${missing.join(' or ')})`);
-  } catch (err) {
-    setStatus('', false);
-    $('join-error').textContent = err.message;
-    $('join-error').hidden = false;
-    await room.disconnect().catch(() => {});
-  } finally {
-    for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
-  }
+    $('cam').classList.remove('on');
+    $('cam').classList.add('off');
+    if (!haveMic) setStatus(`in ${tableName} (no microphone)`);
 }
 
 async function toggleMic() {
@@ -1029,6 +1612,7 @@ async function toggleCam() {
   const enabled = !room.localParticipant.isCameraEnabled;
   try {
     await room.localParticipant.setCameraEnabled(enabled);
+    if (enabled && prefs.background !== 'none') await applyBackground(); // a fresh track on re-enable needs the processor reapplied
   } catch (err) {
     setStatus(`camera: ${err.message}`, true);
   }
@@ -1038,8 +1622,42 @@ async function toggleCam() {
   updateCamera(room.localParticipant);
 }
 
+// Desktop sharing: LiveKit's own screen-share track (getDisplayMedia under
+// the hood), published and rendered as its own tile -- see screenTileFor.
+async function toggleScreenShare() {
+  try {
+    await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true });
+  } catch (err) {
+    // cancelling the browser's own share picker throws too -- not a real error
+    if (err?.name !== 'NotAllowedError') setStatus(`screen share: ${err.message}`, true);
+  }
+  const on = room.localParticipant.isScreenShareEnabled;
+  $('screen-share').classList.toggle('on', on);
+  $('screen-share').title = on ? 'Stop sharing your screen (S)' : 'Share your screen (S)';
+}
+
+// Mute what I hear: everyone else's audio, not my own mic -- for when a
+// phone call or something else needs the room quiet for a minute without
+// actually leaving or muting yourself to the others.
+function applyDeafen() {
+  stageDoc().querySelectorAll('audio').forEach((el) => { el.muted = prefs.deafened; });
+  $('deafen').classList.toggle('on', !prefs.deafened);
+  $('deafen').classList.toggle('off', prefs.deafened);
+  $('deafen').title = prefs.deafened ? 'Unmute what you hear (D)' : 'Mute what you hear (D)';
+}
+
+function toggleDeafen() {
+  prefs.deafened = !prefs.deafened;
+  savePrefs();
+  applyDeafen();
+}
+
 $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
+$('deafen').addEventListener('click', toggleDeafen);
+$('screen-share').addEventListener('click', toggleScreenShare);
+if (navigator.mediaDevices?.getDisplayMedia) $('screen-share').hidden = false;
+applyDeafen();
 $('mic-select').addEventListener('change', async (e) => {
   prefs.micId = e.target.value;
   savePrefs();
@@ -1050,20 +1668,35 @@ $('cam-select').addEventListener('change', async (e) => {
   savePrefs();
   await restartCamera();
 });
+$('speaker-select').addEventListener('change', async (e) => {
+  prefs.speakerId = e.target.value;
+  savePrefs();
+  await applySpeaker();
+});
+$('master-volume').addEventListener('input', (e) => {
+  prefs.masterVolume = Number(e.target.value);
+  savePrefs();
+  syncCallPrefs({ masterVolume: prefs.masterVolume });
+  $('volume-value').textContent = `${prefs.masterVolume}%`;
+  applyMasterVolume();
+});
 $('gain').addEventListener('input', (e) => {
   prefs.gain = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ gain: prefs.gain });
   applyMicSettings();
 });
 $('gate').addEventListener('input', (e) => {
   prefs.gate = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ gate: prefs.gate });
   applyMicSettings();
 });
 for (const id of ['noise', 'echo', 'agc']) {
   $(id).addEventListener('change', async (e) => {
     prefs[id] = e.target.checked;
     savePrefs();
+    syncCallPrefs({ [id]: prefs[id] });
     if (mic.ctx) await openMic().catch((err) => setStatus(`microphone: ${err.message}`, true));
   });
 }
@@ -1071,17 +1704,54 @@ $('talk-mode').addEventListener('change', (e) => setPushToTalk(e.target.value ==
 $('quality').addEventListener('change', async (e) => {
   prefs.quality = Number(e.target.value);
   savePrefs();
+  syncCallPrefs({ quality: prefs.quality });
   await restartCamera();
 });
 $('mirror').addEventListener('change', (e) => {
   prefs.mirror = e.target.checked;
   savePrefs();
+  syncCallPrefs({ mirror: prefs.mirror });
   applyMirror();
+});
+$('background-mode').addEventListener('change', async (e) => {
+  prefs.background = e.target.value;
+  savePrefs();
+  syncCallPrefs({ background: prefs.background });
+  await applyBackground();
 });
 
 function applyMirror() {
   const tile = room.localParticipant && tiles.get(room.localParticipant.identity);
   if (tile) tile.classList.toggle('mirror', prefs.mirror);
+}
+
+const MEDIAPIPE_ASSET_PATHS = { tasksVisionFileSet: '/lib/mediapipe-wasm', modelAssetPath: '/models/selfie_segmenter.tflite' };
+
+// Blur, or a still picture (set on your profile page), behind your own
+// camera -- entirely client-side (LiveKit's server never sees the real
+// background or the other way around; this runs on the same track before
+// it's published, same idea as a mirror flip). The model is real weight --
+// a WASM runtime plus an ML segmenter -- so it's only fetched the first
+// time someone actually turns either of these on, not on every join.
+async function applyBackground() {
+  const pub = room.localParticipant?.getTrackPublication(Track.Source.Camera);
+  if (!pub?.track) return; // camera off right now; applied when it comes back on
+  try {
+    if (prefs.background === 'blur') {
+      const { BackgroundBlur } = await import('/lib/track-processors.mjs');
+      await pub.track.setProcessor(BackgroundBlur(10, undefined, undefined, { assetPaths: MEDIAPIPE_ASSET_PATHS }));
+    } else if (prefs.background === 'image') {
+      const { VirtualBackground } = await import('/lib/track-processors.mjs');
+      await pub.track.setProcessor(VirtualBackground(`/img/${encodeURIComponent(me.key)}/background?v=${Date.now()}`, undefined, undefined, { assetPaths: MEDIAPIPE_ASSET_PATHS }));
+    } else {
+      await pub.track.stopProcessor();
+    }
+  } catch (err) {
+    setStatus(`background: ${err.message}`, true);
+    prefs.background = 'none';
+    savePrefs();
+    $('background-mode').value = 'none';
+  }
 }
 
 async function restartCamera() {
@@ -1093,9 +1763,13 @@ async function restartCamera() {
     setStatus(`camera: ${err.message}`, true);
   }
 }
-$('leave').addEventListener('click', () => room.disconnect());
-$('leave-top').addEventListener('click', () => room.disconnect());
-$('back-to-table').addEventListener('click', () => reconnectTo(LOBBY));
+$('leave').addEventListener('click', () => leaveRoom());
+$('leave-top').addEventListener('click', () => leaveRoom());
+$('back-to-table').addEventListener('click', () => returnToTable());
+$('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
+$('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
+$('aside-cancel').addEventListener('click', cancelAsideSelection);
+$('aside-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) cancelAsideSelection(); });
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());
@@ -1122,6 +1796,27 @@ $('chat').addEventListener('drop', (event) => {
   $('chat').classList.remove('drop');
   for (const f of imageFiles(event.dataTransfer?.files)) sendImage(f);
 });
+let chatDragStartX = 0;
+let chatDragStartWidth = 0;
+$('chat-resize').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  chatDragStartX = event.clientX;
+  chatDragStartWidth = $('chat').getBoundingClientRect().width;
+  $('chat-resize').classList.add('dragging');
+  $('chat-resize').setPointerCapture(event.pointerId);
+});
+$('chat-resize').addEventListener('pointermove', (event) => {
+  if (!$('chat-resize').classList.contains('dragging')) return;
+  setChatWidth(chatDragStartWidth + (chatDragStartX - event.clientX)); // chat is on the right: dragging left widens it
+});
+function stopChatDrag() {
+  if (!$('chat-resize').classList.contains('dragging')) return;
+  $('chat-resize').classList.remove('dragging');
+  savePrefs();
+}
+$('chat-resize').addEventListener('pointerup', stopChatDrag);
+$('chat-resize').addEventListener('pointercancel', stopChatDrag);
+
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
@@ -1135,7 +1830,10 @@ $('chat-form').addEventListener('submit', async (event) => {
 });
 
 $('layout').addEventListener('click', () => setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true));
-$('layout-select').addEventListener('change', (e) => setLayout(e.target.value));
+$('layout-pick').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-layout]');
+  if (b) setLayout(b.dataset.layout);
+});
 $('follow-speaker').addEventListener('change', (e) => {
   prefs.follow = e.target.checked;
   savePrefs();
@@ -1143,11 +1841,52 @@ $('follow-speaker').addEventListener('change', (e) => {
 });
 window.addEventListener('resize', applyLayout);
 
-$('settings-toggle').addEventListener('click', () => {
-  $('settings').hidden = !$('settings').hidden;
-  $('settings-toggle').classList.toggle('on', !$('settings').hidden);
-  if (!$('settings').hidden) toggleTray(false);
+$('floatbar').addEventListener('click', (event) => {
+  const trigger = event.target.closest('[data-settings]');
+  if (trigger) openSettings(trigger.dataset.settings);
 });
+
+// Guests: the room's own reusable join link, same door for everyone at the
+// table to open (see the guest-link routes) -- not just an admin.
+function say(el, text, error = false) {
+  el.textContent = text;
+  el.classList.toggle('error', error);
+  if (text && !error) setTimeout(() => el.textContent === text && (el.textContent = ''), 3000);
+}
+async function copyText(text, statusEl) {
+  try {
+    await navigator.clipboard.writeText(text);
+    if (statusEl) say(statusEl, 'copied');
+  } catch (err) {
+    window.prompt('Copy this:', text);
+  }
+}
+function renderGuestLink() {
+  if (guestToken || !currentRoom) return; // a guest has no session to manage this with
+  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const token = room?.guestToken || null;
+  const allowed = room?.allowGuests !== false;
+  $('guest-link-off-note').hidden = allowed;
+  $('guest-link-value').textContent = token ? `${location.origin}/guest/${token}` : 'off';
+  $('guest-link-on').hidden = !allowed || !!token;
+  $('guest-link-copy').hidden = !token;
+  $('guest-link-new').hidden = !allowed || !token;
+  $('guest-link-off').hidden = !token;
+}
+async function setGuestLink(body) {
+  try {
+    if (body === null) await api('DELETE', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`);
+    else await api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
+    await loadTable();
+    renderGuestLink();
+  } catch (err) {
+    say($('guest-link-status'), err.message, true);
+  }
+}
+$('guest-link-on').addEventListener('click', () => setGuestLink({}));
+$('guest-link-new').addEventListener('click', () => setGuestLink({ regenerate: true }));
+$('guest-link-off').addEventListener('click', () => setGuestLink(null));
+$('guest-link-copy').addEventListener('click', () => copyText($('guest-link-value').textContent, $('guest-link-status')));
 $('react-toggle').addEventListener('click', () => toggleTray());
 $('react-tray').addEventListener('click', (event) => {
   const button = event.target.closest('[data-reaction]');
@@ -1156,8 +1895,12 @@ $('react-tray').addEventListener('click', (event) => {
   toggleTray(false);
 });
 
-// Keyboard: M mic, V camera, C chat, L layout, R reactions, 1 to 6 send a
-// reaction, Space held = talk (push to talk mode), unless typing in a field.
+// Keyboard: M mic, V camera, D deafen, C chat, L layout, R reactions, S
+// screen share (once available), 1 to 6 send a reaction, the account's own
+// push-to-talk key held = talk while in that mode, unless typing in a
+// field. The account's mute and camera hotkeys (Cmd/Ctrl+D and +E by
+// default, set on the profile page) work alongside M and V, not instead
+// of them.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
 function typing(event) {
@@ -1165,7 +1908,7 @@ function typing(event) {
   return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
 }
 function onKeyUp(event) {
-  if (event.key === ' ' && prefs.ptt && pttHeld && !typing(event)) {
+  if (prefs.ptt && pttHeld && !typing(event) && hotkeyMatches(event, prefs.pttKey)) {
     pttHeld = false;
     room.localParticipant.setMicrophoneEnabled(false).then(reflectMic).catch(() => {});
     event.preventDefault();
@@ -1174,20 +1917,27 @@ function onKeyUp(event) {
 function onKey(event) {
   if (!document.body.classList.contains('at-table')) return;
   if (typing(event)) return;
-  if (event.key === ' ' && prefs.ptt) {
+  if (prefs.ptt && hotkeyMatches(event, prefs.pttKey)) {
     event.preventDefault();
     if (event.repeat || pttHeld) return;
     pttHeld = true;
     room.localParticipant.setMicrophoneEnabled(true).then(reflectMic).catch(() => {});
     return;
   }
+  // Configurable mute/camera shortcuts (Cmd/Ctrl+D and +E by default, same
+  // as Google Meet) check first since they carry a modifier the plain
+  // single-letter shortcuts below intentionally reject.
+  if (hotkeyMatches(event, prefs.muteKey)) { toggleMic(); event.preventDefault(); return; }
+  if (hotkeyMatches(event, prefs.camKey)) { toggleCam(); event.preventDefault(); return; }
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const key = event.key.toLowerCase();
   if (key === 'm') toggleMic();
   else if (key === 'v') toggleCam();
+  else if (key === 'd') toggleDeafen();
   else if (key === 'c') toggleChat();
   else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
   else if (key === 'r') toggleTray();
+  else if (key === 's' && !$('screen-share').hidden) toggleScreenShare();
   else if (/^[1-6]$/.test(key)) sendReaction(REACTION_KEYS[Number(key) - 1]);
   else return;
   event.preventDefault();
@@ -1211,6 +1961,19 @@ function watchPointer(doc) {
   doc.addEventListener('keydown', wake);
 }
 watchPointer(document);
+
+// Click anywhere outside the settings popover (but still on the page) closes
+// it, same as any other dropdown -- doesn't fire for the gear or any of the
+// per-button carets that open it, or for clicks inside the popover itself
+// (a link, a colour picker, ...).
+function watchOutsideClick(doc) {
+  doc.addEventListener('click', (event) => {
+    if ($('settings').hidden) return;
+    if (event.target.closest('#settings') || event.target.closest('[data-settings]')) return;
+    closeSettings();
+  });
+}
+watchOutsideClick(document);
 
 // --- install as an app / pop out ------------------------------------------------
 
@@ -1257,6 +2020,7 @@ async function openPopout() {
     pipWindow.document.body.appendChild($('stage'));
     $('away').hidden = false;
     watchPointer(pipWindow.document);
+    watchOutsideClick(pipWindow.document);
     pipWindow.document.addEventListener('keydown', onKey);
     pipWindow.document.addEventListener('keyup', onKeyUp);
     pipWindow.addEventListener('resize', () => {
@@ -1284,14 +2048,93 @@ $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPop
 $('bring-back').addEventListener('click', closePopout);
 if ('documentPictureInPicture' in window) $('popout').hidden = false;
 
+// --- your profile / Manage, without leaving the call -------------------------
+// A real navigation would drop the WebRTC connection (it's tied to the page),
+// so these load in an iframe instead: the call keeps running underneath,
+// untouched. The loaded page (same origin) gets a "Back to [room]" link
+// added to its own header -- see wireOverlayBack in brand.js -- rather than
+// this page stacking a second bar of its own on top of it. Everyone else at
+// the table sees your own tile marked "Away" while you're in there; you
+// don't, since you already know.
+function openOverlay(path) {
+  const params = new URLSearchParams({ from: 'room', room: tableName });
+  $('page-overlay-frame').src = `${path}${path.includes('?') ? '&' : '?'}${params}`;
+  $('page-overlay-frame').hidden = false;
+  sendAway(true);
+}
+function closeOverlay() {
+  $('page-overlay-frame').hidden = true;
+  $('page-overlay-frame').src = 'about:blank';
+  sendAway(false);
+}
+window.closeProfileOverlay = closeOverlay; // called directly by the (same-origin) iframe
+
+// Also called directly by the profile page overlay, right after it saves a
+// background/call-prefs change -- otherwise the call keeps running with
+// whatever was in effect at connect time, and the only way to pick up a
+// change made this way used to be toggling the camera off and back on.
+// `patch` is whatever fields actually changed (e.g. {background: 'blur'},
+// {mirror: true}, {quality: 720}); a bare call with no patch just means
+// "the background image itself changed, nothing in prefs did".
+window.tavernApplyCallPrefs = async function (patch) {
+  if (patch) {
+    Object.assign(prefs, patch);
+    savePrefs();
+  }
+  if (!patch || 'mirror' in patch) applyMirror();
+  if (!patch || 'masterVolume' in patch) applyMasterVolume();
+  if (!patch || 'gain' in patch || 'gate' in patch) applyMicSettings();
+  if ((!patch || 'noise' in patch || 'echo' in patch || 'agc' in patch || 'micId' in patch) && mic.ctx) {
+    await openMic().catch(() => {});
+  }
+  if (!patch || 'quality' in patch || 'camId' in patch) await restartCamera();
+  // A plain image re-upload (no mode change) still needs this: applyBackground()
+  // re-fetches the picture itself fresh every time, cache-bust and all.
+  if (!patch || 'background' in patch || prefs.background === 'image') await applyBackground();
+};
+// Delegated (not one-time-queried) since a room card's own Edit link is
+// built later, once tableRooms comes back -- a static query here would
+// miss it and open it as a real navigation instead, with no way back.
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('[data-overlay-link]');
+  if (!link) return;
+  event.preventDefault();
+  openOverlay(link.getAttribute('href'));
+});
+
+function updateAwayOverlay(identity, on) {
+  const tile = tiles.get(identity);
+  if (!tile) return;
+  tile.classList.toggle('tile-away', on);
+  let overlay = tile.querySelector('.tile-away-overlay');
+  if (on && !overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'tile-away-overlay';
+    overlay.textContent = 'Away';
+    tile.appendChild(overlay);
+  } else if (!on && overlay) {
+    overlay.remove();
+  }
+}
+
+async function sendAway(on) {
+  updateAwayOverlay(room.localParticipant?.identity, on);
+  if (room.state !== 'connected') return;
+  try {
+    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on })), { reliable: true, topic: 'away' });
+  } catch (err) {
+    // best-effort: not worth surfacing to the person who just wants their profile
+  }
+}
+
 // --- start --------------------------------------------------------------------
 
-async function init() {
-  const branding = await loadBranding();
-  tableName = branding.tableName || tableName;
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  $('layout-select').value = prefs.layout;
-  $('follow-speaker').checked = prefs.follow;
+// The mic/camera processing fields (not device selection -- that's kept
+// local, per machine) also live on the account, set from the profile page
+// or here; this reflects prefs into the settings-popover controls, called
+// once from local defaults at startup and again once the account's own
+// values come back from /api/me.
+function populateCallSettingsUI() {
   $('gain').value = String(prefs.gain);
   $('gate').value = String(prefs.gate);
   $('gain-value').textContent = `${prefs.gain}%`;
@@ -1302,12 +2145,52 @@ async function init() {
   $('talk-mode').value = prefs.ptt ? 'ptt' : 'open';
   $('quality').value = String(prefs.quality);
   $('mirror').checked = prefs.mirror;
+  $('background-mode').value = prefs.background;
+  $('master-volume').value = String(prefs.masterVolume);
+  $('volume-value').textContent = `${prefs.masterVolume}%`;
   $('mic').classList.toggle('ptt', prefs.ptt);
+}
+
+async function init() {
+  const branding = await loadBranding();
+  tableName = branding.tableName || tableName;
+  renderReactionTray(branding.reactions);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  syncLayoutPick();
+  $('follow-speaker').checked = prefs.follow;
+  populateCallSettingsUI();
   applyLayout();
   const hint = describeInstall();
   $('install-hint').textContent = hint;
   $('install-hint').hidden = !hint;
   $('install-note').textContent = hint;
+
+  if (guestToken) {
+    // No account: no whoami, no Manage, no Sign out, no Guests section (that
+    // needs a real session too) -- just the name field and, past that,
+    // everything the room itself already handles the same for everyone.
+    $('join').hidden = true;
+    $('whoami-link').hidden = true;
+    $('logout-link').hidden = true;
+    $('guest-section').hidden = true;
+    $('settings-links').hidden = true;
+    try {
+      const info = await api('GET', `/api/guest-link/${encodeURIComponent(guestToken)}`);
+      $('guest-room-name').textContent = `Join ${info.roomName}`;
+      $('guest-join').hidden = false;
+      $('guest-join').dataset.roomId = info.roomId;
+      $('guest-join').dataset.roomName = info.roomName;
+    } catch (err) {
+      $('guest-room-name').textContent = 'This link is off';
+      $('guest-join-error').textContent = err.message;
+      $('guest-join-error').hidden = false;
+      $('guest-join').hidden = false;
+      $('guest-join').querySelector('button[type="submit"]').hidden = true;
+      $('guest-name').hidden = true;
+    }
+    return;
+  }
+
   try {
     const info = await api('GET', '/api/me');
     me = info.user;
@@ -1316,6 +2199,14 @@ async function init() {
     $('whoami-img').hidden = false;
     $('admin-link').hidden = me.role !== 'admin';
     $('admin-link-2').hidden = me.role !== 'admin';
+    // The account's own mic/camera processing settings take over from
+    // whatever this browser had locally, so joining from anywhere lands
+    // already set up the way the account is configured.
+    if (me.callPrefs) {
+      Object.assign(prefs, me.callPrefs);
+      savePrefs();
+      populateCallSettingsUI();
+    }
     await loadTable(); // the join screen's member grid
   } catch (err) {
     location.href = '/login';

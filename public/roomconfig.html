@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
+  <title>Coffee Pub Tavern - Room</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
+    <nav class="links">
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/" target="_top" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/admin#rooms" title="Rooms" aria-label="Rooms"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+      <span class="version" data-brand="version"></span>
+    </nav>
+  </header>
+
+  <main class="admin">
+    <nav class="subtabs section-nav">
+      <a class="subtab" href="#section-room">Room</a>
+      <a class="subtab" href="#section-access">Access</a>
+      <a class="subtab" href="#section-members">Members</a>
+    </nav>
+
+    <div class="tab-stack">
+      <section class="panel" id="section-room">
+        <div class="profile-head">
+          <div class="slot" id="room-image-slot" data-room-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="room-image" alt=""><span class="unset">not set</span><input type="file" id="room-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="room-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
+          <div class="profile-title">
+            <h1 id="room-title"></h1>
+            <span class="tag" id="lobby-tag" hidden>Everyone's room</span>
+            <p class="status" id="status"></p>
+          </div>
+        </div>
+
+        <h2>Room</h2>
+        <div class="fields">
+          <label>Name<input id="e-name" type="text" maxlength="40"></label>
+          <label class="wide">Description<textarea id="e-description" rows="3" maxlength="300"></textarea></label>
+          <label class="wide">Profile<select id="e-profile">
+            <option value="roleplaying">Roleplaying -- Participant and Character images</option>
+            <option value="participants">Participants -- Participant images only</option>
+            <option value="characters">Characters -- Character images only</option>
+          </select></label>
+          <label class="wide">Launch link<input id="e-link" type="url" placeholder="https://your-vtt-or-site.example" maxlength="500"></label>
+        </div>
+        <p class="hint">Decides which image sections show up for this room on a member's own profile page,
+          and which ones Coffee Pub Studio offers to publish for it.</p>
+
+        <div class="icon-pick-field">
+          <span class="field-label">Link icon</span>
+          <div class="icon-grid" id="e-link-icon" role="group" aria-label="Link icon"></div>
+        </div>
+        <p class="hint">Shown on the button next to Join, and in the call toolbar, once a launch link is set above.</p>
+
+        <div class="row">
+          <button class="btn btn-primary btn-small" id="save-btn" type="button">Save</button>
+          <span class="status" id="save-status"></span>
+        </div>
+
+        <div class="row danger-row" id="danger-row">
+          <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
+        </div>
+      </section>
+
+      <section class="panel" id="section-access">
+        <h2>Invite to register</h2>
+        <p class="hint">A link that signs someone up with a real account and drops them straight into this room (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
+        <div class="row">
+          <button class="btn btn-small" id="make-invite" type="button">Generate invite link</button>
+          <span class="status" id="invite-status"></span>
+        </div>
+        <div class="row" id="invite-link-row" hidden>
+          <code class="key link" id="invite-link"></code>
+          <button class="btn btn-small" id="invite-copy" type="button">Copy</button>
+        </div>
+
+        <h2>Guest link</h2>
+        <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the room itself, not just here.</p>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
+        </div>
+        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on above to use this.</p>
+        <div class="row">
+          <code class="key link" id="guest-link-value">off</code>
+          <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
+          <button class="btn btn-small" id="guest-link-copy" type="button" hidden>Copy</button>
+          <button class="btn btn-small" id="guest-link-new" type="button" hidden>New link</button>
+          <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
+        </div>
+        <p class="status" id="guest-link-status"></p>
+      </section>
+
+      <section class="panel" id="section-members">
+        <h2>Members</h2>
+        <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
+        <div class="member-checks" id="members"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="/roomconfig.js"></script>
+</body>
+</html>

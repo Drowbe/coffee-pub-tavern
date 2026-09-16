@@ -19,6 +19,31 @@
   box-sizing: border-box;
 }
 
+/* Scrollbars in the app's own colours instead of the browser/OS default. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-card);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--bg-card);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 2px solid var(--bg-card);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -28,6 +53,14 @@ body {
 
 [hidden] {
   display: none !important;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
 }
 
 .topbar {
@@ -116,7 +149,14 @@ select {
   color: var(--text);
   padding: 6px 8px;
   font: inherit;
-  max-width: 220px;
+}
+
+/* Every checkbox and slider in the app draws with the theme's own accent,
+   not the browser's native blue -- set once here rather than per page. */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--accent);
 }
 
 /* The join screen: the rooms I may join, one card each, on a grid that
@@ -195,14 +235,30 @@ select {
   align-self: start;
 }
 
-.room-choice .btn {
+.room-choice-actions {
   grid-area: join;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
 }
 
-.room-choice .btn {
-  margin-top: auto;
+/* All three buttons in this row share one height regardless of their own
+   padding/font-size -- box-sizing keeps that padding inside the 40px
+   rather than adding to it, and centering the content covers the rest. */
+.room-choice-actions .btn {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.room-choice-actions .btn-primary {
+  flex: 1;
   font-size: 16px;
-  padding: 10px 16px;
+  padding: 0 16px;
 }
 
 /* Who belongs to a room, with a dot for those in it right now. */
@@ -302,10 +358,14 @@ select {
   100% { transform: translate(-50%, -110px) scale(1); opacity: 0; }
 }
 
-/* The reaction tray: a row of big buttons above the bar. */
+/* The reaction tray: big buttons above the bar, wrapping to more rows
+   rather than running off the edges of the screen (or, worse, the much
+   narrower popped-out window) once there are enough of them. */
 .popover.tray {
-  width: auto;
+  width: min(360px, calc(100% - 24px));
   flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 6px;
   padding: 8px;
 }
@@ -383,6 +443,16 @@ select {
   display: block;
 }
 
+/* A shared screen shouldn't crop like a camera does -- the whole thing
+   fits inside the tile, letterboxed rather than losing the edges. */
+.tile-screen {
+  background: #000;
+}
+
+.tile-screen video {
+  object-fit: contain;
+}
+
 .tile.mirror video {
   transform: scaleX(-1);
 }
@@ -443,7 +513,7 @@ select {
 }
 
 .panel h3 {
-  margin: 14px 0 0;
+  margin: 14px 0 6px;
   font-size: 13px;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -466,6 +536,7 @@ select {
 .panel textarea,
 .fields input[type="text"],
 .fields input[type="password"],
+.fields input[type="url"],
 .fields select,
 .fields textarea {
   background: var(--bg-input);
@@ -584,13 +655,34 @@ select {
   margin: 0;
 }
 
+.profile-title .tag {
+  align-self: flex-start;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--bg-card);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
 .slot-pick.big {
   width: 128px;
   height: 128px;
 }
 
+/* A profile photo is a real photo, not a transparent OBS overlay -- fill
+   the square properly (cropping instead of letterboxing) at the size the
+   slot actually is, rather than the smaller generic .slot img default. */
+.slot-pick.big img {
+  width: 128px;
+  height: 128px;
+  object-fit: cover;
+}
+
 .slot-pick.still {
   cursor: default;
+  pointer-events: none;
 }
 
 .slot-pick.still:hover {
@@ -641,6 +733,39 @@ select {
   object-fit: contain;
   background: var(--bg-card);
   font-size: 0;
+}
+
+/* Behind the profile photo, only present while the camera is off and only
+   filled in when that person has a background image set at all (see
+   updateBackgroundPlaceholder in room.js) -- an empty img with no src
+   stays invisible on its own, .has-bg-image is just what shrinks the
+   photo on top of it into a centered circle once there's really a
+   picture behind it. */
+.tile .placeholder-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tile.has-bg-image .placeholder {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  /* sized off the tile's height on both axes (via container query units, since
+     .tile is a size container) so it comes out square no matter the tile's
+     own aspect ratio, instead of stretching into an ellipse. --pic-scale
+     (set from the room, from the same Portrait Size setting the OBS view
+     uses) is a 0-100 percentage of that height. */
+  width: calc(var(--pic-scale, 38) * 1cqh);
+  height: calc(var(--pic-scale, 38) * 1cqh);
+  min-width: 72px;
+  min-height: 72px;
+  transform: translate(-50%, -50%);
+  border-radius: 16%;
+  object-fit: cover;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
 }
 
 .image-row {
@@ -714,6 +839,106 @@ select {
   grid-column: 1 / -1;
 }
 
+.field-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+/* A picker of buttons, not a <select> -- every choice is visible and one
+   click away instead of hidden behind a dropdown. */
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.icon-grid button {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.icon-grid button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.icon-grid button.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Same "every choice is one click away" idea as .icon-grid, but a row of
+   equal-width labeled buttons instead of icon squares. */
+.layout-pick {
+  display: flex;
+  gap: 6px;
+}
+
+.layout-pick button {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  padding: 7px 6px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layout-pick button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.layout-pick button.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* A hotkey field looks like the other .fields inputs at rest, then turns
+   into an obvious "waiting for you to press something" state once clicked. */
+.hotkey-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hotkey-input:hover {
+  border-color: var(--accent);
+}
+
+.hotkey-input.recording {
+  border-color: var(--accent);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 .fields .check,
 .check {
   flex-direction: row;
@@ -723,6 +948,16 @@ select {
   letter-spacing: normal;
   font-size: 13px;
   color: var(--text);
+}
+
+/* A row of checkboxes belongs together, not scattered one per grid cell
+   like every other .fields item -- group them into one compact,
+   wrapping row instead. */
+.check-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
 }
 
 .row {
@@ -768,9 +1003,6 @@ select {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-card);
-}
-
-.user-head {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -817,14 +1049,6 @@ select {
 .live {
   color: var(--text-dim);
   font-size: 12px;
-}
-
-.user-body {
-  padding: 4px 12px 14px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .slots {
@@ -897,7 +1121,10 @@ a.btn {
    stage is the whole window with the floating pill and status instead. */
 body.at-table {
   overflow: hidden;
-  height: 100vh;
+  height: 100vh; /* fallback for browsers without dvh */
+  height: 100dvh; /* the actual visible viewport, so the toolbar at the
+                      bottom isn't hidden under a phone browser's own
+                      address/tab bar when it's showing */
   display: flex;
   flex-direction: column;
 }
@@ -953,6 +1180,18 @@ body.at-table .topbar {
   justify-content: center;
   gap: 14px;
   color: var(--text-dim);
+}
+
+/* Your profile or Manage, over the call: just the real page in an iframe.
+   Its own header gets the way back (see wireOverlayBack in brand.js). */
+.page-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
 }
 
 .stage {
@@ -1027,6 +1266,7 @@ body.at-table .topbar {
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 12px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
   background: #201812;
   border-top: 1px solid var(--border);
 }
@@ -1050,11 +1290,28 @@ body.at-table .topbar {
   transform: translateX(-50%) translateY(8px);
 }
 
+/* Popped out, the pill centres on the whole window -- with chat open that
+   puts it right under the chat panel on the right. Keep it centred on the
+   video area instead (the chat's own width, so they stay in sync), and let
+   it wrap to more than one row rather than spill under the chat. */
+.popout .stage.chat-open .floatbar {
+  left: 16px;
+  right: var(--chat-w, min(320px, 100%));
+  width: auto;
+  max-width: none;
+  transform: none;
+  flex-wrap: wrap;
+}
+
+.popout .stage.idle.chat-open .floatbar {
+  transform: translateY(8px);
+}
+
 .fbtn {
   position: relative;
-  width: 44px;
+  width: 48px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: 12px;
   border: 1px solid var(--border);
   background: #33281f;
   color: var(--text);
@@ -1064,6 +1321,39 @@ body.at-table .topbar {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+/* mic, audio, camera and layout each carry a small caret over their corner
+   that opens just that control's own settings, instead of the whole thing. */
+.fbtn-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.fbtn-caret {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #33281f;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fbtn-caret:hover,
+.fbtn-caret.on {
+  background: var(--accent);
+  color: #1a1206;
 }
 
 .fbtn:hover {
@@ -1139,11 +1429,28 @@ body.at-table .topbar {
   top: 0;
   right: 0;
   bottom: var(--barh, 0px);
-  width: min(320px, 100%);
+  width: var(--chat-w, min(320px, 100%));
   display: flex;
   flex-direction: column;
   background: rgba(26, 20, 16, 0.96);
   border-left: 1px solid var(--border);
+}
+
+/* a thin strip over the chat's left edge, to drag it wider or narrower */
+.chat-resize {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 1;
+  touch-action: none;
+}
+
+.chat-resize:hover,
+.chat-resize.dragging {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .chat header {
@@ -1309,10 +1616,6 @@ body.at-table .topbar {
   letter-spacing: 0.05em;
 }
 
-.popover select {
-  max-width: none;
-}
-
 .popover .links {
   justify-content: space-between;
   flex-wrap: wrap;
@@ -1326,10 +1629,18 @@ body.at-table .topbar {
   .floatbar {
     gap: 6px;
     padding: 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
   .fbtn {
     width: 40px;
     height: 40px;
+  }
+  .fbtn-caret {
+    width: 15px;
+    height: 15px;
+    font-size: 9px;
+    top: -5px;
+    right: -5px;
   }
 }
 
@@ -1402,7 +1713,7 @@ body.at-table .topbar {
 }
 
 .stage.chat-open .grid {
-  width: calc(100% - min(320px, 100%));
+  width: calc(100% - var(--chat-w, min(320px, 100%)));
 }
 
 .popover {
@@ -1420,13 +1731,20 @@ body.at-table .topbar {
 
 .popover input[type="range"] {
   width: 100%;
-  accent-color: var(--accent);
 }
 
 .popover .checks {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
+}
+
+/* .popover label defaults to a column (field label above its input), but a
+   checkbox's own label reads left to right: the box, then its text. */
+.popover label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
 .fbtn.gated .meter {
@@ -1457,7 +1775,6 @@ body.at-table .topbar {
   height: 18px;
   margin: 0;
   opacity: 0;
-  accent-color: var(--accent);
   transition: opacity 0.15s ease;
   z-index: 2;
 }
@@ -1471,13 +1788,13 @@ body.at-table .topbar {
   position: absolute;
   top: 8px;
   left: 8px;
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: rgba(20, 15, 12, 0.85);
   color: var(--text);
-  font-size: 12px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1496,6 +1813,172 @@ body.at-table .topbar {
   border-color: var(--accent);
 }
 
+/* Float a shared screen into its own always-on-top window (native video
+   Picture-in-Picture), separate from the whole-stage pop out. */
+.tile-pip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(20, 15, 12, 0.85);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+
+.tile:hover .tile-pip {
+  opacity: 1;
+}
+
+.tile-pip:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* A room member who is online but currently in a private aside elsewhere:
+   their picture stands in for video, dimmed, with who they stepped away
+   with -- so they read as "still at the table, just aside" rather than
+   looking like they hung up. */
+.tile-ghost {
+  cursor: default;
+}
+
+.tile-ghost .placeholder {
+  filter: brightness(0.45) saturate(0.6);
+}
+
+/* The Aside/Private picture, laid over the (dimmed) profile photo same
+   as OBS lays it over the Online/Offline picture -- a badge, not a
+   replacement, sized the same way so it sits in the same spot either way. */
+.tile-ghost-badge {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.tile-ghost-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  padding: 8px;
+}
+
+.tile-ghost-status {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.tile-ghost-with {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Someone still fully in the call but looking at their profile or Manage
+   right now: their real video keeps playing underneath, dimmed, with a
+   small "Away" mark -- visible to everyone else, not to themselves (they
+   already know). */
+.tile-away video,
+.tile-away .placeholder {
+  filter: brightness(0.4);
+}
+
+.tile-away-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+/* Picked to step aside together, pending confirmation: stays visible even
+   without hovering, so a multi-person selection is easy to keep track of. */
+.tile-aside.selected {
+  opacity: 1;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.aside-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.aside-overlay-card {
+  background: rgba(36, 28, 22, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  max-width: min(360px, calc(100% - 32px));
+  text-align: center;
+}
+
+.aside-overlay-card p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.recall-countdown {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.aside-overlay-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Visually distinct from the ordinary (still-recorded) Step aside button on
+   purpose -- an accidental mix-up here means something meant to be off the
+   record ends up in the recording, or vice versa. */
+#aside-confirm-private {
+  border-color: #b8503f;
+  color: #b8503f;
+}
+
+#aside-confirm-private:hover {
+  background: #b8503f;
+  color: #fff;
+}
+
 /* --- small windows (pop out, phones) --------------------------------------- */
 
 .stage.compact .grid {
@@ -1510,6 +1993,7 @@ body.at-table .topbar {
 .stage.compact .floatbar {
   gap: 4px;
   padding: 5px;
+  padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
 .popout .stage.compact .floatbar {
@@ -1525,6 +2009,14 @@ body.at-table .topbar {
 
 .stage.compact .fbtn .glyph i {
   font-size: 14px;
+}
+
+.stage.compact .fbtn-caret {
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
+  top: -4px;
+  right: -4px;
 }
 
 .stage.compact .status-float {
@@ -1549,7 +2041,7 @@ body.at-table .topbar {
 }
 
 .stage.tiny .status-float,
-.stage.tiny #layout,
+.stage.tiny .fbtn-wrap:has(#layout),
 .stage.tiny #settings-toggle {
   display: none;
 }
@@ -1604,6 +2096,38 @@ body.at-table .topbar {
   margin-top: 0;
 }
 
+/* A quick-jump nav for a page split into sections (the profile page): plain
+   anchor links styled like the subtabs, but they scroll instead of
+   switching a hidden panel -- every section stays on the page at once. */
+.section-nav {
+  margin-bottom: 16px;
+}
+
+.section-nav a.subtab {
+  text-decoration: none;
+  display: inline-block;
+}
+
+#section-account,
+#section-background,
+#section-call,
+#section-images,
+#section-room,
+#section-members,
+#section-access,
+.room-section {
+  scroll-margin-top: 70px;
+}
+
+/* room-sections wraps a variable number of per-room panels; it needs the
+   same stacking gap .tab-stack gives its own direct children, since this
+   whole div is just one of those children itself. */
+#room-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .section-head .btn {
   margin-left: auto;
 }
@@ -1637,36 +2161,56 @@ body.at-table .topbar {
   margin-top: 0;
 }
 
-.rooms {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.room-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
-}
-
-.room-card.lobby {
+.user-card.lobby {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
-.room-members {
+.room-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-input);
+  flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.room-thumb .thumb {
+  width: 100%;
+  height: 100%;
 }
 
 .member-checks {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.reactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.reaction-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reaction-row .reaction-glyph {
+  width: 44px;
+  text-align: center;
+  flex: none;
+}
+
+.reaction-row .reaction-label {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Member tiles on a room: click to toggle, lit while in the room */
@@ -1816,10 +2360,6 @@ input[type="color"] {
   cursor: pointer;
 }
 
-.user-body h3:first-child {
-  margin-top: 8px;
-}
-
 /* checkbox and picture labels inside panels keep normal text */
 .panel label.check,
 .fields label.check {
@@ -1835,4 +2375,43 @@ input[type="color"] {
 .panel label.slot-pick {
   text-transform: none;
   letter-spacing: normal;
+}
+
+/* Icon/background pickers on the settings page: a small round remove button
+   over the corner instead of a separate Remove button and a label that just
+   repeats the heading above it. */
+.slot-pick-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.slot-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.slot-remove:hover {
+  background: color-mix(in srgb, var(--danger) 85%, white);
+}
+
+/* The icon shows at 24-40px in real use (the header, the sign-in page); a
+   preview close to that size shows how it'll actually read instead of a
+   detailed picture that turns to mush once it's shrunk down. */
+.slot-pick.icon-size {
+  width: 40px;
+  height: 40px;
 }

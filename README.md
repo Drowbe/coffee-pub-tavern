@@ -53,7 +53,36 @@ recreate it. Users, images and settings live in `/share/appdata/tavern`, so noth
 
 There are two roles. **Admins** run the table: they add people, set passwords, upload images and
 change settings. **Users** join the table and can set their own **profile photo**, nothing else.
-Nobody changes their own password; an admin sets it.
+Nobody changes their own password; an admin sets it. Nothing on an account is off-limits to an
+admin, the player's own photo included -- opening `/profile/<key>` from Manage gives an admin
+the exact same editing power over it a player has for themselves.
+
+Each person's `/profile` page is split into sections -- **User** (account, photo, personal
+link) and **Default Images** (the Participant and Character image sets) -- with a quick-jump
+nav between them rather than one long scroll. A section for each real room they belong to
+appears below the defaults, letting an admin (read-only for the player themselves) set a
+different picture set just for that room -- unset slots fall back to the defaults above, so
+someone in two campaigns can give each its own Character images without the other campaign's
+set ever needing to change. Which of Participant or Character (or both) a room's section even
+offers depends on that room's **profile** -- see Rooms, below.
+
+**Sign-up.** Off by default. An admin turns on **Let anyone at /register sign themselves up**
+under Manage > Settings, and anyone who finds that link can make their own account (an ordinary
+user, dropped into the Lobby like everyone). Without opening it up, an admin can still **invite**
+someone straight into specific rooms: pick the rooms and **Generate invite link** from the same
+Settings panel, then send the link -- it works whether or not general sign-up is on, expires
+after 7 days, and works once.
+
+**Guests.** No account at all, for someone dropping in once. Open the settings popover (the
+gear, next to chat and reactions) while at the table and, under **Guests**, turn on that room's
+link -- anyone with it lands on a page asking only for a name, then joins straight into that
+room: video, mic, chat, reactions, the works, standing in on the generic **guest images** set
+under Manage > Settings if their camera is off. Unlike the invite link above, it's not admin-only
+(anyone at the table can turn it on, copy it or turn it off) and it's a standing door rather
+than single-use -- reusable for as many guests as show up, until someone turns it off or
+generates a new one. Nothing about a guest is kept once they leave: no account, no history.
+A room can also turn guests off entirely -- **Allow Guests** on its own config page, on by
+default -- which also turns off any link already in use there.
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a
@@ -80,26 +109,40 @@ with their player image, use chat and reactions, and can be published to OBS lik
 ## Rooms
 
 The **Rooms** tab on the manage page holds the **Lobby**, which everyone belongs to and which
-cannot be deleted, plus any rooms an admin adds. A room has a name, a description, a picture
-(click it to change it) and the members the admin ticks. Each room is its own conversation:
-after signing in a player sees the rooms they belong to, each with its members and a green dot
-on those in it right now, and joins one. Admins may join any room. A player's OBS view pages
-follow them from room to room. Coffee Pub Studio shows one room at a time on its Tavern tab
-and publishes that room's users.
+cannot be deleted, plus any rooms an admin adds. It is a roster, same as Users: click a room
+to open its own page (name, description, picture, members, and its profile, below) rather
+than editing it inline in the list; **↑**/**↓** on each row (the Lobby is always first and
+never moves) reorders the roster itself. Each room is its own conversation: after signing in a
+player sees the rooms they belong to, each with its members and a green dot on those in it
+right now, and joins one. Admins may join any room. A player's OBS view pages follow them from
+room to room, including into any per-room images that room has for them. Coffee Pub Studio
+shows one room at a time on its Tavern tab and publishes that room's users.
 
-**Pull aside.** While at the table, an admin can pull anyone else in their current room into a
-private word: hover their tile and click the door icon. Both move to a new room together at
-once, with nobody clicking anything on the other end. The pulled player (and the admin) get a
-**Back to the table** button in place of the usual room name, returning them straight to the
-Lobby. The private room itself is never shown as something to pick from a list; it disappears
-on its own once both of you have left it. Everyone else, still in whatever room they were in,
-sees the two of you tagged **aside** where their tile would show a room; anyone else who isn't
-in the room the admin currently occupies is tagged **off stream** the same way, since Coffee
-Pub Studio's Tavern tab follows the admin's room automatically (a **Follow the admin** tick,
-on by default) and only publishes whoever is in it — so being off stream there really does mean
-off the recording, not just a label. A pull-aside room is a private word by design, though, so
-while the admin is in one, that rule flips: nobody is on stream, the admin and the pulled player
-included, not just everyone left behind at the table.
+**Profile.** Every room picks one of three: **Roleplaying** (the default) offers both
+Participant and Character images, on the room's own member sections and to Studio's publish
+UI; **Participants** offers Participant images only; **Characters** offers Character images
+only. Set on the room's own config page.
+
+**Pull aside.** While at the table, an admin can pull one or more people in their current room
+into a private word: click the door icon on each tile to pick who (it toggles a selection, it
+does not move anyone yet), then confirm with **Step aside with N**. Everyone picked moves
+together at once, with nobody clicking anything on their own end. The pulled players (and the
+admin) get a **Back to the table** button in place of the usual room name, returning everyone
+together to whichever room they were pulled out of -- clicking it on any one of their screens
+brings the rest back too, the same as pulling aside itself only needed the admin's click. The
+private room itself is never shown as something to pick from a list; it disappears on its own
+once everyone has left it. Anyone left behind doesn't see those tiles just vanish, as if they'd
+hung up -- each one dims to a placeholder reading **In an aside**, naming who they stepped out
+with, until they return.
+
+This is private from the *rest of the table*, not from the recording: Coffee Pub Studio's
+Tavern tab follows whichever room the admin is actually in (a **Follow the admin** tick, on by
+default) and only publishes whoever is in that room, so while the admin is aside with someone,
+that conversation is what's on stream, exactly as it would be in any other room -- and everyone
+left behind in the room they stepped out of goes quiet on stream, same as stepping out of any
+other room. Everyone not with the admin right now, aside room or not, sees that group tagged
+**aside** where their tile would show a room, or **off stream** for anyone who has simply left
+the admin's room some other way.
 
 ## The table
 
@@ -107,9 +150,9 @@ The join screen lists the rooms you belong to, each with its members and a green
 in it right now. Join is one click. The page then becomes the table: the header stays, now
 naming the room you are in (**Coffee Pub Tavern › Lobby**) with a **Leave room** button, the
 tiles fill the middle, and a bar of controls sits locked to the bottom edge like Zoom or Meet.
-Left to right: microphone (with a live level meter inside the button), camera, layout, chat,
-reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **V** camera, **C**
-chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
+Left to right: microphone (with a live level meter inside the button), deafen, camera, layout,
+chat, reactions, settings, pop out (Chrome and Edge), leave. Keys: **M** mic, **D** deafen,
+**V** camera, **C** chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
 
 - **Layouts.** Grid; strip (one row, or one column when the window is taller than wide); and
   spotlight, one big tile with the rest small. Spotlight follows whoever is speaking unless you
@@ -121,17 +164,30 @@ chat, **R** reactions, **L** layout, **1** to **6** send a reaction.
   **Copy** (text, or the picture itself) and, on pictures, **Save**; the download button in the
   drawer's header saves the whole chat as a text file. Everything travels over the media
   server's data channel and nothing is stored: a late joiner sees only what comes after them.
-- **Reactions.** The smiley button opens a tray: heart, thumbs up, thumbs down, laugh, question
-  mark and a die for a nat 20, or keys 1 to 6. A reaction floats up from your tile for a couple
+- **Reactions.** The smiley button opens a tray, set up by the admin under Manage > Settings
+  (six by default: heart, thumbs up, thumbs down, laugh, question mark and a die for a nat 20),
+  reachable by keys 1 to 6 for the first six. A reaction floats up from your tile for a couple
   of seconds on everyone's table, and up your Player and Character sources in OBS. Nothing is
   stored.
+- **Deafen.** Mutes everyone else's audio on your end without touching your own microphone or
+  leaving the call -- for when something else, a phone call say, needs the room quiet for a
+  minute. Local only; nobody else is affected or notified.
 - **Audio.** In settings: microphone choice, a level slider (0 to 300%), a noise gate that cuts
   the mic below a threshold, the browser's noise suppression, echo cancellation and auto gain
   switches, and open mic or push to talk (hold Space). Hover another player's tile for a volume
   slider that applies only on your side.
-- **Video.** Camera choice, quality (360p, 540p, 720p) and mirror for your own preview.
+- **Video.** Camera choice, quality (360p, 540p, 720p), mirror for your own preview, and a
+  background mode: off, **blur**, or a **custom image** (upload it on your profile page, under
+  Video background). Either one runs entirely on your own device (MediaPipe segmentation via
+  LiveKit's `@livekit/track-processors`, self-hosted -- no CDN, nothing external fetched) and
+  only loads the model the first time you actually turn either on.
 - **Without a camera or microphone** you still join; whatever is missing is named in the status
   line and your Online picture (set by your admin) stands in for the camera.
+- **Your profile and Manage** open in an in-page overlay from inside a call rather than
+  navigating away -- leaving the page would drop the call (it is a plain WebRTC connection,
+  tied to that page), so this keeps the call running underneath while you're there. A "Back
+  to [room]" button appears in that page's own header; other people at the table see your
+  tile dim with an "Away" label while you're on it, not a message on the page itself.
 
 To run the table without browser bars, install it as an app: Chrome and Edge show **Install as
 an app** in the settings popover, Safari on macOS has **File, Add to Dock**, iPhones and iPads
@@ -141,29 +197,31 @@ become a round bar floating over the tiles that fades away when the pointer rest
 back on any movement, with the server name and status in the corner. The page behind keeps its
 header and offers **Bring it back here**.
 
-## Player and Character
+## Participant and Character
 
 Each user has two things the recording can show, and both react to the same live signal: who
-is speaking and who is muted.
+is speaking and who is muted. Both can be set once as a **Default** (on the account) and,
+per room, overridden just for that room -- see Rooms, above -- and which of the two a given
+room even offers depends on that room's **profile**.
 
 Each has four pictures, **Offline**, **Online**, **Talking** and **Muted**: the box always shows
 Offline or Online depending on whether the person is at the table, and lays Talking or Muted on
 top while they speak or while their microphone is off. Any picture left unset is simply not
 drawn.
 
-**Player** is the person. Their box shows the camera when it is on and the **Online** picture,
-set by an admin, when it is off; away from the table it shows **Offline**, or nothing. This is
-separate from the player's own **profile photo**, which only shows in the app itself (the
-header, table tiles, their **Profile** page) and never in the recording, since the Online
+**Participant** is the person. Their box shows the camera when it is on and the **Online**
+picture, set by an admin, when it is off; away from the table it shows **Offline**, or nothing.
+This is separate from the player's own **profile photo**, which only shows in the app itself
+(the header, table tiles, their **Profile** page) and never in the recording, since the Online
 picture may be part of a matched set of OBS images the admin built.
 While they speak a **talking border** is drawn around the box, and while their microphone is
 off a **muted border** in its own colour; both share one width and fit any source size. Those
 borders are the only things the box ever draws (no icons); for anything more, use the Talking
 and Muted pictures. The borders, their colours, the width and the **name plate** are set once
 under Settings, the same for everyone. Two more
-defaults shape the Player box while it shows a picture rather than the camera: a **colour behind
-the picture**, so the video area stays visible on the recording, and a **picture size** as a
-percentage of the box, which leaves a margin around the picture instead of filling the height.
+defaults shape the Participant box while it shows a picture rather than the camera: a **colour
+behind the picture**, so the video area stays visible on the recording, and a **picture size** as
+a percentage of the box, which leaves a margin around the picture instead of filling the height.
 The camera always fills the box.
 
 **Character** is a second box for OBS with the same four pictures and its own talking and muted
@@ -171,9 +229,11 @@ borders (off by default, set server-wide under **Character borders**). With no O
 and no borders it stays transparent until they talk or mute, so it can sit over an existing
 character bar. It carries no audio.
 
-Images are PNG, JPEG, GIF or WebP up to 5 MB. Click an image box to change it, Clear to remove
+Images are PNG, JPEG, GIF or WebP up to 20 MB. Click an image box to change it, Clear to remove
 it; an empty box says "not set". Overlays and the character image are optional: nothing shows
-until something is set. The player image falls back to a plate with the player's initials.
+until something is set. The profile photo falls back to a plate with the player's initials and
+always fills its square (cropped, not letterboxed); the OBS pictures show exactly what was
+uploaded, uncropped, since they may be transparent overlays.
 
 ## OBS
 
@@ -188,11 +248,17 @@ https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
 | Parameter | Meaning |
 | --- | --- |
 | `s` | The **stream key** from the Settings tab. Required. Regenerating it breaks every existing link. |
-| `kind` | `player` (default): the camera, the player image when it is off, the talking border and the overlays. `character`: the character image and its overlays, never the video. |
-| `plate` | `1` forces the name plate on. Normally the plate follows the **Name plate** option in the user's Player section (server default on the Settings tab). |
+| `kind` | `player` (default): the camera, the Participant image when it is off, the talking border and the overlays. `character`: the character image and its overlays, never the video. (The parameter is still spelled `player` -- existing OBS scenes already reference it -- even though the UI now calls this box "Participant".) |
+| `plate` | `1` forces the name plate on. Normally the plate follows the **Name plate** option in the user's Participant section (server default on the Settings tab). |
 | `audio` | The player view always plays the player's audio; `0` makes it silent. Whether it reaches the OBS mixer is OBS's own "Control audio via OBS" on the source. |
 | `reactions` | Both kinds float the player's reactions up the box; `0` keeps a source clean. |
 | `debug` | `1` shows connection messages on the page. |
+
+The link never needs a room in it: the view page already knows which room the player is
+actually in right now (the same live presence that lets it follow them from room to room) and
+automatically uses that room's own pictures for a slot when it has any, falling back to the
+Default Images otherwise -- one link keeps working correctly as someone moves between rooms
+with different picture sets.
 
 In OBS: Sources, +, Browser, paste the link, set width and height, and untick "Shutdown source
 when not visible". With Coffee Pub Studio you skip all of this: its Tavern tab creates and
@@ -203,13 +269,20 @@ table.
 
 ## Settings
 
-The manage page's Settings tab has four sections. **Server**: the icon (any image; used in the
+The manage page's Settings tab has seven sections. **Server**: the icon (any image; used in the
 header, as the favicon and on the sign-in page) and the **server name** shown in the header and
 browser tab. **Sign-in page**: a **background** picture that fills the page behind the sign-in
-box, and the text under the password field. Click either picture to change it, **Remove** to
-clear it. **Player video defaults**: talking border, its colour and width in pixels, and name plate, used unless a user's own Player section overrides them (the width applies to
-everyone). **OBS access**: the stream key. Room images are square; anything else is cropped to
-the middle.
+box, and the text under the password field. Click either picture to change it, the small **x**
+over its corner to clear it. **Sign-up**: turn self-service `/register` on or off, and generate
+invite links into specific rooms -- see Accounts, above. **Participant video defaults**: talking
+border, its colour and width in pixels; the name plate, its **Layout** (one of six corner/edge
+positions, including a full-width strip flush with the bottom), **Box Color**, **Font Color**,
+**Font Size** and **Nameplate Transparency**; and the **Video Background Color** and
+**Portrait Size** behind the Participant box's picture -- server-wide, the same for everyone.
+**Guest images**: the Participant picture set a guest shows instead of a real member's own --
+see Accounts, above. **Reactions**: the emoji tray at the table and on stream; add, remove,
+reorder, edit glyph and label, or leave it empty to turn reactions off. **OBS access**: the
+stream key. Room images are square; anything else is cropped to the middle.
 
 ## Icons
 
@@ -236,7 +309,9 @@ the WebSocket host.
 | `server/store.js` | Users, settings, images on disk |
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
 | `public/login.html` | Sign-in page |
+| `public/register.html` | Self sign-up and invite acceptance |
 | `public/room.html` | The table |
-| `public/profile.html` | A player's profile: their own photo, and what the admin set |
+| `public/profile.html` | A player's profile: their own photo, defaults, and a section per room |
 | `public/admin.html` | Manage page |
+| `public/roomconfig.html` | A room's own config page |
 | `public/view.html` | OBS view |
