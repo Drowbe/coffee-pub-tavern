@@ -13,15 +13,17 @@ const path = require('path');
 const crypto = require('crypto');
 
 // Image slots. Participant: what the video box shows when the camera is
-// off, plus optional overlays drawn on the video while they talk or are muted.
-// Character: an optional base image plus overlays for the character box.
-// Participant box: offline, online (the camera-off picture), talking, muted.
-// Character box: characterOffline, character (online), talking, muted.
+// off, plus optional overlays drawn on top while they talk, are muted, are
+// aside, or are in a Private Conversation. Character: an optional base
+// image plus the same set of overlays for the character box.
+// Participant box: offline, online (the camera-off picture), talking,
+// muted, aside, private. Character box: characterOffline, character
+// (online), talking, muted.
 // 'profile' is the player's own photo (header, table tiles, profile page); the
 // rest are the admin-set OBS pictures for the Participant and Character boxes.
 // The slot keys themselves stay the old "player*" names underneath -- OBS
 // scenes and view links already reference them -- only their label changed.
-const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted'];
+const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
 const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
 // 'background' is a player's own chosen still image behind their camera in
 // the call itself (an alternative to blur) -- unrelated to the OBS
@@ -829,18 +831,26 @@ class Store {
     return fs.existsSync(full) ? full : null;
   }
 
-  // The file to serve for a slot. Only the profile picture has a fallback
-  // (the initials plate is drawn by the server); every other slot is
-  // optional and simply absent when not set, so overlays stay transparent.
+  // The file to serve for a slot. The profile picture always has a
+  // fallback (the initials plate, drawn by the server, not stored here);
+  // a Participant slot falls back further, to the server-wide Default
+  // Images set below, before finally going transparent; every other slot
+  // (Character, background) is simply absent when unset.
   resolveImage(key, slot, roomId) {
     const full = this.imagePath(key, slot, roomId);
     return full ? { file: full, slot } : null;
   }
 
-  // The room's own picture if it has one for this slot, else the global
-  // default -- what OBS actually wants to show for that room.
+  // The room's own picture if it has one for this slot, else this same
+  // user's own picture (no room override), else -- Participant slots only
+  // -- the server-wide Default Images picture, else nothing at all. What
+  // OBS actually wants to show for a given user in a given room.
   effectiveImage(key, slot, roomId) {
-    return (roomId && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
+    const own = (roomId && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
+    if (own) return own;
+    if (!PARTICIPANT_SLOTS.includes(slot)) return null;
+    const file = this.defaultImagePath(slot);
+    return file ? { file, slot } : null;
   }
 
   setImage(key, slot, buffer, contentType, roomId) {
@@ -930,6 +940,34 @@ class Store {
 
   removeGuestImage(slot) {
     const existing = this.guestImagePath(slot);
+    if (existing) fs.rmSync(existing, { force: true });
+  }
+
+  // Default images: images/default/<slot>.<ext>, the server-wide Participant
+  // picture a member's own effectiveImage() falls back to once they (and
+  // their room, if any) have neither set one -- see effectiveImage above.
+  defaultImagePath(slot) {
+    if (!PARTICIPANT_SLOTS.includes(slot)) return null;
+    const dir = path.join(this.imagesDir, 'default');
+    if (!fs.existsSync(dir)) return null;
+    const file = fs.readdirSync(dir).find((f) => f.startsWith(`${slot}.`));
+    return file ? path.join(dir, file) : null;
+  }
+
+  setDefaultImage(slot, buffer, contentType) {
+    if (!PARTICIPANT_SLOTS.includes(slot)) throw new StoreError('unknown image', 404);
+    const ext = IMAGE_TYPES[contentType];
+    if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
+    if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
+    if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
+    this.removeDefaultImage(slot);
+    const dir = path.join(this.imagesDir, 'default');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${slot}.${ext}`), buffer);
+  }
+
+  removeDefaultImage(slot) {
+    const existing = this.defaultImagePath(slot);
     if (existing) fs.rmSync(existing, { force: true });
   }
 }

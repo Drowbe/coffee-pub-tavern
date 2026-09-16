@@ -254,7 +254,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])) };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -423,6 +423,19 @@ app.get('/img/guest/:slot', (req, res) => {
   if (file) return sendImage(res, file);
   if (slot !== 'player' || req.query.fallback === 'none') return res.status(404).end();
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(guestSvg());
+});
+
+// The server-wide Default Images set -- what effectiveImage() falls back
+// to for any member who (and whose room, if any) hasn't set their own.
+// For previewing the set itself on the Settings page; 404s when unset,
+// same as any other optional slot.
+app.get('/img/default/:slot', (req, res) => {
+  if (!currentUser(req) && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(403).end();
+  const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  const slot = PARTICIPANT_SLOTS.includes(wanted) ? wanted : null;
+  const file = slot && store.defaultImagePath(slot);
+  if (file) return sendImage(res, file);
+  res.status(404).end();
 });
 
 // A user's image for a slot. The profile photo always renders (an initials
@@ -901,14 +914,23 @@ app.delete('/api/settings/:image', requireAdmin, siteImage, (req, res) => {
   store.removeSiteImage(req.params.image);
   res.json({ settings: branding() });
 });
-// The shared guest Participant picture set (see /img/guest/:slot above).
-const guestImageSlot = (req, res, next) => (PARTICIPANT_SLOTS.includes(req.params.slot) ? next() : res.status(404).json({ error: 'unknown image slot' }));
-app.put('/api/settings/guest-images/:slot', requireAdmin, guestImageSlot, rawImage, (req, res) => {
+// Shared by both the guest and the default Participant picture sets below.
+const participantImageSlot = (req, res, next) => (PARTICIPANT_SLOTS.includes(req.params.slot) ? next() : res.status(404).json({ error: 'unknown image slot' }));
+app.put('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, rawImage, (req, res) => {
   store.setGuestImage(req.params.slot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/settings/guest-images/:slot', requireAdmin, guestImageSlot, (req, res) => {
+app.delete('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, (req, res) => {
   store.removeGuestImage(req.params.slot);
+  res.json({ ok: true });
+});
+// The server-wide Default Images set (see /img/default/:slot above).
+app.put('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, rawImage, (req, res) => {
+  store.setDefaultImage(req.params.slot, req.body, req.get('content-type'));
+  res.json({ ok: true });
+});
+app.delete('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, (req, res) => {
+  store.removeDefaultImage(req.params.slot);
   res.json({ ok: true });
 });
 app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {

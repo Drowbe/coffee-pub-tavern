@@ -4,7 +4,9 @@
 // player:    the camera when it is on, the Online picture when it is off, the
 //            Offline picture (or nothing) away from the table; the talking or
 //            muted border and the name plate as set for the user, plus the
-//            Talking / Muted pictures laid on top. Nothing else is drawn.
+//            Talking / Muted / Aside / Private pictures laid on top (Aside
+//            and Private also dim+tint per Manage > Settings, and Private
+//            always forces the live camera off regardless of any of this).
 //            Audio always plays; whether it reaches the OBS mixer is OBS's
 //            "Control audio via OBS". plate=1 in the link forces the plate on.
 // Both kinds float the player's reactions up the box; reactions=0 turns
@@ -34,7 +36,7 @@ const room = new Room({ adaptiveStream: false });
 const connectOptions = { autoSubscribe: kind === 'player' };
 
 // Slots this kind draws, as blob URLs (null when the user has none).
-const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted'] : ['characterOffline', 'character', 'talking', 'muted'];
+const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'] : ['characterOffline', 'character', 'talking', 'muted'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
 let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, plateLayout: 'lower-left', plateColor: '#000000', plateTextColor: '#f1e6d8', plateFontSize: 16, plateOpacity: 60, plateTextCase: 'default', pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
 // Each kind draws its own borders: the player's (per user) or the character's (server-wide).
@@ -229,6 +231,8 @@ function render() {
     setImage($('base'), state === 'image' ? images.player : state === 'offline' ? images.playerOffline : null);
     setImage($('overlay-talking'), talking ? images.playerTalking : null);
     setImage($('overlay-muted'), muted ? images.playerMuted : null);
+    setImage($('overlay-aside'), isAside ? images.playerAside : null);
+    setImage($('overlay-private'), isPrivate ? images.playerPrivate : null);
   } else {
     state = online ? 'image' : images.characterOffline ? 'offline' : 'blank';
     setImage($('base'), online ? images.character : state === 'offline' ? images.characterOffline : null);

@@ -500,6 +500,49 @@ $('guest-images').addEventListener('click', async (event) => {
   }
 });
 
+// The server-wide Default Images set -- what a member's own Participant
+// box falls back to once neither they nor their room has set a picture.
+// Same click-to-change/Clear shape as every other image slot in the app.
+function renderDefaultImages(b) {
+  for (const slot of document.querySelectorAll('#default-images [data-default-slot]')) {
+    const name = slot.dataset.defaultSlot;
+    const has = !!b.defaultImages?.[name];
+    const img = slot.querySelector('img');
+    img.hidden = !has;
+    if (has) img.src = `/img/default/${name}?v=${Date.now()}`;
+    else img.removeAttribute('src');
+    slot.querySelector('.unset').hidden = has;
+    slot.classList.toggle('set', has);
+    slot.querySelector('[data-action="default-image-clear"]').hidden = !has;
+  }
+}
+
+$('default-images').addEventListener('change', async (event) => {
+  const input = event.target;
+  if (input.type !== 'file' || !input.closest('[data-default-slot]')) return;
+  const slot = input.closest('[data-default-slot]').dataset.defaultSlot;
+  const file = input.files[0];
+  if (!file) return;
+  try {
+    await api('PUT', `/api/settings/default-images/${slot}`, file, file.type);
+    renderDefaultImages(await loadBranding());
+  } catch (err) {
+    say($('defaults-status'), err.message, true);
+  }
+  input.value = '';
+});
+$('default-images').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="default-image-clear"]');
+  if (!button) return;
+  const slot = button.closest('[data-default-slot]').dataset.defaultSlot;
+  try {
+    await api('DELETE', `/api/settings/default-images/${slot}`);
+    renderDefaultImages(await loadBranding());
+  } catch (err) {
+    say($('defaults-status'), err.message, true);
+  }
+});
+
 function showStreamKey() {
   $('stream-key').textContent = streamShown ? streamKey : '••••••••';
   $('stream-show').textContent = streamShown ? 'Hide' : 'Show';
@@ -571,6 +614,7 @@ async function init() {
     renderReactionRows(settings.reactions);
     renderSiteImages(settings);
     renderGuestImages(settings);
+    renderDefaultImages(settings);
     showStreamKey();
     await loadUsers();
     setInterval(refreshLive, 5000);
