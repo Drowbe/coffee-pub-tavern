@@ -375,11 +375,13 @@ function tileFor(participant) {
     vol.addEventListener('pointerenter', () => (tile.draggable = false));
     vol.addEventListener('pointerleave', () => (tile.draggable = true));
     tile.appendChild(vol);
-    if (me?.role === 'admin' && !currentRoom?.ephemeral) {
+    if (!currentRoom?.ephemeral) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
-      aside.title = `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`;
+      aside.title = me?.role === 'admin'
+        ? `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`
+        : `Have a private word with ${participant.name || participant.identity} (pick one or more, then confirm)`;
       aside.innerHTML = '<i class="fa-solid fa-people-arrows" aria-hidden="true"></i>';
       aside.classList.toggle('selected', asideSelection.has(participant.identity));
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
@@ -1360,7 +1362,11 @@ function updateAsideConfirm() {
   overlay.hidden = asideSelection.size === 0;
   const n = asideSelection.size;
   const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
-  $('aside-overlay-prompt').textContent = `Step aside with ${names.join(' & ')}?`;
+  const isAdmin = me?.role === 'admin';
+  // An ordinary (recorded) aside is a GM move; anyone can ask for a real
+  // off-the-record word, admin or not -- see /api/table/pull-aside.
+  $('aside-confirm').hidden = !isAdmin;
+  $('aside-overlay-prompt').textContent = isAdmin ? `Step aside with ${names.join(' & ')}?` : `Have a private word with ${names.join(' & ')}?`;
   $('aside-confirm-label').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
   $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
 }
@@ -1400,14 +1406,15 @@ async function returnToTable() {
 }
 
 // Leaving entirely (not "back to the table" -- I'm not going anywhere
-// myself). If I'm the admin and I'm in a pulled-aside room, regular or
-// private, whoever's still in there with me would otherwise be stranded
-// -- pull-aside always includes the admin, so without me there's no
-// reason for them to still be off in a room by themselves. Same nudge
-// /api/table/return already sends the others in returnToTable() above;
-// I just never reconnect anywhere myself afterward.
+// myself). If I'm in a pulled-aside room, regular or private, whoever's
+// still in there with me would otherwise be stranded -- an aside/private
+// room is normally just the two (or few) of us, so without me there's no
+// reason for them to still be off in a room by themselves. Applies to
+// anyone, not just an admin: a Private Conversation doesn't need one.
+// Same nudge /api/table/return already sends the others in
+// returnToTable() above; I just never reconnect anywhere myself afterward.
 async function leaveRoom() {
-  if (me?.role === 'admin' && currentRoom?.ephemeral) {
+  if (currentRoom?.ephemeral) {
     await api('POST', '/api/table/return').catch(() => {});
   }
   room.disconnect();

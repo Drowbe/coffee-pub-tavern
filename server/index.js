@@ -673,28 +673,36 @@ app.get('/api/table', async (req, res) => {
 // new room directly in this response and reconnects itself; everyone else
 // pulled gets a data-channel nudge (the same mechanism chat already uses)
 // telling their page which room to reconnect to.
-app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
+// An ordinary aside is a GM move -- pulling someone into an in-fiction
+// private moment, admin only. A Private Conversation is a real off-the-
+// record word, which any two (or more) people at the table should be able
+// to step into together without needing the admin to broker it -- so this
+// route allows any signed-in user, but still requires admin for anything
+// that isn't private.
+app.post('/api/table/pull-aside', requireUser, async (req, res) => {
   try {
-    const admin = currentUser(req);
+    const initiator = currentUser(req);
+    const priv = Boolean(req.body?.private);
+    if (!priv && initiator.role !== 'admin') return res.status(403).json({ error: 'only an admin can pull someone into an aside' });
     const raw = req.body?.with;
     const keys = [...new Set(Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [])];
-    const targets = keys.filter((k) => k !== admin.key).map((k) => store.userByKey(k)).filter(Boolean);
+    const targets = keys.filter((k) => k !== initiator.key).map((k) => store.userByKey(k)).filter(Boolean);
     if (!targets.length) return res.status(400).json({ error: 'pick someone to pull aside' });
-    const adminRoom = await roomOf(admin.key);
-    if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
+    const initiatorRoom = await roomOf(initiator.key);
+    if (!initiatorRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
     for (const target of targets) {
       const targetRoom = await roomOf(target.key);
-      if (targetRoom !== adminRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
+      if (targetRoom !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
     }
-    const room = store.addAsideRoom([admin.key, ...targets.map((t) => t.key)], roomIdOfLivekit(adminRoom), Boolean(req.body?.private));
+    const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], roomIdOfLivekit(initiatorRoom), priv);
     const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
-    await roomService.sendData(adminRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
+    await roomService.sendData(initiatorRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
     // Everyone left behind: a private word is private from the table, not
     // invisible to it -- this is what lets their tiles turn into "in an
     // aside" placeholders right away instead of just looking like they hung
     // up until the next poll catches up.
     const bystanderPayload = new TextEncoder().encode(JSON.stringify({ type: 'aside-started', roomId: room.id, members: room.members }));
-    await roomService.sendData(adminRoom, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: 'aside-started' }).catch(() => {});
+    await roomService.sendData(initiatorRoom, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: 'aside-started' }).catch(() => {});
     res.json({ room });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
