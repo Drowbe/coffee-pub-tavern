@@ -144,13 +144,13 @@
         <span class="field-label">Participant borders</span>
         <label class="check"><input type="checkbox" id="set-border"> Talking <input type="color" id="set-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-muted-border"> Muted <input type="color" id="set-muted-color" value="#b8503f"></label>
-        <label class="check">Width <input type="number" id="set-border-width" min="1" max="24" step="1" value="6"> px</label>
+        <label class="check">Width <span class="hint" id="set-border-width-value">6px</span><input type="range" id="set-border-width" min="1" max="24" step="1" value="6"></label>
       </div>
       <div class="row borders-row">
         <span class="field-label">Character borders</span>
         <label class="check"><input type="checkbox" id="set-char-border"> Talking <input type="color" id="set-char-border-color" value="#6fae6b"></label>
         <label class="check"><input type="checkbox" id="set-char-muted-border"> Muted <input type="color" id="set-char-muted-color" value="#b8503f"></label>
-        <label class="check">Width <input type="number" id="set-char-border-width" min="1" max="24" step="1" value="6"> px</label>
+        <label class="check">Width <span class="hint" id="set-char-border-width-value">6px</span><input type="range" id="set-char-border-width" min="1" max="24" step="1" value="6"></label>
       </div>
       <div class="row">
         <label class="check"><input type="checkbox" id="set-plate"> Name plate with the participant's name</label>
@@ -174,10 +174,10 @@
         <label class="check">Font Color <input type="color" id="set-plate-text-color" value="#f1e6d8"></label>
       </div>
       <div class="row">
-        <label class="check">Font Size <input type="number" id="set-plate-font-size" min="10" max="40" step="1" value="16"> px</label>
+        <label class="check">Font Size <span class="hint" id="set-plate-font-size-value">16px</span><input type="range" id="set-plate-font-size" min="10" max="40" step="1" value="16"></label>
       </div>
       <div class="row">
-        <label class="check">Nameplate Transparency <input type="number" id="set-plate-opacity" min="0" max="100" step="5" value="60"> %</label>
+        <label class="check">Nameplate Transparency <span class="hint" id="set-plate-opacity-value">60%</span><input type="range" id="set-plate-opacity" min="0" max="100" step="5" value="60"></label>
       </div>
       <div class="row">
         <label class="check">Font Style
@@ -197,16 +197,16 @@
         <label class="check">Colour <input type="color" id="set-picture-color" value="#1a1410"></label>
       </div>
       <div class="row">
-        <label class="check">Portrait Size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> (Percentage of Video Area)</label>
+        <label class="check">Portrait Size <span class="hint" id="set-picture-scale-value">100%</span><input type="range" id="set-picture-scale" min="20" max="100" step="5" value="100"></label>
       </div>
       <p class="hint">A member's Participant and Character boxes dim and tint like this in OBS whenever they aren't actually here right now: fully offline, or online but pulled into an aside while the stream is following someone else. The two people actually in an aside stay full brightness. Pick the tint colour, then how much of it blends in -- 0% opacity leaves the box untouched no matter what colour is picked, 100% is the colour solid.</p>
       <div class="row">
         <label class="check">Offline Tint <input type="color" id="set-offline-tint" value="#000000"></label>
-        <label class="check">Opacity <input type="number" id="set-offline-dim" min="0" max="100" step="5" value="0"> %</label>
+        <label class="check">Opacity <span class="hint" id="set-offline-dim-value">0%</span><input type="range" id="set-offline-dim" min="0" max="100" step="5" value="0"></label>
       </div>
       <div class="row">
         <label class="check">Aside Tint <input type="color" id="set-aside-tint" value="#000000"></label>
-        <label class="check">Opacity <input type="number" id="set-aside-dim" min="0" max="100" step="5" value="0"> %</label>
+        <label class="check">Opacity <span class="hint" id="set-aside-dim-value">0%</span><input type="range" id="set-aside-dim" min="0" max="100" step="5" value="0"></label>
       </div>
       <div class="row">
         <button class="btn btn-primary" id="save-defaults" type="button">Save defaults</button>

@@ -296,6 +296,27 @@ $('make-invite').addEventListener('click', async () => {
 });
 $('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
+// Sliders, not spinner number inputs, for anything with a small bounded
+// range -- sets the range input's own value and the live-value label next
+// to it (e.g. "35%") together, and wires the label to keep tracking the
+// slider as it's dragged, before Save is even clicked.
+function setSlider(id, value, suffix = '') {
+  $(id).value = value;
+  const label = $(`${id}-value`);
+  if (label) label.textContent = `${value}${suffix}`;
+}
+for (const [id, suffix] of [
+  ['set-border-width', 'px'],
+  ['set-char-border-width', 'px'],
+  ['set-plate-font-size', 'px'],
+  ['set-plate-opacity', '%'],
+  ['set-picture-scale', '%'],
+  ['set-offline-dim', '%'],
+  ['set-aside-dim', '%'],
+]) {
+  $(id).addEventListener('input', () => setSlider(id, $(id).value, suffix));
+}
+
 $('save-defaults').addEventListener('click', async () => {
   try {
     const { settings } = await api('PATCH', '/api/settings', {
@@ -511,27 +532,27 @@ async function init() {
     $('set-allow-registration').checked = Boolean(settings.allowRegistration);
     $('set-border').checked = settings.border;
     $('set-border-color').value = settings.borderColor;
-    $('set-border-width').value = settings.borderWidth || 6;
+    setSlider('set-border-width', settings.borderWidth || 6, 'px');
     $('set-muted-border').checked = settings.mutedBorder !== false;
     $('set-muted-color').value = settings.mutedColor || '#b8503f';
     $('set-plate').checked = Boolean(settings.plate);
     $('set-plate-layout').value = settings.plateLayout || 'lower-left';
     $('set-plate-color').value = settings.plateColor || '#000000';
     $('set-plate-text-color').value = settings.plateTextColor || '#f1e6d8';
-    $('set-plate-font-size').value = settings.plateFontSize || 16;
-    $('set-plate-opacity').value = settings.plateOpacity ?? 60;
+    setSlider('set-plate-font-size', settings.plateFontSize || 16, 'px');
+    setSlider('set-plate-opacity', settings.plateOpacity ?? 60, '%');
     $('set-plate-text-case').value = settings.plateTextCase || 'default';
     $('set-char-border').checked = Boolean(settings.charBorder);
     $('set-char-border-color').value = settings.charBorderColor || '#6fae6b';
     $('set-char-muted-border').checked = Boolean(settings.charMutedBorder);
     $('set-char-muted-color').value = settings.charMutedColor || '#b8503f';
-    $('set-char-border-width').value = settings.charBorderWidth || 6;
+    setSlider('set-char-border-width', settings.charBorderWidth || 6, 'px');
     $('set-picture-bg').checked = Boolean(settings.pictureBackground);
     $('set-picture-color').value = settings.pictureColor || '#1a1410';
-    $('set-picture-scale').value = settings.pictureScale || 100;
-    $('set-offline-dim').value = settings.offlineDim ?? 0;
+    setSlider('set-picture-scale', settings.pictureScale || 100, '%');
+    setSlider('set-offline-dim', settings.offlineDim ?? 0, '%');
     $('set-offline-tint').value = settings.offlineTint || '#000000';
-    $('set-aside-dim').value = settings.asideDim ?? 0;
+    setSlider('set-aside-dim', settings.asideDim ?? 0, '%');
     $('set-aside-tint').value = settings.asideTint || '#000000';
     renderReactionRows(settings.reactions);
     renderSiteImages(settings);
