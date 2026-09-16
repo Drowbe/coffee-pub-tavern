@@ -376,12 +376,18 @@ app.get('/view/:key', (req, res) => {
 
 // Images ---------------------------------------------------------------------
 
-// The server icon: the one set on the Settings tab, else the Coffee Pub brandmark.
-app.get('/img/site/icon', (_req, res) => {
+// The server icon: the one set on the Settings tab, else the Coffee Pub
+// brandmark. Also mounted at the conventional /favicon.ico path -- pages set
+// their own <link rel="icon"> (see brand.js), but plenty of browsers and
+// tools still fetch that path directly (bookmarks, tab previews, before any
+// page JS has run) and got a bare 404 without this.
+function siteIcon(_req, res) {
   const file = store.iconPath();
   if (file) return sendImage(res, file);
   res.set('Cache-Control', 'no-cache').sendFile(path.join(publicDir, 'icon.png'));
-});
+}
+app.get('/img/site/icon', siteIcon);
+app.get('/favicon.ico', siteIcon);
 // The sign-in background: nothing until one is set.
 app.get('/img/site/background', (_req, res) => {
   const file = store.siteImagePath('background');
