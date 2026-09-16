@@ -18,6 +18,7 @@ let tableRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
 const LOBBY = 'lobby';
 let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
+let adminOnline = false; // whether that's actually backed by a real online admin right now
 
 // A guest link (/guest/<token>): no account, just a name and this room. The
 // token both identifies which room's guest link this is and, appended to
@@ -41,11 +42,12 @@ function imgUrl(key, slot, params = {}) {
 
 async function loadTable() {
   try {
-    const { users, rooms, activeRoom: active } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
+    const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
     tableUsers.clear();
     for (const u of users) tableUsers.set(u.key, u);
     tableRooms = rooms || [];
     activeRoom = active || LOBBY;
+    adminOnline = Boolean(hasAdmin);
     for (const [key, tile] of tiles) {
       const colour = tableUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
@@ -234,10 +236,13 @@ function renderMembers(list, members, roomId) {
     const elsewhere = u.online && !here ? tableRooms.find((r) => r.id === u.room) : null;
     el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
     // Off stream: this member is online but not in the room the stream
-    // currently hears; "aside" is the more specific case of a pulled-aside
-    // private word, which implies off stream too.
+    // currently hears (wherever the admin/GM actually is); "aside" is the
+    // more specific case of a pulled-aside private word, which implies off
+    // stream too. Only meaningful when an admin is actually online -- with
+    // none, activeRoom is just the Lobby fallback, not a real "here's where
+    // the stream is" signal, so nobody should read as off stream against it.
     const inAside = u.online && tableRooms.find((r) => r.id === u.room)?.ephemeral;
-    const offStream = u.online && u.room !== activeRoom;
+    const offStream = u.online && adminOnline && u.room !== activeRoom;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
       if (!badge) {
