@@ -93,6 +93,18 @@ function othersLabel(members, exclude) {
   return `with ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
 }
 
+// The Aside/Private picture (their own, their room's, or the server-wide
+// Default Images fallback) laid over their profile photo, same as OBS
+// shows it over the Online/Offline picture -- a badge, not a replacement.
+// Optional, so unlike the profile photo it simply stays hidden rather
+// than falling back to anything when nothing resolves for that slot.
+function setGhostBadge(img, key, slot) {
+  img.hidden = true;
+  img.onerror = () => { img.hidden = true; };
+  img.onload = () => { img.hidden = false; };
+  img.src = imgUrl(key, slot);
+}
+
 function ghostTile(key) {
   let tile = ghostTiles.get(key);
   if (tile) return tile;
@@ -104,6 +116,11 @@ function ghostTile(key) {
   placeholder.alt = '';
   placeholder.src = imgUrl(key, 'profile');
   tile.appendChild(placeholder);
+  const badge = document.createElement('img');
+  badge.className = 'tile-ghost-badge';
+  badge.alt = '';
+  badge.hidden = true;
+  tile.appendChild(badge);
   const overlay = document.createElement('div');
   overlay.className = 'tile-ghost-overlay';
   const status = document.createElement('span');
@@ -141,8 +158,15 @@ function reconcileGhostTiles() {
     const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? tableRooms.find((r) => r.id === user.room) : null;
     if (asideRoom?.ephemeral) {
       const tile = ghostTile(key);
+      const isPrivate = Boolean(asideRoom.private);
+      tile.classList.toggle('tile-ghost-private', isPrivate);
+      setGhostBadge(tile.querySelector('.tile-ghost-badge'), key, isPrivate ? 'playerPrivate' : 'playerAside');
       tile.querySelector('.name').textContent = user.displayName;
-      tile.querySelector('.tile-ghost-with').textContent = othersLabel(asideRoom.members, key);
+      tile.querySelector('.tile-ghost-status').textContent = isPrivate ? 'In a private conversation' : 'In an aside';
+      // Who a private word is with stays off the record here too, same as
+      // it's kept off the OBS-facing recording -- everyone else at the
+      // table only gets to know that it's happening, not with whom.
+      tile.querySelector('.tile-ghost-with').textContent = isPrivate ? '' : othersLabel(asideRoom.members, key);
       changed = true;
     } else if (ghostTiles.has(key)) {
       removeGhost(key);
