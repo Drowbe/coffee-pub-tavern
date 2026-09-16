@@ -158,6 +158,14 @@ function followableRoomId(roomId) {
   return roomId;
 }
 
+// Whether activeRoom actually means anything right now: with no admin
+// online there's no "wherever the GM is" to compare against, and view.js's
+// aside dim treatment needs to know that rather than reading activeRoom's
+// Lobby fallback as a real room everyone else is suddenly "aside" from.
+function hasOnlineAdmin(online) {
+  return store.users.some((u) => u.role === 'admin' && online.has(u.key));
+}
+
 // --- helpers ---------------------------------------------------------------
 
 function baseUrl(req) {
@@ -246,7 +254,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])) };
+  return { serverName: s.serverName, tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -641,6 +649,7 @@ app.get('/api/table', async (req, res) => {
     users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null })),
     rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
     activeRoom: activeRoomId(byKey),
+    adminOnline: hasOnlineAdmin(byKey),
   });
 });
 
@@ -718,6 +727,7 @@ app.get('/api/status', requireStream, async (req, res) => {
     table: store.users.map(tableUser),
     rooms: store.rooms,
     activeRoom: activeRoomId(byKey),
+    adminOnline: hasOnlineAdmin(byKey),
   });
 });
 

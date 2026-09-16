@@ -319,6 +319,10 @@ $('save-defaults').addEventListener('click', async () => {
       pictureBackground: $('set-picture-bg').checked,
       pictureColor: $('set-picture-color').value,
       pictureScale: $('set-picture-scale').value,
+      offlineDim: $('set-offline-dim').value,
+      offlineTint: $('set-offline-tint').value,
+      asideDim: $('set-aside-dim').value,
+      asideTint: $('set-aside-tint').value,
     });
     say($('defaults-status'), 'saved');
     await loadUsers();
@@ -525,6 +529,10 @@ async function init() {
     $('set-picture-bg').checked = Boolean(settings.pictureBackground);
     $('set-picture-color').value = settings.pictureColor || '#1a1410';
     $('set-picture-scale').value = settings.pictureScale || 100;
+    $('set-offline-dim').value = settings.offlineDim ?? 0;
+    $('set-offline-tint').value = settings.offlineTint || '#000000';
+    $('set-aside-dim').value = settings.asideDim ?? 0;
+    $('set-aside-tint').value = settings.asideTint || '#000000';
     renderReactionRows(settings.reactions);
     renderSiteImages(settings);
     renderGuestImages(settings);

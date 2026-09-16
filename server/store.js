@@ -115,6 +115,17 @@ const DEFAULT_SETTINGS = {
   pictureBackground: false,
   pictureColor: '#1a1410',
   pictureScale: 100,
+  // Dim + tint the OBS view (view.js) renders for a Participant/Character
+  // box whose person isn't actually "here" right now: offline entirely, or
+  // online but in a pulled-aside room while the stream is following someone
+  // else (see activeRoom). Global, not per-user -- this used to be an OBS
+  // filter on Studio's side, moved here since that filter corrupted these
+  // sources' alpha transparency. 0 = no dim. Off by default: nothing about
+  // how a stream looks changes until an admin turns this on deliberately.
+  offlineDim: 0,
+  offlineTint: '#000000',
+  asideDim: 0,
+  asideTint: '#000000',
   // The reaction tray at the table: id (also the 1-6 shortcut order and the
   // data-channel payload), glyph (what's drawn), label (button title/alt).
   reactions: [
@@ -414,6 +425,16 @@ class Store {
       const n = Math.round(Number(patch.pictureScale));
       if (Number.isFinite(n)) s.pictureScale = Math.max(20, Math.min(100, n));
     }
+    if (patch.offlineDim !== undefined) {
+      const n = Math.round(Number(patch.offlineDim));
+      if (Number.isFinite(n)) s.offlineDim = Math.max(0, Math.min(100, n));
+    }
+    if (patch.offlineTint !== undefined && cleanColor(patch.offlineTint)) s.offlineTint = cleanColor(patch.offlineTint);
+    if (patch.asideDim !== undefined) {
+      const n = Math.round(Number(patch.asideDim));
+      if (Number.isFinite(n)) s.asideDim = Math.max(0, Math.min(100, n));
+    }
+    if (patch.asideTint !== undefined && cleanColor(patch.asideTint)) s.asideTint = cleanColor(patch.asideTint);
     if (patch.reactions !== undefined) {
       const reactions = cleanReactions(patch.reactions);
       if (reactions) s.reactions = reactions;

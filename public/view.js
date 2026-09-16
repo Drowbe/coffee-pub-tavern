@@ -98,17 +98,44 @@ let playerRoom = 'lobby';
 let lastImageRoom = playerRoom;
 let connectedRoom = null;
 
+// Offline/Aside dim+tint: used to be an OBS Color Correction filter on
+// Studio's side, moved here since that filter corrupted these sources'
+// alpha transparency even at neutral settings. tableOnline is server-
+// tracked LiveKit presence (not the local `participant`/`online` below,
+// which is just whether this page's own connection currently has them
+// attached); aside means online, but not in the room the stream is
+// currently following (activeRoom) -- only meaningful when an admin is
+// actually online, otherwise there's no reference room to be aside from.
+let tableOnline = false;
+let isAside = false;
+let dimSettings = { offlineDim: 0, offlineTint: '#000000', asideDim: 0, asideTint: '#000000' };
+
+function hexToRgba(hex, level) {
+  const n = parseInt(String(hex).slice(1), 16) || 0;
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(100, level)) / 100})`;
+}
+
 async function loadSettings() {
   try {
     const res = await fetch(`/api/table?s=${encodeURIComponent(streamKey)}`);
     if (!res.ok) return;
-    const { users, reactions } = await res.json();
+    const data = await res.json();
+    const { users, reactions } = data;
     REACTIONS = Object.fromEntries((reactions || []).map((r) => [r.id, r.glyph]));
     const me = users.find((u) => u.key === wanted);
     if (me) {
       settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), plateLayout: me.plateLayout || 'lower-left', plateColor: me.plateColor || '#000000', plateTextColor: me.plateTextColor || '#f1e6d8', plateFontSize: me.plateFontSize || 16, plateOpacity: me.plateOpacity ?? 60, plateTextCase: me.plateTextCase || 'default', charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
+      tableOnline = Boolean(me.online);
+      isAside = tableOnline && Boolean(data.adminOnline) && me.room !== data.activeRoom;
+    } else {
+      tableOnline = false;
+      isAside = false;
     }
+    dimSettings = { offlineDim: data.offlineDim ?? 0, offlineTint: data.offlineTint || '#000000', asideDim: data.asideDim ?? 0, asideTint: data.asideTint || '#000000' };
     const b = borders();
     document.documentElement.style.setProperty('--talk', b.talkColor);
     document.documentElement.style.setProperty('--talk-w', `${b.width}px`);
@@ -189,6 +216,16 @@ function render() {
   document.body.dataset.state = state;
   document.body.dataset.talking = talking ? '1' : '';
   document.body.dataset.muted = muted ? '1' : '';
+  // Offline takes priority over aside (an offline person can't also be
+  // "aside" in any meaningful sense); nothing to dim when there's nothing
+  // showing in the first place.
+  let dim = null;
+  if (state !== 'blank') {
+    if (!tableOnline) dim = dimSettings.offlineDim > 0 ? hexToRgba(dimSettings.offlineTint, dimSettings.offlineDim) : null;
+    else if (isAside) dim = dimSettings.asideDim > 0 ? hexToRgba(dimSettings.asideTint, dimSettings.asideDim) : null;
+  }
+  $('dim').hidden = !dim;
+  if (dim) document.documentElement.style.setProperty('--dim', dim);
   msg(online ? '' : 'waiting for player');
 }
 
