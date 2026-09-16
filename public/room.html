@@ -119,7 +119,7 @@
       </div>
       <button class="fbtn" id="screen-share" type="button" title="Share your screen (S)" hidden><span class="glyph"><i class="fa-solid fa-desktop fa-fw" aria-hidden="true"></i></span></button>
       <div class="fbtn-wrap">
-        <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells-large fa-fw" id="layout-glyph" aria-hidden="true"></i></span></button>
         <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings">&#94;</button>
       </div>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
@@ -188,9 +188,9 @@
         <h3>Layout</h3>
         <span class="field-label">Layout</span>
         <div class="layout-pick" id="layout-pick" role="group" aria-label="Layout">
-          <button type="button" data-layout="grid">Grid</button>
-          <button type="button" data-layout="strip" title="Strip: one row or column">Strip</button>
-          <button type="button" data-layout="spotlight" title="Spotlight: one big, rest small">Spotlight</button>
+          <button type="button" data-layout="grid"><i class="fa-solid fa-table-cells-large fa-fw" aria-hidden="true"></i> Grid</button>
+          <button type="button" data-layout="strip" title="Strip: one row or column"><i class="fa-solid fa-grip fa-fw" aria-hidden="true"></i> Strip</button>
+          <button type="button" data-layout="spotlight" title="Spotlight: one big, rest small"><i class="fa-regular fa-square fa-fw" aria-hidden="true"></i> Spotlight</button>
         </div>
         <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
         <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>

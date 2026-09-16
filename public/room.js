@@ -494,9 +494,13 @@ function rememberOrder() {
 }
 
 const LAYOUTS = ['grid', 'strip', 'spotlight'];
+// Same icon on the floatbar's own layout button as its matching picker
+// button, so the button always shows the view you're actually in.
+const LAYOUT_ICONS = { grid: 'fa-solid fa-table-cells-large', strip: 'fa-solid fa-grip', spotlight: 'fa-regular fa-square' };
 
 function syncLayoutPick() {
   for (const b of $('layout-pick').children) b.classList.toggle('selected', b.dataset.layout === prefs.layout);
+  $('layout-glyph').className = `${LAYOUT_ICONS[prefs.layout]} fa-fw`;
 }
 
 function setLayout(layout, announce = false) {
