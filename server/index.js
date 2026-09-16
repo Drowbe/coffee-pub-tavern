@@ -709,6 +709,30 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
   }
 });
 
+// Admin-only recall: every Private Conversation pulled out of the admin's
+// own current room gets a data-channel warning -- their own page runs a
+// 10-second countdown, then reconnects them back here itself (see the
+// 'recall' topic in room.js), rather than being yanked back instantly.
+// Doesn't touch ordinary asides: the admin is always already in those, so
+// there's nothing to recall them from that "Back to the table" doesn't
+// already cover.
+app.post('/api/table/recall', requireAdmin, async (req, res) => {
+  try {
+    const admin = currentUser(req);
+    const adminRoom = await roomOf(admin.key);
+    if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to recall anyone' });
+    const originId = roomIdOfLivekit(adminRoom);
+    const destRoom = store.roomById(originId);
+    const privateRooms = store.rooms.filter((r) => r.ephemeral && r.private && r.origin === originId);
+    if (!privateRooms.length) return res.status(400).json({ error: 'nobody is off in a private conversation from here right now' });
+    const payload = new TextEncoder().encode(JSON.stringify({ type: 'recall', roomId: originId, roomName: destRoom?.name || 'the table' }));
+    await Promise.all(privateRooms.map((r) => roomService.sendData(livekitRoomName(r.id), payload, DataPacket_Kind.RELIABLE, { topic: 'recall' }).catch(() => {})));
+    res.json({ recalled: privateRooms.length });
+  } catch (err) {
+    res.status(502).json({ error: `LiveKit: ${err.message}` });
+  }
+});
+
 // Whoever clicks "Back to the table" while in a pull-aside room returns to
 // the room it was pulled from (the Lobby if that room is gone by now), and
 // takes the room's other member(s) with them the same way pull-aside does:

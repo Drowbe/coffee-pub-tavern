@@ -57,6 +57,7 @@ async function loadTable() {
     reconcileGhostTiles();
     renderGuestLink();
     renderRoomLink();
+    updateRecallButton();
   } catch (err) {
     // default colour stands
   }
@@ -78,6 +79,46 @@ $('room-link').addEventListener('click', () => {
   const room = currentRoom && tableRooms.find((r) => r.id === currentRoom.id);
   if (room?.link) window.open(room.link, '_blank', 'noopener');
 });
+
+// Admin only: shows "Pull Participants Back" whenever a Private
+// Conversation was pulled out of the room I'm currently in -- the admin
+// is never part of those (see /api/table/pull-aside), so without this
+// there'd be no way to know one is even happening, let alone end it.
+function updateRecallButton() {
+  const btn = $('recall-button');
+  if (!btn) return;
+  btn.hidden = !(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+}
+$('recall-button').addEventListener('click', async () => {
+  try {
+    await api('POST', '/api/table/recall');
+  } catch (err) {
+    setStatus(`pull participants back: ${err.message}`, true);
+  }
+});
+
+// The countdown a Private Conversation's own participants see once the
+// admin recalls them -- a warning, not an instant yank, so it doesn't cut
+// anyone off mid-sentence. Re-triggering (e.g. the admin clicks it twice)
+// restarts the same countdown rather than stacking a second one.
+let recallTimer = 0;
+function startRecallCountdown(roomId, roomName) {
+  clearInterval(recallTimer);
+  $('recall-room-name').textContent = roomName || 'the table';
+  $('recall-overlay').hidden = false;
+  let n = 10;
+  $('recall-countdown').textContent = n;
+  recallTimer = setInterval(() => {
+    n -= 1;
+    if (n <= 0) {
+      clearInterval(recallTimer);
+      $('recall-overlay').hidden = true;
+      reconnectTo(roomId, 'pulled back to the table...');
+      return;
+    }
+    $('recall-countdown').textContent = n;
+  }, 1000);
+}
 
 // A member of the room I'm in who is online but not actually connected
 // here -- they're in a private aside elsewhere -- gets a placeholder tile:
@@ -1277,6 +1318,11 @@ room
         }
         reconcileGhostTiles();
       }
+      // The admin clicked "Pull Participants Back" in the room this Private
+      // Conversation came from: warn, don't yank -- a countdown, then go.
+      else if (topic === 'recall' && data.type === 'recall' && data.roomId) {
+        startRecallCountdown(data.roomId, data.roomName);
+      }
     } catch (err) {
       // not ours
     }
@@ -1291,6 +1337,9 @@ room
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
     $('room-link').hidden = true;
+    $('recall-button').hidden = true;
+    clearInterval(recallTimer);
+    $('recall-overlay').hidden = true;
     // A guest has no session and no room to pick from -- back to their own
     // name-only form for the one room their link is for, not the real
     // members' room list (which they can't do anything with anyway).
@@ -1430,6 +1479,7 @@ async function join(roomId = 'lobby') {
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
     renderRoomLink();
+    updateRecallButton();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);
@@ -1454,6 +1504,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     // anything reading currentRoom.members downstream breaks.
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
     renderRoomLink();
+    updateRecallButton();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);

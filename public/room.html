@@ -23,6 +23,7 @@
     </div>
     <nav class="links" id="links">
       <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
+      <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
       <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
       <a class="whoami" id="whoami-link" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
@@ -102,6 +103,18 @@
           <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
           <button class="btn btn-small" id="aside-cancel" type="button">Cancel</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Shown on a Private Conversation participant's own screen once the
+         admin clicks "Pull Participants Back" in the room they stepped out
+         of -- a warned countdown, not an instant yank, so it doesn't cut
+         someone off mid-sentence. No cancel: this is the admin's call, not
+         theirs to override. -->
+    <div class="aside-overlay" id="recall-overlay" hidden>
+      <div class="aside-overlay-card">
+        <p>You are being pulled back to <strong id="recall-room-name"></strong> in...</p>
+        <p class="recall-countdown" id="recall-countdown"></p>
       </div>
     </div>
 

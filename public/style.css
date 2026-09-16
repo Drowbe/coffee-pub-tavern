@@ -1953,6 +1953,12 @@ body.at-table .topbar {
   font-weight: 500;
 }
 
+.recall-countdown {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .aside-overlay-actions {
   display: flex;
   gap: 8px;
