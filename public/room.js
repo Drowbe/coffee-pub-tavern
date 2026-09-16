@@ -1370,6 +1370,20 @@ async function returnToTable() {
   }
 }
 
+// Leaving entirely (not "back to the table" -- I'm not going anywhere
+// myself). If I'm the admin and I'm in a pulled-aside room, regular or
+// private, whoever's still in there with me would otherwise be stranded
+// -- pull-aside always includes the admin, so without me there's no
+// reason for them to still be off in a room by themselves. Same nudge
+// /api/table/return already sends the others in returnToTable() above;
+// I just never reconnect anywhere myself afterward.
+async function leaveRoom() {
+  if (me?.role === 'admin' && currentRoom?.ephemeral) {
+    await api('POST', '/api/table/return').catch(() => {});
+  }
+  room.disconnect();
+}
+
 async function join(roomId = 'lobby') {
   $('join-error').hidden = true;
   for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
@@ -1633,8 +1647,8 @@ async function restartCamera() {
     setStatus(`camera: ${err.message}`, true);
   }
 }
-$('leave').addEventListener('click', () => room.disconnect());
-$('leave-top').addEventListener('click', () => room.disconnect());
+$('leave').addEventListener('click', () => leaveRoom());
+$('leave-top').addEventListener('click', () => leaveRoom());
 $('back-to-table').addEventListener('click', () => returnToTable());
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
