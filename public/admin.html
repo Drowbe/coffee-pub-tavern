@@ -199,18 +199,14 @@
       <div class="row">
         <label class="check">Portrait Size <input type="number" id="set-picture-scale" min="20" max="100" step="5" value="100"> (Percentage of Video Area)</label>
       </div>
-      <p class="hint">A member's Participant and Character boxes dim and tint like this in OBS whenever they aren't actually here right now: fully offline, or online but pulled into an aside while the stream is following someone else. The two people actually in an aside stay full brightness. 0% leaves the box untouched.</p>
-      <div class="row">
-        <label class="check">Offline Dim <input type="number" id="set-offline-dim" min="0" max="100" step="5" value="0"> %</label>
-      </div>
+      <p class="hint">A member's Participant and Character boxes dim and tint like this in OBS whenever they aren't actually here right now: fully offline, or online but pulled into an aside while the stream is following someone else. The two people actually in an aside stay full brightness. Pick the tint colour, then how much of it blends in -- 0% opacity leaves the box untouched no matter what colour is picked, 100% is the colour solid.</p>
       <div class="row">
         <label class="check">Offline Tint <input type="color" id="set-offline-tint" value="#000000"></label>
-      </div>
-      <div class="row">
-        <label class="check">Aside Dim <input type="number" id="set-aside-dim" min="0" max="100" step="5" value="0"> %</label>
+        <label class="check">Opacity <input type="number" id="set-offline-dim" min="0" max="100" step="5" value="0"> %</label>
       </div>
       <div class="row">
         <label class="check">Aside Tint <input type="color" id="set-aside-tint" value="#000000"></label>
+        <label class="check">Opacity <input type="number" id="set-aside-dim" min="0" max="100" step="5" value="0"> %</label>
       </div>
       <div class="row">
         <button class="btn btn-primary" id="save-defaults" type="button">Save defaults</button>
