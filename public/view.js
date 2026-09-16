@@ -192,33 +192,25 @@ function applyPlateCase(text) {
 }
 
 function render() {
-  const video = document.querySelector('video');
-  // A Private Conversation renders as nothing at all, full stop -- no
-  // video, no picture, no name plate, no reactions -- regardless of
-  // camera/mic state. Checked before anything else touches the DOM.
-  if (isPrivate) {
-    if (video) video.hidden = true;
-    setImage($('base'), null);
-    setImage($('overlay-talking'), null);
-    setImage($('overlay-muted'), null);
-    setImage($('bg-image'), null);
-    document.body.classList.remove('talking', 'muted-frame');
-    $('plate').hidden = true;
-    $('dim').hidden = true;
-    document.body.dataset.state = 'blank';
-    document.body.dataset.talking = '';
-    document.body.dataset.muted = '';
-    msg('private');
-    return;
-  }
   const online = !!participant;
-  const muted = online && !micOn;
-  const talking = online && speaking && micOn;
+  const video = document.querySelector('video');
+  // Private Conversation: never the live video feed (the one genuinely
+  // sensitive thing), and shown as muted regardless of real mic state --
+  // Studio mutes their audio input, so this stays honest with what
+  // viewers actually hear. Everything else renders exactly like normal:
+  // their picture, their name plate, the aside dim+tint below (a private
+  // pair reads as "aside" the same as an ordinary one, on top of the
+  // video being forced off). This is "camera off", not "doesn't exist" --
+  // the two people actually in the private room still see each other
+  // completely normally, in Tavern itself; this page is what everyone
+  // else (and Studio) sees, and that was always the only piece missing.
+  const muted = (online && !micOn) || isPrivate;
+  const talking = online && speaking && micOn && !isPrivate;
   // blank: nothing at all; offline: the Offline picture; image: the online
   // picture (player or character); video: the camera.
   let state = 'blank';
   if (kind === 'player') {
-    if (online && cameraOn && video) state = 'video';
+    if (online && cameraOn && video && !isPrivate) state = 'video';
     else if (online) state = 'image';
     else if (images.playerOffline) state = 'offline';
     if (video) video.hidden = state !== 'video';
@@ -243,14 +235,12 @@ function render() {
   document.body.dataset.state = state;
   document.body.dataset.talking = talking ? '1' : '';
   document.body.dataset.muted = muted ? '1' : '';
-  // Offline takes priority over aside (an offline person can't also be
-  // "aside" in any meaningful sense); nothing to dim when there's nothing
-  // showing in the first place.
+  // Not gated on state !== 'blank': someone with no picture configured at
+  // all should still read as offline/aside rather than staying invisible
+  // just because there's no picture underneath to dim.
   let dim = null;
-  if (state !== 'blank') {
-    if (!tableOnline) dim = dimSettings.offlineDim > 0 ? hexToRgba(dimSettings.offlineTint, dimSettings.offlineDim) : null;
-    else if (isAside) dim = dimSettings.asideDim > 0 ? hexToRgba(dimSettings.asideTint, dimSettings.asideDim) : null;
-  }
+  if (!tableOnline) dim = dimSettings.offlineDim > 0 ? hexToRgba(dimSettings.offlineTint, dimSettings.offlineDim) : null;
+  else if (isAside) dim = dimSettings.asideDim > 0 ? hexToRgba(dimSettings.asideTint, dimSettings.asideDim) : null;
   $('dim').hidden = !dim;
   if (dim) document.documentElement.style.setProperty('--dim', dim);
   msg(online ? '' : 'waiting for player');
