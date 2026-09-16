@@ -109,7 +109,14 @@ let connectedRoom = null;
 let tableOnline = false;
 let isAside = false;
 let isPrivate = false;
-let dimSettings = { offlineDim: 0, offlineTint: '#000000', asideDim: 0, asideTint: '#000000' };
+// Two independent effects per state: Dim (a plain brightness filter over
+// the whole box) and Tint (a colour overlay with its own opacity) --
+// deliberately not combined into one, so either can be used alone.
+let dimSettings = {
+  offlineDim: 0, offlineTint: '#000000', offlineTintOpacity: 0,
+  asideDim: 0, asideTint: '#000000', asideTintOpacity: 0,
+  privateDim: 0, privateTint: '#000000', privateTintOpacity: 0,
+};
 
 function hexToRgba(hex, level) {
   const n = parseInt(String(hex).slice(1), 16) || 0;
@@ -135,8 +142,9 @@ async function loadSettings() {
       // Studio mutes a Private Conversation's audio but no longer hides the
       // OBS source itself -- this page is now the only thing standing
       // between a genuinely off-the-record moment and it being visibly on
-      // stream. Render nothing at all (see the top of render()) rather than
-      // just dimming: private means private, not "shown, but muted."
+      // stream. render() forces the live video off entirely for this case
+      // (see isPrivate there); the picture/name plate still show, same as
+      // camera-off, dressed with its own dim+tint below rather than aside's.
       const room = tableOnline ? (data.rooms || []).find((r) => r.id === me.room) : null;
       isPrivate = Boolean(room?.ephemeral && room?.private);
     } else {
@@ -144,7 +152,11 @@ async function loadSettings() {
       isAside = false;
       isPrivate = false;
     }
-    dimSettings = { offlineDim: data.offlineDim ?? 0, offlineTint: data.offlineTint || '#000000', asideDim: data.asideDim ?? 0, asideTint: data.asideTint || '#000000' };
+    dimSettings = {
+      offlineDim: data.offlineDim ?? 0, offlineTint: data.offlineTint || '#000000', offlineTintOpacity: data.offlineTintOpacity ?? 0,
+      asideDim: data.asideDim ?? 0, asideTint: data.asideTint || '#000000', asideTintOpacity: data.asideTintOpacity ?? 0,
+      privateDim: data.privateDim ?? 0, privateTint: data.privateTint || '#000000', privateTintOpacity: data.privateTintOpacity ?? 0,
+    };
     const b = borders();
     document.documentElement.style.setProperty('--talk', b.talkColor);
     document.documentElement.style.setProperty('--talk-w', `${b.width}px`);
@@ -235,14 +247,24 @@ function render() {
   document.body.dataset.state = state;
   document.body.dataset.talking = talking ? '1' : '';
   document.body.dataset.muted = muted ? '1' : '';
-  // Not gated on state !== 'blank': someone with no picture configured at
-  // all should still read as offline/aside rather than staying invisible
-  // just because there's no picture underneath to dim.
-  let dim = null;
-  if (!tableOnline) dim = dimSettings.offlineDim > 0 ? hexToRgba(dimSettings.offlineTint, dimSettings.offlineDim) : null;
-  else if (isAside) dim = dimSettings.asideDim > 0 ? hexToRgba(dimSettings.asideTint, dimSettings.asideDim) : null;
-  $('dim').hidden = !dim;
-  if (dim) document.documentElement.style.setProperty('--dim', dim);
+  // Dim (a brightness filter over the whole box) and Tint (a colour
+  // overlay with its own opacity) are independent effects -- either, both,
+  // or neither can be set per state. Not gated on state !== 'blank':
+  // someone with no picture configured at all should still read as
+  // offline/aside/private rather than staying invisible just because
+  // there's no picture underneath to dim or tint. Private takes its own
+  // settings rather than falling through to aside's, even though a
+  // private pair is also, mechanically, "aside".
+  let statePrefix = null;
+  if (!tableOnline) statePrefix = 'offline';
+  else if (isPrivate) statePrefix = 'private';
+  else if (isAside) statePrefix = 'aside';
+  const tintOpacity = statePrefix ? dimSettings[`${statePrefix}TintOpacity`] : 0;
+  const tint = statePrefix && tintOpacity > 0 ? hexToRgba(dimSettings[`${statePrefix}Tint`], tintOpacity) : null;
+  $('dim').hidden = !tint;
+  if (tint) document.documentElement.style.setProperty('--dim', tint);
+  const dimLevel = statePrefix ? dimSettings[`${statePrefix}Dim`] : 0;
+  document.documentElement.style.setProperty('--brightness', String(1 - Math.max(0, Math.min(100, dimLevel)) / 100));
   msg(online ? '' : 'waiting for player');
 }
 

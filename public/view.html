@@ -7,7 +7,13 @@
   <style>
     :root { --talk: #6fae6b; }
     html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; container-type: size; }
+    /* Dim: a plain brightness reduction over the whole box, independent of
+       the #dim tint overlay below -- set from server settings, per Offline/
+       Aside/Private state (see the dim/tint block in view.js's render()).
+       1 = untouched, 0 = black. filter doesn't touch alpha, so this is safe
+       over transparent video the way the old OBS Color Correction filter
+       (removed) wasn't. */
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; container-type: size; filter: brightness(var(--brightness, 1)); }
     video, .layer-wrap { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: transparent; pointer-events: none; }
     video { object-fit: cover; }
     .layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }

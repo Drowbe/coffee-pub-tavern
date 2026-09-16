@@ -312,7 +312,11 @@ for (const [id, suffix] of [
   ['set-plate-opacity', '%'],
   ['set-picture-scale', '%'],
   ['set-offline-dim', '%'],
+  ['set-offline-tint-opacity', '%'],
   ['set-aside-dim', '%'],
+  ['set-aside-tint-opacity', '%'],
+  ['set-private-dim', '%'],
+  ['set-private-tint-opacity', '%'],
 ]) {
   $(id).addEventListener('input', () => setSlider(id, $(id).value, suffix));
 }
@@ -342,8 +346,13 @@ $('save-defaults').addEventListener('click', async () => {
       pictureScale: $('set-picture-scale').value,
       offlineDim: $('set-offline-dim').value,
       offlineTint: $('set-offline-tint').value,
+      offlineTintOpacity: $('set-offline-tint-opacity').value,
       asideDim: $('set-aside-dim').value,
       asideTint: $('set-aside-tint').value,
+      asideTintOpacity: $('set-aside-tint-opacity').value,
+      privateDim: $('set-private-dim').value,
+      privateTint: $('set-private-tint').value,
+      privateTintOpacity: $('set-private-tint-opacity').value,
     });
     say($('defaults-status'), 'saved');
     await loadUsers();
@@ -552,8 +561,13 @@ async function init() {
     setSlider('set-picture-scale', settings.pictureScale || 100, '%');
     setSlider('set-offline-dim', settings.offlineDim ?? 0, '%');
     $('set-offline-tint').value = settings.offlineTint || '#000000';
+    setSlider('set-offline-tint-opacity', settings.offlineTintOpacity ?? 0, '%');
     setSlider('set-aside-dim', settings.asideDim ?? 0, '%');
     $('set-aside-tint').value = settings.asideTint || '#000000';
+    setSlider('set-aside-tint-opacity', settings.asideTintOpacity ?? 0, '%');
+    setSlider('set-private-dim', settings.privateDim ?? 0, '%');
+    $('set-private-tint').value = settings.privateTint || '#000000';
+    setSlider('set-private-tint-opacity', settings.privateTintOpacity ?? 0, '%');
     renderReactionRows(settings.reactions);
     renderSiteImages(settings);
     renderGuestImages(settings);

@@ -115,17 +115,29 @@ const DEFAULT_SETTINGS = {
   pictureBackground: false,
   pictureColor: '#1a1410',
   pictureScale: 100,
-  // Dim + tint the OBS view (view.js) renders for a Participant/Character
-  // box whose person isn't actually "here" right now: offline entirely, or
+  // Dim and tint the OBS view (view.js) renders for a Participant/Character
+  // box whose person isn't actually "here" right now: offline entirely,
   // online but in a pulled-aside room while the stream is following someone
-  // else (see activeRoom). Global, not per-user -- this used to be an OBS
-  // filter on Studio's side, moved here since that filter corrupted these
-  // sources' alpha transparency. 0 = no dim. Off by default: nothing about
-  // how a stream looks changes until an admin turns this on deliberately.
+  // else (see activeRoom), or in a Private Conversation specifically (its
+  // own separate set, since that one also forces the live video off
+  // unconditionally -- see isPrivate in view.js -- and an admin may want it
+  // to read differently on stream than an ordinary aside). Global, not
+  // per-user -- this used to be an OBS filter on Studio's side, moved here
+  // since that filter corrupted these sources' alpha transparency. Two
+  // independent effects per state, each optional: Dim is a plain
+  // brightness reduction (0 = untouched, 100 = black); Tint is a colour
+  // overlay with its own opacity (0 = invisible regardless of colour, 100
+  // = the colour solid). All 0 by default: nothing about how a stream
+  // looks changes until an admin turns one of these on.
   offlineDim: 0,
   offlineTint: '#000000',
+  offlineTintOpacity: 0,
   asideDim: 0,
   asideTint: '#000000',
+  asideTintOpacity: 0,
+  privateDim: 0,
+  privateTint: '#000000',
+  privateTintOpacity: 0,
   // The reaction tray at the table: id (also the 1-6 shortcut order and the
   // data-channel payload), glyph (what's drawn), label (button title/alt).
   reactions: [
@@ -425,16 +437,23 @@ class Store {
       const n = Math.round(Number(patch.pictureScale));
       if (Number.isFinite(n)) s.pictureScale = Math.max(20, Math.min(100, n));
     }
-    if (patch.offlineDim !== undefined) {
-      const n = Math.round(Number(patch.offlineDim));
-      if (Number.isFinite(n)) s.offlineDim = Math.max(0, Math.min(100, n));
-    }
-    if (patch.offlineTint !== undefined && cleanColor(patch.offlineTint)) s.offlineTint = cleanColor(patch.offlineTint);
-    if (patch.asideDim !== undefined) {
-      const n = Math.round(Number(patch.asideDim));
-      if (Number.isFinite(n)) s.asideDim = Math.max(0, Math.min(100, n));
-    }
-    if (patch.asideTint !== undefined && cleanColor(patch.asideTint)) s.asideTint = cleanColor(patch.asideTint);
+    // Dim/Tint/Tint opacity, identically shaped for each of the three
+    // states -- one small helper rather than the same nine-line block
+    // written out three times.
+    const applyDimTint = (prefix) => {
+      if (patch[`${prefix}Dim`] !== undefined) {
+        const n = Math.round(Number(patch[`${prefix}Dim`]));
+        if (Number.isFinite(n)) s[`${prefix}Dim`] = Math.max(0, Math.min(100, n));
+      }
+      if (patch[`${prefix}Tint`] !== undefined && cleanColor(patch[`${prefix}Tint`])) s[`${prefix}Tint`] = cleanColor(patch[`${prefix}Tint`]);
+      if (patch[`${prefix}TintOpacity`] !== undefined) {
+        const n = Math.round(Number(patch[`${prefix}TintOpacity`]));
+        if (Number.isFinite(n)) s[`${prefix}TintOpacity`] = Math.max(0, Math.min(100, n));
+      }
+    };
+    applyDimTint('offline');
+    applyDimTint('aside');
+    applyDimTint('private');
     if (patch.reactions !== undefined) {
       const reactions = cleanReactions(patch.reactions);
       if (reactions) s.reactions = reactions;
