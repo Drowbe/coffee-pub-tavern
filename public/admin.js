@@ -387,7 +387,8 @@ function renderSiteImages(b) {
     const img = slot.querySelector('img');
     const showImage = has || name === 'icon';
     img.hidden = !showImage;
-    img.src = showImage ? `/img/site/${name}?v=${Date.now()}` : '';
+    if (showImage) img.src = `/img/site/${name}?v=${Date.now()}`;
+    else img.removeAttribute('src');
     slot.querySelector('.unset').hidden = showImage;
     slot.classList.toggle('set', has);
     slot.querySelector('[data-action="site-clear"]').hidden = !has;
@@ -431,7 +432,8 @@ function renderGuestImages(b) {
     const has = !!b.guestImages?.[name];
     const img = slot.querySelector('img');
     img.hidden = !has;
-    img.src = has ? `/img/guest/${name}?v=${Date.now()}` : '';
+    if (has) img.src = `/img/guest/${name}?v=${Date.now()}`;
+    else img.removeAttribute('src');
     slot.querySelector('.unset').hidden = has;
     slot.classList.toggle('set', has);
     slot.querySelector('[data-action="guest-image-clear"]').hidden = !has;

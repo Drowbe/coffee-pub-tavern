@@ -170,7 +170,12 @@
       </div>
       <div class="settings-group" data-group="layout">
         <h3>Layout</h3>
-        <label>Layout<select id="layout-select"><option value="grid">Grid</option><option value="strip">Strip (one row or column)</option><option value="spotlight">Spotlight (one big, rest small)</option></select></label>
+        <span class="field-label">Layout</span>
+        <div class="layout-pick" id="layout-pick" role="group" aria-label="Layout">
+          <button type="button" data-layout="grid">Grid</button>
+          <button type="button" data-layout="strip" title="Strip: one row or column">Strip</button>
+          <button type="button" data-layout="spotlight" title="Spotlight: one big, rest small">Spotlight</button>
+        </div>
         <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
         <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
       </div>

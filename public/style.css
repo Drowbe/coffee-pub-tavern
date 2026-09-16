@@ -869,6 +869,36 @@ input[type="range"] {
   color: #fff;
 }
 
+/* Same "every choice is one click away" idea as .icon-grid, but a row of
+   equal-width labeled buttons instead of icon squares. */
+.layout-pick {
+  display: flex;
+  gap: 6px;
+}
+
+.layout-pick button {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  padding: 7px 6px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layout-pick button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.layout-pick button.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 /* A hotkey field looks like the other .fields inputs at rest, then turns
    into an obvious "waiting for you to press something" state once clicked. */
 .hotkey-input {

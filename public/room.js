@@ -299,7 +299,10 @@ function updateBackgroundPlaceholder(tile, key) {
   const hasBg = !!user?.images?.background;
   tile.classList.toggle('has-bg-image', hasBg);
   const bg = tile.querySelector('.placeholder-bg');
-  if (bg) bg.src = hasBg ? imgUrl(key, 'background') : '';
+  // removeAttribute, not src='' -- an empty string still makes the browser
+  // fetch the current page as an "image" and show a broken-image icon once
+  // it fails to decode; only actually removing the attribute stays invisible.
+  if (bg) { if (hasBg) bg.src = imgUrl(key, 'background'); else bg.removeAttribute('src'); }
   tile.style.setProperty('--pic-scale', user?.pictureScale || 100);
 }
 
@@ -488,10 +491,14 @@ function rememberOrder() {
 
 const LAYOUTS = ['grid', 'strip', 'spotlight'];
 
+function syncLayoutPick() {
+  for (const b of $('layout-pick').children) b.classList.toggle('selected', b.dataset.layout === prefs.layout);
+}
+
 function setLayout(layout, announce = false) {
   prefs.layout = LAYOUTS.includes(layout) ? layout : 'grid';
   savePrefs();
-  $('layout-select').value = prefs.layout;
+  syncLayoutPick();
   applyLayout();
 }
 
@@ -505,7 +512,7 @@ function applyLayout() {
   stage.classList.toggle('tiny', stage.clientWidth < 300 || stage.clientHeight < 220);
   const ordered = [...grid.querySelectorAll('.tile')];
   let rest = grid.querySelector('.rest');
-  if (prefs.layout === 'spotlight' && tiles.size > 1) {
+  if (prefs.layout === 'spotlight' && ordered.length > 1) {
     // remember where every tile sits before the big one is pulled out
     let changed = false;
     for (const tile of ordered) {
@@ -543,7 +550,10 @@ function applyLayout() {
 const RATIO = 16 / 9;
 const GAP = 10;
 function fitTiles(grid, portrait) {
-  const n = tiles.size;
+  // Ghost tiles (members stepped into an aside) are real .tile elements in
+  // the grid too -- size for all of them, or the ones left out get the
+  // sizing meant for a smaller crowd and spill past the grid's own edges.
+  const n = tiles.size + ghostTiles.size;
   const style = getComputedStyle(grid);
   const W = grid.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
   const H = grid.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
@@ -599,7 +609,7 @@ function spotlight(identity) {
   prefs.pinned = prefs.pinned === identity ? null : identity;
   if (prefs.layout !== 'spotlight') prefs.layout = 'spotlight';
   savePrefs();
-  $('layout-select').value = prefs.layout;
+  syncLayoutPick();
   applyLayout();
 }
 
@@ -1385,7 +1395,9 @@ async function connectAndSetup(token, livekitUrl) {
     $('room-now-name').textContent = tableName;
     $('room-now').hidden = false;
     $('leave-top').hidden = false;
+    const originRoom = currentRoom.ephemeral && currentRoom.origin ? tableRooms.find((r) => r.id === currentRoom.origin) : null;
     $('back-to-table').hidden = !currentRoom.ephemeral;
+    $('back-to-table').textContent = originRoom ? `Back to ${roomDisplayName(originRoom)}` : 'Back to the table';
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
@@ -1669,7 +1681,10 @@ $('chat-form').addEventListener('submit', async (event) => {
 });
 
 $('layout').addEventListener('click', () => setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true));
-$('layout-select').addEventListener('change', (e) => setLayout(e.target.value));
+$('layout-pick').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-layout]');
+  if (b) setLayout(b.dataset.layout);
+});
 $('follow-speaker').addEventListener('change', (e) => {
   prefs.follow = e.target.checked;
   savePrefs();
@@ -1968,7 +1983,7 @@ async function init() {
   tableName = branding.tableName || tableName;
   renderReactionTray(branding.reactions);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-  $('layout-select').value = prefs.layout;
+  syncLayoutPick();
   $('follow-speaker').checked = prefs.follow;
   populateCallSettingsUI();
   applyLayout();
