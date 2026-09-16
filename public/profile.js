@@ -139,7 +139,7 @@ function render() {
     $('link-new').textContent = user.link ? 'Regenerate' : 'Create';
   }
 
-  $('images-heading').textContent = editing ? 'Default Images' : 'Your Default Images';
+  $('images-heading').textContent = editing ? 'Default Profile Images' : 'Your Default Profile Images';
   $('player-images-hint').textContent = editing
     ? "The participant's video box. Offline shows the Offline picture (or nothing). Online shows the camera, or the Online picture when the camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings."
     : 'Your video box. Offline shows the Offline picture (or nothing). Online shows your camera, or the Online picture when your camera is off. Talking and muted lay their pictures on top, and draw the borders set under Settings.';
@@ -174,8 +174,8 @@ function render() {
 // One section per real room this person belongs to (never the Lobby --
 // per-room images are for rooms an admin actually picked them into). A
 // room's profile decides which of the two groups it even offers; an unset
-// slot here simply uses the Default Images above, so someone in two
-// campaigns can give each its own Character images without the other
+// slot here simply uses the Default Profile Images above, so someone in
+// two campaigns can give each its own Character images without the other
 // campaign's set ever needing to be touched.
 
 function buildRoomSection(roomId) {
@@ -194,8 +194,8 @@ function fillRoomSection(section, room, roomImages) {
   const editing = !!editingKey;
   section.querySelector('.room-section-title').textContent = room.name;
   section.querySelector('.room-section-hint').textContent = editing
-    ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Images above.`
-    : `Your images just for ${room.name}. Anything left unset here uses your Default Images above.`;
+    ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Profile Images above.`
+    : `Your images just for ${room.name}. Anything left unset here uses your Default Profile Images above.`;
   document.querySelector(`a[href="#section-room-${room.id}"]`).textContent = room.name;
 
   const allowed = ROOM_PROFILE_SLOTS[room.profile] || ROOM_PROFILE_SLOTS.roleplaying;
