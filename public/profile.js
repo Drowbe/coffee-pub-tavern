@@ -16,6 +16,15 @@ let user = null; // whose profile this is: me, or the person being edited
 let streamKey = '';
 let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
 
+// If this page is open as the overlay on top of an active call (same
+// pattern as closeProfileOverlay -- see brand.js/room.js), and it's my own
+// settings rather than an admin editing someone else's, tell the running
+// call to pick up the change now instead of waiting for a camera toggle.
+function notifyLiveCallPrefs(patch) {
+  if (editingKey || window.parent === window) return;
+  window.parent.tavernApplyCallPrefs?.(patch)?.catch?.(() => {});
+}
+
 function say(text, error = false) {
   $('status').textContent = text;
   $('status').classList.toggle('error', error);
@@ -287,6 +296,7 @@ $('background-file').addEventListener('change', async () => {
     if (editingKey) user = (await api('PUT', `/api/users/${user.key}/images/background`, file, file.type)).user;
     else { await api('PUT', '/api/me/images/background', file, file.type); await reload(); }
     render();
+    notifyLiveCallPrefs();
     say('image saved');
   } catch (err) {
     say(err.message, true);
@@ -299,6 +309,7 @@ $('background-clear').addEventListener('click', async () => {
     if (editingKey) user = (await api('DELETE', `/api/users/${user.key}/images/background`)).user;
     else { await api('DELETE', '/api/me/images/background'); await reload(); }
     render();
+    notifyLiveCallPrefs();
     say('image removed');
   } catch (err) {
     say(err.message, true);
@@ -320,6 +331,7 @@ function patchCallPrefs(patch) {
     try {
       if (editingKey) user.callPrefs = (await api('PATCH', `/api/users/${user.key}/call-prefs`, body)).callPrefs;
       else user.callPrefs = (await api('PATCH', '/api/me/call-prefs', body)).callPrefs;
+      notifyLiveCallPrefs(body);
       sayField($('call-prefs-status'), 'saved');
     } catch (err) {
       sayField($('call-prefs-status'), err.message, true);

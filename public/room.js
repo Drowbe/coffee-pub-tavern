@@ -1431,12 +1431,13 @@ async function connectAndSetup(token, livekitUrl) {
       updateMuted(p);
     }
     reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
-    // Ask for the microphone and the camera separately: a player with no
-    // camera (or who declines it) still joins with audio, and the other way
-    // round. Each one that works is published; each that fails is reported.
-    const missing = [];
+    // Only the microphone publishes on join. The camera stays off until
+    // deliberately turned on -- a safety default, so nobody's video goes out
+    // before they mean it to, and camera permission is only ever asked for
+    // once someone actually reaches for it. toggleCam()'s setCameraEnabled
+    // call already handles publishing a fresh track the first time, same as
+    // it does for anyone who declined the camera here and turns it on later.
     let haveMic = false;
-    let haveCam = false;
     try {
       const track = await openMic();
       await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
@@ -1445,33 +1446,14 @@ async function connectAndSetup(token, livekitUrl) {
       if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
     } catch (err) {
       console.warn('[tavern] no microphone:', err.message);
-      missing.push('microphone');
-    }
-    try {
-      let tracks;
-      try {
-        tracks = await createLocalTracks({ video: videoConstraints() });
-      } catch (err) {
-        if (!prefs.camId) throw err;
-        prefs.camId = ''; // the remembered camera is gone
-        savePrefs();
-        tracks = await createLocalTracks({ video: videoConstraints() });
-      }
-      for (const track of tracks) await room.localParticipant.publishTrack(track);
-      haveCam = true;
-      console.debug('[tavern] published video');
-      if (prefs.background !== 'none') await applyBackground();
-    } catch (err) {
-      console.warn('[tavern] no camera:', err.message);
-      missing.push('camera');
     }
     updateMuted(room.localParticipant);
     updateCamera(room.localParticipant);
     await fillDevices();
     reflectMic();
-    $('cam').classList.toggle('on', haveCam);
-    $('cam').classList.toggle('off', !haveCam);
-    if (missing.length) setStatus(`in ${tableName} (no ${missing.join(' or ')})`);
+    $('cam').classList.remove('on');
+    $('cam').classList.add('off');
+    if (!haveMic) setStatus(`in ${tableName} (no microphone)`);
 }
 
 async function toggleMic() {
@@ -1944,6 +1926,30 @@ function closeOverlay() {
   sendAway(false);
 }
 window.closeProfileOverlay = closeOverlay; // called directly by the (same-origin) iframe
+
+// Also called directly by the profile page overlay, right after it saves a
+// background/call-prefs change -- otherwise the call keeps running with
+// whatever was in effect at connect time, and the only way to pick up a
+// change made this way used to be toggling the camera off and back on.
+// `patch` is whatever fields actually changed (e.g. {background: 'blur'},
+// {mirror: true}, {quality: 720}); a bare call with no patch just means
+// "the background image itself changed, nothing in prefs did".
+window.tavernApplyCallPrefs = async function (patch) {
+  if (patch) {
+    Object.assign(prefs, patch);
+    savePrefs();
+  }
+  if (!patch || 'mirror' in patch) applyMirror();
+  if (!patch || 'masterVolume' in patch) applyMasterVolume();
+  if (!patch || 'gain' in patch || 'gate' in patch) applyMicSettings();
+  if ((!patch || 'noise' in patch || 'echo' in patch || 'agc' in patch || 'micId' in patch) && mic.ctx) {
+    await openMic().catch(() => {});
+  }
+  if (!patch || 'quality' in patch || 'camId' in patch) await restartCamera();
+  // A plain image re-upload (no mode change) still needs this: applyBackground()
+  // re-fetches the picture itself fresh every time, cache-bust and all.
+  if (!patch || 'background' in patch || prefs.background === 'image') await applyBackground();
+};
 // Delegated (not one-time-queried) since a room card's own Edit link is
 // built later, once tableRooms comes back -- a static query here would
 // miss it and open it as a real navigation instead, with no way back.

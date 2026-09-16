@@ -34,7 +34,7 @@
   <div class="join" id="join">
     <div class="room-list" id="rooms"></div>
     <p class="status error" id="join-error" hidden></p>
-    <p class="hint join-note">Your browser will ask for camera and microphone the first time. <span id="install-hint" hidden></span></p>
+    <p class="hint join-note">Your browser will ask for your microphone the first time. You join with your camera off; turn it on whenever you're ready, and your browser will ask for it then. <span id="install-hint" hidden></span></p>
   </div>
 
   <!-- A guest link (/guest/<token>) shows this instead: a name, nothing else. -->
@@ -43,7 +43,7 @@
     <label>Your name<input id="guest-name" type="text" maxlength="40" required autocomplete="name"></label>
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
     <p class="status error" id="guest-join-error" hidden></p>
-    <p class="hint join-note">Your browser will ask for camera and microphone. Nothing about you is kept once you leave.</p>
+    <p class="hint join-note">Your browser will ask for your microphone. You join with your camera off; turn it on whenever you're ready. Nothing about you is kept once you leave.</p>
   </form>
 
   <template id="room-choice">
