@@ -108,6 +108,7 @@ let connectedRoom = null;
 // actually online, otherwise there's no reference room to be aside from.
 let tableOnline = false;
 let isAside = false;
+let isPrivate = false;
 let dimSettings = { offlineDim: 0, offlineTint: '#000000', asideDim: 0, asideTint: '#000000' };
 
 function hexToRgba(hex, level) {
@@ -131,9 +132,17 @@ async function loadSettings() {
       playerRoom = (me.online && me.room) || 'lobby';
       tableOnline = Boolean(me.online);
       isAside = tableOnline && Boolean(data.adminOnline) && me.room !== data.activeRoom;
+      // Studio mutes a Private Conversation's audio but no longer hides the
+      // OBS source itself -- this page is now the only thing standing
+      // between a genuinely off-the-record moment and it being visibly on
+      // stream. Render nothing at all (see the top of render()) rather than
+      // just dimming: private means private, not "shown, but muted."
+      const room = tableOnline ? (data.rooms || []).find((r) => r.id === me.room) : null;
+      isPrivate = Boolean(room?.ephemeral && room?.private);
     } else {
       tableOnline = false;
       isAside = false;
+      isPrivate = false;
     }
     dimSettings = { offlineDim: data.offlineDim ?? 0, offlineTint: data.offlineTint || '#000000', asideDim: data.asideDim ?? 0, asideTint: data.asideTint || '#000000' };
     const b = borders();
@@ -183,8 +192,26 @@ function applyPlateCase(text) {
 }
 
 function render() {
-  const online = !!participant;
   const video = document.querySelector('video');
+  // A Private Conversation renders as nothing at all, full stop -- no
+  // video, no picture, no name plate, no reactions -- regardless of
+  // camera/mic state. Checked before anything else touches the DOM.
+  if (isPrivate) {
+    if (video) video.hidden = true;
+    setImage($('base'), null);
+    setImage($('overlay-talking'), null);
+    setImage($('overlay-muted'), null);
+    setImage($('bg-image'), null);
+    document.body.classList.remove('talking', 'muted-frame');
+    $('plate').hidden = true;
+    $('dim').hidden = true;
+    document.body.dataset.state = 'blank';
+    document.body.dataset.talking = '';
+    document.body.dataset.muted = '';
+    msg('private');
+    return;
+  }
+  const online = !!participant;
   const muted = online && !micOn;
   const talking = online && speaking && micOn;
   // blank: nothing at all; offline: the Offline picture; image: the online
