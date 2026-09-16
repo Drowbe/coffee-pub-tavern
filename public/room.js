@@ -678,7 +678,13 @@ function attachTrack(participant, track) {
     const video = track.attach();
     video.muted = true; // audio comes through its own element
     tile.prepend(video);
+    // placeholder-bg sits later in the tile than the just-prepended video,
+    // so it paints on top and hides live video behind whoever's custom
+    // background picture unless it's hidden here too -- updateCamera()
+    // already knew to do both, but this is the only path a remote viewer's
+    // very first subscribe to someone's camera ever goes through.
     tile.querySelector('.placeholder').hidden = true;
+    tile.querySelector('.placeholder-bg').hidden = true;
   } else if (track.kind === Track.Kind.Audio) {
     if (participant.isLocal) return; // never play your own voice back
     const audio = track.attach();
@@ -697,7 +703,10 @@ function detachTrack(participant, track) {
     return;
   }
   const tile = tiles.get(participant.identity);
-  if (tile && track.kind === Track.Kind.Video) tile.querySelector('.placeholder').hidden = false;
+  if (tile && track.kind === Track.Kind.Video) {
+    tile.querySelector('.placeholder').hidden = false;
+    tile.querySelector('.placeholder-bg').hidden = false;
+  }
 }
 
 function removeParticipant(participant) {
@@ -733,9 +742,12 @@ function updateCamera(participant) {
   const off = !cam || cam.isMuted;
   const video = tile.querySelector('video');
   if (video) video.hidden = off;
-  const hidden = !off && !!video;
-  tile.querySelector('.placeholder').hidden = hidden;
-  tile.querySelector('.placeholder-bg').hidden = hidden;
+  // Not gated on the <video> element already existing: attachTrack() hides
+  // these the moment it runs regardless, and if this fires first there's
+  // nothing to gain by leaving them showing for however long that takes --
+  // an empty tile reads better than the wrong picture stuck on top of live video.
+  tile.querySelector('.placeholder').hidden = !off;
+  tile.querySelector('.placeholder-bg').hidden = !off;
 }
 
 // The document the stage currently lives in (the page, or the pop-out window).
