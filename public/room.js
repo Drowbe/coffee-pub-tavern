@@ -84,14 +84,42 @@ $('room-link').addEventListener('click', () => {
 // Conversation was pulled out of the room I'm currently in -- the admin
 // is never part of those (see /api/table/pull-aside), so without this
 // there'd be no way to know one is even happening, let alone end it.
+let recallButtonTimer = 0;
+let recallButtonCountingDown = false;
+
 function updateRecallButton() {
   const btn = $('recall-button');
-  if (!btn) return;
+  if (!btn || recallButtonCountingDown) return;
   btn.hidden = !(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
 }
+
+function resetRecallButton() {
+  clearInterval(recallButtonTimer);
+  recallButtonCountingDown = false;
+  const btn = $('recall-button');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back';
+}
+
 $('recall-button').addEventListener('click', async () => {
+  const btn = $('recall-button');
   try {
     await api('POST', '/api/table/recall');
+    recallButtonCountingDown = true;
+    btn.disabled = true;
+    let n = 10;
+    btn.textContent = `Rejoining in... ${n}`;
+    clearInterval(recallButtonTimer);
+    recallButtonTimer = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        resetRecallButton();
+        updateRecallButton();
+        return;
+      }
+      btn.textContent = `Rejoining in... ${n}`;
+    }, 1000);
   } catch (err) {
     setStatus(`pull participants back: ${err.message}`, true);
   }
@@ -1337,6 +1365,7 @@ room
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
     $('room-link').hidden = true;
+    resetRecallButton();
     $('recall-button').hidden = true;
     clearInterval(recallTimer);
     $('recall-overlay').hidden = true;
