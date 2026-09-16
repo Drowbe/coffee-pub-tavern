@@ -712,8 +712,8 @@ app.get('/api/rooms', (req, res) => {
   res.json({ rooms: store.rooms });
 });
 app.post('/api/rooms', requireAdmin, (req, res) => {
-  const { name, description, members, profile } = req.body || {};
-  res.json({ room: store.addRoom({ name, description, members, profile }) });
+  const { name, description, members, profile, link, linkIcon } = req.body || {};
+  res.json({ room: store.addRoom({ name, description, members, profile, link, linkIcon }) });
 });
 app.post('/api/rooms/order', requireAdmin, (req, res) => {
   res.json({ rooms: store.reorderRooms((req.body || {}).order) });

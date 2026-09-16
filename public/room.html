@@ -40,7 +40,7 @@
   <form class="join guest-join" id="guest-join" hidden>
     <h1 id="guest-room-name">Join as a guest</h1>
     <label>Your name<input id="guest-name" type="text" maxlength="40" required autocomplete="name"></label>
-    <button class="btn btn-primary" type="submit">Join</button>
+    <button class="btn btn-primary" type="submit"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
     <p class="status error" id="guest-join-error" hidden></p>
     <p class="hint join-note">Your browser will ask for camera and microphone. Nothing about you is kept once you leave.</p>
   </form>
@@ -55,7 +55,8 @@
       <p class="hint room-choice-desc"></p>
       <div class="members"></div>
       <div class="room-choice-actions">
-        <button class="btn btn-primary" data-join type="button">Join</button>
+        <a class="btn btn-small" data-link target="_blank" rel="noopener" href="#" title="Open this room's link" hidden><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></a>
+        <button class="btn btn-primary" data-join type="button"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
         <a class="btn btn-small" data-edit data-overlay-link href="#" title="Room settings" hidden><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></a>
       </div>
     </article>
@@ -108,6 +109,7 @@
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
+      <button class="fbtn" id="room-link" type="button" title="Open this room's link" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
     </div>

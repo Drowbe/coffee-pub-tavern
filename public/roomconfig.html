@@ -47,9 +47,17 @@
             <option value="participants">Participants -- Participant images only</option>
             <option value="characters">Characters -- Character images only</option>
           </select></label>
+          <label class="wide">Launch link<input id="e-link" type="url" placeholder="https://your-vtt-or-site.example" maxlength="500"></label>
         </div>
         <p class="hint">Decides which image sections show up for this room on a member's own profile page,
           and which ones Coffee Pub Studio offers to publish for it.</p>
+
+        <div class="icon-pick-field">
+          <span class="field-label">Link icon</span>
+          <div class="icon-grid" id="e-link-icon" role="group" aria-label="Link icon"></div>
+        </div>
+        <p class="hint">Shown on the button next to Join, and in the call toolbar, once a launch link is set above.</p>
+
         <div class="row">
           <button class="btn btn-primary btn-small" id="save-btn" type="button">Save</button>
           <span class="status" id="save-status"></span>

@@ -9,6 +9,35 @@ let me = null;
 let room = null;
 let users = [];
 
+// Kept in sync with ROOM_LINK_ICONS in server/store.js -- Font Awesome
+// solid is the only style loaded, so the choice is a fixed set, not free text.
+const ROOM_LINK_ICONS = [
+  'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
+  'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
+  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star',
+];
+let selectedLinkIcon = 'link';
+
+function buildIconGrid() {
+  const grid = $('e-link-icon');
+  for (const icon of ROOM_LINK_ICONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.icon = icon;
+    btn.title = icon;
+    btn.innerHTML = `<i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i>`;
+    btn.addEventListener('click', () => {
+      selectedLinkIcon = icon;
+      renderIconGridSelection();
+    });
+    grid.appendChild(btn);
+  }
+}
+
+function renderIconGridSelection() {
+  for (const btn of $('e-link-icon').children) btn.classList.toggle('selected', btn.dataset.icon === selectedLinkIcon);
+}
+
 function say(el, text, error = false) {
   el.textContent = text;
   el.classList.toggle('error', error);
@@ -37,6 +66,11 @@ function render() {
     $('e-name').value = room.name;
     $('e-description').value = room.description;
     $('e-profile').value = room.profile;
+    $('e-link').value = room.link || '';
+  }
+  if (document.activeElement?.closest?.('.icon-grid') == null) {
+    selectedLinkIcon = room.linkIcon;
+    renderIconGridSelection();
   }
   $('e-allow-guests').checked = room.allowGuests;
 
@@ -118,7 +152,7 @@ $('members').addEventListener('change', (event) => {
 
 $('save-btn').addEventListener('click', async () => {
   try {
-    const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value };
+    const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value, link: $('e-link').value, linkIcon: selectedLinkIcon };
     if (!room.isLobby) patch.members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
     room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
     render();
@@ -192,6 +226,7 @@ $('delete-btn').addEventListener('click', async () => {
 async function init() {
   await loadBranding();
   wireOverlayBack();
+  buildIconGrid();
   try {
     const info = await api('GET', '/api/me');
     me = info.user;

@@ -54,10 +54,28 @@ async function loadTable() {
     renderRooms();
     reconcileGhostTiles();
     renderGuestLink();
+    renderRoomLink();
   } catch (err) {
     // default colour stands
   }
 }
+
+// The room's own launch link, mirrored in the floatbar so it's reachable
+// without leaving the call. Reads live off tableRooms (like renderGuestLink)
+// rather than the frozen currentRoom, so an admin editing the link mid-call
+// is reflected here on the next poll.
+function renderRoomLink() {
+  const btn = $('room-link');
+  if (!btn || !currentRoom) return;
+  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const link = room?.link;
+  btn.hidden = !link;
+  if (link) btn.querySelector('.glyph').innerHTML = `<i class="fa-solid fa-${room.linkIcon || 'link'} fa-fw" aria-hidden="true"></i>`;
+}
+$('room-link').addEventListener('click', () => {
+  const room = currentRoom && tableRooms.find((r) => r.id === currentRoom.id);
+  if (room?.link) window.open(room.link, '_blank', 'noopener');
+});
 
 // A member of the room I'm in who is online but not actually connected
 // here -- they're in a private aside elsewhere -- gets a placeholder tile:
@@ -162,6 +180,12 @@ function renderRooms() {
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || me?.role !== 'admin';
     edit.href = `/rooms/${encodeURIComponent(r.id)}`;
+    const link = card.querySelector('[data-link]');
+    link.hidden = !r.link;
+    if (r.link) {
+      link.href = r.link;
+      link.querySelector('i').className = `fa-solid fa-${r.linkIcon || 'link'} fa-fw`;
+    }
     card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
     card.querySelector('.room-choice-desc').textContent = r.description;
     card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;
@@ -1205,6 +1229,7 @@ room
     currentRoom = null;
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
+    $('room-link').hidden = true;
     // A guest has no session and no room to pick from -- back to their own
     // name-only form for the one room their link is for, not the real
     // members' room list (which they can't do anything with anyway).
@@ -1310,6 +1335,7 @@ async function join(roomId = 'lobby') {
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
+    renderRoomLink();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);
@@ -1333,6 +1359,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentRoom.members downstream breaks.
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
+    renderRoomLink();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);

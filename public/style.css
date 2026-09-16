@@ -524,6 +524,7 @@ input[type="range"] {
 .panel textarea,
 .fields input[type="text"],
 .fields input[type="password"],
+.fields input[type="url"],
 .fields select,
 .fields textarea {
   background: var(--bg-input);
@@ -824,6 +825,48 @@ input[type="range"] {
 
 .fields .wide {
   grid-column: 1 / -1;
+}
+
+.field-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+/* A picker of buttons, not a <select> -- every choice is visible and one
+   click away instead of hidden behind a dropdown. */
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.icon-grid button {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.icon-grid button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.icon-grid button.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 /* A hotkey field looks like the other .fields inputs at rest, then turns

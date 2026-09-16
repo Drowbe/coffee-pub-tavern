@@ -31,6 +31,16 @@ const SLOTS = ['profile', 'background', ...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS
 // offered for it, on a member's per-room section and (eventually) in
 // Studio's publish UI: Roleplaying wants both, the other two just one.
 const ROOM_PROFILES = ['roleplaying', 'participants', 'characters'];
+// A room's optional "launch" link (their VTT, wiki, playlist, whatever) --
+// shown as a button next to Join and in the in-call toolbar. The icon is
+// picked from this fixed set (Font Awesome solid is the only style loaded)
+// rather than a free-text icon name, so a bad value can't render nothing.
+const ROOM_LINK_ICONS = [
+  'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
+  'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
+  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star',
+];
+const DEFAULT_ROOM_LINK_ICON = 'link';
 const ROOM_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
   participants: PARTICIPANT_SLOTS,
@@ -177,6 +187,22 @@ function cleanLogin(value) {
   return cleanText(value, 40).toLowerCase().replace(/\s+/g, '');
 }
 
+// Accepts a bare domain ("example.com") as well as a full URL, and only
+// ever returns http(s) links -- anything else (or unparseable) is dropped
+// rather than stored, since it's rendered straight into a link href.
+function cleanRoomLink(value) {
+  let link = cleanText(value, 500);
+  if (!link) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(link)) link = `https://${link}`;
+  try {
+    const url = new URL(link);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 class Store {
   constructor(dir) {
     this.dir = dir;
@@ -233,6 +259,10 @@ class Store {
       // Which image sections a member's per-room section (and Studio) offer
       // for this room -- see ROOM_PROFILE_SLOTS.
       profile: ROOM_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
+      // An optional external link (their VTT, wiki, playlist...) offered as
+      // a button next to Join and in the in-call toolbar. null when unset.
+      link: cleanRoomLink(r.link),
+      linkIcon: ROOM_LINK_ICONS.includes(r.linkIcon) ? r.linkIcon : DEFAULT_ROOM_LINK_ICON,
       // A standing door code: anyone with this room's guest link joins it
       // with just a name, no account. null while off. See enableGuestLink.
       guestToken: typeof r.guestToken === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(r.guestToken) ? r.guestToken : null,
@@ -529,11 +559,11 @@ class Store {
     return this.rooms;
   }
 
-  addRoom({ name, description, members, profile }) {
+  addRoom({ name, description, members, profile, link, linkIcon }) {
     let id;
     do id = randomKey();
     while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, profile, createdAt: new Date().toISOString() });
+    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
     room.members = room.members.filter((k) => this.userByKey(k));
     this.data.rooms.push(room);
     this.save();
@@ -587,6 +617,19 @@ class Store {
     if (patch.profile !== undefined) {
       if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
       room.profile = patch.profile;
+    }
+    if (patch.link !== undefined) {
+      if (patch.link) {
+        const link = cleanRoomLink(patch.link);
+        if (!link) throw new StoreError('link must be a valid http(s) URL');
+        room.link = link;
+      } else {
+        room.link = null;
+      }
+    }
+    if (patch.linkIcon !== undefined) {
+      if (!ROOM_LINK_ICONS.includes(patch.linkIcon)) throw new StoreError('unknown link icon');
+      room.linkIcon = patch.linkIcon;
     }
     if (patch.allowGuests !== undefined) {
       room.allowGuests = Boolean(patch.allowGuests);
@@ -851,5 +894,5 @@ class StoreError extends Error {
 
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
-  LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+  ROOM_LINK_ICONS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
 };
