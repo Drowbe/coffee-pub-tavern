@@ -85,8 +85,16 @@
     </div>
 
     <!-- Admin only: shown once one or more tiles are picked with the door
-         icon, to confirm pulling all of them into a private room together. -->
-    <button class="float btn btn-primary" id="aside-confirm" type="button" hidden>Step aside</button>
+         icon, to confirm pulling all of them aside together. Two separate,
+         always-explicit buttons rather than one button plus a toggle --
+         which one gets clicked should never depend on remembering to flip
+         a checkbox back. An aside is still recorded (Studio mutes/dims
+         whoever stepped out, the pair stays on stream); "Privately" is a
+         real off-the-record word Studio hides from the recording entirely. -->
+    <div class="float aside-confirm-bar" id="aside-confirm-bar" hidden>
+      <button class="btn btn-primary" id="aside-confirm" type="button">Step aside</button>
+      <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
+    </div>
 
     <div class="float floatbar" id="floatbar">
       <div class="fbtn-wrap">

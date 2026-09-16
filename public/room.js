@@ -158,7 +158,11 @@ function reconcileGhostTiles() {
 function roomDisplayName(r) {
   if (!r?.ephemeral) return r?.name || tableName;
   const others = r.members.filter((k) => k !== me?.key).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
-  return others.length ? `Aside with ${others.join(' & ')}` : 'Aside';
+  // Says "Private" rather than "Aside" whenever it is one -- whoever's in
+  // here should be able to tell at a glance that this one is genuinely off
+  // the record, not just infer it from which button someone clicked earlier.
+  const label = r.private ? 'Private' : 'Aside';
+  return others.length ? `${label} with ${others.join(' & ')}` : label;
 }
 
 // The join screen: one card per room I belong to, with its members and a
@@ -1306,19 +1310,24 @@ function toggleAsideSelection(identity, button) {
 }
 
 function updateAsideConfirm() {
-  const button = $('aside-confirm');
-  if (!button) return;
-  button.hidden = asideSelection.size === 0;
-  button.textContent = asideSelection.size === 1 ? 'Step aside' : `Step aside with ${asideSelection.size}`;
+  const bar = $('aside-confirm-bar');
+  if (!bar) return;
+  bar.hidden = asideSelection.size === 0;
+  const n = asideSelection.size;
+  $('aside-confirm').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
+  $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
 }
 
 // Admin only: pull one or more people who are currently at the table into a
-// new room with me, for a word away from the rest.
-async function pullAside(identities) {
+// new room with me, for a word away from the rest. `priv` marks a real
+// off-the-record word (Studio hides it from the recording, and the stream
+// doesn't follow me there) rather than an in-fiction private moment (still
+// recorded, just muted/dimmed on the main feed while it's happening).
+async function pullAside(identities, priv = false) {
   try {
-    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identities });
+    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identities, private: priv });
     asideSelection.clear();
-    await reconnectTo(asideRoom.id, 'stepping aside...');
+    await reconnectTo(asideRoom.id, priv ? 'stepping aside privately...' : 'stepping aside...');
   } catch (err) {
     setStatus(`pull aside: ${err.message}`, true);
   }
@@ -1621,6 +1630,7 @@ $('leave').addEventListener('click', () => room.disconnect());
 $('leave-top').addEventListener('click', () => room.disconnect());
 $('back-to-table').addEventListener('click', () => returnToTable());
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
+$('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
 window.addEventListener('beforeunload', () => room.disconnect());
 
 $('chat-toggle').addEventListener('click', () => toggleChat());

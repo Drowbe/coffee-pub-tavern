@@ -143,9 +143,19 @@ function activeRoomId(online) {
   for (const u of store.users) {
     if (u.role !== 'admin') continue;
     const p = online.get(u.key);
-    if (p) return p.room;
+    if (p) return followableRoomId(p.room);
   }
   return LOBBY;
+}
+
+// A private aside is off the record entirely -- the stream should keep
+// hearing wherever the admin was a moment ago, not cut away to (or hide
+// behind) a room Studio is told to treat as not-recording. Walk back to the
+// nearest non-private ancestor, normally just the one `origin` hop.
+function followableRoomId(roomId) {
+  const room = store.roomById(roomId);
+  if (room?.private && room.origin) return followableRoomId(room.origin);
+  return roomId;
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -648,7 +658,7 @@ app.post('/api/table/pull-aside', requireAdmin, async (req, res) => {
       const targetRoom = await roomOf(target.key);
       if (targetRoom !== adminRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
     }
-    const room = store.addAsideRoom([admin.key, ...targets.map((t) => t.key)], roomIdOfLivekit(adminRoom));
+    const room = store.addAsideRoom([admin.key, ...targets.map((t) => t.key)], roomIdOfLivekit(adminRoom), Boolean(req.body?.private));
     const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
     await roomService.sendData(adminRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
     // Everyone left behind: a private word is private from the table, not

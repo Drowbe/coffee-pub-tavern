@@ -256,6 +256,13 @@ class Store {
       // The room an ephemeral room was pulled out of, so "Back to the table"
       // can return everyone there instead of always landing on the Lobby.
       origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
+      // An aside is still part of the recording -- Studio mutes/dims the
+      // members who stepped out, but the two of them stay on stream. A
+      // *private* aside is a real off-the-record word: Studio hides those
+      // sources entirely, and the admin stepping into one must not drag the
+      // stream's "follow the admin" room along with them (see activeRoomId
+      // in server/index.js). Only meaningful on an ephemeral room.
+      private: Boolean(r.private),
       // Which image sections a member's per-room section (and Studio) offer
       // for this room -- see ROOM_PROFILE_SLOTS.
       profile: ROOM_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
@@ -570,15 +577,17 @@ class Store {
     return this.roomById(id);
   }
 
-  // A private "pull aside" room for exactly the members given (typically an
-  // admin and one player). No name worth keeping server-side; the client
-  // builds one from the other member's display name. `origin` is the room
-  // they were pulled out of, so they can all be sent back to it later.
-  addAsideRoom(members, origin) {
+  // A "pull aside" room for exactly the members given (typically an admin
+  // and one player). No name worth keeping server-side; the client builds
+  // one from the other member's display name. `origin` is the room they
+  // were pulled out of, so they can all be sent back to it later. `priv`
+  // marks a real off-the-record word rather than an in-fiction private
+  // moment -- see the `private` field's comment in sanitizeRoom.
+  addAsideRoom(members, origin, priv = false) {
     let id;
     do id = randomKey();
     while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, origin, createdAt: new Date().toISOString() });
+    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
     room.members = room.members.filter((k) => this.userByKey(k));
     this.data.rooms.push(room);
     this.save();
