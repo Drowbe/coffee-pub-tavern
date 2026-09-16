@@ -243,10 +243,22 @@ input[type="range"] {
   margin-top: auto;
 }
 
+/* All three buttons in this row share one height regardless of their own
+   padding/font-size -- box-sizing keeps that padding inside the 40px
+   rather than adding to it, and centering the content covers the rest. */
+.room-choice-actions .btn {
+  height: 40px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .room-choice-actions .btn-primary {
   flex: 1;
   font-size: 16px;
-  padding: 10px 16px;
+  padding: 0 16px;
 }
 
 /* Who belongs to a room, with a dot for those in it right now. */
