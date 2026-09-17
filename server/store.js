@@ -40,9 +40,10 @@ const ROOM_PROFILES = ['roleplaying', 'participants', 'characters'];
 const ROOM_LINK_ICONS = [
   'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
   'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
-  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star',
+  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
 ];
 const DEFAULT_ROOM_LINK_ICON = 'link';
+const DEFAULT_HOME_ICON = 'couch';
 const ROOM_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
   participants: PARTICIPANT_SLOTS,
@@ -86,6 +87,7 @@ const DEFAULT_CALL_PREFS = {
 
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern',
+  homeIcon: DEFAULT_HOME_ICON,
   tableName: 'The Table',
   room: 'tavern',
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
@@ -407,6 +409,10 @@ class Store {
   updateSettings(patch) {
     const s = this.data.settings;
     if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
+    if (patch.homeIcon !== undefined) {
+      if (!ROOM_LINK_ICONS.includes(patch.homeIcon)) throw new StoreError('unknown home icon');
+      s.homeIcon = patch.homeIcon;
+    }
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);

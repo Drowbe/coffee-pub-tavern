@@ -483,7 +483,7 @@ $('subtabs').addEventListener('click', (event) => {
 window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 
 async function init() {
-  renderTopbar({ location: '<span class="crumb-here">Profile</span>' });
+  renderTopbar({ location: '<span class="crumb-here"><i class="fa-solid fa-user fa-fw" aria-hidden="true"></i><span class="crumb-label"> Profile</span></span>' });
   await loadBranding();
   wireOverlayBack();
   try {

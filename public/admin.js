@@ -7,6 +7,34 @@ let streamKey = '';
 let streamShown = false;
 let users = [];
 
+// Kept in sync with ROOM_LINK_ICONS in server/store.js -- Font Awesome
+// solid is the only style loaded, so the choice is a fixed set, not free text.
+const HOME_ICONS = [
+  'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
+  'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
+  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
+];
+let selectedHomeIcon = 'couch';
+
+function buildHomeIconGrid() {
+  const grid = $('set-home-icon');
+  for (const icon of HOME_ICONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.icon = icon;
+    btn.title = icon;
+    btn.innerHTML = `<i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i>`;
+    btn.addEventListener('click', () => {
+      selectedHomeIcon = icon;
+      renderHomeIconSelection();
+    });
+    grid.appendChild(btn);
+  }
+}
+function renderHomeIconSelection() {
+  for (const btn of $('set-home-icon').children) btn.classList.toggle('selected', btn.dataset.icon === selectedHomeIcon);
+}
+
 function say(el, text, error = false) {
   el.textContent = text;
   el.classList.toggle('error', error);
@@ -250,7 +278,7 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
 $('save-registration').addEventListener('click', () => saveSettings({ allowRegistration: $('set-allow-registration').checked }, $('registration-status')));
 
@@ -565,7 +593,8 @@ $('stream-regen').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar({ location: '<span class="crumb-here">Server Settings</span>' });
+  renderTopbar({ location: '<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>' });
+  buildHomeIconGrid();
   await loadBranding();
   wireOverlayBack('Rooms');
   try {
@@ -582,6 +611,8 @@ async function init() {
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
+    selectedHomeIcon = settings.homeIcon || 'couch';
+    renderHomeIconSelection();
     $('set-login-text').value = settings.loginText;
     $('set-allow-registration').checked = Boolean(settings.allowRegistration);
     $('set-border').checked = settings.border;

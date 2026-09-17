@@ -14,7 +14,7 @@ let users = [];
 const ROOM_LINK_ICONS = [
   'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
   'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
-  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star',
+  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
 ];
 let selectedLinkIcon = 'link';
 
@@ -224,7 +224,7 @@ $('delete-btn').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar({ adminHref: '/admin#rooms', location: '<span class="crumb-here">Server Settings</span>' });
+  renderTopbar({ adminHref: '/admin#rooms', location: '<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>' });
   await loadBranding();
   wireOverlayBack();
   buildIconGrid();
@@ -239,7 +239,11 @@ async function init() {
     const [roomRes, usersRes] = await Promise.all([api('GET', `/api/rooms/${roomId}`), api('GET', '/api/users')]);
     room = roomRes.room;
     users = usersRes.users;
-    setTopbarLocation(`<span class="crumb-here">Server Settings</span><span class="crumb-sep">&rsaquo;</span><span class="crumb-here">${escapeHtml(room.name)}</span>`);
+    setTopbarLocation(
+      `<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>` +
+      `<span class="crumb-sep">&rsaquo;</span>` +
+      `<span class="crumb-here"><i class="fa-solid fa-message fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(room.name)}</span></span>`
+    );
   } catch (err) {
     location.href = '/admin#rooms';
     return;

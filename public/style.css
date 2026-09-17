@@ -57,6 +57,7 @@ body {
 
 a {
   color: var(--accent);
+  text-decoration: none;
 }
 
 a:hover {
@@ -98,6 +99,21 @@ a:hover {
   align-items: center;
   gap: 10px;
   font-weight: 700;
+}
+
+/* The server icon, its own small configurable icon, and the server name
+   together are the "go home" link -- what "Rooms" used to be as its own
+   separate crumb segment, since going home already lands on the room
+   list (or the sign-in page, signed out). */
+.brand-home {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.brand-home:hover {
+  color: var(--accent);
 }
 
 .brand span {
@@ -765,9 +781,6 @@ input[type="range"] {
   letter-spacing: normal;
 }
 
-.links a:hover {
-  text-decoration: underline;
-}
 
 .join .btn-primary {
   font-size: 16px;
@@ -1214,12 +1227,21 @@ body.at-table .topbar {
 }
 
 .crumb-here {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Hides at narrow widths (see the media query below), leaving just the
+   icon each crumb-here already carries -- the reason every segment has
+   one, not just decoration. */
+.crumb-label {
   white-space: nowrap;
 }
 
 .crumb-action {
-  font-size: 12px;
-  padding: 3px 10px;
+  flex-shrink: 0;
 }
 
 .topbar .topbar-status {
@@ -1235,6 +1257,13 @@ body.at-table .topbar {
   }
   .crumb {
     font-size: 16px;
+  }
+  /* Every crumb-here carries its own icon for exactly this: run out of
+     space and the label drops, the icon (and the room/page it names)
+     doesn't. */
+  .crumb-label,
+  .brand-home span[data-brand="serverName"] {
+    display: none;
   }
   .topbar .topbar-status {
     display: none;
@@ -1390,7 +1419,7 @@ body.at-table .topbar {
   transform: translateX(-50%);
   flex-wrap: nowrap;
   padding: 8px;
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(20, 15, 12, 0.85);
   border: 1px solid var(--border);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);

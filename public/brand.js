@@ -14,6 +14,7 @@ export async function loadBranding() {
     // keep the defaults
   }
   document.querySelectorAll('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
+  document.querySelectorAll('[data-brand="home-icon"]').forEach((el) => (el.className = `fa-solid fa-${b.homeIcon || 'couch'} fa-fw`));
   document.querySelectorAll('[data-brand="tableName"]').forEach((el) => (el.textContent = b.tableName));
   document.querySelectorAll('[data-brand="loginText"]').forEach((el) => (el.textContent = b.loginText));
   document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
@@ -52,8 +53,11 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   if (!header) return;
   header.innerHTML = `
     <div class="brand">
-      <img data-brand="icon" alt="" class="icon">
-      <span data-brand="serverName">Coffee Pub Tavern</span>
+      <a class="brand-home" href="/" target="_top" title="All rooms">
+        <img data-brand="icon" alt="" class="icon">
+        <i class="fa-solid fa-couch fa-fw" data-brand="home-icon" aria-hidden="true"></i>
+        <span data-brand="serverName">Coffee Pub Tavern</span>
+      </a>
       <nav class="crumb" id="topbar-crumb"></nav>
       <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
       <span class="status topbar-status" id="topbar-status"></span>

@@ -1599,11 +1599,18 @@ async function leaveRoom() {
 // nothing more specific to say -- the path never skips a level, so it's
 // always here and always a link back to the room list, whether or not
 // there's anything after it.
-const ROOMS_CRUMB = '<a class="crumb-here" href="/"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i> Rooms</a>';
+// Leave/Rejoin are icon-only, styled like the header's other icon buttons
+// (settings, sign out) rather than a labeled pill -- title carries the
+// name for a screen reader or a hover, same as those.
+const LEAVE_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="leave" title="Leave" aria-label="Leave"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></button>';
+const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
+// The label text hides at narrow widths (see .crumb-label in style.css),
+// leaving just the icon -- which is why every crumb-here needs one.
+const crumbHere = (icon, text) => `<span class="crumb-here"><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
 
 function updateCrumb() {
   if (!currentRoom) {
-    setTopbarLocation(ROOMS_CRUMB);
+    setTopbarLocation('');
     return;
   }
   if (currentRoom.ephemeral && currentRoom.origin) {
@@ -1611,19 +1618,12 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
-      `${ROOMS_CRUMB}<span class="crumb-sep">&rsaquo;</span>` +
-      `<span class="crumb-here">${escapeHtml(originName)}</span>` +
-      `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>` +
+      crumbHere('message', originName) + LEAVE_BTN +
       `<span class="crumb-sep">&rsaquo;</span>` +
-      `<span class="crumb-here">${kind}</span>` +
-      `<button class="btn btn-small crumb-action" type="button" data-crumb-action="rejoin">Rejoin Call</button>`
+      crumbHere('people-arrows', kind) + REJOIN_BTN
     );
   } else {
-    setTopbarLocation(
-      `${ROOMS_CRUMB}<span class="crumb-sep">&rsaquo;</span>` +
-      `<span class="crumb-here">${escapeHtml(tableName)}</span>` +
-      `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>`
-    );
+    setTopbarLocation(crumbHere('message', tableName) + LEAVE_BTN);
   }
 }
 
