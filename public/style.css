@@ -1375,9 +1375,9 @@ body.at-table .topbar {
 
 .fbtn {
   position: relative;
-  width: 48px;
+  width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: #33281f;
   color: var(--text);
@@ -1422,6 +1422,7 @@ body.at-table .topbar {
 
 .fbtn:hover {
   background: #40322a;
+  border-color: var(--accent);
 }
 
 .fbtn.on {
@@ -1434,7 +1435,7 @@ body.at-table .topbar {
 }
 
 .fbtn .glyph i {
-  font-size: 17px;
+  font-size: 24px;
 }
 
 /* the off state swaps to the slashed icon */
