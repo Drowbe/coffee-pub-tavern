@@ -72,8 +72,25 @@ a:hover {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 16px;
+  min-height: 56px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, #2b211a, var(--bg));
+}
+
+/* The server icon runs the full height of the header, flush to its top,
+   bottom and left edges (hence the negative margins cancelling .topbar's
+   own padding on those three sides) rather than sitting inline with the
+   name as a small rounded square. Fixed to match .topbar's own
+   min-height exactly -- auto/stretch sizing an <img> against aspect-ratio
+   with no other definite dimension in the flex line let it render at its
+   full natural (1024x1024) size instead. */
+.topbar .brand .icon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 0;
+  object-fit: cover;
+  margin: -10px 0 -10px -16px;
 }
 
 .brand {
@@ -589,6 +606,14 @@ input[type="range"] {
   gap: 10px;
   font-size: 13px;
   color: var(--text-dim);
+}
+
+/* Separates "who you are" (whoami) from "what you can do from anywhere"
+   (the global nav icons) -- both always there, but visibly two groups. */
+.nav-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
 }
 
 .links a {

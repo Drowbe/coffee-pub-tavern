@@ -578,6 +578,7 @@ async function init() {
     $('whoami').textContent = me.displayName;
     $('whoami-img').src = imgUrl(me.key, 'profile');
     $('whoami-img').hidden = false;
+    $('admin-link').hidden = false;
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;

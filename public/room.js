@@ -1595,9 +1595,15 @@ async function leaveRoom() {
 // room (with its own Leave), or an aside/private pulled out of one (with
 // both a Leave for the whole table and a Rejoin Call back into the room it
 // came from). Same delegated click handler covers both, wired once below.
+// "Rooms" is a real ancestor, not a label that only shows up when there's
+// nothing more specific to say -- the path never skips a level, so it's
+// always here and always a link back to the room list, whether or not
+// there's anything after it.
+const ROOMS_CRUMB = '<a class="crumb-here" href="/"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i> Rooms</a>';
+
 function updateCrumb() {
   if (!currentRoom) {
-    setTopbarLocation('<span class="crumb-here">Rooms</span>');
+    setTopbarLocation(ROOMS_CRUMB);
     return;
   }
   if (currentRoom.ephemeral && currentRoom.origin) {
@@ -1605,6 +1611,7 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
+      `${ROOMS_CRUMB}<span class="crumb-sep">&rsaquo;</span>` +
       `<span class="crumb-here">${escapeHtml(originName)}</span>` +
       `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>` +
       `<span class="crumb-sep">&rsaquo;</span>` +
@@ -1613,6 +1620,7 @@ function updateCrumb() {
     );
   } else {
     setTopbarLocation(
+      `${ROOMS_CRUMB}<span class="crumb-sep">&rsaquo;</span>` +
       `<span class="crumb-here">${escapeHtml(tableName)}</span>` +
       `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>`
     );
