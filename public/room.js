@@ -857,9 +857,45 @@ function stageDoc() {
 
 // --- chat ---------------------------------------------------------------------
 
-// Text and pictures travel over LiveKit's data channel; nothing is stored.
-// The log lives here for Save and for late reads; it goes when you leave.
+// Text and pictures travel over LiveKit's data channel; nothing is stored
+// server-side. The log lives here for Save and for late reads; it goes when
+// you leave. Text messages (not pictures, which don't fit in localStorage
+// sanely) additionally get mirrored to this browser's local storage per
+// room, so reopening a regular room later still shows what was said --
+// deliberately skipped for an aside/private room, which stays exactly as
+// off-the-record as everything else about it.
 const chatLog = []; // { who, at, text } or { who, at, blob, name }
+const CHAT_HISTORY_LIMIT = 200;
+// Keyed by who's looking, not just the room: a shared household device
+// shouldn't surface one person's chat history to whoever logs in next.
+const chatHistoryKey = (roomId) => `tavern:chat:${roomId}:${me?.key || guestToken || 'guest'}`;
+function loadChatHistory(roomId) {
+  try {
+    return JSON.parse(localStorage.getItem(chatHistoryKey(roomId))) || [];
+  } catch {
+    return [];
+  }
+}
+function saveChatHistory(roomId, entries) {
+  try {
+    localStorage.setItem(chatHistoryKey(roomId), JSON.stringify(entries.slice(-CHAT_HISTORY_LIMIT)));
+  } catch {
+    // storage full, disabled, or unavailable (private browsing) -- the chat
+    // still works for the session, it just won't be there next time
+  }
+}
+// Called once per join, after the stage is up but before anything live has
+// arrived -- fills #messages with whatever this room already said, so it
+// reads as "still here" rather than the chat looking wiped on every rejoin.
+function renderChatHistory(roomId) {
+  const history = loadChatHistory(roomId);
+  for (const entry of history) {
+    const el = messageEl({ who: entry.who, text: entry.text, at: new Date(entry.at) }, entry.who === me?.displayName);
+    el.classList.add('history');
+    $('messages').appendChild(el);
+  }
+  if (history.length) $('messages').scrollTop = $('messages').scrollHeight;
+}
 
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -962,6 +998,11 @@ function addEntry(entry, own = false) {
     unread += 1;
     $('chat-badge').textContent = String(unread);
     $('chat-badge').hidden = false;
+  }
+  if (entry.text && currentRoom && !currentRoom.ephemeral) {
+    const history = loadChatHistory(currentRoom.id);
+    history.push({ who: entry.who, text: entry.text, at: entry.at.toISOString() });
+    saveChatHistory(currentRoom.id, history);
   }
 }
 
@@ -1597,6 +1638,7 @@ async function connectAndSetup(token, livekitUrl) {
       updateMuted(p);
     }
     reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
+    if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
     // Only the microphone publishes on join. The camera stays off until
     // deliberately turned on -- a safety default, so nobody's video goes out
     // before they mean it to, and camera permission is only ever asked for
@@ -1721,6 +1763,38 @@ $('speaker-select').addEventListener('change', async (e) => {
   prefs.speakerId = e.target.value;
   savePrefs();
   await applySpeaker();
+});
+// A short tone through whichever speaker is picked above -- routed through
+// an <audio> element (not straight to AudioContext.destination) since
+// setSinkId is how a specific output device actually gets chosen, same as
+// every remote participant's own audio already goes through one.
+$('test-speaker').addEventListener('click', async () => {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 440;
+    osc.connect(gain);
+    const dest = ctx.createMediaStreamDestination();
+    gain.connect(dest);
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.05); // fade in/out so it doesn't click
+    gain.gain.setValueAtTime(0.25, now + 0.55);
+    gain.gain.linearRampToValueAtTime(0, now + 0.65);
+    const audio = new Audio();
+    audio.srcObject = dest.stream;
+    if (prefs.speakerId && audio.setSinkId) await audio.setSinkId(prefs.speakerId).catch(() => {});
+    await audio.play();
+    osc.start(now);
+    osc.stop(now + 0.7);
+    osc.onended = () => {
+      audio.pause();
+      ctx.close();
+    };
+  } catch (err) {
+    setStatus(`test speaker: ${err.message}`, true);
+  }
 });
 $('master-volume').addEventListener('input', (e) => {
   prefs.masterVolume = Number(e.target.value);
@@ -1991,6 +2065,29 @@ function onKey(event) {
   else return;
   event.preventDefault();
 }
+
+// --- mobile viewport quirks ---------------------------------------------------
+
+// Mobile browsers can be slow to recompute CSS's own `dvh` as their address
+// and tab bar show and hide on scroll -- visualViewport's resize event
+// fires the moment that actually happens, so mirroring it into a custom
+// property keeps the floating controls above the browser's own chrome
+// instead of sliding out from under it (see body.at-table in style.css).
+function syncViewportHeight() {
+  const h = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty('--app-vh', `${h}px`);
+}
+window.visualViewport?.addEventListener('resize', syncViewportHeight);
+window.addEventListener('resize', syncViewportHeight);
+syncViewportHeight();
+
+// The docked floatbar wraps to two rows on a narrow phone -- its real
+// height drives --floatbar-h, which --barh (style.css) reads, so the chat
+// panel's bottom edge sits above however tall the toolbar actually ended
+// up, not a fixed guess that assumed a single row.
+new ResizeObserver(([entry]) => {
+  document.documentElement.style.setProperty('--floatbar-h', `${Math.ceil(entry.contentRect.height)}px`);
+}).observe($('floatbar'));
 
 // --- floating controls: show on movement, hide when the pointer rests --------
 

@@ -110,6 +110,9 @@ a:hover {
   font: inherit;
   font-weight: 500;
   cursor: pointer;
+  white-space: nowrap; /* a whole button wraps to the next line rather than
+    its own label breaking across three -- see .links below, on a phone
+    narrow enough that the topbar's buttons don't all fit on one row */
 }
 
 .btn:hover {
@@ -1096,6 +1099,10 @@ a.btn {
   .topbar {
     flex-wrap: wrap;
   }
+  .links {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
   .panel {
     margin: 4vh 12px;
   }
@@ -1125,6 +1132,13 @@ body.at-table {
   height: 100dvh; /* the actual visible viewport, so the toolbar at the
                       bottom isn't hidden under a phone browser's own
                       address/tab bar when it's showing */
+  /* dvh is supposed to already do this, but some mobile browsers are slow
+     to recompute it as their own address/tab bars show and hide -- room.js
+     tracks window.visualViewport itself and keeps --app-vh in sync live,
+     which is what actually keeps the floating controls above the browser's
+     own chrome rather than sliding out from under it. Only takes effect
+     once JS has set it at least once. */
+  height: var(--app-vh, 100dvh);
   display: flex;
   flex-direction: column;
 }
@@ -1195,7 +1209,11 @@ body.at-table .topbar {
 }
 
 .stage {
-  --barh: 65px; /* what the docked toolbar takes off the bottom */
+  --barh: var(--floatbar-h, 65px); /* what the docked toolbar takes off the
+    bottom -- 65px is just a first-paint guess before room.js's
+    ResizeObserver measures the real thing, which matters once the floatbar
+    wraps to two rows on a narrow phone and would otherwise sit under the
+    chat panel instead of above it */
   position: relative;
   width: 100%;
   flex: 1;
