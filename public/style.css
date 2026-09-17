@@ -1172,16 +1172,29 @@ body.at-table .topbar {
   white-space: nowrap;
 }
 
-.topbar .room-now {
+/* The crumb: "where you are", always after the server name, sometimes
+   with its own action buttons (Leave, Rejoin Call) right alongside
+   whatever it's naming -- see setTopbarLocation()/updateCrumb(). */
+.crumb {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 17px;
   font-weight: 400;
 }
 
-.topbar .room-now .sep {
+.crumb-sep {
   color: var(--text-dim);
+}
+
+.crumb-here {
+  white-space: nowrap;
+}
+
+.crumb-action {
+  font-size: 12px;
+  padding: 3px 10px;
 }
 
 .topbar .topbar-status {
@@ -1195,7 +1208,7 @@ body.at-table .topbar {
     flex-wrap: wrap;
     row-gap: 2px;
   }
-  .topbar .room-now {
+  .crumb {
     font-size: 16px;
   }
   .topbar .topbar-status {

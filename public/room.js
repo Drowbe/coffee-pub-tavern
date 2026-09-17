@@ -1,12 +1,21 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation } from '/brand.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
 const stageEl = document.getElementById('stage');
 const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`));
+// Before anything else touches a header element -- the header itself is
+// built here, not left static in room.html, so every #topbar-crumb,
+// #recall-button etc. lookup below needs this to have already run.
+renderTopbar();
+// Only this page loads your profile/Manage as an overlay over a running
+// call instead of a real navigation (see openOverlay() below) -- the
+// shared header doesn't know that, so it's marked here instead.
+$('whoami-link').dataset.overlayLink = '';
+$('admin-link').dataset.overlayLink = '';
 const room = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
 const ghostTiles = new Map(); // identity -> tile element, for room members aside elsewhere
@@ -377,7 +386,6 @@ $('guest-join').addEventListener('submit', async (event) => {
   }
 });
 let unread = 0;
-let installPrompt = null;
 let pipWindow = null;
 
 function setStatus(text, error = false) {
@@ -1454,9 +1462,7 @@ room
     $('join').hidden = !!guestToken;
     $('guest-join').hidden = !guestToken;
     $('away').hidden = true;
-    $('room-now').hidden = true;
-    $('leave-top').hidden = true;
-    $('back-to-table').hidden = true;
+    updateCrumb();
     asideSelection.clear();
     updateAsideConfirm();
     // Not setAway(false): that would try to re-enable mic/camera on a
@@ -1584,6 +1590,35 @@ async function leaveRoom() {
   room.disconnect();
 }
 
+// Keeps the header's crumb in sync with where we actually are: the room
+// list (nobody's called join() yet, or Disconnected just fired), a real
+// room (with its own Leave), or an aside/private pulled out of one (with
+// both a Leave for the whole table and a Rejoin Call back into the room it
+// came from). Same delegated click handler covers both, wired once below.
+function updateCrumb() {
+  if (!currentRoom) {
+    setTopbarLocation('<span class="crumb-here">Rooms</span>');
+    return;
+  }
+  if (currentRoom.ephemeral && currentRoom.origin) {
+    const originRoom = tableRooms.find((r) => r.id === currentRoom.origin);
+    const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
+    const kind = currentRoom.private ? 'Private' : 'Aside';
+    setTopbarLocation(
+      `<span class="crumb-here">${escapeHtml(originName)}</span>` +
+      `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>` +
+      `<span class="crumb-sep">&rsaquo;</span>` +
+      `<span class="crumb-here">${kind}</span>` +
+      `<button class="btn btn-small crumb-action" type="button" data-crumb-action="rejoin">Rejoin Call</button>`
+    );
+  } else {
+    setTopbarLocation(
+      `<span class="crumb-here">${escapeHtml(tableName)}</span>` +
+      `<button class="btn btn-small btn-danger crumb-action" type="button" data-crumb-action="leave">Leave</button>`
+    );
+  }
+}
+
 async function join(roomId = 'lobby') {
   $('join-error').hidden = true;
   for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
@@ -1639,15 +1674,7 @@ async function connectAndSetup(token, livekitUrl) {
     $('guest-join').hidden = true;
     $('stage').hidden = false;
     setChatWidth(prefs.chatWidth, { remember: false });
-    // The header stays, naming the room and offering a way out of it. A
-    // pulled-aside room also gets a quicker way back than "Leave" (which
-    // would drop to the join screen instead of straight back to the Lobby).
-    $('room-now-name').textContent = tableName;
-    $('room-now').hidden = false;
-    $('leave-top').hidden = false;
-    const originRoom = currentRoom.ephemeral && currentRoom.origin ? tableRooms.find((r) => r.id === currentRoom.origin) : null;
-    $('back-to-table').hidden = !currentRoom.ephemeral;
-    $('back-to-table').textContent = originRoom ? `Back to ${roomDisplayName(originRoom)}` : 'Back to the table';
+    updateCrumb();
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
@@ -1908,8 +1935,14 @@ async function restartCamera() {
   }
 }
 $('leave').addEventListener('click', () => leaveRoom());
-$('leave-top').addEventListener('click', () => leaveRoom());
-$('back-to-table').addEventListener('click', () => returnToTable());
+// The crumb's own action buttons (Leave, Rejoin Call) get regenerated with
+// every updateCrumb() call, so one delegated listener on the stable
+// container instead of rewiring a fresh element's click every time.
+$('topbar-crumb').addEventListener('click', (event) => {
+  const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
+  if (action === 'leave') leaveRoom();
+  else if (action === 'rejoin') returnToTable();
+});
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
 $('aside-cancel').addEventListener('click', cancelAsideSelection);
@@ -2213,20 +2246,10 @@ document.addEventListener('fullscreenchange', syncFullscreenButton);
 $('fullscreen-toggle').addEventListener('click', toggleFullscreen);
 
 // --- install as an app / pop out ------------------------------------------------
-
-window.addEventListener('beforeinstallprompt', (event) => {
-  event.preventDefault();
-  installPrompt = event;
-  $('install').hidden = false;
-  $('install-note').textContent = '';
-});
-$('install').addEventListener('click', async () => {
-  if (!installPrompt) return;
-  installPrompt.prompt();
-  await installPrompt.userChoice.catch(() => {});
-  installPrompt = null;
-  $('install').hidden = true;
-});
+// The button itself (and the beforeinstallprompt handling behind it) now
+// lives in the shared header -- see renderTopbar()/wireInstall() in
+// brand.js -- so this is just the manual-instructions fallback for
+// browsers that never fire that event at all.
 
 function describeInstall() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -2235,7 +2258,7 @@ function describeInstall() {
   if (/iPhone|iPad/.test(ua)) return 'Add to your home screen for a full-screen table: Share, then Add to Home Screen.';
   if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) return 'For a window without browser bars: File, then Add to Dock.';
   if (/Firefox/.test(ua)) return 'Firefox has no install; Chrome, Edge or Safari can open the table in its own window.';
-  return 'For a window without browser bars, use Install in the settings once you are at the table.';
+  return 'For a window without browser bars, use Install in the header once your browser offers it.';
 }
 
 // A plain popup window: the whole stage moves into it and comes back when
@@ -2453,6 +2476,7 @@ async function init() {
   // the room's real native window title once installed as an app.
   if (branding.version) document.title += ` — ${branding.version}`;
   renderReactionTray(branding.reactions);
+  updateCrumb();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   syncLayoutPick();
   populateCallSettingsUI();
@@ -2468,6 +2492,7 @@ async function init() {
     // everything the room itself already handles the same for everyone.
     $('join').hidden = true;
     $('whoami-link').hidden = true;
+    $('rooms-link').hidden = true;
     $('logout-link').hidden = true;
     $('guest-section').hidden = true;
     $('settings-links').hidden = true;

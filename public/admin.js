@@ -565,7 +565,7 @@ $('stream-regen').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar();
+  renderTopbar({ location: '<span class="crumb-here">Server Settings</span>' });
   await loadBranding();
   wireOverlayBack('Rooms');
   try {

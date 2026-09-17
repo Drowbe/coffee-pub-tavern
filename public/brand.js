@@ -1,3 +1,9 @@
+// Escapes text going into innerHTML -- a room or server name is an admin-set
+// string, not something we generated, so it isn't safe to trust verbatim.
+export function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
 // Fills in the server name and icon on every page from /api/branding.
 export async function loadBranding() {
   let b = { serverName: 'Coffee Pub Tavern', tableName: 'The Table', loginText: '', hasIcon: false };
@@ -33,25 +39,45 @@ export async function loadBranding() {
   return b;
 }
 
-// One header, built once here, used by every page that isn't the table
-// itself (room.html keeps its own -- it carries live-call controls a
-// generic header has no business knowing about). Fixing something here
-// reaches every page that calls it, rather than needing the same edit
-// copy-pasted into each page's own markup.
-export function renderTopbar({ install = false, adminHref = '/admin' } = {}) {
+// One header, built once here, used by every page including the table
+// itself -- room.html included, its live-call controls (Leave, Pull
+// Participants Back) folded in through the "location and actions" crumb
+// zone (see setTopbarLocation()) rather than kept as a bespoke header of
+// its own. Four zones, left to right: the server icon and name (always
+// the same), the crumb (changes with where you are and what you can do
+// from here), and the global nav (always the same, on every page,
+// regardless of which of those icons is the page you're already on).
+export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   const header = document.querySelector('.topbar');
   if (!header) return;
   header.innerHTML = `
-    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
+    <div class="brand">
+      <img data-brand="icon" alt="" class="icon">
+      <span data-brand="serverName">Coffee Pub Tavern</span>
+      <nav class="crumb" id="topbar-crumb"></nav>
+      <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
+      <span class="status topbar-status" id="topbar-status"></span>
+    </div>
     <nav class="links">
-      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/" target="_top" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i></a>
+      <a class="whoami" href="/profile" id="whoami-link" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <a class="icon-link" href="${adminHref}" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      ${install ? '<button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>' : ''}
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+      <button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
+      <a class="icon-link" href="/logout" id="logout-link" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
     </nav>
   `;
-  if (install) wireInstall();
+  setTopbarLocation(location);
+  wireInstall();
+}
+
+// The crumb zone: plain text for "you're already here" (Rooms, Profile,
+// Server Settings), or markup with its own buttons for a page that offers
+// actions from right where it says where you are (a room's own Leave, an
+// aside's own Rejoin Call) -- see room.js's updateCrumb() for the one page
+// that actually changes this after the initial render.
+export function setTopbarLocation(html) {
+  const crumb = document.getElementById('topbar-crumb');
+  if (crumb) crumb.innerHTML = html ? `<span class="crumb-sep">&rsaquo;</span>${html}` : '';
 }
 
 // Chrome/Edge's "Install as an app" prompt -- a chromeless window (Settings

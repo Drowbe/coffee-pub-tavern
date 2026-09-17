@@ -15,21 +15,7 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="topbar" id="topbar">
-    <div class="brand">
-      <img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span>
-      <span class="room-now" id="room-now" hidden><span class="sep">&rsaquo;</span><span id="room-now-name"></span></span>
-      <span class="status topbar-status" id="topbar-status"></span>
-    </div>
-    <nav class="links" id="links">
-      <button class="btn btn-small" id="back-to-table" type="button" title="Head back to the room you were pulled from" hidden>Back to the table</button>
-      <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
-      <button class="btn btn-small btn-danger" id="leave-top" type="button" title="Leave the room and go back to the room list" hidden>Leave room</button>
-      <a class="whoami" id="whoami-link" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      <a class="icon-link" id="logout-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
-    </nav>
-  </header>
+  <header class="topbar" id="topbar"></header>
 
   <div class="join" id="join">
     <div class="room-list" id="rooms"></div>
@@ -238,7 +224,6 @@
       </div>
       <div class="settings-group" data-group="more">
         <div class="row">
-          <button class="btn btn-small" id="install" type="button" hidden>Install as an app</button>
           <span class="hint" id="install-note"></span>
         </div>
         <div id="guest-section">

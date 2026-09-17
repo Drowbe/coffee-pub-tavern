@@ -1,7 +1,7 @@
 // One room's own page, the same idea as a user's profile page: click a
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
-import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const roomId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -224,7 +224,7 @@ $('delete-btn').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar({ adminHref: '/admin#rooms' });
+  renderTopbar({ adminHref: '/admin#rooms', location: '<span class="crumb-here">Server Settings</span>' });
   await loadBranding();
   wireOverlayBack();
   buildIconGrid();
@@ -239,6 +239,7 @@ async function init() {
     const [roomRes, usersRes] = await Promise.all([api('GET', `/api/rooms/${roomId}`), api('GET', '/api/users')]);
     room = roomRes.room;
     users = usersRes.users;
+    setTopbarLocation(`<span class="crumb-here">Server Settings</span><span class="crumb-sep">&rsaquo;</span><span class="crumb-here">${escapeHtml(room.name)}</span>`);
   } catch (err) {
     location.href = '/admin#rooms';
     return;
