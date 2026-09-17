@@ -1976,12 +1976,46 @@ $('chat-form').addEventListener('submit', async (event) => {
   const text = $('chat-input').value.trim();
   if (!text) return;
   $('chat-input').value = '';
+  resizeChatInput();
   try {
     await room.localParticipant.sendChatMessage(text); // echoed back through ChatMessage
   } catch (err) {
     setStatus(`chat: ${err.message}`, true);
   }
 });
+// Enter sends, like a normal chat; Shift+Enter is the way to actually get a
+// newline into a <textarea> without that also submitting the form.
+$('chat-input').addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey) return;
+  event.preventDefault();
+  $('chat-form').requestSubmit();
+});
+// Grows with the text up to a few lines, then scrolls -- resetting height
+// to 'auto' first is what lets scrollHeight shrink back down too, not just
+// grow, when a line is deleted.
+function resizeChatInput() {
+  const el = $('chat-input');
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+$('chat-input').addEventListener('input', resizeChatInput);
+
+// Wraps the current selection (or just inserts an empty pair, cursor
+// landing in the middle) in the chat input with the given marker --
+// **bold**, *italic*, `code`, matching what renderMarkup() understands.
+function wrapChatSelection(marker) {
+  const el = $('chat-input');
+  const { selectionStart: start, selectionEnd: end, value } = el;
+  const selected = value.slice(start, end);
+  el.value = value.slice(0, start) + marker + selected + marker + value.slice(end);
+  el.focus();
+  const from = start + marker.length;
+  el.setSelectionRange(from, from + selected.length);
+  resizeChatInput();
+}
+$('chat-bold').addEventListener('click', () => wrapChatSelection('**'));
+$('chat-italic').addEventListener('click', () => wrapChatSelection('*'));
+$('chat-code').addEventListener('click', () => wrapChatSelection('`'));
 
 $('layout').addEventListener('click', cycleView);
 $('layout-pick').addEventListener('click', (e) => {
@@ -2154,21 +2188,28 @@ watchOutsideClick(document);
 
 // --- full screen ---------------------------------------------------------------
 
+// Full screen applies to whichever document actually holds the stage right
+// now -- the main window normally, or the popped-out one once it exists.
+// Hardcoding `document` here would fullscreen the wrong (empty) window
+// once popped out, since that's a separate top-level browsing context.
 function toggleFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen().catch(() => {});
+  const doc = stageDoc();
+  if (doc.fullscreenElement) {
+    doc.exitFullscreen().catch(() => {});
   } else {
-    document.documentElement.requestFullscreen().catch((err) => setStatus(`full screen: ${err.message}`, true));
+    doc.documentElement.requestFullscreen().catch((err) => setStatus(`full screen: ${err.message}`, true));
   }
 }
 // Not just the click handler -- covers Esc and any other way the browser
 // itself might leave full screen, so the button's icon never gets stuck
-// showing the wrong state.
-document.addEventListener('fullscreenchange', () => {
-  const on = !!document.fullscreenElement;
+// showing the wrong state. Registered on the main document up front, and
+// on the popout's own document once it exists (see setUpPopoutWindow).
+function syncFullscreenButton() {
+  const on = !!stageDoc().fullscreenElement;
   $('fullscreen-toggle').classList.toggle('on', on);
   $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
-});
+}
+document.addEventListener('fullscreenchange', syncFullscreenButton);
 $('fullscreen-toggle').addEventListener('click', toggleFullscreen);
 
 // --- install as an app / pop out ------------------------------------------------
@@ -2222,7 +2263,7 @@ function openPopout() {
     if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
     pipWindow.addEventListener('load', () => setUpPopoutWindow(pipWindow), { once: true });
     $('popout').classList.add('on');
-    $('chat-popout').classList.add('on');
+    $('popout').title = 'Pop it back in';
   } catch (err) {
     setStatus(`pop out: ${err.message}`, true);
   }
@@ -2243,6 +2284,9 @@ function setUpPopoutWindow(win) {
   watchOutsideClick(win.document);
   win.document.addEventListener('keydown', onKey);
   win.document.addEventListener('keyup', onKeyUp);
+  // Full screen while popped out should fullscreen that window, not the
+  // (now mostly empty) main one left behind -- see toggleFullscreen().
+  win.document.addEventListener('fullscreenchange', syncFullscreenButton);
   win.addEventListener('resize', () => {
     prefs.popout = { w: win.innerWidth, h: win.innerHeight };
     savePrefs();
@@ -2254,7 +2298,7 @@ function setUpPopoutWindow(win) {
     $('away').hidden = true;
     pipWindow = null;
     $('popout').classList.remove('on');
-    $('chat-popout').classList.remove('on');
+    $('popout').title = 'Pop out into its own window';
     wake();
   });
 }
@@ -2262,10 +2306,8 @@ function closePopout() {
   if (pipWindow) pipWindow.close();
 }
 $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
-$('chat-popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
 $('bring-back').addEventListener('click', closePopout);
 $('popout').hidden = false;
-$('chat-popout').hidden = false;
 
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),

@@ -1283,13 +1283,6 @@ body.at-table .topbar {
   gap: 6px;
 }
 
-/* The popped-out window already has its own small, minimal pill of
-   controls (see .popout .floatbar) -- full screen and a pop-out-of-the-
-   pop-out button would just clutter a window this size. */
-.popout .video-tools {
-  display: none;
-}
-
 .vtool-btn {
   width: 32px;
   height: 32px;
@@ -1689,9 +1682,19 @@ body.at-table .topbar {
   word-break: break-word;
 }
 
+.chat-format-bar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+}
+
+.chat-format-bar .msg-btn {
+  font-size: 13px;
+}
+
 .chat form {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
   padding: 10px 8px 10px 6px;
   border-top: 1px solid var(--border);
@@ -1701,9 +1704,12 @@ body.at-table .topbar {
   font-size: 16px;
 }
 
-.chat input {
+.chat textarea {
   flex: 1;
   min-width: 0;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 6px;
