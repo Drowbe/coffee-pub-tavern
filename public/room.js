@@ -2147,23 +2147,31 @@ function describeInstall() {
   return 'For a window without browser bars, use Install in the settings once you are at the table.';
 }
 
-// Chrome's document picture-in-picture: the whole stage moves into a small
-// always-available window with no browser bars, and comes back when closed.
-async function openPopout() {
-  if (!('documentPictureInPicture' in window)) return;
+// A plain popup window: the whole stage moves into it and comes back when
+// closed, same as before. Used to be Chrome's document picture-in-picture,
+// which floats over other windows automatically -- but that API caps
+// itself to ~80% of the screen's work area with no way for a page to ask
+// for more (confirmed against Chromium's own source, not just guessed),
+// which was exactly the "can't make it bigger" complaint this replaces.
+// A regular popup can be resized to fill the whole screen like any other
+// window; the trade-off is it needs `popup` in its window features (and
+// even then, some platforms still show a thin title bar of their own) and
+// won't stay above other windows the way picture-in-picture did.
+function openPopout() {
   try {
     // Open small (or at the last size used) so it fits beside the game;
     // the tiles fit whatever size the window is dragged to.
     const size = prefs.popout || { w: 480, h: 300 };
-    pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: Math.max(240, Math.min(size.w, screen.availWidth)),
-      height: Math.max(120, Math.min(size.h, screen.availHeight)),
-    });
+    const width = Math.max(240, Math.min(size.w, screen.availWidth));
+    const height = Math.max(120, Math.min(size.h, screen.availHeight));
+    pipWindow = window.open('', 'tavern-popout', `popup,width=${width},height=${height}`);
+    if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
+    pipWindow.document.title = tableName;
     for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
       pipWindow.document.head.appendChild(sheet.cloneNode(true));
     }
     pipWindow.document.body.className = 'at-table popout';
-    pipWindow.document.body.appendChild($('stage'));
+    pipWindow.document.body.appendChild($('stage')); // moving the node adopts it into the new document, video/audio and all
     $('away').hidden = false;
     watchPointer(pipWindow.document);
     watchOutsideClick(pipWindow.document);
@@ -2192,7 +2200,7 @@ function closePopout() {
 }
 $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
 $('bring-back').addEventListener('click', closePopout);
-if ('documentPictureInPicture' in window) $('popout').hidden = false;
+$('popout').hidden = false;
 
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),
