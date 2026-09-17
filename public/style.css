@@ -1230,14 +1230,6 @@ body.at-table .topbar {
   display: block;
 }
 
-.stage .grid {
-  flex: 1;
-  min-height: 0;
-  height: auto;
-  overflow: auto;
-  align-content: center;
-}
-
 .popout .stage .grid {
   height: 100%;
 }
@@ -1785,6 +1777,8 @@ body.at-table .topbar {
 }
 
 .stage .grid {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-wrap: wrap;
   align-content: center;
@@ -1792,7 +1786,6 @@ body.at-table .topbar {
   align-items: center;
   gap: 10px;
   padding: 12px;
-  height: 100%;
   overflow: hidden;
 }
 
