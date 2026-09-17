@@ -71,3 +71,16 @@ This is bigger than the "one aside, GM plus N" work already shipped -- treat it 
 design pass, not a quick extension. The data model already allows more than one `ephemeral`
 room to exist at once; what's missing is a way to move between existing asides (today you
 can only create a new one) and the operator-switch capability above.
+
+## Run it on Windows and Mac, not just the QNAP
+
+"Run it" in the README is currently one specific recipe: Docker on a QNAP NAS (Container
+Station) behind Nginx Proxy Manager, with port-forwarding on a home router. Nothing in the
+app itself is known to be Unix-only (paths go through Node's `path` module, `docker-compose`
+is itself platform-agnostic under Docker Desktop), but nobody has actually run the Tavern +
+LiveKit containers on someone's own Windows or Mac machine, or written down what that setup
+looks like -- useful for a GM without a NAS, or for testing without touching the shared
+production instance. Needs a docker-compose variant (or documented tweaks) that doesn't
+assume the NAS's specific network setup, port-forwarding guidance for a home router on each
+OS, and someone actually running it end-to-end on both to catch whatever isn't as portable
+as it looks on paper.
