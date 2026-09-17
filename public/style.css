@@ -1386,6 +1386,27 @@ body.at-table .topbar {
   display: inline-block;
 }
 
+/* while a device is being acquired, a spinner replaces on/off entirely --
+   so a slow getUserMedia (or the camera retry after a reconnect) never
+   looks like a dead click inviting a second one. */
+.fbtn .icon-loading {
+  display: none;
+}
+
+.fbtn.loading .icon-on,
+.fbtn.loading .icon-off {
+  display: none;
+}
+
+.fbtn.loading .icon-loading {
+  display: inline-block;
+}
+
+.fbtn.loading {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .fbtn.danger {
   background: var(--danger);
   border-color: var(--danger);

@@ -1171,6 +1171,17 @@ async function buildMicGraph() {
   mic.track = mic.dest.stream.getAudioTracks()[0];
 }
 
+// Rebuilds just the graph's output node (and the track that publishes from
+// it) after LiveKit has stopped the old one -- everything upstream (the
+// AudioContext, gain, gate/analyser) is untouched and still running.
+function rebuildMicDestination() {
+  const from = mic.gate || mic.level;
+  from.disconnect(mic.dest);
+  mic.dest = mic.ctx.createMediaStreamDestination();
+  from.connect(mic.dest);
+  mic.track = mic.dest.stream.getAudioTracks()[0];
+}
+
 async function openMic() {
   let stream;
   try {
@@ -1183,6 +1194,13 @@ async function openMic() {
   }
   const raw = stream.getAudioTracks()[0];
   if (!mic.ctx) await buildMicGraph();
+  // LiveKit's room.disconnect() (called on every reconnectTo(), including
+  // every aside/private step and the return from one) stops the underlying
+  // MediaStreamTrack of whatever was published -- our processed track from
+  // the Web Audio graph included. A stopped track can never restart, so
+  // without this the mic would go dead the moment you first stepped aside
+  // and stay dead for the rest of the session.
+  else if (!mic.track || mic.track.readyState === 'ended') rebuildMicDestination();
   if (mic.source) mic.source.disconnect();
   if (mic.raw) mic.raw.stop();
   mic.raw = raw;
@@ -1380,6 +1398,12 @@ room
     $('back-to-table').hidden = true;
     asideSelection.clear();
     updateAsideConfirm();
+    // Not setAway(false): that would try to re-enable mic/camera on a
+    // participant that's already gone. Just drop the stale state so the
+    // next room starts clean, not still marked away from the last one.
+    isAway = false;
+    $('away-toggle').classList.remove('off');
+    $('away-toggle').title = 'Away: pauses your mic and camera and lets everyone know';
     for (const [, tile] of tiles) tile.remove();
     tiles.clear();
     for (const [, tile] of ghostTiles) tile.remove();
@@ -1608,18 +1632,43 @@ async function toggleMic() {
   reflectMic();
 }
 
+let camToggling = false;
 async function toggleCam() {
+  // getUserMedia (plus the retry above) can take a moment -- without this
+  // guard a quick double-tap fires a second toggle before the first one has
+  // actually turned the camera on, landing on whichever finishes last.
+  if (camToggling) return;
+  camToggling = true;
+  $('cam').classList.add('loading');
   const enabled = !room.localParticipant.isCameraEnabled;
   try {
-    await room.localParticipant.setCameraEnabled(enabled);
+    await setCameraEnabledWithRetry(enabled);
     if (enabled && prefs.background !== 'none') await applyBackground(); // a fresh track on re-enable needs the processor reapplied
   } catch (err) {
     setStatus(`camera: ${err.message}`, true);
   }
+  camToggling = false;
+  $('cam').classList.remove('loading');
   const on = room.localParticipant.isCameraEnabled;
   $('cam').classList.toggle('on', on);
   $('cam').classList.toggle('off', !on);
   updateCamera(room.localParticipant);
+}
+
+// Right after a reconnectTo() (stepping into or back from an aside/private),
+// the camera device can still be a beat from actually releasing on the OS
+// side -- most often on mobile -- so the very next getUserMedia can fail
+// with NotReadableError even though nothing is really wrong. One short
+// retry covers that without making a real failure (denied permission, no
+// camera at all) wait needlessly.
+async function setCameraEnabledWithRetry(enabled) {
+  try {
+    await room.localParticipant.setCameraEnabled(enabled);
+  } catch (err) {
+    if (!enabled || err?.name !== 'NotReadableError') throw err;
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await room.localParticipant.setCameraEnabled(enabled);
+  }
 }
 
 // Desktop sharing: LiveKit's own screen-share track (getDisplayMedia under
@@ -2010,8 +2059,8 @@ async function openPopout() {
     // the tiles fit whatever size the window is dragged to.
     const size = prefs.popout || { w: 480, h: 300 };
     pipWindow = await window.documentPictureInPicture.requestWindow({
-      width: Math.max(240, Math.min(size.w, 1280)),
-      height: Math.max(120, Math.min(size.h, 720)),
+      width: Math.max(240, Math.min(size.w, screen.availWidth)),
+      height: Math.max(120, Math.min(size.h, screen.availHeight)),
     });
     for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
       pipWindow.document.head.appendChild(sheet.cloneNode(true));
@@ -2060,12 +2109,12 @@ function openOverlay(path) {
   const params = new URLSearchParams({ from: 'room', room: tableName });
   $('page-overlay-frame').src = `${path}${path.includes('?') ? '&' : '?'}${params}`;
   $('page-overlay-frame').hidden = false;
-  sendAway(true);
+  setAway(true);
 }
 function closeOverlay() {
   $('page-overlay-frame').hidden = true;
   $('page-overlay-frame').src = 'about:blank';
-  sendAway(false);
+  setAway(false);
 }
 window.closeProfileOverlay = closeOverlay; // called directly by the (same-origin) iframe
 
@@ -2126,6 +2175,39 @@ async function sendAway(on) {
     // best-effort: not worth surfacing to the person who just wants their profile
   }
 }
+
+// Away means away: nobody should be hearing or seeing you while your tile
+// says so. Set from two places -- opening your profile/Manage over the call
+// (openOverlay/closeOverlay above), and the away-toggle button for marking
+// yourself away on purpose. Whichever mic/camera were actually on get
+// remembered and only those come back when away turns back off, so someone
+// whose camera was already off before stepping away doesn't have it turned
+// on for them.
+let isAway = false;
+let awayRestoreMic = false;
+let awayRestoreCam = false;
+async function setAway(on) {
+  if (on === isAway) return;
+  isAway = on;
+  if (on) {
+    awayRestoreMic = !!room.localParticipant.isMicrophoneEnabled;
+    awayRestoreCam = !!room.localParticipant.isCameraEnabled;
+    if (awayRestoreMic) await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+    if (awayRestoreCam) await room.localParticipant.setCameraEnabled(false).catch(() => {});
+  } else {
+    if (awayRestoreMic) await room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+    if (awayRestoreCam) await setCameraEnabledWithRetry(true).catch(() => {});
+  }
+  reflectMic();
+  const camOn = room.localParticipant.isCameraEnabled;
+  $('cam').classList.toggle('on', camOn);
+  $('cam').classList.toggle('off', !camOn);
+  updateCamera(room.localParticipant);
+  $('away-toggle').classList.toggle('off', on);
+  $('away-toggle').title = on ? 'Back: unpause your mic and camera and let everyone know' : 'Away: pauses your mic and camera and lets everyone know';
+  await sendAway(on);
+}
+$('away-toggle').addEventListener('click', () => setAway(!isAway));
 
 // --- start --------------------------------------------------------------------
 
