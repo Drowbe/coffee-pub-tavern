@@ -593,21 +593,41 @@ function rememberOrder() {
   savePrefs();
 }
 
-const LAYOUTS = ['grid', 'strip', 'spotlight'];
-// Same icon on the floatbar's own layout button as its matching picker
-// button, so the button always shows the view you're actually in.
-const LAYOUT_ICONS = { grid: 'fa-solid fa-table-cells-large', strip: 'fa-solid fa-grip', spotlight: 'fa-regular fa-square' };
+const LAYOUTS = ['grid', 'strip', 'spotlight']; // the actual stored prefs.layout values
+// Four picker buttons over three real layouts: Focus and Spotlight are both
+// prefs.layout 'spotlight' underneath, one big tile either picked by hand
+// (pinned, or just first) or following whoever's speaking -- prefs.follow
+// is the only thing that differs between them.
+const VIEWS = [
+  { id: 'grid', layout: 'grid', icon: 'fa-solid fa-table-cells-large' },
+  { id: 'strip', layout: 'strip', icon: 'fa-solid fa-grip' },
+  { id: 'focus', layout: 'spotlight', follow: false, icon: 'fa-regular fa-square' },
+  { id: 'spotlight', layout: 'spotlight', follow: true, icon: 'fa-brands fa-square-web-awesome' },
+];
 
-function syncLayoutPick() {
-  for (const b of $('layout-pick').children) b.classList.toggle('selected', b.dataset.layout === prefs.layout);
-  $('layout-glyph').className = `${LAYOUT_ICONS[prefs.layout]} fa-fw`;
+function currentViewId() {
+  if (prefs.layout === 'spotlight') return prefs.follow ? 'spotlight' : 'focus';
+  return LAYOUTS.includes(prefs.layout) ? prefs.layout : 'grid';
 }
 
-function setLayout(layout, announce = false) {
-  prefs.layout = LAYOUTS.includes(layout) ? layout : 'grid';
+function syncLayoutPick() {
+  const id = currentViewId();
+  for (const b of $('layout-pick').children) b.classList.toggle('selected', b.dataset.view === id);
+  $('layout-glyph').className = `${VIEWS.find((v) => v.id === id).icon} fa-fw`;
+}
+
+function setView(id) {
+  const view = VIEWS.find((v) => v.id === id) || VIEWS[0];
+  prefs.layout = view.layout;
+  if ('follow' in view) prefs.follow = view.follow;
   savePrefs();
   syncLayoutPick();
   applyLayout();
+}
+
+function cycleView() {
+  const id = currentViewId();
+  setView(VIEWS[(VIEWS.findIndex((v) => v.id === id) + 1) % VIEWS.length].id);
 }
 
 function applyLayout() {
@@ -1451,6 +1471,7 @@ room
     ghostTiles.clear();
     stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
+    $('chat-delete-overlay').hidden = true;
     toggleChat(false);
     toggleTray(false);
     loadTable();
@@ -1898,6 +1919,16 @@ window.addEventListener('beforeunload', () => room.disconnect());
 $('chat-toggle').addEventListener('click', () => toggleChat());
 $('chat-close').addEventListener('click', () => toggleChat(false));
 $('chat-save').addEventListener('click', saveChat);
+$('chat-delete').addEventListener('click', () => { $('chat-delete-overlay').hidden = false; });
+$('chat-delete-cancel').addEventListener('click', () => { $('chat-delete-overlay').hidden = true; });
+$('chat-delete-confirm').addEventListener('click', () => {
+  chatLog.length = 0;
+  $('messages').textContent = '';
+  unread = 0;
+  $('chat-badge').hidden = true;
+  if (currentRoom) localStorage.removeItem(chatHistoryKey(currentRoom.id));
+  $('chat-delete-overlay').hidden = true;
+});
 $('chat-pic').addEventListener('click', () => $('chat-file').click());
 $('chat-file').addEventListener('change', () => {
   for (const f of imageFiles($('chat-file').files)) sendImage(f);
@@ -1952,15 +1983,10 @@ $('chat-form').addEventListener('submit', async (event) => {
   }
 });
 
-$('layout').addEventListener('click', () => setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true));
+$('layout').addEventListener('click', cycleView);
 $('layout-pick').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-layout]');
-  if (b) setLayout(b.dataset.layout);
-});
-$('follow-speaker').addEventListener('change', (e) => {
-  prefs.follow = e.target.checked;
-  savePrefs();
-  applyLayout();
+  const b = e.target.closest('[data-view]');
+  if (b) setView(b.dataset.view);
 });
 window.addEventListener('resize', applyLayout);
 
@@ -2058,9 +2084,10 @@ function onKey(event) {
   else if (key === 'v') toggleCam();
   else if (key === 'd') toggleDeafen();
   else if (key === 'c') toggleChat();
-  else if (key === 'l') setLayout(LAYOUTS[(LAYOUTS.indexOf(prefs.layout) + 1) % LAYOUTS.length], true);
+  else if (key === 'l') cycleView();
   else if (key === 'r') toggleTray();
   else if (key === 's' && !$('screen-share').hidden) toggleScreenShare();
+  else if (key === 'f') toggleFullscreen();
   else if (/^[1-6]$/.test(key)) sendReaction(REACTION_KEYS[Number(key) - 1]);
   else return;
   event.preventDefault();
@@ -2086,7 +2113,11 @@ syncViewportHeight();
 // panel's bottom edge sits above however tall the toolbar actually ended
 // up, not a fixed guess that assumed a single row.
 new ResizeObserver(([entry]) => {
-  document.documentElement.style.setProperty('--floatbar-h', `${Math.ceil(entry.contentRect.height)}px`);
+  // Not entry.contentRect -- that's the padding-excluded content box by
+  // spec, which undercounted the floatbar's own top/bottom padding and
+  // left the chat panel's bottom edge sitting under the toolbar instead of
+  // above it. offsetHeight is the real on-screen height, padding and all.
+  document.documentElement.style.setProperty('--floatbar-h', `${entry.target.offsetHeight}px`);
 }).observe($('floatbar'));
 
 // --- floating controls: show on movement, hide when the pointer rests --------
@@ -2120,6 +2151,25 @@ function watchOutsideClick(doc) {
   });
 }
 watchOutsideClick(document);
+
+// --- full screen ---------------------------------------------------------------
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {});
+  } else {
+    document.documentElement.requestFullscreen().catch((err) => setStatus(`full screen: ${err.message}`, true));
+  }
+}
+// Not just the click handler -- covers Esc and any other way the browser
+// itself might leave full screen, so the button's icon never gets stuck
+// showing the wrong state.
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  $('fullscreen-toggle').classList.toggle('on', on);
+  $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
+});
+$('fullscreen-toggle').addEventListener('click', toggleFullscreen);
 
 // --- install as an app / pop out ------------------------------------------------
 
@@ -2172,6 +2222,7 @@ function openPopout() {
     if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
     pipWindow.addEventListener('load', () => setUpPopoutWindow(pipWindow), { once: true });
     $('popout').classList.add('on');
+    $('chat-popout').classList.add('on');
   } catch (err) {
     setStatus(`pop out: ${err.message}`, true);
   }
@@ -2203,6 +2254,7 @@ function setUpPopoutWindow(win) {
     $('away').hidden = true;
     pipWindow = null;
     $('popout').classList.remove('on');
+    $('chat-popout').classList.remove('on');
     wake();
   });
 }
@@ -2210,8 +2262,10 @@ function closePopout() {
   if (pipWindow) pipWindow.close();
 }
 $('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
+$('chat-popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
 $('bring-back').addEventListener('click', closePopout);
 $('popout').hidden = false;
+$('chat-popout').hidden = false;
 
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),
@@ -2352,10 +2406,13 @@ function populateCallSettingsUI() {
 async function init() {
   const branding = await loadBranding();
   tableName = branding.tableName || tableName;
+  // The topbar dropped its own version readout -- too cramped alongside
+  // everything else there. It's in the title bar instead, which reads as
+  // the room's real native window title once installed as an app.
+  if (branding.version) document.title += ` — ${branding.version}`;
   renderReactionTray(branding.reactions);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
   syncLayoutPick();
-  $('follow-speaker').checked = prefs.follow;
   populateCallSettingsUI();
   applyLayout();
   const hint = describeInstall();

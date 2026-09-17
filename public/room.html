@@ -28,7 +28,6 @@
       <a class="whoami" id="whoami-link" href="/profile" data-overlay-link title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <a class="icon-link" href="/admin" id="admin-link" data-overlay-link title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <a class="icon-link" id="logout-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
-      <span class="version" data-brand="version"></span>
     </nav>
   </header>
 
@@ -86,6 +85,15 @@
       <span class="status" id="status"></span>
     </div>
 
+    <!-- Corner controls over the video area itself, not the toolbar --
+         full screen and pop out both change the whole window, not the call,
+         so they read as page-level controls the way other video apps place
+         them rather than living among the call's own mic/camera buttons. -->
+    <div class="float video-tools" id="video-tools">
+      <button class="vtool-btn" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
+      <button class="vtool-btn" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window" hidden><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>
+    </div>
+
     <!-- Admin only: shown once one or more tiles are picked with the door
          icon, to confirm pulling all of them aside together. A centered
          overlay (not a small edge-of-screen pill) so the choice is
@@ -121,27 +129,26 @@
     <div class="float floatbar" id="floatbar">
       <div class="fbtn-wrap">
         <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>
-        <button class="fbtn-caret" type="button" data-settings="mic" title="Microphone settings" aria-label="Microphone settings">&#94;</button>
+        <button class="fbtn-caret" type="button" data-settings="mic" title="Microphone settings" aria-label="Microphone settings"><i class="fa-solid fa-square-caret-up" aria-hidden="true"></i></button>
       </div>
       <div class="fbtn-wrap">
         <button class="fbtn" id="deafen" type="button" title="Mute what you hear (D)"><span class="glyph"><i class="fa-solid fa-volume-high fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-volume-xmark fa-fw icon-off" aria-hidden="true"></i></span></button>
-        <button class="fbtn-caret" type="button" data-settings="audio" title="Audio output settings" aria-label="Audio output settings">&#94;</button>
+        <button class="fbtn-caret" type="button" data-settings="audio" title="Audio output settings" aria-label="Audio output settings"><i class="fa-solid fa-square-caret-up" aria-hidden="true"></i></button>
       </div>
       <div class="fbtn-wrap">
         <button class="fbtn" id="cam" type="button" title="Camera (V)"><span class="glyph"><i class="fa-solid fa-video fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-video-slash fa-fw icon-off" aria-hidden="true"></i><i class="fa-solid fa-spinner fa-spin fa-fw icon-loading" aria-hidden="true"></i></span></button>
-        <button class="fbtn-caret" type="button" data-settings="camera" title="Camera settings" aria-label="Camera settings">&#94;</button>
+        <button class="fbtn-caret" type="button" data-settings="camera" title="Camera settings" aria-label="Camera settings"><i class="fa-solid fa-square-caret-up" aria-hidden="true"></i></button>
       </div>
       <button class="fbtn" id="screen-share" type="button" title="Share your screen (S)" hidden><span class="glyph"><i class="fa-solid fa-desktop fa-fw" aria-hidden="true"></i></span></button>
       <div class="fbtn-wrap">
         <button class="fbtn" id="layout" type="button" title="Layout (L): grid, strip or spotlight"><span class="glyph"><i class="fa-solid fa-table-cells-large fa-fw" id="layout-glyph" aria-hidden="true"></i></span></button>
-        <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings">&#94;</button>
+        <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings"><i class="fa-solid fa-square-caret-up" aria-hidden="true"></i></button>
       </div>
       <button class="fbtn" id="away-toggle" type="button" title="Away: pauses your mic and camera and lets everyone know"><span class="glyph"><i class="fa-solid fa-circle-user fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-moon fa-fw icon-off" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)"><span class="glyph"><i class="fa-solid fa-comment fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="room-link" type="button" title="Open this room's link" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
-      <button class="fbtn" id="popout" type="button" title="Pop out into its own window" hidden><span class="glyph"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
     </div>
 
@@ -150,11 +157,23 @@
       <header>
         <span>Chat</span>
         <span class="chat-tools">
+          <button class="msg-btn" id="chat-popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window" hidden><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-save" type="button" title="Save the chat as a text file" aria-label="Save the chat"><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="chat-delete" type="button" title="Clear the chat" aria-label="Clear the chat"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-close" type="button" title="Close" aria-label="Close chat"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>
         </span>
       </header>
       <div class="messages" id="messages"></div>
+      <!-- Covers just the chat panel, not the whole stage -- clearing chat
+           is scoped to this one room and this one browser, not a table-wide
+           action, so the confirmation shouldn't read as bigger than it is. -->
+      <div class="chat-delete-overlay" id="chat-delete-overlay" hidden>
+        <p>Clear this chat? It disappears from your view and this browser's saved history for this room -- not for anyone else, and not what's already been said out loud.</p>
+        <div class="chat-delete-overlay-actions">
+          <button class="btn btn-danger btn-small" id="chat-delete-confirm" type="button"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i> Clear chat</button>
+          <button class="btn btn-small" id="chat-delete-cancel" type="button">Cancel</button>
+        </div>
+      </div>
       <p class="hint chat-hint">**bold**, *italic*, `code` and links work. Paste or drop a picture to send it.</p>
       <form id="chat-form">
         <button class="msg-btn" id="chat-pic" type="button" title="Send a picture" aria-label="Send a picture"><i class="fa-solid fa-image fa-fw" aria-hidden="true"></i></button>
@@ -205,13 +224,12 @@
       </div>
       <div class="settings-group" data-group="layout">
         <h3>Layout</h3>
-        <span class="field-label">Layout</span>
         <div class="layout-pick" id="layout-pick" role="group" aria-label="Layout">
-          <button type="button" data-layout="grid"><i class="fa-solid fa-table-cells-large fa-fw" aria-hidden="true"></i> Grid</button>
-          <button type="button" data-layout="strip" title="Strip: one row or column"><i class="fa-solid fa-grip fa-fw" aria-hidden="true"></i> Strip</button>
-          <button type="button" data-layout="spotlight" title="Spotlight: one big, rest small"><i class="fa-regular fa-square fa-fw" aria-hidden="true"></i> Spotlight</button>
+          <button type="button" data-view="grid"><i class="fa-solid fa-table-cells-large fa-fw" aria-hidden="true"></i> Grid</button>
+          <button type="button" data-view="strip" title="Strip: one row or column"><i class="fa-solid fa-grip fa-fw" aria-hidden="true"></i> Strip</button>
+          <button type="button" data-view="focus" title="Focus: one big tile, pinned or picked by hand"><i class="fa-regular fa-square fa-fw" aria-hidden="true"></i> Focus</button>
+          <button type="button" data-view="spotlight" title="Spotlight: one big tile that follows whoever is speaking"><i class="fa-brands fa-square-web-awesome fa-fw" aria-hidden="true"></i> Spotlight</button>
         </div>
-        <label class="check"><input type="checkbox" id="follow-speaker" checked> Spotlight follows whoever is speaking</label>
         <p class="hint">Drag tiles to reorder them. Click a tile to spotlight it. Hover a tile for its volume.</p>
       </div>
       <div class="settings-group" data-group="more">

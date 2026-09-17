@@ -84,7 +84,7 @@ a:hover {
 }
 
 .brand span {
-  font-size: 20px;
+  font-size: 17px;
 }
 
 .status {
@@ -587,7 +587,7 @@ input[type="range"] {
 .links {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   font-size: 13px;
   color: var(--text-dim);
 }
@@ -1155,7 +1155,7 @@ body.at-table .topbar {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 400;
 }
 
@@ -1273,6 +1273,54 @@ body.at-table .topbar {
   display: flex;
 }
 
+/* Full screen and pop out sit over the video area's own corner, like other
+   video apps, rather than among the call's mic/camera controls -- both
+   change the whole window, not anything about the call itself. */
+.video-tools {
+  top: 10px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+/* The popped-out window already has its own small, minimal pill of
+   controls (see .popout .floatbar) -- full screen and a pop-out-of-the-
+   pop-out button would just clutter a window this size. */
+.popout .video-tools {
+  display: none;
+}
+
+.vtool-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vtool-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--accent);
+}
+
+.vtool-btn .icon-off {
+  display: none;
+}
+
+.vtool-btn.on .icon-on {
+  display: none;
+}
+
+.vtool-btn.on .icon-off {
+  display: inline-block;
+}
+
 /* docked: a full-width bar at the bottom of the page */
 .floatbar {
   position: static;
@@ -1350,15 +1398,15 @@ body.at-table .topbar {
 
 .fbtn-caret {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: 3px;
+  right: 3px;
   z-index: 2;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: #33281f;
+  border: none;
+  border-radius: 4px;
+  background: var(--border);
   color: var(--text-dim);
   font-size: 11px;
   line-height: 1;
@@ -1446,6 +1494,13 @@ body.at-table .topbar {
   transition: height 0.08s linear;
 }
 
+/* The meter still tracks your real input level while muted (so you can see
+   you're talking before you unmute), but a green fill there read as "still
+   live" -- red matches the muted icon/border instead. */
+.fbtn.off .meter {
+  background: rgba(184, 80, 63, 0.55);
+}
+
 .fbtn .badge {
   position: absolute;
   top: 4px;
@@ -1473,6 +1528,32 @@ body.at-table .topbar {
   flex-direction: column;
   background: rgba(26, 20, 16, 0.96);
   border-left: 1px solid var(--border);
+}
+
+/* Covers just the chat panel, not the whole stage -- see the markup comment
+   in room.html for why. */
+.chat-delete-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.chat-delete-overlay p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.chat-delete-overlay-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }
 
 /* a thin strip over the chat's left edge, to drag it wider or narrower */
@@ -1520,6 +1601,10 @@ body.at-table .topbar {
 .msg-btn:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.msg-btn.on {
+  color: var(--accent);
 }
 
 .chat.drop {
@@ -1675,11 +1760,11 @@ body.at-table .topbar {
     height: 40px;
   }
   .fbtn-caret {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     font-size: 9px;
-    top: -5px;
-    right: -5px;
+    top: 2px;
+    right: 2px;
   }
 }
 
@@ -2051,11 +2136,11 @@ body.at-table .topbar {
 }
 
 .stage.compact .fbtn-caret {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   font-size: 8px;
-  top: -4px;
-  right: -4px;
+  top: 2px;
+  right: 2px;
 }
 
 .stage.compact .status-float {
