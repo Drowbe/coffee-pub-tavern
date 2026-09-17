@@ -2160,40 +2160,51 @@ function describeInstall() {
 function openPopout() {
   try {
     // Open small (or at the last size used) so it fits beside the game;
-    // the tiles fit whatever size the window is dragged to.
+    // the tiles fit whatever size the window is dragged to. Pointed at a
+    // real (empty) page of ours rather than '' -- a blank popup's address
+    // strip reads "about:blank", which looks broken; this way it reads our
+    // own domain, which at least looks intentional. Either way the strip
+    // itself can't be suppressed (see the comment above).
     const size = prefs.popout || { w: 480, h: 300 };
     const width = Math.max(240, Math.min(size.w, screen.availWidth));
     const height = Math.max(120, Math.min(size.h, screen.availHeight));
-    pipWindow = window.open('', 'tavern-popout', `popup,width=${width},height=${height}`);
+    pipWindow = window.open('/popout.html', 'tavern-popout', `popup,width=${width},height=${height}`);
     if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
-    pipWindow.document.title = tableName;
-    for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
-      pipWindow.document.head.appendChild(sheet.cloneNode(true));
-    }
-    pipWindow.document.body.className = 'at-table popout';
-    pipWindow.document.body.appendChild($('stage')); // moving the node adopts it into the new document, video/audio and all
-    $('away').hidden = false;
-    watchPointer(pipWindow.document);
-    watchOutsideClick(pipWindow.document);
-    pipWindow.document.addEventListener('keydown', onKey);
-    pipWindow.document.addEventListener('keyup', onKeyUp);
-    pipWindow.addEventListener('resize', () => {
-      prefs.popout = { w: pipWindow.innerWidth, h: pipWindow.innerHeight };
-      savePrefs();
-      applyLayout();
-    });
-    setTimeout(applyLayout, 50);
-    pipWindow.addEventListener('pagehide', () => {
-      document.body.appendChild($('stage'));
-      $('away').hidden = true;
-      pipWindow = null;
-      $('popout').classList.remove('on');
-      wake();
-    });
+    pipWindow.addEventListener('load', () => setUpPopoutWindow(pipWindow), { once: true });
     $('popout').classList.add('on');
   } catch (err) {
     setStatus(`pop out: ${err.message}`, true);
   }
+}
+
+// Runs once /popout.html has actually finished loading in the new window --
+// moving the stage in before then would land it in that page's own
+// about:blank-era document, which the real navigation throws away.
+function setUpPopoutWindow(win) {
+  win.document.title = tableName;
+  for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
+    win.document.head.appendChild(sheet.cloneNode(true));
+  }
+  win.document.body.className = 'at-table popout';
+  win.document.body.appendChild($('stage')); // moving the node adopts it into the new document, video/audio and all
+  $('away').hidden = false;
+  watchPointer(win.document);
+  watchOutsideClick(win.document);
+  win.document.addEventListener('keydown', onKey);
+  win.document.addEventListener('keyup', onKeyUp);
+  win.addEventListener('resize', () => {
+    prefs.popout = { w: win.innerWidth, h: win.innerHeight };
+    savePrefs();
+    applyLayout();
+  });
+  setTimeout(applyLayout, 50);
+  win.addEventListener('pagehide', () => {
+    document.body.appendChild($('stage'));
+    $('away').hidden = true;
+    pipWindow = null;
+    $('popout').classList.remove('on');
+    wake();
+  });
 }
 function closePopout() {
   if (pipWindow) pipWindow.close();
