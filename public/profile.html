@@ -22,14 +22,12 @@
   </header>
 
   <main class="admin">
-    <nav class="subtabs section-nav">
-      <a class="subtab" href="#section-account">Account</a>
-      <a class="subtab" href="#section-background">Background</a>
-      <a class="subtab" href="#section-call">Call Settings</a>
-      <a class="subtab" href="#section-images">Default Profile Images</a>
+    <nav class="subtabs" id="subtabs">
+      <button class="subtab active" data-tab="profile" type="button">Profile</button>
+      <button class="subtab" data-tab="rooms" type="button">Rooms</button>
     </nav>
 
-    <div class="tab-stack">
+    <section class="tab-stack" id="tab-profile">
       <section class="panel" id="section-account">
         <div class="profile-head">
           <div class="slot" id="portrait-slot"><div class="slot-pick-wrap"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="portrait-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
@@ -160,9 +158,11 @@
           <span class="hint">Coffee Pub Studio makes these sources for you; copy a link only to add one by hand.</span>
         </div>
       </section>
+    </section>
 
+    <section class="tab-stack" id="tab-rooms" hidden>
       <div id="room-sections"></div>
-    </div>
+    </section>
   </main>
 
   <template id="room-section-template">

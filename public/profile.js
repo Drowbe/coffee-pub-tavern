@@ -183,10 +183,6 @@ function buildRoomSection(roomId) {
   section.id = `section-room-${roomId}`;
   section.dataset.room = roomId;
   $('room-sections').appendChild(section);
-  const link = document.createElement('a');
-  link.className = 'subtab';
-  link.href = `#section-room-${roomId}`;
-  document.querySelector('.section-nav').appendChild(link);
   return section;
 }
 
@@ -196,7 +192,6 @@ function fillRoomSection(section, room, roomImages) {
   section.querySelector('.room-section-hint').textContent = editing
     ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Profile Images above.`
     : `Your images just for ${room.name}. Anything left unset here uses your Default Profile Images above.`;
-  document.querySelector(`a[href="#section-room-${room.id}"]`).textContent = room.name;
 
   const allowed = ROOM_PROFILE_SLOTS[room.profile] || ROOM_PROFILE_SLOTS.roleplaying;
   section.querySelector('[data-group="participant"]').hidden = !PARTICIPANT_SLOTS.some((s) => allowed.includes(s));
@@ -227,7 +222,6 @@ function renderRoomSections() {
   }
   for (const section of [...$('room-sections').children]) {
     if (keep.has(section.dataset.room)) continue;
-    document.querySelector(`a[href="#section-room-${section.dataset.room}"]`)?.remove();
     section.remove();
   }
 }
@@ -471,6 +465,21 @@ $('delete-btn').addEventListener('click', () => run(async () => {
   location.href = '/admin';
 }));
 
+// Profile / Rooms tabs, remembered in the address -- same pattern as
+// admin.html's Users/Rooms/Settings tabs.
+function selectTab(name) {
+  const tab = name === 'rooms' ? 'rooms' : 'profile';
+  $('tab-profile').hidden = tab !== 'profile';
+  $('tab-rooms').hidden = tab !== 'rooms';
+  for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
+  if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+}
+$('subtabs').addEventListener('click', (event) => {
+  const b = event.target.closest('.subtab');
+  if (b) selectTab(b.dataset.tab);
+});
+window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
+
 async function init() {
   await loadBranding();
   wireOverlayBack();
@@ -489,5 +498,6 @@ async function init() {
   }
   document.title = `${document.title.split(' - ')[0]} - ${user.displayName}`;
   render();
+  selectTab(location.hash.slice(1));
 }
 init();
