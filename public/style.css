@@ -1405,10 +1405,9 @@ body.at-table .topbar {
   height: 16px;
   padding: 0;
   border: none;
-  border-radius: 4px;
-  background: var(--border);
+  background: none;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -1418,8 +1417,7 @@ body.at-table .topbar {
 
 .fbtn-caret:hover,
 .fbtn-caret.on {
-  background: var(--accent);
-  color: #1a1206;
+  color: var(--accent);
 }
 
 .fbtn:hover {
@@ -1762,7 +1760,7 @@ body.at-table .topbar {
   .fbtn-caret {
     width: 14px;
     height: 14px;
-    font-size: 9px;
+    font-size: 12px;
     top: 2px;
     right: 2px;
   }
@@ -2138,7 +2136,7 @@ body.at-table .topbar {
 .stage.compact .fbtn-caret {
   width: 13px;
   height: 13px;
-  font-size: 8px;
+  font-size: 11px;
   top: 2px;
   right: 2px;
 }
