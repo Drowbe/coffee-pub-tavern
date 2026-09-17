@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -565,6 +565,7 @@ $('stream-regen').addEventListener('click', async () => {
 });
 
 async function init() {
+  renderTopbar();
   await loadBranding();
   wireOverlayBack('Rooms');
   try {

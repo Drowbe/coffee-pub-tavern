@@ -10,16 +10,7 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
-    <nav class="links">
-      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <a class="icon-link" href="/" target="_top" title="Back to the table" aria-label="Back to the table"><i class="fa-solid fa-house fa-fw" aria-hidden="true"></i></a>
-      <a class="icon-link" href="/admin" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
-      <span class="version" data-brand="version"></span>
-    </nav>
-  </header>
+  <header class="topbar"></header>
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
@@ -33,7 +24,6 @@
           <div class="slot" id="portrait-slot"><div class="slot-pick-wrap"><label class="slot-pick big" title="Click to change your image"><img id="portrait" alt=""><span class="unset">not set</span><input type="file" id="portrait-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="portrait-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
             <h1 id="name"></h1>
-            <span class="tag" id="editing-tag" hidden>Editing as admin</span>
             <p class="hint" id="portrait-hint"></p>
             <p class="status" id="status"></p>
           </div>
@@ -45,25 +35,26 @@
           <div class="fact"><span class="fact-key">Username</span><span class="fact-value" id="f-login"></span></div>
           <div class="fact"><span class="fact-key">Role</span><span class="fact-value" id="f-role"></span></div>
           <div class="fact"><span class="fact-key">Password</span><span class="fact-value" id="f-password"></span></div>
-          <div class="fact"><span class="fact-key">Personal link</span><span class="fact-value" id="f-link"></span></div>
         </div>
-        <div class="fields" id="account-fields" hidden>
-          <label>Display name<input id="e-name" type="text" maxlength="40"></label>
-          <label>Username<input id="e-login" type="text" maxlength="40" autocapitalize="off"></label>
-          <label>Role<select id="e-role"><option value="user">User</option><option value="admin">Admin</option></select><small class="hint" id="e-role-note" hidden>The only admin. Make someone else an admin first.</small></label>
-          <label>New password<input id="e-password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
+        <div class="facts" id="account-fields" hidden>
+          <label class="fact">Display name<input id="e-name" type="text" maxlength="40"></label>
+          <label class="fact">Username<input id="e-login" type="text" maxlength="40" autocapitalize="off"></label>
+          <label class="fact">Role<select id="e-role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+          <label class="fact">New password<input id="e-password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
         </div>
         <div class="row" id="account-save-row" hidden>
           <button class="btn btn-primary btn-small" id="account-save" type="button">Save</button>
           <button class="btn btn-small" id="account-clear-password" type="button">Remove password</button>
           <span class="status" id="account-status"></span>
         </div>
-        <div class="row" id="link-row" hidden>
+        <div class="row" id="link-row">
           <span class="field-label">Personal link</span>
           <code class="key link" id="link-value">off</code>
           <button class="btn btn-small" id="link-copy" type="button">Copy</button>
-          <button class="btn btn-small" id="link-new" type="button">Create</button>
-          <button class="btn btn-small btn-danger" id="link-off" type="button">Turn off</button>
+          <span id="link-edit-actions" hidden>
+            <button class="btn btn-small" id="link-new" type="button">Create</button>
+            <button class="btn btn-small btn-danger" id="link-off" type="button">Turn off</button>
+          </span>
         </div>
 
         <div class="row danger-row" id="danger-row" hidden>

@@ -2,7 +2,7 @@
 // set. An admin visiting /profile/<key> gets the same page in edit mode
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
-import { loadBranding, api, wireOverlayBack } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
@@ -104,37 +104,39 @@ function render() {
   }
 
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
-  $('editing-tag').hidden = !editing;
   $('portrait-hint').textContent = editing
     ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile at the table. Click it to change it -- it is not the picture used in the recording, that's below.`
     : 'Your own photo: it shows next to your name in the header and on your tile at the table. Click it to change it; square images look best. It is not the picture used in the recording — your admin sets that.';
 
-  // Account: read-only facts normally, editable fields for an admin.
+  // Account: read-only facts normally, editable fields for an admin. Same
+  // boxed layout either way (see .facts/.fact in style.css) -- only
+  // whether a box holds plain text or an input changes.
   $('account-facts').hidden = editing;
   $('account-fields').hidden = !editing;
   $('account-save-row').hidden = !editing;
-  $('link-row').hidden = !editing;
   $('account-hint').hidden = editing;
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
     $('f-role').textContent = user.role === 'admin' ? 'Admin: runs the table' : 'Player';
     $('f-password').textContent = user.hasPassword ? 'Set. Only an admin can change it.' : 'None. You sign in with your personal link.';
-    $('f-link').textContent = user.link ? 'On. Your admin can send it to you again or turn it off.' : 'Off. You sign in with your login and password.';
   } else if (document.activeElement?.closest?.('#account-fields') == null) {
     $('e-name').value = user.displayName;
     $('e-login').value = user.login;
     $('e-role').value = user.role;
     // The last admin cannot be demoted, and neither can the admin editing
-    // their own account here -- say so before the click.
+    // their own account here -- the disabled option itself says enough.
     const self = me && user.key === me.key;
     $('e-role').querySelector('option[value="user"]').disabled = self;
-    $('e-role-note').hidden = !self;
-    if (self) $('e-role-note').textContent = 'Another admin has to change your role.';
     $('account-clear-password').hidden = !user.hasPassword;
-    $('link-value').textContent = user.link || 'off';
-    $('link-value').classList.toggle('dim', !user.link);
-    $('link-copy').hidden = !user.link;
+  }
+  // Seeing and copying your own link isn't an editing action -- only
+  // creating, regenerating or turning it off is.
+  $('link-value').textContent = user.link || 'off';
+  $('link-value').classList.toggle('dim', !user.link);
+  $('link-copy').hidden = !user.link;
+  $('link-edit-actions').hidden = !editing;
+  if (editing) {
     $('link-off').hidden = !user.link;
     $('link-new').textContent = user.link ? 'Regenerate' : 'Create';
   }
@@ -481,6 +483,7 @@ $('subtabs').addEventListener('click', (event) => {
 window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 
 async function init() {
+  renderTopbar({ install: true });
   await loadBranding();
   wireOverlayBack();
   try {

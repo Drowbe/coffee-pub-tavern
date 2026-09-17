@@ -297,7 +297,7 @@ function renderRooms() {
     }
     const members = r.members.map((k) => tableUsers.get(k)).filter(Boolean);
     const here = members.filter((u) => u.online && u.room === r.id).length;
-    card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : here ? `${here} of ${members.length} here now` : `${members.length} member${members.length === 1 ? '' : 's'}`;
+    card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
     renderMembers(card.querySelector('.members'), members, r.id);
   }
   for (const card of [...list.children]) if (!keep.has(card.dataset.room)) card.remove();

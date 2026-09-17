@@ -33,6 +33,47 @@ export async function loadBranding() {
   return b;
 }
 
+// One header, built once here, used by every page that isn't the table
+// itself (room.html keeps its own -- it carries live-call controls a
+// generic header has no business knowing about). Fixing something here
+// reaches every page that calls it, rather than needing the same edit
+// copy-pasted into each page's own markup.
+export function renderTopbar({ install = false, adminHref = '/admin' } = {}) {
+  const header = document.querySelector('.topbar');
+  if (!header) return;
+  header.innerHTML = `
+    <div class="brand"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub Tavern</span></div>
+    <nav class="links">
+      <a class="whoami" href="/profile" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
+      <a class="icon-link" href="/" target="_top" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="${adminHref}" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+      ${install ? '<button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>' : ''}
+      <a class="icon-link" href="/logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
+    </nav>
+  `;
+  if (install) wireInstall();
+}
+
+// Chrome/Edge's "Install as an app" prompt -- a chromeless window (Settings
+// > Install, or here) with none of a browser tab's own address bar or tab
+// strip. Shared so any page can offer it, not just the table.
+let installPromptEvent = null;
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPromptEvent = event;
+  document.getElementById('install-link')?.removeAttribute('hidden');
+});
+function wireInstall() {
+  if (installPromptEvent) document.getElementById('install-link')?.removeAttribute('hidden');
+  document.getElementById('install-link')?.addEventListener('click', async () => {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    await installPromptEvent.userChoice.catch(() => {});
+    installPromptEvent = null;
+    document.getElementById('install-link')?.setAttribute('hidden', '');
+  });
+}
+
 export async function api(method, url, body, contentType) {
   const headers = {};
   let payload = body;
@@ -69,7 +110,7 @@ export function wireOverlayBack(label) {
   back.type = 'button';
   back.className = 'btn btn-small';
   const room = params.get('room');
-  back.textContent = label ? `← Back to ${label}` : room ? `← Back to ${room}` : '← Back to the table';
+  back.textContent = label ? `← Back to ${label}` : room ? `← Back to ${room}` : '← Back';
   back.addEventListener('click', () => {
     try {
       window.parent.closeProfileOverlay?.();
