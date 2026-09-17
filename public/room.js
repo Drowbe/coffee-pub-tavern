@@ -416,6 +416,45 @@ function updateBackgroundPlaceholder(tile, key) {
   tile.style.setProperty('--pic-scale', user?.pictureScale || 100);
 }
 
+// Admin only, on hover: mute (toggles, reading the live mic state fresh on
+// each click rather than tracking our own copy of it) and kick. Neither
+// touches this browser's own call state, so no local UI besides the tile
+// itself needs updating -- the room's own presence/track events do that.
+function adminToolsFor(participant) {
+  const tools = document.createElement('div');
+  tools.className = 'tile-admin-tools';
+  const mute = document.createElement('button');
+  mute.type = 'button';
+  mute.className = 'tile-admin-btn';
+  mute.title = 'Mute';
+  mute.innerHTML = '<i class="fa-solid fa-microphone-slash fa-fw" aria-hidden="true"></i>';
+  mute.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const micPub = participant.getTrackPublication(Track.Source.Microphone);
+    try {
+      await api('POST', `/api/users/${encodeURIComponent(participant.identity)}/mute`, { muted: !micPub?.isMuted });
+    } catch (err) {
+      setStatus(`mute: ${err.message}`, true);
+    }
+  });
+  const kick = document.createElement('button');
+  kick.type = 'button';
+  kick.className = 'tile-admin-btn danger';
+  kick.title = 'Kick';
+  kick.innerHTML = '<i class="fa-solid fa-user-slash fa-fw" aria-hidden="true"></i>';
+  kick.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Kick ${participant.name || participant.identity} from the table? They can rejoin.`)) return;
+    try {
+      await api('POST', `/api/users/${encodeURIComponent(participant.identity)}/kick`);
+    } catch (err) {
+      setStatus(`kick: ${err.message}`, true);
+    }
+  });
+  tools.append(mute, kick);
+  return tools;
+}
+
 function tileFor(participant) {
   let tile = tiles.get(participant.identity);
   if (tile) return tile;
@@ -463,6 +502,12 @@ function tileFor(participant) {
       aside.classList.toggle('selected', asideSelection.has(participant.identity));
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
+    }
+    if (me?.role === 'admin') {
+      const tools = adminToolsFor(participant);
+      tools.addEventListener('pointerenter', () => (tile.draggable = false));
+      tools.addEventListener('pointerleave', () => (tile.draggable = true));
+      tile.appendChild(tools);
     }
   }
   tile.draggable = true;

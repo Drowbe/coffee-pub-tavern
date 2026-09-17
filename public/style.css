@@ -2023,6 +2023,53 @@ body.at-table .topbar {
   border-color: var(--accent);
 }
 
+/* Admin only, centered over the tile on hover: mute and kick. The
+   container itself doesn't capture clicks (pointer-events: none) so the
+   darkening scrim never blocks the volume slider or the aside button
+   underneath -- only the two buttons themselves are actually clickable. */
+.tile-admin-tools {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tile:hover .tile-admin-tools {
+  opacity: 1;
+}
+
+.tile-admin-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(20, 15, 12, 0.9);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.tile-admin-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tile-admin-btn.danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* Float a shared screen into its own always-on-top window (native video
    Picture-in-Picture), separate from the whole-stage pop out. */
 .tile-pip {
