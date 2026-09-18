@@ -304,7 +304,8 @@ const THEME_FIELDS = [
   ['theme-on-accent', '--on-accent', 'onAccent'],
 ];
 let themes = [];
-let activeThemeId = null;
+let activeThemeId = null; // what's actually live right now (persisted)
+let selectedThemeId = null; // whatever the dropdown/editor is showing -- may not be applied yet
 
 function currentThemeColor(cssVar) {
   return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
@@ -317,8 +318,8 @@ function loadThemeInputsFrom(theme) {
 // these seven with color-mix(), and that only recomputes for real when the
 // values it references change at the SAME element custom properties
 // inherit their already-resolved value, they don't re-substitute var() per
-// descendant. Root it is; this is exactly what activating a theme actually
-// does anyway, just not persisted yet.
+// descendant. Root it is; this only previews locally until Apply actually
+// persists it.
 function updateThemePreview() {
   const root = document.documentElement;
   for (const [id, cssVar] of THEME_FIELDS) root.style.setProperty(cssVar, $(id).value);
@@ -330,9 +331,9 @@ function clearThemePreview() {
 for (const [id] of THEME_FIELDS) $(id).addEventListener('input', updateThemePreview);
 // /theme.css only changes what the *server* sends on the *next* request --
 // this page's own <link> already fetched the old one. Re-pointing it at a
-// cache-busted URL and waiting for it to load is what makes switching
-// themes (or editing one) visibly repaint this page too, not just the next
-// page someone opens.
+// cache-busted URL and waiting for it to load is what makes actually
+// applying a theme visibly repaint this page too, not just the next page
+// someone opens.
 function reloadThemeStylesheet() {
   return new Promise((resolve) => {
     const link = $('theme-link');
@@ -346,28 +347,37 @@ function reloadThemeStylesheet() {
 function renderThemeChooser() {
   const select = $('theme-select');
   select.innerHTML = '<option value="">Default</option>' + themes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-  select.value = activeThemeId || '';
-  const active = themes.find((t) => t.id === activeThemeId);
-  $('theme-update-name').textContent = active ? active.name : '';
-  $('theme-update').hidden = !active;
-  $('theme-delete').hidden = !active;
+  select.value = selectedThemeId || '';
+  const selected = themes.find((t) => t.id === selectedThemeId);
+  $('theme-update-name').textContent = selected ? selected.name : '';
+  $('theme-update').hidden = !selected;
+  $('theme-delete').hidden = !selected;
+  $('theme-apply').disabled = selectedThemeId === activeThemeId;
 }
 async function loadThemes() {
   const data = await api('GET', '/api/themes');
   themes = data.themes;
   activeThemeId = data.activeThemeId;
+  selectedThemeId = activeThemeId;
   renderThemeChooser();
   loadThemeInputsFrom(themes.find((t) => t.id === activeThemeId) || null);
 }
-async function activateTheme(id) {
-  await saveSettings({ activeThemeId: id }, $('theme-status'));
+// Browsing the dropdown only previews -- it takes an explicit Apply to
+// actually persist and go live, rather than every click through the list
+// changing what everyone else sees.
+$('theme-select').addEventListener('change', () => {
+  selectedThemeId = $('theme-select').value || null;
+  renderThemeChooser();
+  loadThemeInputsFrom(themes.find((t) => t.id === selectedThemeId) || null);
+  updateThemePreview();
+});
+$('theme-apply').addEventListener('click', async () => {
+  await saveSettings({ activeThemeId: selectedThemeId }, $('theme-status'));
   await reloadThemeStylesheet();
   clearThemePreview();
-  activeThemeId = id;
+  activeThemeId = selectedThemeId;
   renderThemeChooser();
-  loadThemeInputsFrom(themes.find((t) => t.id === id) || null);
-}
-$('theme-select').addEventListener('change', () => activateTheme($('theme-select').value || null));
+});
 $('theme-save-new').addEventListener('click', async () => {
   const name = window.prompt('Name this theme:');
   if (!name) return;
@@ -376,36 +386,51 @@ $('theme-save-new').addEventListener('click', async () => {
   try {
     const { theme } = await api('POST', '/api/themes', { name, ...colors });
     themes.push(theme);
-    await activateTheme(theme.id);
-    say($('theme-status'), 'saved');
+    selectedThemeId = theme.id;
+    renderThemeChooser();
+    say($('theme-status'), 'saved -- Apply to go live');
   } catch (err) {
     say($('theme-status'), err.message, true);
   }
 });
 $('theme-update').addEventListener('click', async () => {
-  if (!activeThemeId) return;
+  if (!selectedThemeId) return;
   const colors = {};
   for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
   try {
-    const { theme } = await api('PATCH', `/api/themes/${activeThemeId}`, colors);
+    const { theme } = await api('PATCH', `/api/themes/${selectedThemeId}`, colors);
     themes = themes.map((t) => (t.id === theme.id ? theme : t));
-    await reloadThemeStylesheet();
-    clearThemePreview();
     renderThemeChooser();
-    loadThemeInputsFrom(theme);
+    // Only reapplies for real if this is the theme actually live right now
+    // -- editing a theme you're just browsing shouldn't make it live.
+    if (selectedThemeId === activeThemeId) {
+      await reloadThemeStylesheet();
+      clearThemePreview();
+    }
     say($('theme-status'), 'saved');
   } catch (err) {
     say($('theme-status'), err.message, true);
   }
 });
 $('theme-delete').addEventListener('click', async () => {
-  const active = themes.find((t) => t.id === activeThemeId);
-  if (!active) return;
-  if (!window.confirm(`Delete the theme "${active.name}"? This can't be undone.`)) return;
+  const selected = themes.find((t) => t.id === selectedThemeId);
+  if (!selected) return;
+  if (!window.confirm(`Delete the theme "${selected.name}"? This can't be undone.`)) return;
   try {
-    await api('DELETE', `/api/themes/${active.id}`);
-    themes = themes.filter((t) => t.id !== active.id);
-    await activateTheme(null);
+    await api('DELETE', `/api/themes/${selected.id}`);
+    themes = themes.filter((t) => t.id !== selected.id);
+    // The server already fell back activeThemeId to Default if this was
+    // the live one -- mirror that here rather than leaving a dangling
+    // reference to a theme that no longer exists.
+    const wasActive = activeThemeId === selected.id;
+    if (wasActive) activeThemeId = null;
+    selectedThemeId = activeThemeId;
+    renderThemeChooser();
+    loadThemeInputsFrom(themes.find((t) => t.id === selectedThemeId) || null);
+    if (wasActive) {
+      await reloadThemeStylesheet();
+      clearThemePreview();
+    }
     say($('theme-status'), 'deleted');
   } catch (err) {
     say($('theme-status'), err.message, true);
