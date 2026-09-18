@@ -2761,13 +2761,23 @@ function updateAwayOverlay(identity, on, message) {
   }
   if (overlay) {
     const custom = typeof message === 'string' ? message.trim().slice(0, 200) : '';
-    // The same bubble either way, so plain Away and a message look alike.
+    // Icon and AWAY on top; the message, if any, under them.
     overlay.textContent = '';
-    const bubble = document.createElement('span');
+    const bubble = document.createElement('div');
+    bubble.className = 'away-bubble';
+    const head = document.createElement('div');
+    head.className = 'away-head';
     const moon = document.createElement('i');
     moon.className = 'fa-solid fa-moon fa-fw'; // the same moon as the away button
     moon.setAttribute('aria-hidden', 'true');
-    bubble.append(moon, ' ', custom || 'Away');
+    head.append(moon, ' Away');
+    bubble.appendChild(head);
+    if (custom) {
+      const msg = document.createElement('div');
+      msg.className = 'away-msg';
+      msg.textContent = custom;
+      bubble.appendChild(msg);
+    }
     overlay.appendChild(bubble);
     overlay.classList.add('custom');
   }

@@ -2400,21 +2400,38 @@ a.crumb-here:hover {
   pointer-events: none;
 }
 
-/* A custom message sits on a dark bubble so it reads over any picture. */
+/* The away mark sits on a dark bubble so it reads over any picture: a bold
+   icon and AWAY, then the person's message under them if they left one. */
 .tile-away-overlay.custom {
   padding: 12px;
-  text-transform: none;
-  letter-spacing: normal;
-  font-size: 15px;
 }
 
-.tile-away-overlay.custom span {
+.away-bubble {
   max-width: 90%;
-  padding: 10px 14px;
+  padding: 10px 16px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.away-head {
+  font-size: 22px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+}
+
+.away-msg {
+  font-size: 15px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
