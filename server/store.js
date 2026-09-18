@@ -95,6 +95,14 @@ const DEFAULT_SETTINGS = {
   // account is a normal user, added automatically like everyone is to the
   // Lobby, with no password requirement beyond what they pick.
   allowRegistration: false,
+  // Call features, on by default -- an admin can turn any of these off
+  // server-wide. maxQuality caps the "Quality" picker (see QUALITY_OPTIONS)
+  // rather than adding a new tier of its own.
+  maxQuality: 720,
+  allowScreenShare: true,
+  allowAsides: true,
+  allowPrivate: true,
+  allowReactions: true,
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
@@ -366,7 +374,13 @@ class Store {
     if (p.echo !== undefined) c.echo = Boolean(p.echo);
     if (p.agc !== undefined) c.agc = Boolean(p.agc);
     if (p.ptt !== undefined) c.ptt = Boolean(p.ptt);
-    if (p.quality !== undefined && QUALITY_OPTIONS.includes(Number(p.quality))) c.quality = Number(p.quality);
+    if (p.quality !== undefined && QUALITY_OPTIONS.includes(Number(p.quality))) {
+      // this.data isn't assigned yet the very first time this runs --
+      // load() calls sanitizeUser() (and so this) while still building the
+      // object load() is about to assign to this.data. Falls back to the
+      // same default the cap itself defaults to, which is a no-op clamp.
+      c.quality = Math.min(Number(p.quality), this.data?.settings?.maxQuality || 720);
+    }
     if (p.mirror !== undefined) c.mirror = Boolean(p.mirror);
     if (p.background !== undefined && BACKGROUND_MODES.includes(p.background)) c.background = p.background;
     if (p.masterVolume !== undefined) { const n = Math.round(Number(p.masterVolume)); if (Number.isFinite(n)) c.masterVolume = Math.max(0, Math.min(100, n)); }
@@ -416,6 +430,11 @@ class Store {
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
+    if (patch.maxQuality !== undefined && QUALITY_OPTIONS.includes(Number(patch.maxQuality))) s.maxQuality = Number(patch.maxQuality);
+    if (patch.allowScreenShare !== undefined) s.allowScreenShare = Boolean(patch.allowScreenShare);
+    if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);
+    if (patch.allowPrivate !== undefined) s.allowPrivate = Boolean(patch.allowPrivate);
+    if (patch.allowReactions !== undefined) s.allowReactions = Boolean(patch.allowReactions);
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);

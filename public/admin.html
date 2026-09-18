@@ -74,16 +74,35 @@
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
+          <label>Table name<input id="set-table" type="text" maxlength="60"></label>
         </div>
       </div>
       <div class="icon-pick-field">
         <span class="field-label">Home icon</span>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
-      <p class="hint">Shown next to the server name wherever it's a link back to the room list.</p>
+      <p class="hint">Shown next to the server name wherever it's a link back to the room list. "Table name" is what stands in for the Lobby's own name (Everyone at the table) wherever a room isn't named yet.</p>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Call features</h2>
+      <p class="hint">Turn any of these off server-wide. All on by default.</p>
+      <div class="fields">
+        <label>Maximum call quality<select id="set-max-quality"><option value="360">360p</option><option value="540">540p</option><option value="720">720p</option></select></label>
+      </div>
+      <div class="checks">
+        <label class="check"><input id="set-allow-screen-share" type="checkbox"> Allow desktop sharing</label>
+        <label class="check"><input id="set-allow-asides" type="checkbox"> Allow asides</label>
+        <label class="check"><input id="set-allow-private" type="checkbox"> Allow private calls</label>
+        <label class="check"><input id="set-allow-reactions" type="checkbox"> Allow reactions</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-features" type="button">Save</button>
+        <span class="status" id="features-status"></span>
       </div>
       </div>
 

@@ -484,7 +484,12 @@ window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 
 async function init() {
   renderTopbar({ location: '<span class="crumb-here"><i class="fa-solid fa-user fa-fw" aria-hidden="true"></i><span class="crumb-label"> Profile</span></span>' });
-  await loadBranding();
+  const branding = await loadBranding();
+  // The stored value is already clamped server-side (see sanitizeCallPrefs)
+  // -- this just keeps the picker from offering an option that would get
+  // silently rounded back down the moment it's picked.
+  const maxQuality = branding.maxQuality || 720;
+  for (const opt of $('cp-quality').options) opt.hidden = Number(opt.value) > maxQuality;
   wireOverlayBack();
   try {
     if (editingKey) {

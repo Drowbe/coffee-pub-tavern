@@ -278,7 +278,14 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, tableName: $('set-table').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-features').addEventListener('click', () => saveSettings({
+  maxQuality: Number($('set-max-quality').value),
+  allowScreenShare: $('set-allow-screen-share').checked,
+  allowAsides: $('set-allow-asides').checked,
+  allowPrivate: $('set-allow-private').checked,
+  allowReactions: $('set-allow-reactions').checked,
+}, $('features-status')));
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
 $('save-registration').addEventListener('click', () => saveSettings({ allowRegistration: $('set-allow-registration').checked }, $('registration-status')));
 
@@ -611,8 +618,14 @@ async function init() {
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
+    $('set-table').value = settings.tableName;
     selectedHomeIcon = settings.homeIcon || 'couch';
     renderHomeIconSelection();
+    $('set-max-quality').value = String(settings.maxQuality || 720);
+    $('set-allow-screen-share').checked = settings.allowScreenShare !== false;
+    $('set-allow-asides').checked = settings.allowAsides !== false;
+    $('set-allow-private').checked = settings.allowPrivate !== false;
+    $('set-allow-reactions').checked = settings.allowReactions !== false;
     $('set-login-text').value = settings.loginText;
     $('set-allow-registration').checked = Boolean(settings.allowRegistration);
     $('set-border').checked = settings.border;

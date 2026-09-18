@@ -2125,7 +2125,7 @@ body.at-table .topbar {
   width: 100%;
 }
 
-.popover .checks {
+.checks {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;

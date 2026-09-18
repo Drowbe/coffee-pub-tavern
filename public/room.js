@@ -28,6 +28,9 @@ let currentRoom = null; // the room I am in, once joined
 const LOBBY = 'lobby';
 let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
 let adminOnline = false; // whether that's actually backed by a real online admin right now
+// Server-wide call feature toggles (Manage > Settings) -- these defaults
+// hold until init() replaces them with whatever /api/branding actually says.
+let features = { maxQuality: 720, allowScreenShare: true, allowAsides: true, allowPrivate: true, allowReactions: true };
 
 // A guest link (/guest/<token>): no account, just a name and this room. The
 // token both identifies which room's guest link this is and, appended to
@@ -468,8 +471,9 @@ function adminToolsFor(participant) {
   });
   tools.append(mute, kick);
   // Same restriction as the corner step-aside button: you can't step aside
-  // from an aside (or private) room, there's nowhere further to go.
-  if (!currentRoom?.ephemeral) {
+  // from an aside (or private) room, there's nowhere further to go. Each
+  // also has its own Manage > Settings toggle, independent of the other.
+  if (!currentRoom?.ephemeral && features.allowAsides) {
     const aside = document.createElement('button');
     aside.type = 'button';
     aside.className = 'tile-admin-btn';
@@ -480,6 +484,9 @@ function adminToolsFor(participant) {
       if (!window.confirm(`Step aside with ${participant.name || participant.identity}?`)) return;
       pullAside([participant.identity]);
     });
+    tools.append(aside);
+  }
+  if (!currentRoom?.ephemeral && features.allowPrivate) {
     const priv = document.createElement('button');
     priv.type = 'button';
     priv.className = 'tile-admin-btn';
@@ -490,7 +497,7 @@ function adminToolsFor(participant) {
       if (!window.confirm(`Have a private word with ${participant.name || participant.identity}?`)) return;
       pullAside([participant.identity], true);
     });
-    tools.append(aside, priv);
+    tools.append(priv);
   }
   return tools;
 }
@@ -535,7 +542,7 @@ function tileFor(participant) {
     // click each -- this corner button (pick one or more, then confirm) is
     // only still needed for a non-admin, who has no other way to invite
     // someone for a private word.
-    if (!currentRoom?.ephemeral && me?.role !== 'admin') {
+    if (!currentRoom?.ephemeral && me?.role !== 'admin' && features.allowPrivate) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -1262,7 +1269,7 @@ function showReaction(identity, id) {
 }
 
 async function sendReaction(id) {
-  if (!REACTIONS[id] || room.state !== 'connected') return;
+  if (!features.allowReactions || !REACTIONS[id] || room.state !== 'connected') return;
   showReaction(room.localParticipant.identity, id); // data is not echoed back
   try {
     await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'reaction', id })), { reliable: true, topic: 'reaction' });
@@ -1272,6 +1279,7 @@ async function sendReaction(id) {
 }
 
 function toggleTray(open = $('react-tray').hidden) {
+  if (open && !features.allowReactions) return;
   $('react-tray').hidden = !open;
   $('react-toggle').classList.toggle('on', open);
   if (open) closeSettings();
@@ -1942,7 +1950,6 @@ $('mic').addEventListener('click', toggleMic);
 $('cam').addEventListener('click', toggleCam);
 $('deafen').addEventListener('click', toggleDeafen);
 $('screen-share').addEventListener('click', toggleScreenShare);
-if (navigator.mediaDevices?.getDisplayMedia) $('screen-share').hidden = false;
 applyDeafen();
 $('mic-select').addEventListener('change', async (e) => {
   prefs.micId = e.target.value;
@@ -2747,9 +2754,32 @@ function populateCallSettingsUI() {
   $('mic').classList.toggle('ptt', prefs.ptt);
 }
 
+// Manage > Settings' call-feature toggles: hides what's turned off and
+// caps the quality picker at whatever the admin set as the ceiling. Run
+// once branding is in hand (init()), since these come from the server.
+function applyFeatureFlags() {
+  $('screen-share').hidden = !(features.allowScreenShare && navigator.mediaDevices?.getDisplayMedia);
+  $('react-toggle').hidden = !features.allowReactions;
+  const select = $('quality');
+  for (const opt of select.options) opt.hidden = Number(opt.value) > features.maxQuality;
+  if (prefs.quality > features.maxQuality) {
+    prefs.quality = features.maxQuality;
+    savePrefs();
+  }
+  select.value = String(prefs.quality);
+}
+
 async function init() {
   const branding = await loadBranding();
   tableName = branding.tableName || tableName;
+  features = {
+    maxQuality: branding.maxQuality || 720,
+    allowScreenShare: branding.allowScreenShare !== false,
+    allowAsides: branding.allowAsides !== false,
+    allowPrivate: branding.allowPrivate !== false,
+    allowReactions: branding.allowReactions !== false,
+  };
+  applyFeatureFlags();
   // The topbar dropped its own version readout -- too cramped alongside
   // everything else there. It's in the title bar instead, which reads as
   // the room's real native window title once installed as an app.
@@ -2806,6 +2836,9 @@ async function init() {
     if (me.callPrefs) {
       Object.assign(prefs, me.callPrefs);
       savePrefs();
+      // Re-clamp: the account's own stored quality could predate whatever
+      // the server's maxQuality cap is set to now.
+      applyFeatureFlags();
       populateCallSettingsUI();
     }
     await loadTable(); // the join screen's member grid
