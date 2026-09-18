@@ -1,6 +1,6 @@
 # Modules: plan and architecture
 
-Status: **plan, for review.** Nothing here is built yet. Once agreed, this file becomes the
+Status: **plan, reviewed.** Nothing here is built yet. Once agreed, this file becomes the
 architecture and API reference, and gets updated as each step lands.
 
 A module is a zip an admin uploads on **Manage > Modules**. Tavern unpacks it and integrates it. The
@@ -182,15 +182,11 @@ Runtime (all require auth + the module's permission):
 Also ship a tiny `hello` module in the repo as a working example, and document the module format in
 `docs/MODULE-API.md` as steps 1 to 7 land.
 
-## Open points for review
+## Resolved questions
 
-1. **Storage location:** files under `data/modules/<id>/data/` vs. a collection in `tavern.json`.
-   (Files scale better; `tavern.json` is simpler to back up as one unit.)
-2. **Shared store transport:** LiveKit data channel (only works while connected to a call) vs. the
-   server pushing over its own socket (also works on server pages). I lean to a server socket so
-   the same code serves the server page and room panel.
-3. **Reminders delivery:** in-app only for v1, or add email? (Needs SMTP settings.)
-4. **Size caps:** module zip (e.g. 10 MB) and per-module data (5 MB): right numbers?
-5. **Module updates:** upload-to-upgrade only, or also a "keep the old version" rollback?
-6. **Third-party modules:** the sandbox is what makes accepting other people's zips safe. Do we
-   plan a curated/signed list later, or is this admin-trusts-what-they-upload?
+1. **Storage:** files per module under `data/modules/<id>/data/`.
+2. **Shared store transport:** Tavern's own server socket, so server pages and room panels share the same code.
+3. **Reminders:** in-app only for v1 (toast plus an unread badge); email is a later addition.
+4. **Size caps:** 10 MB per zip, 5 MB of data per module; adjustable later in Server settings.
+5. **Upgrades:** the previous version's files are kept and the module card offers a one-click Roll back. Data carries over either way.
+6. **Trust:** the admin trusts what they upload. The sandbox limits the damage, and the install step shows the permissions and hooks the module asks for so the admin can approve them. A curated or signed list can come later.
