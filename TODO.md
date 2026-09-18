@@ -14,28 +14,11 @@ name, a status line, a link. Keep new admin surfaces to this shape rather than g
 another inline editor on a list -- it is why the two existing ones scaled badly enough to
 need rebuilding.
 
-## Profile Rooms tab: remove, default images, and per-room permissions
+## Moderator permission does nothing yet
 
-Three related, not-yet-built pieces on each room's card in a user's **Rooms** tab
-(`profile.html`'s per-room sections):
-
-- A **Remove** action to take that user out of the room entirely (distinct from deleting
-  the user) -- needs a server endpoint if one doesn't already exist for "admin removes one
-  user from one room."
-- A **"Use Default Profile Images"** checkbox, checked by default. Checked, that room's own
-  per-room image slots (see the Participant/Character `.slot` grids) stay hidden and the
-  user's account-level defaults apply; unchecked, the room's own slots show and can be set.
-  Needs a new persisted per-room-per-user field (e.g. `user.rooms[roomId].useDefaultImages`)
-  and server support to store/honor it, alongside client-side show/hide.
-- A **Permissions** section above the images, with four checkboxes: **Moderator** (inert for
-  now -- "we will use this later," just captured, not wired to anything), **Can Kick**,
-  **Can Mute**, **Can Invite**. Needs a new per-room-per-user data field (e.g.
-  `user.rooms[roomId].permissions = { moderator, canKick, canMute, canInvite }`), server
-  validation, the profile.js UI, and -- this is the part that actually does something --
-  wiring Can Kick/Can Mute into the admin hover-tools gating in `room.js`'s `tileFor()`
-  (currently `if (me?.role === 'admin')`), so a non-admin with the flag set for *that room*
-  also gets the Mute/Kick buttons there. Can Invite needs a feature to gate decided (most
-  likely the room's own guest-link controls, since nothing else maps to it as directly).
+The Moderator checkbox on a member's per-room Permissions (profile > Rooms) is captured and
+stored (`user.rooms[roomId].permissions.moderator`) but not wired to anything -- "we will
+use this later." Can kick, Can mute and Can invite are live.
 
 ## Studio needs to read a room's profile
 

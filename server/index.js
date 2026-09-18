@@ -227,7 +227,11 @@ function publicUser(req, u) {
   const rooms = {};
   for (const room of store.rooms) {
     if (room.isLobby || !room.members.includes(u.key)) continue;
-    rooms[room.id] = { images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.rooms[room.id]?.images?.[slot]])) };
+    rooms[room.id] = {
+      images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.rooms[room.id]?.images?.[slot]])),
+      useDefaultImages: u.rooms[room.id]?.useDefaultImages !== false,
+      permissions: store.roomPermissions(u.key, room.id),
+    };
   }
   return {
     key: u.key,
@@ -249,7 +253,7 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function tableUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, isAdmin: u.role === 'admin', border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
@@ -852,11 +856,17 @@ function requireRoomMember(req, res, next) {
   if (!room.members.includes(currentUser(req).key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
   next();
 }
-app.post('/api/rooms/:id/guest-link', requireUser, requireRoomMember, (req, res) => {
+// Managing the link needs Can Invite for that room (admins always can) --
+// being in the room alone no longer is enough.
+function requireCanInvite(req, res, next) {
+  if (!store.roomPermissions(currentUser(req).key, req.params.id).canInvite) return res.status(403).json({ error: 'you can\'t invite people to this room' });
+  next();
+}
+app.post('/api/rooms/:id/guest-link', requireUser, requireRoomMember, requireCanInvite, (req, res) => {
   const guestToken = req.body?.regenerate ? store.regenerateGuestLink(req.params.id) : store.enableGuestLink(req.params.id);
   res.json({ room: store.roomById(req.params.id), guestUrl: `${baseUrl(req)}/guest/${guestToken}` });
 });
-app.delete('/api/rooms/:id/guest-link', requireUser, requireRoomMember, (req, res) => {
+app.delete('/api/rooms/:id/guest-link', requireUser, requireRoomMember, requireCanInvite, (req, res) => {
   store.disableGuestLink(req.params.id);
   res.json({ room: store.roomById(req.params.id) });
 });
@@ -927,6 +937,16 @@ app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
 // stands in for their default only inside that one room (someone in two
 // campaigns with two different characters). Admin-only, same as the
 // defaults themselves.
+// Per-room settings for one member: which pictures apply there, and what
+// they're allowed to do (Permissions on their profile's Rooms tab).
+app.patch('/api/users/:key/rooms/:roomId', requireAdmin, (req, res) => {
+  store.setRoomPrefs(req.params.key, req.params.roomId, req.body || {});
+  res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
+});
+app.delete('/api/rooms/:id/members/:key', requireAdmin, (req, res) => {
+  store.removeMember(req.params.id, req.params.key);
+  res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
+});
 app.put('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, rawImage, (req, res) => {
   store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.roomId);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
@@ -938,10 +958,25 @@ app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, (req, res
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 
-app.post('/api/users/:key/kick', requireAdmin, async (req, res) => {
+// Admin, or a member the admin gave Can Kick / Can Mute for the room both of
+// them are in right now (never against an admin) -- see Permissions on a
+// user's profile, Rooms tab.
+async function canModerate(req, targetKey, permission) {
+  const actor = currentUser(req);
+  const room = await roomOf(targetKey);
+  if (!room) return { error: [404, 'not at the table'] };
+  if (actor.role === 'admin') return { room };
+  const target = store.userByKey(targetKey);
+  if (!target || target.role === 'admin' || target.key === actor.key) return { error: [403, 'not allowed'] };
+  if ((await roomOf(actor.key)) !== room) return { error: [403, 'not allowed'] };
+  if (!store.roomPermissions(actor.key, roomIdOfLivekit(room))[permission]) return { error: [403, 'not allowed'] };
+  return { room };
+}
+
+app.post('/api/users/:key/kick', requireUser, async (req, res) => {
   try {
-    const room = await roomOf(req.params.key);
-    if (!room) return res.status(404).json({ error: 'not at the table' });
+    const { room, error } = await canModerate(req, req.params.key, 'canKick');
+    if (error) return res.status(error[0]).json({ error: error[1] });
     await roomService.removeParticipant(room, req.params.key);
     res.json({ ok: true });
   } catch (err) {
@@ -949,10 +984,10 @@ app.post('/api/users/:key/kick', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/users/:key/mute', requireAdmin, async (req, res) => {
+app.post('/api/users/:key/mute', requireUser, async (req, res) => {
   try {
-    const room = await roomOf(req.params.key);
-    if (!room) return res.status(404).json({ error: 'not at the table' });
+    const { room, error } = await canModerate(req, req.params.key, 'canMute');
+    if (error) return res.status(error[0]).json({ error: error[1] });
     const info = await roomService.getParticipant(room, req.params.key);
     const mic = (info.tracks || []).find((t) => t.source === 2);
     if (!mic) return res.status(404).json({ error: 'no microphone track' });

@@ -192,6 +192,24 @@ function buildRoomSection(roomId) {
 function fillRoomSection(section, room, roomImages) {
   const editing = !!editingKey;
   section.querySelector('.room-section-title').textContent = room.name;
+  section.querySelector('[data-action="room-remove"]').hidden = !editing;
+
+  // Only an admin sets any of this, same as the images themselves.
+  const perms = roomImages.permissions || {};
+  for (const box of section.querySelectorAll('[data-permission]')) {
+    box.checked = !!perms[box.dataset.permission];
+    box.disabled = !editing || user.role === 'admin';
+  }
+  section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
+    ? 'Admins can always do all of this, in every room.'
+    : editing
+      ? `What ${user.displayName} can do in ${room.name} without being an admin. Can kick and Can mute add those tools to their tiles here; Can invite lets them manage the room's guest link.`
+      : `Set by your admin. Can kick and Can mute add those tools to other players' tiles in ${room.name}; Can invite lets you manage its guest link.`;
+  const useDefault = roomImages.useDefaultImages !== false;
+  const useBox = section.querySelector('[data-use-default]');
+  useBox.checked = useDefault;
+  useBox.disabled = !editing;
+  section.querySelector('[data-room-images]').hidden = useDefault;
   section.querySelector('.room-section-hint').textContent = editing
     ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Profile Images above.`
     : `Your images just for ${room.name}. Anything left unset here uses your Default Profile Images above.`;
@@ -230,6 +248,17 @@ function renderRoomSections() {
 }
 
 $('room-sections').addEventListener('change', (event) => {
+  const roomId0 = event.target.closest('.room-section')?.dataset.room;
+  if (editingKey && roomId0 && (event.target.dataset.permission || event.target.hasAttribute('data-use-default'))) {
+    const patch = event.target.dataset.permission
+      ? { permissions: { [event.target.dataset.permission]: event.target.checked } }
+      : { useDefaultImages: event.target.checked };
+    run(async () => {
+      user = (await api('PATCH', `/api/users/${user.key}/rooms/${roomId0}`, patch)).user;
+      render();
+    });
+    return;
+  }
   if (!editingKey || event.target.type !== 'file') return;
   const roomId = event.target.closest('.room-section').dataset.room;
   const slot = event.target.closest('.slot').dataset.slot;
@@ -244,6 +273,17 @@ $('room-sections').addEventListener('change', (event) => {
   });
 });
 $('room-sections').addEventListener('click', (event) => {
+  const remove = event.target.closest('[data-action="room-remove"]');
+  if (remove && editingKey) {
+    const section = remove.closest('.room-section');
+    const name = section.querySelector('.room-section-title').textContent;
+    if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the room's Members tab.`)) return;
+    run(async () => {
+      user = (await api('DELETE', `/api/rooms/${section.dataset.room}/members/${user.key}`)).user;
+      render();
+    });
+    return;
+  }
   const button = event.target.closest('[data-action="slot-clear"]');
   if (!button || !editingKey) return;
   const roomId = button.closest('.room-section').dataset.room;

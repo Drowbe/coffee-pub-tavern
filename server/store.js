@@ -59,6 +59,14 @@ const PLATE_TEXT_CASES = ['default', 'upper', 'lower', 'sentence'];
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
 const ROLES = ['admin', 'user'];
+// What a member can do in one specific room without being an admin (see
+// user.rooms[roomId].permissions). moderator is captured but not wired to
+// anything yet; the other three gate real features (mute/kick a participant,
+// manage the room's guest link).
+const ROOM_PERMISSIONS = ['moderator', 'canKick', 'canMute', 'canInvite'];
+function cleanRoomPermissions(p) {
+  return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
+}
 const IMAGE_TYPES = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -374,7 +382,14 @@ class Store {
         for (const slot of SLOTS) {
           if (typeof r.images?.[slot] === 'string') roomImages[slot] = r.images[slot];
         }
-        rooms[roomId] = { images: roomImages };
+        // Existing rooms that already have their own pictures keep using them
+        // (an unset flag reads as "custom" for those); a room with none yet
+        // starts on the account defaults.
+        rooms[roomId] = {
+          images: roomImages,
+          useDefaultImages: typeof r.useDefaultImages === 'boolean' ? r.useDefaultImages : Object.keys(roomImages).length === 0,
+          permissions: cleanRoomPermissions(r.permissions),
+        };
       }
     }
     return {
@@ -943,9 +958,51 @@ class Store {
     return roomId ? path.join(this.imagesDir, key, 'rooms', roomId) : path.join(this.imagesDir, key);
   }
 
+  roomEntry(user, roomId) {
+    return (user.rooms[roomId] ??= { images: {}, useDefaultImages: true, permissions: cleanRoomPermissions() });
+  }
+
+  // Whether this room's own pictures (if any) stand in for the account's
+  // defaults -- off by default, see "Use Default Profile Images".
+  usesRoomImages(key, roomId) {
+    const entry = this.userByKey(key)?.rooms?.[roomId];
+    return !!entry && entry.useDefaultImages === false;
+  }
+
+  roomPermissions(key, roomId) {
+    const user = this.userByKey(key);
+    if (!user) return cleanRoomPermissions();
+    if (user.role === 'admin') return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, true]));
+    return cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
+  }
+
+  setRoomPrefs(key, roomId, patch) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    const room = this.roomById(roomId);
+    if (!room || room.isLobby) throw new StoreError('no such room', 404);
+    if (!room.members.includes(key)) throw new StoreError('not a member of that room');
+    const entry = this.roomEntry(user, roomId);
+    if (patch.useDefaultImages !== undefined) entry.useDefaultImages = Boolean(patch.useDefaultImages);
+    if (patch.permissions && typeof patch.permissions === 'object') {
+      for (const k of ROOM_PERMISSIONS) if (patch.permissions[k] !== undefined) entry.permissions[k] = Boolean(patch.permissions[k]);
+    }
+    this.save();
+    return entry;
+  }
+
+  removeMember(roomId, key) {
+    const room = this.data.rooms.find((r) => r.id === roomId);
+    if (!room || room.id === LOBBY) throw new StoreError('no such room', 404);
+    if (!room.members.includes(key)) throw new StoreError('not in that room', 404);
+    room.members = room.members.filter((k) => k !== key);
+    this.save();
+    return this.roomById(roomId);
+  }
+
   imageBucket(user, roomId) {
     if (!roomId) return user.images;
-    return (user.rooms[roomId] ??= { images: {} }).images;
+    return this.roomEntry(user, roomId).images;
   }
 
   imagePath(key, slot, roomId) {
@@ -972,7 +1029,7 @@ class Store {
   // -- the server-wide Default Images picture, else nothing at all. What
   // OBS actually wants to show for a given user in a given room.
   effectiveImage(key, slot, roomId) {
-    const own = (roomId && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
+    const own = (roomId && this.usesRoomImages(key, roomId) && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
     if (own) return own;
     if (!PARTICIPANT_SLOTS.includes(slot)) return null;
     const file = this.defaultImagePath(slot);

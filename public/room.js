@@ -432,6 +432,14 @@ function updateBackgroundPlaceholder(tile, key) {
 // each click rather than tracking our own copy of it) and kick. Neither
 // touches this browser's own call state, so no local UI besides the tile
 // itself needs updating -- the room's own presence/track events do that.
+// What I can do in the room I'm in: everything as an admin, otherwise
+// whatever an admin ticked for me on that room's Permissions (profile >
+// Rooms). Aside rooms have no per-room grants, so a non-admin has none there.
+function canDo(permission) {
+  if (me?.role === 'admin') return true;
+  return !!(currentRoom && me?.rooms?.[currentRoom.id]?.permissions?.[permission]);
+}
+
 function adminToolsFor(participant) {
   const tools = document.createElement('div');
   tools.className = 'tile-admin-tools';
@@ -469,11 +477,13 @@ function adminToolsFor(participant) {
       setStatus(`kick: ${err.message}`, true);
     }
   });
-  tools.append(mute, kick);
+  if (canDo('canMute')) tools.append(mute);
+  if (canDo('canKick')) tools.append(kick);
   // Same restriction as the corner step-aside button: you can't step aside
   // from an aside (or private) room, there's nowhere further to go. Each
   // also has its own Manage > Settings toggle, independent of the other.
-  if (!currentRoom?.ephemeral && features.allowAsides) {
+  const isAdmin = me?.role === 'admin';
+  if (isAdmin && !currentRoom?.ephemeral && features.allowAsides) {
     const aside = document.createElement('button');
     aside.type = 'button';
     aside.className = 'tile-admin-btn';
@@ -486,7 +496,7 @@ function adminToolsFor(participant) {
     });
     tools.append(aside);
   }
-  if (!currentRoom?.ephemeral && features.allowPrivate) {
+  if (isAdmin && !currentRoom?.ephemeral && features.allowPrivate) {
     const priv = document.createElement('button');
     priv.type = 'button';
     priv.className = 'tile-admin-btn';
@@ -552,7 +562,10 @@ function tileFor(participant) {
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
     }
-    if (me?.role === 'admin') {
+    // Mute/Kick for admins, or for a member granted them in this room --
+    // never against an admin (the server refuses that anyway).
+    const targetIsAdmin = tableUsers.get(participant.identity)?.isAdmin;
+    if (me?.role === 'admin' || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
       const tools = adminToolsFor(participant);
       tools.addEventListener('pointerenter', () => (tile.draggable = false));
       tools.addEventListener('pointerleave', () => (tile.draggable = true));
@@ -1780,6 +1793,9 @@ async function join(roomId = 'lobby') {
   try {
     setStatus('connecting...');
     const { token, livekitUrl } = await api('POST', '/api/token', { room: roomId });
+    // Fresh permissions each join -- an admin may have changed them since
+    // this page loaded.
+    me = (await api('GET', '/api/me')).user;
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
@@ -2320,6 +2336,7 @@ async function copyText(text, statusEl) {
 }
 function renderGuestLink() {
   if (guestToken || !currentRoom) return; // a guest has no session to manage this with
+  $('guest-section').hidden = !canDo('canInvite');
   const room = tableRooms.find((r) => r.id === currentRoom.id);
   const token = room?.guestToken || null;
   const allowed = room?.allowGuests !== false;
