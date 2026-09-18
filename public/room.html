@@ -114,6 +114,19 @@
       </div>
     </div>
 
+    <!-- Clicking Away asks for an optional message to show on your tile in
+         place of "Away". Empty keeps the plain "Away". -->
+    <div class="aside-overlay" id="away-overlay" hidden>
+      <form class="aside-overlay-card" id="away-form">
+        <p>Going away?</p>
+        <input id="away-message" type="text" maxlength="60" placeholder="Away message (optional)" aria-label="Away message" autocomplete="off">
+        <div class="aside-overlay-actions">
+          <button class="btn btn-primary" type="submit"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i> Go away</button>
+          <button class="btn btn-small" id="away-cancel" type="button">Cancel</button>
+        </div>
+      </form>
+    </div>
+
     <div class="float floatbar" id="floatbar">
       <div class="fbtn-wrap">
         <button class="fbtn" id="mic" type="button" title="Microphone (M)"><span class="meter" id="meter"></span><span class="glyph"><i class="fa-solid fa-microphone fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-microphone-slash fa-fw icon-off" aria-hidden="true"></i></span></button>

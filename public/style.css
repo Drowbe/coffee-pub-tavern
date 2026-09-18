@@ -2398,6 +2398,17 @@ a.crumb-here:hover {
   pointer-events: none;
 }
 
+.tile-away-overlay.custom {
+  padding: 12px;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
 /* Picked to step aside together, pending confirmation: stays visible even
    without hovering, so a multi-person selection is easy to keep track of. */
 .tile-aside.selected {

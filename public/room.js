@@ -1606,7 +1606,7 @@ room
     try {
       const data = JSON.parse(decoder.decode(payload));
       if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
-      else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on);
+      else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on, data.message);
       // A server push (no sending participant): someone pulled me aside.
       // An admin's word is final -- just go. A peer's "Privately" needs
       // this end to actually agree to it first. Deferred a tick so this
@@ -1673,6 +1673,7 @@ room
     // Not setAway(false): that would try to re-enable mic/camera on a
     // participant that's already gone. Just drop the stale state so the
     // next room starts clean, not still marked away from the last one.
+    $('away-overlay').hidden = true;
     isAway = false;
     $('away-toggle').classList.remove('off');
     $('away-toggle').title = 'Away: pauses your mic and camera and lets everyone know';
@@ -2743,7 +2744,8 @@ document.addEventListener('click', (event) => {
   showRoomList();
 });
 
-function updateAwayOverlay(identity, on) {
+// `message` is the optional away message; without one the tile just says Away.
+function updateAwayOverlay(identity, on, message) {
   const tile = tiles.get(identity);
   if (!tile) return;
   tile.classList.toggle('tile-away', on);
@@ -2751,18 +2753,23 @@ function updateAwayOverlay(identity, on) {
   if (on && !overlay) {
     overlay = document.createElement('div');
     overlay.className = 'tile-away-overlay';
-    overlay.textContent = 'Away';
     tile.appendChild(overlay);
   } else if (!on && overlay) {
     overlay.remove();
+    return;
+  }
+  if (overlay) {
+    const custom = typeof message === 'string' ? message.trim().slice(0, 60) : '';
+    overlay.textContent = custom || 'Away';
+    overlay.classList.toggle('custom', Boolean(custom));
   }
 }
 
-async function sendAway(on) {
-  updateAwayOverlay(room.localParticipant?.identity, on);
+async function sendAway(on, message = '') {
+  updateAwayOverlay(room.localParticipant?.identity, on, message);
   if (room.state !== 'connected') return;
   try {
-    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on })), { reliable: true, topic: 'away' });
+    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on, message })), { reliable: true, topic: 'away' });
   } catch (err) {
     // best-effort: not worth surfacing to the person who just wants their profile
   }
@@ -2778,7 +2785,7 @@ async function sendAway(on) {
 let isAway = false;
 let awayRestoreMic = false;
 let awayRestoreCam = false;
-async function setAway(on) {
+async function setAway(on, message = '') {
   if (on === isAway) return;
   isAway = on;
   if (on) {
@@ -2797,9 +2804,34 @@ async function setAway(on) {
   updateCamera(room.localParticipant);
   $('away-toggle').classList.toggle('off', on);
   $('away-toggle').title = on ? 'Back: unpause your mic and camera and let everyone know' : 'Away: pauses your mic and camera and lets everyone know';
-  await sendAway(on);
+  await sendAway(on, message);
 }
-$('away-toggle').addEventListener('click', () => setAway(!isAway));
+
+// The away button asks for an optional message first; coming back is one click.
+// Away set by opening your profile or the room list stays a plain "Away".
+function closeAwayPrompt() {
+  $('away-overlay').hidden = true;
+}
+$('away-toggle').addEventListener('click', () => {
+  if (isAway) return setAway(false);
+  $('away-message').value = '';
+  $('away-overlay').hidden = false;
+  $('away-message').focus();
+});
+$('away-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const message = $('away-message').value.trim();
+  closeAwayPrompt();
+  setAway(true, message);
+});
+$('away-cancel').addEventListener('click', closeAwayPrompt);
+$('away-overlay').addEventListener('click', (event) => {
+  if (event.target === $('away-overlay')) closeAwayPrompt();
+});
+$('away-message').addEventListener('keydown', (event) => {
+  event.stopPropagation(); // typing here isn't a hotkey (M, V, C ...)
+  if (event.key === 'Escape') closeAwayPrompt();
+});
 
 // --- start --------------------------------------------------------------------
 
