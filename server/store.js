@@ -59,11 +59,11 @@ const PLATE_TEXT_CASES = ['default', 'upper', 'lower', 'sentence'];
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
 const ROLES = ['admin', 'user'];
-// What a member can do in one specific room without being an admin (see
-// user.rooms[roomId].permissions). moderator is captured but not wired to
-// anything yet; the other three gate real features (mute/kick a participant,
-// manage the room's guest link).
-const ROOM_PERMISSIONS = ['moderator', 'canKick', 'canMute', 'canInvite'];
+// Per-room grants on a member (user.rooms[roomId].permissions). Just one:
+// Moderator, which gives them the whole Moderator role (Settings > Roles)
+// in that room only -- anything else is a role-level permission, not a
+// per-room one.
+const ROOM_PERMISSIONS = ['moderator'];
 // The four roles (Settings > Roles): no custom roles yet. Admin always has
 // every permission and can't be edited; the other three are a grid of
 // on/off per permission, defaults below. The last group are enforced by
@@ -1019,7 +1019,6 @@ class Store {
   }
 
   // What someone can actually do in one room: their role's permissions,
-  // plus anything ticked for them on that room (Can kick / mute / invite),
   // plus the whole Moderator role if they're marked Moderator there.
   roomPermissions(key, roomId) {
     const user = this.userByKey(key);
@@ -1028,7 +1027,6 @@ class Store {
     const set = this.roleSet(user.role);
     const flags = cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
     if (flags.moderator) Object.assign(set, Object.fromEntries(Object.entries(this.roleSet('moderator')).filter(([, v]) => v)));
-    for (const k of ['canKick', 'canMute', 'canInvite']) if (flags[k]) set[k] = true;
     return set;
   }
 

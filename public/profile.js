@@ -209,8 +209,8 @@ function fillRoomSection(section, room, roomImages) {
   section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
     ? 'Admins can always do all of this, in every room.'
     : editing
-      ? `What ${user.displayName} can do in ${room.name} beyond their role. Moderator gives them everything the Moderator role has (Manage > Roles) here; Can kick, Can mute and Can invite add just that one.`
-      : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name}; Can kick, Can mute and Can invite add just that one.`;
+      ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
+      : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
   const useDefault = roomImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;

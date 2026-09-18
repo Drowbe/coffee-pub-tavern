@@ -2635,13 +2635,6 @@ a.crumb-here:hover {
   margin-top: 0;
 }
 
-#section-account,
-#section-background,
-#section-call,
-#section-images,
-#section-room,
-#section-members,
-#section-access,
 .room-section-heading {
   display: flex;
   align-items: center;
@@ -2661,10 +2654,6 @@ a.crumb-here:hover {
   object-fit: cover;
   border: 1px solid var(--border);
   flex: none;
-}
-
-.room-section {
-  scroll-margin-top: 70px;
 }
 
 /* room-sections wraps a variable number of per-room panels; it needs the
