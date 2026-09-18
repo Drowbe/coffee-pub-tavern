@@ -1,7 +1,8 @@
 # Modules: plan and architecture
 
-Status: **plan, reviewed.** Nothing here is built yet. Once agreed, this file becomes the
-architecture and API reference, and gets updated as each step lands.
+Status: **plan, reviewed. Step 1 is built** (install, manifest, approve/enable, rollback,
+uninstall); steps 2 to 9 are not. This file is the architecture and API reference and is updated as each
+step lands.
 
 A module is a zip an admin uploads on **Manage > Modules**. Tavern unpacks it and integrates it. The
 first module is a **Calendar**; a **Travel planner** follows, and is the test of live shared state.
@@ -104,7 +105,7 @@ server exposes `store.can(user, 'calendar.edit', roomId)` and every module API r
 
 ### Storage
 
-Per module, in `data/modules/<id>/data/` (or a collection in `tavern.json`; decide in step 2):
+Per module, in `data/modules/<id>/data/`:
 
 - **KV store**, scoped `server` or `room:<roomId>`: `get / set / delete / list(prefix)`.
 - Per-module **size cap** (default 5 MB) so one module can't fill the volume.
@@ -117,7 +118,7 @@ A per-module, per-room document store with change push:
   (last-write-wins **per key**). Modules should store each item under its own key, not the whole plan
   as one blob.
 - The server is the source of truth. It pushes `{key, value, version, by}` to everyone in the room
-  over the existing socket/LiveKit data channel; late joiners get a full snapshot on open.
+  over Tavern's own server socket; late joiners get a full snapshot on open.
 - Out of scope for v1: collaborative text editing / CRDTs.
 
 ### Hooks (declarative, Tavern-run)
@@ -190,3 +191,35 @@ Also ship a tiny `hello` module in the repo as a working example, and document t
 4. **Size caps:** 10 MB per zip, 5 MB of data per module; adjustable later in Server settings.
 5. **Upgrades:** the previous version's files are kept and the module card offers a one-click Roll back. Data carries over either way.
 6. **Trust:** the admin trusts what they upload. The sandbox limits the damage, and the install step shows the permissions and hooks the module asks for so the admin can approve them. A curated or signed list can come later.
+
+## Step 1 as built (install and manage)
+
+Code: `server/modules.js` (validation, unpacking, registry), routes in `server/index.js`, the
+**Modules** tab in `public/admin.js`.
+
+- **Registry:** `data/modules/registry.json`. Versions unpack to `data/modules/<id>/versions/<version>/`;
+  `data/modules/<id>/data/` is reserved for the module's own data.
+- **Limits:** zip 10 MB, 500 files, 10 MB per file, 40 MB unpacked. The zip is read fully in memory
+  before anything is written; sizes are checked from the headers and again from the actual bytes.
+- **Refused:** unsafe paths (`..`, absolute), symbolic links, control characters in names, any file
+  type not on the allowlist (html, js, mjs, css, json, txt, md, map, png, jpg, gif, webp, svg, ico,
+  woff, woff2, ttf, otf), and a missing or invalid `module.json`. A zip made from a folder (one top
+  level folder holding `module.json`) is accepted.
+- **Manifest:** as above; `version` must be `x.y.z`. A `server` scope needs `surfaces.page`, a `room`
+  scope needs `surfaces.panel`; entries must exist in the zip. `description` and `author` are optional.
+- **Approval:** a new module installs **disabled**. Enabling records what the admin approved (its
+  permissions and hooks). An upgrade or rollback that asks for anything not yet approved comes back
+  disabled and shows "Approve and enable".
+- **Versions:** an upload must be newer than every installed version. The newest three versions are
+  kept; **Switch to this version** rolls back or forward among them.
+- **Uninstall:** removes the versions; the module's data is kept unless you choose to delete it.
+
+Admin API (all admin-only):
+
+| Call | Purpose |
+|---|---|
+| `GET /api/modules` | Installed modules, their state, versions, and anything awaiting approval |
+| `POST /api/modules` | Body is the zip (`application/zip`); returns the installed module |
+| `PATCH /api/modules/:id` | `{enabled}`, `{allRooms}`, `{rooms:[ids]}` |
+| `POST /api/modules/:id/rollback` | `{version}` |
+| `DELETE /api/modules/:id?keepData=0` or `=1` | Uninstall |

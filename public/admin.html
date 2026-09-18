@@ -20,6 +20,7 @@
       <button class="subtab" data-tab="rooms" type="button">Rooms</button>
       <button class="subtab" data-tab="roles" type="button">Roles</button>
       <button class="subtab" data-tab="users" type="button">Users</button>
+      <button class="subtab" data-tab="modules" type="button">Modules</button>
       <button class="subtab" data-tab="about" type="button">About</button>
     </nav>
 
@@ -171,6 +172,19 @@
         <p class="status" id="roles-status"></p>
         <p class="hint">Kicking, muting, guest links and asides are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>
       </div>
+    </section>
+
+    <section class="tab-stack" id="tab-modules" hidden>
+      <div class="panel">
+        <h2>Modules</h2>
+        <p class="hint">Add features by uploading a module zip. A module runs in the browser, in a sandbox, and only reaches Tavern through what it asks for below. Upload it, look over what it asks for, then turn it on.</p>
+        <div class="row">
+          <input type="file" id="module-file" accept=".zip,application/zip">
+          <button class="btn btn-primary" id="module-install" type="button">Install</button>
+          <span class="status" id="modules-status"></span>
+        </div>
+      </div>
+      <div id="modules-list" class="stack"></div>
     </section>
 
     <section class="tab-stack" id="tab-about" hidden>

@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
+const { ModuleManager, LIMITS: MODULE_LIMITS } = require('./modules');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 
@@ -30,6 +31,7 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
 }
 
 const store = new Store(DATA_DIR);
+const modules = new ModuleManager(DATA_DIR);
 const limiter = new auth.LoginLimiter();
 
 // Make sure the admin from the environment exists with that password. This is
@@ -306,6 +308,7 @@ app.use(express.json({ limit: '64kb' }));
 const publicDir = path.join(__dirname, '..', 'public');
 const clientDist = path.join(__dirname, '..', 'node_modules', 'livekit-client', 'dist');
 const page = (name) => path.join(publicDir, name);
+const rawZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: MODULE_LIMITS.zipBytes + 1024 });
 const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES + 1024 });
 
 // Pages ----------------------------------------------------------------------
@@ -1032,6 +1035,23 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 });
 
 // Settings > Roles: the permission list and every role's grid of on/off.
+// Modules (Manage > Modules): upload a zip, approve what it asks for, turn it
+// on, roll back, uninstall. See docs/MODULES.md.
+app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+app.post('/api/modules', requireAdmin, rawZip, async (req, res) => {
+  res.status(201).json({ module: await modules.install(req.body) });
+});
+app.patch('/api/modules/:id', requireAdmin, (req, res) => {
+  res.json({ module: modules.update(req.params.id, req.body || {}, { roomExists: (id) => !!store.roomById(id) }) });
+});
+app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
+  res.json({ module: modules.rollback(req.params.id, String(req.body?.version || '')) });
+});
+app.delete('/api/modules/:id', requireAdmin, (req, res) => {
+  modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
+  res.json({ ok: true });
+});
+
 app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: ROLE_PERMISSIONS, roles: store.roles() }));
 app.patch('/api/roles/:role', requireAdmin, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
 
@@ -1089,7 +1109,10 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 app.use((err, _req, res, _next) => {
   if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
-  if (err.type === 'entity.too.large') return res.status(413).json({ error: `image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB` });
+  if (err.type === 'entity.too.large') {
+    const limit = _req.path.startsWith('/api/modules') ? MODULE_LIMITS.zipBytes : MAX_IMAGE_BYTES;
+    return res.status(413).json({ error: `${_req.path.startsWith('/api/modules') ? 'the zip' : 'image'} is larger than ${limit / (1024 * 1024)} MB` });
+  }
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'bad JSON' });
   console.error(err);
   res.status(500).json({ error: 'server error' });

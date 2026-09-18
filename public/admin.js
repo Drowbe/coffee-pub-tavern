@@ -50,7 +50,7 @@ function imgUrl(key, slot) {
 }
 
 // Server / Theme / Rooms / Roles / Users / About tabs, remembered in the address
-const TABS = ['server', 'theme', 'rooms', 'roles', 'users', 'about'];
+const TABS = ['server', 'theme', 'rooms', 'roles', 'users', 'modules', 'about'];
 function selectTab(name) {
   if (name === 'settings') name = 'server'; // the old name
   const tab = TABS.includes(name) ? name : 'server';
@@ -628,6 +628,105 @@ $('save-reactions').addEventListener('click', async () => {
   }
 });
 
+// --- modules ----------------------------------------------------------------
+// Upload a zip, review what it asks for, enable it. See docs/MODULES.md.
+let installedModules = [];
+
+async function loadModules() {
+  installedModules = (await api('GET', '/api/modules')).modules;
+  renderModules();
+}
+
+function moduleCard(m) {
+  const scopes = m.scope.map((s) => (s === 'server' ? 'Server page' : 'Room panel')).join(' + ');
+  const asks = [
+    ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
+    ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
+    ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people at the table</span></li>'] : []),
+  ];
+  const state = m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>';
+  const others = m.versions.filter((v) => v !== m.version);
+  const el = document.createElement('article');
+  el.className = 'panel module-card';
+  el.dataset.id = m.id;
+  el.innerHTML = `
+    <div class="module-head">
+      <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw module-icon" aria-hidden="true"></i>
+      <div class="grow"><h2>${escapeHtml(m.name)} <span class="hint">v${escapeHtml(m.version)}${m.author ? ' by ' + escapeHtml(m.author) : ''}</span></h2>
+        <div class="hint">${escapeHtml(scopes)}</div></div>
+      ${state}
+    </div>
+    ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ''}
+    <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
+    ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
+    ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
+    <div class="row">
+      <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button">${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
+      ${others.length ? `<select data-module-version aria-label="Version">${others.map((v) => `<option>${escapeHtml(v)}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button">Switch to this version</button>` : ''}
+      <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
+    </div>`;
+  return el;
+}
+
+function renderModules() {
+  const list = $('modules-list');
+  list.textContent = '';
+  if (!installedModules.length) {
+    list.innerHTML = '<div class="panel"><p class="hint">No modules installed yet.</p></div>';
+    return;
+  }
+  for (const m of installedModules) list.appendChild(moduleCard(m));
+}
+
+$('module-install').addEventListener('click', async () => {
+  const file = $('module-file').files[0];
+  if (!file) return say($('modules-status'), 'choose a zip file first', true);
+  say($('modules-status'), 'installing...');
+  try {
+    const { module } = await api('POST', '/api/modules', file, 'application/zip');
+    $('module-file').value = '';
+    await loadModules();
+    say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
+  } catch (err) {
+    say($('modules-status'), err.message, true);
+  }
+});
+
+$('modules-list').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-module-action]');
+  if (!button) return;
+  const card = button.closest('.module-card');
+  const m = installedModules.find((x) => x.id === card.dataset.id);
+  try {
+    if (button.dataset.moduleAction === 'toggle') {
+      await api('PATCH', `/api/modules/${m.id}`, { enabled: !m.enabled });
+    } else if (button.dataset.moduleAction === 'rollback') {
+      const version = card.querySelector('[data-module-version]').value;
+      if (!window.confirm(`Switch ${m.name} to version ${version}? Its data stays as it is.`)) return;
+      await api('POST', `/api/modules/${m.id}/rollback`, { version });
+    } else if (button.dataset.moduleAction === 'uninstall') {
+      if (!window.confirm(`Uninstall ${m.name}?`)) return;
+      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.`);
+      await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
+    }
+    await loadModules();
+    say($('modules-status'), '');
+  } catch (err) {
+    say($('modules-status'), err.message, true);
+  }
+});
+
+$('modules-list').addEventListener('change', async (event) => {
+  if (!event.target.matches('[data-module-all-rooms]')) return;
+  const id = event.target.closest('.module-card').dataset.id;
+  try {
+    await api('PATCH', `/api/modules/${id}`, { allRooms: event.target.checked });
+    await loadModules();
+  } catch (err) {
+    say($('modules-status'), err.message, true);
+  }
+});
+
 // --- Font Awesome icons -----------------------------------------------------
 // Paste the HTML Font Awesome gives you; we keep just its classes.
 function parseIconClasses(text) {
@@ -867,6 +966,7 @@ async function init() {
     renderHomeIconSelection();
     await loadThemes();
     await loadRoles();
+    await loadModules();
     $('set-max-quality').value = String(settings.maxQuality || 720);
     $('set-allow-screen-share').checked = settings.allowScreenShare !== false;
     $('set-allow-asides').checked = settings.allowAsides !== false;
