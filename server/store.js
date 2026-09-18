@@ -18,13 +18,13 @@ const crypto = require('crypto');
 // image plus the same set of overlays for the character box.
 // Participant box: offline, online (the camera-off picture), talking,
 // muted, aside, private. Character box: characterOffline, character
-// (online), talking, muted.
+// (online), talking, muted, characterAside, characterPrivate.
 // 'profile' is the player's own photo (header, table tiles, profile page); the
 // rest are the admin-set OBS pictures for the Participant and Character boxes.
 // The slot keys themselves stay the old "player*" names underneath -- OBS
 // scenes and view links already reference them -- only their label changed.
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
-const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
+const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
 // 'background' is a player's own chosen still image behind their camera in
 // the call itself (an alternative to blur) -- unrelated to the OBS
 // Participant/Character boxes above, but self-service the same way 'profile' is.

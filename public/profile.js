@@ -6,7 +6,7 @@ import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
-const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted'];
+const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
 const ROOM_PROFILE_SLOTS = { roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS], participants: PARTICIPANT_SLOTS, characters: CHARACTER_SLOTS };
 
 const $ = (id) => document.getElementById(id);

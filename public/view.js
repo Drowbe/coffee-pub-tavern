@@ -36,7 +36,7 @@ const room = new Room({ adaptiveStream: false });
 const connectOptions = { autoSubscribe: kind === 'player' };
 
 // Slots this kind draws, as blob URLs (null when the user has none).
-const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'] : ['characterOffline', 'character', 'talking', 'muted'];
+const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'] : ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
 const images = Object.fromEntries(slots.map((s) => [s, null]));
 let settings = { border: true, borderColor: '#6fae6b', borderWidth: 6, mutedBorder: true, mutedColor: '#b8503f', plate: false, plateLayout: 'lower-left', plateColor: '#000000', plateTextColor: '#f1e6d8', plateFontSize: 16, plateOpacity: 60, plateTextCase: 'default', pictureBackground: false, pictureColor: '#1a1410', pictureScale: 100, displayName: '' };
 // Each kind draws its own borders: the player's (per user) or the character's (server-wide).
@@ -241,6 +241,8 @@ function render() {
     setImage($('base'), online ? images.character : state === 'offline' ? images.characterOffline : null);
     setImage($('overlay-talking'), talking ? images.talking : null);
     setImage($('overlay-muted'), muted ? images.muted : null);
+    setImage($('overlay-aside'), inAside ? images.characterAside : null);
+    setImage($('overlay-private'), isPrivate ? images.characterPrivate : null);
   }
   const showBgImage = kind === 'player' && settings.pictureBackground && (state === 'image' || state === 'offline') && !!bgImage;
   setImage($('bg-image'), showBgImage ? bgImage : null);
