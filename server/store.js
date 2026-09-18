@@ -375,7 +375,16 @@ class Store {
       data.settings.builtinThemesSeeded = true;
       seededThemes = true;
     }
-    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms) || seededThemes) {
+    // Same once-only idea for the starter Font Awesome icons: a list saved
+    // before they existed keeps what it has and gains the starters up front.
+    let seededIcons = false;
+    if (!data.settings.iconsSeeded) {
+      const have = Array.isArray(raw.settings?.icons) ? raw.settings.icons : [];
+      data.settings.icons = [...DEFAULT_ICONS.filter((d) => !have.some((i) => i.id === d.id)), ...have].map((i) => ({ ...i }));
+      data.settings.iconsSeeded = true;
+      seededIcons = true;
+    }
+    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms) || seededThemes || seededIcons) {
       this.data = data;
       this.save();
     }
