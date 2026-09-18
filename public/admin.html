@@ -17,7 +17,9 @@
     <nav class="subtabs" id="subtabs">
       <button class="subtab active" data-tab="users" type="button">Users</button>
       <button class="subtab" data-tab="rooms" type="button">Rooms</button>
+      <button class="subtab" data-tab="roles" type="button">Roles</button>
       <button class="subtab" data-tab="settings" type="button">Settings</button>
+      <button class="subtab" data-tab="about" type="button">About</button>
     </nav>
 
     <section class="tab-stack" id="tab-users">
@@ -58,6 +60,32 @@
         <p class="hint">Everyone belongs to the Lobby. Each room is its own conversation for the users you pick; players see their rooms after signing in and choose one. Coffee Pub Studio shows one room at a time.</p>
       </div>
       <div id="rooms" class="users"></div>
+    </section>
+
+    <section class="tab-stack" id="tab-roles" hidden>
+      <div class="panel">
+        <h2>Roles</h2>
+        <p class="hint">What each kind of person can do. Admin can do everything and can't be turned down. Moderator is what someone gets in any room where they're marked Moderator on their profile's Rooms tab. Guest is everyone who joins from a room's guest link. Changes save as you click.</p>
+        <div class="roles-scroll"><table class="roles-table" id="roles-table"></table></div>
+        <p class="status" id="roles-status"></p>
+        <p class="hint">Kicking, muting, guest links and asides are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>
+      </div>
+    </section>
+
+    <section class="tab-stack" id="tab-about" hidden>
+      <div class="panel about">
+        <h2>Coffee Pub Tavern</h2>
+        <p class="hint"><span data-brand="version"></span></p>
+        <p>Self-hosted voice and video for the Coffee Pub table, with a per-player view for OBS. Runs on your own server; nothing about your table is sent to anyone else.</p>
+        <p>Released under the MIT license.</p>
+      </div>
+      <div class="panel about">
+        <h2>Built on</h2>
+        <p><strong><a href="https://livekit.io" target="_blank" rel="noopener">LiveKit</a></strong> -- real-time audio and video runs on LiveKit, the open-source WebRTC platform. LiveKit, its server, and its client and server SDKs are &copy; LiveKit, Inc. and licensed under the Apache License 2.0.</p>
+        <p><strong><a href="https://github.com/livekit/track-processors-js" target="_blank" rel="noopener">LiveKit track processors</a></strong> and <strong><a href="https://ai.google.dev/edge/mediapipe" target="_blank" rel="noopener">MediaPipe</a></strong> -- background blur and custom backgrounds. Both Apache License 2.0.</p>
+        <p><strong><a href="https://fontawesome.com" target="_blank" rel="noopener">Font Awesome Free</a></strong> -- the icons. Icons CC BY 4.0, fonts SIL OFL 1.1, code MIT.</p>
+        <p><strong><a href="https://expressjs.com" target="_blank" rel="noopener">Express</a></strong> on <strong><a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a></strong> -- the server. MIT.</p>
+      </div>
     </section>
 
     <section class="tab-stack" id="tab-settings" hidden>

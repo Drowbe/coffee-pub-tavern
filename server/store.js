@@ -64,6 +64,29 @@ const ROLES = ['admin', 'user'];
 // anything yet; the other three gate real features (mute/kick a participant,
 // manage the room's guest link).
 const ROOM_PERMISSIONS = ['moderator', 'canKick', 'canMute', 'canInvite'];
+// The four roles (Settings > Roles): no custom roles yet. Admin always has
+// every permission and can't be edited; the other three are a grid of
+// on/off per permission, defaults below. The last group are enforced by
+// the server (kick/mute/invite, asides and private calls); the Table ones
+// are enforced by the page itself, since chat, reactions and screen share
+// travel peer to peer through LiveKit with no server hop to check.
+const ROLE_PERMISSIONS = [
+  { key: 'chat', label: 'Send chat messages', group: 'At the table' },
+  { key: 'sendPictures', label: 'Send pictures in chat', group: 'At the table' },
+  { key: 'react', label: 'Use reactions', group: 'At the table' },
+  { key: 'shareScreen', label: 'Share their screen', group: 'At the table' },
+  { key: 'privateCall', label: 'Start a private conversation', group: 'Asides' },
+  { key: 'startAside', label: 'Step aside with someone (recorded)', group: 'Asides' },
+  { key: 'canMute', label: 'Mute other people', group: 'Moderation' },
+  { key: 'canKick', label: 'Kick other people', group: 'Moderation' },
+  { key: 'canInvite', label: "Manage a room's guest link", group: 'Moderation' },
+];
+const EDITABLE_ROLES = ['moderator', 'user', 'guest'];
+const ROLE_DEFAULTS = {
+  moderator: Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])),
+  user: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false },
+  guest: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false },
+};
 function cleanRoomPermissions(p) {
   return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
 }
@@ -122,6 +145,9 @@ const DEFAULT_SETTINGS = {
   // edit or delete either exactly like one of their own.
   themes: [],
   activeThemeId: null,
+  // Overrides to ROLE_DEFAULTS per editable role -- only what an admin has
+  // actually changed, so a permission added later starts at its default.
+  roles: {},
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
@@ -969,7 +995,45 @@ class Store {
     return !!entry && entry.useDefaultImages === false;
   }
 
+  // --- roles -------------------------------------------------------------
+  // Every permission for a role: admin all on, the others defaults plus
+  // whatever an admin changed.
+  roleSet(role) {
+    if (role === 'admin') return Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true]));
+    const base = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.user;
+    const set = { ...base };
+    for (const [k, v] of Object.entries(this.data.settings.roles?.[role] || {})) if (k in base) set[k] = Boolean(v);
+    return set;
+  }
+
+  roles() {
+    return Object.fromEntries(['admin', ...EDITABLE_ROLES].map((r) => [r, this.roleSet(r)]));
+  }
+
+  setRolePermissions(role, patch) {
+    if (!EDITABLE_ROLES.includes(role)) throw new StoreError('that role cannot be changed');
+    const mine = (this.data.settings.roles[role] ??= {});
+    for (const p of ROLE_PERMISSIONS) if (patch?.[p.key] !== undefined) mine[p.key] = Boolean(patch[p.key]);
+    this.save();
+    return this.roles();
+  }
+
+  // What someone can actually do in one room: their role's permissions,
+  // plus anything ticked for them on that room (Can kick / mute / invite),
+  // plus the whole Moderator role if they're marked Moderator there.
   roomPermissions(key, roomId) {
+    const user = this.userByKey(key);
+    if (!user) return this.roleSet('guest');
+    if (user.role === 'admin') return this.roleSet('admin');
+    const set = this.roleSet(user.role);
+    const flags = cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
+    if (flags.moderator) Object.assign(set, Object.fromEntries(Object.entries(this.roleSet('moderator')).filter(([, v]) => v)));
+    for (const k of ['canKick', 'canMute', 'canInvite']) if (flags[k]) set[k] = true;
+    return set;
+  }
+
+  // The stored per-room ticks themselves, for editing (admins read as all on).
+  roomFlags(key, roomId) {
     const user = this.userByKey(key);
     if (!user) return cleanRoomPermissions();
     if (user.role === 'admin') return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, true]));
@@ -1164,5 +1228,5 @@ class StoreError extends Error {
 
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
-  ROOM_LINK_ICONS, LEGACY_SLOTS, ROLES, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+  ROOM_LINK_ICONS, LEGACY_SLOTS, ROLES, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
 };

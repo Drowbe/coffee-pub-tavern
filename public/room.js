@@ -387,8 +387,8 @@ $('guest-join').addEventListener('submit', async (event) => {
   const submit = $('guest-join').querySelector('button[type="submit"]');
   submit.disabled = true;
   try {
-    const { token, livekitUrl, identity, roomId, roomName } = await api('POST', '/api/guest-join', { token: guestToken, name });
-    me = { key: identity, displayName: name, role: 'guest' };
+    const { token, livekitUrl, identity, roomId, roomName, permissions } = await api('POST', '/api/guest-join', { token: guestToken, name });
+    me = { key: identity, displayName: name, role: 'guest', permissions };
     await joinAsGuest(token, livekitUrl, roomId, roomName);
   } catch (err) {
     $('guest-join-error').textContent = err.message;
@@ -432,12 +432,21 @@ function updateBackgroundPlaceholder(tile, key) {
 // each click rather than tracking our own copy of it) and kick. Neither
 // touches this browser's own call state, so no local UI besides the tile
 // itself needs updating -- the room's own presence/track events do that.
-// What I can do in the room I'm in: everything as an admin, otherwise
-// whatever an admin ticked for me on that room's Permissions (profile >
-// Rooms). Aside rooms have no per-room grants, so a non-admin has none there.
+// What I can do here: everything as an admin; otherwise the room's own
+// effective set (my role's permissions plus anything ticked for me in that
+// room, see Settings > Roles and profile > Rooms), or just my role's
+// outside a room the server has no per-room entry for (an aside, a guest).
 function canDo(permission) {
   if (me?.role === 'admin') return true;
-  return !!(currentRoom && me?.rooms?.[currentRoom.id]?.permissions?.[permission]);
+  const inRoom = currentRoom && me?.rooms?.[currentRoom.id]?.effective;
+  return !!(inRoom || me?.permissions || {})[permission];
+}
+// Everything a permission hides or shows on the page. Reruns once who I am
+// and which room I'm in are both known, not just at load.
+function applyPermissions() {
+  applyFeatureFlags();
+  $('chat-form').hidden = !canDo('chat');
+  $('chat-pic').hidden = !canDo('sendPictures');
 }
 
 function adminToolsFor(participant) {
@@ -552,7 +561,7 @@ function tileFor(participant) {
     // click each -- this corner button (pick one or more, then confirm) is
     // only still needed for a non-admin, who has no other way to invite
     // someone for a private word.
-    if (!currentRoom?.ephemeral && me?.role !== 'admin' && features.allowPrivate) {
+    if (!currentRoom?.ephemeral && me?.role !== 'admin' && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -1214,7 +1223,7 @@ async function shrinkImage(file) {
 }
 
 async function sendImage(file) {
-  if (!file || !file.type.startsWith('image/') || room.state !== 'connected') return;
+  if (!file || !file.type.startsWith('image/') || room.state !== 'connected' || !canDo('sendPictures')) return;
   try {
     const out = await shrinkImage(file);
     addEntry({ who: room.localParticipant.name || room.localParticipant.identity, blob: out, name: out.name }, true);
@@ -1282,7 +1291,7 @@ function showReaction(identity, id) {
 }
 
 async function sendReaction(id) {
-  if (!features.allowReactions || !REACTIONS[id] || room.state !== 'connected') return;
+  if (!features.allowReactions || !canDo('react') || !REACTIONS[id] || room.state !== 'connected') return;
   showReaction(room.localParticipant.identity, id); // data is not echoed back
   try {
     await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'reaction', id })), { reliable: true, topic: 'reaction' });
@@ -1292,7 +1301,7 @@ async function sendReaction(id) {
 }
 
 function toggleTray(open = $('react-tray').hidden) {
-  if (open && !features.allowReactions) return;
+  if (open && !(features.allowReactions && canDo('react'))) return;
   $('react-tray').hidden = !open;
   $('react-toggle').classList.toggle('on', open);
   if (open) closeSettings();
@@ -1571,8 +1580,8 @@ room
           setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
         } else {
           setTimeout(() => {
-            if (window.confirm(`${data.from || 'Someone'} wants to have a private word. Join them?`)) {
-              reconnectTo(data.roomId, 'stepping aside privately...');
+            if (window.confirm(`${data.from || 'Someone'} wants ${data.private === false ? 'to step aside with you' : 'to have a private word'}. Join them?`)) {
+              reconnectTo(data.roomId, data.private === false ? 'stepping aside...' : 'stepping aside privately...');
             }
           }, 0);
         }
@@ -1692,11 +1701,13 @@ function updateAsideConfirm() {
   overlay.hidden = asideSelection.size === 0;
   const n = asideSelection.size;
   const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
-  const isAdmin = me?.role === 'admin';
-  // An ordinary (recorded) aside is a GM move; anyone can ask for a real
-  // off-the-record word, admin or not -- see /api/table/pull-aside.
-  $('aside-confirm').hidden = !isAdmin;
-  $('aside-overlay-prompt').textContent = isAdmin ? `Step aside with ${names.join(' & ')}?` : `Have a private word with ${names.join(' & ')}?`;
+  // An ordinary (recorded) aside and an off-the-record word are separate
+  // permissions -- see Settings > Roles and /api/table/pull-aside.
+  const canAside = canDo('startAside') && features.allowAsides;
+  const canPrivate = canDo('privateCall') && features.allowPrivate;
+  $('aside-confirm').hidden = !canAside;
+  $('aside-confirm-private').hidden = !canPrivate;
+  $('aside-overlay-prompt').textContent = canAside ? `Step aside with ${names.join(' & ')}?` : `Have a private word with ${names.join(' & ')}?`;
   $('aside-confirm-label').textContent = n === 1 ? 'Step aside' : `Step aside with ${n}`;
   $('aside-confirm-private-label').textContent = n === 1 ? 'Privately' : `Privately with ${n}`;
 }
@@ -1800,6 +1811,7 @@ async function join(roomId = 'lobby') {
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
     tableName = roomDisplayName(currentRoom);
     renderRoomLink();
+    applyPermissions();
     updateRecallButton();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
@@ -1825,6 +1837,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     // anything reading currentRoom.members downstream breaks.
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
     renderRoomLink();
+    applyPermissions();
     updateRecallButton();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
@@ -2177,7 +2190,7 @@ $('chat-resize').addEventListener('pointercancel', stopChatDrag);
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
-  if (!text) return;
+  if (!text || !canDo('chat')) return;
   $('chat-input').value = '';
   resizeChatInput();
   try {
@@ -2775,8 +2788,8 @@ function populateCallSettingsUI() {
 // caps the quality picker at whatever the admin set as the ceiling. Run
 // once branding is in hand (init()), since these come from the server.
 function applyFeatureFlags() {
-  $('screen-share').hidden = !(features.allowScreenShare && navigator.mediaDevices?.getDisplayMedia);
-  $('react-toggle').hidden = !features.allowReactions;
+  $('screen-share').hidden = !(features.allowScreenShare && canDo('shareScreen') && navigator.mediaDevices?.getDisplayMedia);
+  $('react-toggle').hidden = !(features.allowReactions && canDo('react'));
   const select = $('quality');
   for (const opt of select.options) opt.hidden = Number(opt.value) > features.maxQuality;
   if (prefs.quality > features.maxQuality) {
@@ -2855,7 +2868,7 @@ async function init() {
       savePrefs();
       // Re-clamp: the account's own stored quality could predate whatever
       // the server's maxQuality cap is set to now.
-      applyFeatureFlags();
+      applyPermissions();
       populateCallSettingsUI();
     }
     await loadTable(); // the join screen's member grid

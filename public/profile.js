@@ -2,7 +2,7 @@
 // set. An admin visiting /profile/<key> gets the same page in edit mode
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
-import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
@@ -192,6 +192,12 @@ function buildRoomSection(roomId) {
 function fillRoomSection(section, room, roomImages) {
   const editing = !!editingKey;
   section.querySelector('.room-section-title').textContent = room.name;
+  const token = section.querySelector('.room-token');
+  token.hidden = !room.hasImage;
+  if (room.hasImage && token.dataset.for !== `${room.id}`) {
+    token.dataset.for = room.id;
+    token.src = `/img/room/${encodeURIComponent(room.id)}?v=${Date.now()}`;
+  }
   section.querySelector('[data-action="room-remove"]').hidden = !editing;
 
   // Only an admin sets any of this, same as the images themselves.
@@ -203,8 +209,8 @@ function fillRoomSection(section, room, roomImages) {
   section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
     ? 'Admins can always do all of this, in every room.'
     : editing
-      ? `What ${user.displayName} can do in ${room.name} without being an admin. Can kick and Can mute add those tools to their tiles here; Can invite lets them manage the room's guest link.`
-      : `Set by your admin. Can kick and Can mute add those tools to other players' tiles in ${room.name}; Can invite lets you manage its guest link.`;
+      ? `What ${user.displayName} can do in ${room.name} beyond their role. Moderator gives them everything the Moderator role has (Manage > Roles) here; Can kick, Can mute and Can invite add just that one.`
+      : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name}; Can kick, Can mute and Can invite add just that one.`;
   const useDefault = roomImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
@@ -524,7 +530,7 @@ $('subtabs').addEventListener('click', (event) => {
 window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 
 async function init() {
-  renderTopbar({ location: '<span class="crumb-here"><i class="fa-solid fa-user fa-fw" aria-hidden="true"></i><span class="crumb-label"> Profile</span></span>' });
+  renderTopbar({ location: crumbLink('user', 'Profile', location.pathname) });
   const branding = await loadBranding();
   // The stored value is already clamped server-side (see sanitizeCallPrefs)
   // -- this just keeps the picker from offering an option that would get
@@ -546,6 +552,8 @@ async function init() {
     return;
   }
   document.title = `${document.title.split(' - ')[0]} - ${user.displayName}`;
+  // An admin editing someone: Server Settings > their name, each a way back.
+  if (editingKey) setTopbarLocation(crumbLink('gear', 'Server Settings', '/admin#users') + '<span class="crumb-sep">&rsaquo;</span>' + crumbLink('user', user.displayName, location.pathname));
   render();
   selectTab(location.hash.slice(1));
 }

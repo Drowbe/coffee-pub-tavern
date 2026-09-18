@@ -14,12 +14,6 @@ name, a status line, a link. Keep new admin surfaces to this shape rather than g
 another inline editor on a list -- it is why the two existing ones scaled badly enough to
 need rebuilding.
 
-## Moderator permission does nothing yet
-
-The Moderator checkbox on a member's per-room Permissions (profile > Rooms) is captured and
-stored (`user.rooms[roomId].permissions.moderator`) but not wired to anything -- "we will
-use this later." Can kick, Can mute and Can invite are live.
-
 ## Studio needs to read a room's profile
 
 A room's **profile** (Roleplaying / Participants / Characters, set on its config page) now

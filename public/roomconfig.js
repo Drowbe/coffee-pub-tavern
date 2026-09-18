@@ -1,7 +1,7 @@
 // One room's own page, the same idea as a user's profile page: click a
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const roomId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -250,7 +250,7 @@ window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 selectTab(location.hash.slice(1));
 
 async function init() {
-  renderTopbar({ adminHref: '/admin#rooms', location: '<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>' });
+  renderTopbar({ adminHref: '/admin#rooms', location: crumbLink('gear', 'Server Settings', '/admin#rooms') });
   await loadBranding();
   wireOverlayBack();
   buildIconGrid();
@@ -266,9 +266,9 @@ async function init() {
     room = roomRes.room;
     users = usersRes.users;
     setTopbarLocation(
-      `<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>` +
+      crumbLink('gear', 'Server Settings', '/admin#rooms') +
       `<span class="crumb-sep">&rsaquo;</span>` +
-      `<span class="crumb-here"><i class="fa-solid fa-message fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(room.name)}</span></span>`
+      crumbLink('message', room.name, location.pathname)
     );
   } catch (err) {
     location.href = '/admin#rooms';

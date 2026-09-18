@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -54,12 +54,11 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
-// Users / Rooms / Settings tabs, remembered in the address
+// Users / Rooms / Roles / Settings / About tabs, remembered in the address
+const TABS = ['users', 'rooms', 'roles', 'settings', 'about'];
 function selectTab(name) {
-  const tab = name === 'settings' || name === 'rooms' ? name : 'users';
-  $('tab-users').hidden = tab !== 'users';
-  $('tab-rooms').hidden = tab !== 'rooms';
-  $('tab-settings').hidden = tab !== 'settings';
+  const tab = TABS.includes(name) ? name : 'users';
+  for (const t of TABS) $(`tab-${t}`).hidden = tab !== t;
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
 }
@@ -164,6 +163,43 @@ async function loadUsers() {
   rooms = status.rooms || rooms;
   renderUsers();
 }
+
+// --- roles ---------------------------------------------------------------------
+// A grid: one row per permission, one column per role. Admin is always all
+// on and disabled; the other three save the moment a box is clicked.
+
+const ROLE_COLUMNS = [['admin', 'Admin'], ['moderator', 'Moderator'], ['user', 'User'], ['guest', 'Guest']];
+
+function renderRoles({ permissions, roles }) {
+  const rows = ['<thead><tr><th></th>' + ROLE_COLUMNS.map(([, label]) => `<th>${label}</th>`).join('') + '</tr></thead><tbody>'];
+  let group = null;
+  for (const p of permissions) {
+    if (p.group !== group) {
+      group = p.group;
+      rows.push(`<tr class="roles-group"><th colspan="${ROLE_COLUMNS.length + 1}">${escapeHtml(group)}</th></tr>`);
+    }
+    rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map(([role]) => {
+      const locked = role === 'admin';
+      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${roles[role][p.key] ? 'checked' : ''} ${locked ? 'disabled title="Admins can always do this"' : ''} aria-label="${escapeHtml(p.label)}, ${role}"></td>`;
+    }).join('') + '</tr>');
+  }
+  rows.push('</tbody>');
+  $('roles-table').innerHTML = rows.join('');
+}
+async function loadRoles() {
+  renderRoles(await api('GET', '/api/roles'));
+}
+$('roles-table').addEventListener('change', async (event) => {
+  const box = event.target;
+  if (!box.dataset.role) return;
+  try {
+    await api('PATCH', `/api/roles/${box.dataset.role}`, { [box.dataset.perm]: box.checked });
+    say($('roles-status'), 'saved');
+  } catch (err) {
+    box.checked = !box.checked;
+    say($('roles-status'), err.message, true);
+  }
+});
 
 // --- rooms ---------------------------------------------------------------------
 // A roster, same as Users: click a room to configure it on its own page
@@ -749,7 +785,7 @@ $('stream-regen').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar({ location: '<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>' });
+  renderTopbar({ location: crumbLink('gear', 'Server Settings', '/admin') });
   buildHomeIconGrid();
   await loadBranding();
   wireOverlayBack('Rooms');
@@ -770,6 +806,7 @@ async function init() {
     selectedHomeIcon = settings.homeIcon || 'couch';
     renderHomeIconSelection();
     await loadThemes();
+    await loadRoles();
     $('set-max-quality').value = String(settings.maxQuality || 720);
     $('set-allow-screen-share').checked = settings.allowScreenShare !== false;
     $('set-allow-asides').checked = settings.allowAsides !== false;

@@ -1252,6 +1252,14 @@ body.at-table .topbar {
   white-space: nowrap;
 }
 
+a.crumb-here {
+  color: inherit;
+}
+
+a.crumb-here:hover {
+  color: var(--accent);
+}
+
 /* Hides at narrow widths (see the media query below), leaving just the
    icon each crumb-here already carries -- the reason every segment has
    one, not just decoration. */
@@ -2530,6 +2538,49 @@ body.at-table .topbar {
    from the SAME custom properties the inputs are editing, scoped to just
    this box (see admin.js's updateThemePreview()) so picking a color shows
    its real effect without recoloring the whole settings page underneath. */
+.roles-scroll {
+  overflow-x: auto;
+}
+
+.roles-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+}
+
+.roles-table th,
+.roles-table td {
+  padding: 8px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.roles-table thead th {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.roles-table tbody th[scope="row"] {
+  text-align: left;
+  font-weight: 400;
+}
+
+.roles-table .roles-group th {
+  text-align: left;
+  padding-top: 16px;
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: none;
+}
+
+.about p {
+  margin: 0 0 10px;
+}
+
 .theme-preview {
   padding: 16px;
   border-radius: 10px;
@@ -2591,6 +2642,27 @@ body.at-table .topbar {
 #section-room,
 #section-members,
 #section-access,
+.room-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.room-section-heading h2 {
+  margin: 0;
+}
+
+/* Token-sized: a nod to which room this is, not a picture of it. */
+.room-token {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex: none;
+}
+
 .room-section {
   scroll-margin-top: 70px;
 }

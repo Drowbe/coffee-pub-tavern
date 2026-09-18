@@ -89,6 +89,16 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
 // actions from right where it says where you are (a room's own Leave, an
 // aside's own Rejoin Call) -- see room.js's updateCrumb() for the one page
 // that actually changes this after the initial render.
+// One crumb segment that goes somewhere. Opened as an overlay over a call
+// (?from=room), the link keeps that query so the next page still knows to
+// offer its "Back" button instead of quietly turning into a normal page.
+export function crumbLink(icon, label, href) {
+  const params = new URLSearchParams(window.location.search);
+  const keep = params.get('from') === 'room' ? window.location.search : '';
+  const [path, hash] = href.split('#');
+  return `<a class="crumb-here" href="${path}${keep}${hash ? '#' + hash : ''}"><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(label)}</span></a>`;
+}
+
 export function setTopbarLocation(html) {
   const crumb = document.getElementById('topbar-crumb');
   if (crumb) crumb.innerHTML = html ? `<span class="crumb-sep">&rsaquo;</span>${html}` : '';

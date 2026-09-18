@@ -162,14 +162,17 @@
   <template id="room-section-template">
     <section class="panel room-section">
       <div class="section-head">
-        <h2 class="room-section-title"></h2>
+        <div class="room-section-heading">
+          <img class="room-token" alt="" hidden>
+          <h2 class="room-section-title"></h2>
+        </div>
         <button class="btn btn-small btn-danger" data-action="room-remove" type="button" hidden>Remove from room</button>
       </div>
       <p class="hint room-section-hint"></p>
 
       <h3>Permissions</h3>
       <div class="checks">
-        <label class="check"><input type="checkbox" data-permission="moderator"> Moderator <span class="hint">(not used yet)</span></label>
+        <label class="check"><input type="checkbox" data-permission="moderator"> Moderator</label>
         <label class="check"><input type="checkbox" data-permission="canKick"> Can kick</label>
         <label class="check"><input type="checkbox" data-permission="canMute"> Can mute</label>
         <label class="check"><input type="checkbox" data-permission="canInvite"> Can invite</label>

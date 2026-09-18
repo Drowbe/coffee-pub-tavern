@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
-const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
+const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 
 const {
@@ -230,7 +230,8 @@ function publicUser(req, u) {
     rooms[room.id] = {
       images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.rooms[room.id]?.images?.[slot]])),
       useDefaultImages: u.rooms[room.id]?.useDefaultImages !== false,
-      permissions: store.roomPermissions(u.key, room.id),
+      permissions: store.roomFlags(u.key, room.id), // the stored ticks, for the profile page
+      effective: store.roomPermissions(u.key, room.id), // what they can actually do there
     };
   }
   return {
@@ -242,6 +243,7 @@ function publicUser(req, u) {
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
     rooms,
+    permissions: store.roomPermissions(u.key, null), // their role's, outside any one room
     player: { ...u.player, effective: store.effectivePlayer(u) },
     callPrefs: u.callPrefs,
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
@@ -640,7 +642,7 @@ app.post('/api/guest-join', async (req, res) => {
   const identity = `guest-${randomToken(8)}`;
   const room = livekitRoomName(tavernRoom.id);
   const token = await mintToken({ identity, name, room, publisher: true });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token, permissions: store.roleSet('guest') });
 });
 
 // A user may replace or clear their own profile photo. This is separate from
@@ -713,7 +715,6 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
   try {
     const initiator = currentUser(req);
     const priv = Boolean(req.body?.private);
-    if (!priv && initiator.role !== 'admin') return res.status(403).json({ error: 'only an admin can pull someone into an aside' });
     if (priv && store.settings.allowPrivate === false) return res.status(403).json({ error: 'private conversations are turned off' });
     if (!priv && store.settings.allowAsides === false) return res.status(403).json({ error: 'asides are turned off' });
     const raw = req.body?.with;
@@ -722,6 +723,8 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
     if (!targets.length) return res.status(400).json({ error: 'pick someone to pull aside' });
     const initiatorRoom = await roomOf(initiator.key);
     if (!initiatorRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
+    const perms = store.roomPermissions(initiator.key, roomIdOfLivekit(initiatorRoom));
+    if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
     for (const target of targets) {
       const targetRoom = await roomOf(target.key);
       if (targetRoom !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
@@ -730,7 +733,7 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
     // byAdmin tells the target's client whether to just go (an admin's
     // call) or ask first -- see the 'pull-aside' handler in room.js.
     const payload = new TextEncoder().encode(
-      JSON.stringify({ type: 'pull-aside', roomId: room.id, byAdmin: initiator.role === 'admin', from: initiator.displayName })
+      JSON.stringify({ type: 'pull-aside', roomId: room.id, byAdmin: initiator.role === 'admin', private: priv, from: initiator.displayName })
     );
     await roomService.sendData(initiatorRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
     // Everyone left behind: a private word is private from the table, not
@@ -997,6 +1000,10 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
 });
+
+// Settings > Roles: the permission list and every role's grid of on/off.
+app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: ROLE_PERMISSIONS, roles: store.roles() }));
+app.patch('/api/roles/:role', requireAdmin, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
 
 app.get('/api/settings', requireAdmin, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));
 app.patch('/api/settings', requireAdmin, (req, res) => {
