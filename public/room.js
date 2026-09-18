@@ -423,16 +423,22 @@ function updateBackgroundPlaceholder(tile, key) {
 function adminToolsFor(participant) {
   const tools = document.createElement('div');
   tools.className = 'tile-admin-tools';
+  // Muting is a real server-side toggle, but LiveKit has no "remote
+  // unmute" -- only the participant's own client can turn their mic back
+  // on, so offering it here just fails ("remote unmute not enabled").
+  // The button only ever mutes; once muted, updateMuted() hides it and
+  // whoever's muted has to unmute themselves.
   const mute = document.createElement('button');
   mute.type = 'button';
+  mute.dataset.action = 'mute';
   mute.className = 'tile-admin-btn';
   mute.title = 'Mute';
+  mute.hidden = participant.getTrackPublication(Track.Source.Microphone)?.isMuted ?? false;
   mute.innerHTML = '<i class="fa-solid fa-microphone-slash fa-fw" aria-hidden="true"></i>';
   mute.addEventListener('click', async (e) => {
     e.stopPropagation();
-    const micPub = participant.getTrackPublication(Track.Source.Microphone);
     try {
-      await api('POST', `/api/users/${encodeURIComponent(participant.identity)}/mute`, { muted: !micPub?.isMuted });
+      await api('POST', `/api/users/${encodeURIComponent(participant.identity)}/mute`, { muted: true });
     } catch (err) {
       setStatus(`mute: ${err.message}`, true);
     }
@@ -452,6 +458,29 @@ function adminToolsFor(participant) {
     }
   });
   tools.append(mute, kick);
+  // Same restriction as the corner step-aside button: you can't step aside
+  // from an aside (or private) room, there's nowhere further to go.
+  if (!currentRoom?.ephemeral) {
+    const aside = document.createElement('button');
+    aside.type = 'button';
+    aside.className = 'tile-admin-btn';
+    aside.title = 'Step aside';
+    aside.innerHTML = '<i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i>';
+    aside.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pullAside([participant.identity]);
+    });
+    const priv = document.createElement('button');
+    priv.type = 'button';
+    priv.className = 'tile-admin-btn';
+    priv.title = 'Privately';
+    priv.innerHTML = '<i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i>';
+    priv.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pullAside([participant.identity], true);
+    });
+    tools.append(aside, priv);
+  }
   return tools;
 }
 
@@ -907,6 +936,10 @@ function updateMuted(participant) {
   } else if (!muted && badge) {
     badge.remove();
   }
+  // The admin Mute button can't unmute (see adminToolsFor) -- hide it once
+  // there's nothing left for it to do.
+  const muteBtn = tile.querySelector('.tile-admin-btn[data-action="mute"]');
+  if (muteBtn) muteBtn.hidden = muted;
 }
 
 // A camera turned off keeps its publication but mutes it: show the image again.
