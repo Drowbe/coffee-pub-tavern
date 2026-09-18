@@ -340,7 +340,6 @@ function renderMembers(list, members, roomId) {
       el.dataset.key = u.key;
       const img = document.createElement('img');
       img.alt = '';
-      img.src = imgUrl(u.key, 'profile');
       const dot = document.createElement('span');
       dot.className = 'dot';
       const name = document.createElement('span');
@@ -349,6 +348,16 @@ function renderMembers(list, members, roomId) {
       list.appendChild(el);
     }
     const here = Boolean(u.online) && u.room === roomId;
+    // This room's Online/Offline picture when they've set one here (Use
+    // Default Profile Images off); otherwise their profile photo.
+    const img = el.querySelector('img');
+    const slot = here ? 'player' : 'playerOffline';
+    if (img.dataset.slot !== slot) {
+      img.dataset.slot = slot;
+      const profile = imgUrl(u.key, 'profile');
+      img.onerror = () => { img.onerror = null; img.src = profile; };
+      img.src = roomId && roomId !== LOBBY && !u.key.startsWith(GUEST_PREFIX) ? imgUrl(u.key, slot, { room: roomId, roomOnly: 1 }) : profile;
+    }
     el.querySelector('.member-name').textContent = u.displayName;
     el.querySelector('.dot').classList.toggle('online', here);
     el.classList.toggle('online', here);
