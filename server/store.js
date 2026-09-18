@@ -213,6 +213,8 @@ const DEFAULT_SETTINGS = {
   privateDim: 0,
   privateTint: '#000000',
   privateTintOpacity: 0,
+  // Font Awesome icons picked on the Theme tab: { id, classes, label }.
+  icons: [],
   // The reaction tray at the table: id (also the 1-6 shortcut order and the
   // data-channel payload), glyph (what's drawn), label (button title/alt).
   reactions: [
@@ -266,6 +268,27 @@ function cleanReactions(value) {
     if (!id || seen.has(id)) id = `r${randomKey(6)}`;
     seen.add(id);
     out.push({ id, glyph, label });
+  }
+  return out;
+}
+
+// The Font Awesome icons an admin has picked: { id, classes, label }. Only
+// fa-* class names survive, so whatever was pasted can't smuggle anything else.
+function cleanIcons(value) {
+  if (!Array.isArray(value)) return null;
+  const seen = new Set();
+  const out = [];
+  for (const i of value) {
+    if (!i || typeof i !== 'object') continue;
+    const tokens = String(i.classes || '').split(/\s+/).filter((t) => /^fa-[a-z0-9-]+$/.test(t)).slice(0, 8);
+    if (!tokens.length) continue;
+    const classes = tokens.join(' ');
+    const name = tokens.filter((t) => !/^fa-(solid|regular|brands|light|thin|duotone|sharp|fw|lg|xs|sm|2x|3x)$/.test(t)).pop() || 'icon';
+    const label = cleanText(i.label, 40) || name.replace(/^fa-/, '').replace(/-/g, ' ');
+    let id = typeof i.id === 'string' ? i.id.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40) : '';
+    if (!id || seen.has(id)) id = `${name.slice(3, 30)}${seen.has(name.slice(3, 30)) ? '-' + randomKey(4) : ''}`;
+    seen.add(id);
+    out.push({ id, classes, label });
   }
   return out;
 }
@@ -581,6 +604,10 @@ class Store {
     if (patch.reactions !== undefined) {
       const reactions = cleanReactions(patch.reactions);
       if (reactions) s.reactions = reactions;
+    }
+    if (patch.icons !== undefined) {
+      const icons = cleanIcons(patch.icons);
+      if (icons) s.icons = icons;
     }
     this.save();
     return s;

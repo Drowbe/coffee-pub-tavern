@@ -54,10 +54,11 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
-// Users / Rooms / Roles / Settings / About tabs, remembered in the address
-const TABS = ['users', 'rooms', 'roles', 'settings', 'about'];
+// Server / Theme / Rooms / Roles / Users / About tabs, remembered in the address
+const TABS = ['server', 'theme', 'rooms', 'roles', 'users', 'about'];
 function selectTab(name) {
-  const tab = TABS.includes(name) ? name : 'users';
+  if (name === 'settings') name = 'server'; // the old name
+  const tab = TABS.includes(name) ? name : 'server';
   for (const t of TABS) $(`tab-${t}`).hidden = tab !== t;
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
@@ -626,16 +627,78 @@ $('save-reactions').addEventListener('click', async () => {
   try {
     const { settings } = await api('PATCH', '/api/settings', { reactions });
     renderReactionRows(settings.reactions);
+    renderIconRows(settings.icons);
     say($('reactions-status'), 'saved');
   } catch (err) {
     say($('reactions-status'), err.message, true);
   }
 });
 
+// --- Font Awesome icons -----------------------------------------------------
+// Paste the HTML Font Awesome gives you; we keep just its classes.
+function parseIconClasses(text) {
+  const raw = String(text || '');
+  const m = raw.match(/class\s*=\s*["']([^"']+)["']/i);
+  const tokens = (m ? m[1] : raw).split(/\s+/).filter((t) => /^fa-[a-z0-9-]+$/.test(t));
+  const hasStyle = tokens.some((t) => /^fa-(solid|regular|brands|light|thin|duotone|sharp)$/.test(t));
+  return tokens.length > (hasStyle ? 1 : 0) ? tokens.join(' ') : '';
+}
+
+function iconRow(icon) {
+  const row = $('icon-row').content.firstElementChild.cloneNode(true);
+  const html = row.querySelector('.icon-html');
+  const preview = row.querySelector('.icon-preview');
+  row.dataset.id = icon?.id || '';
+  row.querySelector('.icon-label').value = icon?.label || '';
+  if (icon?.classes) html.value = `<i class="${icon.classes}"></i>`;
+  const show = () => {
+    const classes = parseIconClasses(html.value);
+    preview.textContent = '';
+    if (classes) {
+      const i = document.createElement('i');
+      i.className = classes + ' fa-fw';
+      preview.appendChild(i);
+    }
+    html.classList.toggle('invalid', Boolean(html.value.trim()) && !classes);
+  };
+  html.addEventListener('input', show);
+  show();
+  return row;
+}
+
+function renderIconRows(icons) {
+  const list = $('icons-list');
+  list.textContent = '';
+  for (const icon of icons || []) list.appendChild(iconRow(icon));
+}
+
+$('icons-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const row = button.closest('.icon-row');
+  if (button.dataset.action === 'icon-remove') row.remove();
+  else if (button.dataset.action === 'icon-up' && row.previousElementSibling) row.parentElement.insertBefore(row, row.previousElementSibling);
+  else if (button.dataset.action === 'icon-down' && row.nextElementSibling) row.parentElement.insertBefore(row.nextElementSibling, row);
+});
+$('icon-add').addEventListener('click', () => $('icons-list').appendChild(iconRow()));
+
+$('save-icons').addEventListener('click', async () => {
+  const icons = [...$('icons-list').querySelectorAll('.icon-row')]
+    .map((row) => ({ id: row.dataset.id, classes: parseIconClasses(row.querySelector('.icon-html').value), label: row.querySelector('.icon-label').value.trim() }))
+    .filter((i) => i.classes);
+  try {
+    const { settings } = await api('PATCH', '/api/settings', { icons });
+    renderIconRows(settings.icons);
+    say($('icons-status'), 'saved');
+  } catch (err) {
+    say($('icons-status'), err.message, true);
+  }
+});
+
 // Site images (icon, sign-in background): click the picture to change it,
 // Remove to clear it. The icon falls back to the built-in one when unset.
 function renderSiteImages(b) {
-  for (const slot of document.querySelectorAll('#tab-settings [data-site]')) {
+  for (const slot of document.querySelectorAll('#tab-server [data-site]')) {
     const name = slot.dataset.site;
     const has = name === 'icon' ? b.hasIcon : b.hasBackground;
     const img = slot.querySelector('img');
@@ -649,7 +712,7 @@ function renderSiteImages(b) {
   }
 }
 
-$('tab-settings').addEventListener('change', async (event) => {
+$('tab-server').addEventListener('change', async (event) => {
   const input = event.target;
   if (input.type !== 'file' || !input.closest('[data-site]')) return;
   const name = input.closest('[data-site]').dataset.site;
@@ -665,7 +728,7 @@ $('tab-settings').addEventListener('change', async (event) => {
   input.value = '';
 });
 
-$('tab-settings').addEventListener('click', async (event) => {
+$('tab-server').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action="site-clear"]');
   if (!button) return;
   const name = button.closest('[data-site]').dataset.site;

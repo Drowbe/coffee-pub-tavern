@@ -2602,6 +2602,19 @@ a.crumb-here:hover {
   margin-bottom: 14px;
 }
 
+.theme-preview {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.theme-preview-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
 .theme-preview p {
   margin: 0 0 10px;
 }
@@ -2760,6 +2773,23 @@ a.crumb-here:hover {
 .reaction-row .reaction-label {
   flex: 1;
   min-width: 0;
+}
+
+.icon-row .icon-preview {
+  width: 44px;
+  text-align: center;
+  flex: none;
+  font-size: 20px;
+}
+
+.icon-row .icon-html {
+  flex: 2;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.icon-row .icon-html.invalid {
+  border-color: #b8503f;
 }
 
 /* Member tiles on a room: click to toggle, lit while in the room */

@@ -15,14 +15,15 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="users" type="button">Users</button>
+      <button class="subtab active" data-tab="server" type="button">Server</button>
+      <button class="subtab" data-tab="theme" type="button">Theme</button>
       <button class="subtab" data-tab="rooms" type="button">Rooms</button>
       <button class="subtab" data-tab="roles" type="button">Roles</button>
-      <button class="subtab" data-tab="settings" type="button">Settings</button>
+      <button class="subtab" data-tab="users" type="button">Users</button>
       <button class="subtab" data-tab="about" type="button">About</button>
     </nav>
 
-    <section class="tab-stack" id="tab-users">
+    <section class="tab-stack" id="tab-users" hidden>
       <div class="panel">
         <div class="section-head">
           <h1>Users</h1>
@@ -48,6 +49,93 @@
       </form>
 
       <div id="users" class="users"></div>
+    </section>
+
+    <section class="tab-stack" id="tab-theme" hidden>
+      <div class="panel">
+      <h2>Theme</h2>
+      <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. "Default" is how the app has always looked.</p>
+      <div class="row">
+        <select id="theme-select" aria-label="Theme"></select>
+        <button class="btn btn-primary" id="theme-apply" type="button">Apply</button>
+        <span class="status" id="theme-status"></span>
+      </div>
+      <div class="theme-preview" id="theme-preview">
+        <div class="theme-preview-main">
+        <p>Body text, a <a href="#" onclick="return false">link</a>, and <span class="hint">dim text</span>.</p>
+        <div class="row">
+          <button class="btn btn-primary" type="button">Primary</button>
+          <button class="btn" type="button">Secondary</button>
+          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i></a>
+        </div>
+        </div>
+        <div class="members">
+          <div class="member online">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
+            <span class="member-name">Online</span>
+          </div>
+          <div class="member">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
+            <span class="member-name">Offline</span>
+          </div>
+        </div>
+      </div>
+      <p class="hint">The Secondary button above is computed from the seven colors below, not settings of their own -- if it looks off, it's the background, card background, or accent worth adjusting, not a hidden eighth color. Border reaches further than its name suggests, too: it's mixed into the toolbar and header shading and into recessed fields, not just outlines.</p>
+      <div class="fields">
+        <label>Background<input id="theme-bg" type="color"></label>
+        <label>Card background<input id="theme-bg-card" type="color"></label>
+        <label>Border<input id="theme-border" type="color"></label>
+        <label>Text<input id="theme-text" type="color"></label>
+        <label>Dim text<input id="theme-text-dim" type="color"></label>
+        <label>Accent<input id="theme-accent" type="color"></label>
+        <label>Text on accent<input id="theme-on-accent" type="color"></label>
+      </div>
+      <p class="hint">Adjusting the colors above previews live but doesn't save anything until you pick one of the buttons below.</p>
+      <div class="row">
+        <button class="btn btn-primary" id="theme-save-new" type="button">Save as new theme</button>
+        <button class="btn" id="theme-update" type="button">Update "<span id="theme-update-name"></span>"</button>
+        <button class="btn btn-danger" id="theme-delete" type="button">Delete this theme</button>
+      </div>
+      </div>
+
+
+      <div class="panel">
+      <h2>Default Images</h2>
+      <p class="hint">The Participant box a member shows once neither they nor the room they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
+      <div class="slots" id="default-images">
+        <div class="slot" data-default-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
+        <div class="slot" data-default-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
+        <div class="slot" data-default-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
+        <div class="slot" data-default-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
+        <div class="slot" data-default-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
+        <div class="slot" data-default-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
+      </div>
+      </div>
+
+
+      <div class="panel">
+      <h2>Reactions</h2>
+      <p class="hint">The emoji tray at the table, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
+      <div class="reactions-list" id="reactions-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
+        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
+        <span class="status" id="reactions-status"></span>
+      </div>
+      </div>
+
+
+      <div class="panel">
+      <h2>Font Awesome</h2>
+      <p class="hint">Icons you want available. On fontawesome.com, copy an icon's HTML (like <code>&lt;i class="fa-solid fa-dice"&gt;&lt;/i&gt;</code>) and paste it here; the preview shows what it draws. Only the Free icons that ship with Tavern will show.</p>
+      <div class="reactions-list" id="icons-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="icon-add" type="button">Add icon</button>
+        <button class="btn btn-primary" id="save-icons" type="button">Save</button>
+        <span class="status" id="icons-status"></span>
+      </div>
+      </div>
     </section>
 
     <section class="tab-rooms" id="tab-rooms" hidden>
@@ -88,7 +176,7 @@
       </div>
     </section>
 
-    <section class="tab-stack" id="tab-settings" hidden>
+    <section class="tab-stack" id="tab-server">
       <div class="panel">
       <h2>Server</h2>
       <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>
@@ -113,51 +201,6 @@
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
-      </div>
-      </div>
-
-      <div class="panel">
-      <h2>Theme</h2>
-      <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. "Default" is how the app has always looked.</p>
-      <div class="row">
-        <label>Active theme<select id="theme-select"></select></label>
-        <button class="btn btn-primary" id="theme-apply" type="button">Apply</button>
-        <span class="status" id="theme-status"></span>
-      </div>
-      <div class="theme-preview" id="theme-preview">
-        <p>Body text, a <a href="#" onclick="return false">link</a>, and <span class="hint">dim text</span>.</p>
-        <div class="row">
-          <button class="btn btn-primary" type="button">Primary</button>
-          <button class="btn" type="button">Secondary</button>
-          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i></a>
-        </div>
-        <div class="members">
-          <div class="member online">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
-            <span class="member-name">Online</span>
-          </div>
-          <div class="member">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
-            <span class="member-name">Offline</span>
-          </div>
-        </div>
-      </div>
-      <p class="hint">The Secondary button above is computed from the seven colors below, not settings of their own -- if it looks off, it's the background, card background, or accent worth adjusting, not a hidden eighth color. Border reaches further than its name suggests, too: it's mixed into the toolbar and header shading and into recessed fields, not just outlines.</p>
-      <div class="fields">
-        <label>Background<input id="theme-bg" type="color"></label>
-        <label>Card background<input id="theme-bg-card" type="color"></label>
-        <label>Border<input id="theme-border" type="color"></label>
-        <label>Text<input id="theme-text" type="color"></label>
-        <label>Dim text<input id="theme-text-dim" type="color"></label>
-        <label>Accent<input id="theme-accent" type="color"></label>
-        <label>Text on accent<input id="theme-on-accent" type="color"></label>
-      </div>
-      <p class="hint">Adjusting the colors above previews live but doesn't save anything until you pick one of the buttons below.</p>
-      <div class="row">
-        <button class="btn btn-primary" id="theme-save-new" type="button">Save as new theme</button>
-        <button class="btn" id="theme-update" type="button">Update "<span id="theme-update-name"></span>"</button>
-        <button class="btn btn-danger" id="theme-delete" type="button">Delete this theme</button>
       </div>
       </div>
 
@@ -314,19 +357,6 @@
       </div>
 
       <div class="panel">
-      <h2>Default Images</h2>
-      <p class="hint">The Participant box a member shows once neither they nor the room they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
-      <div class="slots" id="default-images">
-        <div class="slot" data-default-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
-        <div class="slot" data-default-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
-        <div class="slot" data-default-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
-        <div class="slot" data-default-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
-        <div class="slot" data-default-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
-        <div class="slot" data-default-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
-      </div>
-      </div>
-
-      <div class="panel">
       <h2>Guest images</h2>
       <p class="hint">The Participant box a guest shows in place of a real member's own pictures -- anyone can hand out a room's guest link from inside it (Settings, in the room itself); no account behind them to hang per-guest images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
       <div class="slots" id="guest-images">
@@ -336,17 +366,6 @@
         <div class="slot" data-guest-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
         <div class="slot" data-guest-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
         <div class="slot" data-guest-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
-      </div>
-      </div>
-
-      <div class="panel">
-      <h2>Reactions</h2>
-      <p class="hint">The emoji tray at the table, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
-      <div class="reactions-list" id="reactions-list"></div>
-      <div class="row">
-        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
-        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
-        <span class="status" id="reactions-status"></span>
       </div>
       </div>
 
@@ -362,6 +381,17 @@
       </div>
     </section>
   </main>
+
+  <template id="icon-row">
+    <div class="reaction-row icon-row">
+      <span class="icon-preview" aria-hidden="true"></span>
+      <input class="icon-html" type="text" placeholder='<i class="fa-solid fa-dice"></i>' aria-label="Font Awesome HTML" spellcheck="false" autocomplete="off">
+      <input class="reaction-label icon-label" type="text" maxlength="40" placeholder="Label" aria-label="Label">
+      <button class="btn btn-small" data-action="icon-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="icon-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
+      <button class="btn btn-small btn-danger" data-action="icon-remove" type="button">Remove</button>
+    </div>
+  </template>
 
   <template id="reaction-row">
     <div class="reaction-row">
