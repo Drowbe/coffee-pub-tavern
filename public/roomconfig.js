@@ -1,7 +1,7 @@
 // One room's own page, the same idea as a user's profile page: click a
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const roomId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -9,25 +9,20 @@ let me = null;
 let room = null;
 let users = [];
 
-// Kept in sync with ROOM_LINK_ICONS in server/store.js -- Font Awesome
-// solid is the only style loaded, so the choice is a fixed set, not free text.
-const ROOM_LINK_ICONS = [
-  'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
-  'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
-  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
-];
+// The choices come from the admin's Font Awesome list (Theme tab).
 let selectedLinkIcon = 'link';
 
 function buildIconGrid() {
   const grid = $('e-link-icon');
-  for (const icon of ROOM_LINK_ICONS) {
+  grid.textContent = '';
+  for (const { id, classes, label } of getIcons()) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.dataset.icon = icon;
-    btn.title = icon;
-    btn.innerHTML = `<i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i>`;
+    btn.dataset.icon = id;
+    btn.title = label || id;
+    btn.innerHTML = `<i class="${escapeHtml(classes)} fa-fw" aria-hidden="true"></i>`;
     btn.addEventListener('click', () => {
-      selectedLinkIcon = icon;
+      selectedLinkIcon = id;
       renderIconGridSelection();
     });
     grid.appendChild(btn);

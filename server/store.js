@@ -35,13 +35,14 @@ const SLOTS = ['profile', 'background', ...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS
 const ROOM_PROFILES = ['roleplaying', 'participants', 'characters'];
 // A room's optional "launch" link (their VTT, wiki, playlist, whatever) --
 // shown as a button next to Join and in the in-call toolbar. The icon is
-// picked from this fixed set (Font Awesome solid is the only style loaded)
-// rather than a free-text icon name, so a bad value can't render nothing.
-const ROOM_LINK_ICONS = [
+// picked from the admin's Font Awesome list (Theme tab), stored as that
+// icon's id, so a bad value can't render nothing. This is the starting list.
+const STARTER_ICONS = [
   'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
   'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
   'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
 ];
+const DEFAULT_ICONS = STARTER_ICONS.map((name) => ({ id: name, classes: `fa-solid fa-${name}`, label: name.replace(/-/g, ' ') }));
 const DEFAULT_ROOM_LINK_ICON = 'link';
 const DEFAULT_HOME_ICON = 'couch';
 const ROOM_PROFILE_SLOTS = {
@@ -214,7 +215,7 @@ const DEFAULT_SETTINGS = {
   privateTint: '#000000',
   privateTintOpacity: 0,
   // Font Awesome icons picked on the Theme tab: { id, classes, label }.
-  icons: [],
+  icons: DEFAULT_ICONS,
   // The reaction tray at the table: id (also the 1-6 shortcut order and the
   // data-channel payload), glyph (what's drawn), label (button title/alt).
   reactions: [
@@ -410,7 +411,7 @@ class Store {
       // An optional external link (their VTT, wiki, playlist...) offered as
       // a button next to Join and in the in-call toolbar. null when unset.
       link: cleanRoomLink(r.link),
-      linkIcon: ROOM_LINK_ICONS.includes(r.linkIcon) ? r.linkIcon : DEFAULT_ROOM_LINK_ICON,
+      linkIcon: typeof r.linkIcon === 'string' && /^[a-z0-9-]{1,40}$/.test(r.linkIcon) ? r.linkIcon : DEFAULT_ROOM_LINK_ICON,
       // A standing door code: anyone with this room's guest link joins it
       // with just a name, no account. null while off. See enableGuestLink.
       guestToken: typeof r.guestToken === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(r.guestToken) ? r.guestToken : null,
@@ -533,11 +534,15 @@ class Store {
     return this.data.settings;
   }
 
+  iconIds() {
+    return (this.data.settings.icons || []).map((i) => i.id);
+  }
+
   updateSettings(patch) {
     const s = this.data.settings;
     if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
     if (patch.homeIcon !== undefined) {
-      if (!ROOM_LINK_ICONS.includes(patch.homeIcon)) throw new StoreError('unknown home icon');
+      if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
       s.homeIcon = patch.homeIcon;
     }
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
@@ -891,7 +896,7 @@ class Store {
       }
     }
     if (patch.linkIcon !== undefined) {
-      if (!ROOM_LINK_ICONS.includes(patch.linkIcon)) throw new StoreError('unknown link icon');
+      if (!this.iconIds().includes(patch.linkIcon)) throw new StoreError('unknown link icon');
       room.linkIcon = patch.linkIcon;
     }
     if (patch.allowGuests !== undefined) {
@@ -1271,5 +1276,5 @@ class StoreError extends Error {
 
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
-  ROOM_LINK_ICONS, LEGACY_SLOTS, ROLES, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+  LEGACY_SLOTS, ROLES, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
 };

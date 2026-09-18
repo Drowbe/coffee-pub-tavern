@@ -4,6 +4,18 @@ export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+// The admin's Font Awesome list (Theme tab), as last loaded by loadBranding().
+let ICONS = [];
+export const getIcons = () => ICONS;
+// Full class list for an icon id -- room link icons and the home icon are
+// stored as ids into that list. Before the list has loaded, or for an id no
+// longer in it, fall back rather than draw nothing.
+export function iconClasses(id) {
+  const found = ICONS.find((i) => i.id === id);
+  if (found) return found.classes;
+  return ICONS.length ? 'fa-solid fa-link' : `fa-solid fa-${id || 'link'}`;
+}
+
 // Fills in the server name and icon on every page from /api/branding.
 export async function loadBranding() {
   let b = { serverName: 'Coffee Pub Tavern', tableName: 'The Table', loginText: '', hasIcon: false };
@@ -13,8 +25,12 @@ export async function loadBranding() {
   } catch (err) {
     // keep the defaults
   }
+  ICONS = Array.isArray(b.icons) ? b.icons : [];
   document.querySelectorAll('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
-  document.querySelectorAll('[data-brand="home-icon"]').forEach((el) => (el.className = `fa-solid fa-${b.homeIcon || 'couch'} fa-fw`));
+  document.querySelectorAll('[data-brand="home-icon"]').forEach((el) => {
+    el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
+    el.dataset.iconId = b.homeIcon || 'couch';
+  });
   document.querySelectorAll('[data-brand="tableName"]').forEach((el) => (el.textContent = b.tableName));
   document.querySelectorAll('[data-brand="loginText"]').forEach((el) => (el.textContent = b.loginText));
   document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
@@ -64,7 +80,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
     <div class="brand">
       <a class="brand-home" href="/" target="_top" title="All rooms">
         <img data-brand="icon" alt="" class="icon">
-        <i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i>
+        <i class="fa-solid fa-${initialIcon} fa-fw" data-icon-id="${escapeHtml(initialIcon)}" data-brand="home-icon" aria-hidden="true"></i>
         <span data-brand="serverName">${escapeHtml(initialName)}</span>
       </a>
       <nav class="crumb" id="topbar-crumb"></nav>

@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -7,25 +7,20 @@ let streamKey = '';
 let streamShown = false;
 let users = [];
 
-// Kept in sync with ROOM_LINK_ICONS in server/store.js -- Font Awesome
-// solid is the only style loaded, so the choice is a fixed set, not free text.
-const HOME_ICONS = [
-  'link', 'globe', 'gamepad', 'dice-d20', 'dice-d6', 'scroll', 'book',
-  'book-open', 'map', 'compass', 'music', 'headphones', 'video', 'tv',
-  'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
-];
+// The choices come from the Font Awesome list on the Theme tab.
 let selectedHomeIcon = 'couch';
 
 function buildHomeIconGrid() {
   const grid = $('set-home-icon');
-  for (const icon of HOME_ICONS) {
+  grid.textContent = '';
+  for (const { id, classes, label } of getIcons()) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.dataset.icon = icon;
-    btn.title = icon;
-    btn.innerHTML = `<i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i>`;
+    btn.dataset.icon = id;
+    btn.title = label || id;
+    btn.innerHTML = `<i class="${escapeHtml(classes)} fa-fw" aria-hidden="true"></i>`;
     btn.addEventListener('click', () => {
-      selectedHomeIcon = icon;
+      selectedHomeIcon = id;
       renderHomeIconSelection();
     });
     grid.appendChild(btn);
@@ -627,7 +622,6 @@ $('save-reactions').addEventListener('click', async () => {
   try {
     const { settings } = await api('PATCH', '/api/settings', { reactions });
     renderReactionRows(settings.reactions);
-    renderIconRows(settings.icons);
     say($('reactions-status'), 'saved');
   } catch (err) {
     say($('reactions-status'), err.message, true);
@@ -689,6 +683,9 @@ $('save-icons').addEventListener('click', async () => {
   try {
     const { settings } = await api('PATCH', '/api/settings', { icons });
     renderIconRows(settings.icons);
+    await loadBranding();
+    buildHomeIconGrid();
+    renderHomeIconSelection();
     say($('icons-status'), 'saved');
   } catch (err) {
     say($('icons-status'), err.message, true);
@@ -907,6 +904,7 @@ async function init() {
     $('set-private-tint').value = settings.privateTint || '#000000';
     setSlider('set-private-tint-opacity', settings.privateTintOpacity ?? 0, '%');
     renderReactionRows(settings.reactions);
+    renderIconRows(settings.icons);
     renderSiteImages(settings);
     renderGuestImages(settings);
     renderDefaultImages(settings);

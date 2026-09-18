@@ -1,6 +1,6 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses } from '/brand.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
@@ -94,7 +94,7 @@ function renderRoomLink() {
   const room = tableRooms.find((r) => r.id === currentRoom.id);
   const link = room?.link;
   btn.hidden = !link;
-  if (link) btn.querySelector('.glyph').innerHTML = `<i class="fa-solid fa-${room.linkIcon || 'link'} fa-fw" aria-hidden="true"></i>`;
+  if (link) btn.querySelector('.glyph').innerHTML = `<i class="${iconClasses(room.linkIcon || 'link')} fa-fw" aria-hidden="true"></i>`;
 }
 $('room-link').addEventListener('click', () => {
   const room = currentRoom && tableRooms.find((r) => r.id === currentRoom.id);
@@ -309,7 +309,7 @@ function renderRooms() {
     link.hidden = !r.link;
     if (r.link) {
       link.href = r.link;
-      link.querySelector('i').className = `fa-solid fa-${r.linkIcon || 'link'} fa-fw`;
+      link.querySelector('i').className = `${iconClasses(r.linkIcon || 'link')} fa-fw`;
     }
     card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
     card.querySelector('.room-choice-desc').textContent = r.description;
@@ -2654,7 +2654,7 @@ function openOverlay(path) {
   const serverName = document.querySelector('[data-brand="serverName"]')?.textContent;
   if (serverName) params.set('serverName', serverName);
   const homeIconEl = document.querySelector('[data-brand="home-icon"]');
-  const homeIcon = homeIconEl && [...homeIconEl.classList].find((c) => c.startsWith('fa-') && c !== 'fa-solid' && c !== 'fa-fw')?.slice(3);
+  const homeIcon = homeIconEl?.dataset.iconId;
   if (homeIcon) params.set('homeIcon', homeIcon);
   $('page-overlay-frame').src = `${path}${path.includes('?') ? '&' : '?'}${params}`;
   $('page-overlay-frame').hidden = false;
