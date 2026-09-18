@@ -2511,6 +2511,13 @@ a.crumb-here:hover {
   --barh: 45px;
 }
 
+/* Popped out, the toolbar floats over the tiles instead of taking a row, so
+   the chat panel has nothing to leave room for -- without this a small popout
+   window (compact) left a blank strip under the chat box. */
+.popout .stage.compact {
+  --barh: 0px;
+}
+
 .stage.compact .floatbar {
   gap: 4px;
   padding: 5px;
