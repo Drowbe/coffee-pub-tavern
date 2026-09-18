@@ -190,6 +190,18 @@ a:hover {
   color: var(--on-accent);
 }
 
+/* The accent look without .btn-primary's stretch -- for a small button that
+   sits beside a primary one (see the pop-out join on a room card). */
+.btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+
 .btn-primary:hover {
   background: var(--accent-hover);
 }

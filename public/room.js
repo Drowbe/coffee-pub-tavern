@@ -371,7 +371,23 @@ function renderMembers(list, members, roomId) {
 setInterval(() => {
   if (!$('join').hidden || document.body.classList.contains('at-table')) loadTable();
 }, 5000);
+// Join a room straight into its own window, skipping the step of joining in
+// the page first and then popping out. The window opens first, synchronously
+// with the click (a popup opened after a network wait is what browsers
+// block); the stage moves into it, and is revealed there once connected.
+async function joinInPopout(roomId) {
+  if (!pipWindow) openPopout();
+  if (room.state === 'connected' && currentRoom?.id === roomId) returnToStage();
+  else if (room.state === 'connected') await reconnectTo(roomId);
+  else await join(roomId);
+  if (room.state !== 'connected') closePopout(); // it failed; don't leave an empty window
+}
 $('rooms').addEventListener('click', (event) => {
+  const popout = event.target.closest('[data-join-popout]');
+  if (popout) {
+    joinInPopout(popout.closest('.room-choice').dataset.room);
+    return;
+  }
   const button = event.target.closest('[data-join]');
   if (!button) return;
   const roomId = button.dataset.join;
