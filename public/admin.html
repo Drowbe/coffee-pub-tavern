@@ -8,6 +8,7 @@
   <title>Coffee Pub Tavern - Manage</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css" id="theme-link">
 </head>
 <body>
   <header class="topbar"></header>
@@ -74,17 +75,42 @@
         </div>
         <div class="fields grow">
           <label>Server name<input id="set-server" type="text" maxlength="60"></label>
-          <label>Table name<input id="set-table" type="text" maxlength="60"></label>
         </div>
       </div>
       <div class="icon-pick-field">
         <span class="field-label">Home icon</span>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
-      <p class="hint">Shown next to the server name wherever it's a link back to the room list. "Table name" is what stands in for the Lobby's own name (Everyone at the table) wherever a room isn't named yet.</p>
+      <p class="hint">Shown next to the server name wherever it's a link back to the room list.</p>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
+      </div>
+      </div>
+
+      <div class="panel">
+      <h2>Theme</h2>
+      <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. Leave it alone and the app looks exactly like it always has.</p>
+      <div class="theme-preview" id="theme-preview">
+        <p>Body text, a <a href="#" onclick="return false">link</a>, and <span class="hint">dim text</span>.</p>
+        <div class="row">
+          <button class="btn btn-primary" type="button">Primary</button>
+          <button class="btn" type="button">Secondary</button>
+        </div>
+      </div>
+      <div class="fields">
+        <label>Background<input id="theme-bg" type="color"></label>
+        <label>Card background<input id="theme-bg-card" type="color"></label>
+        <label>Border<input id="theme-border" type="color"></label>
+        <label>Text<input id="theme-text" type="color"></label>
+        <label>Dim text<input id="theme-text-dim" type="color"></label>
+        <label>Accent<input id="theme-accent" type="color"></label>
+        <label>Text on accent<input id="theme-on-accent" type="color"></label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-theme" type="button">Save</button>
+        <button class="btn" id="reset-theme" type="button">Reset to default</button>
+        <span class="status" id="theme-status"></span>
       </div>
       </div>
 

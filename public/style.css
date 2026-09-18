@@ -1,14 +1,30 @@
+/* These seven (plus --on-accent) are the whole themeable surface -- a
+   server admin can override every one of them (see /theme.css, filled in
+   from Manage > Settings > Theme). Everything else below is either a fixed
+   semantic colour (--ok, --danger: status, not brand -- see the Theme panel's
+   own note on why those two stay put) or computed FROM these seven with
+   color-mix(), so the whole app re-derives its raised surfaces, recessed
+   fields and shading from just the handful of colors an admin actually
+   picks, rather than each needing its own setting. Mixing toward --accent
+   or --border (not flatly toward black/white) is deliberate: it's the one
+   direction that reads right whether the base colors end up light or dark,
+   so a light theme doesn't need a whole second formula. */
 :root {
   --bg: #1a1410;
   --bg-card: #241c16;
-  --bg-input: #140f0c;
   --border: #3b2e24;
   --text: #f1e6d8;
   --text-dim: #a8998a;
   --accent: #c8873a;
-  --accent-hover: #dd9a48;
+  --on-accent: #1a1206; /* text/icons drawn on an --accent background */
   --ok: #6fae6b;
   --danger: #b8503f;
+  --danger-text: color-mix(in srgb, var(--danger) 55%, white);
+  --accent-hover: color-mix(in srgb, var(--accent) 85%, white);
+  --bg-input: color-mix(in srgb, var(--bg) 85%, var(--border) 15%);
+  --surface: color-mix(in srgb, var(--bg-card) 90%, var(--accent) 10%);
+  --surface-hover: color-mix(in srgb, var(--bg-card) 78%, var(--accent) 22%);
+  --shade: color-mix(in srgb, var(--bg) 85%, var(--border) 15%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   font-size: 14px;
   color: var(--text);
@@ -75,7 +91,7 @@ a:hover {
   padding: 6px 16px;
   min-height: 40px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #2b211a, var(--bg));
+  background: linear-gradient(180deg, var(--shade), var(--bg));
 }
 
 /* The server icon runs the full height of the header, flush to its top,
@@ -125,7 +141,7 @@ a:hover {
 }
 
 .status.error {
-  color: #f0a597;
+  color: var(--danger-text);
 }
 
 .controls {
@@ -135,7 +151,7 @@ a:hover {
 }
 
 .btn {
-  background: #33281f;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -149,7 +165,7 @@ a:hover {
 }
 
 .btn:hover {
-  background: #40322a;
+  background: var(--surface-hover);
 }
 
 .btn.on {
@@ -159,13 +175,13 @@ a:hover {
 
 .btn.off {
   border-color: var(--danger);
-  color: #f0a597;
+  color: var(--danger-text);
 }
 
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1206;
+  color: var(--on-accent);
 }
 
 .btn-primary:hover {
@@ -175,7 +191,7 @@ a:hover {
 .btn-danger {
   background: transparent;
   border-color: var(--danger);
-  color: #f0a597;
+  color: var(--danger-text);
 }
 
 select {
@@ -410,7 +426,7 @@ input[type="range"] {
   height: 48px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: #33281f;
+  background: var(--surface);
   font-size: 24px;
   cursor: pointer;
   line-height: 1;
@@ -939,7 +955,7 @@ input[type="range"] {
 .icon-grid button.selected {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* Same "every choice is one click away" idea as .icon-grid, but a row of
@@ -973,7 +989,7 @@ input[type="range"] {
 .layout-pick button.selected {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* A hotkey field looks like the other .fields inputs at rest, then turns
@@ -1098,7 +1114,7 @@ input[type="range"] {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #4a3d33;
+  background: var(--border);
   flex: none;
 }
 
@@ -1415,7 +1431,7 @@ body.at-table .topbar {
   gap: 8px;
   padding: 10px 12px;
   padding-bottom: max(10px, env(safe-area-inset-bottom));
-  background: #201812;
+  background: var(--shade);
   border-top: 1px solid var(--border);
   transition: width 0.2s ease;
 }
@@ -1478,7 +1494,7 @@ body.at-table .topbar {
   height: 38px;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: #33281f;
+  background: var(--surface);
   color: var(--text);
   font-size: 18px;
   cursor: pointer;
@@ -1521,7 +1537,7 @@ body.at-table .topbar {
 }
 
 .fbtn:hover {
-  background: #40322a;
+  background: var(--surface-hover);
   border-color: var(--accent);
 }
 
@@ -1609,7 +1625,7 @@ body.at-table .topbar {
   padding: 0 4px;
   border-radius: 8px;
   background: var(--accent);
-  color: #1a1206;
+  color: var(--on-accent);
   font-size: 10px;
   font-weight: 700;
   line-height: 16px;
@@ -1907,7 +1923,7 @@ body.at-table .topbar {
 }
 
 .chat-emoji-btn:hover {
-  background: #40322a;
+  background: var(--surface-hover);
 }
 
 .chat form {
@@ -2361,7 +2377,7 @@ body.at-table .topbar {
 .tile-aside.selected {
   opacity: 1;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -2504,6 +2520,24 @@ body.at-table .topbar {
 }
 
 /* --- manage page tabs and settings layout ---------------------------------- */
+
+/* A live sample of the seven theme colors, updated straight from the color
+   inputs below it (see admin.js) -- its own background/border/text come
+   from the SAME custom properties the inputs are editing, scoped to just
+   this box (see admin.js's updateThemePreview()) so picking a color shows
+   its real effect without recoloring the whole settings page underneath. */
+.theme-preview {
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.theme-preview p {
+  margin: 0 0 10px;
+}
 
 .subtabs {
   display: flex;

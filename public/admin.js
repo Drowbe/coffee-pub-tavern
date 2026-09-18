@@ -278,7 +278,7 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, tableName: $('set-table').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
 $('save-features').addEventListener('click', () => saveSettings({
   maxQuality: Number($('set-max-quality').value),
   allowScreenShare: $('set-allow-screen-share').checked,
@@ -287,6 +287,76 @@ $('save-features').addEventListener('click', () => saveSettings({
   allowReactions: $('set-allow-reactions').checked,
 }, $('features-status')));
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
+
+// --- theme -------------------------------------------------------------------
+// Reads/writes style.css's :root custom properties directly rather than
+// keeping its own copy of the built-in defaults -- getComputedStyle already
+// knows the real effective value of each one (the server's /theme.css
+// override if there is one, style.css's own default otherwise), so the
+// color inputs and the preview box start from the truth instead of a
+// second, driftable source of it.
+const THEME_FIELDS = [
+  ['theme-bg', '--bg', 'themeBg'],
+  ['theme-bg-card', '--bg-card', 'themeBgCard'],
+  ['theme-border', '--border', 'themeBorder'],
+  ['theme-text', '--text', 'themeText'],
+  ['theme-text-dim', '--text-dim', 'themeTextDim'],
+  ['theme-accent', '--accent', 'themeAccent'],
+  ['theme-on-accent', '--on-accent', 'themeOnAccent'],
+];
+function currentThemeColor(cssVar) {
+  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
+}
+function loadThemeInputs() {
+  for (const [id, cssVar] of THEME_FIELDS) $(id).value = currentThemeColor(cssVar);
+}
+// Sets these straight on :root (not just the preview box) -- several other
+// rules (button surfaces, hover shades) are themselves computed FROM these
+// seven with color-mix(), and that only recomputes for real when the
+// values it references change at the SAME element (custom properties
+// inherit their already-resolved value, they don't re-substitute var()
+// per descendant) -- so a scoped override on just the preview box left
+// those derived colors stale. Root it is; this is exactly what saving
+// actually does anyway, just not persisted yet.
+function updateThemePreview() {
+  const root = document.documentElement;
+  for (const [id, cssVar] of THEME_FIELDS) root.style.setProperty(cssVar, $(id).value);
+}
+function clearThemePreview() {
+  const root = document.documentElement;
+  for (const [, cssVar] of THEME_FIELDS) root.style.removeProperty(cssVar);
+}
+for (const [id] of THEME_FIELDS) $(id).addEventListener('input', updateThemePreview);
+// /theme.css only changes what the *server* sends on the *next* request --
+// this page's own <link> already fetched the old one. Re-pointing it at a
+// cache-busted URL and waiting for it to load is what makes Save (and
+// Reset) visibly repaint this page too, not just the next page someone
+// opens.
+function reloadThemeStylesheet() {
+  return new Promise((resolve) => {
+    const link = $('theme-link');
+    const onLoad = () => { link.removeEventListener('load', onLoad); resolve(); };
+    link.addEventListener('load', onLoad);
+    const url = new URL(link.href, location.origin);
+    url.searchParams.set('v', Date.now());
+    link.href = url.toString();
+  });
+}
+$('save-theme').addEventListener('click', async () => {
+  const patch = {};
+  for (const [id, , key] of THEME_FIELDS) patch[key] = $(id).value;
+  await saveSettings(patch, $('theme-status'));
+  await reloadThemeStylesheet();
+  clearThemePreview(); // theme.css itself carries this now -- drop the inline shadow of it
+});
+$('reset-theme').addEventListener('click', async () => {
+  const patch = {};
+  for (const [, , key] of THEME_FIELDS) patch[key] = '';
+  await saveSettings(patch, $('theme-status'));
+  await reloadThemeStylesheet();
+  clearThemePreview();
+  loadThemeInputs();
+});
 $('save-registration').addEventListener('click', () => saveSettings({ allowRegistration: $('set-allow-registration').checked }, $('registration-status')));
 
 // --- invites -----------------------------------------------------------------
@@ -618,9 +688,9 @@ async function init() {
     streamKey = info.streamKey;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
-    $('set-table').value = settings.tableName;
     selectedHomeIcon = settings.homeIcon || 'couch';
     renderHomeIconSelection();
+    loadThemeInputs();
     $('set-max-quality').value = String(settings.maxQuality || 720);
     $('set-allow-screen-share').checked = settings.allowScreenShare !== false;
     $('set-allow-asides').checked = settings.allowAsides !== false;

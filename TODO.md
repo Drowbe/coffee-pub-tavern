@@ -72,14 +72,6 @@ design pass, not a quick extension. The data model already allows more than one 
 room to exist at once; what's missing is a way to move between existing asides (today you
 can only create a new one) and the operator-switch capability above.
 
-## Themeable server
-
-Everything is styled from a fixed dark palette (`--accent`, `--bg`, `--text`, etc. in
-`style.css`); there's no way for an admin to make their table look like their own game
-rather than every other Tavern install. Worth exposing a handful of those CSS custom
-properties (accent color at minimum) as an admin-configurable setting -- same pattern as
-the home icon picker in Manage > Settings -- rather than a full theme-authoring system.
-
 ## Run it on Windows and Mac, not just the QNAP
 
 "Run it" in the README is currently one specific recipe: Docker on a QNAP NAS (Container

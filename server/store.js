@@ -103,6 +103,18 @@ const DEFAULT_SETTINGS = {
   allowAsides: true,
   allowPrivate: true,
   allowReactions: true,
+  // The whole themeable surface (see /theme.css and the :root comment in
+  // style.css) -- unset (null) means "use style.css's own built-in
+  // default", so a server that's never touched this looks exactly like it
+  // always has, byte for byte, rather than round-tripping the same colors
+  // back through an extra stylesheet.
+  themeBg: null,
+  themeBgCard: null,
+  themeBorder: null,
+  themeText: null,
+  themeTextDim: null,
+  themeAccent: null,
+  themeOnAccent: null,
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
@@ -435,6 +447,15 @@ class Store {
     if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);
     if (patch.allowPrivate !== undefined) s.allowPrivate = Boolean(patch.allowPrivate);
     if (patch.allowReactions !== undefined) s.allowReactions = Boolean(patch.allowReactions);
+    // Same seven as style.css's :root comment. null/empty resets that one
+    // color back to the built-in default rather than being rejected as
+    // invalid -- a color <input> has no way to "unset" itself otherwise.
+    for (const key of ['themeBg', 'themeBgCard', 'themeBorder', 'themeText', 'themeTextDim', 'themeAccent', 'themeOnAccent']) {
+      if (patch[key] === undefined) continue;
+      if (!patch[key]) { s[key] = null; continue; }
+      const c = cleanColor(patch[key]);
+      if (c) s[key] = c;
+    }
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
