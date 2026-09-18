@@ -2761,15 +2761,12 @@ function updateAwayOverlay(identity, on, message) {
   }
   if (overlay) {
     const custom = typeof message === 'string' ? message.trim().slice(0, 200) : '';
+    // The same bubble either way, so plain Away and a message look alike.
     overlay.textContent = '';
-    if (custom) {
-      const bubble = document.createElement('span');
-      bubble.textContent = custom;
-      overlay.appendChild(bubble);
-    } else {
-      overlay.textContent = 'Away';
-    }
-    overlay.classList.toggle('custom', Boolean(custom));
+    const bubble = document.createElement('span');
+    bubble.textContent = custom || 'Away';
+    overlay.appendChild(bubble);
+    overlay.classList.add('custom');
   }
 }
 
