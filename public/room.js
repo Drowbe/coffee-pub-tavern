@@ -684,6 +684,7 @@ function cycleView() {
 }
 
 function applyLayout() {
+  fitFloatbar();
   const grid = $('grid');
   grid.dataset.layout = prefs.layout;
   const portrait = grid.clientHeight > grid.clientWidth;
@@ -2199,6 +2200,44 @@ window.addEventListener('resize', applyLayout);
 $('floatbar').addEventListener('click', (event) => {
   const trigger = event.target.closest('[data-settings]');
   if (trigger) openSettings(trigger.dataset.settings);
+});
+
+// --- floatbar overflow -------------------------------------------------------
+// Mic, camera, chat and hang up always show; everything else collapses into
+// "More" (rather than wrapping to a second row) as the bar runs out of room,
+// lowest data-collapse first -- see fitFloatbar(), called from applyLayout()
+// whenever the stage (or the chat drawer next to it) changes size.
+const FLOATBAR_ALL = [...$('floatbar').children];
+const FLOATBAR_COLLAPSE_ORDER = FLOATBAR_ALL.filter((el) => el.dataset.collapse).sort(
+  (a, b) => Number(a.dataset.collapse) - Number(b.dataset.collapse)
+);
+function fitFloatbar() {
+  const bar = $('floatbar');
+  // Put everything back in its original spot first -- simplest way to get a
+  // stable, correctly-ordered result every time rather than tracking where
+  // each collapsed item needs to be spliced back in.
+  for (const item of FLOATBAR_ALL) bar.appendChild(item);
+  $('floatbar-more').hidden = true;
+  for (const item of FLOATBAR_COLLAPSE_ORDER) {
+    if (bar.scrollWidth <= bar.clientWidth) break;
+    if (item.hidden) continue; // already hidden by its own logic (no room link, say) -- moving it won't help
+    $('floatbar-overflow').appendChild(item);
+    $('floatbar-more').hidden = false;
+  }
+}
+$('floatbar-overflow').addEventListener('click', (event) => {
+  const trigger = event.target.closest('[data-settings]');
+  if (trigger) openSettings(trigger.dataset.settings);
+  if (event.target.closest('button')) $('floatbar-overflow').hidden = true;
+});
+$('floatbar-more').addEventListener('click', (event) => {
+  event.stopPropagation();
+  $('floatbar-overflow').hidden = !$('floatbar-overflow').hidden;
+});
+document.addEventListener('click', (event) => {
+  if (!$('floatbar-overflow').hidden && !event.target.closest('#floatbar-overflow') && !event.target.closest('#floatbar-more')) {
+    $('floatbar-overflow').hidden = true;
+  }
 });
 
 // Guests: the room's own reusable join link, same door for everyone at the

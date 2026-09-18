@@ -1411,18 +1411,35 @@ body.at-table .topbar {
   box-sizing: border-box;
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow: hidden;
   gap: 8px;
   padding: 10px 12px;
   padding-bottom: max(10px, env(safe-area-inset-bottom));
   background: #201812;
   border-top: 1px solid var(--border);
+  transition: width 0.2s ease;
+}
+
+/* Buttons keep their natural size rather than squeezing to fit -- fitFloatbar()
+   reads scrollWidth vs clientWidth to decide what collapses, which only works
+   if what doesn't fit actually overflows instead of shrinking in place. */
+.floatbar > * {
+  flex-shrink: 0;
+}
+
+/* Same reasoning as .stage.chat-open .grid: centre on the visible video
+   area, not the whole page, once the chat panel takes the right side. */
+.stage.chat-open .floatbar {
+  width: calc(100% - var(--chat-w, min(320px, 100%)));
 }
 
 /* popped out: the floating pill over the tiles */
 .popout .floatbar {
   position: absolute;
   width: max-content;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
   left: 50%;
   bottom: 16px;
   transform: translateX(-50%);
@@ -1440,15 +1457,16 @@ body.at-table .topbar {
 
 /* Popped out, the pill centres on the whole window -- with chat open that
    puts it right under the chat panel on the right. Keep it centred on the
-   video area instead (the chat's own width, so they stay in sync), and let
-   it wrap to more than one row rather than spill under the chat. */
+   video area instead (the chat's own width, so they stay in sync); items
+   that don't fit collapse into "More" same as the docked bar, rather than
+   wrapping under the chat. */
 .popout .stage.chat-open .floatbar {
   left: 16px;
   right: var(--chat-w, min(320px, 100%));
   width: auto;
   max-width: none;
   transform: none;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .popout .stage.idle.chat-open .floatbar {
@@ -1457,8 +1475,8 @@ body.at-table .topbar {
 
 .fbtn {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: #33281f;
@@ -1469,6 +1487,7 @@ body.at-table .topbar {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* mic, audio, camera and layout each carry a small caret over their corner
@@ -1517,7 +1536,7 @@ body.at-table .topbar {
 }
 
 .fbtn .glyph i {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 /* the off state swaps to the slashed icon */
@@ -1943,6 +1962,50 @@ body.at-table .topbar {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Toggled by #floatbar-more: whatever fitFloatbar() couldn't fit, as a
+   plain vertical menu instead of the centred settings-style popover. */
+.floatbar-overflow {
+  left: auto;
+  right: 12px;
+  bottom: calc(var(--floatbar-h, 65px) + 10px);
+  transform: none;
+  width: max-content;
+  min-width: 180px;
+  padding: 6px;
+  gap: 2px;
+}
+
+/* #floatbar-overflow, not .floatbar-overflow -- these need to outrank the
+   .stage.compact/.stage.tiny sizing rules further down the sheet, which
+   share the same 2-class specificity and would otherwise win on source
+   order alone. */
+#floatbar-overflow .fbtn-wrap {
+  width: 100%;
+}
+
+#floatbar-overflow .fbtn {
+  width: 100%;
+  height: 34px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+}
+
+#floatbar-overflow .fbtn::after {
+  content: attr(title);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+#floatbar-overflow .fbtn .glyph i {
+  font-size: 16px;
+}
+
+#floatbar-overflow .fbtn-caret {
+  display: none;
 }
 
 .popover .links {
@@ -2417,9 +2480,10 @@ body.at-table .topbar {
   bottom: 5px;
 }
 
-.stage.tiny .status-float,
-.stage.tiny .fbtn-wrap:has(#layout),
-.stage.tiny #settings-toggle {
+/* Layout and Settings used to just vanish here -- now fitFloatbar() moves
+   them (and whatever else doesn't fit) into "More" instead, so they stay
+   reachable at any width. */
+.stage.tiny .status-float {
   display: none;
 }
 
