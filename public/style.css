@@ -72,8 +72,8 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
-  min-height: 56px;
+  padding: 6px 16px;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   background: linear-gradient(180deg, #2b211a, var(--bg));
 }
@@ -87,11 +87,11 @@ a:hover {
    full natural (1024x1024) size instead. */
 .topbar .brand .icon {
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width: 40px;
+  height: 40px;
   border-radius: 0;
   object-fit: cover;
-  margin: -10px 0 -10px -16px;
+  margin: -6px 0 -6px -16px;
 }
 
 .brand {
@@ -1361,6 +1361,15 @@ body.at-table .topbar {
   right: 12px;
   display: flex;
   gap: 6px;
+  transition: right 0.2s ease;
+}
+
+/* The chat panel sits at z-index 6, above .float's 5 -- without this the
+   open chat's own (nearly opaque) background just covers these two
+   buttons in the same top-right corner, matching how .grid already
+   shrinks to stay out from under the chat panel too. */
+.stage.chat-open .video-tools {
+  right: calc(var(--chat-w, min(320px, 100%)) + 12px);
 }
 
 .vtool-btn {
@@ -1757,9 +1766,45 @@ body.at-table .topbar {
   color: var(--text-dim);
 }
 
+.message .who .when {
+  margin-left: 6px;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
 .message .text {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.message .text ul {
+  margin: 4px 0;
+  padding-left: 18px;
+}
+
+.message .text blockquote {
+  margin: 4px 0;
+  padding: 2px 0 2px 8px;
+  border-left: 2px solid var(--border);
+  color: var(--text-dim);
+}
+
+.chat-session-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: center;
+}
+
+.chat-session-divider::before,
+.chat-session-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 .chat-format-bar {
@@ -1770,6 +1815,66 @@ body.at-table .topbar {
 
 .chat-format-bar .msg-btn {
   font-size: 13px;
+}
+
+.chat-format-spacer {
+  flex: 1;
+}
+
+/* Toggled by #chat-help, positioned to hang just under the toolbar that
+   opened it rather than a full-blown popover like the settings one. */
+.chat-help-popup {
+  position: absolute;
+  z-index: 8;
+  right: 8px;
+  margin-top: 4px;
+  width: min(280px, calc(100% - 16px));
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(36, 28, 22, 0.97);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.chat-help-popup p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.chat-help-popup code {
+  font-size: 11px;
+}
+
+/* Toggled by #chat-emoji, same hang-under-the-toolbar treatment as the
+   help popup but a grid of picks instead of a paragraph. */
+.chat-emoji-popup {
+  position: absolute;
+  z-index: 8;
+  right: 8px;
+  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  width: min(220px, calc(100% - 16px));
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(36, 28, 22, 0.97);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.chat-emoji-btn {
+  border: none;
+  background: none;
+  border-radius: 6px;
+  font-size: 18px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.chat-emoji-btn:hover {
+  background: #40322a;
 }
 
 .chat form {

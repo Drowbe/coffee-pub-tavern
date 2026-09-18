@@ -51,12 +51,21 @@ export async function loadBranding() {
 export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   const header = document.querySelector('.topbar');
   if (!header) return;
+  // Opened as an overlay iframe (see openOverlay() in room.js), the parent
+  // page already knows the real server name and icon -- passing them along
+  // means the very first paint gets it right, instead of flashing the
+  // generic default while this page's own loadBranding() fetch is in
+  // flight (barely noticeable on a real navigation, jarring in an iframe
+  // that appears almost instantly).
+  const handoff = new URLSearchParams(window.location.search);
+  const initialName = handoff.get('serverName') || 'Coffee Pub Tavern';
+  const initialIcon = handoff.get('homeIcon') || 'couch';
   header.innerHTML = `
     <div class="brand">
       <a class="brand-home" href="/" target="_top" title="All rooms">
         <img data-brand="icon" alt="" class="icon">
-        <i class="fa-solid fa-couch fa-fw" data-brand="home-icon" aria-hidden="true"></i>
-        <span data-brand="serverName">Coffee Pub Tavern</span>
+        <i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i>
+        <span data-brand="serverName">${escapeHtml(initialName)}</span>
       </a>
       <nav class="crumb" id="topbar-crumb"></nav>
       <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
@@ -65,7 +74,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
     <nav class="links">
       <a class="whoami" href="/profile" id="whoami-link" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <span class="nav-divider"></span>
-      <a class="icon-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-people-group fa-fw" aria-hidden="true"></i></a>
+      <a class="icon-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i></a>
       <a class="icon-link" href="${adminHref}" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
       <a class="icon-link" href="/logout" id="logout-link" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>

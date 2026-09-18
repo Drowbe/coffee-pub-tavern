@@ -967,7 +967,16 @@ function renderChatHistory(roomId) {
     el.classList.add('history');
     $('messages').appendChild(el);
   }
-  if (history.length) $('messages').scrollTop = $('messages').scrollHeight;
+  // Everything above this line was said before you opened the table just
+  // now; everything below it is happening live. Only worth marking when
+  // there's actually old chat to separate from the new.
+  if (history.length) {
+    const divider = document.createElement('div');
+    divider.className = 'chat-session-divider';
+    divider.innerHTML = `<span>${escapeHtml(new Date().toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }))}</span>`;
+    $('messages').appendChild(divider);
+    $('messages').scrollTop = $('messages').scrollHeight;
+  }
 }
 
 function escapeHtml(s) {
@@ -982,6 +991,12 @@ function renderMarkup(text) {
   html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
   html = html.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
+  // One or more consecutive "- line" lines become a single <ul>, not one
+  // per line -- everything else keeps the plain <br>-per-newline treatment.
+  html = html.replace(/(?:^|\n)- (.+(?:\n- .+)*)/g, (_m, body) => `\n<ul>${body.split('\n- ').map((item) => `<li>${item}</li>`).join('')}</ul>`);
+  // Same idea for "> line" (what replyToEntry() quotes with) -- consecutive
+  // lines share one <blockquote>. ">" is already escaped to &gt; by now.
+  html = html.replace(/(?:^|\n)&gt; (.+(?:\n&gt; .+)*)/g, (_m, body) => `\n<blockquote>${body.split('\n&gt; ').join('<br>')}</blockquote>`);
   return html.replace(/\n/g, '<br>');
 }
 
@@ -1035,12 +1050,33 @@ async function copyEntry(entry, btn) {
   }
 }
 
+// Quotes the original message (markdown blockquote, so it renders as one
+// once sent -- see renderMarkup()) at the start of whatever's already
+// being typed, cursor landing right after so the reply continues below it.
+function replyToEntry(entry) {
+  const el = $('chat-input');
+  const quoted = entry.blob
+    ? `> ${entry.who} sent a picture`
+    : `> ${entry.who}: ${entry.text.split('\n').join('\n> ')}`;
+  const prefix = `${quoted}\n\n`;
+  el.value = prefix + el.value;
+  el.focus();
+  el.setSelectionRange(prefix.length, prefix.length);
+  resizeChatInput();
+}
+
 function messageEl(entry, own) {
   const el = document.createElement('div');
   el.className = `message${own ? ' own' : ''}`;
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = entry.who;
+  if (entry.at) {
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = entry.at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    who.appendChild(when);
+  }
   const body = document.createElement('span');
   body.className = 'text';
   if (entry.blob) {
@@ -1057,6 +1093,7 @@ function messageEl(entry, own) {
   actions.className = 'actions';
   const copyBtn = iconButton('copy', entry.blob ? 'Copy picture' : 'Copy text', () => copyEntry(entry, copyBtn));
   actions.appendChild(copyBtn);
+  actions.appendChild(iconButton('reply', 'Reply', () => replyToEntry(entry)));
   if (entry.blob) actions.appendChild(iconButton('download', 'Save picture', () => saveBlob(entry.blob, entry.name)));
   el.append(who, body, actions);
   return el;
@@ -2102,6 +2139,55 @@ function wrapChatSelection(marker) {
 $('chat-bold').addEventListener('click', () => wrapChatSelection('**'));
 $('chat-italic').addEventListener('click', () => wrapChatSelection('*'));
 $('chat-code').addEventListener('click', () => wrapChatSelection('`'));
+// Prefixes the current line (or every non-blank line the selection spans)
+// with "- ", rather than wrapping like the others -- a list marker belongs
+// at the start of a line, not around a span of text.
+$('chat-list').addEventListener('click', () => {
+  const el = $('chat-input');
+  const { selectionStart: start, selectionEnd: end, value } = el;
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+  const lineEnd = value.indexOf('\n', end) === -1 ? value.length : value.indexOf('\n', end);
+  const block = value.slice(lineStart, lineEnd);
+  const newBlock = block.split('\n').map((l) => (l.trim() ? `- ${l}` : l)).join('\n');
+  el.value = value.slice(0, lineStart) + newBlock + value.slice(lineEnd);
+  el.focus();
+  el.setSelectionRange(lineStart, lineStart + newBlock.length);
+  resizeChatInput();
+});
+$('chat-help').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('chat-emoji-popup').hidden = true;
+  $('chat-help-popup').hidden = !$('chat-help-popup').hidden;
+});
+document.addEventListener('click', (e) => {
+  if (!$('chat-help-popup').hidden && !e.target.closest('#chat-help-popup')) $('chat-help-popup').hidden = true;
+  if (!$('chat-emoji-popup').hidden && !e.target.closest('#chat-emoji-popup')) $('chat-emoji-popup').hidden = true;
+});
+
+// A small curated set, not a full emoji keyboard -- the reactions people
+// actually reach for in a game chat.
+const EMOJI_CHOICES = ['😀', '😂', '🙂', '😉', '😍', '😮', '😢', '😡', '👍', '👎', '🙏', '🎲', '🎉', '🔥', '❤️', '💀', '😴', '🤔', '👀', '🍻', '⚔️', '🛡️'];
+for (const emoji of EMOJI_CHOICES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chat-emoji-btn';
+  b.textContent = emoji;
+  b.addEventListener('click', () => {
+    const el = $('chat-input');
+    const { selectionStart: start, selectionEnd: end, value } = el;
+    el.value = value.slice(0, start) + emoji + value.slice(end);
+    el.focus();
+    const at = start + emoji.length;
+    el.setSelectionRange(at, at);
+    resizeChatInput();
+  });
+  $('chat-emoji-popup').appendChild(b);
+}
+$('chat-emoji').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('chat-help-popup').hidden = true;
+  $('chat-emoji-popup').hidden = !$('chat-emoji-popup').hidden;
+});
 
 $('layout').addEventListener('click', cycleView);
 $('layout-pick').addEventListener('click', (e) => {
@@ -2395,6 +2481,14 @@ $('popout').hidden = false;
 // don't, since you already know.
 function openOverlay(path) {
   const params = new URLSearchParams({ from: 'room', room: tableName });
+  // Already known here -- handing them off lets the overlay's own header
+  // render correctly on its very first paint instead of flashing the
+  // generic default. See the matching read in renderTopbar() (brand.js).
+  const serverName = document.querySelector('[data-brand="serverName"]')?.textContent;
+  if (serverName) params.set('serverName', serverName);
+  const homeIconEl = document.querySelector('[data-brand="home-icon"]');
+  const homeIcon = homeIconEl && [...homeIconEl.classList].find((c) => c.startsWith('fa-') && c !== 'fa-solid' && c !== 'fa-fw')?.slice(3);
+  if (homeIcon) params.set('homeIcon', homeIcon);
   $('page-overlay-frame').src = `${path}${path.includes('?') ? '&' : '?'}${params}`;
   $('page-overlay-frame').hidden = false;
   setAway(true);
