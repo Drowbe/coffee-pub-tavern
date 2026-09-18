@@ -164,14 +164,18 @@
         <button class="msg-btn" id="chat-italic" type="button" title="Italic" aria-label="Italic"><i class="fa-solid fa-italic fa-fw" aria-hidden="true"></i></button>
         <button class="msg-btn" id="chat-code" type="button" title="Code" aria-label="Code"><i class="fa-solid fa-code fa-fw" aria-hidden="true"></i></button>
         <button class="msg-btn" id="chat-list" type="button" title="Bulleted list" aria-label="Bulleted list"><i class="fa-solid fa-list-ul fa-fw" aria-hidden="true"></i></button>
-        <button class="msg-btn" id="chat-emoji" type="button" title="Emoji" aria-label="Emoji"><i class="fa-regular fa-face-smile fa-fw" aria-hidden="true"></i></button>
+        <span class="chat-format-item">
+          <button class="msg-btn" id="chat-emoji" type="button" title="Emoji" aria-label="Emoji"><i class="fa-regular fa-face-smile fa-fw" aria-hidden="true"></i></button>
+          <div class="chat-emoji-popup" id="chat-emoji-popup" hidden></div>
+        </span>
         <span class="chat-format-spacer"></span>
-        <button class="msg-btn" id="chat-help" type="button" title="Formatting help" aria-label="Formatting help"><i class="fa-solid fa-circle-question fa-fw" aria-hidden="true"></i></button>
+        <span class="chat-format-item">
+          <button class="msg-btn" id="chat-help" type="button" title="Formatting help" aria-label="Formatting help"><i class="fa-solid fa-circle-question fa-fw" aria-hidden="true"></i></button>
+          <div class="chat-help-popup" id="chat-help-popup" hidden>
+            <p><code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, and lines starting with <code>- </code> for a bulleted list all work. Links become clickable automatically. Paste or drop a picture to send it. Shift+Enter starts a new line without sending.</p>
+          </div>
+        </span>
       </div>
-      <div class="chat-help-popup" id="chat-help-popup" hidden>
-        <p><code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, and lines starting with <code>- </code> for a bulleted list all work. Links become clickable automatically. Paste or drop a picture to send it. Shift+Enter starts a new line without sending.</p>
-      </div>
-      <div class="chat-emoji-popup" id="chat-emoji-popup" hidden></div>
       <form id="chat-form">
         <button class="msg-btn" id="chat-pic" type="button" title="Send a picture" aria-label="Send a picture"><i class="fa-solid fa-image fa-fw" aria-hidden="true"></i></button>
         <textarea id="chat-input" maxlength="500" placeholder="Say something..." rows="1"></textarea>
