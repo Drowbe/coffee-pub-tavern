@@ -285,6 +285,11 @@ function renderRooms() {
       list.appendChild(card);
     }
     card.classList.toggle('aside', Boolean(r.ephemeral));
+    // Still connected to this one (just browsing the room list -- see
+    // showRoomList()): offer to jump back in instead of joining fresh.
+    const rejoin = room.state === 'connected' && currentRoom?.id === r.id;
+    card.querySelector('[data-join-icon]').className = `fa-solid fa-${rejoin ? 'circle-left' : 'comments'} fa-fw`;
+    card.querySelector('[data-join-label]').textContent = rejoin ? 'Rejoin' : 'Join';
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || me?.role !== 'admin';
     edit.href = `/rooms/${encodeURIComponent(r.id)}`;
@@ -365,7 +370,11 @@ setInterval(() => {
 }, 5000);
 $('rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-join]');
-  if (button) join(button.dataset.join);
+  if (!button) return;
+  const roomId = button.dataset.join;
+  if (room.state === 'connected' && currentRoom?.id === roomId) returnToStage();
+  else if (room.state === 'connected') reconnectTo(roomId);
+  else join(roomId);
 });
 $('guest-join').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -468,6 +477,7 @@ function adminToolsFor(participant) {
     aside.innerHTML = '<i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i>';
     aside.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!window.confirm(`Step aside with ${participant.name || participant.identity}?`)) return;
       pullAside([participant.identity]);
     });
     const priv = document.createElement('button');
@@ -477,6 +487,7 @@ function adminToolsFor(participant) {
     priv.innerHTML = '<i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i>';
     priv.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!window.confirm(`Have a private word with ${participant.name || participant.identity}?`)) return;
       pullAside([participant.identity], true);
     });
     tools.append(aside, priv);
@@ -520,13 +531,15 @@ function tileFor(participant) {
     vol.addEventListener('pointerenter', () => (tile.draggable = false));
     vol.addEventListener('pointerleave', () => (tile.draggable = true));
     tile.appendChild(vol);
-    if (!currentRoom?.ephemeral) {
+    // An admin has Step Aside/Privately right in the hover tools below, one
+    // click each -- this corner button (pick one or more, then confirm) is
+    // only still needed for a non-admin, who has no other way to invite
+    // someone for a private word.
+    if (!currentRoom?.ephemeral && me?.role !== 'admin') {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
-      aside.title = me?.role === 'admin'
-        ? `Step aside with ${participant.name || participant.identity} (pick one or more, then confirm)`
-        : `Have a private word with ${participant.name || participant.identity} (pick one or more, then confirm)`;
+      aside.title = `Have a private word with ${participant.name || participant.identity} (pick one or more, then confirm)`;
       aside.innerHTML = '<i class="fa-solid fa-people-arrows" aria-hidden="true"></i>';
       aside.classList.toggle('selected', asideSelection.has(participant.identity));
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
@@ -1528,10 +1541,20 @@ room
       const data = JSON.parse(decoder.decode(payload));
       if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
       else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on);
-      // A server push (no sending participant): the admin pulled me aside.
-      // Deferred a tick so this event's own dispatch finishes first.
+      // A server push (no sending participant): someone pulled me aside.
+      // An admin's word is final -- just go. A peer's "Privately" needs
+      // this end to actually agree to it first. Deferred a tick so this
+      // event's own dispatch finishes first.
       else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
-        setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
+        if (data.byAdmin) {
+          setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
+        } else {
+          setTimeout(() => {
+            if (window.confirm(`${data.from || 'Someone'} wants to have a private word. Join them?`)) {
+              reconnectTo(data.roomId, 'stepping aside privately...');
+            }
+          }, 0);
+        }
       }
       // The other member of a pull-aside room clicked "Back to the table";
       // follow them there instead of being left behind.
@@ -2603,6 +2626,43 @@ document.addEventListener('click', (event) => {
   if (!link) return;
   event.preventDefault();
   openOverlay(link.getAttribute('href'));
+});
+
+// --- the room list, without leaving the call ---------------------------------
+// "All rooms" (the server name/icon, and its twin in the nav) would otherwise
+// be a real navigation to '/' -- same page, but a fresh load drops the
+// WebRTC connection entirely. The room list already lives right here on this
+// page (#join), so there's nothing to load: just swap views, the same "away"
+// treatment openOverlay() gives profile/admin, and stay connected underneath.
+function showRoomList() {
+  if (!document.body.classList.contains('at-table')) return;
+  setAway(true);
+  document.body.classList.remove('at-table');
+  $('stage').hidden = true;
+  if (guestToken) {
+    $('guest-join').hidden = false;
+  } else {
+    $('join').hidden = false;
+    loadTable();
+  }
+}
+// The reverse: a room card recognizes the room it's still connected to (see
+// renderRooms()) and offers "Rejoin" instead of "Join" -- no network round
+// trip needed, just the same view swap back.
+function returnToStage() {
+  if (room.state !== 'connected') return;
+  $('join').hidden = true;
+  $('guest-join').hidden = true;
+  $('stage').hidden = false;
+  document.body.classList.add('at-table');
+  updateCrumb();
+  setAway(false);
+}
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('#rooms-link, .brand-home')) return;
+  if (guestToken || !document.body.classList.contains('at-table')) return; // a real navigation is fine here
+  event.preventDefault();
+  showRoomList();
 });
 
 function updateAwayOverlay(identity, on) {

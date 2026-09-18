@@ -695,7 +695,11 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
       if (targetRoom !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
     }
     const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], roomIdOfLivekit(initiatorRoom), priv);
-    const payload = new TextEncoder().encode(JSON.stringify({ type: 'pull-aside', roomId: room.id }));
+    // byAdmin tells the target's client whether to just go (an admin's
+    // call) or ask first -- see the 'pull-aside' handler in room.js.
+    const payload = new TextEncoder().encode(
+      JSON.stringify({ type: 'pull-aside', roomId: room.id, byAdmin: initiator.role === 'admin', from: initiator.displayName })
+    );
     await roomService.sendData(initiatorRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
     // Everyone left behind: a private word is private from the table, not
     // invisible to it -- this is what lets their tiles turn into "in an
