@@ -530,7 +530,8 @@ input[type="range"] {
   bottom: 8px;
   padding: 3px 8px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--text);
   font-weight: 600;
   font-size: 13px;
 }
@@ -541,7 +542,8 @@ input[type="range"] {
   bottom: 8px;
   padding: 3px 8px;
   border-radius: 4px;
-  background: rgba(184, 80, 63, 0.85);
+  background: color-mix(in srgb, var(--danger) 85%, transparent);
+  color: #fff;
   font-size: 12px;
 }
 
