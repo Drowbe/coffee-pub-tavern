@@ -1,0 +1,6 @@
+{
+  "id": "coffee-pub-tavern",
+  "title": "Coffee Pub Tavern",
+  "url": "https://github.com/Drowbe/coffee-pub-tavern",
+  "note": "Tavern is a self-hosted Node web app, not a Foundry VTT module -- it has no manifest of its own. This file exists only so the Coffee Pub suite's shared documentation-publishing tooling (tools/wiki-sync.mjs, copied unmodified from coffee-pub-blacksmith) can read the two fields it actually uses: id and url."
+}

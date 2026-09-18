@@ -1,8 +1,8 @@
-# Modules: plan and architecture
+# Modules Plan
 
-Status: **plan, reviewed. Step 1 is built** (install, manifest, approve/enable, rollback,
-uninstall); steps 2 to 9 are not. This file is the architecture and API reference and is updated as each
-step lands.
+**Audience:** whoever is building the modules system, and the author deciding what comes next.
+
+**Status:** In progress. Step 1 (install, manifest, approve and enable, rollback, uninstall) is built and documented in [architecture-modules](../architecture/architecture-modules.md) and [api-modules](../api/api-modules.md). Steps 2 to 9 are planned. Theming rules for modules are in [design-theme](../designsystem/design-theme.md). Delete this plan once its content has moved into those documents.
 
 A module is a zip an admin uploads on **Manage > Modules**. Tavern unpacks it and integrates it. The
 first module is a **Calendar**; a **Travel planner** follows, and is the test of live shared state.
@@ -133,42 +133,7 @@ manifest declares which hooks it may use:
   Email/push are later.
 - The scheduler is a small server loop; schedules persist across restarts.
 
-### Theme (modules must follow it)
-
-Admins can re-theme Tavern (Manage > Theme), including light themes, so **a module must never assume
-a dark background or hard-code colors.** A module that does will be unreadable on some servers; the
-chat panel had exactly this bug (fixed dark backgrounds under theme-colored text) and is the cautionary
-example.
-
-How it works:
-
-- The host sends the current theme into every module iframe on load and again whenever it changes.
-  The SDK applies it as CSS custom properties on the module's `:root`, so plain CSS follows the theme
-  with no code: `background: var(--bg)`.
-- The tokens (the same seven the theme editor sets, plus the ones derived from them):
-
-  | Token | Use |
-  |---|---|
-  | `--bg` | page background |
-  | `--bg-card` | panels, cards |
-  | `--border` | outlines, dividers |
-  | `--text` | body text |
-  | `--text-dim` | secondary text |
-  | `--accent` | links, highlights, primary buttons |
-  | `--on-accent` | text/icons drawn on an `--accent` background |
-  | `--bg-input`, `--surface`, `--surface-hover`, `--shade` | derived: inputs, raised surfaces, hover, recessed areas |
-  | `--ok`, `--danger` | status colors |
-
-- Rules for module authors:
-  1. Take every color from these tokens. For see-through tints use `color-mix`, e.g.
-     `color-mix(in srgb, var(--text) 8%, transparent)`, never `rgba(255, 255, 255, .08)`.
-  2. Text on `--accent` uses `--on-accent`, not white or black.
-  3. If the module draws on its own (canvas, SVG), read the tokens with `getComputedStyle` and
-     redraw on the SDK's `theme` event.
-  4. Test with both a dark and a light theme before shipping. The install screen may later warn
-     about modules that declare fixed colors.
-- The same rule applies to Tavern's own UI: new panels and popups use the tokens (or `color-mix` of
-  them), never fixed dark colors. Scrims and shadows may stay black.
+The host passes the theme tokens into every module frame; the rules modules follow are in [design-theme](../designsystem/design-theme.md).
 
 ## SDK (postMessage), first pass
 
@@ -224,34 +189,3 @@ Also ship a tiny `hello` module in the repo as a working example, and document t
 5. **Upgrades:** the previous version's files are kept and the module card offers a one-click Roll back. Data carries over either way.
 6. **Trust:** the admin trusts what they upload. The sandbox limits the damage, and the install step shows the permissions and hooks the module asks for so the admin can approve them. A curated or signed list can come later.
 
-## Step 1 as built (install and manage)
-
-Code: `server/modules.js` (validation, unpacking, registry), routes in `server/index.js`, the
-**Modules** tab in `public/admin.js`.
-
-- **Registry:** `data/modules/registry.json`. Versions unpack to `data/modules/<id>/versions/<version>/`;
-  `data/modules/<id>/data/` is reserved for the module's own data.
-- **Limits:** zip 10 MB, 500 files, 10 MB per file, 40 MB unpacked. The zip is read fully in memory
-  before anything is written; sizes are checked from the headers and again from the actual bytes.
-- **Refused:** unsafe paths (`..`, absolute), symbolic links, control characters in names, any file
-  type not on the allowlist (html, js, mjs, css, json, txt, md, map, png, jpg, gif, webp, svg, ico,
-  woff, woff2, ttf, otf), and a missing or invalid `module.json`. A zip made from a folder (one top
-  level folder holding `module.json`) is accepted.
-- **Manifest:** as above; `version` must be `x.y.z`. A `server` scope needs `surfaces.page`, a `room`
-  scope needs `surfaces.panel`; entries must exist in the zip. `description` and `author` are optional.
-- **Approval:** a new module installs **disabled**. Enabling records what the admin approved (its
-  permissions and hooks). An upgrade or rollback that asks for anything not yet approved comes back
-  disabled and shows "Approve and enable".
-- **Versions:** an upload must be newer than every installed version. The newest three versions are
-  kept; **Switch to this version** rolls back or forward among them.
-- **Uninstall:** removes the versions; the module's data is kept unless you choose to delete it.
-
-Admin API (all admin-only):
-
-| Call | Purpose |
-|---|---|
-| `GET /api/modules` | Installed modules, their state, versions, and anything awaiting approval |
-| `POST /api/modules` | Body is the zip (`application/zip`); returns the installed module |
-| `PATCH /api/modules/:id` | `{enabled}`, `{allRooms}`, `{rooms:[ids]}` |
-| `POST /api/modules/:id/rollback` | `{version}` |
-| `DELETE /api/modules/:id?keepData=0` or `=1` | Uninstall |
