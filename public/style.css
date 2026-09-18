@@ -246,7 +246,7 @@ input[type="range"] {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .room-choice-image {
@@ -334,11 +334,22 @@ input[type="range"] {
   border-radius: 8px;
   background: var(--bg-input);
   border: 1px solid var(--border);
-  opacity: 0.55;
+}
+
+/* Offline dims the portrait and name, not the whole card -- fading the
+   card's own background/border via opacity blended it into the page
+   behind it, which read as merely muted on the old dark palette but
+   washed out to almost nothing on a light one. */
+.member:not(.online) img {
+  filter: grayscale(0.6);
+  opacity: 0.7;
+}
+
+.member:not(.online) .member-name {
+  color: var(--text-dim);
 }
 
 .member.online {
-  opacity: 1;
   border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
 }
 
@@ -2537,6 +2548,14 @@ body.at-table .topbar {
 
 .theme-preview p {
   margin: 0 0 10px;
+}
+
+.theme-preview .row {
+  margin-bottom: 10px;
+}
+
+.theme-preview .members {
+  margin: 0;
 }
 
 .subtabs {

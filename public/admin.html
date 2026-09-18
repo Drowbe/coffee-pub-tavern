@@ -100,8 +100,21 @@
         <div class="row">
           <button class="btn btn-primary" type="button">Primary</button>
           <button class="btn" type="button">Secondary</button>
+          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
+          <a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i></a>
+        </div>
+        <div class="members">
+          <div class="member online">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
+            <span class="member-name">Online</span>
+          </div>
+          <div class="member">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='48' height='48' fill='%23999'/%3E%3C/svg%3E" alt="">
+            <span class="member-name">Offline</span>
+          </div>
         </div>
       </div>
+      <p class="hint">The Secondary button and the muted look of "Offline" above are computed from the seven colors below, not settings of their own -- if either looks off, it's the background, card background, or accent worth adjusting, not a hidden eighth color.</p>
       <div class="fields">
         <label>Background<input id="theme-bg" type="color"></label>
         <label>Card background<input id="theme-bg-card" type="color"></label>
