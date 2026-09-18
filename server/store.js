@@ -109,7 +109,9 @@ const DEFAULT_SETTINGS = {
   // style.css's own built-in default" (also what "Default" in the chooser
   // resolves to), so a server that's never touched this looks exactly like
   // it always has, byte for byte, rather than round-tripping the same
-  // colors back through an extra stylesheet.
+  // colors back through an extra stylesheet. The two below ship pre-made
+  // (see BUILTIN_THEMES/seedBuiltinThemes below for how) -- an admin can
+  // edit or delete either exactly like one of their own.
   themes: [],
   activeThemeId: null,
   // Defaults for every player's video box; a user can override their own.
@@ -170,6 +172,14 @@ const DEFAULT_SETTINGS = {
     { id: 'nat20', glyph: '🎲', label: 'Nat 20!' },
   ],
 };
+
+// Shipped pre-made (see seedBuiltinThemes() below), fixed ids so seeding is
+// idempotent -- colors read straight off each real site's own computed
+// styles (button/link accent, body text, page background), not eyeballed.
+const BUILTIN_THEMES = [
+  { id: 'staying-blonde', name: 'Staying Blonde', bg: '#ffffff', bgCard: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
+  { id: 'willhavebeen', name: 'willhavebeen', bg: '#ffffff', bgCard: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
+];
 
 function cleanWidth(value) {
   const n = Math.round(Number(value));
@@ -277,7 +287,19 @@ class Store {
     if (!data.rooms.some((r) => r.id === LOBBY)) {
       data.rooms.unshift(this.sanitizeRoom({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() }));
     }
-    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms)) {
+    // Ships BUILTIN_THEMES exactly once -- a flag rather than "seed
+    // whatever's missing by id" every load, so deleting one (an admin
+    // decides they don't want it) sticks instead of it reappearing on the
+    // next restart.
+    let seededThemes = false;
+    if (!data.settings.builtinThemesSeeded) {
+      for (const builtin of BUILTIN_THEMES) {
+        if (!data.settings.themes.some((t) => t.id === builtin.id)) data.settings.themes.push(builtin);
+      }
+      data.settings.builtinThemesSeeded = true;
+      seededThemes = true;
+    }
+    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms) || seededThemes) {
       this.data = data;
       this.save();
     }
