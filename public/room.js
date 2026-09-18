@@ -2764,7 +2764,10 @@ function updateAwayOverlay(identity, on, message) {
     // The same bubble either way, so plain Away and a message look alike.
     overlay.textContent = '';
     const bubble = document.createElement('span');
-    bubble.textContent = custom || 'Away';
+    const moon = document.createElement('i');
+    moon.className = 'fa-solid fa-moon fa-fw'; // the same moon as the away button
+    moon.setAttribute('aria-hidden', 'true');
+    bubble.append(moon, ' ', custom || 'Away');
     overlay.appendChild(bubble);
     overlay.classList.add('custom');
   }
