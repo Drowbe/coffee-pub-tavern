@@ -2398,15 +2398,40 @@ a.crumb-here:hover {
   pointer-events: none;
 }
 
+/* A custom message sits on a dark bubble so it reads over any picture. */
 .tile-away-overlay.custom {
   padding: 12px;
-  text-align: center;
   text-transform: none;
   letter-spacing: normal;
   font-size: 15px;
+}
+
+.tile-away-overlay.custom span {
+  max-width: 90%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  text-align: center;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+#away-form {
+  width: min(440px, calc(100% - 32px));
+  max-width: none;
+}
+
+#away-message {
+  width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font: inherit;
   color: var(--text);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 /* Picked to step aside together, pending confirmation: stays visible even

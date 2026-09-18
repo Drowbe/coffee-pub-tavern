@@ -119,7 +119,8 @@
     <div class="aside-overlay" id="away-overlay" hidden>
       <form class="aside-overlay-card" id="away-form">
         <p>Going away?</p>
-        <input id="away-message" type="text" maxlength="60" placeholder="Away message (optional)" aria-label="Away message" autocomplete="off">
+        <textarea id="away-message" rows="4" maxlength="200" placeholder="Away message (optional)" aria-label="Away message"></textarea>
+        <span class="hint">Shown on your tile instead of "Away". Ctrl or Cmd + Enter to go.</span>
         <div class="aside-overlay-actions">
           <button class="btn btn-primary" type="submit"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i> Go away</button>
           <button class="btn btn-small" id="away-cancel" type="button">Cancel</button>

@@ -2759,8 +2759,15 @@ function updateAwayOverlay(identity, on, message) {
     return;
   }
   if (overlay) {
-    const custom = typeof message === 'string' ? message.trim().slice(0, 60) : '';
-    overlay.textContent = custom || 'Away';
+    const custom = typeof message === 'string' ? message.trim().slice(0, 200) : '';
+    overlay.textContent = '';
+    if (custom) {
+      const bubble = document.createElement('span');
+      bubble.textContent = custom;
+      overlay.appendChild(bubble);
+    } else {
+      overlay.textContent = 'Away';
+    }
     overlay.classList.toggle('custom', Boolean(custom));
   }
 }
@@ -2831,6 +2838,7 @@ $('away-overlay').addEventListener('click', (event) => {
 $('away-message').addEventListener('keydown', (event) => {
   event.stopPropagation(); // typing here isn't a hotkey (M, V, C ...)
   if (event.key === 'Escape') closeAwayPrompt();
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) $('away-form').requestSubmit();
 });
 
 // --- start --------------------------------------------------------------------
