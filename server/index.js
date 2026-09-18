@@ -254,7 +254,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, theme: { bg: s.themeBg || null, bgCard: s.themeBgCard || null, border: s.themeBorder || null, text: s.themeText || null, textDim: s.themeTextDim || null, accent: s.themeAccent || null, onAccent: s.themeOnAccent || null }, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { serverName: s.serverName, homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, allowRegistration: Boolean(s.allowRegistration), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -507,19 +507,20 @@ app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { ma
 // free -- it's just another stylesheet link, not a runtime JS override
 // that would need its own copy into that second document.
 app.get('/theme.css', (_req, res) => {
-  const s = store.settings;
-  const vars = [
-    ['--bg', s.themeBg],
-    ['--bg-card', s.themeBgCard],
-    ['--border', s.themeBorder],
-    ['--text', s.themeText],
-    ['--text-dim', s.themeTextDim],
-    ['--accent', s.themeAccent],
-    ['--on-accent', s.themeOnAccent],
-  ].filter(([, value]) => value);
+  const theme = store.activeTheme();
   res.set('Content-Type', 'text/css');
   res.set('Cache-Control', 'no-cache');
-  res.send(vars.length ? `:root {\n${vars.map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n` : '');
+  if (!theme) return res.send('');
+  const vars = [
+    ['--bg', theme.bg],
+    ['--bg-card', theme.bgCard],
+    ['--border', theme.border],
+    ['--text', theme.text],
+    ['--text-dim', theme.textDim],
+    ['--accent', theme.accent],
+    ['--on-accent', theme.onAccent],
+  ];
+  res.send(`:root {\n${vars.map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`);
 });
 
 app.use(express.static(publicDir, { index: false }));
@@ -966,6 +967,16 @@ app.get('/api/settings', requireAdmin, (_req, res) => res.json({ settings: brand
 app.patch('/api/settings', requireAdmin, (req, res) => {
   store.updateSettings(req.body || {});
   res.json({ settings: branding() });
+});
+// Saved themes: named sets of the same seven colors /theme.css can render --
+// switching just repoints activeThemeId (see PATCH /api/settings above),
+// no re-picking needed. See store.js's "themes" section for the shape.
+app.get('/api/themes', requireAdmin, (_req, res) => res.json({ themes: store.themes, activeThemeId: store.settings.activeThemeId || null }));
+app.post('/api/themes', requireAdmin, (req, res) => res.json({ theme: store.addTheme(req.body || {}) }));
+app.patch('/api/themes/:id', requireAdmin, (req, res) => res.json({ theme: store.updateTheme(req.params.id, req.body || {}) }));
+app.delete('/api/themes/:id', requireAdmin, (req, res) => {
+  store.removeTheme(req.params.id);
+  res.json({ ok: true });
 });
 // Site images: icon, background.
 const siteImage = (req, res, next) => (req.params.image === 'icon' || req.params.image === 'background' ? next() : res.status(404).json({ error: 'unknown image' }));

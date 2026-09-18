@@ -90,7 +90,11 @@
 
       <div class="panel">
       <h2>Theme</h2>
-      <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. Leave it alone and the app looks exactly like it always has.</p>
+      <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. "Default" is how the app has always looked.</p>
+      <div class="row">
+        <label>Active theme<select id="theme-select"></select></label>
+        <span class="status" id="theme-status"></span>
+      </div>
       <div class="theme-preview" id="theme-preview">
         <p>Body text, a <a href="#" onclick="return false">link</a>, and <span class="hint">dim text</span>.</p>
         <div class="row">
@@ -107,10 +111,11 @@
         <label>Accent<input id="theme-accent" type="color"></label>
         <label>Text on accent<input id="theme-on-accent" type="color"></label>
       </div>
+      <p class="hint">Adjusting the colors above previews live but doesn't save anything until you pick one of the buttons below.</p>
       <div class="row">
-        <button class="btn btn-primary" id="save-theme" type="button">Save</button>
-        <button class="btn" id="reset-theme" type="button">Reset to default</button>
-        <span class="status" id="theme-status"></span>
+        <button class="btn btn-primary" id="theme-save-new" type="button">Save as new theme</button>
+        <button class="btn" id="theme-update" type="button">Update "<span id="theme-update-name"></span>"</button>
+        <button class="btn btn-danger" id="theme-delete" type="button">Delete this theme</button>
       </div>
       </div>
 

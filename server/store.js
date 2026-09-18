@@ -103,18 +103,15 @@ const DEFAULT_SETTINGS = {
   allowAsides: true,
   allowPrivate: true,
   allowReactions: true,
-  // The whole themeable surface (see /theme.css and the :root comment in
-  // style.css) -- unset (null) means "use style.css's own built-in
-  // default", so a server that's never touched this looks exactly like it
-  // always has, byte for byte, rather than round-tripping the same colors
-  // back through an extra stylesheet.
-  themeBg: null,
-  themeBgCard: null,
-  themeBorder: null,
-  themeText: null,
-  themeTextDim: null,
-  themeAccent: null,
-  themeOnAccent: null,
+  // Saved color themes (see /theme.css and the :root comment in style.css)
+  // -- each one the same seven colors, named and kept around so an admin
+  // can switch back without re-picking them. activeThemeId null means "use
+  // style.css's own built-in default" (also what "Default" in the chooser
+  // resolves to), so a server that's never touched this looks exactly like
+  // it always has, byte for byte, rather than round-tripping the same
+  // colors back through an extra stylesheet.
+  themes: [],
+  activeThemeId: null,
   // Defaults for every player's video box; a user can override their own.
   border: true,
   borderColor: DEFAULT_BORDER_COLOR,
@@ -447,14 +444,12 @@ class Store {
     if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);
     if (patch.allowPrivate !== undefined) s.allowPrivate = Boolean(patch.allowPrivate);
     if (patch.allowReactions !== undefined) s.allowReactions = Boolean(patch.allowReactions);
-    // Same seven as style.css's :root comment. null/empty resets that one
-    // color back to the built-in default rather than being rejected as
-    // invalid -- a color <input> has no way to "unset" itself otherwise.
-    for (const key of ['themeBg', 'themeBgCard', 'themeBorder', 'themeText', 'themeTextDim', 'themeAccent', 'themeOnAccent']) {
-      if (patch[key] === undefined) continue;
-      if (!patch[key]) { s[key] = null; continue; }
-      const c = cleanColor(patch[key]);
-      if (c) s[key] = c;
+    // null/empty picks "Default" (style.css's own built-in palette); any
+    // other value must be one of the saved themes' ids.
+    if (patch.activeThemeId !== undefined) {
+      if (!patch.activeThemeId) s.activeThemeId = null;
+      else if (s.themes.some((t) => t.id === patch.activeThemeId)) s.activeThemeId = patch.activeThemeId;
+      else throw new StoreError('no such theme');
     }
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
@@ -508,6 +503,69 @@ class Store {
     }
     this.save();
     return s;
+  }
+
+  // --- themes ---------------------------------------------------------------
+  // Same seven colors as the :root comment in style.css, named and saved so
+  // an admin can switch back to one without re-picking every color. Every
+  // field is required (a half-specified theme would fall back to whatever
+  // stale value style.css's own default carries for the rest, which reads
+  // as a bug once it's a named, switchable thing rather than a single
+  // live override).
+  sanitizeTheme(t) {
+    const bg = cleanColor(t?.bg);
+    const bgCard = cleanColor(t?.bgCard);
+    const border = cleanColor(t?.border);
+    const text = cleanColor(t?.text);
+    const textDim = cleanColor(t?.textDim);
+    const accent = cleanColor(t?.accent);
+    const onAccent = cleanColor(t?.onAccent);
+    if (!bg || !bgCard || !border || !text || !textDim || !accent || !onAccent) return null;
+    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgCard, border, text, textDim, accent, onAccent };
+  }
+
+  get themes() {
+    return this.data.settings.themes;
+  }
+
+  addTheme(fields) {
+    let id;
+    do id = randomKey();
+    while (this.data.settings.themes.some((t) => t.id === id));
+    const theme = this.sanitizeTheme({ ...fields, id });
+    if (!theme) throw new StoreError('every color is required');
+    this.data.settings.themes.push(theme);
+    this.save();
+    return theme;
+  }
+
+  updateTheme(id, patch) {
+    const theme = this.data.settings.themes.find((t) => t.id === id);
+    if (!theme) throw new StoreError('no such theme', 404);
+    if (patch.name !== undefined) theme.name = cleanText(patch.name, 40) || theme.name;
+    for (const key of ['bg', 'bgCard', 'border', 'text', 'textDim', 'accent', 'onAccent']) {
+      if (patch[key] === undefined) continue;
+      const c = cleanColor(patch[key]);
+      if (c) theme[key] = c;
+    }
+    this.save();
+    return theme;
+  }
+
+  removeTheme(id) {
+    const theme = this.data.settings.themes.find((t) => t.id === id);
+    if (!theme) throw new StoreError('no such theme', 404);
+    this.data.settings.themes = this.data.settings.themes.filter((t) => t.id !== id);
+    if (this.data.settings.activeThemeId === id) this.data.settings.activeThemeId = null;
+    this.save();
+    return theme;
+  }
+
+  // The colors /theme.css should actually render, or null for "Default"
+  // (style.css's own built-in palette, no override needed).
+  activeTheme() {
+    const id = this.data.settings.activeThemeId;
+    return id ? this.data.settings.themes.find((t) => t.id === id) || null : null;
   }
 
   // A user's video-box settings with the server defaults filled in.

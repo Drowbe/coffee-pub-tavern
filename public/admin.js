@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -289,35 +289,36 @@ $('save-features').addEventListener('click', () => saveSettings({
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value }, $('login-status')));
 
 // --- theme -------------------------------------------------------------------
-// Reads/writes style.css's :root custom properties directly rather than
-// keeping its own copy of the built-in defaults -- getComputedStyle already
-// knows the real effective value of each one (the server's /theme.css
-// override if there is one, style.css's own default otherwise), so the
-// color inputs and the preview box start from the truth instead of a
-// second, driftable source of it.
+// A chooser (Default + every saved theme) plus the same seven color inputs,
+// now used to create/edit whichever one is picked rather than a single live
+// override. "Default" has no stored colors at all -- its inputs come from
+// getComputedStyle, which already knows the real effective value of each
+// custom property (style.css's own built-in default, nothing else in play).
 const THEME_FIELDS = [
-  ['theme-bg', '--bg', 'themeBg'],
-  ['theme-bg-card', '--bg-card', 'themeBgCard'],
-  ['theme-border', '--border', 'themeBorder'],
-  ['theme-text', '--text', 'themeText'],
-  ['theme-text-dim', '--text-dim', 'themeTextDim'],
-  ['theme-accent', '--accent', 'themeAccent'],
-  ['theme-on-accent', '--on-accent', 'themeOnAccent'],
+  ['theme-bg', '--bg', 'bg'],
+  ['theme-bg-card', '--bg-card', 'bgCard'],
+  ['theme-border', '--border', 'border'],
+  ['theme-text', '--text', 'text'],
+  ['theme-text-dim', '--text-dim', 'textDim'],
+  ['theme-accent', '--accent', 'accent'],
+  ['theme-on-accent', '--on-accent', 'onAccent'],
 ];
+let themes = [];
+let activeThemeId = null;
+
 function currentThemeColor(cssVar) {
   return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
 }
-function loadThemeInputs() {
-  for (const [id, cssVar] of THEME_FIELDS) $(id).value = currentThemeColor(cssVar);
+function loadThemeInputsFrom(theme) {
+  for (const [id, cssVar, key] of THEME_FIELDS) $(id).value = theme ? theme[key] : currentThemeColor(cssVar);
 }
-// Sets these straight on :root (not just the preview box) -- several other
-// rules (button surfaces, hover shades) are themselves computed FROM these
-// seven with color-mix(), and that only recomputes for real when the
-// values it references change at the SAME element (custom properties
-// inherit their already-resolved value, they don't re-substitute var()
-// per descendant) -- so a scoped override on just the preview box left
-// those derived colors stale. Root it is; this is exactly what saving
-// actually does anyway, just not persisted yet.
+// Sets these straight on :root (not just a scoped preview box) -- several
+// other rules (button surfaces, hover shades) are themselves computed FROM
+// these seven with color-mix(), and that only recomputes for real when the
+// values it references change at the SAME element custom properties
+// inherit their already-resolved value, they don't re-substitute var() per
+// descendant. Root it is; this is exactly what activating a theme actually
+// does anyway, just not persisted yet.
 function updateThemePreview() {
   const root = document.documentElement;
   for (const [id, cssVar] of THEME_FIELDS) root.style.setProperty(cssVar, $(id).value);
@@ -329,9 +330,9 @@ function clearThemePreview() {
 for (const [id] of THEME_FIELDS) $(id).addEventListener('input', updateThemePreview);
 // /theme.css only changes what the *server* sends on the *next* request --
 // this page's own <link> already fetched the old one. Re-pointing it at a
-// cache-busted URL and waiting for it to load is what makes Save (and
-// Reset) visibly repaint this page too, not just the next page someone
-// opens.
+// cache-busted URL and waiting for it to load is what makes switching
+// themes (or editing one) visibly repaint this page too, not just the next
+// page someone opens.
 function reloadThemeStylesheet() {
   return new Promise((resolve) => {
     const link = $('theme-link');
@@ -342,20 +343,73 @@ function reloadThemeStylesheet() {
     link.href = url.toString();
   });
 }
-$('save-theme').addEventListener('click', async () => {
-  const patch = {};
-  for (const [id, , key] of THEME_FIELDS) patch[key] = $(id).value;
-  await saveSettings(patch, $('theme-status'));
-  await reloadThemeStylesheet();
-  clearThemePreview(); // theme.css itself carries this now -- drop the inline shadow of it
-});
-$('reset-theme').addEventListener('click', async () => {
-  const patch = {};
-  for (const [, , key] of THEME_FIELDS) patch[key] = '';
-  await saveSettings(patch, $('theme-status'));
+function renderThemeChooser() {
+  const select = $('theme-select');
+  select.innerHTML = '<option value="">Default</option>' + themes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  select.value = activeThemeId || '';
+  const active = themes.find((t) => t.id === activeThemeId);
+  $('theme-update-name').textContent = active ? active.name : '';
+  $('theme-update').hidden = !active;
+  $('theme-delete').hidden = !active;
+}
+async function loadThemes() {
+  const data = await api('GET', '/api/themes');
+  themes = data.themes;
+  activeThemeId = data.activeThemeId;
+  renderThemeChooser();
+  loadThemeInputsFrom(themes.find((t) => t.id === activeThemeId) || null);
+}
+async function activateTheme(id) {
+  await saveSettings({ activeThemeId: id }, $('theme-status'));
   await reloadThemeStylesheet();
   clearThemePreview();
-  loadThemeInputs();
+  activeThemeId = id;
+  renderThemeChooser();
+  loadThemeInputsFrom(themes.find((t) => t.id === id) || null);
+}
+$('theme-select').addEventListener('change', () => activateTheme($('theme-select').value || null));
+$('theme-save-new').addEventListener('click', async () => {
+  const name = window.prompt('Name this theme:');
+  if (!name) return;
+  const colors = {};
+  for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
+  try {
+    const { theme } = await api('POST', '/api/themes', { name, ...colors });
+    themes.push(theme);
+    await activateTheme(theme.id);
+    say($('theme-status'), 'saved');
+  } catch (err) {
+    say($('theme-status'), err.message, true);
+  }
+});
+$('theme-update').addEventListener('click', async () => {
+  if (!activeThemeId) return;
+  const colors = {};
+  for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
+  try {
+    const { theme } = await api('PATCH', `/api/themes/${activeThemeId}`, colors);
+    themes = themes.map((t) => (t.id === theme.id ? theme : t));
+    await reloadThemeStylesheet();
+    clearThemePreview();
+    renderThemeChooser();
+    loadThemeInputsFrom(theme);
+    say($('theme-status'), 'saved');
+  } catch (err) {
+    say($('theme-status'), err.message, true);
+  }
+});
+$('theme-delete').addEventListener('click', async () => {
+  const active = themes.find((t) => t.id === activeThemeId);
+  if (!active) return;
+  if (!window.confirm(`Delete the theme "${active.name}"? This can't be undone.`)) return;
+  try {
+    await api('DELETE', `/api/themes/${active.id}`);
+    themes = themes.filter((t) => t.id !== active.id);
+    await activateTheme(null);
+    say($('theme-status'), 'deleted');
+  } catch (err) {
+    say($('theme-status'), err.message, true);
+  }
 });
 $('save-registration').addEventListener('click', () => saveSettings({ allowRegistration: $('set-allow-registration').checked }, $('registration-status')));
 
@@ -690,7 +744,7 @@ async function init() {
     $('set-server').value = settings.serverName;
     selectedHomeIcon = settings.homeIcon || 'couch';
     renderHomeIconSelection();
-    loadThemeInputs();
+    await loadThemes();
     $('set-max-quality').value = String(settings.maxQuality || 720);
     $('set-allow-screen-share').checked = settings.allowScreenShare !== false;
     $('set-allow-asides').checked = settings.allowAsides !== false;
