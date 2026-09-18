@@ -653,24 +653,49 @@ app.post('/api/guest-join', async (req, res) => {
 // A user may replace or clear their own profile photo. This is separate from
 // the Player box's Online picture, which only an admin sets (it may be part
 // of a matched set of OBS images).
-app.put('/api/me/images/profile', requireUser, rawImage, (req, res) => {
-  store.setImage(currentUser(req).key, 'profile', req.body, req.get('content-type'));
+// Any image slot is self-service once the user's role has its "Images"
+// permission (Manage > Roles): by default the profile photo and the call
+// background (a still behind their own camera, an alternative to blur).
+function requireImageRight(req, res, next) {
+  const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
+  if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
+  const user = currentUser(req);
+  if (!store.roleSet(user.role)[`image_${slot}`]) return res.status(403).json({ error: 'your role can\'t change that image' });
+  req.imageSlot = slot;
+  next();
+}
+app.put('/api/me/images/:slot', requireUser, requireImageRight, rawImage, (req, res) => {
+  store.setImage(currentUser(req).key, req.imageSlot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/me/images/profile', requireUser, (req, res) => {
-  store.removeImage(currentUser(req).key, 'profile');
+app.delete('/api/me/images/:slot', requireUser, requireImageRight, (req, res) => {
+  store.removeImage(currentUser(req).key, req.imageSlot);
   res.json({ ok: true });
 });
-
-// A still image behind a player's own camera in the call, in place of the
-// real background -- an alternative to blur, picked on the profile page.
-app.put('/api/me/images/background', requireUser, rawImage, (req, res) => {
-  store.setImage(currentUser(req).key, 'background', req.body, req.get('content-type'));
-  res.json({ ok: true });
+// The same for a room's own pictures, and the switch that turns them on.
+function requireOwnRoom(req, res, next) {
+  const room = store.roomById(req.params.roomId);
+  if (!room || !room.members.includes(currentUser(req).key)) return res.status(403).json({ error: 'not a member of that room' });
+  next();
+}
+app.put('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, rawImage, (req, res) => {
+  const user = currentUser(req);
+  store.setImage(user.key, req.imageSlot, req.body, req.get('content-type'), req.params.roomId);
+  res.json({ user: publicUser(req, store.userByKey(user.key)) });
 });
-app.delete('/api/me/images/background', requireUser, (req, res) => {
-  store.removeImage(currentUser(req).key, 'background');
-  res.json({ ok: true });
+app.delete('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, (req, res) => {
+  const user = currentUser(req);
+  store.removeImage(user.key, req.imageSlot, req.params.roomId);
+  res.json({ user: publicUser(req, store.userByKey(user.key)) });
+});
+app.patch('/api/me/rooms/:roomId', requireUser, requireOwnRoom, (req, res) => {
+  const user = currentUser(req);
+  const set = store.roleSet(user.role);
+  if (!Object.entries(set).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background')) {
+    return res.status(403).json({ error: 'your role can\'t change room images' });
+  }
+  store.setRoomPrefs(user.key, req.params.roomId, { useDefaultImages: req.body?.useDefaultImages });
+  res.json({ user: publicUser(req, store.userByKey(user.key)) });
 });
 
 // A user's own mic/camera processing settings (gain, noise suppression,

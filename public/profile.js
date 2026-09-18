@@ -58,13 +58,23 @@ async function reload() {
   user = editingKey ? (await api('GET', `/api/users/${editingKey}`)).user : (await api('GET', '/api/me')).user;
 }
 
+// An admin editing someone can change anything; on your own profile it's
+// whatever your role's Images permissions allow (Manage > Roles).
+const canImg = (slot) => !!editingKey || !!user.permissions?.[`image_${slot}`];
+const canRoomImages = () => !!editingKey || Object.entries(user.permissions || {}).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background');
+const imgApi = (slot, roomId) => editingKey
+  ? `/api/users/${user.key}${roomId ? `/rooms/${roomId}` : ''}/images/${slot}`
+  : `/api/me${roomId ? `/rooms/${roomId}` : ''}/images/${slot}`;
+
 function render() {
   const editing = !!editingKey;
+  $('portrait-slot').querySelector('.slot-pick').classList.toggle('still', !canImg('profile'));
+  $('background-slot').querySelector('.slot-pick').classList.toggle('still', !canImg('background'));
 
   const has = !!user.images.profile;
   $('portrait').src = imgUrl('profile'); // the server draws initials when unset
   $('portrait-slot').classList.toggle('set', has);
-  $('portrait-clear').hidden = !has; // nothing on an account is off-limits to an admin, this included
+  $('portrait-clear').hidden = !has || !canImg('profile'); // nothing on an account is off-limits to an admin, this included
   document.querySelector('#portrait-slot .unset').hidden = true;
   $('whoami-img').src = `/img/${encodeURIComponent(me ? me.key : user.key)}/profile?v=${Date.now()}`;
   $('whoami-img').hidden = false;
@@ -75,7 +85,7 @@ function render() {
   $('background').hidden = !hasBg;
   if (hasBg) $('background').src = imgUrl('background');
   $('background-slot').querySelector('.unset').hidden = hasBg;
-  $('background-clear').hidden = !hasBg;
+  $('background-clear').hidden = !hasBg || !canImg('background');
   $('background-hint').textContent = editing
     ? `Shown behind ${user.displayName}'s portrait when their camera is off, and used as their real call background too if Background Style below is set to Image Background. Unset shows the plain color instead.`
     : 'Shown behind your portrait when your camera is off, and used as your real call background too if Background Style below is set to Image Background. Leave it unset to use the plain color instead.';
@@ -157,8 +167,8 @@ function render() {
     if (set) img.src = imgUrl(name);
     slot.querySelector('.unset').hidden = set;
     slot.classList.toggle('set', set);
-    slot.querySelector('.slot-pick').classList.toggle('still', !editing);
-    slot.querySelector('[data-action="slot-clear"]').hidden = !editing || !set;
+    slot.querySelector('.slot-pick').classList.toggle('still', !canImg(name));
+    slot.querySelector('[data-action="slot-clear"]').hidden = !canImg(name) || !set;
   }
 
   $('obs-link-row').hidden = !editing;
@@ -214,7 +224,7 @@ function fillRoomSection(section, room, roomImages) {
   const useDefault = roomImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
-  useBox.disabled = !editing;
+  useBox.disabled = !canRoomImages();
   section.querySelector('[data-room-images]').hidden = useDefault;
   section.querySelector('.room-section-hint').textContent = editing
     ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Profile Images above.`
@@ -233,8 +243,8 @@ function fillRoomSection(section, room, roomImages) {
     if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?room=${encodeURIComponent(room.id)}&v=${Date.now()}`;
     slot.querySelector('.unset').hidden = hasEffective;
     slot.classList.toggle('set', hasOwn);
-    slot.querySelector('.slot-pick').classList.toggle('still', !editing);
-    slot.querySelector('[data-action="slot-clear"]').hidden = !editing || !hasOwn;
+    slot.querySelector('.slot-pick').classList.toggle('still', !canImg(name));
+    slot.querySelector('[data-action="slot-clear"]').hidden = !canImg(name) || !hasOwn;
   }
 }
 
@@ -255,25 +265,26 @@ function renderRoomSections() {
 
 $('room-sections').addEventListener('change', (event) => {
   const roomId0 = event.target.closest('.room-section')?.dataset.room;
-  if (editingKey && roomId0 && (event.target.dataset.permission || event.target.hasAttribute('data-use-default'))) {
+  if (roomId0 && ((editingKey && event.target.dataset.permission) || event.target.hasAttribute('data-use-default'))) {
     const patch = event.target.dataset.permission
       ? { permissions: { [event.target.dataset.permission]: event.target.checked } }
       : { useDefaultImages: event.target.checked };
     run(async () => {
-      user = (await api('PATCH', `/api/users/${user.key}/rooms/${roomId0}`, patch)).user;
+      user = (await api('PATCH', editingKey ? `/api/users/${user.key}/rooms/${roomId0}` : `/api/me/rooms/${roomId0}`, patch)).user;
       render();
     });
     return;
   }
-  if (!editingKey || event.target.type !== 'file') return;
+  if (event.target.type !== 'file') return;
   const roomId = event.target.closest('.room-section').dataset.room;
   const slot = event.target.closest('.slot').dataset.slot;
+  if (!canImg(slot)) return;
   const file = event.target.files[0];
   event.target.value = '';
   if (!file) return;
   run(async () => {
     say(`uploading ${slot}...`);
-    user = (await api('PUT', `/api/users/${user.key}/rooms/${roomId}/images/${slot}`, file, file.type)).user;
+    user = (await api('PUT', imgApi(slot, roomId), file, file.type)).user;
     render();
     say('image saved');
   });
@@ -291,11 +302,12 @@ $('room-sections').addEventListener('click', (event) => {
     return;
   }
   const button = event.target.closest('[data-action="slot-clear"]');
-  if (!button || !editingKey) return;
+  if (!button) return;
   const roomId = button.closest('.room-section').dataset.room;
   const slot = button.closest('.slot').dataset.slot;
+  if (!canImg(slot)) return;
   run(async () => {
-    user = (await api('DELETE', `/api/users/${user.key}/rooms/${roomId}/images/${slot}`)).user;
+    user = (await api('DELETE', imgApi(slot, roomId))).user;
     render();
   });
 });
@@ -474,24 +486,27 @@ $('link-off').addEventListener('click', () => run(async () => {
 }, $('account-status')));
 
 $('other-images').addEventListener('change', (event) => {
-  if (!editingKey || event.target.type !== 'file') return;
+  if (event.target.type !== 'file') return;
   const slot = event.target.closest('.slot').dataset.slot;
   const file = event.target.files[0];
   event.target.value = '';
-  if (!file) return;
+  if (!file || !canImg(slot)) return;
   run(async () => {
     say(`uploading ${slot}...`);
-    user = (await api('PUT', `/api/users/${user.key}/images/${slot}`, file, file.type)).user;
+    if (editingKey) user = (await api('PUT', imgApi(slot), file, file.type)).user;
+    else { await api('PUT', imgApi(slot), file, file.type); await reload(); }
     render();
     say('image saved');
   });
 });
 $('other-images').addEventListener('click', (event) => {
   const button = event.target.closest('[data-action="slot-clear"]');
-  if (!button || !editingKey) return;
+  if (!button) return;
   const slot = button.closest('.slot').dataset.slot;
+  if (!canImg(slot)) return;
   run(async () => {
-    user = (await api('DELETE', `/api/users/${user.key}/images/${slot}`)).user;
+    if (editingKey) user = (await api('DELETE', imgApi(slot))).user;
+    else { await api('DELETE', imgApi(slot)); await reload(); }
     render();
   });
 });

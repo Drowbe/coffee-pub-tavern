@@ -71,21 +71,39 @@ const ROOM_PERMISSIONS = ['moderator'];
 // are enforced by the page itself, since chat, reactions and screen share
 // travel peer to peer through LiveKit with no server hop to check.
 const ROLE_PERMISSIONS = [
-  { key: 'chat', label: 'Send chat messages', group: 'At the table' },
-  { key: 'sendPictures', label: 'Send pictures in chat', group: 'At the table' },
-  { key: 'react', label: 'Use reactions', group: 'At the table' },
-  { key: 'shareScreen', label: 'Share their screen', group: 'At the table' },
+  { key: 'chat', label: 'Send chat messages', group: 'In the Room' },
+  { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the Room' },
+  { key: 'react', label: 'Use reactions', group: 'In the Room' },
+  { key: 'shareScreen', label: 'Share their screen', group: 'In the Room' },
   { key: 'privateCall', label: 'Start a private conversation', group: 'Asides' },
   { key: 'startAside', label: 'Step aside with someone (recorded)', group: 'Asides' },
   { key: 'canMute', label: 'Mute other people', group: 'Moderation' },
   { key: 'canKick', label: 'Kick other people', group: 'Moderation' },
   { key: 'canInvite', label: "Manage a room's guest link", group: 'Moderation' },
+  { key: 'image_profile', label: 'Profile photo', group: 'Images' },
+  { key: 'image_background', label: 'Call background', group: 'Images' },
+  { key: 'image_playerOffline', label: 'Participant: Offline', group: 'Images' },
+  { key: 'image_player', label: 'Participant: Online', group: 'Images' },
+  { key: 'image_playerTalking', label: 'Participant: Talking', group: 'Images' },
+  { key: 'image_playerMuted', label: 'Participant: Muted', group: 'Images' },
+  { key: 'image_playerAside', label: 'Participant: Aside', group: 'Images' },
+  { key: 'image_playerPrivate', label: 'Participant: Private', group: 'Images' },
+  { key: 'image_characterOffline', label: 'Character: Offline', group: 'Images' },
+  { key: 'image_character', label: 'Character: Online', group: 'Images' },
+  { key: 'image_talking', label: 'Character: Talking', group: 'Images' },
+  { key: 'image_muted', label: 'Character: Muted', group: 'Images' },
+  { key: 'image_characterAside', label: 'Character: Aside', group: 'Images' },
+  { key: 'image_characterPrivate', label: 'Character: Private', group: 'Images' },
 ];
+// Images: everyone but an admin starts with just the profile photo and the
+// call background; the OBS pictures are the admin's until a role is given them.
+const IMAGE_KEYS = ROLE_PERMISSIONS.filter((p) => p.group === 'Images').map((p) => p.key);
+const imageDefaults = (own) => Object.fromEntries(IMAGE_KEYS.map((k) => [k, own && (k === 'image_profile' || k === 'image_background')]));
 const EDITABLE_ROLES = ['moderator', 'user', 'guest'];
 const ROLE_DEFAULTS = {
-  moderator: Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])),
-  user: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false },
-  guest: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false },
+  moderator: { ...Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])), ...imageDefaults(true) },
+  user: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(true) },
+  guest: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(false) },
 };
 function cleanRoomPermissions(p) {
   return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
