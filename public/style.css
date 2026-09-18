@@ -655,9 +655,13 @@ input[type="range"] {
   border: 1px solid var(--border);
 }
 
-/* Icon links in the header: manage, sign out, install as an app -- .icon-link
-   on a <button> (install) as well as an <a>, so it needs its own reset. */
-.links .icon-link {
+/* Icon links in the header: manage, sign out, install as an app, and the
+   crumb's own leave/rejoin -- .icon-link on a <button> (install, leave,
+   rejoin) as well as an <a>, so it needs its own reset. Not scoped to
+   .links: the crumb uses this class too (see LEAVE_BTN/REJOIN_BTN in
+   room.js), and a plain unstyled <button> is what you get if this only
+   matches inside .links. */
+.icon-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -671,7 +675,7 @@ input[type="range"] {
   cursor: pointer;
 }
 
-.links .icon-link:hover {
+.icon-link:hover {
   color: var(--accent);
   background: rgba(255, 255, 255, 0.05);
   text-decoration: none;
