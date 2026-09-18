@@ -632,11 +632,6 @@ input[type="range"] {
   background: var(--border);
 }
 
-.links a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
 /* The signed-in player: their image next to their name, leading to their profile */
 .links a.whoami,
 .whoami {
