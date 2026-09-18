@@ -1665,7 +1665,7 @@ a.crumb-here:hover {
   width: var(--chat-w, min(320px, 100%));
   display: flex;
   flex-direction: column;
-  background: rgba(26, 20, 16, 0.96);
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
   border-left: 1px solid var(--border);
 }
 
@@ -1739,7 +1739,7 @@ a.crumb-here:hover {
 
 .msg-btn:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .msg-btn.on {
@@ -1774,11 +1774,11 @@ a.crumb-here:hover {
   gap: 1px;
   padding: 4px 6px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .message.own {
-  background: rgba(230, 150, 60, 0.08);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .message .actions {
@@ -1787,7 +1787,7 @@ a.crumb-here:hover {
   top: 2px;
   display: none;
   gap: 1px;
-  background: rgba(26, 20, 16, 0.9);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   border-radius: 4px;
 }
 
@@ -1812,7 +1812,7 @@ a.crumb-here:hover {
 .message .text code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
   padding: 0 4px;
   border-radius: 3px;
 }
@@ -1903,7 +1903,7 @@ a.crumb-here:hover {
   width: min(280px, calc(100vw - 32px));
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(36, 28, 22, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
@@ -1934,7 +1934,7 @@ a.crumb-here:hover {
   overflow-y: auto;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(36, 28, 22, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
@@ -1987,7 +1987,7 @@ a.crumb-here:hover {
   width: min(360px, calc(100% - 24px));
   padding: 14px;
   border-radius: 10px;
-  background: rgba(36, 28, 22, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   display: flex;
@@ -2454,7 +2454,7 @@ a.crumb-here:hover {
 }
 
 .aside-overlay-card {
-  background: rgba(36, 28, 22, 0.97);
+  background: color-mix(in srgb, var(--bg-card) 97%, transparent);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);

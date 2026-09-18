@@ -133,10 +133,42 @@ manifest declares which hooks it may use:
   Email/push are later.
 - The scheduler is a small server loop; schedules persist across restarts.
 
-### Theme
+### Theme (modules must follow it)
 
-The host passes the current theme tokens (the seven colors + font) into the iframe on load and on
-change, so modules match the site's theme.
+Admins can re-theme Tavern (Manage > Theme), including light themes, so **a module must never assume
+a dark background or hard-code colors.** A module that does will be unreadable on some servers; the
+chat panel had exactly this bug (fixed dark backgrounds under theme-colored text) and is the cautionary
+example.
+
+How it works:
+
+- The host sends the current theme into every module iframe on load and again whenever it changes.
+  The SDK applies it as CSS custom properties on the module's `:root`, so plain CSS follows the theme
+  with no code: `background: var(--bg)`.
+- The tokens (the same seven the theme editor sets, plus the ones derived from them):
+
+  | Token | Use |
+  |---|---|
+  | `--bg` | page background |
+  | `--bg-card` | panels, cards |
+  | `--border` | outlines, dividers |
+  | `--text` | body text |
+  | `--text-dim` | secondary text |
+  | `--accent` | links, highlights, primary buttons |
+  | `--on-accent` | text/icons drawn on an `--accent` background |
+  | `--bg-input`, `--surface`, `--surface-hover`, `--shade` | derived: inputs, raised surfaces, hover, recessed areas |
+  | `--ok`, `--danger` | status colors |
+
+- Rules for module authors:
+  1. Take every color from these tokens. For see-through tints use `color-mix`, e.g.
+     `color-mix(in srgb, var(--text) 8%, transparent)`, never `rgba(255, 255, 255, .08)`.
+  2. Text on `--accent` uses `--on-accent`, not white or black.
+  3. If the module draws on its own (canvas, SVG), read the tokens with `getComputedStyle` and
+     redraw on the SDK's `theme` event.
+  4. Test with both a dark and a light theme before shipping. The install screen may later warn
+     about modules that declare fixed colors.
+- The same rule applies to Tavern's own UI: new panels and popups use the tokens (or `color-mix` of
+  them), never fixed dark colors. Scrims and shadows may stay black.
 
 ## SDK (postMessage), first pass
 
