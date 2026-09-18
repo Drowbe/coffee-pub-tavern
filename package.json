@@ -1,6 +1,6 @@
 {
   "name": "coffee-pub-tavern",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Self-hosted voice and video for the Coffee Pub table, with per-player OBS views.",
   "private": true,
   "license": "MIT",
