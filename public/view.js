@@ -62,7 +62,7 @@ function msg(text) {
 // cast room shows the right picture promptly.
 async function loadImages() {
   const q = new URLSearchParams({ s: streamKey });
-  if (playerRoom) q.set('room', playerRoom);
+  if (imageRoom) q.set('room', imageRoom);
   for (const slot of slots) {
     try {
       const res = await fetch(`/img/${encodeURIComponent(wanted)}/${slot}?${q}`);
@@ -82,7 +82,7 @@ async function loadImages() {
 let bgImage = null;
 async function loadBgImage() {
   const q = new URLSearchParams({ s: streamKey });
-  if (playerRoom) q.set('room', playerRoom);
+  if (imageRoom) q.set('room', imageRoom);
   try {
     const res = await fetch(`/img/${encodeURIComponent(wanted)}/background?${q}`);
     if (bgImage) URL.revokeObjectURL(bgImage);
@@ -97,7 +97,8 @@ async function loadBgImage() {
 // away); this box follows them from room to room, and its own per-room
 // images (if that room has any) follow along too.
 let playerRoom = 'lobby';
-let lastImageRoom = playerRoom;
+let imageRoom = 'lobby'; // playerRoom, or an aside's origin room -- whose pictures apply
+let lastImageRoom = imageRoom;
 let connectedRoom = null;
 
 // Offline/Aside dim+tint: used to be an OBS Color Correction filter on
@@ -140,6 +141,8 @@ async function loadSettings() {
     if (me) {
       settings = { border: me.border, borderColor: me.borderColor, borderWidth: me.borderWidth || 6, mutedBorder: me.mutedBorder !== false, mutedColor: me.mutedColor || '#b8503f', plate: Boolean(me.plate), plateLayout: me.plateLayout || 'lower-left', plateColor: me.plateColor || '#000000', plateTextColor: me.plateTextColor || '#f1e6d8', plateFontSize: me.plateFontSize || 16, plateOpacity: me.plateOpacity ?? 60, plateTextCase: me.plateTextCase || 'default', charBorder: Boolean(me.charBorder), charBorderColor: me.charBorderColor || '#6fae6b', charMutedBorder: Boolean(me.charMutedBorder), charMutedColor: me.charMutedColor || '#b8503f', charBorderWidth: me.charBorderWidth || 6, pictureBackground: Boolean(me.pictureBackground), pictureColor: me.pictureColor || '#1a1410', pictureScale: me.pictureScale || 100, displayName: me.displayName };
       playerRoom = (me.online && me.room) || 'lobby';
+      const inRoom = (data.rooms || []).find((r) => r.id === playerRoom);
+      imageRoom = inRoom?.ephemeral && inRoom.origin ? inRoom.origin : playerRoom;
       tableOnline = Boolean(me.online);
       isAside = tableOnline && Boolean(data.adminOnline) && me.room !== data.activeRoom;
       // Studio mutes a Private Conversation's audio but no longer hides the
@@ -177,8 +180,8 @@ async function loadSettings() {
     document.documentElement.style.setProperty('--plate-color', settings.plateTextColor);
     document.documentElement.style.setProperty('--plate-size', `${settings.plateFontSize}px`);
     $('plate').dataset.plate = settings.plateLayout;
-    if (playerRoom !== lastImageRoom) {
-      lastImageRoom = playerRoom;
+    if (imageRoom !== lastImageRoom) {
+      lastImageRoom = imageRoom;
       loadImages();
       if (kind === 'player') loadBgImage();
     }

@@ -458,6 +458,11 @@ app.get('/img/:key/:slot', (req, res) => {
   const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   const slot = SLOTS.includes(wanted) ? wanted : 'profile';
   const roomId = slot !== 'profile' && typeof req.query.room === 'string' ? req.query.room : null;
+  if (req.query.roomOnly === '1') {
+    // Just this room's own picture -- no fallback to the member's global or default one.
+    const own = roomId && store.usesRoomImages(user.key, roomId) && store.resolveImage(user.key, slot, roomId);
+    return own ? sendImage(res, own.file) : res.status(404).end();
+  }
   const resolved = store.effectiveImage(user.key, slot, roomId);
   if (resolved) return sendImage(res, resolved.file);
   if (slot !== 'profile' || req.query.fallback === 'none') return res.status(404).end();

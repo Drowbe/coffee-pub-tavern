@@ -52,6 +52,15 @@ function imgUrl(key, slot, params = {}) {
   return `/img/${encodeURIComponent(urlKey)}/${urlSlot}${qs ? `?${qs}` : ''}`;
 }
 
+// A member's Online picture for the room we're in, when they've set one there
+// (Use Default Profile Images off); otherwise the tile falls back to their
+// profile photo. Private asides count as their origin room.
+function roomPortraitUrl(key) {
+  const roomId = currentRoom?.ephemeral ? currentRoom.origin : currentRoom?.id;
+  if (!roomId || roomId === LOBBY || key.startsWith(GUEST_PREFIX)) return imgUrl(key, 'profile');
+  return imgUrl(key, 'player', { room: roomId, roomOnly: 1 });
+}
+
 async function loadTable() {
   try {
     const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
@@ -551,7 +560,8 @@ function tileFor(participant) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = imgUrl(participant.identity, 'profile');
+  placeholder.src = roomPortraitUrl(participant.identity);
+  placeholder.onerror = () => { placeholder.onerror = null; placeholder.src = imgUrl(participant.identity, 'profile'); };
   const colour = tableUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
