@@ -3,6 +3,10 @@
 Things agreed on but not built yet, roughly in order. See the Studio repo's own TODO.md
 for that app's side of things (Windows OBS capture work, mainly).
 
+## Room layout: modules as grid columns
+
+Rebuild the room page as a grid where the video conference and chat each own a column with a content area and an action bar, replacing the absolute-positioned chat and the measured toolbar height. Design, decisions and build order are in plans/plan-room-layout.md. Touches public/room.html, public/room.js and public/style.css. Verify in a real call: chat open and closed, fullscreen, popout, and a narrow window.
+
 ## Modules: steps 2 to 9
 
 Step 1 (install, manifest, approve and enable, rollback, uninstall) is built. The rest, in order: the

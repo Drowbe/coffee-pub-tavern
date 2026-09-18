@@ -15,7 +15,7 @@ first module is a **Calendar**; a **Travel planner** follows, and is the test of
 | Surfaces | (1) a **server page** with its own nav item (e.g. "Calendar"); (2) a **room panel**. |
 | Scope | A module declares `server`, `room`, or both. |
 | Room default | A room-scoped module is **off** in every room until an admin enables it (per room, or "all rooms"). |
-| Room UI | **Floating panels**: draggable, resizable, several open at once, position and size remembered per module. Chat is untouched, so someone can chat and work in a panel together. |
+| Room UI | A module may be **floating** (draggable, resizable, several open at once, position and size remembered, so someone can chat and work in a panel together), **docked** as a column in the room grid, or either; its manifest says which. The grid, the fixed header height and the bar rules are in [plan-room-layout](plan-room-layout.md). |
 | Permissions | A module declares permissions; each shows in the Roles grid as its own group and is enforced by the server on every module API call. |
 | Live sync | The host provides a **shared per-room store** that pushes changes to everyone in the room. |
 | Calendar v1 | Includes **reminders** (so the hooks layer is v1 work). |
@@ -57,7 +57,7 @@ first module is a **Calendar**; a **Travel planner** follows, and is the test of
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 420, "height": 520 }
+    "panel": { "entry": "panel.html", "width": 420, "height": 520, "mode": ["float", "dock"] }
   },
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },
@@ -165,6 +165,8 @@ Runtime (all require auth + the module's permission):
 - Files: `GET /m/:id/:version/*` (sandbox CSP headers)
 
 ## Build order
+
+Before step 2, the room layout refactor in [plan-room-layout](plan-room-layout.md) gives modules a column to dock into; floating panels do not depend on it.
 
 1. **Install and manifest.** Modules tab, hardened unzip, enable/disable/uninstall, manifest schema.
    *Adds one dependency (a zip reader).*
