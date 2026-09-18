@@ -14,6 +14,29 @@ name, a status line, a link. Keep new admin surfaces to this shape rather than g
 another inline editor on a list -- it is why the two existing ones scaled badly enough to
 need rebuilding.
 
+## One-container install: Tavern runs LiveKit itself
+
+Tavern is meant to be sold or given away as a self-hosted product, and today an install is
+two services (Tavern plus a separate `livekit-server` in `docker-compose.yml`) with a
+LiveKit config, matching API keys on both sides, and four ports to forward. The goal is
+"install Tavern" as one thing, with LiveKit an implementation detail.
+
+Shape agreed on: bundle the open-source `livekit-server` binary in the Tavern image and have
+Tavern start it as a child process. It generates its own API key/secret on first run (kept in
+the data volume), writes the LiveKit config from Tavern's own settings, and Tavern points at
+it over localhost, so `LIVEKIT_HOST`/`KEY`/`SECRET` stop being something an installer
+touches. Proxy LiveKit's signaling through Tavern's own HTTP port so the only web port to
+expose is Tavern's. LiveKit can't go away -- the SFU is what makes more than a handful of
+people work, and kick/mute and the OBS views call its server API -- so the media ports
+(UDP/TCP, plus TURN if the install is behind strict NAT) still need forwarding; a
+first-run check that says whether they're reachable would earn its keep.
+
+Things to settle when it's built: process supervision and restart if LiveKit dies, image
+builds per CPU architecture, a first-run flow (admin password, public hostname), and shipping
+LiveKit's Apache-2.0 license/NOTICE with the image (attribution is already on the About tab).
+Keep the existing two-service compose and pointing at LiveKit Cloud (just the three env
+vars) documented as the alternatives for anyone who wants them.
+
 ## Studio needs to read a room's profile
 
 A room's **profile** (Roleplaying / Participants / Characters, set on its config page) now
