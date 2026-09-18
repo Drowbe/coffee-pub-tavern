@@ -1107,7 +1107,8 @@ function renderMarkup(text) {
   html = html.replace(/(?:^|\n)- (.+(?:\n- .+)*)/g, (_m, body) => `\n<ul>${body.split('\n- ').map((item) => `<li>${item}</li>`).join('')}</ul>`);
   // Same idea for "> line" (what replyToEntry() quotes with) -- consecutive
   // lines share one <blockquote>. ">" is already escaped to &gt; by now.
-  html = html.replace(/(?:^|\n)&gt; (.+(?:\n&gt; .+)*)/g, (_m, body) => `\n<blockquote>${body.split('\n&gt; ').join('<br>')}</blockquote>`);
+  // The blank line(s) after a quote are swallowed: a quote is a block, so the reply starts right under it.
+  html = html.replace(/(?:^|\n)&gt; (.+(?:\n&gt; .+)*)\n{0,2}/g, (_m, body) => `<blockquote>${body.split('\n&gt; ').join('<br>')}</blockquote>`);
   return html.replace(/\n/g, '<br>');
 }
 
@@ -1169,7 +1170,7 @@ function replyToEntry(entry) {
   const quoted = entry.blob
     ? `> ${entry.who} sent a picture`
     : `> ${entry.who}: ${entry.text.split('\n').join('\n> ')}`;
-  const prefix = `${quoted}\n\n`;
+  const prefix = `${quoted}\n`;
   el.value = prefix + el.value;
   el.focus();
   el.setSelectionRange(prefix.length, prefix.length);
