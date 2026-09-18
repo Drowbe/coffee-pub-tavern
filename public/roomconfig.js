@@ -82,7 +82,7 @@ function render() {
 
   $('members-hint').textContent = room.isLobby
     ? 'Everyone belongs to the Lobby.'
-    : 'Click a player to add or remove them from this room.';
+    : 'Click a player to add or remove them from this room -- saves as you click.';
 
   $('danger-row').hidden = room.isLobby;
 
@@ -144,16 +144,26 @@ function renderMembers() {
   for (const label of [...container.children]) if (!keep.has(label.dataset.member)) label.remove();
 }
 
-$('members').addEventListener('change', (event) => {
+// Saves as you click, like Allow Guests -- the Members tab has no Save
+// button of its own, and the Room tab's Save shouldn't be what commits it.
+$('members').addEventListener('change', async (event) => {
   const input = event.target;
   if (input.type !== 'checkbox') return;
   input.closest('.member-toggle').classList.toggle('online', input.checked);
+  try {
+    const members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
+    room = (await api('PATCH', `/api/rooms/${room.id}`, { members })).room;
+    renderMembers();
+  } catch (err) {
+    input.checked = !input.checked;
+    input.closest('.member-toggle').classList.toggle('online', input.checked);
+    say($('members-status'), err.message, true);
+  }
 });
 
 $('save-btn').addEventListener('click', async () => {
   try {
     const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value, link: $('e-link').value, linkIcon: selectedLinkIcon };
-    if (!room.isLobby) patch.members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
     room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
     render();
     say($('save-status'), 'saved');
@@ -222,6 +232,22 @@ $('delete-btn').addEventListener('click', async () => {
     say($('status'), err.message, true);
   }
 });
+
+// Room / Members tabs, remembered in the address -- same pattern as
+// admin.html's and profile.html's tabs.
+function selectTab(name) {
+  const tab = name === 'members' ? 'members' : 'room';
+  $('tab-room').hidden = tab !== 'room';
+  $('tab-members').hidden = tab !== 'members';
+  for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
+  if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+}
+$('subtabs').addEventListener('click', (event) => {
+  const b = event.target.closest('.subtab');
+  if (b) selectTab(b.dataset.tab);
+});
+window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
+selectTab(location.hash.slice(1));
 
 async function init() {
   renderTopbar({ adminHref: '/admin#rooms', location: '<span class="crumb-here"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i><span class="crumb-label"> Server Settings</span></span>' });

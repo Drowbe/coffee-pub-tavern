@@ -14,14 +14,13 @@
   <header class="topbar"></header>
 
   <main class="admin">
-    <nav class="subtabs section-nav">
-      <a class="subtab" href="#section-room">Room</a>
-      <a class="subtab" href="#section-access">Access</a>
-      <a class="subtab" href="#section-members">Members</a>
+    <nav class="subtabs" id="subtabs">
+      <button class="subtab active" data-tab="room" type="button">Room</button>
+      <button class="subtab" data-tab="members" type="button">Members</button>
     </nav>
 
-    <div class="tab-stack">
-      <section class="panel" id="section-room">
+    <section class="tab-stack" id="tab-room">
+      <div class="panel" id="section-room">
         <div class="profile-head">
           <div class="slot" id="room-image-slot" data-room-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="room-image" alt=""><span class="unset">not set</span><input type="file" id="room-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="room-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
@@ -59,9 +58,18 @@
         <div class="row danger-row" id="danger-row">
           <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="panel" id="section-access">
+    <section class="tab-stack" id="tab-members" hidden>
+      <div class="panel" id="section-members">
+        <h2>Members</h2>
+        <p class="hint" id="members-hint">Click a player to add or remove them from this room -- saves as you click.</p>
+        <div class="member-checks" id="members"></div>
+        <p class="status" id="members-status"></p>
+      </div>
+
+      <div class="panel" id="section-access">
         <h2>Invite to register</h2>
         <p class="hint">A link that signs someone up with a real account and drops them straight into this room (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
         <div class="row">
@@ -87,14 +95,8 @@
           <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
         </div>
         <p class="status" id="guest-link-status"></p>
-      </section>
-
-      <section class="panel" id="section-members">
-        <h2>Members</h2>
-        <p class="hint" id="members-hint">Click a player to add or remove them from this room.</p>
-        <div class="member-checks" id="members"></div>
-      </section>
-    </div>
+      </div>
+    </section>
   </main>
 
   <script type="module" src="/roomconfig.js"></script>

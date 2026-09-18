@@ -2597,18 +2597,6 @@ body.at-table .topbar {
   margin-top: 0;
 }
 
-/* A quick-jump nav for a page split into sections (the profile page): plain
-   anchor links styled like the subtabs, but they scroll instead of
-   switching a hidden panel -- every section stays on the page at once. */
-.section-nav {
-  margin-bottom: 16px;
-}
-
-.section-nav a.subtab {
-  text-decoration: none;
-  display: inline-block;
-}
-
 #section-account,
 #section-background,
 #section-call,
