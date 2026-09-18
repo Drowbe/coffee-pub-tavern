@@ -1288,7 +1288,7 @@ function imageFiles(list) {
 // never stored: every table page and every OBS view page of that player
 // floats it up from their tile for a couple of seconds.
 
-// The reaction tray, as the admin has set it up (Manage > Settings); keys 1
+// The reaction tray, as the admin has set it up (Manage > Theme); keys 1
 // to 6 reach only the first six, however many are configured.
 let REACTIONS = {}; // id -> glyph
 let REACTION_KEYS = []; // id, in tray order
@@ -1299,6 +1299,7 @@ function renderReactionTray(list) {
   const reactions = Array.isArray(list) ? list : [];
   REACTIONS = Object.fromEntries(reactions.map((r) => [r.id, r.glyph]));
   REACTION_KEYS = reactions.map((r) => r.id);
+  renderChatEmoji(reactions);
   const tray = $('react-tray');
   tray.textContent = '';
   reactions.forEach((r, i) => {
@@ -2292,24 +2293,29 @@ document.addEventListener('click', (e) => {
   if (!$('chat-emoji-popup').hidden && !e.target.closest('#chat-emoji-popup')) $('chat-emoji-popup').hidden = true;
 });
 
-// A small curated set, not a full emoji keyboard -- the reactions people
-// actually reach for in a game chat.
-const EMOJI_CHOICES = ['😀', '😂', '🙂', '😉', '😍', '😮', '😢', '😡', '👍', '👎', '🙏', '🎲', '🎉', '🔥', '❤️', '💀', '😴', '🤔', '👀', '🍻', '⚔️', '🛡️'];
-for (const emoji of EMOJI_CHOICES) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'chat-emoji-btn';
-  b.textContent = emoji;
-  b.addEventListener('click', () => {
-    const el = $('chat-input');
-    const { selectionStart: start, selectionEnd: end, value } = el;
-    el.value = value.slice(0, start) + emoji + value.slice(end);
-    el.focus();
-    const at = start + emoji.length;
-    el.setSelectionRange(at, at);
-    resizeChatInput();
-  });
-  $('chat-emoji-popup').appendChild(b);
+// The chat's emoji picker offers the same list as the reaction tray (the admin
+// sets it under Manage > Theme), rebuilt whenever that list is loaded.
+function renderChatEmoji(reactions) {
+  const popup = $('chat-emoji-popup');
+  popup.textContent = '';
+  for (const r of reactions) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chat-emoji-btn';
+    b.textContent = r.glyph;
+    b.title = r.label;
+    b.addEventListener('click', () => {
+      const el = $('chat-input');
+      const { selectionStart: start, selectionEnd: end, value } = el;
+      el.value = value.slice(0, start) + r.glyph + value.slice(end);
+      el.focus();
+      const at = start + r.glyph.length;
+      el.setSelectionRange(at, at);
+      resizeChatInput();
+    });
+    popup.appendChild(b);
+  }
+  $('chat-emoji').hidden = reactions.length === 0;
 }
 $('chat-emoji').addEventListener('click', (e) => {
   e.stopPropagation();
