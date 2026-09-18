@@ -342,19 +342,6 @@ input[type="range"] {
   border: 1px solid var(--border);
 }
 
-/* Offline dims the portrait and name, not the whole card -- fading the
-   card's own background/border via opacity blended it into the page
-   behind it, which read as merely muted on the old dark palette but
-   washed out to almost nothing on a light one. */
-.member:not(.online) img {
-  filter: grayscale(0.6);
-  opacity: 0.7;
-}
-
-.member:not(.online) .member-name {
-  color: var(--text-dim);
-}
-
 .member.online {
   border-color: color-mix(in srgb, var(--ok) 50%, var(--border));
 }
