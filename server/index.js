@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const { ModuleManager, LIMITS: MODULE_LIMITS } = require('./modules');
+const { ModuleData } = require('./module-data');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 
@@ -32,6 +33,8 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
 
 const store = new Store(DATA_DIR);
 const modules = new ModuleManager(DATA_DIR);
+const moduleData = new ModuleData(modules.dir);
+store.extraPermissions = () => modules.permissionList(); // enabled modules' permissions join the Roles grid
 const limiter = new auth.LoginLimiter();
 
 // Make sure the admin from the environment exists with that password. This is
@@ -1059,10 +1062,172 @@ app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
 });
 app.delete('/api/modules/:id', requireAdmin, (req, res) => {
   modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
+  moduleData.forget(req.params.id);
   res.json({ ok: true });
 });
 
-app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: ROLE_PERMISSIONS, roles: store.roles() }));
+// --- module runtime -------------------------------------------------------
+// What an installed, enabled module can do once it is running: be served, list
+// where it shows up, and read and write its own data. The page hosting a
+// module's frame makes these calls on the frame's behalf (see
+// public/module-host.js); the frame itself never talks to the server.
+
+// Who is asking: a signed-in user, or a guest carrying a room's guest token.
+function moduleViewer(req) {
+  const user = currentUser(req);
+  if (user) return { user, guestRoom: null };
+  const token = req.query.guest;
+  const guestRoom = typeof token === 'string' ? store.roomByGuestToken(token) : null;
+  return guestRoom ? { user: null, guestRoom } : null;
+}
+
+// Whether someone may see a room's module at all: on for that room, and in it.
+function moduleRoomAccess(entry, who, room) {
+  if (!(entry.allRooms || entry.rooms.includes(room.id))) return false;
+  if (who.user) return who.user.role === 'admin' || room.members.includes(who.user.key);
+  return who.guestRoom.id === room.id;
+}
+
+function modulePerms(who, roomId) {
+  return who.user ? store.roomPermissions(who.user.key, roomId) : store.roleSet('guest');
+}
+
+function moduleCan(manifest, perms, need) {
+  const guard = need && manifest.access?.[need];
+  return !guard || Boolean(perms[`module.${manifest.id}.${guard}`]);
+}
+
+// Resolve the module, scope and permission for a data call. Sends the error
+// itself and returns null when the caller may not.
+function moduleAccess(req, res, need) {
+  const found = modules.enabled(req.params.id);
+  if (!found) return void res.status(404).json({ error: 'no such module' });
+  const { manifest, entry } = found;
+  const who = moduleViewer(req);
+  if (!who) return void res.status(401).json({ error: 'sign in first' });
+  const scope = req.query.scope === 'room' ? 'room' : 'server';
+  if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this module has no ${scope} scope` });
+  let roomId = null;
+  if (scope === 'room') {
+    const room = store.roomById(String(req.query.room || ''));
+    if (!room) return void res.status(404).json({ error: 'no such room' });
+    if (!moduleRoomAccess(entry, who, room)) return void res.status(403).json({ error: 'this module is not available in that room for you' });
+    roomId = room.id;
+  } else if (!who.user) {
+    return void res.status(403).json({ error: 'guests can only use room modules' });
+  }
+  const perms = modulePerms(who, roomId);
+  if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
+  return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : 'server', who, perms, by: who.user?.key || 'guest' };
+}
+
+// Modules with a page of their own that this viewer can open: the header nav.
+app.get('/api/modules/nav', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who?.user) return res.json({ modules: [] });
+  const perms = modulePerms(who, null);
+  res.json({
+    modules: modules.enabledAll()
+      .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
+      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon })),
+  });
+});
+
+// Modules with a panel in one room, for the call's Modules button.
+app.get('/api/modules/for-room', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  const room = store.roomById(String(req.query.room || ''));
+  if (!room) return res.status(404).json({ error: 'no such room' });
+  const perms = modulePerms(who, room.id);
+  res.json({
+    modules: modules.enabledAll()
+      .filter(({ manifest, entry }) => manifest.scope.includes('room') && manifest.surfaces.panel && moduleRoomAccess(entry, who, room) && moduleCan(manifest, perms, 'read'))
+      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+  });
+});
+
+// One module's own page, for its full-width server page: the shell page
+// (public/module.html) reads the module id from the address.
+app.get('/modules/:id', (req, res) => {
+  if (!currentUser(req)) return res.redirect(`/login?next=/modules/${encodeURIComponent(req.params.id)}`);
+  res.sendFile(page('module.html'));
+});
+
+// The module's own files. Sandboxed by header, so even opened directly they
+// run with no access to Tavern's pages or cookies, and can only load their own files.
+app.get('/m/:id/:version/*path', (req, res) => {
+  const rel = [].concat(req.params.path).join('/');
+  const file = modules.resolveFile(req.params.id, req.params.version, rel);
+  if (!file) return res.status(404).end();
+  res.set({
+    'Content-Security-Policy': "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+    'X-Content-Type-Options': 'nosniff',
+    // A sandboxed frame has an opaque origin, so its own scripts and fonts load as cross-origin.
+    'Access-Control-Allow-Origin': '*',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Cache-Control': 'no-cache',
+  });
+  res.sendFile(file, { dotfiles: 'deny' });
+});
+
+app.get('/api/modules/:id/data', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  res.json({ items: moduleData.list(ctx.manifest.id, ctx.scopeKey, typeof req.query.prefix === 'string' ? req.query.prefix : '') });
+});
+app.get('/api/modules/:id/data/:key', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  const item = moduleData.get(ctx.manifest.id, ctx.scopeKey, req.params.key);
+  if (!item) return res.status(404).json({ error: 'not found' });
+  res.json({ item });
+});
+function sendModuleConflict(err, res) {
+  if (err.status === 409) return res.status(409).json({ error: err.message, current: err.current || null });
+  throw err;
+}
+app.put('/api/modules/:id/data/:key', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx) return;
+  try {
+    res.json({ item: moduleData.put(ctx.manifest.id, ctx.scopeKey, req.params.key, req.body?.value, { expected: Number.isInteger(req.body?.version) ? req.body.version : null, by: ctx.by }) });
+  } catch (err) {
+    sendModuleConflict(err, res);
+  }
+});
+app.delete('/api/modules/:id/data/:key', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx) return;
+  try {
+    const expected = req.query.version !== undefined ? Number(req.query.version) : null;
+    res.json(moduleData.remove(ctx.manifest.id, ctx.scopeKey, req.params.key, { expected: Number.isInteger(expected) ? expected : null, by: ctx.by }));
+  } catch (err) {
+    sendModuleConflict(err, res);
+  }
+});
+
+// Live changes to one module's data in one scope, pushed as server-sent events.
+// The page hosting the module's frame listens and forwards them into the frame.
+app.get('/api/modules/:id/events', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  const onChange = (change) => {
+    if (change.module !== ctx.manifest.id || change.scopeKey !== ctx.scopeKey) return;
+    res.write(`event: change\ndata: ${JSON.stringify(change)}\n\n`);
+  };
+  moduleData.on('change', onChange);
+  const beat = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(beat);
+    moduleData.off('change', onChange);
+  });
+});
+
+app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: store.allPermissions(), roles: store.roles() }));
 app.patch('/api/roles/:role', requireAdmin, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
 
 app.get('/api/settings', requireAdmin, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));

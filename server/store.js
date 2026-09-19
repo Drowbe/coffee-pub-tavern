@@ -1075,9 +1075,20 @@ class Store {
   // --- roles -------------------------------------------------------------
   // Every permission for a role: admin all on, the others defaults plus
   // whatever an admin changed.
+  // Permissions enabled modules add to the Roles grid (see ModuleManager.permissionList);
+  // the server sets this once modules are loaded.
+  extraPermissions = () => [];
+
+  // Every permission the Roles grid knows: the built-in ones, then the modules'.
+  allPermissions() {
+    return [...ROLE_PERMISSIONS, ...this.extraPermissions()];
+  }
+
   roleSet(role) {
-    if (role === 'admin') return Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true]));
-    const base = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.user;
+    const extras = this.extraPermissions();
+    if (role === 'admin') return Object.fromEntries([...ROLE_PERMISSIONS, ...extras].map((p) => [p.key, true]));
+    const defaultsFor = { moderator: 'moderator', user: 'user', guest: 'guest' }[role] || 'user';
+    const base = { ...(ROLE_DEFAULTS[role] || ROLE_DEFAULTS.user), ...Object.fromEntries(extras.map((p) => [p.key, Boolean(p.defaults?.[defaultsFor])])) };
     const set = { ...base };
     for (const [k, v] of Object.entries(this.data.settings.roles?.[role] || {})) if (k in base) set[k] = Boolean(v);
     return set;
@@ -1090,7 +1101,7 @@ class Store {
   setRolePermissions(role, patch) {
     if (!EDITABLE_ROLES.includes(role)) throw new StoreError('that role cannot be changed');
     const mine = (this.data.settings.roles[role] ??= {});
-    for (const p of ROLE_PERMISSIONS) if (patch?.[p.key] !== undefined) mine[p.key] = Boolean(patch[p.key]);
+    for (const p of this.allPermissions()) if (patch?.[p.key] !== undefined) mine[p.key] = Boolean(patch[p.key]);
     this.save();
     return this.roles();
   }

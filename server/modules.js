@@ -137,6 +137,11 @@ function cleanManifest(raw, files) {
       entry: cleanEntry(raw.surfaces.panel.entry, files, 'surfaces.panel'),
       width: clamp(raw.surfaces.panel.width, 240, 1200, 420),
       height: clamp(raw.surfaces.panel.height, 200, 1000, 520),
+      // How a room panel may be shown: floating over the call, docked as a column, or both.
+      mode: (() => {
+        const modes = [...new Set(Array.isArray(raw.surfaces.panel.mode) ? raw.surfaces.panel.mode : [])].filter((m) => ['float', 'dock'].includes(m));
+        return modes.length ? modes : ['float'];
+      })(),
     };
   }
   if (scope.includes('server') && !surfaces.page) throw new ModuleError('a "server" module needs a surfaces.page');
@@ -156,7 +161,18 @@ function cleanManifest(raw, files) {
   }
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks };
+  // Which of the module's own permissions guards reading and writing its data.
+  const access = {};
+  for (const kind of ['read', 'write']) {
+    const named = raw.access?.[kind];
+    if (named === undefined || named === null) continue;
+    if (typeof named !== 'string' || !permissions.some((p) => p.key === named)) {
+      throw new ModuleError(`module.json: access.${kind} must name one of the module's own permissions`);
+    }
+    access[kind] = named;
+  }
+
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, access };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -166,6 +182,7 @@ class ModuleManager {
     this.dir = path.join(dataDir, 'modules');
     this.file = path.join(this.dir, 'registry.json');
     this.registry = { modules: {} };
+    this.manifests = new Map(); // "id@version" -> manifest, so permission checks do not hit the disk
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       if (raw && typeof raw.modules === 'object') this.registry = raw;
@@ -190,8 +207,51 @@ class ModuleManager {
   }
 
   manifestOf(id, version) {
+    const cacheKey = `${id}@${version}`;
+    if (this.manifests.has(cacheKey)) return this.manifests.get(cacheKey);
+    let manifest = null;
     try {
-      return JSON.parse(fs.readFileSync(path.join(this.versionDir(id, version), 'module.json'), 'utf8'));
+      manifest = JSON.parse(fs.readFileSync(path.join(this.versionDir(id, version), 'module.json'), 'utf8'));
+    } catch {
+      // not installed
+    }
+    if (manifest) this.manifests.set(cacheKey, manifest);
+    return manifest;
+  }
+
+  // The active manifest of an enabled module, with its registry entry, or null.
+  enabled(id) {
+    const entry = this.registry.modules[id];
+    if (!entry || !entry.enabled) return null;
+    const manifest = this.manifestOf(id, entry.version);
+    return manifest ? { manifest, entry } : null;
+  }
+
+  // Every enabled module, for lists and for the permissions grid.
+  enabledAll() {
+    return Object.keys(this.registry.modules).map((id) => this.enabled(id)).filter(Boolean);
+  }
+
+  // The permissions enabled modules add to the Roles grid: module.<id>.<key>.
+  permissionList() {
+    return this.enabledAll().flatMap(({ manifest }) => manifest.permissions.map((p) => ({
+      key: `module.${manifest.id}.${p.key}`,
+      label: p.label,
+      group: `Module: ${manifest.name}`,
+      defaults: p.default,
+    })));
+  }
+
+  // A file of the active version of an enabled module, as an absolute path, or null.
+  resolveFile(id, version, rel) {
+    const found = this.enabled(id);
+    if (!found || found.entry.version !== version) return null;
+    if (typeof rel !== 'string' || rel.includes('\0') || rel.split('/').includes('..')) return null;
+    const root = this.versionDir(id, version);
+    const full = path.join(root, rel);
+    if (!full.startsWith(root + path.sep)) return null;
+    try {
+      return fs.statSync(full).isFile() ? full : null;
     } catch {
       return null;
     }
@@ -277,6 +337,7 @@ class ModuleManager {
     // An upgrade that asks for anything new goes back to waiting for approval.
     if (this.pendingFor(entry, manifest).permissions.length || this.pendingFor(entry, manifest).hooks.length) entry.enabled = false;
     this.registry.modules[manifest.id] = entry;
+    this.manifests.delete(`${manifest.id}@${manifest.version}`);
     this.prune(entry);
     this.save();
     return this.view(manifest.id);
@@ -339,6 +400,7 @@ class ModuleManager {
     fs.rmSync(path.join(this.dir, id, 'versions'), { recursive: true, force: true });
     if (!keepData) fs.rmSync(path.join(this.dir, id), { recursive: true, force: true });
     delete this.registry.modules[id];
+    for (const key of [...this.manifests.keys()]) if (key.startsWith(`${id}@`)) this.manifests.delete(key);
     this.save();
   }
 }

@@ -756,6 +756,7 @@ $('module-install').addEventListener('click', async () => {
     const { module } = await api('POST', '/api/modules', file, 'application/zip');
     $('module-file').value = '';
     await loadModules();
+    await loadRoles(); // a module's permissions join the Roles grid when it is on
     say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
   } catch (err) {
     say($('modules-status'), err.message, true);
@@ -780,6 +781,7 @@ $('modules-list').addEventListener('click', async (event) => {
       await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
     }
     await loadModules();
+    await loadRoles(); // a module's permissions join the Roles grid when it is on
     say($('modules-status'), '');
   } catch (err) {
     say($('modules-status'), err.message, true);
@@ -792,6 +794,7 @@ $('modules-list').addEventListener('change', async (event) => {
   try {
     await api('PATCH', `/api/modules/${id}`, { allRooms: event.target.checked });
     await loadModules();
+    await loadRoles(); // a module's permissions join the Roles grid when it is on
   } catch (err) {
     say($('modules-status'), err.message, true);
   }
