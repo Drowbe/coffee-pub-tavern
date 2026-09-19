@@ -10,12 +10,12 @@ A module is a zip file that adds a feature to Tavern, such as the [Calendar](use
 2. Read the card that appears. It lists what the module asks for: permissions that will appear on the Roles tab, and whether it wants to run things on a schedule or send notifications.
 3. Click **Enable** (or **Approve and enable**), which records that you approved exactly what is listed. A new module always starts disabled.
 
-The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. The Calendar zip is built into the repository at `modules/dist/calendar-1.0.0.zip`.
+The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. The Calendar zip is built into the repository at `modules/dist/calendar-1.1.0.zip`.
 
 ## Where a module shows up
 
 - **In the header.** A module with its own page adds an item to the header for everyone who may see it, such as Calendar. Opened from inside a call it appears over the call, so the call keeps running.
-- **In a call.** A module with a room panel adds a **Modules** button to the call toolbar (the puzzle piece), which lists the modules on for that room. Choose one and it opens as a floating panel over the call. Drag it by its title, resize it by the corner, close it with the x. Several can be open at once, and each remembers where you put it. Panels stay in the main window when the call is popped out.
+- **In a call.** A module with a room panel adds a **Modules** button to the call toolbar (the puzzle piece), which lists the modules on for that room. Choose one and it opens as a column beside the video and the chat when the module supports that (video, chat, then the module), or as a floating panel over the call. Drag a docked column's left edge to change its width. The buttons in a pane's header switch it between docked and floating, open it in a window of its own, or close it. Several can be open at once, and each remembers how you had it. On a narrow window a module opens floating. If you pop the whole call out into its own window, docked modules float over the main window until it comes back.
 - **Notifications.** A module can notify you, for example a reminder. It appears as a toast, and as a number on the module's header item and the Modules button until you open the module.
 
 ## Turn a module on in rooms

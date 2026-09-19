@@ -11,9 +11,9 @@ A module is a zip of static files that runs in the browser, inside a sandboxed f
 A module has one or two **surfaces**:
 
 - **page**: a full-width page of its own, with an item in the header (server scope).
-- **panel**: a floating panel a room can open from the call's Modules button (room scope).
+- **panel**: a pane a room can open from the call's Modules button (room scope). A panel can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
 
-The same HTML file can serve both. The SDK tells the module which one it is in.
+The same HTML file can serve all of them. The SDK tells the module which scope it is in, and the page should adapt to its width: a docked pane is narrow.
 
 ## The zip
 
@@ -27,13 +27,13 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "icon": "calendar-days",
   "description": "Sessions and events, with reminders.",
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 460, "height": 580, "mode": ["float"] }
+    "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
   },
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },
@@ -46,7 +46,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 
 - `scope` says where the module can run. A `server` module needs a `page` surface and a `room` module needs a `panel`.
 - `icon` is the name of a Font Awesome icon, used in the header and the Modules menu.
-- `panel.mode` lists how a panel may be shown: `float` (over the call) and, later, `dock` (as a column). Only `float` exists today.
+- `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. The first listed that the room can show is the default; people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
 - `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role. Admins can always do everything.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
 - `hooks` names what the module may ask Tavern to do: `schedule` and `notify`. The admin approves them when enabling the module.
@@ -101,6 +101,7 @@ await tavern.schedule({
   at: Date.parse('2026-09-20T19:00:00-07:00'),   // milliseconds or an ISO date
   payload: { id: '123' },            // handed back when it fires (up to 4 KB)
   notify: { title: 'Session tonight', body: 'Starts in an hour' },   // optional
+  repeat: { every: 'week', until: Date.parse('2026-12-31'), tz: 'America/Los_Angeles' }, // optional
 });
 await tavern.cancelSchedule('remind:123');
 await tavern.notify({ to: 'room', title: 'Hello', body: 'Sent now' });  // 'room', 'server', or a user key
@@ -109,6 +110,7 @@ tavern.on('schedule', ({ key, payload }) => {});   // when one fires, if the mod
 
 - A schedule can be at most a year away, and a time already more than five minutes past is refused. If the server is off when a schedule is due, it fires on the next start unless it is more than six hours late.
 - A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
+- `repeat` makes Tavern schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
 - `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
 
 ### Layout
@@ -124,4 +126,4 @@ The SDK applies the theme to your page as CSS custom properties on `:root`, so p
 
 ## The sandbox
 
-A module frame has an opaque origin. From inside it you cannot read Tavern's page, its cookies or storage, call `fetch` or open sockets (`connect-src 'none'`), submit forms, or open windows or dialogs. So use in-page UI, not `alert`, `confirm` or `prompt`. You can use inline scripts and styles, and load your own images and fonts as data URLs or from your own files. Module files are public to anyone who can reach the server, so put nothing secret in them.
+A module frame has an opaque origin. From inside it you cannot read Tavern's page, its cookies or storage, call `fetch` or open sockets (`connect-src 'none'`), open windows or dialogs, or send a form anywhere. A `<form>` and its `submit` event work (so `preventDefault()` and handle it yourself), but the form goes nowhere. So use in-page UI, not `alert`, `confirm` or `prompt`. You can use inline scripts and styles, and load your own images and fonts as data URLs or from your own files. Module files are public to anyone who can reach the server, so put nothing secret in them.

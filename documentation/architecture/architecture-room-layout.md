@@ -47,6 +47,10 @@ The settings popover, the reactions tray and the overflow menu live inside the v
 
 `tools/check-room-layout.mjs` enforces the first three, and runs as part of `npm run check`.
 
-## Adding a module
+## Docked modules
 
-A new docked module is a `.module` element with a `.mod-content` and a `.mod-bar`, given its own `grid-column`, and a width in the stage's `grid-template-columns` while it is open. Its header, if any, uses the token.
+An installed module can dock as a column after the chat. `public/room-modules.js` adds a `.module.module-docked` element to the stage holding a `.dock-resize` handle and a `.mod-content` with a host-drawn `.mod-header` (at `--module-header-h`) and the module's frame. The content spans both rows, so a docked module has no bar cell of its own yet. The stage sets `--dock-cols` to the docked widths and places each column, so the template is `video | chat (0 until it opens) | docked columns`. Dragging a column's left edge changes only that column's width.
+
+On a narrow window docked modules are hidden and a module opens floating instead; when the call is popped out they float over the main window and dock again on return.
+
+The next docked module needs nothing here: it is the same element with the next column number.

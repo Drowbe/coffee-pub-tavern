@@ -142,7 +142,11 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   listen(scope);
   if (scope === 'room' && module.scope?.includes('server') && !guestToken) listen('server');
 
-  frame.setAttribute('sandbox', 'allow-scripts'); // no same-origin: an opaque origin, no cookies, no Tavern DOM
+  // No same-origin: an opaque origin, no cookies, no Tavern DOM. allow-forms lets a
+  // module's own <form> fire its submit event (a sandboxed frame without it
+  // swallows the submit, so a Save button appears to do nothing); the frame's
+  // policy sets form-action 'none', so nothing can actually be submitted anywhere.
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}`;
 

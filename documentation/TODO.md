@@ -5,15 +5,19 @@ for that app's side of things (Windows OBS capture work, mainly).
 
 ## Room layout: walk it in a real call
 
-The grid, the floating popout bar, the narrow-window switch and the header-height check are built and were only checked in a browser with the call unavailable. In a real call, try: chat open and closed; dragging the chat edge; fullscreen; popped out with chat open and closed; a narrow window and a phone; the grid, strip and spotlight layouts; and the reactions tray, settings popovers, overflow menu, aside and recall overlays and the away prompt in each. Step 6 of plans/plan-room-layout.md, docking installed modules, waits on the module host API.
+The grid, the floating popout bar, the narrow-window switch and the header-height check are built and were only checked in a browser with the call unavailable. In a real call, try: chat open and closed; dragging the chat edge; fullscreen; popped out with chat open and closed; a narrow window and a phone; the grid, strip and spotlight layouts; and the reactions tray, settings popovers, overflow menu, aside and recall overlays and the away prompt in each. Docked modules are covered by the modules walk below.
 
 ## Modules: walk them in a real server and call
 
-Built and only checked in a browser with the LiveKit connection unavailable, and never with two people: install, enable and disable a module; the Roles grid rows a module adds; the header nav item and the server page; the Modules button and floating panels in a real call (open, drag, resize, close, popped-out window, several open at once); per-room enablement from a room's page; the toast, unread counts and reminders reaching a second person; live changes appearing on a second browser; a guest seeing a room module. Also confirm in a real Chrome and Safari that a sandboxed module frame renders and the SDK connects (the built-in preview browser refused subresource loads from a sandboxed frame, so modules are inlined and the SDK is injected). Verify with two browsers on a real server.
+Built and only checked in a browser with the LiveKit connection unavailable, and never with two people: install, enable and disable a module; the Roles grid rows a module adds; the header nav item and the server page; the Modules button and panes in a real call (docked beside the video and chat, drag its edge, switch to floating and back, open in its own window, several open at once, the call itself popped out); per-room enablement from a room's page; the toast, unread counts and reminders reaching a second person; live changes appearing on a second browser; a guest seeing a room module. Also confirm in a real Chrome and Safari that a sandboxed module frame renders and the SDK connects (the built-in preview browser refused subresource loads from a sandboxed frame, so modules are inlined and the SDK is injected). Verify with two browsers on a real server.
+
+## Google Calendar sync
+
+Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
 
 ## Modules: what is left
 
-See plans/plan-modules.md: docking a panel into the room grid, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
+See plans/plan-modules.md: module action bars, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
 
 ## Modules: HTTP connection count
 

@@ -1180,8 +1180,10 @@ app.get('/api/modules/for-room', (req, res) => {
 
 // One module's own page, for its full-width server page: the shell page
 // (public/module.html) reads the module id from the address.
+// A room panel popped out into its own window opens the same page with the
+// room in the query (and a guest's link token, if that is who is looking).
 app.get('/modules/:id', (req, res) => {
-  if (!currentUser(req)) return res.redirect(`/login?next=/modules/${encodeURIComponent(req.params.id)}`);
+  if (!currentUser(req) && !hasGuestAccess(req)) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
   res.sendFile(page('module.html'));
 });
 
@@ -1192,7 +1194,7 @@ app.get('/m/:id/:version/*path', (req, res) => {
   const file = modules.resolveFile(req.params.id, req.params.version, rel);
   if (!file) return res.status(404).end();
   res.set({
-    'Content-Security-Policy': "sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+    'Content-Security-Policy': "sandbox allow-scripts allow-forms; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
     'X-Content-Type-Options': 'nosniff',
     // A sandboxed frame has an opaque origin, so its own scripts and fonts load as cross-origin.
     'Access-Control-Allow-Origin': '*',

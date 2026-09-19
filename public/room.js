@@ -2617,6 +2617,7 @@ function openPopout() {
 // moving the stage in before then would land it in that page's own
 // about:blank-era document, which the real navigation throws away.
 function setUpPopoutWindow(win) {
+  roomModules.stagePopped(true); // docked modules float over this window meanwhile
   win.document.title = tableName;
   for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
     win.document.head.appendChild(sheet.cloneNode(true));
@@ -2638,6 +2639,7 @@ function setUpPopoutWindow(win) {
   });
   setTimeout(applyLayout, 50);
   win.addEventListener('pagehide', () => {
+    roomModules.stagePopped(false);
     document.body.appendChild($('stage'));
     $('away').hidden = true;
     pipWindow = null;

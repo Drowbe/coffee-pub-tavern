@@ -15,8 +15,20 @@
 
 ## Left to build
 
-1. **Docking.** Let a module's panel take a column of the room grid, with its own content area and action bar, following [plan-room-layout](plan-room-layout.md) step 6. The manifest already accepts `"mode": ["float", "dock"]`; nothing reads `dock` yet. Needs the host to draw the module's header at the shared height and to clamp the module's bar height.
-2. **Travel planner.** The second module: several people editing one plan live. It exercises the shared store with many writers; expect to find where last-write-wins per key is not enough, and to want finer change events.
-3. **A hello module** as the smallest working example next to the Calendar.
-4. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
-5. **Calendar improvements.** Repeating events, events across several days, and a per-person view of reminders.
+1. **Module action bars.** A docked module spans the whole column height and has no bar cell. Give a module an optional bar in the shared bottom row, with its height clamped by the host, so its buttons line up with the video toolbar and the chat box.
+2. **Google Calendar sync.** See the section below.
+3. **Travel planner.** The second module: several people editing one plan live. It exercises the shared store with many writers; expect to find where last-write-wins per key is not enough, and to want finer change events.
+4. **A hello module** as the smallest working example next to the Calendar.
+5. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
+6. **Calendar improvements.** Events across several days, changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
+
+## Google Calendar sync
+
+Wanted: the Calendar keeps in step with Google Calendar. This is not something a front-end-only module can do: it needs OAuth credentials the admin creates in Google Cloud, tokens kept on the server, and calls to Google's Calendar API that run when nobody has a page open. It needs a decision on shape before it is built:
+
+- **Whose Google account.** One shared account the admin connects (simple; the server calendar mirrors it), or each person connecting their own (their events into their view, needing per-person tokens).
+- **Direction.** Google into Tavern only (read-only import), Tavern out to Google, or both ways (needs conflict rules and a stable id on each side).
+- **Where the code lives.** A new declarative hook, such as `integration: "google-calendar"`, that Tavern implements (the module stays front-end only and the admin approves it), or a core Tavern feature with the Calendar as its client.
+- **Setup burden.** A self-hosted install would have to register its own Google OAuth client and add Tavern's redirect address, which is real work for an admin; document it step by step.
+
+The API is at https://developers.google.com/workspace/calendar/api/guides/overview.

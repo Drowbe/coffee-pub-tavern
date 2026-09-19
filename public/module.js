@@ -1,44 +1,79 @@
 // A module's own full-width page (/modules/<id>): the shell that hosts its
 // sandboxed frame. The module itself is public/module-host.js's business.
+//
+// Two ways in:
+//   /modules/<id>                          the module's server page
+//   /modules/<id>?room=<room>&popout=1     a room panel in a window of its own
+//                                          (add &guest=<token> for a guest)
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
 const id = decodeURIComponent(location.pathname.split('/')[2] || '');
+const params = new URLSearchParams(location.search);
+const roomId = params.get('room');
+const guestToken = params.get('guest');
+const popout = params.get('popout') === '1';
 
 async function init() {
+  if (popout) document.body.classList.add('module-popout'); // no header: the window is the module
   renderTopbar({ location: '' });
   await loadBranding();
   wireOverlayBack();
-  let me;
-  try {
-    me = (await api('GET', '/api/me')).user;
-  } catch {
-    location.href = `/login?next=${encodeURIComponent(location.pathname)}`;
-    return;
+  if (!guestToken) {
+    let me;
+    try {
+      me = (await api('GET', '/api/me')).user;
+    } catch {
+      location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+      return;
+    }
+    $('whoami').textContent = me.displayName;
+    $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/profile`;
+    $('whoami-img').hidden = false;
+    $('admin-link').hidden = me.role !== 'admin';
   }
-  $('whoami').textContent = me.displayName;
-  $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/profile`;
-  $('whoami-img').hidden = false;
-  $('admin-link').hidden = me.role !== 'admin';
 
-  const { modules } = await api('GET', '/api/modules/nav');
-  const mod = modules.find((m) => m.id === id);
+  // Which module, and how it is shown: its own page (server scope), or a room's panel.
+  let mod;
+  let scope = 'server';
+  let entry;
+  if (roomId) {
+    scope = 'room';
+    const q = new URLSearchParams({ room: roomId });
+    if (guestToken) q.set('guest', guestToken);
+    const found = (await api('GET', `/api/modules/for-room?${q}`)).modules.find((m) => m.id === id);
+    if (found) {
+      mod = { ...found, entry: found.panel.entry };
+      entry = found.panel.entry;
+    }
+  } else {
+    const found = (await api('GET', '/api/modules/nav')).modules.find((m) => m.id === id);
+    if (found) {
+      mod = { ...found, scope: ['server'], entry: found.page };
+      entry = found.page;
+    }
+  }
   if (!mod) {
     $('module-missing').hidden = false;
     return;
   }
   document.title = `${document.title.split(' - ')[0]} - ${mod.name}`;
-  setTopbarLocation(crumbLink(mod.icon, mod.name, location.pathname));
-  markModuleRead(mod.id);
+  if (!popout) setTopbarLocation(crumbLink(mod.icon, mod.name, location.pathname));
+  if (!guestToken) markModuleRead(mod.id);
   const frame = $('module-frame');
   frame.hidden = false;
   mountModule({
-    module: { id: mod.id, version: mod.version, scope: ['server'] },
+    module: { id: mod.id, version: mod.version, scope: mod.scope },
     frame,
-    scope: 'server',
-    entry: mod.page,
-    onTitle: (title) => setTopbarLocation(crumbLink(mod.icon, title || mod.name, location.pathname)),
+    scope,
+    roomId,
+    guestToken,
+    entry,
+    onTitle: (title) => {
+      document.title = `${title || mod.name}`;
+      if (!popout) setTopbarLocation(crumbLink(mod.icon, title || mod.name, location.pathname));
+    },
   });
 }
 init();

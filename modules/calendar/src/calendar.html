@@ -18,7 +18,7 @@
       <h2 id="title"></h2>
     </div>
     <div class="nav">
-      <div class="seg" role="group" aria-label="View">
+      <div class="seg" id="view-toggle" role="group" aria-label="View">
         <button class="btn" id="view-month" type="button">Month</button>
         <button class="btn" id="view-list" type="button">List</button>
       </div>
@@ -37,6 +37,17 @@
         <label id="f-end-wrap">Ends<input id="f-end" type="time"></label>
       </div>
       <label class="check"><input id="f-allday" type="checkbox"> All day</label>
+      <div class="row">
+        <label>Repeats<select id="f-repeat">
+          <option value="">Does not repeat</option>
+          <option value="day">Every day</option>
+          <option value="week">Every week</option>
+          <option value="2weeks">Every 2 weeks</option>
+          <option value="month">Every month</option>
+          <option value="year">Every year</option>
+        </select></label>
+        <label id="f-until-wrap">Until (optional)<input id="f-until" type="date"></label>
+      </div>
       <label>Details<textarea id="f-desc" rows="3" maxlength="600"></textarea></label>
       <label>Remind people<select id="f-remind">
         <option value="">No reminder</option>
@@ -48,7 +59,7 @@
       <p class="hint" id="f-remind-hint"></p>
       <p class="error" id="f-error" hidden></p>
       <div class="row buttons">
-        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn btn-primary" type="button" id="f-save">Save</button>
         <button class="btn" type="button" id="f-cancel">Cancel</button>
         <span class="grow"></span>
         <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>

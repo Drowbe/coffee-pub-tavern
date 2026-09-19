@@ -1410,21 +1410,22 @@ a.crumb-here:hover {
 /* The room is a grid: each module owns a column with a content area over an
    action bar, and the bars share one bottom row so they line up. The row is
    as tall as the tallest bar; nothing is measured. See
-   documentation/plans/plan-room-layout.md. */
+   documentation/architecture/architecture-room-layout.md. */
 .stage {
   position: relative;
   width: 100%;
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  /* video, then the chat (zero wide until it opens), then any docked modules */
+  grid-template-columns: minmax(0, 1fr) var(--chat-track, 0px) var(--dock-cols, );
   grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg);
   overflow: hidden;
 }
 
 .stage.chat-open {
-  grid-template-columns: minmax(0, 1fr) var(--chat-w, min(320px, 100%));
+  --chat-track: var(--chat-w, min(320px, 100%));
 }
 
 /* A module's own box vanishes; its content and bar are the grid items. */
@@ -3242,8 +3243,15 @@ input[type="color"] {
 
 /* Narrow windows (a phone): the chat replaces the video while it is open, with
    the toolbar still under it, so one click on Chat brings the video back. */
-.stage.narrow.chat-open {
+.stage.narrow {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.stage.narrow .module-docked > * {
+  display: none; /* a docked module needs room; on a narrow window it can float instead */
+}
+
+.stage.narrow.chat-open {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
@@ -3403,9 +3411,6 @@ body.module-page {
   align-items: center;
   justify-content: space-between;
   flex: none;
-  height: 34px;
-  padding: 0 6px 0 10px;
-  border-bottom: 1px solid var(--border);
   background: var(--shade);
   font-weight: 600;
   cursor: grab;
@@ -3513,4 +3518,69 @@ body.module-page {
 .toast-from {
   color: var(--text-dim);
   font-size: 11px;
+}
+
+/* Docked modules: a column of the room's grid, beside the video and the chat. */
+.module-docked > .mod-content {
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-section);
+  border-left: 1px solid var(--border);
+}
+
+/* The one header every module has: same height everywhere so columns line up. */
+.mod-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  flex: none;
+  height: var(--module-header-h);
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.mod-header-tools {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+}
+
+.dock-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+.dock-resize {
+  grid-row: 1 / -1;
+  justify-self: start;
+  width: 8px;
+  margin-left: -4px;
+  cursor: ew-resize;
+  z-index: 7;
+  touch-action: none;
+}
+
+.dock-resize:hover,
+.dock-resize.dragging {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.stage.resizing-dock .dock-frame,
+.stage.resizing-dock .module-video iframe {
+  pointer-events: none; /* a frame under the pointer would swallow the drag */
+}
+
+.popout .module-docked > * {
+  display: none;
+}
+
+/* A module popped out into its own window: just the module, no header. */
+body.module-popout .topbar {
+  display: none;
 }

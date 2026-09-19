@@ -23,6 +23,70 @@ const LIMITS = {
 
 const clean = (value, max) => String(value ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, max);
 
+// --- repeating schedules ----------------------------------------------------
+// A schedule may repeat: { every: 'day' | 'week' | '2weeks' | 'month' | 'year', until, tz }.
+// The next time keeps the same wall-clock time in the given time zone (so an
+// evening event stays in the evening across a daylight saving change); a
+// monthly or yearly repeat keeps the day of the month, or the last day of a
+// shorter month. Without a valid zone it steps in UTC.
+const EVERY = ['day', 'week', '2weeks', 'month', 'year'];
+
+function zoneOk(tz) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function zonedParts(ms, tz) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' })
+      .formatToParts(new Date(ms)).map((p) => [p.type, Number(p.value)]),
+  );
+  return { y: parts.year, mo: parts.month - 1, d: parts.day, h: parts.hour, mi: parts.minute, s: parts.second };
+}
+
+// The UTC time at which the wall clock in `tz` reads y-mo-d h:mi:s.
+function fromZoned({ y, mo, d, h, mi, s }, tz) {
+  const guess = Date.UTC(y, mo, d, h, mi, s);
+  const offsetAt = (t) => {
+    const p = zonedParts(t, tz);
+    return Date.UTC(p.y, p.mo, p.d, p.h, p.mi, p.s) - t;
+  };
+  let utc = guess - offsetAt(guess);
+  utc = guess - offsetAt(utc); // settle across a daylight saving edge
+  return utc;
+}
+
+function nextOccurrence(at, repeat) {
+  const tz = repeat.tz && zoneOk(repeat.tz) ? repeat.tz : 'UTC';
+  const p = zonedParts(at, tz);
+  if (repeat.every === 'day' || repeat.every === 'week' || repeat.every === '2weeks') {
+    const days = repeat.every === 'day' ? 1 : repeat.every === 'week' ? 7 : 14;
+    const d = new Date(Date.UTC(p.y, p.mo, p.d + days));
+    return fromZoned({ y: d.getUTCFullYear(), mo: d.getUTCMonth(), d: d.getUTCDate(), h: p.h, mi: p.mi, s: p.s }, tz);
+  }
+  const months = repeat.every === 'year' ? 12 : 1;
+  const first = new Date(Date.UTC(p.y, p.mo + months, 1));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return fromZoned({ y: first.getUTCFullYear(), mo: first.getUTCMonth(), d: Math.min(repeat.day || p.d, lastDay), h: p.h, mi: p.mi, s: p.s }, tz);
+}
+
+function cleanRepeat(spec, at) {
+  if (!spec) return null;
+  if (!EVERY.includes(spec.every)) throw new StoreError(`repeat.every must be one of ${EVERY.join(', ')}`);
+  const until = spec.until === undefined || spec.until === null ? null : toMillis(spec.until);
+  if (spec.until !== undefined && spec.until !== null && until === null) throw new StoreError('repeat.until must be a time');
+  if (until !== null && until < at) throw new StoreError('repeat.until is before the first time');
+  const tz = typeof spec.tz === 'string' && zoneOk(spec.tz) ? spec.tz : null;
+  // Remember the day of the month it started on, so a repeat on the 31st goes
+  // back to the 31st after a short month instead of staying on the 28th.
+  const day = zonedParts(at, tz || 'UTC').d;
+  return { every: spec.every, until, tz, day };
+}
+
 function toMillis(at) {
   const ms = typeof at === 'number' ? at : Date.parse(String(at));
   return Number.isFinite(ms) ? Math.round(ms) : null;
@@ -97,13 +161,14 @@ class ModuleHooks extends EventEmitter {
       };
       if (!notify.title) throw new StoreError('a notification needs a title');
     }
+    const repeat = cleanRepeat(spec.repeat, at);
     const id = this.id(ctx.manifest.id, ctx.scopeKey, key);
     const mine = this.schedules.filter((s) => s.module === ctx.manifest.id);
     if (!mine.some((s) => s.id === id) && mine.length >= LIMITS.schedulesPerModule) throw new StoreError('this module has too many schedules', 413);
     this.schedules = this.schedules.filter((s) => s.id !== id);
-    this.schedules.push({ id, module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId, key, at, payload, notify, by: ctx.by });
+    this.schedules.push({ id, module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId, key, at, payload, notify, repeat, by: ctx.by });
     this.write(this.schedulesFile, this.schedules);
-    return { key, at };
+    return { key, at, repeat: Boolean(repeat) };
   }
 
   cancel(ctx, key) {
@@ -126,10 +191,21 @@ class ModuleHooks extends EventEmitter {
     this.schedules = this.schedules.filter((s) => s.at > now);
     this.write(this.schedulesFile, this.schedules);
     for (const s of due) {
+      if (s.repeat) this.requeue(s, now);
       if (now - s.at > LIMITS.lateFireMs) continue; // missed while the server was off, and too late to matter
       if (s.notify) this.deliver({ module: s.module, scopeKey: s.scopeKey, roomId: s.roomId }, s.notify, { by: 'schedule' });
       this.emit('fire', { module: s.module, scopeKey: s.scopeKey, key: s.key, payload: s.payload, at: s.at });
     }
+    if (due.some((s) => s.repeat)) this.write(this.schedulesFile, this.schedules);
+  }
+
+  // A repeating schedule that just fired is scheduled again, at its next time
+  // after now (skipping ones the server slept through), unless it has ended.
+  requeue(s, now) {
+    let at = s.at;
+    for (let i = 0; i < 1000 && at <= now; i += 1) at = nextOccurrence(at, s.repeat);
+    if (at <= now || (s.repeat.until !== null && at > s.repeat.until)) return;
+    this.schedules.push({ ...s, at });
   }
 
   // --- notifications ------------------------------------------------------
@@ -188,4 +264,4 @@ class ModuleHooks extends EventEmitter {
   }
 }
 
-module.exports = { ModuleHooks, LIMITS };
+module.exports = { ModuleHooks, LIMITS, nextOccurrence };
