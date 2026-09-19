@@ -22,7 +22,7 @@ working. The rest are derived with `color-mix`.
 
 | Token | Use |
 |---|---|
-| `--bg` | page background |
+| `--bg` | page background (labeled Page background in the theme editor) |
 | `--bg-card` | section background: panels, cards and the portrait square in a member tile (labeled Section background in the theme editor) |
 | `--border` | outlines and dividers |
 | `--text` | body text |
