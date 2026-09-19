@@ -1423,7 +1423,7 @@ a.crumb-here:hover {
   left: 12px;
   padding: 5px 10px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
+  background: color-mix(in srgb, var(--bg-section) 88%, transparent);
   font-size: 12px;
   color: var(--text-dim);
   gap: 8px;
@@ -1530,7 +1530,7 @@ a.crumb-here:hover {
   flex-wrap: nowrap;
   padding: 8px;
   border-radius: 12px;
-  background: rgba(20, 15, 12, 0.85);
+  background: color-mix(in srgb, var(--bg-section) 88%, transparent);
   border: 1px solid var(--border);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
@@ -2271,8 +2271,9 @@ a.crumb-here:hover {
   height: 34px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: rgba(20, 15, 12, 0.85);
-  color: var(--text);
+  background: var(--secondary);
+  color: var(--secondary-text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
   font-size: 16px;
   cursor: pointer;
   display: flex;
@@ -2288,7 +2289,8 @@ a.crumb-here:hover {
 }
 
 .tile-aside:hover {
-  color: var(--accent);
+  background: var(--secondary-hover);
+  color: var(--icon-hover);
   border-color: var(--accent);
 }
 
@@ -2320,8 +2322,9 @@ a.crumb-here:hover {
   height: 34px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: rgba(20, 15, 12, 0.9);
-  color: var(--text);
+  background: var(--secondary);
+  color: var(--secondary-text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
   font-size: 14px;
   cursor: pointer;
   display: flex;
@@ -2332,7 +2335,8 @@ a.crumb-here:hover {
 }
 
 .tile-admin-btn:hover {
-  color: var(--accent);
+  background: var(--secondary-hover);
+  color: var(--icon-hover);
   border-color: var(--accent);
 }
 
@@ -2351,8 +2355,9 @@ a.crumb-here:hover {
   height: 26px;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: rgba(20, 15, 12, 0.85);
-  color: var(--text);
+  background: var(--secondary);
+  color: var(--secondary-text);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
   font-size: 12px;
   cursor: pointer;
   display: flex;
@@ -2368,7 +2373,8 @@ a.crumb-here:hover {
 }
 
 .tile-pip:hover {
-  color: var(--accent);
+  background: var(--secondary-hover);
+  color: var(--icon-hover);
   border-color: var(--accent);
 }
 
