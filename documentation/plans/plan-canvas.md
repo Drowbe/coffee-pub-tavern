@@ -20,6 +20,7 @@ The plan is to make the conference a pane too, with the same three modes, so a p
 | The flexible column | The conference pane takes the leftover width when it is docked. With no docked conference, the first docked pane takes it and the others keep their widths, so there is never an empty canvas. |
 | Names | The video part is called the **conference**, never "video". Chat and Conference are listed on the Modules tab of Manage as built-in modules that are always on and cannot be removed (for now); every future module sits beside them. |
 | Permissions | New permissions in the Roles grid, in a Panes group: **See and join the conference** and **Open and read the chat**. The existing "Send chat messages" stays as it is. Everyone has both by default, so nothing changes until an admin turns one off. |
+| Narrow screens | Panes keep showing in a fixed order of priority: the conference first, then the chat, then modules (their own order is decided as they are built). When there is not room for every open pane, the lowest priority ones drop out of view first. A pane that drops out stays open and comes back when there is room, or when it is picked from the Modules menu. |
 | Presence | Anyone in the room is online, whichever panes they have open, including only the Calendar. OBS, Studio and the room list treat them as online and show their Online picture. |
 
 ## What presence needs
@@ -44,4 +45,4 @@ Each stage keeps the default experience unchanged and is verified before the nex
 - The conference pane is the most tightly coupled thing on the page: tile sizing, toolbar collapsing, three overlays, the popovers, fullscreen and the pop-out. Stage 2 is where regressions will show; it needs real calls to verify.
 - "Leave the call, stay in the room" is a new state with its own edge cases: reconnects, asides in progress, admin tools, and the away state.
 - Presence by heartbeat can lag a browser that vanishes without saying goodbye; the grace period trades accuracy for stability.
-- A narrow screen still shows one pane at a time; the model needs a clear rule for which one when several are open.
+- Picking a hidden pane from the Modules menu on a narrow screen needs a defined result: it takes the place of the lowest priority pane showing, or is brought to the front, and stage 1 must settle which.
