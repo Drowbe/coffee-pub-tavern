@@ -3525,7 +3525,7 @@ body.module-page {
   grid-row: 1 / -1; /* fills the whole column unless the module has an action bar */
   display: flex;
   flex-direction: column;
-  background: var(--bg-section);
+  background: color-mix(in srgb, var(--bg) 96%, transparent); /* the same as the chat's content */
   border-left: 1px solid var(--border);
 }
 
@@ -3598,7 +3598,7 @@ body.module-popout .topbar {
   justify-content: flex-end;
   gap: 8px;
   padding: 8px 10px;
-  background: var(--bg-section);
+  background: var(--shade); /* the same as the video toolbar's cell beside it */
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
 }
@@ -3610,7 +3610,7 @@ body.module-popout .topbar {
   justify-content: flex-end;
   gap: 8px;
   padding: 8px 10px;
-  background: var(--bg-section);
+  background: var(--shade);
   border-top: 1px solid var(--border);
 }
 
