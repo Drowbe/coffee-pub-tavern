@@ -3,19 +3,20 @@
 //
 // Two ways in:
 //   /modules/<id>                          the module's server page
-//   /modules/<id>?room=<room>&popout=1     a room panel in a window of its own
+//   /modules/<id>?moduleRoom=<room>&popout=1   a room panel in a window of its own
 //                                          (add &guest=<token> for a guest)
+// (Not "room": a module page opened over a call already carries room=<name of the room>.)
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
 const id = decodeURIComponent(location.pathname.split('/')[2] || '');
 const params = new URLSearchParams(location.search);
-const roomId = params.get('room');
+const roomId = params.get('moduleRoom');
 const guestToken = params.get('guest');
 const popout = params.get('popout') === '1';
 
-async function init() {
+async function start() {
   if (popout) document.body.classList.add('module-popout'); // no header: the window is the module
   renderTopbar({ location: '' });
   await loadBranding();
@@ -77,4 +78,10 @@ async function init() {
     },
   });
 }
-init();
+
+// Whatever goes wrong, say so on the page instead of leaving it blank.
+start().catch((err) => {
+  const note = $('module-missing');
+  note.textContent = `This module could not start: ${err.message}`;
+  note.hidden = false;
+});

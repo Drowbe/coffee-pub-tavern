@@ -302,7 +302,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const entry = open.get(id);
     const m = entry?.m || available.find((x) => x.id === id);
     if (!m) return;
-    const q = new URLSearchParams({ room: roomId, popout: '1' });
+    const q = new URLSearchParams({ moduleRoom: roomId, popout: '1' });
     if (guestToken) q.set('guest', guestToken);
     const width = Math.max(320, Math.min(m.panel.width, screen.availWidth));
     const height = Math.max(240, Math.min(m.panel.height + HEAD_H, screen.availHeight));
