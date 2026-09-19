@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendar</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app" class="app" hidden>
+  <header class="bar">
+    <div class="nav">
+      <button class="btn" id="prev" type="button" aria-label="Previous">&lsaquo;</button>
+      <button class="btn" id="today" type="button">Today</button>
+      <button class="btn" id="next" type="button" aria-label="Next">&rsaquo;</button>
+      <h2 id="title"></h2>
+    </div>
+    <div class="nav">
+      <div class="seg" role="group" aria-label="View">
+        <button class="btn" id="view-month" type="button">Month</button>
+        <button class="btn" id="view-list" type="button">List</button>
+      </div>
+      <button class="btn btn-primary" id="add" type="button" hidden>Add event</button>
+    </div>
+  </header>
+  <main id="body" class="body"></main>
+
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3 id="editor-title">New event</h3>
+      <label>Title<input id="f-title" type="text" maxlength="100" required></label>
+      <div class="row">
+        <label>Date<input id="f-date" type="date" required></label>
+        <label id="f-time-wrap">Starts<input id="f-time" type="time"></label>
+        <label id="f-end-wrap">Ends<input id="f-end" type="time"></label>
+      </div>
+      <label class="check"><input id="f-allday" type="checkbox"> All day</label>
+      <label>Details<textarea id="f-desc" rows="3" maxlength="600"></textarea></label>
+      <label>Remind people<select id="f-remind">
+        <option value="">No reminder</option>
+        <option value="0">When it starts</option>
+        <option value="15">15 minutes before</option>
+        <option value="60">1 hour before</option>
+        <option value="1440">1 day before</option>
+      </select></label>
+      <p class="hint" id="f-remind-hint"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="row buttons">
+        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Cancel</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

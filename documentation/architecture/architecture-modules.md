@@ -10,7 +10,7 @@ routes are [api-modules](../api/api-modules.md). This document is what you can o
 
 A module is front-end only. Nothing in a zip is ever run by the server: every file type is allowlisted,
 and the zip is read entirely in memory against hard limits before a single byte is written. A module
-will run in a sandboxed frame and reach Tavern only through a host API, so accepting a zip from someone
+runs in a sandboxed frame and reaches Tavern only through a host bridge, so accepting a zip from someone
 else is bounded by that sandbox and by the admin's approval, not by trust in the author.
 
 ## On disk
@@ -68,3 +68,52 @@ capability only if the admin approves it.
 
 Removes the `versions` folder and the registry entry. The `data` folder is removed only when asked, so
 that reinstalling the same `id` finds its data again.
+
+## Running a module
+
+What an admin does is [userguide-modules](../userguides/userguide-modules.md); what a module author sees is [api-module-sdk](../api/api-module-sdk.md). This is how the pieces fit.
+
+```
+ module frame (sandboxed)  <--postMessage-->  host page (module-host.js)  <--HTTP + SSE-->  server
+   public/sdk/tavern.js                          module.js or room-modules.js               index.js, modules.js,
+                                                                                            module-data.js, module-hooks.js
+```
+
+### The frame
+
+A module page is served from `/m/<id>/<version>/<file>` by `server/index.js`. Only the active version of an enabled module is served, and the path is checked to stay inside the version folder. The response carries `Content-Security-Policy: sandbox allow-scripts; default-src 'none'; script-src 'self' 'unsafe-inline'; ...; connect-src 'none'`, so even when opened directly it has an opaque origin, no cookies, and no network beyond loading its own files. The host also sets `sandbox="allow-scripts"` on the iframe.
+
+HTML pages are rewritten on the way out: the SDK and the base stylesheet are injected inline right after `<head>`, unless the page already includes `/sdk/tavern.js` (the SDK) or carries `<meta name="tavern-base" content="none">` (the base styles). Inline injection means a module needs no subresources at all, so it works wherever a sandboxed frame may not load its own files.
+
+### The bridge
+
+`public/sdk/tavern.js` (in the frame) and `public/module-host.js` (in the hosting page) speak a small `postMessage` protocol: the frame sends `{ tavern: 1, id, method, params }`, the host answers `{ tavern: 1, id, result | error }`, and pushes `{ tavern: 1, event, data }`. The host answers only messages whose `source` is its own frame's window (the frame's origin is opaque, so the origin cannot be checked). Each method becomes an authenticated HTTP request on the frame's behalf; the frame never holds a session.
+
+The host passes the theme in `hello` as a set of CSS custom properties read from the page's computed style, and the SDK sets them on the frame's `:root`.
+
+### Who may do what
+
+Every runtime route calls `moduleAccess` in `server/index.js`, which resolves the module (it must be enabled), the caller (a signed-in user, or a guest with a room's link token), the scope, and for a room scope checks that the module is on for that room and the caller is in it. It then checks the module's `access` permission through `store.roomPermissions`, so the per-room Moderator grant applies to modules too. The module's permissions are added to the Roles grid at run time: `ModuleManager.permissionList()` supplies `module.<id>.<key>` entries, `store.extraPermissions` hands them to `Store.roleSet`, and `store.allPermissions()` feeds the Roles grid.
+
+### Data
+
+`server/module-data.js` keeps a key-value store per module and scope: `data/modules/<id>/data/server.json` and `room-<id>.json`. Each scope loads once into memory and is rewritten whole on a change. Every key carries a version; a write that names a stale version gets a conflict carrying the current value. The 5 MB cap is checked against the module's total data on disk. Each write emits a `change` event.
+
+### Live changes
+
+`GET /api/modules/:id/events` is a server-sent event stream. It subscribes to `change` events from the data store and `fire` events from the scheduler for one module and scope, and writes them as `change` and `schedule` events. The hosting page opens one stream per scope the frame can see (its own, plus `server` for a room panel) and forwards each event into the frame. Browsers cap concurrent connections per host on HTTP/1.1, so behind a proxy that speaks HTTP/2 this is a non-issue; on plain HTTP/1.1 several tabs with several open modules can run into the cap.
+
+### Hooks
+
+`server/module-hooks.js` holds schedules and notifications. Schedules persist to `data/modules/schedules.json` and a ten-second timer fires what is due: it delivers the schedule's notification, if any, and emits `fire`. A schedule more than six hours late (the server was off) is dropped. Notifications persist per person in `notifications.json`, capped at 50, and are emitted as `notification` events on `GET /api/notifications/stream`. A notification reaches only people who pass the module's `read` permission for that place, which `resolveRecipients` in `server/index.js` checks. A schedule set by the module while an admin approved the hook is the only way a module causes anything to happen on its own.
+
+### Where modules show
+
+- **Header nav.** `loadModuleNav` in `public/brand.js` asks `/api/modules/nav` and adds an item per module to every page's header. Opened during a call these open in the in-page overlay so the call keeps running.
+- **Server page.** `/modules/<id>` serves `public/module.html`, whose script (`public/module.js`) mounts the module in a full-height frame.
+- **Room panels.** `public/room-modules.js` adds the Modules button and menu to the call toolbar and opens each module in a floating panel in its own layer on the main page (not inside the stage, so panels stay put when the call is popped out). A panel is dragged by its title, resized by its corner grip, and remembers its place per module in `localStorage`. A room's modules come from `/api/modules/for-room` and are turned on per room from the room's own settings.
+- **Notifications.** `public/brand.js` also opens the notification stream on each page (not in overlay pages, which leave it to the page underneath), shows a toast per notification, and keeps the unread counts on the nav items and the Modules button.
+
+### Uninstall
+
+Uninstalling removes the versions and the registry entry. With the data deleted too, it also forgets the module's schedules and notifications and drops its cached data.

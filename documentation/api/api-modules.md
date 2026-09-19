@@ -1,15 +1,15 @@
 # Modules API
 
 **Audience:** someone scripting the installation and management of Coffee Pub Tavern modules, or
-building a tool that does.
+building a tool that talks to a running module.
 
-All of these routes are admin-only: a request without an admin session gets 401 or 403. For how modules
+The install and management routes below are admin-only: a request without an admin session gets 401 or 403. The runtime routes at the end are for a running module. For how modules
 work and what an admin sees, read [userguide-modules](../userguides/userguide-modules.md). Errors come
 back as `{ "error": "message" }` with a 4xx status.
 
 ## Module manifest
 
-A module zip holds a `module.json` at its root (or inside one wrapping folder).
+A module zip holds a `module.json` at its root (or inside one wrapping folder). Writing one is covered in [api-module-sdk](api-module-sdk.md).
 
 ```json
 {
@@ -38,6 +38,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder).
 - `permissions` holds up to 20 entries with unique lowercase keys. `default` says which roles have the
   permission before an admin changes it.
 - `hooks` names what the module may ask Tavern to do for it: `schedule` and `notify`.
+- `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both.
 - Anything else in the manifest is ignored.
 
 ## Routes
@@ -68,3 +69,27 @@ A module in the list has the manifest fields plus:
 - `allRooms` and `rooms` are refused unless the module has a room scope.
 - The upload limits are 10 MB for the zip, 500 files, 10 MB for any one file and 40 MB unpacked. A zip
   over the limit gets 413.
+
+## Runtime routes
+
+These serve a running module. The page hosting a module's frame calls them for it (see [api-module-sdk](api-module-sdk.md)); they need a signed-in session, or for a room a guest link token in `guest=`. Data routes take `scope=server` (the default) or `scope=room&room=<id>`. A module must be enabled, and for a room it must be on for that room and the caller in it. The module's `access` permissions decide who may read and write.
+
+| Call | Purpose |
+|---|---|
+| `GET /m/:id/:version/*path` | A file of the active version of an enabled module, with a sandbox content security policy. HTML pages get the SDK and base styles injected |
+| `GET /api/modules/nav` | Modules with a page this person can open, for the header |
+| `GET /api/modules/for-room?room=<id>` | Modules with a panel in that room this person can see |
+| `GET /api/modules/:id/context` | Who is asking and their permissions in the module |
+| `GET /api/modules/:id/data?prefix=` | `{ items }`, each `{ key, value, version, updatedAt, by }` |
+| `GET /api/modules/:id/data/:key` | `{ item }`, or 404 |
+| `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
+| `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
+| `GET /api/modules/:id/events` | Server-sent events: `change` for data changes and `schedule` when one fires |
+| `POST /api/modules/:id/schedule` | `{ key, at, payload?, notify? }`; needs the `schedule` hook |
+| `DELETE /api/modules/:id/schedule/:key` | Cancel a schedule |
+| `POST /api/modules/:id/notify` | `{ to, title, body }`; needs the `notify` hook |
+| `GET /api/notifications` | The signed-in person's notifications, with unread counts by module |
+| `POST /api/notifications/read` | `{ module }` or `{ id }` marks them read |
+| `GET /api/notifications/stream` | Server-sent events: `notification` |
+
+Limits: a value is at most about 60 KB, a module's data 5 MB, a schedule payload 4 KB, 500 schedules per module and 50 notifications per person.

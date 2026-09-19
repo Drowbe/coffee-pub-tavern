@@ -25,11 +25,13 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Tavern in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
 - [Server settings](userguides/userguide-server-settings.md) -- every tab of the Manage page.
 - [Modules](userguides/userguide-modules.md) -- adding features with a module zip.
+- [Calendar](userguides/userguide-calendar.md) -- events and reminders, for the server and for each room.
 
 ## For developers
 
 - [OBS view links](api/api-obs-view.md) -- the URL contract for a player's OBS page.
-- [Modules API](api/api-modules.md) -- the admin routes for installing and managing modules.
+- [Module SDK](api/api-module-sdk.md) -- writing a module: the manifest, the SDK, and the sandbox.
+- [Modules API](api/api-modules.md) -- the routes for installing, managing and running modules.
 - [Theme and design tokens](designsystem/design-theme.md) -- the colors every page, and every
   module, must draw from.
 - [Architecture overview](architecture/architecture-overview.md) -- the pieces, the technology,

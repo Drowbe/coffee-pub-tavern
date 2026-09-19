@@ -63,7 +63,4 @@ default theme and unreadable on a light one.
 
 ## Modules
 
-A module runs in a sandboxed frame, so it cannot see Tavern's stylesheet. The host is designed to pass
-the current theme into every module frame on load and whenever it changes, applied as CSS custom
-properties on the module's own `:root`, so a module written to the rules above follows the theme with
-no code. The same six rules apply to module authors.
+A module runs in a sandboxed frame, so it cannot see Tavern's stylesheet. The host reads the current theme from the page's computed style and hands it to the module on start, and the module SDK sets it on the frame's `:root` as CSS custom properties. A module written to the rules above follows the theme with no code. Tavern also adds a small base stylesheet to each module page (`.btn`, `.btn-primary`, `.card`, styled inputs) built from the same tokens. The rules apply to module authors too; see [api-module-sdk](../api/api-module-sdk.md).

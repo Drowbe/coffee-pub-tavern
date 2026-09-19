@@ -7,38 +7,17 @@ for that app's side of things (Windows OBS capture work, mainly).
 
 The grid, the floating popout bar, the narrow-window switch and the header-height check are built and were only checked in a browser with the call unavailable. In a real call, try: chat open and closed; dragging the chat edge; fullscreen; popped out with chat open and closed; a narrow window and a phone; the grid, strip and spotlight layouts; and the reactions tray, settings popovers, overflow menu, aside and recall overlays and the away prompt in each. Step 6 of plans/plan-room-layout.md, docking installed modules, waits on the module host API.
 
-## Modules: steps 2 to 9
+## Modules: walk them in a real server and call
 
-Step 1 (install, manifest, approve and enable, rollback, uninstall) is built. The rest, in order: the
-host API and SDK with per-module storage; the server nav page surface; floating room panels with
-per-room enablement; module permissions in the Roles grid; the shared live store; the hooks and
-scheduler with in-app notifications; the Calendar module; the Travel planner. Design and decisions are
-in plans/plan-modules.md. Verify each step by installing a small test module and exercising it as an
-admin and as an ordinary user.
+Built and only checked in a browser with the LiveKit connection unavailable, and never with two people: install, enable and disable a module; the Roles grid rows a module adds; the header nav item and the server page; the Modules button and floating panels in a real call (open, drag, resize, close, popped-out window, several open at once); per-room enablement from a room's page; the toast, unread counts and reminders reaching a second person; live changes appearing on a second browser; a guest seeing a room module. Also confirm in a real Chrome and Safari that a sandboxed module frame renders and the SDK connects (the built-in preview browser refused subresource loads from a sandboxed frame, so modules are inlined and the SDK is injected). Verify with two browsers on a real server.
 
-## Documentation: walk the new guides
+## Modules: what is left
 
-The guides were written from the old README and the code, not walked in a running server, and
-several screens have changed since that README was written. Walk each one and correct it, most
-likely wrong first: userguide-table.md (the pop-out and away claims), userguide-accounts.md (the
-roles grid and what each role can do), userguide-images.md (per-room pictures and the Images
-permissions), then userguide-server-settings.md. Check each label against the screen.
+See plans/plan-modules.md: docking a panel into the room grid, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
 
-## Documentation: screenshots
+## Modules: HTTP connection count
 
-The README and home.md have none. Capture the table, the Manage page and a room's settings on a
-scratch server with made-up names, in WebP, into documentation/assets/. No screenshot is better than
-one showing real people.
-
-## Away message and late joiners
-
-Suspected, not observed: someone who joins a call after another person has gone away sees that tile
-without the Away mark or message, because it is only sent when the state changes. Confirm with two
-browsers on a real server, then send the away state to new joiners.
-
-## CHANGELOG entries for later releases
-
-CHANGELOG.md starts at 0.3.0. From here every change gets an entry naming how it was verified.
+Each open module frame holds up to two server-sent event streams, and each page holds one for notifications. On plain HTTP/1.1 a browser allows about six connections per host across all tabs, so a few tabs with a few modules open could stall. Behind an HTTP/2 proxy it is not a problem. Check the behind-a-proxy setup, and if it matters, share one stream per page.
 
 ## Architecture: a list is not an editor
 
