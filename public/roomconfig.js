@@ -1,7 +1,7 @@
 // One room's own page, the same idea as a user's profile page: click a
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, roomCrumbIcon } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const roomId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -156,11 +156,21 @@ $('members').addEventListener('change', async (event) => {
   }
 });
 
+// Server Settings > this room, with the room's own icon.
+function renderCrumb() {
+  setTopbarLocation(
+    crumbLink('gear', 'Server Settings', '/admin#rooms') +
+    `<span class="crumb-sep">&rsaquo;</span>` +
+    crumbLink(roomCrumbIcon(room), room.name, location.pathname)
+  );
+}
+
 $('save-btn').addEventListener('click', async () => {
   try {
     const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value, link: $('e-link').value, linkIcon: selectedLinkIcon };
     room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
     render();
+    renderCrumb();
     say($('save-status'), 'saved');
   } catch (err) {
     say($('save-status'), err.message, true);
@@ -260,11 +270,7 @@ async function init() {
     const [roomRes, usersRes] = await Promise.all([api('GET', `/api/rooms/${roomId}`), api('GET', '/api/users')]);
     room = roomRes.room;
     users = usersRes.users;
-    setTopbarLocation(
-      crumbLink('gear', 'Server Settings', '/admin#rooms') +
-      `<span class="crumb-sep">&rsaquo;</span>` +
-      crumbLink('message', room.name, location.pathname)
-    );
+    renderCrumb();
   } catch (err) {
     location.href = '/admin#rooms';
     return;

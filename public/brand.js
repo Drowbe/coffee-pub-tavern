@@ -108,11 +108,17 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
 // One crumb segment that goes somewhere. Opened as an overlay over a call
 // (?from=room), the link keeps that query so the next page still knows to
 // offer its "Back" button instead of quietly turning into a normal page.
+// The header icon for a room: the launch-link icon the room picked, or the
+// plain message icon when it has not picked one ('link' is the default).
+export function roomCrumbIcon(room) {
+  return room?.linkIcon && room.linkIcon !== 'link' ? iconClasses(room.linkIcon) : 'fa-solid fa-message';
+}
+
 export function crumbLink(icon, label, href) {
   const params = new URLSearchParams(window.location.search);
   const keep = params.get('from') === 'room' ? window.location.search : '';
   const [path, hash] = href.split('#');
-  return `<a class="crumb-here" href="${path}${keep}${hash ? '#' + hash : ''}"><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(label)}</span></a>`;
+  return `<a class="crumb-here" href="${path}${keep}${hash ? '#' + hash : ''}"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(label)}</span></a>`;
 }
 
 export function setTopbarLocation(html) {

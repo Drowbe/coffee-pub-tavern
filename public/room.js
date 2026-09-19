@@ -1,6 +1,6 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
@@ -1815,7 +1815,7 @@ const LEAVE_BTN = '<button class="icon-link crumb-action" type="button" data-cru
 const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
 // The label text hides at narrow widths (see .crumb-label in style.css),
 // leaving just the icon -- which is why every crumb-here needs one.
-const crumbHere = (icon, text) => `<span class="crumb-here"><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
+const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
 
 function updateCrumb() {
   if (!currentRoom) {
@@ -1827,12 +1827,12 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
-      crumbHere('message', originName) + LEAVE_BTN +
+      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN +
       `<span class="crumb-sep">&rsaquo;</span>` +
       crumbHere('people-arrows', kind) + REJOIN_BTN
     );
   } else {
-    setTopbarLocation(crumbHere('message', tableName) + LEAVE_BTN);
+    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN);
   }
 }
 
