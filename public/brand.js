@@ -88,6 +88,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
     <nav class="links">
+      <span class="module-nav" id="module-nav"></span>
       <a class="whoami" href="/profile" id="whoami-link" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <span class="nav-divider"></span>
       <a class="icon-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i></a>
@@ -98,6 +99,25 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   `;
   setTopbarLocation(location);
   wireInstall();
+  loadModuleNav();
+}
+
+// Modules with a page of their own get an item in the header. Opened from
+// inside a call they use the same in-page overlay as the profile, so the call
+// keeps running (see openOverlay in room.js).
+async function loadModuleNav() {
+  const slot = document.getElementById('module-nav');
+  if (!slot) return;
+  try {
+    const res = await fetch('/api/modules/nav');
+    if (!res.ok) return;
+    const { modules } = await res.json();
+    const keep = new URLSearchParams(window.location.search).get('from') === 'room' ? window.location.search : '';
+    slot.innerHTML = modules.map((m) => `<a class="module-nav-link" data-overlay-link data-module="${escapeHtml(m.id)}" href="/modules/${encodeURIComponent(m.id)}${keep}" title="${escapeHtml(m.name)}"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i><span class="module-nav-label"> ${escapeHtml(m.name)}</span></a>`).join('');
+    document.dispatchEvent(new CustomEvent('module-nav-loaded', { detail: modules }));
+  } catch {
+    // no nav is fine
+  }
 }
 
 // The crumb zone: plain text for "you're already here" (Rooms, Profile,
@@ -162,7 +182,12 @@ export async function api(method, url, body, contentType) {
   } catch (err) {
     data = {};
   }
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    err.current = data.current; // set on a 409 from the module data store
+    throw err;
+  }
   return data;
 }
 

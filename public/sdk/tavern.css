@@ -1,0 +1,121 @@
+/*
+ * Optional base styles for a module's pages: include with
+ *   <link rel="stylesheet" href="/sdk/tavern.css">
+ * Everything reads Tavern's theme tokens (set on :root by the SDK), so a
+ * module built on these follows whatever theme the admin picks. See
+ * documentation/designsystem/design-theme.md.
+ */
+:root {
+  --bg: #1a1410;
+  --bg-section: #241c16;
+  --bg-card: #2a2119;
+  --bg-input: #2a2119;
+  --border: #3b2e24;
+  --text: #f1e6d8;
+  --text-dim: #a8998a;
+  --accent: #c8873a;
+  --on-accent: #1a1206;
+  --accent-hover: color-mix(in srgb, var(--accent) 85%, white);
+  --primary-hover: var(--accent-hover);
+  --secondary: color-mix(in srgb, var(--bg-section) 90%, var(--accent) 10%);
+  --secondary-text: var(--text);
+  --secondary-hover: color-mix(in srgb, var(--bg-section) 78%, var(--accent) 22%);
+  --danger: #b8503f;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1, h2, h3 {
+  margin: 0 0 8px;
+}
+
+a {
+  color: var(--accent);
+}
+
+.hint,
+.dim {
+  color: var(--text-dim);
+}
+
+.btn {
+  background: var(--secondary);
+  color: var(--secondary-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+  background: var(--secondary-hover);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input,
+textarea,
+select {
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.section {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}

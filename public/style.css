@@ -3269,3 +3269,60 @@ input[type="color"] {
   outline: 2px dashed var(--accent);
   outline-offset: -6px;
 }
+
+/* --- modules ------------------------------------------------------------ */
+
+/* Header items for modules that have a page of their own. */
+.module-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.module-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
+  font-weight: 500;
+}
+
+.module-nav-link:hover {
+  color: var(--icon-hover);
+  background: color-mix(in srgb, var(--icon-hover) 14%, transparent);
+  text-decoration: none;
+}
+
+@media (max-width: 600px) {
+  .module-nav-label {
+    display: none;
+  }
+}
+
+/* A module's own page: the frame fills everything under the header. */
+body.module-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.module-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.module-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+.module-missing {
+  margin: 40px auto;
+}

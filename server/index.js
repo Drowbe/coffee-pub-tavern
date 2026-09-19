@@ -2,6 +2,7 @@
 
 // Coffee Pub Tavern server: accounts, pages, images and LiveKit tokens.
 
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -1129,7 +1130,19 @@ app.get('/api/modules/nav', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon })),
+      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, page: manifest.surfaces.page.entry })),
+  });
+});
+
+// Who is looking and what they may do in this module, for the frame's hello.
+app.get('/api/modules/:id/context', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  const { manifest, perms, who } = ctx;
+  res.json({
+    user: who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
+    permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
+    module: { id: manifest.id, name: manifest.name, version: manifest.version },
   });
 });
 
@@ -1168,7 +1181,20 @@ app.get('/m/:id/:version/*path', (req, res) => {
     'Cross-Origin-Resource-Policy': 'cross-origin',
     'Cache-Control': 'no-cache',
   });
-  res.sendFile(file, { dotfiles: 'deny' });
+  if (!/\.html?$/i.test(file)) return res.sendFile(file, { dotfiles: 'deny' });
+  // A module's HTML pages get the SDK and the base styles inline, so a module
+  // needs no <script> or <link> for them (and works even where a sandboxed
+  // frame is not allowed to load its own subresources). A page that already
+  // includes /sdk/tavern.js keeps what it has; <meta name="tavern-base"
+  // content="none"> leaves the base styles out.
+  let html = fs.readFileSync(file, 'utf8');
+  if (!html.includes('/sdk/tavern.js')) {
+    const sdk = fs.readFileSync(path.join(publicDir, 'sdk', 'tavern.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+    const css = /<meta[^>]+name=["']tavern-base["'][^>]+content=["']none["']/i.test(html) ? '' : fs.readFileSync(path.join(publicDir, 'sdk', 'tavern.css'), 'utf8');
+    const inject = `${css ? `<style id="tavern-base">${css}</style>` : ''}<script id="tavern-sdk">${sdk}</script>`;
+    html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + inject) : inject + html;
+  }
+  res.type('html').send(html);
 });
 
 app.get('/api/modules/:id/data', (req, res) => {

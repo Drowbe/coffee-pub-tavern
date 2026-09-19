@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; frame-src 'self'">
+  <link rel="icon" href="/img/site/icon">
+  <title>Coffee Pub Tavern - Module</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css" id="theme-link">
+</head>
+<body class="module-page">
+  <header class="topbar"></header>
+
+  <!-- A module's own page: the module runs in a sandboxed frame (see
+       module-host.js) and fills everything under the header. -->
+  <main class="module-stage">
+    <iframe class="module-frame" id="module-frame" title="Module" hidden></iframe>
+    <p class="hint module-missing" id="module-missing" hidden>That module is not available.</p>
+  </main>
+
+  <script type="module" src="/module.js"></script>
+</body>
+</html>

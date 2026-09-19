@@ -1,0 +1,26 @@
+{
+  "modules": {
+    "probe": {
+      "id": "probe",
+      "versions": [
+        "1.1.0"
+      ],
+      "enabled": true,
+      "allRooms": true,
+      "rooms": [],
+      "approved": {
+        "permissions": [
+          "view",
+          "edit"
+        ],
+        "hooks": [
+          "schedule",
+          "notify"
+        ]
+      },
+      "installedAt": "2026-09-19T05:36:32.523Z",
+      "version": "1.1.0",
+      "updatedAt": "2026-09-19T05:36:32.523Z"
+    }
+  }
+}
