@@ -1,4 +1,0 @@
-{"id":"probe","name":"Probe","version":"1.1.0","icon":"flask","scope":["server","room"],
- "surfaces":{"page":{"entry":"page.html"},"panel":{"entry":"panel.html","width":400,"height":300}},
- "permissions":[{"key":"view","label":"See Probe","default":{"user":true,"guest":true}},{"key":"edit","label":"Change Probe","default":{"user":true,"guest":false}}],
- "access":{"read":"view","write":"edit"},"hooks":{"notify":true,"schedule":true}}
