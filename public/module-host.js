@@ -130,8 +130,14 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     },
   };
 
+  // Each frame has its own secret, handed to it in its address. Messages to the frame carry it, and
+  // the SDK ignores any that do not, so another frame that can reach this one cannot pose as the host.
+  // (Checking who sent a message is not enough: when the call has been popped out, this code runs in
+  // a different window from the frame's parent.)
+  const secret = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+
   function reply(id, message) {
-    frame.contentWindow?.postMessage({ tavern: 1, id, ...message }, '*');
+    frame.contentWindow?.postMessage({ tavern: 1, tk: secret, id, ...message }, '*');
   }
 
   async function onMessage(e) {
@@ -146,11 +152,14 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
       reply(m.id, { error: { message: err.message, status: err.status, current: err.current } });
     }
   }
-  window.addEventListener('message', onMessage);
+  // A frame's messages arrive in the window it lives in, which is not this one
+  // when the call has been popped out.
+  const hostWin = frame.ownerDocument.defaultView || window;
+  hostWin.addEventListener('message', onMessage);
 
   // Live changes: one stream per scope the frame can see.
   function send(event, data) {
-    frame.contentWindow?.postMessage({ tavern: 1, event, data }, '*');
+    frame.contentWindow?.postMessage({ tavern: 1, tk: secret, event, data }, '*');
   }
   function listen(sc) {
     const source = new EventSource(url('/events', sc));
@@ -180,12 +189,12 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   // policy sets form-action 'none', so nothing can actually be submitted anywhere.
   frame.setAttribute('sandbox', 'allow-scripts allow-forms');
   frame.setAttribute('referrerpolicy', 'no-referrer');
-  frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}`;
+  frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}?tk=${secret}`;
 
   return {
     send,
     destroy() {
-      window.removeEventListener('message', onMessage);
+      hostWin.removeEventListener('message', onMessage);
       for (const s of sources) s.close();
       frame.removeAttribute('src');
     },

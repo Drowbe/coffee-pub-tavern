@@ -47,10 +47,18 @@ The settings popover, the reactions tray and the overflow menu live inside the v
 
 `tools/check-room-layout.mjs` enforces the first three, and runs as part of `npm run check`.
 
+## Panes: the chat and modules
+
+The chat is a pane like a module: `public/room-modules.js` manages both. Each pane can be **docked** (a column of the grid after the video: video, chat, then modules in the order they opened), **floating** (a draggable, resizable panel in a layer on the page) or in a **window** of its own, and each has the same header buttons to switch. The chat is a native pane: its DOM already exists in the page, and the pane manager moves it between the stage, a floating panel and a popup window (a node moved to another document keeps its listeners, which is also how the whole stage pops out). A module is a frame the host builds in the same places.
+
+Docked panes set `--dock-cols` on the stage and each part's `grid-column`; together they may not take more than the stage minus a minimum for the video, and shrink in step past that. The chat's width is one of those columns, remembered in `prefs.chatWidth`.
+
+When the call is popped out, the stage moves to the popup window and every pane follows it: docked panes are inside the stage and go with it, a floating chat is carried across, and each module is opened again in the new window, because a frame cannot move between windows without reloading and its messages arrive in the window it lives in. Closing the popout brings everything back.
+
 ## Docked modules
 
 An installed module can dock as a column after the chat. `public/room-modules.js` adds a `.module.module-docked` element to the stage holding a `.dock-resize` handle and a `.mod-content` with a host-drawn `.mod-header` (at `--module-header-h`) and the module's frame. If the module has set an action bar (`tavern.bar.set`), the section also holds a `.dock-bar` in the bottom row of its column, so its buttons line up with the video toolbar and the chat box, and the content sits above it; with no bar the content spans both rows. The stage sets `--dock-cols` to the docked widths and places each column, so the template is `video | chat (0 until it opens) | docked columns`. Dragging a column's left edge changes only that column's width.
 
-On a narrow window docked modules are hidden and a module opens floating instead; when the call is popped out they float over the main window and dock again on return.
+On a narrow window docked modules are hidden and a module opens floating instead.
 
 The next docked module needs nothing here: it is the same element with the next column number.

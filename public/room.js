@@ -804,6 +804,7 @@ function cycleView() {
 
 function applyLayout() {
   fitFloatbar();
+  roomModules.layoutChanged(); // panes' columns follow the stage's width
   const grid = $('grid');
   grid.dataset.layout = prefs.layout;
   const portrait = grid.clientHeight > grid.clientWidth;
@@ -1230,7 +1231,7 @@ function addEntry(entry, own = false) {
   chatLog.push(entry);
   $('messages').appendChild(messageEl(entry, own));
   $('messages').scrollTop = $('messages').scrollHeight;
-  if ($('chat').hidden && !own) {
+  if (!roomModules.nativeOpen('chat') && !own) {
     unread += 1;
     $('chat-badge').textContent = String(unread);
     $('chat-badge').hidden = false;
@@ -1381,33 +1382,32 @@ function openSettings(group) {
   toggleTray(false);
 }
 
-// The chat's own width, dragged from its left edge (see the chat-resize
-// listeners below) and remembered like any other preference. --chat-w lives
-// on the stage so both the chat panel and the popped-out floatbar (which
-// keeps clear of the chat) can read it.
-const CHAT_MIN_WIDTH = 240;
-// remember: false for applying the stored width on join, where the stage may
-// not be laid out to its real size yet -- a clamp there shouldn't overwrite
-// what the user actually asked for.
-function setChatWidth(px, { remember = true } = {}) {
-  const max = Math.max(CHAT_MIN_WIDTH, Math.round($('stage').clientWidth * 0.7));
-  const clamped = Math.min(Math.max(Math.round(px), CHAT_MIN_WIDTH), max);
-  $('stage').style.setProperty('--chat-w', `${clamped}px`);
-  if (remember) prefs.chatWidth = clamped;
-  return clamped;
-}
+// The chat is a pane like a module's: a column beside the video, a floating panel,
+// or a window of its own (see room-modules.js). This is what the pane manager
+// tells the chat when it opens or closes.
+roomModules.registerNative({
+  id: 'chat',
+  name: 'Chat',
+  icon: 'message',
+  el: $('chat'),
+  width: prefs.chatWidth,
+  onWidth: (w) => { prefs.chatWidth = w; savePrefs(); },
+  onChange: ({ open, mode }) => {
+    $('stage').classList.toggle('chat-open', open && mode === 'dock'); // the narrow layout keys off this
+    $('chat-toggle').classList.toggle('on', open);
+    applyLayout();
+    if (open) {
+      unread = 0;
+      $('chat-badge').hidden = true;
+      $('chat-input').focus();
+      $('messages').scrollTop = $('messages').scrollHeight;
+    }
+  },
+});
 
-function toggleChat(open = $('chat').hidden) {
-  $('chat').hidden = !open;
-  $('stage').classList.toggle('chat-open', open);
-  applyLayout();
-  $('chat-toggle').classList.toggle('on', open);
-  if (open) {
-    unread = 0;
-    $('chat-badge').hidden = true;
-    $('chat-input').focus();
-    $('messages').scrollTop = $('messages').scrollHeight;
-  }
+function toggleChat(open = !roomModules.nativeOpen('chat')) {
+  if (open) roomModules.openNative('chat');
+  else roomModules.closeNative('chat');
 }
 
 // --- microphone: device -> level -> gate -> what the table hears -----------
@@ -1912,7 +1912,6 @@ async function connectAndSetup(token, livekitUrl) {
     $('join').hidden = true;
     $('guest-join').hidden = true;
     $('stage').hidden = false;
-    setChatWidth(prefs.chatWidth, { remember: false });
     updateCrumb();
     document.body.classList.add('at-table');
     wake();
@@ -2221,27 +2220,6 @@ $('chat').addEventListener('drop', (event) => {
   $('chat').classList.remove('drop');
   for (const f of imageFiles(event.dataTransfer?.files)) sendImage(f);
 });
-let chatDragStartX = 0;
-let chatDragStartWidth = 0;
-$('chat-resize').addEventListener('pointerdown', (event) => {
-  event.preventDefault();
-  chatDragStartX = event.clientX;
-  chatDragStartWidth = $('chat-content').getBoundingClientRect().width; // #chat itself has no box of its own
-  $('chat-resize').classList.add('dragging');
-  $('chat-resize').setPointerCapture(event.pointerId);
-});
-$('chat-resize').addEventListener('pointermove', (event) => {
-  if (!$('chat-resize').classList.contains('dragging')) return;
-  setChatWidth(chatDragStartWidth + (chatDragStartX - event.clientX)); // chat is on the right: dragging left widens it
-});
-function stopChatDrag() {
-  if (!$('chat-resize').classList.contains('dragging')) return;
-  $('chat-resize').classList.remove('dragging');
-  savePrefs();
-}
-$('chat-resize').addEventListener('pointerup', stopChatDrag);
-$('chat-resize').addEventListener('pointercancel', stopChatDrag);
-
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
@@ -2515,7 +2493,7 @@ function wake() {
   $('stage').classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    const keepOpen = !$('chat').hidden || !$('settings').hidden || !$('react-tray').hidden || $('floatbar').matches(':hover');
+    const keepOpen = roomModules.nativeOpen('chat') || !$('settings').hidden || !$('react-tray').hidden || $('floatbar').matches(':hover');
     if (!keepOpen) $('stage').classList.add('idle');
     else wake();
   }, 2500);
@@ -2617,13 +2595,13 @@ function openPopout() {
 // moving the stage in before then would land it in that page's own
 // about:blank-era document, which the real navigation throws away.
 function setUpPopoutWindow(win) {
-  roomModules.stagePopped(true); // docked modules float over this window meanwhile
   win.document.title = tableName;
   for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
     win.document.head.appendChild(sheet.cloneNode(true));
   }
   win.document.body.className = 'at-table popout';
   win.document.body.appendChild($('stage')); // moving the node adopts it into the new document, video/audio and all
+  roomModules.stagePopped(); // the panes open again in this window
   $('away').hidden = false;
   watchPointer(win.document);
   watchOutsideClick(win.document);
@@ -2639,8 +2617,8 @@ function setUpPopoutWindow(win) {
   });
   setTimeout(applyLayout, 50);
   win.addEventListener('pagehide', () => {
-    roomModules.stagePopped(false);
     document.body.appendChild($('stage'));
+    roomModules.stagePopped(); // and back in this one
     $('away').hidden = true;
     pipWindow = null;
     $('popout').classList.remove('on');

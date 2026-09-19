@@ -5,6 +5,16 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Chat is a pane like a module: docked beside the video (the default), a floating panel, or a window of its own, with the same header buttons a module has. The chat's width is now one of the docked columns.
+- Panes follow the call when it is popped out: chat and modules open in the popout window, docked or floating as they were, instead of floating over the main window.
+- Module frames authenticate the host with a per-frame secret in the frame's address, instead of checking which window a message came from (which is wrong when the call has been popped out).
+
+### Fixed
+- The Calendar page opened over a call showed nothing: the overlay adds `room=<name of the room>` to every page it opens, and the module page took that as a room id. A module popped out of a room now carries its room as `moduleRoom`.
+
+Verified in a browser with forced states: chat docked, floating, docked again and closed, with the columns following (video, chat, Calendar; Calendar alone when chat closes); dragging the chat edge; and the call stage moved into a stand-in second window, where the chat and the Calendar (with its Add event bar) worked and the columns shrank to keep room for the video. Not verified: a real popped-out window and the chat in a window of its own (the test browser blocks popups), a real call, and two people.
+
+### Added
 - Module action bars: `tavern.bar.set([...])` gives a module buttons the host draws along its bottom. Docked, the bar is a cell in the room's shared bottom row, so the Calendar's Add event button sits beside the video toolbar and the chat box; elsewhere it is a strip under the module. A manifest that does not list modes can now be docked or floating (Calendar 1.0.0 could only float because its manifest never said otherwise). Calendar 1.2.0 uses the bar and replaces 1.1.0.
 - Modules can dock. A module whose manifest lists `dock` opens as a column beside the video and the chat (video, chat, module), with a header the host draws at the shared height and a drag handle to set its width. A pane can be switched between docked and floating, or opened in a window of its own (`/modules/<id>?moduleRoom=<room>&popout=1`); the choice and width are remembered per module. On a narrow window a module opens floating, and when the call is popped out docked modules float over the main window until it returns.
 - Calendar 1.1.0: it docks by default and, in a narrow pane, shows the month on top with that month's events listed beneath. Events can repeat (daily, weekly, every 2 weeks, monthly, yearly, with an optional end date), and a repeating event's reminders keep coming.

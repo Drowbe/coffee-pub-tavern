@@ -42,10 +42,12 @@
     }
   }
 
+  // The host puts a secret in this frame's address and in every message it sends.
+  const secret = new URLSearchParams(window.location.search).get('tk');
+
   window.addEventListener('message', (e) => {
-    if (e.source !== window.parent) return;
     const m = e.data;
-    if (!m || m.tavern !== 1) return;
+    if (!m || m.tavern !== 1 || m.tk !== secret) return;
     if (m.id !== undefined) {
       const p = pending.get(m.id);
       if (!p) return;

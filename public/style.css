@@ -1417,15 +1417,11 @@ a.crumb-here:hover {
   flex: 1;
   min-height: 0;
   display: grid;
-  /* video, then the chat (zero wide until it opens), then any docked modules */
-  grid-template-columns: minmax(0, 1fr) var(--chat-track, 0px) var(--dock-cols, );
+  /* the video, then a column for each docked pane (the chat, then modules) */
+  grid-template-columns: minmax(0, 1fr) var(--dock-cols, );
   grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg);
   overflow: hidden;
-}
-
-.stage.chat-open {
-  --chat-track: var(--chat-w, min(320px, 100%));
 }
 
 /* A module's own box vanishes; its content and bar are the grid items. */
@@ -3576,9 +3572,6 @@ body.module-page {
   pointer-events: none; /* a frame under the pointer would swallow the drag */
 }
 
-.popout .module-docked > * {
-  display: none;
-}
 
 /* A module popped out into its own window: just the module, no header. */
 body.module-popout .topbar {
@@ -3622,4 +3615,50 @@ body.module-popout .topbar {
 
 body.module-page .module-stage {
   flex-direction: column;
+}
+
+/* The chat as a floating panel or in a window of its own: its pieces stack instead of taking grid columns. */
+.native-panel .chat-resize,
+.chat-window-grid .chat-resize {
+  display: none;
+}
+
+.native-panel .module-chat .mod-content {
+  flex: 1;
+  min-height: 0;
+  border-left: 0;
+}
+
+.native-panel .chat-bar {
+  flex: none;
+  border-left: 0;
+}
+
+.native-panel .chat header {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+body.chat-window {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.chat-window-grid {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100vh;
+}
+
+.chat-window-grid .module-chat > * {
+  grid-column: 1;
+}
+
+.chat-window-grid .module-chat .mod-content,
+.chat-window-grid .chat-bar {
+  border-left: 0;
 }

@@ -42,6 +42,10 @@ Open chat with the speech-bubble button or **C**. It shows an unread badge while
 Who may send messages or pictures is set per role on the Roles tab; if a permission is off the
 chat box is hidden.
 
+## Chat, docked, floating or in its own window
+
+Chat opens as a column beside the video. Its header has the same buttons as a module's: one to make it a floating panel you can drag and resize (and a matching button to dock it again), one to open it in a window of its own, and the x to close it. The Calendar and other modules open as more columns after the chat, and the video always keeps some room. If you pop the whole call out, chat and modules come with it. Close the chat's own window and the chat closes.
+
 ## Reactions
 
 The smiley button in the bar opens a tray, set up by an admin on the Theme tab of the Manage page
