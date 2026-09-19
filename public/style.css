@@ -369,7 +369,7 @@ input[type="range"] {
   align-items: center;
   gap: 4px;
   width: 72px;
-  padding: 6px 2px;
+  padding: 6px 6px 4px; /* 6px around the picture on top, left and right */
   border-radius: 8px;
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -380,8 +380,8 @@ input[type="range"] {
 }
 
 .member img {
-  width: 48px;
-  height: 48px;
+  width: 100%;
+  aspect-ratio: 1;
   border-radius: 8px;
   object-fit: cover;
   background: var(--bg-section);
@@ -389,8 +389,10 @@ input[type="range"] {
 
 .member .dot {
   position: absolute;
-  top: 6px;
-  right: 8px;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
   border: 2px solid var(--bg-card);
   box-sizing: content-box;
 }
@@ -1608,7 +1610,7 @@ a.crumb-here:hover {
   border: none;
   background: none;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   display: flex;
   align-items: center;
@@ -1628,6 +1630,33 @@ a.crumb-here:hover {
 
 .fbtn.on {
   border-color: var(--accent);
+}
+
+/* Microphone, deafen and camera are Primary buttons while they are on; off
+   keeps the red look below. */
+#mic.on,
+#deafen.on,
+#cam.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+#mic.on:hover,
+#deafen.on:hover,
+#cam.on:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+#mic.on .meter {
+  background: color-mix(in srgb, var(--on-accent) 35%, transparent);
+}
+
+#mic.on + .fbtn-caret,
+#deafen.on + .fbtn-caret,
+#cam.on + .fbtn-caret {
+  color: var(--on-accent);
 }
 
 .fbtn.off {
