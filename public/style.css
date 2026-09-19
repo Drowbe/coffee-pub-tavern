@@ -3326,3 +3326,191 @@ body.module-page {
 .module-missing {
   margin: 40px auto;
 }
+
+/* Room modules: the toolbar menu and the floating panels. */
+.modules-menu {
+  left: auto;
+  right: 12px;
+  transform: none;
+  width: max-content;
+  min-width: 180px;
+  max-width: calc(100% - 24px);
+  padding: 6px;
+  gap: 2px;
+}
+
+.modules-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--secondary);
+  color: var(--secondary-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modules-menu-item:hover {
+  background: var(--secondary-hover);
+}
+
+.modules-menu-item.on {
+  border-color: var(--accent);
+}
+
+.modules-menu-item .badge {
+  margin-left: auto;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Above the call (and the overlay pages), below nothing that matters. */
+.module-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.module-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  min-height: 160px;
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.module-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 34px;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--shade);
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.module-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.module-panel-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+.module-panel-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--border) 50%, var(--border) 60%, transparent 60%, transparent 70%, var(--border) 70%, var(--border) 80%, transparent 80%);
+}
+
+.module-layer.dragging .module-panel-frame {
+  pointer-events: none;
+}
+
+/* Unread count on a module's header item */
+.nav-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Notification toasts */
+.toast-layer {
+  position: fixed;
+  top: 56px;
+  right: 12px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-section);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.toast:hover {
+  background: var(--secondary-hover);
+}
+
+.toast-icon {
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toast-body {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.toast-from {
+  color: var(--text-dim);
+  font-size: 11px;
+}

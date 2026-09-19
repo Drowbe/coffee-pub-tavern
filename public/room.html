@@ -108,13 +108,15 @@
         </div>
         <button class="fbtn" id="away-toggle" type="button" title="Away: pauses your mic and camera and lets everyone know" data-collapse="5"><span class="glyph"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="chat-toggle" type="button" title="Chat (C)" data-collapse="8"><span class="glyph"><i class="fa-solid fa-message fa-fw" aria-hidden="true"></i></span><span class="badge" id="chat-badge" hidden></span></button>
-        <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)" data-collapse="3"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn" id="modules-toggle" type="button" title="Modules" data-collapse="3" hidden><span class="glyph"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></span><span class="badge" hidden></span></button>
+      <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)" data-collapse="3"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more" data-collapse="2"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="room-link" type="button" title="Open this room's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="floatbar-more" type="button" title="More" aria-label="More" hidden><span class="glyph"><i class="fa-solid fa-ellipsis fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
       </div>
       <div class="popover floatbar-overflow" id="floatbar-overflow" hidden></div>
+        <div class="popover modules-menu" id="modules-menu" hidden></div>
 
       <!-- Filled in from the server's reaction list (Manage > Settings); the
            admin can add, remove or reorder what shows up here. -->

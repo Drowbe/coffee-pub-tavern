@@ -9,6 +9,7 @@ const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const { ModuleManager, LIMITS: MODULE_LIMITS } = require('./modules');
 const { ModuleData } = require('./module-data');
+const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 
@@ -36,6 +37,19 @@ const store = new Store(DATA_DIR);
 const modules = new ModuleManager(DATA_DIR);
 const moduleData = new ModuleData(modules.dir);
 store.extraPermissions = () => modules.permissionList(); // enabled modules' permissions join the Roles grid
+// Who a module notification reaches: people who could see that module in that place.
+const moduleHooks = new ModuleHooks(modules.dir, {
+  resolveRecipients: ({ module, roomId }, to) => {
+    const found = modules.enabled(module);
+    if (!found) return [];
+    let keys = [];
+    if (to === 'room') keys = roomId ? store.roomById(roomId)?.members || [] : [];
+    else if (to === 'server') keys = store.users.map((u) => u.key);
+    else keys = store.userByKey(to) ? [to] : [];
+    return keys.filter((k) => store.userByKey(k) && moduleCan(found.manifest, store.roomPermissions(k, roomId), 'read'));
+  },
+});
+moduleHooks.start();
 const limiter = new auth.LoginLimiter();
 
 // Make sure the admin from the environment exists with that password. This is
@@ -1064,6 +1078,10 @@ app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
 app.delete('/api/modules/:id', requireAdmin, (req, res) => {
   modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
   moduleData.forget(req.params.id);
+  if (req.query.keepData === '0') {
+    moduleHooks.forget(req.params.id);
+    moduleHooks.dropModule(req.params.id);
+  }
   res.json({ ok: true });
 });
 
@@ -1156,7 +1174,7 @@ app.get('/api/modules/for-room', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest, entry }) => manifest.scope.includes('room') && manifest.surfaces.panel && moduleRoomAccess(entry, who, room) && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
   });
 });
 
@@ -1235,6 +1253,72 @@ app.delete('/api/modules/:id/data/:key', (req, res) => {
 
 // Live changes to one module's data in one scope, pushed as server-sent events.
 // The page hosting the module's frame listens and forwards them into the frame.
+// Hooks: schedule something for later, or tell people now. The module must
+// have declared the hook in its manifest (enabling it approved that).
+function requireHook(ctx, res, hook) {
+  if (ctx.manifest.hooks[hook]) return true;
+  res.status(403).json({ error: `this module did not ask for the ${hook} hook` });
+  return false;
+}
+function sendHookError(err, res) {
+  if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
+  throw err;
+}
+app.post('/api/modules/:id/schedule', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx || !requireHook(ctx, res, 'schedule')) return;
+  try {
+    res.json(moduleHooks.schedule(ctx, req.body || {}));
+  } catch (err) {
+    sendHookError(err, res);
+  }
+});
+app.delete('/api/modules/:id/schedule/:key', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx || !requireHook(ctx, res, 'schedule')) return;
+  res.json(moduleHooks.cancel(ctx, req.params.key));
+});
+app.post('/api/modules/:id/notify', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx || !requireHook(ctx, res, 'notify')) return;
+  try {
+    const to = typeof req.body?.to === 'string' ? req.body.to : ctx.scope === 'room' ? 'room' : 'server';
+    res.json({ delivered: moduleHooks.deliver({ module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId }, { ...req.body, to }, { by: ctx.by }) });
+  } catch (err) {
+    sendHookError(err, res);
+  }
+});
+
+// A signed-in person's own notifications: the list, marking them read, and a
+// live stream so a toast can appear the moment one arrives.
+app.get('/api/notifications', requireUser, (req, res) => {
+  const list = moduleHooks.list(currentUser(req).key).filter((n) => modules.enabled(n.module));
+  const byModule = {};
+  for (const n of list) if (!n.read) byModule[n.module] = (byModule[n.module] || 0) + 1;
+  res.json({ notifications: list, byModule, unread: Object.values(byModule).reduce((a, b) => a + b, 0) });
+});
+app.post('/api/notifications/read', requireUser, (req, res) => {
+  moduleHooks.markRead(currentUser(req).key, { module: typeof req.body?.module === 'string' ? req.body.module : null, id: typeof req.body?.id === 'string' ? req.body.id : null });
+  res.json({ ok: true });
+});
+app.get('/api/notifications/stream', requireUser, (req, res) => {
+  const key = currentUser(req).key;
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  res.write('retry: 5000\n\n');
+  const onNote = ({ userKey, notification }) => {
+    if (userKey !== key || !modules.enabled(notification.module)) return;
+    const { manifest } = modules.enabled(notification.module);
+    res.write(`event: notification\ndata: ${JSON.stringify({ ...notification, moduleName: manifest.name, icon: manifest.icon })}\n\n`);
+  };
+  moduleHooks.on('notification', onNote);
+  const beat = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(beat);
+    moduleHooks.off('notification', onNote);
+  });
+});
+
 app.get('/api/modules/:id/events', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
   if (!ctx) return;
@@ -1245,11 +1329,17 @@ app.get('/api/modules/:id/events', (req, res) => {
     if (change.module !== ctx.manifest.id || change.scopeKey !== ctx.scopeKey) return;
     res.write(`event: change\ndata: ${JSON.stringify(change)}\n\n`);
   };
+  const onFire = (fire) => {
+    if (fire.module !== ctx.manifest.id || fire.scopeKey !== ctx.scopeKey) return;
+    res.write(`event: schedule\ndata: ${JSON.stringify({ key: fire.key, payload: fire.payload })}\n\n`);
+  };
   moduleData.on('change', onChange);
+  moduleHooks.on('fire', onFire);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
     clearInterval(beat);
     moduleData.off('change', onChange);
+    moduleHooks.off('fire', onFire);
   });
 });
 

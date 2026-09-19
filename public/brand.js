@@ -100,6 +100,86 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   setTopbarLocation(location);
   wireInstall();
   loadModuleNav();
+  startNotifications();
+}
+
+// --- module notifications ----------------------------------------------------
+// A module can notify people (its reminders, say). They arrive as a toast
+// while you are in Tavern and as an unread count on the module's nav item and
+// on the call's Modules button; opening the module clears them. Overlay pages
+// opened over a call (?from=room) leave this to the call page underneath.
+const unreadByModule = {};
+
+function paintUnread() {
+  for (const link of document.querySelectorAll('.module-nav-link')) {
+    const n = unreadByModule[link.dataset.module] || 0;
+    let badge = link.querySelector('.nav-badge');
+    if (!n) { badge?.remove(); continue; }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-badge';
+      link.appendChild(badge);
+    }
+    badge.textContent = n > 9 ? '9+' : String(n);
+  }
+  document.dispatchEvent(new CustomEvent('tavern:unread', { detail: { ...unreadByModule } }));
+}
+document.addEventListener('module-nav-loaded', paintUnread);
+
+export async function markModuleRead(moduleId) {
+  unreadByModule[moduleId] = 0;
+  paintUnread();
+  try {
+    await api('POST', '/api/notifications/read', { module: moduleId });
+  } catch {
+    // the count clears next load
+  }
+}
+
+function showToast(n) {
+  let layer = document.getElementById('toast-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'toast-layer';
+    layer.className = 'toast-layer';
+    document.body.appendChild(layer);
+  }
+  const toast = document.createElement('button');
+  toast.type = 'button';
+  toast.className = 'toast';
+  toast.innerHTML = `<i class="fa-solid fa-${escapeHtml(n.icon || 'bell')} fa-fw toast-icon" aria-hidden="true"></i><span class="toast-text"><strong>${escapeHtml(n.title)}</strong>${n.body ? `<span class="toast-body">${escapeHtml(n.body)}</span>` : ''}<span class="toast-from">${escapeHtml(n.moduleName || '')}</span></span>`;
+  const dismiss = () => toast.remove();
+  toast.addEventListener('click', () => {
+    // The call page handles opening a room module's panel; anything else goes to the module's page.
+    const handled = !document.dispatchEvent(new CustomEvent('tavern:notification', { detail: n, cancelable: true }));
+    if (!handled && n.scope === 'server') window.location.href = `/modules/${encodeURIComponent(n.module)}`;
+    dismiss();
+  });
+  layer.appendChild(toast);
+  setTimeout(dismiss, 9000);
+}
+
+async function startNotifications() {
+  if (new URLSearchParams(window.location.search).get('from') === 'room') return;
+  try {
+    const res = await fetch('/api/notifications');
+    if (!res.ok) return;
+    Object.assign(unreadByModule, (await res.json()).byModule);
+    paintUnread();
+  } catch {
+    return;
+  }
+  const source = new EventSource('/api/notifications/stream');
+  source.addEventListener('notification', (ev) => {
+    try {
+      const n = JSON.parse(ev.data);
+      unreadByModule[n.module] = (unreadByModule[n.module] || 0) + 1;
+      paintUnread();
+      showToast(n);
+    } catch {
+      // ignore a malformed event
+    }
+  });
 }
 
 // Modules with a page of their own get an item in the header. Opened from

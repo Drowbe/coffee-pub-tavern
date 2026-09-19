@@ -1,6 +1,7 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
+import { createRoomModules } from '/room-modules.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
@@ -686,6 +687,18 @@ const DEFAULT_PREFS = {
   pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
 const prefs = loadPrefs();
+// The room's modules: the toolbar's Modules button and its floating panels.
+const roomModules = createRoomModules({ guestToken });
+window.tavernModules = roomModules; // for debugging and tests
+// A toast about a room module opens its panel; a server module opens over the call.
+document.addEventListener('tavern:notification', (event) => {
+  const n = event.detail;
+  if (roomModules.handleNotification(n)) event.preventDefault();
+  else if (n.scope === 'server' && document.body.classList.contains('at-table')) {
+    event.preventDefault();
+    openOverlay(`/modules/${encodeURIComponent(n.module)}`);
+  }
+});
 
 function loadPrefs() {
   try {
@@ -1656,6 +1669,7 @@ room
     closePopout();
     setStatus('left the call');
     currentRoom = null;
+    roomModules.refresh(null);
     document.body.classList.remove('at-table');
     $('stage').hidden = true;
     $('room-link').hidden = true;
@@ -1848,6 +1862,7 @@ async function join(roomId = 'lobby') {
     me = (await api('GET', '/api/me')).user;
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
+    roomModules.refresh(currentRoom.ephemeral ? null : currentRoom.id); // asides have no modules
     tableName = roomDisplayName(currentRoom);
     renderRoomLink();
     applyPermissions();
@@ -1875,6 +1890,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentRoom.members downstream breaks.
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
+    roomModules.refresh(currentRoom.id);
     renderRoomLink();
     applyPermissions();
     updateRecallButton();

@@ -156,6 +156,38 @@ $('members').addEventListener('change', async (event) => {
   }
 });
 
+// The room's modules: the installed, enabled modules that have a room panel,
+// each ticked when it is on here (or for every room, which is read-only here).
+let roomModules = [];
+async function loadRoomModules() {
+  try {
+    roomModules = (await api('GET', '/api/modules')).modules.filter((m) => m.enabled && m.scope.includes('room'));
+  } catch {
+    roomModules = [];
+  }
+  $('section-modules').hidden = roomModules.length === 0;
+  $('room-modules').innerHTML = roomModules.map((m) => {
+    const everywhere = m.allRooms;
+    const on = everywhere || m.rooms.includes(room.id);
+    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ' <span class="hint">(on for every room)</span>' : ''}</label>`;
+  }).join('');
+}
+$('room-modules').addEventListener('change', async (event) => {
+  const box = event.target;
+  const m = roomModules.find((x) => x.id === box.dataset.module);
+  if (!m) return;
+  const rooms = new Set(m.rooms);
+  if (box.checked) rooms.add(room.id); else rooms.delete(room.id);
+  try {
+    const { module } = await api('PATCH', `/api/modules/${m.id}`, { rooms: [...rooms] });
+    m.rooms = module.rooms;
+    say($('room-modules-status'), 'saved');
+  } catch (err) {
+    box.checked = !box.checked;
+    say($('room-modules-status'), err.message, true);
+  }
+});
+
 // Server Settings > this room, with the room's own icon.
 function renderCrumb() {
   setTopbarLocation(
@@ -271,6 +303,7 @@ async function init() {
     room = roomRes.room;
     users = usersRes.users;
     renderCrumb();
+    await loadRoomModules();
   } catch (err) {
     location.href = '/admin#rooms';
     return;

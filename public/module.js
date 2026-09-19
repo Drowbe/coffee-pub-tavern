@@ -1,6 +1,6 @@
 // A module's own full-width page (/modules/<id>): the shell that hosts its
 // sandboxed frame. The module itself is public/module-host.js's business.
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
@@ -30,6 +30,7 @@ async function init() {
   }
   document.title = `${document.title.split(' - ')[0]} - ${mod.name}`;
   setTopbarLocation(crumbLink(mod.icon, mod.name, location.pathname));
+  markModuleRead(mod.id);
   const frame = $('module-frame');
   frame.hidden = false;
   mountModule({

@@ -130,6 +130,13 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
         // ignore a malformed event
       }
     });
+    source.addEventListener('schedule', (ev) => {
+      try {
+        send('schedule', { ...JSON.parse(ev.data), scope: sc });
+      } catch {
+        // ignore a malformed event
+      }
+    });
     sources.push(source);
   }
   listen(scope);
