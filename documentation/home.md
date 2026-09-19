@@ -36,6 +36,8 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
   and where the code lives.
 - [Modules architecture](architecture/architecture-modules.md) -- how module install and storage
   are built.
+- [Room layout architecture](architecture/architecture-room-layout.md) -- the grid of modules, docked
+  and floating bars, and the layout rules.
 
 See the [repository README](https://github.com/Drowbe/coffee-pub-tavern) for requirements and the
 short install summary.

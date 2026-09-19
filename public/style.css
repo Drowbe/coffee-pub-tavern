@@ -28,6 +28,10 @@
   --surface: color-mix(in srgb, var(--bg-section) 90%, var(--accent) 10%);
   --surface-hover: color-mix(in srgb, var(--bg-section) 78%, var(--accent) 22%);
   --shade: color-mix(in srgb, var(--bg) 85%, var(--border) 15%);
+  /* Layout: the one height every module header strip has, so headers in
+     neighbouring columns line up. Nothing else sets a module header height
+     (tools/check-room-layout.mjs enforces it). */
+  --module-header-h: 42px;
   /* Themeable on their own (Manage > Theme); each follows the tokens above
      until a theme sets it. */
   --header-bg: var(--bg);
@@ -1403,30 +1407,80 @@ a.crumb-here:hover {
   background: var(--bg);
 }
 
+/* The room is a grid: each module owns a column with a content area over an
+   action bar, and the bars share one bottom row so they line up. The row is
+   as tall as the tallest bar; nothing is measured. See
+   documentation/plans/plan-room-layout.md. */
 .stage {
-  --barh: var(--floatbar-h, 65px); /* what the docked toolbar takes off the
-    bottom -- 65px is just a first-paint guess before room.js's
-    ResizeObserver measures the real thing, which matters once the floatbar
-    wraps to two rows on a narrow phone and would otherwise sit under the
-    chat panel instead of above it */
   position: relative;
   width: 100%;
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg);
   overflow: hidden;
 }
 
-.popout .stage {
-  --barh: 0px;
-  height: 100vh;
-  display: block;
+.stage.chat-open {
+  grid-template-columns: minmax(0, 1fr) var(--chat-w, min(320px, 100%));
 }
 
-.popout .stage .grid {
-  height: 100%;
+/* A module's own box vanishes; its content and bar are the grid items. */
+.module {
+  display: contents;
+}
+
+.mod-content {
+  grid-row: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mod-bar {
+  grid-row: 2;
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.module-video > .mod-content,
+.module-video > .mod-bar {
+  grid-column: 1;
+}
+
+.module-chat > * {
+  grid-column: 2;
+}
+
+.module-video .mod-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Popped out, a bar is floating rather than docked: it sits over its own
+   module's content instead of in the bottom row, and the content takes the
+   whole height. Docked and floating are the only two states of a bar. */
+.popout .stage {
+  height: 100vh;
+}
+
+.popout .module-video > .mod-content {
+  grid-row: 1 / -1;
+}
+
+.popout .video-bar {
+  grid-row: 1 / -1;
+  align-self: end;
+  justify-self: center;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin-bottom: 16px;
+  z-index: 5;
 }
 
 .float {
@@ -1469,30 +1523,6 @@ a.crumb-here:hover {
   display: flex;
   gap: 6px;
   transition: right 0.2s ease;
-}
-
-/* The chat panel sits at z-index 6, above .float's 5 -- without this the
-   open chat's own (nearly opaque) background just covers these two
-   buttons in the same top-right corner, matching how .grid already
-   shrinks to stay out from under the chat panel too. */
-.stage.chat-open .video-tools {
-  right: calc(var(--chat-w, min(320px, 100%)) + 12px);
-}
-
-/* With a mouse, full screen and pop out appear only while the pointer is over
-   the stage (or one of them has keyboard focus). Touch screens have no hover,
-   so they always show. */
-@media (hover: hover) and (pointer: fine) {
-  .video-tools {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .stage:hover .video-tools,
-  .video-tools:focus-within {
-    opacity: 1;
-    pointer-events: auto;
-  }
 }
 
 .vtool-btn {
@@ -1543,9 +1573,16 @@ a.crumb-here:hover {
   gap: 8px;
   padding: 10px 12px;
   padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.video-bar {
   background: var(--shade);
   border-top: 1px solid var(--border);
-  transition: width 0.2s ease;
+}
+
+.popout .video-bar {
+  background: none;
+  border: 0;
 }
 
 /* Buttons keep their natural size rather than squeezing to fit -- fitFloatbar()
@@ -1555,22 +1592,10 @@ a.crumb-here:hover {
   flex-shrink: 0;
 }
 
-/* Same reasoning as .stage.chat-open .grid: centre on the visible video
-   area, not the whole page, once the chat panel takes the right side. */
-.stage.chat-open .floatbar {
-  width: calc(100% - var(--chat-w, min(320px, 100%)));
-}
-
-/* popped out: the floating pill over the tiles */
+/* popped out: the toolbar is a floating pill over the tiles */
 .popout .floatbar {
-  position: absolute;
   width: max-content;
-  max-width: calc(100% - 32px);
-  overflow: hidden;
-  left: 50%;
-  bottom: 16px;
-  transform: translateX(-50%);
-  flex-wrap: nowrap;
+  max-width: 100%;
   padding: 8px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg-section) 88%, transparent);
@@ -1579,24 +1604,6 @@ a.crumb-here:hover {
 }
 
 .popout .stage.idle .floatbar {
-  transform: translateX(-50%) translateY(8px);
-}
-
-/* Popped out, the pill centres on the whole window -- with chat open that
-   puts it right under the chat panel on the right. Keep it centred on the
-   video area instead (the chat's own width, so they stay in sync); items
-   that don't fit collapse into "More" same as the docked bar, rather than
-   wrapping under the chat. */
-.popout .stage.chat-open .floatbar {
-  left: 16px;
-  right: var(--chat-w, min(320px, 100%));
-  width: auto;
-  max-width: none;
-  transform: none;
-  flex-wrap: nowrap;
-}
-
-.popout .stage.idle.chat-open .floatbar {
   transform: translateY(8px);
 }
 
@@ -1771,20 +1778,25 @@ a.crumb-here:hover {
   z-index: 2;
 }
 
-.chat {
-  position: absolute;
-  z-index: 6;
-  top: 0;
-  right: 0;
-  bottom: var(--barh, 0px);
-  width: var(--chat-w, min(320px, 100%));
+/* The chat module: its content (header and messages) over its bar (the
+   formatting buttons and the message box), in the second column. */
+.module-chat .mod-content {
   display: flex;
   flex-direction: column;
   background: color-mix(in srgb, var(--bg) 96%, transparent);
   border-left: 1px solid var(--border);
 }
 
-/* Covers just the chat panel, not the whole stage -- see the markup comment
+.chat-bar {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+/* Covers just the chat's content, not the whole stage */, not the whole stage -- see the markup comment
    in room.html for why. */
 .chat-delete-overlay {
   position: absolute;
@@ -1810,15 +1822,15 @@ a.crumb-here:hover {
   justify-content: center;
 }
 
-/* a thin strip over the chat's left edge, to drag it wider or narrower */
+/* a thin strip over the chat column's left edge, to drag it wider or narrower */
 .chat-resize {
-  position: absolute;
-  top: 0;
-  left: -4px;
+  grid-column: 2;
+  grid-row: 1 / -1;
+  justify-self: start;
   width: 8px;
-  height: 100%;
+  margin-left: -4px;
   cursor: ew-resize;
-  z-index: 1;
+  z-index: 7;
   touch-action: none;
 }
 
@@ -1831,7 +1843,10 @@ a.crumb-here:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 8px 8px 12px;
+  box-sizing: border-box;
+  flex: none;
+  height: var(--module-header-h);
+  padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--border);
   font-weight: 600;
 }
@@ -1859,11 +1874,6 @@ a.crumb-here:hover {
 
 .msg-btn.on {
   color: var(--accent);
-}
-
-.chat.drop {
-  outline: 2px dashed var(--accent);
-  outline-offset: -6px;
 }
 
 .chat-hint {
@@ -2072,7 +2082,6 @@ a.crumb-here:hover {
   align-items: flex-end;
   gap: 6px;
   padding: 10px 8px 10px 6px;
-  border-top: 1px solid var(--border);
 }
 
 .chat form .msg-btn {
@@ -2097,7 +2106,7 @@ a.crumb-here:hover {
   position: absolute;
   z-index: 7;
   left: 50%;
-  bottom: 76px;
+  bottom: calc(100% + 10px);
   transform: translateX(-50%);
   width: min(360px, calc(100% - 24px));
   padding: 14px;
@@ -2125,7 +2134,7 @@ a.crumb-here:hover {
 .floatbar-overflow {
   left: auto;
   right: 12px;
-  bottom: calc(var(--floatbar-h, 65px) + 10px);
+  bottom: calc(100% + 10px);
   transform: none;
   width: max-content;
   min-width: 180px;
@@ -2257,13 +2266,6 @@ a.crumb-here:hover {
 
 /* --- audio and video controls ------------------------------------------- */
 
-.stage .grid {
-  transition: width 0.2s ease;
-}
-
-.stage.chat-open .grid {
-  width: calc(100% - var(--chat-w, min(320px, 100%)));
-}
 
 .popover {
   max-height: calc(100vh - 100px);
@@ -2643,25 +2645,14 @@ a.crumb-here:hover {
   gap: 6px;
 }
 
-.stage.compact {
-  --barh: 45px;
-}
-
-/* Popped out, the toolbar floats over the tiles instead of taking a row, so
-   the chat panel has nothing to leave room for -- without this a small popout
-   window (compact) left a blank strip under the chat box. */
-.popout .stage.compact {
-  --barh: 0px;
-}
-
 .stage.compact .floatbar {
   gap: 4px;
   padding: 5px;
   padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
-.popout .stage.compact .floatbar {
-  bottom: 8px;
+.popout .stage.compact .video-bar {
+  margin-bottom: 8px;
   max-width: calc(100% - 16px);
 }
 
@@ -3244,4 +3235,34 @@ input[type="color"] {
 .pill.warn {
   color: #e0b25a;
   border-color: #e0b25a;
+}
+
+/* Narrow windows (a phone): the chat replaces the video while it is open, with
+   the toolbar still under it, so one click on Chat brings the video back. */
+.stage.narrow.chat-open {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.stage.narrow.chat-open .module-video .mod-content {
+  display: none;
+}
+
+.stage.narrow.chat-open .module-video .video-bar {
+  grid-row: 3;
+}
+
+.stage.narrow.chat-open .module-chat > * {
+  grid-column: 1;
+}
+
+.stage.narrow.chat-open .chat-resize {
+  display: none;
+}
+
+/* Something dragged over the chat, to send as a picture */
+.chat.drop .mod-content,
+.chat.drop .chat-bar {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
 }

@@ -796,6 +796,7 @@ function applyLayout() {
   const portrait = grid.clientHeight > grid.clientWidth;
   grid.classList.toggle('portrait', portrait);
   const stage = $('stage');
+  stage.classList.toggle('narrow', stage.clientWidth < 640);
   stage.classList.toggle('compact', stage.clientWidth < 460);
   stage.classList.toggle('tiny', stage.clientWidth < 300 || stage.clientHeight < 220);
   const ordered = [...grid.querySelectorAll('.tile')];
@@ -2209,7 +2210,7 @@ let chatDragStartWidth = 0;
 $('chat-resize').addEventListener('pointerdown', (event) => {
   event.preventDefault();
   chatDragStartX = event.clientX;
-  chatDragStartWidth = $('chat').getBoundingClientRect().width;
+  chatDragStartWidth = $('chat-content').getBoundingClientRect().width; // #chat itself has no box of its own
   $('chat-resize').classList.add('dragging');
   $('chat-resize').setPointerCapture(event.pointerId);
 });
@@ -2489,17 +2490,6 @@ window.visualViewport?.addEventListener('resize', syncViewportHeight);
 window.addEventListener('resize', syncViewportHeight);
 syncViewportHeight();
 
-// The docked floatbar wraps to two rows on a narrow phone -- its real
-// height drives --floatbar-h, which --barh (style.css) reads, so the chat
-// panel's bottom edge sits above however tall the toolbar actually ended
-// up, not a fixed guess that assumed a single row.
-new ResizeObserver(([entry]) => {
-  // Not entry.contentRect -- that's the padding-excluded content box by
-  // spec, which undercounted the floatbar's own top/bottom padding and
-  // left the chat panel's bottom edge sitting under the toolbar instead of
-  // above it. offsetHeight is the real on-screen height, padding and all.
-  document.documentElement.style.setProperty('--floatbar-h', `${entry.target.offsetHeight}px`);
-}).observe($('floatbar'));
 
 // --- floating controls: show on movement, hide when the pointer rests --------
 

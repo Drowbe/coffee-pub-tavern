@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- The room page is now a grid of module columns, each a content area over an action bar, with the bars sharing one bottom row: the video toolbar sits under the video and the chat message box under the chat, lined up. The chat is a real column instead of an overlay, the popped-out toolbar is a floating bar over the video, and on a narrow window chat replaces the video with the toolbar still under it. The measured toolbar height and hand-subtracted chat width are gone, and a check (`tools/check-room-layout.mjs`, part of `npm run check`) keeps them out. Verified in a browser with forced states: docked with chat open, popout, narrow width with chat open and closed, and the settings popover position. Not verified in a real call.
+
 ### Added
 - Themes have a Card background, for the small items inside a section (member tiles, facts, thumbnails), on
   Auto by default. The Card background used to be the section color; that one is now Section background,

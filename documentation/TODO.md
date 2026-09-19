@@ -3,9 +3,9 @@
 Things agreed on but not built yet, roughly in order. See the Studio repo's own TODO.md
 for that app's side of things (Windows OBS capture work, mainly).
 
-## Room layout: modules as grid columns
+## Room layout: walk it in a real call
 
-Rebuild the room page as a grid where the video conference and chat each own a column with a content area and an action bar, replacing the absolute-positioned chat and the measured toolbar height. Design, decisions and build order are in plans/plan-room-layout.md. Touches public/room.html, public/room.js and public/style.css. Verify in a real call: chat open and closed, fullscreen, popout, and a narrow window.
+The grid, the floating popout bar, the narrow-window switch and the header-height check are built and were only checked in a browser with the call unavailable. In a real call, try: chat open and closed; dragging the chat edge; fullscreen; popped out with chat open and closed; a narrow window and a phone; the grid, strip and spotlight layouts; and the reactions tray, settings popovers, overflow menu, aside and recall overlays and the away prompt in each. Step 6 of plans/plan-room-layout.md, docking installed modules, waits on the module host API.
 
 ## Modules: steps 2 to 9
 

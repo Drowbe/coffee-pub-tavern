@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the room page's layout, and the author reviewing it before any of it is built.
 
-**Status:** Planned. Nothing here is built. Decisions are settled (see below); the next step is the refactor in "Build order". When it lands, move the rules into [design-theme](../designsystem/design-theme.md) and a new architecture document for the room layout, then delete this plan.
+**Status:** In progress. Steps 1 to 5 of the build order are built and documented in [architecture-room-layout](../architecture/architecture-room-layout.md); step 6, modules docking into a column, is not. Delete this plan once step 6 lands.
 
 ## Why
 
