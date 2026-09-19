@@ -715,7 +715,7 @@ function moduleCard(m) {
     ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people at the table</span></li>'] : []),
   ];
   const state = m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>';
-  const others = m.versions.filter((v) => v !== m.version);
+  const several = m.versions.length > 1; // the picker lists every kept version, the running one selected
   const el = document.createElement('article');
   el.className = 'panel module-card';
   el.dataset.id = m.id;
@@ -732,7 +732,7 @@ function moduleCard(m) {
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
     <div class="row">
       <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button">${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
-      ${others.length ? `<select data-module-version aria-label="Version">${others.map((v) => `<option>${escapeHtml(v)}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button">Switch to this version</button>` : ''}
+      ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
       <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
     </div>`;
   return el;
@@ -773,6 +773,7 @@ $('modules-list').addEventListener('click', async (event) => {
       await api('PATCH', `/api/modules/${m.id}`, { enabled: !m.enabled });
     } else if (button.dataset.moduleAction === 'rollback') {
       const version = card.querySelector('[data-module-version]').value;
+      if (version === m.version) return;
       if (!window.confirm(`Switch ${m.name} to version ${version}? Its data stays as it is.`)) return;
       await api('POST', `/api/modules/${m.id}/rollback`, { version });
     } else if (button.dataset.moduleAction === 'uninstall') {
@@ -789,6 +790,13 @@ $('modules-list').addEventListener('click', async (event) => {
 });
 
 $('modules-list').addEventListener('change', async (event) => {
+  if (event.target.matches('[data-module-version]')) {
+    // Switching is only offered for a version that is not the running one.
+    const card = event.target.closest('.module-card');
+    const m = installedModules.find((x) => x.id === card.dataset.id);
+    card.querySelector('[data-module-action="rollback"]').disabled = event.target.value === m.version;
+    return;
+  }
   if (!event.target.matches('[data-module-all-rooms]')) return;
   const id = event.target.closest('.module-card').dataset.id;
   try {

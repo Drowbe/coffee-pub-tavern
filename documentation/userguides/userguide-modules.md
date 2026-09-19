@@ -28,7 +28,7 @@ An enabled module adds its permissions to the **Roles** tab, in a group named fo
 
 ## Upgrade and roll back
 
-Upload a newer version of the same module and it replaces the active one. Tavern keeps the newest three versions, so the card offers **Switch to this version** to go back, or forward again. The module's saved data stays as it is either way. An upgrade or switch that asks for something you have not yet approved comes back disabled, and shows **Approve and enable**.
+Upload a newer version of the same module and it replaces the active one. Tavern keeps the newest three versions. The card has a version picker with the running one selected; choose another and **Switch to this version** goes back, or forward again. The module's saved data stays as it is either way. An upgrade or switch that asks for something you have not yet approved comes back disabled, and shows **Approve and enable**.
 
 ## Disable and uninstall
 
