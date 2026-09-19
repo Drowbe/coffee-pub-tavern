@@ -731,6 +731,17 @@ input[type="range"] {
   color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
 }
 
+/* The home icon and the crumb icons (room, page) are header icons too. */
+.topbar .brand-home i,
+.topbar .crumb-here i {
+  color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
+}
+
+.topbar .brand-home:hover i,
+.topbar a.crumb-here:hover i {
+  color: var(--icon-hover);
+}
+
 .icon-link:hover {
   color: var(--icon-hover);
   background: color-mix(in srgb, var(--icon-hover) 14%, transparent);
