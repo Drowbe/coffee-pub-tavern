@@ -30,7 +30,8 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 - **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Pick a
   theme and **Apply**, or adjust the seven base colors (page background, section background, border, text, dim
   text, primary accent and text on accent) and save them as a new theme. Under **Header, buttons and
-  icons** you can also set the header background and text, the icon color and its hover, the Primary
+  icons** you can also set the card background (the small boxes inside a section, such as member
+  tiles), the header background and text, the icon color and its hover, the Primary
   accent hover, and the Secondary accent with its text and hover. Each of these is on **Auto** by
   default, which keeps it derived from the base colors; untick Auto to choose the color yourself. The
   preview, including a sample header, shows the result live before anything is saved. "Default" is how

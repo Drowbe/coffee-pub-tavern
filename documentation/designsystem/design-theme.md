@@ -16,19 +16,20 @@ call window picks the theme up too, when the page clones its stylesheets into th
 
 ## The tokens
 
-The theme editor sets the first seven, and may also set the ten in the second group. Every token in the second
+The theme editor sets the first seven, and may also set the eleven in the second group. Every token in the second
 group follows the base colors until a theme sets it (**Auto**), so a theme that never touches one keeps
 working. The rest are derived with `color-mix`.
 
 | Token | Use |
 |---|---|
 | `--bg` | page background (labeled Page background in the theme editor) |
-| `--bg-card` | section background: panels, cards and the portrait square in a member tile (labeled Section background in the theme editor) |
+| `--bg-section` | section background: panels, popovers, the active tab (labeled Section background in the theme editor) |
 | `--border` | outlines and dividers |
 | `--text` | body text |
 | `--text-dim` | secondary text |
 | `--accent` | links, highlights and primary buttons |
 | `--on-accent` | text and icons drawn on an `--accent` background |
+| `--bg-card` | card background: the small items inside a section, such as member tiles, facts and thumbnails; Auto is `--bg-input` |
 | `--header-bg` | header background, drawn as a soft gradient from this color; Auto is `--bg` |
 | `--header-text` | header text, the server name, breadcrumb and signed-in name; Auto is `--text` |
 | `--icon` | icons in the page, chat and header; Auto is dim text on the page and a softened header text in the header |

@@ -89,7 +89,7 @@
       <p class="hint">Border reaches further than its name suggests: it's mixed into the toolbar and header shading and into recessed fields, not just outlines.</p>
       <div class="fields">
         <label>Page background<input id="theme-bg" type="color"></label>
-        <label>Section background<input id="theme-bg-card" type="color"></label>
+        <label>Section background<input id="theme-bg-section" type="color"></label>
         <label>Border<input id="theme-border" type="color"></label>
         <label>Text<input id="theme-text" type="color"></label>
         <label>Dim text<input id="theme-text-dim" type="color"></label>
@@ -99,6 +99,7 @@
       <h3>Header, buttons and icons</h3>
       <p class="hint">Each of these follows the colors above until you set it: leave <strong>Auto</strong> ticked to keep it derived, or untick it to choose the color yourself.</p>
       <div class="fields theme-optional">
+        <div class="theme-opt"><label>Card background<input id="theme-card" type="color"></label><label class="check"><input type="checkbox" data-auto-for="theme-card"> Auto</label></div>
         <div class="theme-opt"><label>Header background<input id="theme-header-bg" type="color"></label><label class="check"><input type="checkbox" data-auto-for="theme-header-bg"> Auto</label></div>
         <div class="theme-opt"><label>Header text<input id="theme-header-text" type="color"></label><label class="check"><input type="checkbox" data-auto-for="theme-header-text"> Auto</label></div>
         <div class="theme-opt"><label>Icons<input id="theme-icon" type="color"></label><label class="check"><input type="checkbox" data-auto-for="theme-icon"> Auto</label></div>

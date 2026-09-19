@@ -234,10 +234,10 @@ const DEFAULT_SETTINGS = {
 // Colors a theme may set beyond the seven base ones. null means "Auto": the
 // stylesheet derives it from the base colors (style.css :root), so a theme
 // that never touches one keeps following its accent, background and so on.
-const THEME_OPTIONAL = ['headerBg', 'headerText', 'icon', 'iconHover', 'primaryHover', 'secondary', 'secondaryText', 'secondaryHover'];
+const THEME_OPTIONAL = ['card', 'headerBg', 'headerText', 'icon', 'iconHover', 'primaryHover', 'secondary', 'secondaryText', 'secondaryHover'];
 const BUILTIN_THEMES = [
-  { id: 'staying-blonde', name: 'Staying Blonde', bg: '#ffffff', bgCard: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
-  { id: 'willhavebeen', name: 'willhavebeen', bg: '#ffffff', bgCard: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
+  { id: 'staying-blonde', name: 'Staying Blonde', bg: '#ffffff', bgSection: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
+  { id: 'willhavebeen', name: 'willhavebeen', bg: '#ffffff', bgSection: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
 ];
 
 function cleanWidth(value) {
@@ -381,6 +381,14 @@ class Store {
     }
     // Same once-only idea for the starter Font Awesome icons: a list saved
     // before they existed keeps what it has and gains the starters up front.
+    // Themes saved before "Card background" existed call the section color bgCard.
+    for (const theme of data.settings.themes || []) {
+      if (theme.bgCard !== undefined && theme.bgSection === undefined) {
+        theme.bgSection = theme.bgCard;
+        delete theme.bgCard;
+        seededThemes = true; // just to persist the rename
+      }
+    }
     let seededIcons = false;
     if (!data.settings.iconsSeeded) {
       const have = Array.isArray(raw.settings?.icons) ? raw.settings.icons : [];
@@ -640,15 +648,15 @@ class Store {
   // live override).
   sanitizeTheme(t) {
     const bg = cleanColor(t?.bg);
-    const bgCard = cleanColor(t?.bgCard);
+    const bgSection = cleanColor(t?.bgSection) || cleanColor(t?.bgCard); // bgCard is the old name
     const border = cleanColor(t?.border);
     const text = cleanColor(t?.text);
     const textDim = cleanColor(t?.textDim);
     const accent = cleanColor(t?.accent);
     const onAccent = cleanColor(t?.onAccent);
-    if (!bg || !bgCard || !border || !text || !textDim || !accent || !onAccent) return null;
+    if (!bg || !bgSection || !border || !text || !textDim || !accent || !onAccent) return null;
     const optional = Object.fromEntries(THEME_OPTIONAL.map((key) => [key, cleanColor(t?.[key]) || null]));
-    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgCard, border, text, textDim, accent, onAccent, ...optional };
+    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgSection, border, text, textDim, accent, onAccent, ...optional };
   }
 
   get themes() {
@@ -670,7 +678,8 @@ class Store {
     const theme = this.data.settings.themes.find((t) => t.id === id);
     if (!theme) throw new StoreError('no such theme', 404);
     if (patch.name !== undefined) theme.name = cleanText(patch.name, 40) || theme.name;
-    for (const key of ['bg', 'bgCard', 'border', 'text', 'textDim', 'accent', 'onAccent']) {
+    if (patch.bgSection === undefined && patch.bgCard !== undefined) patch = { ...patch, bgSection: patch.bgCard }; // the old name
+    for (const key of ['bg', 'bgSection', 'border', 'text', 'textDim', 'accent', 'onAccent']) {
       if (patch[key] === undefined) continue;
       const c = cleanColor(patch[key]);
       if (c) theme[key] = c;

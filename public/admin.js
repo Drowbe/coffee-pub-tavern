@@ -328,7 +328,7 @@ $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set
 // custom property (style.css's own built-in default, nothing else in play).
 const THEME_FIELDS = [
   ['theme-bg', '--bg', 'bg'],
-  ['theme-bg-card', '--bg-card', 'bgCard'],
+  ['theme-bg-section', '--bg-section', 'bgSection'],
   ['theme-border', '--border', 'border'],
   ['theme-text', '--text', 'text'],
   ['theme-text-dim', '--text-dim', 'textDim'],
@@ -339,6 +339,7 @@ const THEME_FIELDS = [
 // field the preview sets the same formula style.css uses, so what you see is
 // right whichever theme happens to be live.
 const THEME_OPTIONAL_FIELDS = [
+  ['theme-card', '--bg-card', 'card', 'var(--bg-input)'],
   ['theme-header-bg', '--header-bg', 'headerBg', 'var(--bg)'],
   ['theme-header-text', '--header-text', 'headerText', 'var(--text)'],
   ['theme-icon', '--icon', 'icon', 'initial'], // initial: unset, so the fallbacks in style.css apply

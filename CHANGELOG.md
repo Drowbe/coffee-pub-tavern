@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Themes have a Card background, for the small items inside a section (member tiles, facts, thumbnails), on
+  Auto by default. The Card background used to be the section color; that one is now Section background,
+  its variable is `--bg-section`, and themes saved with the old field name are migrated on start.
 - Themes can now set the header background and text, icon color and hover, Primary accent hover, and the
   Secondary accent with its text and hover, each on Auto (derived) until set. Buttons gain a stronger
   hover with a border and glow, and a press effect.

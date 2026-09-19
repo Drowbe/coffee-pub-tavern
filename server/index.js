@@ -527,13 +527,14 @@ app.get('/theme.css', (_req, res) => {
   if (!theme) return res.send('');
   const vars = [
     ['--bg', theme.bg],
-    ['--bg-card', theme.bgCard],
+    ['--bg-section', theme.bgSection],
     ['--border', theme.border],
     ['--text', theme.text],
     ['--text-dim', theme.textDim],
     ['--accent', theme.accent],
     ['--on-accent', theme.onAccent],
     // Optional ones: only when the theme sets them; otherwise style.css derives them.
+    ['--bg-card', theme.card],
     ['--header-bg', theme.headerBg],
     ['--header-text', theme.headerText],
     ['--icon', theme.icon],
