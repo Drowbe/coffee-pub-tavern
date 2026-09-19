@@ -1452,6 +1452,22 @@ a.crumb-here:hover {
   right: calc(var(--chat-w, min(320px, 100%)) + 12px);
 }
 
+/* With a mouse, full screen and pop out appear only while the pointer is over
+   the stage (or one of them has keyboard focus). Touch screens have no hover,
+   so they always show. */
+@media (hover: hover) and (pointer: fine) {
+  .video-tools {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .stage:hover .video-tools,
+  .video-tools:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .vtool-btn {
   width: 32px;
   height: 32px;
