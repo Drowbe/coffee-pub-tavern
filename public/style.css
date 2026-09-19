@@ -3522,7 +3522,7 @@ body.module-page {
 
 /* Docked modules: a column of the room's grid, beside the video and the chat. */
 .module-docked > .mod-content {
-  grid-row: 1 / -1;
+  grid-row: 1 / -1; /* fills the whole column unless the module has an action bar */
   display: flex;
   flex-direction: column;
   background: var(--bg-section);
@@ -3583,4 +3583,43 @@ body.module-page {
 /* A module popped out into its own window: just the module, no header. */
 body.module-popout .topbar {
   display: none;
+}
+
+/* A module's action bar. Docked, it is a cell in the room's shared bottom row,
+   lined up with the video toolbar and the chat box; elsewhere it is a strip
+   under the module. */
+.module-docked.has-bar > .mod-content {
+  grid-row: 1;
+}
+
+.dock-bar {
+  grid-row: 2;
+  z-index: 1;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-section);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.module-panel-bar,
+.module-bar {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-section);
+  border-top: 1px solid var(--border);
+}
+
+.module-panel-bar[hidden],
+.module-bar[hidden],
+.dock-bar[hidden] {
+  display: none;
+}
+
+body.module-page .module-stage {
+  flex-direction: column;
 }

@@ -49,7 +49,7 @@ The settings popover, the reactions tray and the overflow menu live inside the v
 
 ## Docked modules
 
-An installed module can dock as a column after the chat. `public/room-modules.js` adds a `.module.module-docked` element to the stage holding a `.dock-resize` handle and a `.mod-content` with a host-drawn `.mod-header` (at `--module-header-h`) and the module's frame. The content spans both rows, so a docked module has no bar cell of its own yet. The stage sets `--dock-cols` to the docked widths and places each column, so the template is `video | chat (0 until it opens) | docked columns`. Dragging a column's left edge changes only that column's width.
+An installed module can dock as a column after the chat. `public/room-modules.js` adds a `.module.module-docked` element to the stage holding a `.dock-resize` handle and a `.mod-content` with a host-drawn `.mod-header` (at `--module-header-h`) and the module's frame. If the module has set an action bar (`tavern.bar.set`), the section also holds a `.dock-bar` in the bottom row of its column, so its buttons line up with the video toolbar and the chat box, and the content sits above it; with no bar the content spans both rows. The stage sets `--dock-cols` to the docked widths and places each column, so the template is `video | chat (0 until it opens) | docked columns`. Dragging a column's left edge changes only that column's width.
 
 On a narrow window docked modules are hidden and a module opens floating instead; when the call is popped out they float over the main window and dock again on return.
 

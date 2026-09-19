@@ -118,11 +118,19 @@
     // { to: 'room' | 'server' | a user key, title, body }. Needs the "notify" hook.
     notify: (spec) => call('notify', spec),
 
+    // The module's action bar: buttons the host draws along the bottom of the
+    // module (in the room's bottom row when docked, lined up with the video
+    // toolbar and the chat box). set([{ id, label, icon, primary, disabled }]);
+    // a click arrives as the 'bar' event with the button's id.
+    bar: {
+      set: (items) => call('bar.set', { items }),
+    },
+
     // Layout: ask the host for a size, and set the title shown above the module.
     resize: (size) => call('resize', size),
     setTitle: (title) => call('setTitle', { title }),
 
-    // Events: 'change' ({ key, value, version, deleted, scope, by }) whenever
+    // Events: 'bar' ({ id }) when an action bar button is clicked, 'change' ({ key, value, version, deleted, scope, by }) whenever
     // stored data changes, 'schedule' ({ key, payload }) when a schedule fires,
     // 'theme' (the new theme).
     on(event, fn) {

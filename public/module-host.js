@@ -25,7 +25,7 @@ export function readTheme() {
 
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize }) {
+export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   const sources = [];
   let contextInfo = null;
@@ -87,6 +87,38 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     },
     async notify(spec) {
       return api('POST', url('/notify', scopeOf(spec?.scope)), { ...spec, scope: undefined });
+    },
+    // The module's action bar: the host draws the buttons into `bar` and sends
+    // clicks back as a 'bar' event.
+    async 'bar.set'({ items }) {
+      const clean = (Array.isArray(items) ? items : []).slice(0, 6).map((i) => ({
+        id: String(i?.id ?? '').slice(0, 40),
+        label: String(i?.label ?? '').slice(0, 30),
+        icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
+        primary: Boolean(i?.primary),
+        disabled: Boolean(i?.disabled),
+      })).filter((i) => i.id && i.label);
+      if (bar) {
+        bar.textContent = '';
+        for (const item of clean) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `btn${item.primary ? ' btn-primary' : ''}`;
+          b.disabled = item.disabled;
+          if (item.icon) {
+            const i = document.createElement('i');
+            i.className = `fa-solid fa-${item.icon} fa-fw`;
+            i.setAttribute('aria-hidden', 'true');
+            b.append(i, ' ');
+          }
+          b.append(item.label);
+          b.addEventListener('click', () => send('bar', { id: item.id }));
+          bar.appendChild(b);
+        }
+        bar.hidden = clean.length === 0;
+      }
+      if (onBar) onBar(clean.length > 0);
+      return true;
     },
     async resize(size) {
       if (onResize) onResize(size || {});

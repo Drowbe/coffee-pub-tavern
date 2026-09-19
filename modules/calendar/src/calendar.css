@@ -61,3 +61,4 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 /* A narrow pane (docked beside the video and chat): the month on top, that month's list beneath. */
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .stack .list-title { margin: 6px 0 0; font-size: 13px; color: var(--text-dim); }
+.hosted { display: none !important; }

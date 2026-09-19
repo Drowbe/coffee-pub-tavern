@@ -372,6 +372,13 @@
   $('view-month').addEventListener('click', () => { view = 'month'; render(); });
   $('view-list').addEventListener('click', () => { view = 'list'; render(); });
   $('add').addEventListener('click', () => openEditor(null));
+  // The host draws the Add button in the module's action bar (in the room's bottom row when
+  // docked); the button in the header stays only for a host without one.
+  if (tavern.bar) {
+    $('add').classList.add('hosted');
+    tavern.bar.set(canEdit ? [{ id: 'add', label: 'Add event', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
+    tavern.on('bar', (e) => { if (e.id === 'add' && canEdit) openEditor(null); });
+  }
   $('body').addEventListener('click', (e) => {
     const open = e.target.closest('[data-open]');
     if (open) {

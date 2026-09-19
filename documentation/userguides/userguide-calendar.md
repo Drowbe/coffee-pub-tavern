@@ -6,7 +6,7 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/calendar-1.1.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
+1. Upload `modules/dist/calendar-1.2.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
@@ -20,7 +20,7 @@ In a call, choose the Modules button in the toolbar and then **Calendar**. It op
 
 ## Add and change events
 
-If you can edit, choose **Add event**, or click a day in the month. Give it a title, a date, and a start and end time (or tick **All day**), and add details if you like. Choose **Save**. Click an event to change or delete it; the delete button asks you to click a second time. If two people change the same event at once, the second person is told and can reopen it to see the other change.
+If you can edit, choose **Add event** (in the bar along the bottom of the Calendar; docked, it sits in the same row as the video toolbar and the chat box), or click a day in the month. Give it a title, a date, and a start and end time (or tick **All day**), and add details if you like. Choose **Save**. Click an event to change or delete it; the delete button asks you to click a second time. If two people change the same event at once, the second person is told and can reopen it to see the other change.
 
 Events appear for everyone who has the calendar open as soon as they are saved.
 

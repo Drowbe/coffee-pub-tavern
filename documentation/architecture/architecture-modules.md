@@ -89,6 +89,8 @@ HTML pages are rewritten on the way out: the SDK and the base stylesheet are inj
 
 `public/sdk/tavern.js` (in the frame) and `public/module-host.js` (in the hosting page) speak a small `postMessage` protocol: the frame sends `{ tavern: 1, id, method, params }`, the host answers `{ tavern: 1, id, result | error }`, and pushes `{ tavern: 1, event, data }`. The host answers only messages whose `source` is its own frame's window (the frame's origin is opaque, so the origin cannot be checked). Each method becomes an authenticated HTTP request on the frame's behalf; the frame never holds a session.
 
+A module's action bar rides the same bridge: `bar.set` gives the host a list of buttons, the host draws them into the bar element for that surface (a cell in the room grid when docked, a strip elsewhere) and sends each click back as a `bar` event. The host validates the items (up to six, short labels, icon names limited to Font Awesome names).
+
 The host passes the theme in `hello` as a set of CSS custom properties read from the page's computed style, and the SDK sets them on the frame's `:root`.
 
 ### Who may do what

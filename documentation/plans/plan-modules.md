@@ -11,16 +11,15 @@
 - A module's permissions appear in the Roles grid; the server enforces them on every call.
 - The admin trusts what they upload; the install step shows what a module asks for.
 - Reminders are in-app only for now (toast plus unread counts); email needs SMTP and is a later step.
-- Modules may float over the call or dock as a column (both declared in the manifest). Only floating exists.
+- Modules may dock as a column, float over the call, or pop out into a window of their own; the manifest says which of dock and float it supports.
 
 ## Left to build
 
-1. **Module action bars.** A docked module spans the whole column height and has no bar cell. Give a module an optional bar in the shared bottom row, with its height clamped by the host, so its buttons line up with the video toolbar and the chat box.
-2. **Google Calendar sync.** See the section below.
-3. **Travel planner.** The second module: several people editing one plan live. It exercises the shared store with many writers; expect to find where last-write-wins per key is not enough, and to want finer change events.
-4. **A hello module** as the smallest working example next to the Calendar.
-5. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
-6. **Calendar improvements.** Events across several days, changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
+1. **Google Calendar sync.** See the section below.
+2. **Travel planner.** The second module: several people editing one plan live. It exercises the shared store with many writers; expect to find where last-write-wins per key is not enough, and to want finer change events.
+3. **A hello module** as the smallest working example next to the Calendar.
+4. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
+5. **Calendar improvements.** Events across several days, changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
 
 ## Google Calendar sync
 

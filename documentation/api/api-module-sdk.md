@@ -27,7 +27,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "icon": "calendar-days",
   "description": "Sessions and events, with reminders.",
   "scope": ["server", "room"],
@@ -46,7 +46,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 
 - `scope` says where the module can run. A `server` module needs a `page` surface and a `room` module needs a `panel`.
 - `icon` is the name of a Font Awesome icon, used in the header and the Modules menu.
-- `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. The first listed that the room can show is the default; people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
+- `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A room opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
 - `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role. Admins can always do everything.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
 - `hooks` names what the module may ask Tavern to do: `schedule` and `notify`. The admin approves them when enabling the module.
@@ -112,6 +112,17 @@ tavern.on('schedule', ({ key, payload }) => {});   // when one fires, if the mod
 - A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
 - `repeat` makes Tavern schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
 - `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
+
+### The action bar
+
+A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.
+
+```js
+tavern.bar.set([{ id: 'add', label: 'Add event', icon: 'plus', primary: true }]);
+tavern.on('bar', ({ id }) => { if (id === 'add') openEditor(); });
+```
+
+Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome `icon` name, and `primary` and `disabled` flags; up to six. Setting an empty list hides the bar, and a docked module then fills the whole column. Set the bar again whenever what the buttons can do changes.
 
 ### Layout
 

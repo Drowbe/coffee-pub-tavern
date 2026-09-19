@@ -66,6 +66,7 @@ async function init() {
   mountModule({
     module: { id: mod.id, version: mod.version, scope: mod.scope },
     frame,
+    bar: $('module-bar'),
     scope,
     roomId,
     guestToken,

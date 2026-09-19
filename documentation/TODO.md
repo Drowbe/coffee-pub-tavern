@@ -17,7 +17,7 @@ Wanted, not started. Needs decisions first (whose Google account, which directio
 
 ## Modules: what is left
 
-See plans/plan-modules.md: module action bars, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
+See plans/plan-modules.md: Google Calendar sync, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
 
 ## Modules: HTTP connection count
 

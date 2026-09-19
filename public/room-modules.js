@@ -55,7 +55,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   let z = 40;
   let unread = {}; // module id -> unread notifications, from brand.js
 
-  const supports = (m, mode) => (m.panel.mode || ['float']).includes(mode);
+  // A manifest that does not say can be shown either way.
+  const supports = (m, mode) => (m.panel.mode || ['dock', 'float']).includes(mode);
 
   function persist() {
     try {
@@ -95,6 +96,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     panel.innerHTML = `
       <header class="mod-header module-panel-head">${headerHtml(m, { docked: false, canDock: supports(m, 'dock') && !isNarrow(), canFloat: true })}</header>
       <iframe class="module-panel-frame" title="${escapeHtml(m.name)}"></iframe>
+      <div class="module-panel-bar" hidden></div>
       <span class="module-panel-grip" title="Drag to resize"></span>`;
     layer.appendChild(panel);
     const index = [...open.values()].filter((o) => o.mode === 'float').length;
@@ -111,6 +113,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     entry.mount = mountModule({
       module: { id: m.id, version: m.version, scope: m.scope },
       frame: panel.querySelector('iframe'),
+      bar: panel.querySelector('.module-panel-bar'),
       scope: 'room',
       roomId,
       guestToken,
@@ -190,17 +193,21 @@ export function createRoomModules({ guestToken = null } = {}) {
       <div class="mod-content dock-content">
         <header class="mod-header">${headerHtml(m, { docked: true, canDock: false, canFloat: true })}</header>
         <iframe class="dock-frame" title="${escapeHtml(m.name)}"></iframe>
-      </div>`;
+      </div>
+      <div class="mod-bar dock-bar" hidden></div>`;
     stage.appendChild(section);
     const entry = { mode: 'dock', m, el: section, section, mount: null, width: dockWidth(m) };
     entry.mount = mountModule({
       module: { id: m.id, version: m.version, scope: m.scope },
       frame: section.querySelector('iframe'),
+      bar: section.querySelector('.dock-bar'),
       scope: 'room',
       roomId,
       guestToken,
       entry: m.panel.entry,
       onTitle: (title) => { section.querySelector('[data-title]').textContent = title || m.name; },
+      // With a bar the module's content stops above the shared bottom row; without one it fills the column.
+      onBar: (has) => section.classList.toggle('has-bar', has),
     });
     open.set(m.id, entry);
     syncDock();
