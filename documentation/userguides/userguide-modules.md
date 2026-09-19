@@ -4,6 +4,8 @@
 
 A module is a zip file that adds a feature to Tavern, such as the [Calendar](userguide-calendar.md). The **Modules** tab on the Manage page installs them. A module runs in your browser inside a sandbox, so it can only reach Tavern through what it asks for, and it never runs code on your server. If you are writing one, read [api-module-sdk](../api/api-module-sdk.md).
 
+Chat and Conference are listed first on the Modules tab as built-in modules. They are always on and cannot be removed; their permissions are the ones already on the Roles tab.
+
 ## Install a module
 
 1. On the Modules tab, choose the zip file and click **Install**.

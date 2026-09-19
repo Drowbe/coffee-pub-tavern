@@ -5,6 +5,7 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- The Modules tab of Manage lists Chat and Conference first, as built-in modules that are always on and cannot be removed. Every other module is listed beneath them.
 - The toolbar has one button for panes: the Modules button (the puzzle piece), always shown, whose menu lists Chat and the room's modules. The separate chat button is gone; C still toggles the chat, and the chat's unread count shows on the Modules button. The menu now opens just above the button (or above More when the button has been tucked into it) instead of at the toolbar's right end. Verified in a browser: the menu centered on the button, Chat and Calendar listed, Chat opening and closing from it, and the unread badge. Not verified in a real call.
 
 ### Added

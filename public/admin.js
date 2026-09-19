@@ -701,9 +701,12 @@ $('save-reactions').addEventListener('click', async () => {
 // --- modules ----------------------------------------------------------------
 // Upload a zip, review what it asks for, enable it. See docs/MODULES.md.
 let installedModules = [];
+let builtinModules = [];
 
 async function loadModules() {
-  installedModules = (await api('GET', '/api/modules')).modules;
+  const data = await api('GET', '/api/modules');
+  installedModules = data.modules;
+  builtinModules = data.builtin || [];
   renderModules();
 }
 
@@ -741,8 +744,26 @@ function moduleCard(m) {
 function renderModules() {
   const list = $('modules-list');
   list.textContent = '';
+  // The built-in panes first: always on, and not removable.
+  for (const b of builtinModules) {
+    const el = document.createElement('article');
+    el.className = 'panel module-card';
+    el.innerHTML = `
+      <div class="module-head">
+        <i class="fa-solid fa-${escapeHtml(b.icon)} fa-fw module-icon" aria-hidden="true"></i>
+        <div class="grow"><h2>${escapeHtml(b.name)} <span class="hint">built in</span></h2>
+          <div class="hint">Room pane</div></div>
+        <span class="pill on">Always on</span>
+      </div>
+      <p>${escapeHtml(b.description)}</p>
+      <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>`;
+    list.appendChild(el);
+  }
   if (!installedModules.length) {
-    list.innerHTML = '<div class="panel"><p class="hint">No modules installed yet.</p></div>';
+    const none = document.createElement('div');
+    none.className = 'panel';
+    none.innerHTML = '<p class="hint">No other modules installed yet.</p>';
+    list.appendChild(none);
     return;
   }
   for (const m of installedModules) list.appendChild(moduleCard(m));

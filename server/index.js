@@ -1065,7 +1065,13 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 // Settings > Roles: the permission list and every role's grid of on/off.
 // Modules (Manage > Modules): upload a zip, approve what it asks for, turn it
 // on, roll back, uninstall. See docs/MODULES.md.
-app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+// The two panes that ship with Tavern, listed beside the installed modules. They are always on and
+// cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
+const BUILTIN_MODULES = [
+  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the room: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group' },
+  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the room, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
+];
+app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES, limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
 app.post('/api/modules', requireAdmin, rawZip, async (req, res) => {
   res.status(201).json({ module: await modules.install(req.body) });
 });
