@@ -2339,10 +2339,11 @@ $('floatbar').addEventListener('click', (event) => {
 });
 
 // --- floatbar overflow -------------------------------------------------------
-// Mic, camera, chat and hang up always show; everything else collapses into
-// "More" (rather than wrapping to a second row) as the bar runs out of room,
-// lowest data-collapse first -- see fitFloatbar(), called from applyLayout()
-// whenever the stage (or the chat drawer next to it) changes size.
+// Only "More" and hang up always show; everything else collapses into "More"
+// (rather than wrapping to a second row) as the bar runs out of room, lowest
+// data-collapse first -- the extras, then chat, then camera, then the
+// microphone last. See fitFloatbar(), called from applyLayout() whenever the
+// stage (or the chat next to it) changes size.
 const FLOATBAR_ALL = [...$('floatbar').children];
 const FLOATBAR_COLLAPSE_ORDER = FLOATBAR_ALL.filter((el) => el.dataset.collapse).sort(
   (a, b) => Number(a.dataset.collapse) - Number(b.dataset.collapse)

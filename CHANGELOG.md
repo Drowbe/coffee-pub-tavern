@@ -5,6 +5,7 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- On a narrow window the toolbar now collapses chat, then camera, then the microphone into the More menu after the other buttons, so the smallest bar is just More and leave. The More menu wraps long labels and stays within the bar. Verified in a browser at 360, 270 and 190 px wide, and by shrinking the stage to 170, 130 and 100 px; not verified in a real call.
 - The room page is now a grid of module columns, each a content area over an action bar, with the bars sharing one bottom row: the video toolbar sits under the video and the chat message box under the chat, lined up. The chat is a real column instead of an overlay, the popped-out toolbar is a floating bar over the video, and on a narrow window chat replaces the video with the toolbar still under it. The measured toolbar height and hand-subtracted chat width are gone, and a check (`tools/check-room-layout.mjs`, part of `npm run check`) keeps them out. Verified in a browser with forced states: docked with chat open, popout, narrow width with chat open and closed, and the settings popover position. Not verified in a real call.
 
 ### Added

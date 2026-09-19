@@ -12,7 +12,7 @@ middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 Left to right, the bar holds: microphone (with a live level meter inside the button), deafen, camera,
 share screen, layout, away, chat, reactions, settings, the room's launch link if it has one, and
 leave. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
-layout, **1** to **6** send a reaction. Some buttons tuck under a **More** button on a narrow window. On a narrow window, such as a phone, opening chat replaces the video with the chat while the toolbar stays under it, and the chat button brings the video back.
+layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat replaces the video with the chat while the toolbar stays under it, and the chat button brings the video back.
 
 A player with no camera or microphone still joins; whatever is missing is named in the status line
 and your Online picture stands in for the camera.
