@@ -1446,18 +1446,22 @@ a.crumb-here:hover {
   height: 32px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.55);
-  color: var(--text);
+  /* Same look as the toolbar's Secondary buttons, so it follows the theme. */
+  background: var(--secondary);
+  color: var(--icon, var(--secondary-text));
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
   font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .vtool-btn:hover {
-  background: rgba(0, 0, 0, 0.75);
-  color: var(--accent);
+  background: var(--secondary-hover);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--icon-hover);
 }
 
 .vtool-btn .icon-off {
