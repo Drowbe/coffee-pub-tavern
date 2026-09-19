@@ -10,7 +10,7 @@ the header stays, now naming the room you are in with a **Leave room** button, t
 middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 
 Left to right, the bar holds: microphone (with a live level meter inside the button), deafen, camera,
-share screen, layout, away, chat, reactions, settings, the room's launch link if it has one, and
+share screen, layout, away, chat and modules, reactions, settings, the room's launch link if it has one, and
 leave. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
 layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat replaces the video with the chat while the toolbar stays under it, and the chat button brings the video back.
 
@@ -26,7 +26,7 @@ order and pin are remembered in your browser.
 
 ## Chat
 
-Open chat with the speech-bubble button or **C**. It shows an unread badge while closed.
+Open chat from the **Modules** button (the puzzle piece) or with **C**. The button shows an unread count while the chat is closed. The Modules button is the one place to show and hide panes: its menu lists Chat and each module the room has on, and choosing one opens or closes it.
 
 - **Formatting.** The buttons above the box add **bold**, *italic*, code and bullet lists, and the
   question mark shows the shortcuts.

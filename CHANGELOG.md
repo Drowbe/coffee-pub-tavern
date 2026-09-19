@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- The toolbar has one button for panes: the Modules button (the puzzle piece), always shown, whose menu lists Chat and the room's modules. The separate chat button is gone; C still toggles the chat, and the chat's unread count shows on the Modules button. The menu now opens just above the button (or above More when the button has been tucked into it) instead of at the toolbar's right end. Verified in a browser: the menu centered on the button, Chat and Calendar listed, Chat opening and closing from it, and the unread badge. Not verified in a real call.
+
 ### Added
 - Chat is a pane like a module: docked beside the video (the default), a floating panel, or a window of its own, with the same header buttons a module has. The chat's width is now one of the docked columns.
 - Panes follow the call when it is popped out: chat and modules open in the popout window, docked or floating as they were, instead of floating over the main window.

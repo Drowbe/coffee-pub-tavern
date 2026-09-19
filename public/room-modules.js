@@ -52,6 +52,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   let z = 40;
   let order = 0;
   let unread = {}; // module id -> unread notifications, from brand.js
+  const nativeUnread = {}; // native pane id -> unread count (the chat's messages)
 
   const stageDoc = () => stage.ownerDocument;
   const stageWin = () => stageDoc().defaultView || window;
@@ -511,16 +512,28 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   // --- the toolbar button and its menu --------------------------------------
 
+  // The one place to show and hide panes: the chat first, then the room's modules.
   function update() {
-    if (toggle) toggle.hidden = available.length === 0;
-    const total = available.reduce((sum, m) => sum + (unread[m.id] || 0), 0);
+    const total = available.reduce((sum, m) => sum + (unread[m.id] || 0), 0)
+      + [...natives.keys()].reduce((sum, id) => sum + (panes.has(id) ? 0 : nativeUnread[id] || 0), 0);
     const badge = toggle?.querySelector('.badge');
     if (badge) {
       badge.hidden = total === 0;
       badge.textContent = total > 9 ? '9+' : String(total);
     }
+    toggle?.classList.toggle('on', panes.size > 0);
     if (!menu) return;
     menu.innerHTML = '';
+    for (const def of natives.values()) {
+      const b = menu.ownerDocument.createElement('button');
+      b.type = 'button';
+      b.className = 'modules-menu-item';
+      b.dataset.native = def.id;
+      b.classList.toggle('on', panes.has(def.id));
+      const n = nativeUnread[def.id] || 0;
+      b.innerHTML = `<i class="fa-solid fa-${escapeHtml(def.icon)} fa-fw" aria-hidden="true"></i><span>${escapeHtml(def.name)}</span>${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}`;
+      menu.appendChild(b);
+    }
     for (const m of available) {
       const b = menu.ownerDocument.createElement('button');
       b.type = 'button';
@@ -556,11 +569,37 @@ export function createRoomModules({ guestToken = null } = {}) {
     unread = event.detail || {};
     update();
   });
+  // The menu opens just above the button that opened it (or above More, when the button has
+  // been tucked away into that menu), kept inside the toolbar.
+  function positionMenu() {
+    const bar = menu.offsetParent;
+    if (!bar) return;
+    let anchor = toggle;
+    if (!anchor || anchor.getBoundingClientRect().width === 0) anchor = stage.querySelector('#floatbar-more') || toggle;
+    const a = anchor.getBoundingClientRect();
+    const p = bar.getBoundingClientRect();
+    const half = menu.offsetWidth / 2;
+    const center = Math.min(Math.max(a.left - p.left + a.width / 2, half + 8), Math.max(half + 8, p.width - half - 8));
+    menu.style.right = 'auto';
+    menu.style.transform = 'translateX(-50%)';
+    menu.style.left = `${center}px`;
+  }
+
   toggle?.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (menu) menu.hidden = !menu.hidden;
+    if (!menu) return;
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) positionMenu();
   });
   menu?.addEventListener('click', (event) => {
+    const native = event.target.closest('[data-native]');
+    if (native) {
+      const id = native.dataset.native;
+      if (panes.has(id)) closeNative(id);
+      else api_openNative(id);
+      menu.hidden = true;
+      return;
+    }
     const item = event.target.closest('[data-module]');
     if (!item) return;
     const m = available.find((x) => x.id === item.dataset.module);
@@ -587,8 +626,20 @@ export function createRoomModules({ guestToken = null } = {}) {
     update();
   }
 
+  const api_openNative = (id, mode) => {
+    const def = natives.get(id);
+    if (!def) return false;
+    if (panes.has(id)) return true;
+    const want = saved[id]?.mode === 'float' ? 'float' : 'dock';
+    return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
+  };
+
   return {
     refresh,
+    setNativeUnread(id, n) {
+      nativeUnread[id] = n;
+      update();
+    },
     closeAll: closeAllModules,
     stagePopped,
     layoutChanged: syncDock,
@@ -603,14 +654,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     registerNative(def) {
       def.order = 0; // the chat is the first column after the video
       natives.set(def.id, def);
+      update(); // the menu lists it
     },
-    openNative(id, mode) {
-      const def = natives.get(id);
-      if (!def) return false;
-      if (panes.has(id)) return true;
-      const want = saved[id]?.mode === 'float' ? 'float' : 'dock';
-      return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
-    },
+    openNative: api_openNative,
     closeNative,
     nativeOpen: (id) => panes.has(id),
     nativeMode: (id) => panes.get(id)?.mode || null,

@@ -1233,8 +1233,7 @@ function addEntry(entry, own = false) {
   $('messages').scrollTop = $('messages').scrollHeight;
   if (!roomModules.nativeOpen('chat') && !own) {
     unread += 1;
-    $('chat-badge').textContent = String(unread);
-    $('chat-badge').hidden = false;
+    roomModules.setNativeUnread('chat', unread);
   }
   if (entry.text && currentRoom && !currentRoom.ephemeral) {
     const history = loadChatHistory(currentRoom.id);
@@ -1394,11 +1393,10 @@ roomModules.registerNative({
   onWidth: (w) => { prefs.chatWidth = w; savePrefs(); },
   onChange: ({ open, mode }) => {
     $('stage').classList.toggle('chat-open', open && mode === 'dock'); // the narrow layout keys off this
-    $('chat-toggle').classList.toggle('on', open);
     applyLayout();
     if (open) {
       unread = 0;
-      $('chat-badge').hidden = true;
+      roomModules.setNativeUnread('chat', 0);
       $('chat-input').focus();
       $('messages').scrollTop = $('messages').scrollHeight;
     }
@@ -2186,7 +2184,6 @@ $('aside-cancel').addEventListener('click', cancelAsideSelection);
 $('aside-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) cancelAsideSelection(); });
 window.addEventListener('beforeunload', () => room.disconnect());
 
-$('chat-toggle').addEventListener('click', () => toggleChat());
 $('chat-close').addEventListener('click', () => toggleChat(false));
 $('chat-save').addEventListener('click', saveChat);
 $('chat-delete').addEventListener('click', () => { $('chat-delete-overlay').hidden = false; });
@@ -2195,7 +2192,7 @@ $('chat-delete-confirm').addEventListener('click', () => {
   chatLog.length = 0;
   $('messages').textContent = '';
   unread = 0;
-  $('chat-badge').hidden = true;
+  roomModules.setNativeUnread('chat', 0);
   if (currentRoom) localStorage.removeItem(chatHistoryKey(currentRoom.id));
   $('chat-delete-overlay').hidden = true;
 });
