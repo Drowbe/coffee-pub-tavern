@@ -11,6 +11,10 @@ The grid, the floating popout bar, the narrow-window switch and the header-heigh
 
 Built and only checked in a browser with the LiveKit connection unavailable, and never with two people: install, enable and disable a module; the Roles grid rows a module adds; the header nav item and the server page; the Modules button and panes in a real call (docked beside the video and chat, drag its edge, switch to floating and back, open in its own window, several open at once, the call itself popped out); per-room enablement from a room's page; the toast, unread counts and reminders reaching a second person; live changes appearing on a second browser; a guest seeing a room module. Also confirm in a real Chrome and Safari that a sandboxed module frame renders and the SDK connects (the built-in preview browser refused subresource loads from a sandboxed frame, so modules are inlined and the SDK is injected). Verify with two browsers on a real server.
 
+## Canvas: video as a pane
+
+Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions and the four stages are in plans/plan-canvas.md. Stage 1 first: video as a closable pane, a presence heartbeat, and the two new permissions. Verify each stage in a real call.
+
 ## Google Calendar sync
 
 Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
