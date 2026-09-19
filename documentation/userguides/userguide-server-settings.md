@@ -28,9 +28,13 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 ## Theme
 
 - **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Pick a
-  theme and **Apply**, or adjust the seven colors (background, card background, border, text, dim text,
-  accent and text on accent) and save them as a new theme. The preview shows the result live before
-  anything is saved. "Default" is how the app has always looked.
+  theme and **Apply**, or adjust the seven base colors (background, card background, border, text, dim
+  text, primary accent and text on accent) and save them as a new theme. Under **Header, buttons and
+  icons** you can also set the header background and text, the icon color and its hover, the Primary
+  accent hover, and the Secondary accent with its text and hover. Each of these is on **Auto** by
+  default, which keeps it derived from the base colors; untick Auto to choose the color yourself. The
+  preview, including a sample header, shows the result live before anything is saved. "Default" is how
+  the app has always looked.
 - **Default Images.** The Participant pictures a member shows once neither they nor the room they are
   in has set one; the last fallback before the box goes transparent.
 - **Guest images.** The Participant pictures every guest shows, since a guest has no account of their

@@ -231,6 +231,10 @@ const DEFAULT_SETTINGS = {
 // Shipped pre-made (see seedBuiltinThemes() below), fixed ids so seeding is
 // idempotent -- colors read straight off each real site's own computed
 // styles (button/link accent, body text, page background), not eyeballed.
+// Colors a theme may set beyond the seven base ones. null means "Auto": the
+// stylesheet derives it from the base colors (style.css :root), so a theme
+// that never touches one keeps following its accent, background and so on.
+const THEME_OPTIONAL = ['headerBg', 'headerText', 'icon', 'iconHover', 'primaryHover', 'secondary', 'secondaryText', 'secondaryHover'];
 const BUILTIN_THEMES = [
   { id: 'staying-blonde', name: 'Staying Blonde', bg: '#ffffff', bgCard: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
   { id: 'willhavebeen', name: 'willhavebeen', bg: '#ffffff', bgCard: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
@@ -643,7 +647,8 @@ class Store {
     const accent = cleanColor(t?.accent);
     const onAccent = cleanColor(t?.onAccent);
     if (!bg || !bgCard || !border || !text || !textDim || !accent || !onAccent) return null;
-    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgCard, border, text, textDim, accent, onAccent };
+    const optional = Object.fromEntries(THEME_OPTIONAL.map((key) => [key, cleanColor(t?.[key]) || null]));
+    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgCard, border, text, textDim, accent, onAccent, ...optional };
   }
 
   get themes() {
@@ -669,6 +674,10 @@ class Store {
       if (patch[key] === undefined) continue;
       const c = cleanColor(patch[key]);
       if (c) theme[key] = c;
+    }
+    for (const key of THEME_OPTIONAL) {
+      if (patch[key] === undefined) continue;
+      theme[key] = cleanColor(patch[key]) || null; // null puts it back on Auto
     }
     this.save();
     return theme;

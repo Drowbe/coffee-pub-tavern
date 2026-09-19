@@ -533,7 +533,16 @@ app.get('/theme.css', (_req, res) => {
     ['--text-dim', theme.textDim],
     ['--accent', theme.accent],
     ['--on-accent', theme.onAccent],
-  ];
+    // Optional ones: only when the theme sets them; otherwise style.css derives them.
+    ['--header-bg', theme.headerBg],
+    ['--header-text', theme.headerText],
+    ['--icon', theme.icon],
+    ['--icon-hover', theme.iconHover],
+    ['--primary-hover', theme.primaryHover],
+    ['--secondary', theme.secondary],
+    ['--secondary-text', theme.secondaryText],
+    ['--secondary-hover', theme.secondaryHover],
+  ].filter(([, value]) => value);
   res.send(`:root {\n${vars.map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`);
 });
 

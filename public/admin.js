@@ -335,6 +335,44 @@ const THEME_FIELDS = [
   ['theme-accent', '--accent', 'accent'],
   ['theme-on-accent', '--on-accent', 'onAccent'],
 ];
+// Colors a theme may leave on Auto (the stylesheet derives them). For an Auto
+// field the preview sets the same formula style.css uses, so what you see is
+// right whichever theme happens to be live.
+const THEME_OPTIONAL_FIELDS = [
+  ['theme-header-bg', '--header-bg', 'headerBg', 'var(--bg)'],
+  ['theme-header-text', '--header-text', 'headerText', 'var(--text)'],
+  ['theme-icon', '--icon', 'icon', 'initial'], // initial: unset, so the fallbacks in style.css apply
+  ['theme-icon-hover', '--icon-hover', 'iconHover', 'var(--accent)'],
+  ['theme-primary-hover', '--primary-hover', 'primaryHover', 'var(--accent-hover)'],
+  ['theme-secondary', '--secondary', 'secondary', 'var(--surface)'],
+  ['theme-secondary-text', '--secondary-text', 'secondaryText', 'var(--text)'],
+  ['theme-secondary-hover', '--secondary-hover', 'secondaryHover', 'var(--surface-hover)'],
+];
+const autoBox = (id) => document.querySelector(`[data-auto-for="${id}"]`);
+const isAuto = (id) => autoBox(id).checked;
+let colorProbeCtx = null;
+// Any CSS color (including color-mix results) as #rrggbb for a color input.
+function toHex(cssColor) {
+  const hex2 = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+  // color-mix() results serialize as color(srgb r g b) with 0-1 channels.
+  const srgb = String(cssColor).match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+  if (srgb) return '#' + srgb.slice(1, 4).map((n) => hex2(Number(n) * 255)).join('');
+  colorProbeCtx ||= document.createElement('canvas').getContext('2d');
+  colorProbeCtx.fillStyle = '#000000';
+  colorProbeCtx.fillStyle = cssColor;
+  const v = colorProbeCtx.fillStyle;
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  const m = v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  return m ? '#' + [m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, '0')).join('') : '#000000';
+}
+function resolvedVar(cssVar) {
+  const probe = document.createElement('span');
+  probe.style.color = `var(${cssVar})`;
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return toHex(color);
+}
 let themes = [];
 let activeThemeId = null; // what's actually live right now (persisted)
 let selectedThemeId = null; // whatever the dropdown/editor is showing -- may not be applied yet
@@ -344,6 +382,12 @@ function currentThemeColor(cssVar) {
 }
 function loadThemeInputsFrom(theme) {
   for (const [id, cssVar, key] of THEME_FIELDS) $(id).value = theme ? theme[key] : currentThemeColor(cssVar);
+  for (const [id, , key] of THEME_OPTIONAL_FIELDS) {
+    const auto = !theme || !theme[key];
+    autoBox(id).checked = auto;
+    $(id).disabled = auto;
+    if (!auto) $(id).value = theme[key];
+  }
 }
 // Sets these straight on :root (not just a scoped preview box) -- several
 // other rules (button surfaces, hover shades) are themselves computed FROM
@@ -355,12 +399,38 @@ function loadThemeInputsFrom(theme) {
 function updateThemePreview() {
   const root = document.documentElement;
   for (const [id, cssVar] of THEME_FIELDS) root.style.setProperty(cssVar, $(id).value);
+  for (const [id, cssVar, , formula] of THEME_OPTIONAL_FIELDS) {
+    root.style.setProperty(cssVar, isAuto(id) ? formula : $(id).value);
+  }
+  // An Auto field shows what it currently works out to.
+  for (const [id, cssVar] of THEME_OPTIONAL_FIELDS) {
+    if (!isAuto(id)) continue;
+    // --icon has no value when Auto; show what an icon in the sample header actually draws.
+    $(id).value = cssVar === '--icon'
+      ? toHex(getComputedStyle(document.querySelector('.theme-preview-header .icon-link')).color)
+      : resolvedVar(cssVar);
+  }
 }
 function clearThemePreview() {
   const root = document.documentElement;
   for (const [, cssVar] of THEME_FIELDS) root.style.removeProperty(cssVar);
+  for (const [, cssVar] of THEME_OPTIONAL_FIELDS) root.style.removeProperty(cssVar);
 }
 for (const [id] of THEME_FIELDS) $(id).addEventListener('input', updateThemePreview);
+for (const [id] of THEME_OPTIONAL_FIELDS) {
+  $(id).addEventListener('input', updateThemePreview);
+  autoBox(id).addEventListener('change', () => {
+    $(id).disabled = autoBox(id).checked;
+    updateThemePreview();
+  });
+}
+// The colors to save: the seven, and each optional one or null when on Auto.
+function themeColors() {
+  const colors = {};
+  for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
+  for (const [id, , key] of THEME_OPTIONAL_FIELDS) colors[key] = isAuto(id) ? null : $(id).value;
+  return colors;
+}
 // /theme.css only changes what the *server* sends on the *next* request --
 // this page's own <link> already fetched the old one. Re-pointing it at a
 // cache-busted URL and waiting for it to load is what makes actually
@@ -393,6 +463,7 @@ async function loadThemes() {
   selectedThemeId = activeThemeId;
   renderThemeChooser();
   loadThemeInputsFrom(themes.find((t) => t.id === activeThemeId) || null);
+  updateThemePreview();
 }
 // Browsing the dropdown only previews -- it takes an explicit Apply to
 // actually persist and go live, rather than every click through the list
@@ -413,8 +484,7 @@ $('theme-apply').addEventListener('click', async () => {
 $('theme-save-new').addEventListener('click', async () => {
   const name = window.prompt('Name this theme:');
   if (!name) return;
-  const colors = {};
-  for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
+  const colors = themeColors();
   try {
     const { theme } = await api('POST', '/api/themes', { name, ...colors });
     themes.push(theme);
@@ -427,8 +497,7 @@ $('theme-save-new').addEventListener('click', async () => {
 });
 $('theme-update').addEventListener('click', async () => {
   if (!selectedThemeId) return;
-  const colors = {};
-  for (const [id, , key] of THEME_FIELDS) colors[key] = $(id).value;
+  const colors = themeColors();
   try {
     const { theme } = await api('PATCH', `/api/themes/${selectedThemeId}`, colors);
     themes = themes.map((t) => (t.id === theme.id ? theme : t));

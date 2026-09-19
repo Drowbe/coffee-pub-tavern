@@ -4,6 +4,18 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Themes can now set the header background and text, icon color and hover, Primary accent hover, and the
+  Secondary accent with its text and hover, each on Auto (derived) until set. Buttons gain a stronger
+  hover with a border and glow, and a press effect.
+
+### Fixed
+- The logo in the header filled 40px in a 43px bar, leaving a gap above and below; it now fills it.
+
+Verified in a browser on the Theme tab: Auto values resolve to the right colors, setting them applies
+live to the header and buttons, a saved theme's `/theme.css` carries only the values it sets, and the
+logo is 43px in a 44px bar. Not checked on the room page or in a call.
+
 ### Changed
 - Documentation moved into `documentation/` following the Coffee Pub documentation standard:
   `README.md` is now the product page, the guides are in `userguides/`, the OBS link contract is in
