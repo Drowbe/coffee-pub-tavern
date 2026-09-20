@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- Quick add did not understand "noon" or "midnight": "lunch fri at noon" kept "at noon" in the title and the default time. Both are times now.
+
 ### Added
 - The drop menu remembers the last choice: `tavern.actions.pick(items, point, { remember })` keeps it per browser and module and lists it first, marked "last used". The Calendar keys it by the kind of item and whether it landed on a day or an event (Calendar 1.11.1). Verified in a browser: after choosing "Set this task's due date", the next drop listed it first with "last used", and it set the task's due date.
 
