@@ -729,7 +729,7 @@ input[type="range"] {
   box-sizing: border-box;
   width: calc(100% + 32px); /* full bleed: cancels .topbar's side padding */
   margin: 0 -16px;
-  padding: 4px 16px;
+  padding: 2px 16px;
   border-top: 1px solid var(--border);
 }
 
@@ -744,6 +744,12 @@ body.at-table .subnav {
   margin-left: auto;
 }
 
+.subnav .icon-link {
+  height: 20px;
+  padding: 0 6px;
+  line-height: 1;
+}
+
 .subnav-panes {
   display: flex;
   align-items: center;
@@ -752,14 +758,49 @@ body.at-table .subnav {
   overflow-x: auto;
 }
 
+/* A pane toggle, not a button: a small switch, on when the pane is open, then its icon and name. */
 .subnav-panes .modules-menu-item {
   width: auto;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 2px 8px 2px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: color-mix(in srgb, var(--header-text) 65%, transparent);
+  font-size: 13px;
   white-space: nowrap;
 }
 
+.subnav-panes .modules-menu-item::before {
+  content: "";
+  flex: none;
+  width: 22px;
+  height: 12px;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 6px 50%, color-mix(in srgb, var(--header-text) 70%, transparent) 4px, transparent 4.5px),
+    color-mix(in srgb, var(--header-text) 22%, transparent);
+}
+
+.subnav-panes .modules-menu-item:hover {
+  background: color-mix(in srgb, var(--header-text) 8%, transparent);
+  color: var(--header-text);
+}
+
+.subnav-panes .modules-menu-item.on {
+  color: var(--header-text);
+}
+
+.subnav-panes .modules-menu-item.on::before {
+  background:
+    radial-gradient(circle at 16px 50%, var(--on-accent) 4px, transparent 4.5px),
+    var(--accent);
+}
+
+/* The bar is a second row of the header; the gap between rows would add height to the first. */
 body.at-table .topbar {
   flex-wrap: wrap;
+  row-gap: 0;
 }
 
 .icon-link {
