@@ -4044,26 +4044,19 @@ body.at-table .module-nav {
     display: none;
   }
 
-  body.at-table #stage {
-    padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
-    box-sizing: border-box;
-  }
-
   /* The tab bar sits under the toolbar, so the toolbar has no home indicator to clear. */
   body.at-table .floatbar,
   body.at-table .stage.compact .floatbar {
     padding-bottom: 6px;
   }
 
+  /* room.js moves the bar out of the header, after the stage, so it is the last thing in the
+     page's column: the toolbar sits right above it with no padding to calculate. */
   body.at-table .subnav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 25;
+    flex: none;
     width: auto;
     margin: 0;
-    height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    min-height: var(--tabbar-h);
     box-sizing: border-box;
     padding: 0 4px env(safe-area-inset-bottom);
     align-items: stretch;

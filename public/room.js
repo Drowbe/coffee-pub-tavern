@@ -32,6 +32,17 @@ subnav.innerHTML = `
   <button class="icon-link" id="leave-room" type="button" title="Leave room" aria-label="Leave room"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
   </span>`;
 topbarEl.appendChild(subnav);
+// On a phone the room bar is a tab bar at the bottom of the page, in the flow after the stage, so
+// the call toolbar sits directly above it whatever the browser does with its own bottom bar. Wider,
+// it is the header's second row.
+const phoneWidth = window.matchMedia('(max-width: 640px)');
+const placeSubnav = () => {
+  if (subnav.ownerDocument !== document) return; // popped out with the header
+  if (phoneWidth.matches) document.body.appendChild(subnav);
+  else topbarEl.appendChild(subnav);
+};
+phoneWidth.addEventListener('change', placeSubnav);
+placeSubnav();
 // Only this page loads your profile/Manage as an overlay over a running
 // call instead of a real navigation (see openOverlay() below) -- the
 // shared header doesn't know that, so it's marked here instead.

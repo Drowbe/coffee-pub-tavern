@@ -65,7 +65,7 @@ The header at the top of the page has two rows. The first is the shared header (
 
 ## Phones
 
-Below 640px (the width `applyLayout()` calls `narrow`) the table is a phone layout, in one `@media (max-width: 640px)` block at the end of `public/style.css`: a slim header, then the stage, then the room bar as a tab bar fixed to the bottom (icon over name, the accent color for an open pane; Full screen and Pop out are hidden, Leave stays). The call toolbar sits directly above it, and `--tabbar-h` and the safe-area inset are the space `#stage` leaves for it. `body.at-table` is `position: fixed; inset: 0` rather than a measured height, so a browser's own bottom bar can never cover the toolbar; the old `--app-vh` is not needed for the height. One pane is open at a time besides the conference (see the narrow rules above).
+Below 640px (the width `applyLayout()` calls `narrow`) the table is a phone layout, in one `@media (max-width: 640px)` block at the end of `public/style.css`: a slim header, then the stage, then the room bar as a tab bar (icon over name, the accent color for an open pane; Full screen and Pop out are hidden, Leave stays). `public/room.js` moves `#subnav` out of the header and after the stage on a phone (and back when the window widens), so the bar is the last thing in the page's column and the call toolbar sits directly above it; nothing measures or pads for it. Its own bottom padding is the safe-area inset, which keeps the icons clear of a browser's bottom bar. `body.at-table` is `position: fixed; inset: 0` rather than a measured height, so the page is the visible screen. One pane is open at a time besides the conference (see the narrow rules above).
 
 ## Remembered layouts
 
