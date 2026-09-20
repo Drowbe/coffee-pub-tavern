@@ -89,6 +89,6 @@ Being in the room and being in the conference are separate. The page stays conne
 
 An installed module can dock as a column after the chat. `public/room-modules.js` adds a `.module.module-docked` element to the stage holding a `.dock-resize` handle and a `.mod-content` with a host-drawn `.mod-header` (at `--module-header-h`) and the module's frame. If the module has set an action bar (`tavern.bar.set`), the section also holds a `.dock-bar` in the bottom row of its column, so its buttons line up with the video toolbar and the chat box, and the content sits above it; with no bar the content spans both rows. The stage sets `--stage-cols` and places each column, so the template is one column per docked pane, with the conference or the first pane flexible. Dragging a column's left edge changes only that column's width.
 
-On a narrow window docked modules are hidden and a module opens floating instead.
+On a narrow window one pane is open at a time: opening the chat or a module closes any other pane except the conference (`closeOthers` in `public/room-modules.js`). A module opens docked, laid out as the chat is (the stage gets `module-open`, set by `syncDock`, beside `chat-open` and `conference-open`): it fills the area under the conference strip, its action bar below it, the video toolbar last. A module that cannot dock still floats. Its titlebar buttons are 44px wide for touch, at the shared header height.
 
 The next docked module needs nothing here: it is the same element with the next column number.

@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- On a phone (a stage under 640px wide) one pane is open at a time, and a module opens docked, filling the area under the conference strip like the chat does, instead of floating. Opening the chat or a module closes any other pane except the conference; a module that cannot dock still floats; its titlebar buttons are wider for touch. Verified in a browser at 375px wide: opening the chat, then the Calendar, then the To-do left one pane at a time, each filling the screen with its quick-add bar at the bottom. Not verified: with the conference joined (the strip above the pane), which needs a real call.
+
 ### Added
 - An update indicator on the settings gear in the header: a small count badge (and a tooltip, "Manage: 1 module update available") when a module that ships with this Tavern has a newer version than the one installed. Admins only; it clears when the update is applied on the Modules tab. Verified in a browser with a newer bundled version: the badge showed on the gear, and disappeared after the update was installed.
 

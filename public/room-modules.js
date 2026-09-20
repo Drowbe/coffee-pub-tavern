@@ -207,6 +207,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   // their widths. On a narrow stage CSS takes over (see architecture-room-layout).
   function syncDock() {
     const docked = dockedPanes();
+    // The narrow layout keys off this, as it does off chat-open.
+    stage.classList.toggle('module-open', docked.some((p) => p.kind === 'module'));
     for (const p of panes.values()) p.el.classList?.remove('is-flex');
     for (const p of docked) for (const el of p.parts()) el.style.gridColumn = '';
     if (stageEmpty) stageEmpty.hidden = panes.size > 0;
@@ -500,9 +502,16 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   function preferredMode(p) {
     const want = saved[p.id]?.mode;
-    if (isNarrow()) return 'float';
+    // A phone shows one pane at a time, docked below the conference strip like the chat; a module that cannot dock floats.
+    if (isNarrow()) return supports(p, 'dock') ? 'dock' : 'float';
     if (want && supports(p, want)) return want;
     return supports(p, 'dock') ? 'dock' : 'float';
+  }
+
+  // On a narrow stage (a phone) only one pane is open at a time: opening one closes the others, except the
+  // conference, which stays while you are in the call.
+  function closeOthers(keepId) {
+    for (const other of [...panes.values()]) if (other.id !== keepId && other.id !== 'conference') closePane(other.id);
   }
 
   function openModule(m, mode) {
@@ -512,6 +521,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       if (pane.mode === 'float') front(pane.el);
       return;
     }
+    if (isNarrow()) closeOthers(m.id);
     mode ||= preferredMode(p);
     if (mode === 'dock' && !supports(p, 'dock')) mode = 'float';
     if (mode === 'dock') openModuleDocked(m); else openModuleFloating(m);
@@ -607,7 +617,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       }
     }
     bindDoc(doc);
-    for (const { m, mode } of again) openModule(m, isNarrow() ? 'float' : mode);
+    for (const { m, mode } of again) openModule(m, isNarrow() ? undefined : mode);
     suspended = false;
     syncDock();
     snapshot();
@@ -768,6 +778,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const def = natives.get(id);
     if (!def) return false;
     if (panes.has(id)) return true;
+    if (isNarrow() && id !== 'conference') closeOthers(id);
     const want = saved[id]?.mode === 'float' && (!def.modes || def.modes.includes('float')) ? 'float' : 'dock';
     return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
   };

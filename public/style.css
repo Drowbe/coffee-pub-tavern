@@ -3332,10 +3332,6 @@ input[type="color"] {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.stage.narrow .module-docked > * {
-  display: none; /* a docked module needs room; on a narrow window it can float instead */
-}
-
 .stage.narrow.chat-open {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
@@ -3364,6 +3360,51 @@ input[type="color"] {
 
 .stage.narrow.chat-open .chat-resize {
   display: none;
+}
+
+/* A docked module on a narrow window is laid out exactly as the chat is: it fills the area below the
+   conference strip (or the whole stage when the call is not joined), its action bar under it, the video
+   toolbar last. Only one pane is open at a time on a narrow window, so this never meets chat-open. */
+.stage.narrow.module-open {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.stage.narrow.module-open.conference-open {
+  grid-template-rows: minmax(96px, 0.45fr) minmax(0, 1fr) auto auto;
+}
+
+.stage.narrow.module-open .module-docked > * {
+  grid-column: 1;
+}
+
+.stage.narrow.module-open .module-docked .mod-content {
+  grid-row: 1;
+}
+
+.stage.narrow.module-open .module-docked .dock-bar {
+  grid-row: 2;
+}
+
+.stage.narrow.module-open.conference-open .module-docked .mod-content {
+  grid-row: 2;
+}
+
+.stage.narrow.module-open.conference-open .module-docked .dock-bar {
+  grid-row: 3;
+}
+
+.stage.narrow.module-open.conference-open .module-video .video-bar {
+  grid-row: 4;
+}
+
+.stage.narrow.module-open .dock-resize {
+  display: none;
+}
+
+/* A comfortable touch width for a module's titlebar buttons, the close button above all; the height is the shared header's. */
+.stage.narrow .module-docked .mod-header .msg-btn {
+  min-width: 44px;
+  align-self: stretch; /* as tall as the shared header, which sets the touch height */
 }
 
 /* Something dragged over the chat, to send as a picture */
