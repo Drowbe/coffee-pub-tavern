@@ -5,6 +5,10 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Fixed
+- A floating conference could not be resized: its toolbar reached the panel's corner and covered the drag handle.
+- A pane in a window of its own could only dock again; its titlebar now offers both dock and float.
+- A module opened in a window of its own had no titlebar. It now has one, with close and, while the room page that opened it is still open, buttons to bring it back as a docked column or a floating panel (the choice is remembered).
+- The header's module links are icons only, the same size as the other header icons; the name is the tooltip.
 - Popping the conference out with its titlebar button opened an empty window and left the call: the window's "closed" handler ran when its blank starting page navigated, closing the pane at once. The handler is now registered once the window has loaded. The chat's own window had the same fault.
 
 ### Changed

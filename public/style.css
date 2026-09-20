@@ -3300,10 +3300,13 @@ input[type="color"] {
 }
 
 .module-nav-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border-radius: 6px;
   color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
   font-weight: 500;
@@ -3315,10 +3318,9 @@ input[type="color"] {
   text-decoration: none;
 }
 
-@media (max-width: 600px) {
-  .module-nav-label {
-    display: none;
-  }
+/* Module links in the header are icons, the same size as the others. */
+.module-nav-label {
+  display: none;
 }
 
 /* A module's own page: the frame fills everything under the header. */
@@ -3506,6 +3508,7 @@ body.conference-window {
 
 .module-panel-grip {
   position: absolute;
+  z-index: 8; /* above the conference's toolbar, which reaches the panel's corner */
   right: 0;
   bottom: 0;
   width: 16px;
@@ -3646,7 +3649,11 @@ body.conference-window {
 }
 
 
-/* A module popped out into its own window: just the module, no header. */
+/* A module popped out into its own window: just the module under its own titlebar. */
+body.module-popout .module-titlebar {
+  position: relative;
+}
+
 body.module-popout .topbar {
   display: none;
 }
@@ -3734,4 +3741,14 @@ body.chat-window {
 .chat-window-grid .module-chat .mod-content,
 .chat-window-grid .chat-bar {
   border-left: 0;
+}
+
+.module-nav-link i {
+  font-size: 16px;
+}
+
+.module-nav-link .nav-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
 }

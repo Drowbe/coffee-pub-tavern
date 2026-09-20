@@ -60,6 +60,7 @@ async function start() {
     return;
   }
   document.title = `${document.title.split(' - ')[0]} - ${mod.name}`;
+  if (popout) wireTitlebar(mod);
   if (!popout) setTopbarLocation(crumbLink(mod.icon, mod.name, location.pathname));
   if (!guestToken) markModuleRead(mod.id);
   const frame = $('module-frame');
@@ -74,9 +75,35 @@ async function start() {
     entry,
     onTitle: (title) => {
       document.title = `${title || mod.name}`;
+      if (popout) $('module-titlebar-title').textContent = title || mod.name;
       if (!popout) setTopbarLocation(crumbLink(mod.icon, title || mod.name, location.pathname));
     },
   });
+}
+
+// The window's own titlebar: close, and (while the room page that opened it is still there) the
+// way back into the room as a docked column or a floating panel.
+function wireTitlebar(mod) {
+  $('module-titlebar').hidden = false;
+  $('module-titlebar-icon').className = `fa-solid fa-${mod.icon} fa-fw`;
+  $('module-titlebar-title').textContent = mod.name;
+  $('module-close').addEventListener('click', () => window.close());
+  let host = null;
+  try {
+    host = window.opener && !window.opener.closed ? window.opener.tavernModules : null;
+  } catch {
+    host = null;
+  }
+  if (!host) return;
+  const back = (mode) => {
+    host.open(mod.id, mode);
+    window.close();
+  };
+  for (const mode of ['dock', 'float']) {
+    const button = $(`module-back-${mode}`);
+    button.hidden = !host.supportsMode(mod.id, mode);
+    button.addEventListener('click', () => back(mode));
+  }
 }
 
 // Whatever goes wrong, say so on the page instead of leaving it blank.

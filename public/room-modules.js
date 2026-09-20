@@ -35,7 +35,7 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 // The buttons at the end of every pane's header: switch between docked and
 // floating, open in a window, close.
 const toolsHtml = ({ mode, canDock, canFloat, closable = true }) => `
-  ${mode === 'dock' && canFloat ? '<button class="msg-btn" data-mode="float" type="button" title="Float over the call" aria-label="Float over the call"><i class="fa-regular fa-window-restore fa-fw" aria-hidden="true"></i></button>' : ''}
+  ${mode !== 'float' && canFloat ? '<button class="msg-btn" data-mode="float" type="button" title="Float over the call" aria-label="Float over the call"><i class="fa-regular fa-window-restore fa-fw" aria-hidden="true"></i></button>' : ''}
   ${mode !== 'dock' && canDock ? '<button class="msg-btn" data-mode="dock" type="button" title="Dock beside the video" aria-label="Dock beside the video"><i class="fa-solid fa-table-columns fa-fw" aria-hidden="true"></i></button>' : ''}
   ${mode !== 'window' ? '<button class="msg-btn" data-popout type="button" title="Open in its own window" aria-label="Open in its own window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>' : ''}
   ${closable ? '<button class="msg-btn" data-close type="button" title="Close" aria-label="Close"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>' : ''}`;
@@ -698,7 +698,18 @@ export function createRoomModules({ guestToken = null } = {}) {
     layoutChanged: syncDock,
     updateMenu: update,
     toggleMenu,
-    open: (id, mode) => { const m = available.find((x) => x.id === id); if (m) openModule(m, mode); },
+    // `mode` (a module's own window asking to come back as a column or a panel) is remembered.
+    open: (id, mode) => {
+      const m = available.find((x) => x.id === id);
+      if (!m) return;
+      if (mode) remember(id, { mode });
+      openModule(m, mode);
+    },
+    // Whether the module supports a mode (the window's titlebar offers only what works).
+    supportsMode: (id, mode) => {
+      const m = available.find((x) => x.id === id);
+      return Boolean(m) && supports({ modes: m.panel.mode }, mode);
+    },
     close: closePane,
     isOpen: (id) => panes.has(id),
     modeOf: (id) => panes.get(id)?.mode || null,

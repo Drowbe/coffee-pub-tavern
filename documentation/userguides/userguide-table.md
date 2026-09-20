@@ -117,5 +117,7 @@ out, the header, the conference's titlebar and the toolbar all slide away when t
 back on any movement, leaving only the tiles. A header link (your profile, the rooms, a module's page)
 brings the app back to the page first.
 
+A pane in a window of its own can come back as a docked column or a floating panel, from the buttons on its titlebar. That includes a module: its window has a titlebar with the same buttons, which work while the room page that opened it is still open.
+
 The conference can also go alone into a window of its own with the button on its titlebar, leaving the
 chat and the modules on the page. Closing that window leaves the call.
