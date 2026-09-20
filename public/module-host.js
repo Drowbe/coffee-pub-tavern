@@ -420,7 +420,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
             go.title = item.label || 'Add';
             go.disabled = item.disabled;
             const plus = document.createElement('i');
-            plus.className = 'fa-solid fa-plus fa-fw';
+            plus.className = 'fa-solid fa-circle-plus fa-fw';
             plus.setAttribute('aria-hidden', 'true');
             go.appendChild(plus);
             form.append(field, go);

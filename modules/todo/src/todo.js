@@ -258,8 +258,8 @@
   // Open / Done / All are icons in the titlebar when the host has one (a pane, or a module's own
   // window); on the server page there is none, and the buttons stay in the page.
   const FILTERS = [
-    { id: 'open', icon: 'circle', regular: true, title: 'Open' },
-    { id: 'done', icon: 'circle-check', title: 'Done' },
+    { id: 'open', icon: 'square', regular: true, title: 'Open' },
+    { id: 'done', icon: 'square-check', regular: true, title: 'Done' },
     { id: 'all', icon: 'list', title: 'All' },
   ];
   let headerSig = '';

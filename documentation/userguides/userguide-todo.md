@@ -24,7 +24,7 @@ The field at the bottom of the To-do with a **+** button opens the task form fil
 
 ## Open, Done and All
 
-In a room, three icons in the To-do's titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the empty circle for the tasks still open (its tooltip says how many), the ticked circle for done tasks, and the list icon for all of them. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.
+In a room, three icons in the To-do's titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the empty square for the tasks still open (its tooltip says how many), the ticked square for done tasks, and the list icon for all of them. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.
 
 ## Link a task to an event or a poll
 

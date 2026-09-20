@@ -285,7 +285,7 @@
   // Open / Closed / All are icons in the titlebar when the host has one (a pane, or a module's own
   // window); on the server page there is none, and the buttons stay in the page.
   const FILTERS = [
-    { id: 'open', icon: 'circle', regular: true, title: 'Open' },
+    { id: 'open', icon: 'lock-open', title: 'Open' },
     { id: 'closed', icon: 'lock', title: 'Closed' },
     { id: 'all', icon: 'list', title: 'All' },
   ];

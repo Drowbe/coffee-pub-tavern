@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Icons: the To-do titlebar uses an empty square for open and a ticked square for done; Polls uses an open padlock for open and a closed padlock for closed; the quick-add button is a plus in a circle. To-do 1.9.1, Polls 1.9.1.
+
 ### Fixed
 - Quick add did not understand "noon" or "midnight": "lunch fri at noon" kept "at noon" in the title and the default time. Both are times now.
 
