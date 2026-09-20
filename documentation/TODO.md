@@ -20,7 +20,6 @@ Make the conference a pane like chat and the modules, so a person can join with 
 Collected, none started:
 
 - A module for Foundry that carries communication and commands between Tavern and Foundry.
-- A to-do or task module.
 - An LLM module.
 - A module for WhatsApp or SMS hooks.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.

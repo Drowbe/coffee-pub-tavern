@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To-do</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app" class="app" hidden>
+  <header class="bar">
+    <div class="nav">
+      <h2 id="title">To-do</h2>
+      <span class="hint" id="count"></span>
+    </div>
+    <div class="nav">
+      <div class="seg" id="filter" role="group" aria-label="Show">
+        <button class="btn" data-show="open" type="button">Open</button>
+        <button class="btn" data-show="done" type="button">Done</button>
+        <button class="btn" data-show="all" type="button">All</button>
+      </div>
+      <button class="btn btn-primary" id="add" type="button" hidden>Add task</button>
+    </div>
+  </header>
+  <form id="quick-form" class="quick" hidden>
+    <input id="quick" type="text" maxlength="200" placeholder="Add a task and press Enter" aria-label="New task">
+  </form>
+  <div id="rooms" class="rooms" hidden></div>
+  <p class="error" id="note" hidden></p>
+  <main id="body" class="body"></main>
+
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3 id="editor-title">New task</h3>
+      <label>Task<input id="f-title" type="text" maxlength="200" required></label>
+      <label>Notes<textarea id="f-notes" rows="3" maxlength="1000"></textarea></label>
+      <div class="row">
+        <label>Due<input id="f-due" type="date"></label>
+        <label class="check" id="f-remind-wrap"><input id="f-remind" type="checkbox"> Remind people at 9:00 that day</label>
+      </div>
+      <label class="check"><input id="f-done" type="checkbox"> Done</label>
+      <p class="hint" id="f-by"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="row buttons">
+        <button class="btn btn-primary" type="button" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Cancel</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

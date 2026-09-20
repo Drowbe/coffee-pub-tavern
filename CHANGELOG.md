@@ -5,6 +5,11 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- A To-do module (1.0.0): a shared task list for the server and for each room, as a header page and a room pane (docked, floating or in a window). Tasks have notes, a due date (overdue in red) and an optional reminder at 9:00 that day; there is a quick-add box, Open / Done / All views, and on the server page the lists of your rooms shown read-only under their room's icon, with chips to show or hide each. It asks for two permissions (see, and add and change) and the schedule and notify hooks. Build it with `node tools/build-module.mjs modules/todo`.
+
+Verified in a browser against a sandbox server: the server page with a room's list under its icon, quick add, the editor and Save, ticking a task done, and read-only room tasks. Not verified: the room pane in a call, a reminder actually firing, two people, and a guest.
+
+### Added
 - Calendar 1.3.0: the server calendar shows, read-only, the events of every room you belong to (with the Calendar on for it), each marked with its room's icon, and a row of room chips to show or hide a room. It replaces 1.2.0 (upload the new zip on Manage > Modules; it asks for no new permissions).
 - Modules: a server page can read across the viewer's rooms. `storage.list(prefix, { scope: 'rooms' })` returns items with a `roomId`, `tavern.rooms()` lists those rooms with their icons as inline SVG, and the module's live `change` events cover them. Only rooms the viewer is a member of, with the module on and readable by their role (an admin's access to every room does not count).
 

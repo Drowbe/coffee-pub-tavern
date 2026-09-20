@@ -1,0 +1,19 @@
+{
+  "id": "todo",
+  "name": "To-do",
+  "version": "1.0.0",
+  "icon": "list-check",
+  "description": "A shared to-do list for the whole server and for each room, with due dates and reminders.",
+  "author": "Coffee Pub",
+  "scope": ["server", "room"],
+  "surfaces": {
+    "page": { "entry": "page.html" },
+    "panel": { "entry": "panel.html", "width": 380, "height": 540, "mode": ["dock", "float"] }
+  },
+  "permissions": [
+    { "key": "view", "label": "See the to-do list", "default": { "user": true, "guest": true, "moderator": true } },
+    { "key": "edit", "label": "Add, change and tick off tasks", "default": { "user": true, "guest": false, "moderator": true } }
+  ],
+  "access": { "read": "view", "write": "edit" },
+  "hooks": { "schedule": true, "notify": true }
+}

@@ -1,0 +1,27 @@
+# To-do
+
+**Audience:** a player or game master using the To-do module on a Coffee Pub Tavern server, and an admin setting it up.
+
+The To-do module keeps a shared task list. There is one for the whole server and one for each room. A task can have notes, a due date and a reminder. Install and enable it first; see [Modules](userguide-modules.md).
+
+## Set it up (admin)
+
+1. Upload `modules/dist/todo-1.0.0.zip` on the Modules tab and choose **Approve and enable**. It asks to add two permissions to the Roles tab and to run reminders.
+2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
+3. On the Roles tab, under **Module: To-do**, choose who can **See the to-do list** and who can **Add, change and tick off tasks**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
+
+## The server list
+
+Choose **To-do** in the header. Type a task in the box at the top and press Enter to add it, or choose **Add task** to add notes and a due date as well.
+
+- Tick the box to mark a task done. **Open**, **Done** and **All** choose what the list shows. Open tasks are ordered by due date, with undated ones after, and done tasks are listed newest first.
+- Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
+- Under the toolbar the server list also shows, read-only, the lists of every room you belong to that has To-do on. Each is headed by its room's icon and name, and a row of your rooms shows or hides each one. To tick off or change a room's task, open that room's list.
+
+## In a room
+
+In a call, choose the Modules button in the header and then **To-do**. It opens as a column beside the conference and the chat, as a floating panel, or in a window of its own, from the buttons on its titlebar. It shows that room's list; the server list is on the server page.
+
+## Reminders
+
+Set **Remind people at 9:00 that day** on a task with a due date to send a notification at 9:00 on that day. Everyone in that room (or everyone on the server, for a server task) who is allowed to see the list gets a toast, and a number on the To-do item and the Modules button until they open it. Ticking a task done, changing its date or deleting it cancels the reminder. A due date whose 9:00 has already passed sends no reminder.
