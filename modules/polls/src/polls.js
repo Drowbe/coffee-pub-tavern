@@ -536,7 +536,7 @@
   }
 
   const closesPicker = tavern.ui.datePicker($('f-closes'), { clearable: true });
-  function openEditor() {
+  function openEditor(prefill) {
     showError('');
     $('f-question').value = '';
     $('f-options').innerHTML = '';
@@ -544,7 +544,10 @@
     addOptionField();
     $('f-multi').checked = false;
     $('f-addable').checked = false;
-    $('f-closes').value = '';
+    // A quick add fills the question, and the closing time when a day was typed (12:00 unless a time was).
+    $('f-question').value = (prefill && prefill.title) || '';
+    const closes = prefill && prefill.date ? prefill.date + 'T' + (prefill.time || '12:00') : '';
+    $('f-closes').value = closes && new Date(closes).getTime() > Date.now() ? closes : '';
     closesPicker.refresh();
     $('f-notify').checked = false;
     $('editor').hidden = false;
@@ -705,13 +708,16 @@
       },
     });
   }
-  $('add').addEventListener('click', openEditor);
+  $('add').addEventListener('click', () => openEditor());
   // The host draws New poll in the module's action bar (in the room's bottom row when docked);
   // the button in the header stays only for a host without one.
   if (tavern.bar) {
     $('add').classList.add('hosted');
-    tavern.bar.set(canCreate ? [{ id: 'add', label: 'New poll', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
-    tavern.on('bar', (e) => { if (e.id === 'add' && canCreate) openEditor(); });
+    tavern.bar.set(canCreate ? [{ id: 'add', type: 'quickadd', label: 'New poll', placeholder: 'Ask a question: where to stay by sep 29' }] : []).catch(() => $('add').classList.remove('hosted'));
+    tavern.on('bar', (e) => {
+      if (e.id !== 'add' || !canCreate) return;
+      openEditor(e.value ? tavern.util.parseWhen(e.value) : null);
+    });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
   // A poll with a closing time closes on its own: redraw now and then to show it.

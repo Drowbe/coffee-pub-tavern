@@ -398,10 +398,40 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
         primary: Boolean(i?.primary),
         disabled: Boolean(i?.disabled),
-      })).filter((i) => i.id && i.label);
+        // An item can be a quick-add: a text field with a small + button. What is typed comes back with the click.
+        input: i?.type === 'quickadd',
+        placeholder: String(i?.placeholder ?? '').slice(0, 60),
+      })).filter((i) => i.id && (i.label || i.input));
       if (bar) {
         bar.textContent = '';
         for (const item of clean) {
+          if (item.input) {
+            const form = document.createElement('form');
+            form.className = 'quick-add';
+            const field = document.createElement('input');
+            field.type = 'text';
+            field.maxLength = 200;
+            field.placeholder = item.placeholder;
+            field.setAttribute('aria-label', item.placeholder || 'Quick add');
+            const go = document.createElement('button');
+            go.type = 'submit';
+            go.className = 'btn btn-primary quick-add-go';
+            go.setAttribute('aria-label', item.label || 'Add');
+            go.title = item.label || 'Add';
+            go.disabled = item.disabled;
+            const plus = document.createElement('i');
+            plus.className = 'fa-solid fa-plus fa-fw';
+            plus.setAttribute('aria-hidden', 'true');
+            go.appendChild(plus);
+            form.append(field, go);
+            form.addEventListener('submit', (e) => {
+              e.preventDefault();
+              send('bar', { id: item.id, value: field.value.trim() });
+              field.value = '';
+            });
+            bar.appendChild(form);
+            continue;
+          }
           const b = document.createElement('button');
           b.type = 'button';
           b.className = `btn${item.primary ? ' btn-primary' : ''}`;

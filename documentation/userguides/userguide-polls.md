@@ -14,6 +14,8 @@ The permission to start polls is enforced by the Polls page itself, not by the s
 
 ## Start a poll
 
+At the bottom of Polls is a quick-add field with a **+** button. Type the question and press Enter or click **+**, and the New poll form opens with it filled in. A day in what you type, such as "where to stay by sep 29", becomes the closing time (noon that day, or the time you typed) when it is still ahead of you. Clicking **+** with nothing typed opens a blank form.
+
 Choose **New poll**. Give the question and at least two options; each option can carry a short detail, such as a price, a place or a date. Then choose:
 
 - **Allow more than one choice** for a poll where people pick every option they like.

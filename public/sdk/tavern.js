@@ -115,6 +115,47 @@
       refKey: (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|'),
       // Dates as "2026-09-24" (a local day): text from a Date, and back.
       ymd: (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      // Pull a date and a time out of what someone typed, and leave the rest as the title:
+      // "meet with bob sep 29 at 7pm" gives { title: "meet with bob", date: "2026-09-29", time: "19:00" }. Understands
+      // today, tomorrow, weekdays ("fri", "next fri"), "sep 29" and "29 sep", "9/29" and "2026-09-29"; times as
+      // "7pm", "7:30 pm", "19:00", "at 7". A date already passed this year means next year. Anything it does
+      // not recognise stays in the title; date and time are only there when found.
+      parseWhen: (text, now) => {
+        const base = now || new Date();
+        let t = ' ' + String(text || '').trim() + ' ';
+        const out = {};
+        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const ymd = tavern.util.ymd;
+        const fix = (m, d, y) => {
+          let year = y || base.getFullYear();
+          let date = new Date(year, m, d);
+          if (date.getMonth() !== m) return null;
+          const today = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+          if (!y && date < today) date = new Date(year + 1, m, d);
+          return ymd(date);
+        };
+        const take = (re, fn) => { const m = re.exec(t); if (!m) return false; const v = fn(m); if (v === null || v === undefined) return false; t = t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length); return v; };
+        // time first, so "7" in "at 7" is not read as a day
+        let time = null;
+        take(/\s(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i, (m) => { let h = Number(m[1]); const mi = Number(m[2] || 0); if (h < 1 || h > 12 || mi > 59) return null; const pm = m[3].toLowerCase() === 'pm'; h = (h % 12) + (pm ? 12 : 0); time = String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'); return true; })
+          || take(/\s(?:at\s+)?([01]?\d|2[0-3]):([0-5]\d)\b/, (m) => { time = m[1].padStart(2, '0') + ':' + m[2]; return true; })
+          || take(/\sat\s+(\d{1,2})\b(?!\s*[/-])/i, (m) => { const h = Number(m[1]); if (h < 1 || h > 23) return null; time = String((h < 7 ? h + 12 : h)).padStart(2, '0') + ':00'; return true; });
+        let date = null;
+        const set = (v) => { date = v; return Boolean(v); };
+        take(/\s(\d{4})-(\d{2})-(\d{2})\b/, (m) => set(fix(Number(m[2]) - 1, Number(m[3]), Number(m[1]))))
+          || take(/\s(?:on\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s+(\d{4}))?/i, (m) => set(fix(months.indexOf(m[1].toLowerCase().slice(0, 3)), Number(m[2]), m[3] ? Number(m[3]) : 0)))
+          || take(/\s(?:on\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b/i, (m) => set(fix(months.indexOf(m[2].toLowerCase().slice(0, 3)), Number(m[1]), 0)))
+          || take(/\s(?:on\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/, (m) => set(fix(Number(m[1]) - 1, Number(m[2]), m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : 0)))
+          || take(/\s(today|tonight)\b/i, () => set(ymd(base)))
+          || take(/\stomorrow\b/i, () => set(ymd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1))))
+          || take(/\s(?:on\s+|next\s+|this\s+)?(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b/i, (m) => { const want = days.indexOf(m[1].toLowerCase()); let ahead = (want - base.getDay() + 7) % 7; if (ahead === 0 || /next\s/i.test(m[0])) ahead = ahead === 0 ? 7 : ahead + (want > base.getDay() ? 7 : 0); return set(ymd(new Date(base.getFullYear(), base.getMonth(), base.getDate() + ahead))); });
+        if (date) out.date = date;
+        if (time) out.time = time;
+        out.title = t.replace(/\s+/g, ' ').trim().replace(/\s+(on|at|by|for|from)$/i, '').replace(/^(on|at|by)\s+/i, '').trim();
+        if (!out.title) out.title = String(text || '').trim();
+        return out;
+      },
       parseYmd: (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); },
     },
 
@@ -559,6 +600,8 @@
     // toolbar and the chat box). set([{ id, label, icon, primary, disabled }]);
     // a click arrives as the 'bar' event with the button's id.
     bar: {
+      // An item { id, type: 'quickadd', placeholder, label } is a text field with a small + button instead; the
+      // 'bar' event then carries { id, value }, the text typed (empty if none).
       set: (items) => call('bar.set', { items }),
     },
 

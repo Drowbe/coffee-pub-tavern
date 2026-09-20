@@ -374,9 +374,9 @@
   $('f-due').addEventListener('change', syncForm);
   const duePicker = tavern.ui.datePicker($('f-due'), { clearable: true });
 
-  function openEditor(x) {
+  function openEditor(x, prefill) {
     const readOnly = !canEdit || (x && x.scope !== 'own');
-    const t = x ? x.t : { title: '', notes: '', due: null, remind: false, done: false };
+    const t = x ? x.t : { title: (prefill && prefill.title) || '', notes: '', due: (prefill && prefill.date) || null, remind: false, done: false };
     editing = x ? { key: x.key, id: x.id, version: x.version } : { key: null, id: null, version: null };
     editingLinks = ((x && x.t.links) || []).slice();
     editingRules = rulesFor(x && x.t);
@@ -697,8 +697,11 @@
   // the button in the header stays only for a host without one.
   if (tavern.bar) {
     $('add').classList.add('hosted');
-    tavern.bar.set(canEdit ? [{ id: 'add', label: 'Add task', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
-    tavern.on('bar', (e) => { if (e.id === 'add' && canEdit) openEditor(null); });
+    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => $('add').classList.remove('hosted'));
+    tavern.on('bar', (e) => {
+      if (e.id !== 'add' || !canEdit) return;
+      openEditor(null, e.value ? tavern.util.parseWhen(e.value) : null);
+    });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
 

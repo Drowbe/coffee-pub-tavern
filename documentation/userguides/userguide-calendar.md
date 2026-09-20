@@ -22,6 +22,8 @@ In a call, choose the Modules button in the header and then **Calendar**. It ope
 
 ## Add and change events
 
+At the bottom of the Calendar is a quick-add field with a **+** button. Type what the event is and press Enter or click **+**, and the New event form opens filled in: "meet with bob sep 29 at 7pm" gives the title "meet with bob", the day Sep 29 and the time 7:00 PM. Days can be typed as "tomorrow", "fri", "next mon", "sep 29", "29 sep" or "9/29"; times as "7pm", "7:30pm", "19:00" or "at 7". Whatever it does not understand stays in the title, and you can change anything before saving. Clicking **+** with nothing typed opens a blank form.
+
 If you can edit, choose **Add event** (in the bar along the bottom of the Calendar; docked, it sits in the same row as the video toolbar and the chat box), or click a day in the month. Give it a title, a date, and a start and end time (or tick **All day**), and add details if you like. Choose **Save**. Click an event to change or delete it; the delete button asks you to click a second time. If two people change the same event at once, the second person is told and can reopen it to see the other change.
 
 Events appear for everyone who has the calendar open as soon as they are saved.

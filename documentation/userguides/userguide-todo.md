@@ -18,6 +18,10 @@ Choose **To-do** in the header. Type a task in the box at the top and press Ente
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
 - Under the toolbar the server list also shows, read-only, the lists of every room you belong to that has To-do on. Each is headed by its room's icon and name, and a row of your rooms shows or hides each one. To tick off or change a room's task, open that room's list.
 
+## Add a task quickly
+
+The field at the bottom of the To-do with a **+** button opens the task form filled in. Type "book flights by sep 25" and the task is "book flights" and its due date is Sep 25; a day such as "tomorrow", "fri" or "9/29" works the same way. Anything it does not understand stays in the title. Clicking **+** with nothing typed opens a blank form. The field at the top adds a task straight away, with no form.
+
 ## Open, Done and All
 
 In a room, three icons in the To-do's titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the empty circle for the tasks still open (its tooltip says how many), the ticked circle for done tasks, and the list icon for all of them. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.

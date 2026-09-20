@@ -345,7 +345,7 @@
     });
   }
 
-  function openEditor(x, day) {
+  function openEditor(x, day, prefill) {
     const readOnly = !canEdit || (x && ((x.scope === 'server' && inRoom) || x.scope === 'rooms'));
     const ev = x ? x.ev : { title: '', allDay: false, start: '', end: null, desc: '', remind: null, repeat: null };
     editing = x ? { scope: x.scope, id: x.id, version: x.version } : { scope: 'room', id: null, version: null };
@@ -363,6 +363,11 @@
     $('f-end').value = endAt ? `${pad(endAt.getHours())}:${pad(endAt.getMinutes())}` : '';
     $('f-desc').value = ev.desc || '';
     $('f-remind').value = ev.remind === null || ev.remind === undefined ? '' : String(ev.remind);
+    // A quick add fills in what it understood: the title, and a time when one was typed.
+    if (!x && prefill) {
+      if (prefill.title) $('f-title').value = prefill.title;
+      if (prefill.time) { $('f-time').value = prefill.time; $('f-allday').checked = false; }
+    }
     $('f-repeat').value = ev.repeat ? ev.repeat.every : '';
     $('f-until').value = ev.repeat && ev.repeat.until ? ev.repeat.until : '';
     for (const id of ['f-title', 'f-date', 'f-time', 'f-end-date', 'f-end', 'f-allday', 'f-desc', 'f-remind', 'f-repeat', 'f-until']) $(id).disabled = readOnly;
@@ -513,8 +518,12 @@
   // docked); the button in the header stays only for a host without one.
   if (tavern.bar) {
     $('add').classList.add('hosted');
-    tavern.bar.set(canEdit ? [{ id: 'add', label: 'Add event', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
-    tavern.on('bar', (e) => { if (e.id === 'add' && canEdit) openEditor(null); });
+    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add event', placeholder: 'Add an event: lunch fri at noon' }] : []).catch(() => $('add').classList.remove('hosted'));
+    tavern.on('bar', (e) => {
+      if (e.id !== 'add' || !canEdit) return;
+      const q = e.value ? tavern.util.parseWhen(e.value) : {};
+      openEditor(null, q.date, q);
+    });
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a
   // pointer to the event, and the other module asks Tavern for what it may show.
