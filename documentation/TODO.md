@@ -22,6 +22,7 @@ Collected, none started:
 - A module for Foundry that carries communication and commands between Tavern and Foundry.
 - An LLM module.
 - A module for WhatsApp or SMS hooks.
+- Module interoperability and data exchange through the core API: see plans/plan-modules.md. Design first.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
 - Call time in the conference titlebar.
 - Reduce the height of the header a bit.

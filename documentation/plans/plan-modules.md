@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building on the modules system, and the author deciding what comes next.
 
-**Status:** In progress. Install and approval, the SDK and sandbox, per-scope storage with live changes, the header nav and server page, floating room panels with per-room enablement, module permissions in Roles, schedules and notifications, the Calendar and the To-do module are built and documented in [architecture-modules](../architecture/architecture-modules.md), [api-module-sdk](../api/api-module-sdk.md), [api-modules](../api/api-modules.md) and [userguide-calendar](../userguides/userguide-calendar.md) and [userguide-todo](../userguides/userguide-todo.md). What is left is below. Delete this plan when the last item is done or moved to the TODO.
+**Status:** In progress. Install and approval, the SDK and sandbox, per-scope storage with live changes, the header nav and server page, floating room panels with per-room enablement, module permissions in Roles, schedules and notifications, the Calendar, the To-do module and Polls are built and documented in [architecture-modules](../architecture/architecture-modules.md), [api-module-sdk](../api/api-module-sdk.md), [api-modules](../api/api-modules.md) and [userguide-calendar](../userguides/userguide-calendar.md) and [userguide-todo](../userguides/userguide-todo.md) and [userguide-polls](../userguides/userguide-polls.md). What is left is below. Delete this plan when the last item is done or moved to the TODO.
 
 ## Decisions that still apply
 
@@ -20,6 +20,20 @@
 3. **A hello module** as the smallest working example next to the Calendar.
 4. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
 5. **Calendar improvements.** Events across several days, changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
+
+## Module interoperability
+
+Wanted: the core API manages how modules work together and exchange data, so a poll's winner can become a Calendar event or a to-do, and a to-do's due date can show on the Calendar. This is not built and needs design. Today a module sees only its own storage (plus, on its server page, its own data across the viewer's rooms), and the sandbox gives modules no way to reach each other; that is deliberate and stays. The exchange goes through the core.
+
+A sketch to react to:
+
+- **Shared types owned by the core.** The core defines a few stable shapes that modules exchange (an event with a title, start, end and repeat; a task with a title and due date; a room; a person), so modules do not each invent their own.
+- **Declared, approved capabilities.** A manifest lists what it `provides` (for example `calendar.createEvent`) and what it `uses`. Using another module's capability is approved by the admin when the module is enabled, like permissions and hooks are.
+- **Calls the core routes.** A module asks the SDK for a capability; the core checks that the caller may use it and that the person may do the thing in the provider (its own permissions apply), and hands the request to the provider. Modules are front-end only, so the open question is how a provider handles a request while nobody has its page open. Likely answer: the core keeps the request in the provider's data as a queue the provider's page drains, or, for the shared types, the core owns the collection itself (events, tasks) and modules read and write it under their permissions.
+- **Events.** A module can publish a named event (`poll.closed` with the winner) and others can subscribe to it, declared in the manifest, delivered through the core with the same permission checks.
+- **Audit and limits.** Cross-module calls are attributed to the person and the calling module, rate limited, and visible on the Modules tab.
+
+First uses to design against: Polls to Calendar (book the winning date) and to To-do (a task to book it), and To-do to Calendar (show due dates).
 
 ## Google Calendar sync
 

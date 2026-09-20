@@ -1,0 +1,20 @@
+{
+  "id": "polls",
+  "name": "Polls",
+  "version": "1.0.0",
+  "icon": "square-poll-vertical",
+  "description": "Quick polls and votes for the whole server and for each room, with live results.",
+  "author": "Coffee Pub",
+  "scope": ["server", "room"],
+  "surfaces": {
+    "page": { "entry": "page.html" },
+    "panel": { "entry": "panel.html", "width": 380, "height": 560, "mode": ["dock", "float"] }
+  },
+  "permissions": [
+    { "key": "view", "label": "See polls and their results", "default": { "user": true, "guest": true, "moderator": true } },
+    { "key": "vote", "label": "Vote in polls", "default": { "user": true, "guest": false, "moderator": true } },
+    { "key": "create", "label": "Start, close and delete polls", "default": { "user": true, "guest": false, "moderator": true } }
+  ],
+  "access": { "read": "view", "write": "vote" },
+  "hooks": { "notify": true }
+}

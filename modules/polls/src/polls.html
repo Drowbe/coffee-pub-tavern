@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polls</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app" class="app" hidden>
+  <header class="bar">
+    <div class="nav">
+      <h2>Polls</h2>
+      <span class="hint" id="count"></span>
+    </div>
+    <div class="nav">
+      <div class="seg" id="filter" role="group" aria-label="Show">
+        <button class="btn" data-show="open" type="button">Open</button>
+        <button class="btn" data-show="closed" type="button">Closed</button>
+        <button class="btn" data-show="all" type="button">All</button>
+      </div>
+      <button class="btn btn-primary" id="add" type="button" hidden>New poll</button>
+    </div>
+  </header>
+  <div id="rooms" class="rooms" hidden></div>
+  <p class="error" id="note" hidden></p>
+  <main id="body" class="body"></main>
+
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3>New poll</h3>
+      <label>Question<input id="f-question" type="text" maxlength="200" required></label>
+      <div class="opts-edit">
+        <span class="lbl">Options</span>
+        <div id="f-options"></div>
+        <button class="btn btn-small" id="f-more" type="button">Add option</button>
+      </div>
+      <label class="check"><input id="f-multi" type="checkbox"> Allow more than one choice</label>
+      <label class="check"><input id="f-addable" type="checkbox"> Let people add options</label>
+      <label>Closes (optional)<input id="f-closes" type="datetime-local"></label>
+      <label class="check"><input id="f-notify" type="checkbox"> Tell people about it</label>
+      <p class="error" id="f-error" hidden></p>
+      <div class="row buttons">
+        <button class="btn btn-primary" type="button" id="f-save">Start poll</button>
+        <button class="btn" type="button" id="f-cancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

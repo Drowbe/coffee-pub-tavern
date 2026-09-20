@@ -5,6 +5,11 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- A Polls module (1.0.0), for deciding things together such as where to go, where to stay and what to do: polls for the server and for each room, as a header page and a room pane. Each option can carry a detail; a poll can allow more than one choice, let people add options while it is open, close itself at a set time, and notify people when it starts. Results update live with a bar, a count and the names of the voters; a closed poll marks its winner or a tie. Each person's vote is its own stored value, so people voting at once never conflict. It asks for three permissions (see, vote, start and close polls, of which only the first two are enforced by the server) and the notify hook. Guests can see but not vote. Build it with `node tools/build-module.mjs modules/polls`.
+
+Verified in a browser against a sandbox server: the server page with a room's polls under its icon, voting and the result bars, suggesting an option, the closed view with a winner, and starting a poll from the editor. Not verified: the room pane in a call, a scheduled close, notifications, two people voting at once, and a guest.
+
+### Added
 - A To-do module (1.0.0): a shared task list for the server and for each room, as a header page and a room pane (docked, floating or in a window). Tasks have notes, a due date (overdue in red) and an optional reminder at 9:00 that day; there is a quick-add box, Open / Done / All views, and on the server page the lists of your rooms shown read-only under their room's icon, with chips to show or hide each. It asks for two permissions (see, and add and change) and the schedule and notify hooks. Build it with `node tools/build-module.mjs modules/todo`.
 
 Verified in a browser against a sandbox server: the server page with a room's list under its icon, quick add, the editor and Save, ticking a task done, and read-only room tasks. Not verified: the room pane in a call, a reminder actually firing, two people, and a guest.
