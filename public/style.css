@@ -718,15 +718,48 @@ input[type="range"] {
   background: var(--border);
 }
 
-/* Controls only the room page has (panes menu, full screen, pop out), grouped with a divider. */
-.nav-group {
+/* The room's bar, the header's second row, only at the table: the panes to open on the left, the
+   controls for the whole app (full screen, pop out) on the right. */
+.subnav {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  width: calc(100% + 32px); /* full bleed: cancels .topbar's side padding */
+  margin: 0 -16px;
+  padding: 4px 16px;
+  border-top: 1px solid var(--border);
+}
+
+body.at-table .subnav {
+  display: flex;
+}
+
+.subnav-tools {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 
-body:not(.at-table) #room-nav {
-  display: none;
+.subnav-panes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.subnav-panes .modules-menu-item {
+  width: auto;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+body.at-table .topbar {
+  flex-wrap: wrap;
 }
 
 .icon-link {
@@ -735,8 +768,12 @@ body:not(.at-table) #room-nav {
 
 /* A phone has no use for a pop-out window, and the header has no room for the extra buttons. */
 @media (max-width: 560px) {
-  #room-nav #fullscreen-toggle,
-  #room-nav #popout {
+  .subnav #fullscreen-toggle,
+  .subnav #popout {
+    display: none;
+  }
+
+  .subnav-panes .modules-menu-item span:not(.badge) {
     display: none;
   }
 
@@ -3691,6 +3728,44 @@ body.module-popout .topbar {
 .module-bar[hidden],
 .dock-bar[hidden] {
   display: none;
+}
+
+/* A module's quick-add: a text field with a small + button, filling the module's bar (docked bar, panel bar, page bar). It sits at the bottom, lined up with the chat box. */
+.dock-bar:has(.quick-add),
+.module-panel-bar:has(.quick-add),
+.module-bar:has(.quick-add) {
+  align-items: flex-end;
+}
+
+.quick-add {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.quick-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.quick-add input::placeholder {
+  color: var(--text-dim);
+}
+
+.quick-add-go {
+  flex: none;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 body.module-page .module-stage {

@@ -16,13 +16,20 @@ const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || sta
 // built here, not left static in room.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
 renderTopbar();
-// The controls for the whole app, at the right of the header: the panes menu, full screen
-// and pop out (which move the whole table, not the conference).
-document.getElementById('room-nav').innerHTML = `
-  <span class="nav-divider"></span>
-  <button class="icon-link" id="modules-toggle" type="button" title="Chat and modules (C for chat)" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i><span class="badge" hidden></span></button>
+// The room's own bar, a second row of the header (so it moves with the header when the app is
+// popped out): the panes to open on the left (chat, the room's modules; room-modules.js fills
+// #modules-menu), and the controls for the whole app on the right, full screen and pop out,
+// which move the whole table, not the conference.
+const subnav = document.createElement('div');
+subnav.className = 'subnav';
+subnav.id = 'subnav';
+subnav.innerHTML = `
+  <div class="subnav-panes" id="modules-menu"></div>
+  <span class="subnav-tools">
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
-  <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>`;
+  <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
+  </span>`;
+topbarEl.appendChild(subnav);
 // Only this page loads your profile/Manage as an overlay over a running
 // call instead of a real navigation (see openOverlay() below) -- the
 // shared header doesn't know that, so it's marked here instead.
