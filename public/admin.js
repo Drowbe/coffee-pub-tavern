@@ -726,7 +726,8 @@ function moduleCard(m) {
     ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other modules to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: each request is carried out by the module that owns the action</span></li>`] : []),
     ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other modules' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
   ];
-  const state = m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>';
+  const modeTag = m.runMode === 'page' ? '<span class="pill warn">In the page</span>' : '<span class="pill">Sandboxed</span>';
+  const state = modeTag + ' ' + (m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>');
   const several = m.versions.length > 1; // the picker lists every kept version, the running one selected
   const el = document.createElement('article');
   el.className = 'panel module-card';
@@ -741,6 +742,10 @@ function moduleCard(m) {
     ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ''}
     <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
+    <div class="module-runmode">
+      <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this Tavern' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach Tavern through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
+      ${m.source === 'bundled' ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
+    </div>
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
     <div class="row">
       <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button">${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
@@ -783,6 +788,14 @@ function renderModules() {
     list.appendChild(none);
   }
   for (const m of installedModules) list.appendChild(moduleCard(m));
+  const log = document.createElement('div');
+  log.className = 'panel';
+  log.innerHTML = '<h2>Recent activity</h2><p class="hint">What modules have done lately.</p><ul class="module-activity" id="module-activity"><li class="hint">Loading...</li></ul>';
+  list.appendChild(log);
+  api('GET', '/api/modules/activity').then((d) => {
+    const items = (d.activity || []).slice(0, 30);
+    $('module-activity').innerHTML = items.length ? items.map((a) => `<li><span class="hint">${escapeHtml(new Date(a.at).toLocaleTimeString())}</span> <strong>${escapeHtml(a.moduleName)}</strong> ${escapeHtml(a.what)}${a.byName ? ` <span class="hint">by ${escapeHtml(a.byName)}</span>` : ''}</li>` ).join('') : '<li class="hint">Nothing yet.</li>';
+  }).catch(() => { const e = $('module-activity'); if (e) e.innerHTML = '<li class="hint">Unavailable.</li>'; });
   // Modules that ship with this Tavern and are not installed yet.
   const available = bundledModules.filter((b) => !b.installed);
   if (available.length) {
@@ -825,6 +838,21 @@ $('module-install').addEventListener('click', async () => {
     await loadModules();
     await loadRoles(); // a module's permissions join the Roles grid when it is on
     say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
+  } catch (err) {
+    say($('modules-status'), err.message, true);
+  }
+});
+
+$('modules-list').addEventListener('click', async (event) => {
+  const mode = event.target.closest('[data-module-runmode]');
+  if (!mode) return;
+  const m = installedModules.find((x) => x.id === mode.closest('.module-card').dataset.id);
+  const to = mode.dataset.moduleRunmode;
+  try {
+    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\nA module in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. Tavern cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
+    await api('PATCH', `/api/modules/${m.id}`, { runMode: to, acceptRisk: to === 'page' });
+    await loadModules();
+    say($('modules-status'), `${m.name} now runs ${to === 'page' ? 'in the page' : 'sandboxed'}`);
   } catch (err) {
     say($('modules-status'), err.message, true);
   }

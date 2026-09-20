@@ -241,6 +241,17 @@ tavern.resize({ width: 500, height: 600 }); // ask a floating panel for a size (
 
 The SDK applies the theme to your page as CSS custom properties on `:root`, so plain CSS follows the theme. **Never hard-code colors, and never assume a dark background.** The tokens and the rules are in [design-theme](../designsystem/design-theme.md). The base stylesheet gives you `.btn`, `.btn-primary`, `.btn-danger`, `.card`, `.section` and styled inputs.
 
+## Running in the page
+
+A module runs in one of two ways. Modules that ship with Tavern run **in the page**: in a container of their own with a shadow root, so their styles and elements stay apart from the page's but they share its window, and can take part in drag and drop between modules. A module an admin uploads runs **sandboxed** (below) unless the admin switches it to run in the page, after a warning that a module in the page is not walled off: it can read and change everything on the page, act as the signed-in person, and is no longer held to its approved permissions, because it can bypass the SDK. Only allow that for a module you trust.
+
+To work either way:
+
+- Look elements up on `tavern.root` (`tavern.root.getElementById`, `tavern.root.querySelector`), never `document`. Use `tavern.rootElement` where you would use `document.documentElement`, and `tavern.refs.elementAt(x, y)` where you would use `document.elementFromPoint`.
+- Read the API from `document.currentScript.tavern` when it is set, else from `window.tavern`.
+- A module that runs in the page is built from one HTML file: its `<style>`, its inline `<script>` and its body. Keep the module to a single file with style and script inline.
+- Selectors written for `html`, `body` and `:root` are applied to the container.
+
 ## The sandbox
 
 A module frame has an opaque origin. From inside it you cannot read Tavern's page, its cookies or storage, call `fetch` or open sockets (`connect-src 'none'`), open windows or dialogs, or send a form anywhere. A `<form>` and its `submit` event work (so `preventDefault()` and handle it yourself), but the form goes nowhere. So use in-page UI, not `alert`, `confirm` or `prompt`. You can use inline scripts and styles, and load your own images and fonts as data URLs or from your own files. Module files are public to anyone who can reach the server, so put nothing secret in them.

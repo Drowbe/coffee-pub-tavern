@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Modules can run in the page, not only in a sandboxed frame. Modules that ship with Tavern run in the page, each in its own container with its own shadow root, so they can share drag and drop, layout and theme with the page. Modules an admin uploads stay sandboxed unless the admin switches one to run in the page after a plain warning that such a module can read and change everything on the page and that Tavern can no longer hold it to its approved permissions. The Modules tab marks each card "In the page" or "Sandboxed", offers the switch, and lists recent activity. One SDK works either way (`createTavern`); modules look elements up in `tavern.root` rather than `document`, and an uploaded module that runs in the page must be a single HTML file with its style and script inline. Calendar 1.8.0, Polls 1.5.0 and To-do 1.5.0 use `tavern.root`. Verified in a browser: all three in the page with no frames, and a drag from a Calendar event onto a To-do task linking it. Not verified: a real mouse in the deployed build, and two people.
+
 ### Fixed
 - The container image left out the `modules/` folder, so the bundled modules (and their updates) were never offered on a deployed server. The image now includes it, and a `.dockerignore` keeps local data, git and built zips out of the build.
 
