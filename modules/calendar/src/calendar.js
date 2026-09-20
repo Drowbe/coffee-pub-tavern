@@ -567,7 +567,7 @@
   const clearDrop = () => { for (const e of root.querySelectorAll('.drop')) e.classList.remove('drop'); };
   async function offersFor(ref, spot, card) {
     const offers = [];
-    if (spot.day && !spot.event) offers.push({ label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: () => createEventOn(card.title || ref.kind, spot.day) });
+    if (spot.day && !spot.event) offers.push({ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: () => createEventOn(card.title || ref.kind, spot.day) });
     let list = [];
     try { list = await tavern.actions.list({ accepts: ref.module + ':' + ref.kind }); } catch (err) { list = []; }
     for (const a of list) {
@@ -582,7 +582,7 @@
         else if (base === 'date') input[field] = spot.day;
         else if (!optional) ok = false;
       }
-      if (ok && dropped) offers.push({ label: a.label, hint: a.moduleName, run: () => tavern.actions.request(a.action, input).then(() => ({})) });
+      if (ok && dropped) offers.push({ id: a.action, label: a.label, hint: a.moduleName, run: () => tavern.actions.request(a.action, input).then(() => ({})) });
     }
     return offers;
   }
@@ -607,7 +607,7 @@
           const offers = await offersFor(ref, spot, card);
           tavern.refs.trace('offers: ' + offers.map((o) => o.label).join(' | '));
           if (!offers.length) return note('Nothing can be done with that here.', true);
-          const chosen = await tavern.actions.pick(offers, pt);
+          const chosen = await tavern.actions.pick(offers, pt, { remember: ref.module + ':' + ref.kind + ':' + (spot.event ? 'event' : 'day') });
           if (!chosen) return;
           await chosen.run();
           note(chosen.label + ': done');

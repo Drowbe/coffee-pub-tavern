@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- The drop menu remembers the last choice: `tavern.actions.pick(items, point, { remember })` keeps it per browser and module and lists it first, marked "last used". The Calendar keys it by the kind of item and whether it landed on a day or an event (Calendar 1.11.1). Verified in a browser: after choosing "Set this task's due date", the next drop listed it first with "last used", and it set the task's due date.
+
 ### Changed
 - The bottom bar of the Calendar, To-do and Polls is now a quick-add field with a small + button, bottom-aligned with the chat box, replacing the Add event, Add task and New poll buttons. What is typed opens the add form filled in, and a shared parser in the SDK (`tavern.util.parseWhen`) pulls a date and time out of it: "meet with bob sep 29 at 7pm" becomes a title, a day and a time. The bar item is `{ type: 'quickadd' }`, available to any module. Calendar 1.11.0, To-do 1.9.0, Polls 1.9.0. Verified in a browser: all three bars, and the Calendar, To-do and Polls forms prefilled from typed text; the parser was also run on eleven phrases. Needs the `.quick-add` rules in `public/style.css`, which come with the room header work.
 

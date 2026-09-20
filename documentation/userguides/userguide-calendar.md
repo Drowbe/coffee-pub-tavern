@@ -42,7 +42,7 @@ An event can be dragged onto a task in the To-do module, or onto an open task th
 
 ## Dropping something on the calendar
 
-Drag an item from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the item to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choices come from what the other modules can do with the item, so a module added later can add more. A short note confirms what was done.
+Drag an item from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the item to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choice you made last time for that kind of item and place is listed first, marked "last used", so a repeat drop is one click. The choices come from what the other modules can do with the item, so a module added later can add more. A short note confirms what was done.
 
 ## When an event has passed
 

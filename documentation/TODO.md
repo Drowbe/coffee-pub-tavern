@@ -33,10 +33,6 @@ Collected, none started:
 
 Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
 
-## Links with outcomes
-
-A link should exist for a result. Built: typed pointers in actions, a drop menu, a rule on each link in the To-do (chosen from what the linked kind reports and what the To-do can do), a poll option that takes a link and sends it out with the result, tasks linked or dated from a drop. Still to do: a drop that remembers the last choice for a pair of modules.
-
 ## Modules: what is left
 
 See plans/plan-modules.md: Google Calendar sync, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.

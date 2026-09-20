@@ -503,15 +503,27 @@
       list: (o) => call('actions.list', { accepts: o && o.accepts, self: Boolean(o && o.self) }),
       // A small menu at a point (in your own coordinates, as a drop gives it) to let the person choose what to
       // do: pick([{ label, hint? }], point) resolves to the chosen item, or null if they dismiss it. With a single
-      // item there is nothing to ask, and it resolves to it at once.
-      pick: (items, at) => new Promise((resolve) => {
-        const list = (items || []).filter(Boolean);
+      // item there is nothing to ask, and it resolves to it at once. With { remember: "some key" } the choice is
+      // kept (in this browser, per module) and offered first, marked "last used", the next time the same key is
+      // asked; give each item an `id` (its label is used if not) so the choice survives wording changes.
+      pick: (items, at, o) => new Promise((resolve) => {
+        let list = (items || []).filter(Boolean);
+        const memory = o && o.remember ? `tavern:pick:${(info && info.module && info.module.id) || ''}:${String(o.remember).slice(0, 120)}` : '';
+        const idOf = (it) => String(it.id || it.label);
+        if (memory && list.length > 1) {
+          let last = '';
+          try { last = localStorage.getItem(memory) || ''; } catch (err) { last = ''; }
+          const at0 = list.findIndex((it) => idOf(it) === last);
+          if (at0 > 0) list = [{ ...list[at0], hint: list[at0].hint ? list[at0].hint + ' \u00b7 last used' : 'Last used' }, ...list.filter((_, i) => i !== at0)];
+          else if (at0 === 0) list = [{ ...list[0], hint: list[0].hint ? list[0].hint + ' \u00b7 last used' : 'Last used' }, ...list.slice(1)];
+        }
+        const remember = (it) => { if (!memory || !it) return it; try { localStorage.setItem(memory, idOf(it)); } catch (err) { /* not kept */ } return it; };
         if (list.length < 2) return resolve(list[0] || null);
         const host = tavern.rootElement;
         const menu = document.createElement('div');
         menu.setAttribute('role', 'menu');
         menu.style.cssText = 'position:fixed;z-index:9999;min-width:200px;max-width:320px;padding:4px;border-radius:8px;border:1px solid var(--border,#555);background:var(--bg-card,#2a231d);color:var(--text,#f1e8dc);box-shadow:0 8px 24px rgba(0,0,0,.45);font:14px system-ui,sans-serif';
-        const done = (v) => { menu.remove(); document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); resolve(v); };
+        const done = (v) => { menu.remove(); document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); resolve(remember(v)); };
         const key = (e) => { if (e.key === 'Escape') done(null); };
         const away = (e) => { if (!menu.contains(e.target)) done(null); };
         for (const item of list) {
