@@ -26,9 +26,9 @@ The chat's resize handle (`#chat-resize`) is its own grid item spanning both row
 
 ## Docked and floating
 
-A bar is either **docked**, a cell in the bottom row, or **floating**, laid over its own module's content. There is no third state.
+A bar is a cell in the bottom row of its column. In the popped-out window (`body.popout`) the conference keeps its titlebar and its toolbar, and both slide away when the stage goes `.idle` (nothing has moved for a moment): the titlebar up, the toolbar down. Idle takes them out of the flow (`position: absolute` plus a transform), so the tiles take the whole window, and the next movement slides them back. The chat bar stays docked, because the message box needs a fixed place.
 
-The popped-out window makes the video bar floating: `.popout .video-bar` moves to the content's grid area, aligns to the bottom and centers, and the content spans both rows so the video takes the whole height. The toolbar becomes a pill. The chat bar stays docked, because the message box needs a fixed place. Only a floating bar fades when idle.
+A pane that is *floating* (a panel over the page) or in a window of its own has its content and bar stacked in that panel or window; there is no floating bar.
 
 ## Popovers
 
@@ -49,11 +49,19 @@ The settings popover, the reactions tray and the overflow menu live inside the v
 
 ## Panes: the conference, the chat and modules
 
-The conference and the chat are panes like a module: `public/room-modules.js` manages all three. Each pane can be **docked** (a column of the grid after the video: video, chat, then modules in the order they opened), **floating** (a draggable, resizable panel in a layer on the page) or in a **window** of its own, and each has the same header buttons to switch. The chat is a native pane: its DOM already exists in the page, and the pane manager moves it between the stage, a floating panel and a popup window (a node moved to another document keeps its listeners, which is also how the whole stage pops out). A module is a frame the host builds in the same places.
+The conference and the chat are panes like a module: `public/room-modules.js` manages all three. Each pane can be **docked** (a column of the grid: conference, chat, then modules in the order they opened), **floating** (a draggable, resizable panel in a layer on the page) or in a **window** of its own, and each has the same titlebar buttons to switch (dock or float, open in a window, close). The conference's close button leaves the call. The chat is a native pane: its DOM already exists in the page, and the pane manager moves it between the stage, a floating panel and a popup window (a node moved to another document keeps its listeners, which is also how the whole stage pops out). A module is a frame the host builds in the same places.
 
 Docked panes set `--stage-cols` on the stage and each part's `grid-column`; the fixed columns together may not take more than the stage minus a minimum for the flexible one, and shrink in step past that. The chat's width is one of those columns, remembered in `prefs.chatWidth`.
 
 When the call is popped out, the stage moves to the popup window and every pane follows it: docked panes are inside the stage and go with it, a floating chat is carried across, and each module is opened again in the new window, because a frame cannot move between windows without reloading and its messages arrive in the window it lives in. Closing the popout brings everything back.
+
+## The conference pane
+
+The conference's titlebar (`.conference-head`, a `.mod-header` at `--module-header-h`) is the first thing in its content, above the tiles. The overlays for asides, the recall countdown and away (`#aside-overlay`, `#recall-overlay`, `#away-overlay`) are inside the same content, so they cover the conference wherever it is.
+
+Floating or in a window, the conference is not inside the stage, but its tiles and toolbar are styled by an ancestor `.stage`, so the pane manager wraps it in a `.stage.conference-stage` (`def.wrap`). Page code finds its elements through `$()`, which falls back to the conference element, and reads the conference's size (not the stage's) for the `compact` and `tiny` classes. A window has its own document, so the conference registers `onWindow` to attach the idle, outside-click and key listeners there. Moving the conference between docked, floating and a window passes `moving: true` to `onChange`, so the call keeps running; only opening or closing it starts or stops the call.
+
+The header at the top of the page holds the controls for the whole app, at the right: the Modules button, Full screen and Pop out, then Sign out. Full screen and Pop out apply to the whole stage (they show their exit and pop-in forms while active). In the popped-out window the header is out of reach, so the conference's titlebar shows its own Modules and Full screen buttons (`.conf-popout-only`) and the Modules menu opens under them.
 
 ## The conference and the call
 

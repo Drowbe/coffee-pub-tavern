@@ -10,8 +10,8 @@ the header stays, now naming the room you are in with a **Leave room** button, t
 middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 
 Left to right, the bar holds: microphone (with a live level meter inside the button), deafen, camera,
-share screen, layout, away, chat and modules, reactions, settings, the room's launch link if it has one, and
-hang up. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
+share screen, layout, away, reactions, settings, the room's launch link if it has one, and hang up. The
+Modules button, Full screen and Pop out are in the header, to the left of Sign out. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
 layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat puts the conference in a strip above the chat, with the toolbar under both.
 
 ## Leaving the call, staying in the room
@@ -59,7 +59,7 @@ chat box is hidden.
 
 ## Chat, docked, floating or in its own window
 
-Chat opens as a column beside the video. Its header has the same buttons as a module's: one to make it a floating panel you can drag and resize (and a matching button to dock it again), one to open it in a window of its own, and the x to close it. The Calendar and other modules open as more columns after the chat, and the video always keeps some room. If you pop the whole call out, chat and modules come with it. Close the chat's own window and the chat closes.
+The conference has the same titlebar as the chat and every module: the same buttons to float it over the page (and dock it again), to open it in a window of its own, and to close it, which leaves the call. Chat opens as a column beside the video. Its header has the same buttons as a module's: one to make it a floating panel you can drag and resize (and a matching button to dock it again), one to open it in a window of its own, and the x to close it. The Calendar and other modules open as more columns after the chat, and the video always keeps some room. If you pop the whole call out, chat and modules come with it. Close the chat's own window and the chat closes.
 
 ## Reactions
 
@@ -110,7 +110,12 @@ To run the table without browser bars, install it as an app: Chrome and Edge sho
 app** in the settings popover, Safari on macOS has **File, Add to Dock**, and iPhones and iPads use
 **Share, Add to Home Screen**.
 
-In Chrome and Edge the **pop out** button moves the whole table into a small always-on-top window and
-back. Popped out, there is no header: the controls become a round bar floating over the tiles that
-fades away when the pointer rests and comes back on any movement. The page behind keeps its header and
-offers **Bring it back here**.
+In Chrome and Edge the **pop out** button in the header (next to Full screen) moves the whole table,
+every pane included, into a small window and back; **Full screen** applies to the whole table too. Popped
+out, the conference keeps its titlebar and toolbar, but they slide away when the pointer rests and come
+back on any movement, leaving only the tiles. The titlebar has its own Modules and Full screen buttons
+there, since the header stays behind on the page, which offers **Bring it back here**. Pop out again from
+the button, which becomes **Pop it back in** while the table is out.
+
+The conference can also go alone into a window of its own with the button on its titlebar, leaving the
+chat and the modules on the page. Closing that window leaves the call.

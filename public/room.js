@@ -7,11 +7,20 @@ import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
 const stageEl = document.getElementById('stage');
-const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`));
+// The conference can live in a floating panel or a window of its own, away from the stage.
+const confEl = document.getElementById('conference');
+const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`));
 // Before anything else touches a header element -- the header itself is
 // built here, not left static in room.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
 renderTopbar();
+// The controls for the whole app, at the right of the header: the panes menu, full screen
+// and pop out (which move the whole table, not the conference).
+document.getElementById('room-nav').innerHTML = `
+  <span class="nav-divider"></span>
+  <button class="icon-link" id="modules-toggle" type="button" title="Chat and modules (C for chat)" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i><span class="badge" hidden></span></button>
+  <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
+  <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>`;
 // Only this page loads your profile/Manage as an overlay over a running
 // call instead of a real navigation (see openOverlay() below) -- the
 // shared header doesn't know that, so it's marked here instead.
@@ -820,8 +829,16 @@ function applyLayout() {
   grid.classList.toggle('portrait', portrait);
   const stage = $('stage');
   stage.classList.toggle('narrow', stage.clientWidth < 640);
-  stage.classList.toggle('compact', stage.clientWidth < 460);
-  stage.classList.toggle('tiny', stage.clientWidth < 300 || stage.clientHeight < 220);
+  // The sizes follow the conference itself, wherever it is (docked beside the chat, floating,
+  // or in a window of its own), not the whole stage.
+  const host = confEl.closest('.stage') || stage;
+  const box = confEl.querySelector('.mod-content');
+  const cw = box?.clientWidth || host.clientWidth;
+  const ch = box?.clientHeight || host.clientHeight;
+  for (const el of new Set([stage, host])) {
+    el.classList.toggle('compact', cw < 460);
+    el.classList.toggle('tiny', cw < 300 || ch < 220);
+  }
   const ordered = [...grid.querySelectorAll('.tile')];
   let rest = grid.querySelector('.rest');
   if (prefs.layout === 'spotlight' && ordered.length > 1) {
@@ -1377,25 +1394,26 @@ function toggleTray(open = $('react-tray').hidden) {
 // anywhere outside) closes it, same as any dropdown.
 function closeSettings() {
   $('settings').hidden = true;
-  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+  for (const b of confEl.querySelectorAll('[data-settings]')) b.classList.remove('on');
 }
 function openSettings(group) {
-  const trigger = stageDoc().querySelector(`[data-settings="${group}"]`);
+  const trigger = confEl.querySelector(`[data-settings="${group}"]`);
   if (!$('settings').hidden && $('settings').dataset.group === group) {
     closeSettings();
     return;
   }
-  for (const el of stageDoc().querySelectorAll('.settings-group')) el.hidden = el.dataset.group !== group;
+  for (const el of confEl.querySelectorAll('.settings-group')) el.hidden = el.dataset.group !== group;
   $('settings').dataset.group = group;
   $('settings').hidden = false;
-  for (const b of stageDoc().querySelectorAll('[data-settings]')) b.classList.remove('on');
+  for (const b of confEl.querySelectorAll('[data-settings]')) b.classList.remove('on');
   if (trigger) trigger.classList.add('on');
   toggleTray(false);
 }
 
-// The conference is a pane too: it docks (for now) and can be closed, which leaves the
-// call but not the room. It is the flexible column, and the first one. Opening it starts
-// the call (from a join or "Rejoin call"), closing it stops it.
+// The conference is a pane too: docked, floating or in a window of its own, and it can be
+// closed, which leaves the call but not the room. It is the flexible column, and the first
+// one. Opening it starts the call (from a join or "Rejoin call"), closing it stops it;
+// only moving it between docked, floating and a window leaves the call running.
 roomModules.registerNative({
   id: 'conference',
   name: 'Conference',
@@ -1404,16 +1422,38 @@ roomModules.registerNative({
   el: $('conference'),
   order: -1,
   flex: true,
-  modes: ['dock'],
+  modes: ['dock', 'float', 'window'],
+  wrap: 'stage conference-stage', // out of the stage's grid it needs a .stage of its own
+  windowClass: 'conference-window',
+  windowSize: { w: 640, h: 420 },
+  floatSize: { w: 560, h: 380 },
   allowed: () => canDo('conference'),
-  onChange: ({ open }) => {
-    $('stage').classList.toggle('conference-open', open);
-    if (open) callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
-    else stopCall();
+  // A window of its own has its own document: idle/hover, popovers and keys need to hear it.
+  onWindow: (win) => {
+    win.document.title = tableName;
+    watchPointer(win.document);
+    watchOutsideClick(win.document);
+    win.document.addEventListener('keydown', onKey);
+    win.document.addEventListener('keyup', onKeyUp);
+    win.document.addEventListener('fullscreenchange', syncFullscreenButton);
+  },
+  onWindowResize: () => applyLayout(),
+  onChange: ({ open, mode, moving }) => {
+    $('stage').classList.toggle('conference-open', open && mode === 'dock'); // the narrow layout keys off this
+    if (!moving) {
+      if (open) callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
+      else stopCall();
+    }
     updateCrumb();
-    applyLayout();
+    setTimeout(applyLayout, 0); // once the pane is in place
   },
 });
+$('conf-close').addEventListener('click', hangUp);
+$('conf-modules').addEventListener('click', (event) => {
+  event.stopPropagation();
+  roomModules.toggleMenu();
+});
+$('conf-fullscreen').addEventListener('click', (event) => toggleFullscreen(event.currentTarget.ownerDocument));
 
 // The chat is a pane like a module's: a column beside the video, a floating panel,
 // or a window of its own (see room-modules.js). This is what the pane manager
@@ -1875,14 +1915,10 @@ async function leaveRoom() {
 // (settings, sign out) rather than a labeled pill -- title carries the
 // name for a screen reader or a hover, same as those.
 const LEAVE_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="leave" title="Leave" aria-label="Leave"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></button>';
-// With the conference closed there is no toolbar, so its Modules button moves up here.
-const MODULES_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="modules" title="Chat and modules" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></button>';
 const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
 // The label text hides at narrow widths (see .crumb-label in style.css),
 // leaving just the icon -- which is why every crumb-here needs one.
 const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
-
-const modulesBtn = () => (roomModules.nativeOpen('conference') ? '' : MODULES_BTN);
 
 function updateCrumb() {
   if (!currentRoom) {
@@ -1894,12 +1930,12 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
-      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN + modulesBtn() +
+      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN +
       `<span class="crumb-sep">&rsaquo;</span>` +
       crumbHere('people-arrows', kind) + REJOIN_BTN
     );
   } else {
-    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN + modulesBtn());
+    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN);
   }
 }
 
@@ -2292,7 +2328,6 @@ $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
   if (action === 'leave') leaveRoom();
   else if (action === 'rejoin') returnToTable();
-  else if (action === 'modules') roomModules.toggleMenu();
 });
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
@@ -2577,7 +2612,7 @@ function onKey(event) {
   else if (key === 'l') cycleView();
   else if (key === 'r') toggleTray();
   else if (key === 's' && !$('screen-share').hidden) toggleScreenShare();
-  else if (key === 'f') toggleFullscreen();
+  else if (key === 'f') toggleFullscreen(event.target.ownerDocument || event.target);
   else if (/^[1-6]$/.test(key)) sendReaction(REACTION_KEYS[Number(key) - 1]);
   else return;
   event.preventDefault();
@@ -2637,8 +2672,7 @@ watchOutsideClick(document);
 // now -- the main window normally, or the popped-out one once it exists.
 // Hardcoding `document` here would fullscreen the wrong (empty) window
 // once popped out, since that's a separate top-level browsing context.
-function toggleFullscreen() {
-  const doc = stageDoc();
+function toggleFullscreen(doc = stageDoc()) {
   if (doc.fullscreenElement) {
     doc.exitFullscreen().catch(() => {});
   } else {
@@ -2650,12 +2684,14 @@ function toggleFullscreen() {
 // showing the wrong state. Registered on the main document up front, and
 // on the popout's own document once it exists (see setUpPopoutWindow).
 function syncFullscreenButton() {
-  const on = !!stageDoc().fullscreenElement;
-  $('fullscreen-toggle').classList.toggle('on', on);
-  $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
+  const on = !!document.fullscreenElement || !!stageDoc().fullscreenElement || !!confEl.ownerDocument.fullscreenElement;
+  for (const id of ['fullscreen-toggle', 'conf-fullscreen']) {
+    $(id).classList.toggle('on', on);
+    $(id).title = on ? 'Exit full screen (F)' : 'Full screen (F)';
+  }
 }
 document.addEventListener('fullscreenchange', syncFullscreenButton);
-$('fullscreen-toggle').addEventListener('click', toggleFullscreen);
+$('fullscreen-toggle').addEventListener('click', () => toggleFullscreen());
 
 // --- install as an app / pop out ------------------------------------------------
 // The button itself (and the beforeinstallprompt handling behind it) now

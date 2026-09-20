@@ -718,6 +718,63 @@ input[type="range"] {
   background: var(--border);
 }
 
+/* Controls only the room page has (panes menu, full screen, pop out), grouped with a divider. */
+.nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+body:not(.at-table) #room-nav {
+  display: none;
+}
+
+.icon-link {
+  position: relative;
+}
+
+/* A phone has no use for a pop-out window, and the header has no room for the extra buttons. */
+@media (max-width: 560px) {
+  #room-nav #fullscreen-toggle,
+  #room-nav #popout {
+    display: none;
+  }
+
+  .topbar .links .nav-divider {
+    display: none;
+  }
+}
+
+.icon-link .badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.icon-link.on {
+  color: var(--icon-hover);
+}
+
+/* A toggle icon-link shows its "on" icon until switched, then its "off" one. */
+.icon-link .icon-off,
+.icon-link.on .icon-on {
+  display: none;
+}
+
+.icon-link.on .icon-off {
+  display: inline-block;
+}
+
 /* The signed-in player: their image next to their name, leading to their profile */
 .links a.whoami,
 .whoami {
@@ -1460,25 +1517,50 @@ a.crumb-here:hover {
   flex-direction: column;
 }
 
-/* Popped out, a bar is floating rather than docked: it sits over its own
-   module's content instead of in the bottom row, and the content takes the
-   whole height. Docked and floating are the only two states of a bar. */
+/* Popped out, the conference keeps its titlebar and toolbar, but they slide away when
+   nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
+   and slide back on the next movement. Gone, they leave the flow, so the tiles take the
+   whole window. */
 .popout .stage {
   height: 100vh;
 }
 
-.popout .module-video > .mod-content {
-  grid-row: 1 / -1;
+.popout .conference-head,
+.popout .video-bar {
+  transition: transform 0.25s ease;
 }
 
-.popout .video-bar {
+.popout .stage.idle .conference-head {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  transform: translateY(-100%);
+}
+
+.popout .stage.idle .video-bar {
+  position: absolute;
   grid-row: 1 / -1;
-  align-self: end;
-  justify-self: center;
-  width: max-content;
-  max-width: calc(100% - 32px);
-  margin-bottom: 16px;
-  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  transform: translateY(100%);
+}
+
+/* What only makes sense while the header (with its Modules and Full screen buttons) is out of
+   reach in another window: the conference's own copies. */
+.conf-popout-only {
+  display: none;
+}
+
+.popout .conf-popout-only {
+  display: inline-flex;
+}
+
+.popout .conference-head [data-popout] {
+  display: none; /* the whole table is already in a window */
 }
 
 .float {
@@ -1487,7 +1569,7 @@ a.crumb-here:hover {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.popout .stage.idle .float {
+.popout .stage.idle .float:not(.floatbar) {
   opacity: 0;
   pointer-events: none;
 }
@@ -1506,56 +1588,6 @@ a.crumb-here:hover {
   font-size: 12px;
   color: var(--text-dim);
   gap: 8px;
-}
-
-.popout .status-float {
-  display: flex;
-}
-
-/* Full screen and pop out sit over the video area's own corner, like other
-   video apps, rather than among the call's mic/camera controls -- both
-   change the whole window, not anything about the call itself. */
-.video-tools {
-  top: 10px;
-  right: 12px;
-  display: flex;
-  gap: 6px;
-  transition: right 0.2s ease;
-}
-
-.vtool-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  /* Same look as the toolbar's Secondary buttons, so it follows the theme. */
-  background: var(--secondary);
-  color: var(--icon, var(--secondary-text));
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-
-.vtool-btn:hover {
-  background: var(--secondary-hover);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  color: var(--icon-hover);
-}
-
-.vtool-btn .icon-off {
-  display: none;
-}
-
-.vtool-btn.on .icon-on {
-  display: none;
-}
-
-.vtool-btn.on .icon-off {
-  display: inline-block;
 }
 
 /* docked: a full-width bar at the bottom of the page */
@@ -1578,31 +1610,11 @@ a.crumb-here:hover {
   border-top: 1px solid var(--border);
 }
 
-.popout .video-bar {
-  background: none;
-  border: 0;
-}
-
 /* Buttons keep their natural size rather than squeezing to fit -- fitFloatbar()
    reads scrollWidth vs clientWidth to decide what collapses, which only works
    if what doesn't fit actually overflows instead of shrinking in place. */
 .floatbar > * {
   flex-shrink: 0;
-}
-
-/* popped out: the toolbar is a floating pill over the tiles */
-.popout .floatbar {
-  width: max-content;
-  max-width: 100%;
-  padding: 8px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--bg-section) 88%, transparent);
-  border: 1px solid var(--border);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-}
-
-.popout .stage.idle .floatbar {
-  transform: translateY(8px);
 }
 
 .fbtn {
@@ -2652,11 +2664,6 @@ a.crumb-here:hover {
   padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
-.popout .stage.compact .video-bar {
-  margin-bottom: 8px;
-  max-width: calc(100% - 16px);
-}
-
 .stage.compact .fbtn {
   width: 34px;
   height: 34px;
@@ -3340,6 +3347,43 @@ body.module-page {
 
 .module-missing {
   margin: 40px auto;
+}
+
+/* The conference in a floating panel or a window of its own: its tiles are styled under
+   a .stage, so it brings one. Popovers hang above the toolbar, past the panel's edge. */
+.conference-panel {
+  overflow: visible;
+}
+
+.conference-panel > .stage,
+.conference-window .stage {
+  height: 100%;
+  overflow: visible;
+  border-radius: 10px;
+}
+
+.conference-panel .conference-head {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.conference-panel .video-bar {
+  border-radius: 0 0 10px 10px;
+}
+
+body.conference-window {
+  margin: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.conference-window .stage {
+  height: 100vh;
+  border-radius: 0;
 }
 
 /* Nothing docked, floating or in a window of its own. */

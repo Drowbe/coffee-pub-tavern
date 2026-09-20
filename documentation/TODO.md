@@ -15,6 +15,18 @@ Built and only checked in a browser with the LiveKit connection unavailable, and
 
 Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions, progress and the four stages are in plans/plan-canvas.md. Stage 1 is built and needs a real call with two people to verify (close and rejoin the conference, the other person's tile leaving and returning, chat with no conference, hang-up in a pop-out, a role without the conference, an aside with someone out of the conference). Then stage 2, the floating conference.
 
+## Ideas and open questions
+
+Collected, none started:
+
+- A module for Foundry that carries communication and commands between Tavern and Foundry.
+- A to-do or task module.
+- An LLM module.
+- A module for WhatsApp or SMS hooks.
+- Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
+- Call time in the conference titlebar.
+- Reduce the height of the header a bit.
+
 ## Google Calendar sync
 
 Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.

@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the room page's pane model, and the author reviewing it before any of it is built.
 
-**Status:** Stage 1 built, awaiting a real call to verify; stages 2 to 4 not started. The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
+**Status:** Stages 1 to 3 built, awaiting a real call to verify; stage 4 not started. The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
 
 ## The idea
 
@@ -38,8 +38,8 @@ Today "online" and "in this room" come from LiveKit's participant list, and chat
 Each stage keeps the default experience unchanged and is verified before the next.
 
 1. **The conference as a closable pane.** The stage's conference area joins the pane manager as a native pane that can be closed and reopened, and the flexible-column rule moves into the manager. Joining no longer requires the conference pane; closing it leaves the call. Presence heartbeat and the two new permissions land here. Result: chat only, and chat plus Calendar, work.
-2. **The floating conference.** The conference pane can float over the canvas. Its toolbar becomes its bar; the fullscreen and pop-out buttons move into its header; the aside, recall and away overlays and the settings and reaction popovers anchor to the conference pane instead of the stage.
-3. **The conference in its own window.** Replaces the whole-stage pop-out: the conference pane moves to a window and the other panes stay on the main page. The room card's pop-out join opens the chosen panes accordingly.
+2. **The floating conference.** The conference pane can float over the canvas. It gets the same titlebar as the other panes; the full screen and pop-out buttons move to the app header and apply to the whole app; the aside, recall and away overlays and the settings and reaction popovers anchor to the conference pane instead of the stage.
+3. **The conference in its own window.** The conference pane moves to a window and the other panes stay on the main page. The header's Pop out still moves the whole app. The room card's pop-out join opens the chosen panes accordingly.
 4. **Remembered layouts.** The panes, modes and sizes used last in each room are restored on join, and "Join with" on the room card exposes them.
 
 ## Progress
@@ -57,7 +57,18 @@ Stage 1 (the conference as a closable pane):
 - [x] Checked in a browser with forced states: docked columns with and without the conference, the chat as the flexible column, the empty hint, the menu under the header button and above the toolbar button, the narrow strip layout, the Roles grid, and tokens for an admin, a call-off join and a role without the conference.
 - [ ] Verified in a real call with two people: closing and rejoining the conference, the other person's tile leaving and returning, chat with no conference, hang-up in a pop-out, a role without the conference, an aside with someone who is out of the conference.
 
-Stages 2 to 4: not started.
+Stages 2 and 3 (built together, as asked):
+
+- [x] The conference has the same titlebar as the other panes, with dock or float, open in a window, and close (which leaves the call).
+- [x] The conference can float (a panel, wrapped in its own `.stage`) and can be in a window of its own with the other panes staying on the page; moving between the three leaves the call running.
+- [x] The aside, recall and away overlays cover the conference itself, wherever it is. The settings and reaction popovers hang off the toolbar as before.
+- [x] The floating toolbar in the popped-out window is gone: the popout has the same titlebar and toolbar, which slide away when idle and back on movement.
+- [x] Full screen and Pop out moved out of the conference into the header, at the right (Modules, Full screen, Pop out, Sign out), and apply to the whole app. The Modules button left the toolbar and is only in the header; the popped-out conference has its own Modules and Full screen buttons because the header is out of reach there.
+- [x] The compact and tiny sizes follow the conference's own width, not the stage's.
+- [x] Checked in a browser with forced states: docked with the chat, floating and docking back, the popout look in both idle and awake states, the header order, the menu from the header and from the popped-out titlebar, a phone-width header and strip.
+- [ ] Verified in a real call and in real windows (the test browser blocks popups): the conference floating with live tiles, the conference alone in its own window (tiles and audio keep playing after the move, hotkeys, idle, popovers), closing that window, the whole-app pop-out with the new titlebar and toolbar sliding, Full screen from the header while popped out, and the header's Modules button beside a conference in a window.
+
+Stage 4: not started.
 
 ## Risks
 

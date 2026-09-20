@@ -71,6 +71,14 @@
          and chat are the first two; see documentation/architecture/architecture-room-layout.md. -->
     <section class="module module-video" id="conference">
       <div class="mod-content" id="video-content">
+      <header class="mod-header conference-head">
+        <span class="module-panel-title"><i class="fa-solid fa-video fa-fw" aria-hidden="true"></i> <span>Conference</span></span>
+        <span class="mod-header-tools pane-tools">
+          <button class="msg-btn conf-popout-only" id="conf-fullscreen" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn conf-popout-only" id="conf-modules" type="button" title="Chat and modules" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="conf-close" data-pane-close type="button" title="Leave the call" aria-label="Leave the call"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>
+        </span>
+      </header>
       <div class="grid" id="grid"></div>
   
       <div class="float status-float" id="status-float">
@@ -78,14 +86,53 @@
         <span class="status" id="status"></span>
       </div>
   
-      <!-- Corner controls over the video area itself, not the toolbar --
-           full screen and pop out both change the whole window, not the call,
-           so they read as page-level controls the way other video apps place
-           them rather than living among the call's own mic/camera buttons. -->
-      <div class="float video-tools" id="video-tools">
-        <button class="vtool-btn" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
-        <button class="vtool-btn" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window" hidden><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
-      </div>
+      <!-- The overlays cover the conference itself, wherever it is: docked, floating or in a window of its own. -->
+        <!-- Admin only: shown once one or more tiles are picked with the door
+             icon, to confirm pulling all of them aside together. A centered
+             overlay (not a small edge-of-screen pill) so the choice is
+             unmissable, with three always-explicit actions rather than one
+             button plus a toggle -- which one gets clicked should never depend
+             on remembering to flip a checkbox back. An aside is still recorded
+             (Studio mutes/dims whoever stepped out, the pair stays on stream);
+             "Privately" is a real off-the-record word Studio hides from the
+             recording entirely. Clicking the backdrop cancels too. -->
+        <div class="aside-overlay" id="aside-overlay" hidden>
+          <div class="aside-overlay-card">
+            <p id="aside-overlay-prompt"></p>
+            <div class="aside-overlay-actions">
+              <button class="btn btn-primary" id="aside-confirm" type="button"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> <span id="aside-confirm-label">Step aside</span></button>
+              <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
+              <button class="btn btn-small" id="aside-cancel" type="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shown on a Private Conversation participant's own screen once the
+             admin clicks "Pull Participants Back" in the room they stepped out
+             of -- a warned countdown, not an instant yank, so it doesn't cut
+             someone off mid-sentence. No cancel: this is the admin's call, not
+             theirs to override. -->
+        <div class="aside-overlay" id="recall-overlay" hidden>
+          <div class="aside-overlay-card">
+            <p>You are being pulled back to <strong id="recall-room-name"></strong> in...</p>
+            <p class="recall-countdown" id="recall-countdown"></p>
+          </div>
+        </div>
+
+        <!-- Clicking Away asks for an optional message to show on your tile in
+             place of "Away". Empty keeps the plain "Away". -->
+        <div class="aside-overlay" id="away-overlay" hidden>
+          <form class="aside-overlay-card" id="away-form">
+            <p>Going away?</p>
+            <textarea id="away-message" rows="4" maxlength="200" placeholder="Away message (optional)" aria-label="Away message"></textarea>
+            <span class="hint">Shown on your tile instead of "Away". Ctrl or Cmd + Enter to go.</span>
+            <div class="aside-overlay-actions">
+              <button class="btn btn-primary" type="submit"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i> Go away</button>
+              <button class="btn btn-small" id="away-cancel" type="button">Cancel</button>
+            </div>
+          </form>
+        </div>
+
       </div>
       <div class="mod-bar video-bar" id="video-bar">
       <div class="float floatbar" id="floatbar">
@@ -107,7 +154,6 @@
           <button class="fbtn-caret" type="button" data-settings="layout" title="Layout settings" aria-label="Layout settings"><i class="fa-solid fa-caret-up" aria-hidden="true"></i></button>
         </div>
         <button class="fbtn" id="away-toggle" type="button" title="Away: pauses your mic and camera and lets everyone know" data-collapse="5"><span class="glyph"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i></span></button>
-        <button class="fbtn" id="modules-toggle" type="button" title="Chat and modules (C for chat)" data-collapse="8"><span class="glyph"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></span><span class="badge" hidden></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)" data-collapse="3"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more" data-collapse="2"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="room-link" type="button" title="Open this room's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
@@ -192,52 +238,6 @@
       </div>
       </div>
     </section>
-
-    <!-- Admin only: shown once one or more tiles are picked with the door
-         icon, to confirm pulling all of them aside together. A centered
-         overlay (not a small edge-of-screen pill) so the choice is
-         unmissable, with three always-explicit actions rather than one
-         button plus a toggle -- which one gets clicked should never depend
-         on remembering to flip a checkbox back. An aside is still recorded
-         (Studio mutes/dims whoever stepped out, the pair stays on stream);
-         "Privately" is a real off-the-record word Studio hides from the
-         recording entirely. Clicking the backdrop cancels too. -->
-    <div class="aside-overlay" id="aside-overlay" hidden>
-      <div class="aside-overlay-card">
-        <p id="aside-overlay-prompt"></p>
-        <div class="aside-overlay-actions">
-          <button class="btn btn-primary" id="aside-confirm" type="button"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> <span id="aside-confirm-label">Step aside</span></button>
-          <button class="btn" id="aside-confirm-private" type="button" title="Off the record: hidden from the recording entirely, not just muted and dimmed"><i class="fa-solid fa-user-lock fa-fw" aria-hidden="true"></i> <span id="aside-confirm-private-label">Privately</span></button>
-          <button class="btn btn-small" id="aside-cancel" type="button">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Shown on a Private Conversation participant's own screen once the
-         admin clicks "Pull Participants Back" in the room they stepped out
-         of -- a warned countdown, not an instant yank, so it doesn't cut
-         someone off mid-sentence. No cancel: this is the admin's call, not
-         theirs to override. -->
-    <div class="aside-overlay" id="recall-overlay" hidden>
-      <div class="aside-overlay-card">
-        <p>You are being pulled back to <strong id="recall-room-name"></strong> in...</p>
-        <p class="recall-countdown" id="recall-countdown"></p>
-      </div>
-    </div>
-
-    <!-- Clicking Away asks for an optional message to show on your tile in
-         place of "Away". Empty keeps the plain "Away". -->
-    <div class="aside-overlay" id="away-overlay" hidden>
-      <form class="aside-overlay-card" id="away-form">
-        <p>Going away?</p>
-        <textarea id="away-message" rows="4" maxlength="200" placeholder="Away message (optional)" aria-label="Away message"></textarea>
-        <span class="hint">Shown on your tile instead of "Away". Ctrl or Cmd + Enter to go.</span>
-        <div class="aside-overlay-actions">
-          <button class="btn btn-primary" type="submit"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i> Go away</button>
-          <button class="btn btn-small" id="away-cancel" type="button">Cancel</button>
-        </div>
-      </form>
-    </div>
 
     <aside class="chat module module-chat" id="chat" hidden>
       <div class="chat-resize" id="chat-resize" title="Drag to resize"></div>
