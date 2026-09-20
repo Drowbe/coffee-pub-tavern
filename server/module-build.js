@@ -65,13 +65,22 @@ function buildModule(dir) {
   const manifestPath = path.join(dir, 'module.json');
   if (!fs.existsSync(manifestPath)) throw new Error('that folder has no module.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const src = (ext) => fs.readFileSync(path.join(dir, 'src', `${manifest.id}.${ext}`), 'utf8');
-  // A function replacement, so "$&" and friends in the code are not treated as patterns.
-  const page = src('html')
-    .replace('/*__CSS__*/', () => src('css'))
-    .replace('/*__JS__*/', () => src('js').replace(/<\/script/gi, '<\\/script'));
-  const entries = [...new Set(Object.values(manifest.surfaces || {}).map((s) => s.entry))];
-  const files = [['module.json', fs.readFileSync(manifestPath)], ...entries.map((e) => [e, Buffer.from(page)])];
+  const read = (name, ext) => fs.readFileSync(path.join(dir, 'src', `${name}.${ext}`), 'utf8');
+  // Code more than one of the module's pages shares can live in src/<id>-lib.js, put where the page's script has
+  // `/*__LIB__*/`. Function replacements throughout, so "$&" and friends in the code are not treated as patterns.
+  const lib = fs.existsSync(path.join(dir, 'src', `${manifest.id}-lib.js`)) ? read(`${manifest.id}-lib`, 'js') : '';
+  const build = (name) => read(name, 'html')
+    .replace('/*__CSS__*/', () => read(name, 'css'))
+    .replace('/*__JS__*/', () => read(name, 'js').replace('/*__LIB__*/', () => lib).replace(/<\/script/gi, '<\\/script'));
+  // The page and the panel are one file; a dashboard widget is its own (src/<id>-widget.*).
+  const shared = build(manifest.id);
+  const files = [['module.json', fs.readFileSync(manifestPath)]];
+  const seen = new Set();
+  for (const [surface, def] of Object.entries(manifest.surfaces || {})) {
+    if (seen.has(def.entry)) continue;
+    seen.add(def.entry);
+    files.push([def.entry, Buffer.from(surface === 'widget' ? build(`${manifest.id}-widget`) : shared)]);
+  }
   return { manifest, fileCount: files.length, zip: zipFiles(files) };
 }
 

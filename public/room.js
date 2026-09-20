@@ -3,6 +3,7 @@ import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.e
 import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
 import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
+import { initDashboard } from '/dashboard.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
@@ -128,6 +129,7 @@ async function loadTable() {
       updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
+    if (!guestToken) initDashboard({ users, rooms: tableRooms });
     reconcileGhostTiles();
     renderGuestLink();
     renderRoomLink();

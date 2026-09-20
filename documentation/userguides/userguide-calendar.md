@@ -20,6 +20,10 @@ The server calendar also shows, read-only, the events of every room you belong t
 
 In a call, choose the Modules button in the header and then **Calendar**. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to a floating panel or open it in a window of its own. It shows that room's events, and the server's events beside them marked **server**. Server events are read-only in a room; change them on the server calendar.
 
+## Coming up on the dashboard
+
+On the rooms page, the dashboard's **Coming up** card lists the next seven days of events, up to eight, across every room you are in that has the Calendar on and the server's own calendar, each with its room's icon; repeating events show on the days they land on. Clicking an event opens it in its room; the heading opens the full calendar. See [Rooms](userguide-rooms.md).
+
 ## Add and change events
 
 At the bottom of the Calendar is a quick-add field with a **+** button. Type what the event is and press Enter or click **+**, and the New event form opens filled in: "meet with bob sep 29 at 7pm" gives the title "meet with bob", the day Sep 29 and the time 7:00 PM. Days can be typed as "tomorrow", "fri", "next mon", "sep 29", "29 sep" or "9/29"; times as "7pm", "7:30pm", "19:00", "at 7", "noon" or "midnight". Whatever it does not understand stays in the title, and you can change anything before saving. Clicking **+** with nothing typed opens a blank form.

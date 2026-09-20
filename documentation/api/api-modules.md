@@ -22,7 +22,8 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 420, "height": 520 }
+    "panel": { "entry": "panel.html", "width": 420, "height": 520 },
+    "widget": { "entry": "widget.html", "title": "Coming up", "size": "medium", "order": 10 }
   },
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } }
@@ -45,7 +46,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 - `refs.produces` lists up to 10 kinds of item other modules may point at: a `kind` (lowercase letters, digits, dashes), an optional display `name`, optional `open` and `backlinks` flags (the module can show one of its items when asked, and shows what links to them), a `key` that is a fixed prefix then `{id}` (`"event:{id}"`), and a `card` mapping the card fields `title` (required), `subtitle`, `when`, `end`, `allDay` and `done` to top-level stored field names. `refs.consumes` lists up to 20 kinds of other modules' items as `"module:kind"`, or `"*"` for whatever other modules share; an admin approves them, and a module cannot consume its own kinds.
 - `events.publishes` lists up to 10 events the module says (`name`, an optional `kind` of its refs the event concerns, a `label`, and an optional `data` mapping up to six fields the event carries to types, as an action's input does); `events.subscribes` lists up to 20 events it wants to hear, as `"*"` or `"module:name"`, approved by an admin.
 - `actions.provides` lists up to 10 actions the module carries out: a `name`, a `label` and an `input` mapping up to 10 fields to `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref` (a trailing `?` for optional); a field's type may also be `ref:module:kind`, a pointer to one kind of item, which Tavern enforces; `actions.uses` lists up to 20 it wants to ask for, as `"*"` or `"module:name"`, approved by an admin.
-- `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both.
+- `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both. `surfaces.widget` (needs the `server` scope) is a small view for the dashboard on the rooms page: an `entry`, a `title` (up to 40 characters, the module's name if omitted), a `size` of `small`, `medium` or `wide`, and an `order` number (lower comes first, default 100).
 - Anything else in the manifest is ignored.
 
 ## Routes
@@ -85,6 +86,7 @@ These serve a running module. The page hosting a module's frame calls them for i
 |---|---|
 | `GET /m/:id/:version/*path` | A file of the active version of an enabled module, with a sandbox content security policy. HTML pages get the SDK and base styles injected |
 | `GET /api/modules/nav` | Modules with a page this person can open, for the header |
+| `GET /api/modules/widgets` | Modules with a dashboard widget this person may read, in order: `{ widgets: [{ id, name, icon, version, scope, runMode, title, size, order, entry }] }`. Guests get none |
 | `GET /api/modules/for-room?room=<id>` | Modules with a panel in that room this person can see |
 | `GET /api/modules/:id/context` | Who is asking and their permissions in the module |
 | `GET /api/modules/:id/data?prefix=` | `{ items }`, each `{ key, value, version, updatedAt, by }` |

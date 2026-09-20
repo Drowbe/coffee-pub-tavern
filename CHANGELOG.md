@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- A dashboard on the rooms page, under the room cards: who is around, and a card for every module that offers a widget. A module declares `surfaces.widget` (an entry, a title, a size and an order), Tavern lists them (`GET /api/modules/widgets`) and hosts each as it hosts a module page, so Tavern names no module. Calendar 1.12.2 provides **Coming up**: the next seven days across all your rooms and the server calendar, with each room's icon; clicking an item opens it in its room, the heading opens the calendar. A module's build can share code between its page and its widget (`src/<id>-lib.js`). Verified in a browser: the dashboard with the Calendar widget in the page and in a sandboxed frame (sized to its content), on desktop and at phone width, and an item opening its event in the room's calendar. Not verified: a repeating event from a room the viewer is a member of, and two people.
+
 ### Changed
 - The chat's Send button is the right-from-bracket icon (it keeps the label "Send" for screen readers and as a tooltip), the same size as the other controls in the bottom row.
 

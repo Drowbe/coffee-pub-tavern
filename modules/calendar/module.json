@@ -1,14 +1,15 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.11.1",
+  "version": "1.12.2",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
+    "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] },
+    "widget": { "entry": "widget.html", "title": "Coming up", "size": "medium", "order": 10 }
   },
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },

@@ -1764,6 +1764,22 @@ app.get('/api/modules/nav', (req, res) => {
   });
 });
 
+// The widgets for the dashboard on the rooms page: enabled modules with a surfaces.widget that this person may
+// read, in the order the modules ask for. A guest has no dashboard.
+app.get('/api/modules/widgets', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who?.user) return res.json({ widgets: [] });
+  const perms = modulePerms(who, null);
+  const widgets = modules.enabledAll()
+    .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.widget && moduleCan(manifest, perms, 'read'))
+    .map(({ manifest, entry }) => ({
+      id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry),
+      title: manifest.surfaces.widget.title || manifest.name, size: manifest.surfaces.widget.size, order: manifest.surfaces.widget.order, entry: manifest.surfaces.widget.entry,
+    }))
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  res.json({ widgets });
+});
+
 // Who is looking and what they may do in this module, for the frame's hello.
 app.get('/api/modules/:id/context', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');

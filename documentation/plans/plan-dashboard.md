@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the rooms page and the modules system, and the author deciding what comes next.
 
-**Status:** Decided, not started. The decisions below were made with the author; the contract is proposed and open to change before the first widget is built.
+**Status:** Phase 1 built: the contract, the dashboard on the rooms page, Who is around and the Calendar's Coming up widget. The decisions below were made with the author.
 
 ## What it is
 

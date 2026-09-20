@@ -12,6 +12,10 @@ Every room card has a **Join** button, an icon button to the right of it that jo
 pop-out window instead of the page, and (for admins) an **Edit** button. If a room has a launch link,
 its icon button sits there too. A room you are still connected to offers **Rejoin** instead of Join.
 
+## The dashboard
+
+Under the room cards is a dashboard across all of your rooms: who is around, and a card for each module that offers one. The Calendar's **Coming up** lists the next week, from every room you are in and the server's own calendar, each with its room's icon. Click an item to go to it in its room, or click a card's heading to open that module in full. The cards are laid out by Tavern, the same for everyone. Guests do not see it.
+
 ## Join with
 
 The button with sliders on a room card, next to Join, chooses which panes the room opens with: the

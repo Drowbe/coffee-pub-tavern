@@ -1,0 +1,14 @@
+* { box-sizing: border-box; }
+html, body { background: transparent; } /* the dashboard card is the background */
+[hidden] { display: none !important; }
+.w { padding: 2px 0; }
+.hint { margin: 8px 0; color: var(--text-dim); font-size: 13px; }
+.list { display: flex; flex-direction: column; gap: 10px; }
+.day h4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-dim); }
+.item { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.item + .item { margin-top: 4px; }
+.item:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.when { flex: none; min-width: 58px; color: var(--accent); font-size: 12px; }
+.what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ri { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--text-dim); }
+.ri svg { width: 100%; height: 100%; fill: currentColor; }

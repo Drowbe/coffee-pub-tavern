@@ -83,6 +83,10 @@ What an admin does is [userguide-modules](../userguides/userguide-modules.md); w
                                                                                             module-data.js, module-hooks.js
 ```
 
+### The dashboard
+
+The rooms page has a `#dashboard` section under the room list. `public/dashboard.js` fills it: a card for who is around (Tavern's own, from `/api/table`) and a card for each module with a `surfaces.widget`, listed by `GET /api/modules/widgets` in the order the manifests ask for. A widget is mounted exactly as a module page is (`mountModule` with `scope: 'server'`, in the page for a bundled module and in a sandboxed frame otherwise), so it uses the same SDK and the same reads across the viewer's rooms (`rooms-data`, checked against the module's read permission in each room). Tavern knows nothing of what a widget shows. An item a widget opens (`refs.open`) goes to that module's page in the item's room, given the pointer in the address (`openRef` in `dashboard.js`); the card's heading links to the module's own page. The section stays hidden until it has a card; a guest has no dashboard. A module's build (`server/module-build.js`) writes the widget entry from `src/<id>-widget.*`, and inlines `src/<id>-lib.js` wherever a script has `/*__LIB__*/`.
+
 ### Shared tools
 
 The SDK carries what more than one module needs (the date picker, the drop menu, small helpers in `tavern.util`), so modules stay small and look and behave alike. The picker and menu draw their elements inside the module's own root, positioned by the page's coordinates, and add their styles once to that root in the theme's colours, so they work in a frame and in the page. The rule for the SDK: when a second module needs something a first one wrote for itself, it moves into the SDK and the first module uses it from there.

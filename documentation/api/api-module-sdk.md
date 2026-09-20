@@ -241,6 +241,10 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Links on parts of an item.** An item can hold links of its own for its parts. A poll option takes a link (drop an item on it) and the poll passes the winning option's link out as `pick` when it closes. Tell Tavern what the whole item points at with `tavern.refs.setLinks`, so those items list it under what links to them.
 
+### A dashboard widget
+
+A module with the `server` scope can offer a widget for the dashboard on the rooms page: a small card, across all of the viewer's rooms. Declare `"widget": { "entry": "widget.html", "title": "Coming up", "size": "medium", "order": 10 }` under `surfaces`. The widget is its own single HTML file (in this repository, `src/<id>-widget.html`, `.css` and `.js`, built like the module page), and runs like a server page: `info.context.scope` is `"server"`, `tavern.storage.list(prefix)` reads the server's data, `tavern.storage.list(prefix, { scope: 'rooms' })` the module's data in each of the viewer's rooms (each item with its `roomId`), and `tavern.rooms()` names those rooms and their icons. The widget shows; it does not edit. Clicking an item should call `tavern.refs.open(ref)`, which takes the person to that item in its room; the card's heading opens the module's full page. A widget in a frame tells the dashboard how tall it is with `tavern.resize({ height })` (measure your own content, not the frame). Keep it small and quick: it loads with the rooms page. Code the page and the widget share can go in `src/<id>-lib.js`, which the build puts where a script has `/*__LIB__*/`.
+
 ### The action bar
 
 A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.
