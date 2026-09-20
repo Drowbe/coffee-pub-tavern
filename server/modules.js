@@ -144,11 +144,16 @@ function cleanRefs(rawRefs, id) {
       card[field] = from;
     }
     if (!card.title) throw new ModuleError(`module.json: refs "${kind}" needs a card.title`);
-    refs.produces.push({ kind, key, card });
+    // What a person sees it called; whether the module can open one of its items when asked (it
+    // handles tavern.refs.onOpen); whether it shows what links to its items (tavern.refs.linksTo).
+    const name = String(p.name ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 40) || kind.charAt(0).toUpperCase() + kind.slice(1);
+    refs.produces.push({ kind, name, key, card, open: Boolean(p.open), backlinks: Boolean(p.backlinks) });
   }
+  // "*" means whatever other modules share, so a module can link to the items of a module written
+  // after it without either being changed; otherwise named kinds, "module:kind".
   for (const c of Array.isArray(rawRefs?.consumes) ? rawRefs.consumes.slice(0, 20) : []) {
-    if (typeof c !== 'string' || !REF_CONSUME_RE.test(c)) throw new ModuleError(`module.json: refs.consumes "${c}" must look like "module:kind"`);
-    if (c.split(':')[0] === id) throw new ModuleError('module.json: a module does not need to consume its own kinds');
+    if (typeof c !== 'string' || (c !== '*' && !REF_CONSUME_RE.test(c))) throw new ModuleError(`module.json: refs.consumes "${c}" must be "*" or look like "module:kind"`);
+    if (c !== '*' && c.split(':')[0] === id) throw new ModuleError('module.json: a module does not need to consume its own kinds');
     if (!refs.consumes.includes(c)) refs.consumes.push(c);
   }
 
@@ -255,6 +260,10 @@ class ModuleManager {
       // not installed
     }
     if (manifest) {
+      // The stored file is the author's original: fill in what it left out.
+      manifest.hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(manifest.hooks?.[h])]));
+      if (!Array.isArray(manifest.permissions)) manifest.permissions = [];
+      if (!manifest.access || typeof manifest.access !== 'object') manifest.access = {};
       try {
         manifest.refs = cleanRefs(manifest.refs, id);
       } catch {

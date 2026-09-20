@@ -7,6 +7,16 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ### Fixed
 - The container image left out the `modules/` folder, so the bundled modules (and their updates) were never offered on a deployed server. The image now includes it, and a `.dockerignore` keeps local data, git and built zips out of the build.
 
+### Added
+- Links do something, through generic conduits, with Tavern naming no module. A link to another module's item is a button that opens the item where it lives (`tavern.refs.open`, answered by the owner's `tavern.refs.onOpen`): the module's pane opens, or its page, and it shows the item. The item shows what links to it (`tavern.refs.linksTo`, for a kind marked `backlinks`): an event lists the tasks linked to it, a poll the same, and clicking one opens it. A module tells Tavern what its items point at (`tavern.refs.setLinks`); Tavern keeps only the pointers (`server/module-links.js`), and shows each only to people who can see its source.
+- Modules can consume `"*"`, whatever other modules share, and ask Tavern what that is (`tavern.refs.kinds`, `/api/refs/kinds`). The To-do no longer names the Calendar or Polls: a module installed later, declaring what it shares, is linkable from a task with no change to either. Checked against a small test module (Places) installed after the others. A kind can also carry a display `name`, and flags `open` and `backlinks`.
+- Calendar 1.7.0, Polls 1.3.0 and To-do 1.3.0 use them. To-do 1.3.0 asks the admin to approve linking to whatever other modules share.
+
+Verified in a browser: a task's link opened the Calendar pane on the event's editor, which listed the task under Linked from, and clicking that opened the task in the To-do. Verified against the API: links, backlinks, refused impersonation, a deleted item dropping out, and a module added afterwards appearing in the To-do's kinds and search.
+
+### Fixed
+- Installing a module whose module.json omitted `hooks`, `permissions` or `access` failed with a server error; the stored manifest is the author's original, so the gaps are now filled in when it is read.
+
 ### Fixed
 - Dragging an event or a poll onto a task did nothing on drop. A drag that starts in one module frame does not reliably deliver its data into another, so Tavern now brokers it: while a drag lasts it puts an invisible layer over the other module frames, tells the frame under the pointer where the drag is and what was dropped, and removes the layers when the drag ends (or after 20 seconds). Modules receive it with `tavern.refs.dropTarget`. To-do 1.2.1 uses it, and highlights the task the drag is over. Verified in a browser: the layer went up over the other pane, accepted the drag, the task highlighted, the drop linked the event to the task, and the layers came down. Not verified with a real mouse drag, which the test browser cannot perform.
 - `npm run check` did not parse the browser scripts as modules, so an error only a module parse finds (a name declared twice) passed, and one such error broke the room page. It now checks those files as modules (`tools/check-syntax.mjs`).

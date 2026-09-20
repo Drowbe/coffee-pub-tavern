@@ -93,3 +93,12 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .dp-day.today { border-color: var(--accent); }
 .dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 .dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+
+/* What points at an event (a task, say), from other modules. */
+.links-wrap { display: flex; flex-direction: column; gap: 4px; }
+.links-wrap .lbl { color: var(--text-dim); font-size: 12px; }
+.links { display: flex; flex-wrap: wrap; gap: 4px; }
+.links .link { padding: 1px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font: inherit; font-size: 11px; }
+.links .link b { color: var(--accent); font-weight: 600; }
+.links button.link { cursor: pointer; }
+.links button.link:hover { color: var(--text); border-color: var(--accent); }

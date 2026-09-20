@@ -36,7 +36,7 @@ function joinStream(room, guest, onEvent) {
     if (guest) p.set('guest', guest);
     const source = new EventSource(`/api/modules/stream?${p}`);
     s = { source, subs: new Set() };
-    for (const type of ['change', 'schedule']) {
+    for (const type of ['change', 'schedule', 'links']) {
       source.addEventListener(type, (ev) => {
         let data;
         try {
@@ -116,7 +116,7 @@ function beginDrag(source, ref) {
 
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null }) {
+export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -146,9 +146,19 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   // This module, as the drag brokering sees it (its `send` is defined below).
   const mine = { frame, module, send: (event, data) => send(event, data) };
 
+  // Events for the module before its page has said hello wait until it has.
+  let ready = false;
+  const queued = [];
+  const deliver = (event, data) => {
+    if (ready) send(event, data);
+    else queued.push([event, data]);
+  };
+
   const handlers = {
     async hello() {
       contextInfo = await api('GET', url('/context', scope));
+      ready = true;
+      setTimeout(() => { for (const [event, data] of queued.splice(0)) send(event, data); }, 50);
       return {
         user: contextInfo.user,
         permissions: contextInfo.permissions,
@@ -181,6 +191,31 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     async 'refs.resolve'({ refs }) {
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
       return (await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).cards;
+    },
+    // The kinds of other modules' items this module may link to, so it need not know them by name.
+    async 'refs.kinds'() {
+      const p = new URLSearchParams({ from: module.id });
+      if (guestToken) p.set('guest', guestToken);
+      return (await api('GET', `/api/refs/kinds?${p}`)).kinds;
+    },
+    // Show an item in the module that owns it (the page decides how: a pane, a page).
+    async 'refs.open'({ ref }) {
+      if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
+      return Boolean(await onOpenRef({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }));
+    },
+    // Tell Tavern what one of this module's items points at (all of it: the list replaces the last).
+    async 'refs.setLinks'({ from, to }) {
+      if (!REF_SHAPE(from)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
+      return api('POST', `/api/refs/links${q}`, { module: module.id, from, to: (Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20) });
+    },
+    // What points at one of this module's items ('to'), or what it points at ('from'): cards.
+    async 'refs.links'({ ref, dir }) {
+      if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(ref), dir: dir === 'from' ? 'from' : 'to' });
+      if (guestToken) p.set('guest', guestToken);
+      return (await api('GET', `/api/refs/links?${p}`)).cards;
     },
     async 'refs.search'({ q, scope: s }) {
       const sc = scopeOf(s);
@@ -327,6 +362,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
     if (d.module !== module.id) return;
     if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
+    else if (type === 'links') send('links', { ref: d.ref });
     else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
   });
 
@@ -342,6 +378,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     send,
     // For tests: start a brokered drag of `ref` from this module, as its SDK would.
     beginDragForTest: (ref) => beginDrag(mine, ref),
+    deliver,
     destroy() {
       hostWin.removeEventListener('message', onMessage);
       mounted.delete(mine);

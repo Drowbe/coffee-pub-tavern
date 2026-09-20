@@ -42,7 +42,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 - `permissions` holds up to 20 entries with unique lowercase keys. `default` says which roles have the
   permission before an admin changes it.
 - `hooks` names what the module may ask Tavern to do for it: `schedule` and `notify`.
-- `refs.produces` lists up to 10 kinds of item other modules may point at: a `kind` (lowercase letters, digits, dashes), a `key` that is a fixed prefix then `{id}` (`"event:{id}"`), and a `card` mapping the card fields `title` (required), `subtitle`, `when`, `end`, `allDay` and `done` to top-level stored field names. `refs.consumes` lists up to 20 other modules' kinds as `"module:kind"`; an admin approves them, and a module cannot consume its own kinds.
+- `refs.produces` lists up to 10 kinds of item other modules may point at: a `kind` (lowercase letters, digits, dashes), an optional display `name`, optional `open` and `backlinks` flags (the module can show one of its items when asked, and shows what links to them), a `key` that is a fixed prefix then `{id}` (`"event:{id}"`), and a `card` mapping the card fields `title` (required), `subtitle`, `when`, `end`, `allDay` and `done` to top-level stored field names. `refs.consumes` lists up to 20 kinds of other modules' items as `"module:kind"`, or `"*"` for whatever other modules share; an admin approves them, and a module cannot consume its own kinds.
 - `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both.
 - Anything else in the manifest is ignored.
 
@@ -90,6 +90,9 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
 | `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
 | `POST /api/refs/resolve` | Body `{ from, refs: [{ module, kind, id, scope, room? }] }` (`from` is the asking module, up to 50 refs). Returns `{ cards }` in the same order: a card, or `{ ref, error, status }` for each that is missing, invalid or not allowed |
+| `GET /api/refs/kinds?from=` | The kinds of other modules' items the asking module may link to: `{ kinds: [{ module, moduleName, icon, kind, name, open }] }`. A module installed later appears here with no change to anything else |
+| `POST /api/refs/links` | Body `{ module, from, to: [refs] }`: the asking module says what one of its own items points at (the whole list). Targets the viewer cannot see, or the module may not link to, are left out. Needs write access to the module |
+| `GET /api/refs/links?from=&ref=&dir=to\|from` | What points at (`to`, only for a kind with `backlinks`) or is pointed at by (`from`) one of the asking module's own items: cards, each only for what the viewer may see |
 | `GET /api/refs/search?from=&scope=&room=&q=` | Cards for items `from` may link to in one scope: every kind it was approved to consume, matching `q`, newest `when` first, up to 50 |
 | `GET /api/modules/:id/refs/:kind/:refId?from=&scope=&room=` | One card, `{ card }`, or an error |
 | `POST /api/modules/bundled/:id/install` | Admin only. Builds one of the modules that ship with this Tavern (a folder under `modules/` next to the server) into a zip and installs it as an upload would be, so it is the same validation, approval and versioning; 404 for anything that is not a bundled module. `GET /api/modules` lists them as `bundled`: `{ id, name, icon, description, version, installed, update }` |

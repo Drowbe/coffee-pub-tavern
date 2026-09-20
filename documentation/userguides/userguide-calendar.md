@@ -36,7 +36,7 @@ Give an event an **Ends** date, and a time if it is not all day, to make it run 
 
 ## Linking an event elsewhere
 
-An event can be dragged onto a task in the To-do module, or onto an open task there, to link the task to it. The task then shows the event's name and date. See [To-do](userguide-todo.md).
+An event can be dragged onto a task in the To-do module, or onto an open task there, to link the task to it. The task then shows the event's name and date, and clicking that link opens the event here. When you open an event that tasks (or anything else) link to, it lists them under **Linked from**, and clicking one opens it. See [To-do](userguide-todo.md).
 
 ## Repeating events
 

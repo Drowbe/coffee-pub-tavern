@@ -368,6 +368,48 @@
     if (picker && !e.target.closest('.dp')) closePicker();
   });
 
+  // --- what links to an event, and being opened from a link -----------------------
+  // Other modules (a to-do, say) can point at an event. Tavern tells this module what points at it
+  // (tavern.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
+  // shown (tavern.refs.onOpen). Nothing here knows which modules those are.
+
+  const whereFor = (x) => (x.scope === 'rooms' ? { room: x.roomId } : x.scope === 'server' && inRoom ? { scope: 'server' } : undefined);
+  let backlinksFor = null; // the event key the shown backlinks are for
+  async function showBacklinks(x) {
+    backlinksFor = x ? x.key : null;
+    $('f-links-wrap').hidden = true;
+    if (!x || !tavern.refs || !tavern.refs.linksTo) return;
+    let cards = [];
+    try {
+      cards = await tavern.refs.linksTo(tavern.refs.make('event', x.id, whereFor(x)));
+    } catch (err) {
+      cards = [];
+    }
+    if (backlinksFor !== x.key) return; // the editor moved on
+    $('f-links').innerHTML = cards.map((c) => (c.open
+      ? `<button type="button" class="link" data-ref="${esc(JSON.stringify(c.ref))}"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</button>`
+      : `<span class="link"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`)).join('');
+    $('f-links-wrap').hidden = cards.length === 0;
+  }
+  $('f-links').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ref]');
+    if (b && tavern.refs) tavern.refs.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
+  });
+  if (tavern.refs && tavern.refs.onOpen) {
+    tavern.refs.onOpen((ref) => {
+      const x = events.get(keyOf('room', ref.id)) || events.get(keyOf('server', ref.id)) || events.get(keyOf('rooms', ref.id, ref.room));
+      if (!x) return;
+      const d = startOf(x.ev);
+      cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+      view = 'month';
+      render();
+      openEditor(x);
+    });
+    tavern.on('links', (e) => {
+      if (e.ref && e.ref.kind === 'event' && editing && events.get(backlinksFor) && events.get(backlinksFor).id === e.ref.id) showBacklinks(events.get(backlinksFor));
+    });
+  }
+
   function openEditor(x, day) {
     const readOnly = !canEdit || (x && ((x.scope === 'server' && inRoom) || x.scope === 'rooms'));
     const ev = x ? x.ev : { title: '', allDay: false, start: '', end: null, desc: '', remind: null, repeat: null };
@@ -397,11 +439,13 @@
     remindHint();
     closePicker();
     showWeekdays();
+    showBacklinks(x || null);
     $('editor').hidden = false;
     $(readOnly ? 'f-cancel' : 'f-title').focus();
   }
   function closeEditor() {
     closePicker();
+    backlinksFor = null;
     $('editor').hidden = true;
     editing = null;
   }

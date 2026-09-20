@@ -64,3 +64,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 
 /* With the filter buttons in the titlebar (tavern.header), this row has nothing left to show. */
 .hosted-header .bar { display: none; }
+
+.tag.ref { cursor: pointer; }
+.tag.ref:hover { color: var(--text); border-color: var(--accent); }
+.tag b { color: var(--accent); font-weight: 600; }
+.poll.flash { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }

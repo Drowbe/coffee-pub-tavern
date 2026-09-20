@@ -94,6 +94,54 @@
     render();
   });
 
+  // --- what links to a poll, and being opened from a link ---------------------
+  // Other modules (a to-do, say) can point at a poll. Tavern says what points at it, only what the
+  // viewer may see (tavern.refs.linksTo), and a link to a poll can ask for it to be shown
+  // (tavern.refs.onOpen). Nothing here knows which modules those are.
+
+  const backlinks = new Map(); // poll key -> cards
+  const asked = new Set();
+  function askBacklinks() {
+    if (!tavern.refs || !tavern.refs.linksTo) return;
+    for (const x of polls.values()) {
+      if (asked.has(x.key)) continue;
+      asked.add(x.key);
+      const ref = tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+      tavern.refs.linksTo(ref).then((cards) => {
+        if (JSON.stringify(cards.map((c) => c.ref)) === JSON.stringify((backlinks.get(x.key) || []).map((c) => c.ref)) && backlinks.has(x.key)) return;
+        backlinks.set(x.key, cards);
+        render();
+      }).catch(() => backlinks.set(x.key, []));
+    }
+  }
+  const backlinksHtml = (x) => {
+    const cards = backlinks.get(x.key) || [];
+    if (!cards.length) return '';
+    return `<div class="meta">Linked from ${cards.map((c) => (c.open
+      ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`
+      : `<span class="tag"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`)).join(' ')}</div>`;
+  };
+  if (tavern.refs && tavern.refs.onOpen) {
+    tavern.refs.onOpen((ref) => {
+      const key = polls.has('own:' + ref.id) ? 'own:' + ref.id : `rooms:${ref.room}:${ref.id}`;
+      if (!polls.has(key)) return;
+      show = 'all';
+      hiddenRooms.delete(ref.room);
+      render();
+      const el = document.querySelector(`[data-poll="${CSS.escape(key)}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'center' });
+        el.classList.add('flash');
+        setTimeout(() => el.classList.remove('flash'), 2000);
+      }
+    });
+    tavern.on('links', (e) => {
+      if (!e.ref || e.ref.kind !== 'poll') return;
+      for (const x of polls.values()) if (x.id === e.ref.id) asked.delete(x.key);
+      askBacklinks();
+    });
+  }
+
   // --- state of a poll --------------------------------------------------------
 
   const isClosed = (p) => Boolean(p.closed) || (p.closesAt && Date.now() >= p.closesAt);
@@ -137,12 +185,13 @@
     }).join('');
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
-    return `<article class="poll ${closed ? 'closed' : ''}">
+    return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
       <h3 draggable="true" data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
       ${p.addable && votable && p.options.length < MAX_OPTIONS ? `<div class="addopt"><input type="text" maxlength="100" placeholder="Suggest another option" data-addtext="${esc(x.key)}" aria-label="Suggest another option"><button class="btn btn-small" type="button" data-addopt="${esc(x.key)}">Add</button></div>` : ''}
       ${x.scope === 'rooms' && !closed ? '<div class="meta">Vote in that room.</div>' : ''}
+      ${backlinksHtml(x)}
       ${canManage ? `<div class="actions"><button class="btn btn-small" data-toggle="${esc(x.key)}" type="button">${p.closed ? 'Reopen' : 'Close'}</button><button class="btn btn-small btn-danger" data-delete="${esc(x.key)}" type="button">Delete</button></div>` : ''}
     </article>`;
   }
@@ -200,6 +249,7 @@
       if (hiddenRooms.has(r.id)) continue;
       html += groupHtml(`${roomIcon(r.id)} ${esc(r.name)}`, [...polls.values()].filter((x) => x.scope === 'rooms' && x.roomId === r.id));
     }
+    askBacklinks();
     $('body').innerHTML = html || `<p class="empty">${show === 'closed' ? 'No closed polls.' : 'No open polls.'}${canCreate && show !== 'closed' ? ' Start one to get a vote going.' : ''}</p>`;
   }
 
@@ -430,6 +480,8 @@
     tavern.refs.drag(e, 'poll', x.id, { ...(x.scope === 'rooms' ? { room: x.roomId } : {}), label: x.p.question });
   });
   $('body').addEventListener('click', (e) => {
+    const link = e.target.closest('[data-ref]');
+    if (link && tavern.refs) return void tavern.refs.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
     const v = e.target.closest('[data-vote]');
     if (v) {
       const [key, option] = v.dataset.vote.split('|');

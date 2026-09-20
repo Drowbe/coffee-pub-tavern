@@ -267,6 +267,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       frame,
       bar,
       header: pane.el.querySelector('[data-header-custom]'),
+      onOpenRef: openRef,
       scope: 'room',
       roomId,
       guestToken,
@@ -508,6 +509,19 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (mode === 'dock') openModuleDocked(m); else openModuleFloating(m);
     markModuleRead(m.id);
     update();
+  }
+
+  // Show an item in the module that owns it, here: open its pane (if it is on in this room) and hand it
+  // the pointer, which its own code turns into showing the item. Tavern knows nothing about the item.
+  function openRef(ref) {
+    const m = available.find((x) => x.id === ref.module);
+    if (!m) return false;
+    if (!panes.has(m.id)) openModule(m);
+    const pane = panes.get(m.id);
+    if (!pane || !pane.mount) return false;
+    if (pane.mode === 'float') front(pane.el);
+    pane.mount.deliver('refopen', { ref });
+    return true;
   }
 
   function closePane(id) {
@@ -761,6 +775,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     stagePopped,
     layoutChanged: syncDock,
     updateMenu: update,
+    openRef,
     // For tests: send a host event to an open module's frame.
     sendTo: (id, event, data) => panes.get(id)?.mount?.send(event, data),
     testDrag: (id, ref) => panes.get(id)?.mount?.beginDragForTest(ref),

@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
@@ -18,7 +18,7 @@
   "hooks": { "schedule": true, "notify": true },
   "refs": {
     "produces": [
-      { "kind": "event", "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
+      { "kind": "event", "name": "Event", "open": true, "backlinks": true, "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
     ]
   }
 }

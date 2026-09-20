@@ -65,7 +65,23 @@ async function start() {
   if (!guestToken) markModuleRead(mod.id);
   const frame = $('module-frame');
   frame.hidden = false;
-  mountModule({
+  // Showing an item in the module that owns it, from a module's own page: go to that module's page,
+  // which is given the pointer in the address (#ref=...) and passes it to the module.
+  const refHash = (ref) => `#ref=${encodeURIComponent(JSON.stringify(ref))}`;
+  const openRef = (ref) => {
+    if (ref.module === mod.id) {
+      mounted.deliver('refopen', { ref });
+      return true;
+    }
+    const q = new URLSearchParams(location.search);
+    q.delete('popout');
+    q.delete('moduleRoom');
+    if (ref.scope === 'room') q.set('moduleRoom', ref.room);
+    location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}${refHash(ref)}`;
+    return true;
+  };
+  const mounted = mountModule({
+    onOpenRef: openRef,
     module: { id: mod.id, version: mod.version, scope: mod.scope },
     frame,
     bar: $('module-bar'),
@@ -80,6 +96,23 @@ async function start() {
       if (!popout) setTopbarLocation(crumbLink(mod.icon, title || mod.name, location.pathname));
     },
   });
+  // Opened by another module's link: hand the pointer on, and again if the address changes.
+  const first = refFromHash();
+  if (first) mounted.deliver('refopen', { ref: first });
+  window.addEventListener('hashchange', () => {
+    const ref = refFromHash();
+    if (ref) mounted.deliver('refopen', { ref });
+  });
+}
+
+// A pointer left in the address by another module's "open this" (see tavern.refs.open).
+function refFromHash() {
+  try {
+    const m = /^#ref=(.+)$/.exec(location.hash);
+    return m ? JSON.parse(decodeURIComponent(m[1])) : null;
+  } catch {
+    return null;
+  }
 }
 
 // The window's own titlebar: close, and (while the room page that opened it is still there) the

@@ -27,7 +27,7 @@ Choose an option to vote for it. In a one-choice poll, choosing another option m
 
 ## Link a poll to a task
 
-Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. See [To-do](userguide-todo.md).
+Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. Clicking the link on the task opens the poll here, and a poll lists what is linked to it under its details, where clicking one opens it. See [To-do](userguide-todo.md).
 
 ## Close it
 

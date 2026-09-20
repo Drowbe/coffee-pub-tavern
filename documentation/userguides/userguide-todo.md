@@ -24,7 +24,7 @@ In a room, three icons in the To-do's titlebar, before the pane's own buttons an
 
 ## Link a task to an event or a poll
 
-A task can point at a Calendar event or a poll, so the task shows what it is for: "Book flights" next to the retreat's dates, or next to the poll that is deciding where to go. Open a task, then in **Linked** type in the box to search your events and polls and choose one, or drag an event from the Calendar (or a poll's question from Polls) onto a task, or onto the open editor. The link shows on the task with the item's name and date, and the item is looked up each time, so it stays current. If the item has been deleted, or you cannot see it, the link reads "Not available". A task can have up to five links.
+A task can point at a Calendar event or a poll, so the task shows what it is for: "Book flights" next to the retreat's dates, or next to the poll that is deciding where to go. Open a task, then in **Linked** type in the box to search your events and polls and choose one, or drag an event from the Calendar (or a poll's question from Polls) onto a task, or onto the open editor. The link shows on the task with the item's name and date, and the item is looked up each time, so it stays current. Click a link to open the item where it lives: its module opens beside the To-do (or its page) and shows the event or poll. The item shows the link back too: an event, or a poll, lists the tasks linked to it. If the item has been deleted, or you cannot see it, the link reads "Not available". A link works with whatever a module shares, including modules added to your server later. A task can have up to five links.
 
 An admin approves the To-do's links when enabling it, and they show only what you can already see in the Calendar and Polls.
 

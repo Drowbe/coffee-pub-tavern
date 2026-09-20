@@ -43,7 +43,11 @@
     });
   }
 
+  // An "open this item" from the host can arrive before the module has said what to do with one.
+  let pendingOpen = null;
+
   function emit(event, data) {
+    if (event === 'refopen' && !(listeners.get(event) && listeners.get(event).size)) pendingOpen = data;
     for (const fn of listeners.get(event) || []) {
       try {
         fn(data);
@@ -151,6 +155,35 @@
         for (let i = 0; i < list.length; i += 50) cards.push(...await call('refs.resolve', { refs: list.slice(i, i + 50) }));
         return Array.isArray(refs) ? cards : cards[0];
       },
+      // The kinds of other modules' items this module may link to: [{ module, moduleName, icon, kind, name, open }].
+      // A module written after this one appears here with no change to this one, so use it (and the
+      // cards' own module and kind) rather than naming other modules in your code.
+      kinds: () => call('refs.kinds', {}),
+      // Show an item in the module that owns it (its pane opens, and it is asked to show the item). The
+      // card says whether it can: card.open.
+      open: (ref) => call('refs.open', { ref }),
+      // For a module that owns items: called when someone asks to see one of them (tavern.refs.open from
+      // another module): open it. The pointer is checked for shape and points at one of your own items.
+      onOpen: (fn) => {
+        const off = tavern.on('refopen', (e) => {
+          const ref = e && e.ref && cleanRef(e.ref);
+          if (ref) fn(ref);
+        });
+        if (pendingOpen) {
+          const p = pendingOpen;
+          pendingOpen = null;
+          setTimeout(() => { const ref = p.ref && cleanRef(p.ref); if (ref) fn(ref); }, 0);
+        }
+        return off;
+      },
+      // Tell Tavern what one of your items points at (`from` is a pointer to it, from make(); `to` is the
+      // list of pointers it now points at, replacing the last), so the items pointed at can ask what points
+      // at them. Only pointers are kept, and only what the viewer may see is ever shown.
+      setLinks: (from, to) => call('refs.setLinks', { from, to }),
+      // What points at one of your items (its kind must have "backlinks": true in module.json), and what
+      // one points at: cards. The 'links' event says when to ask again.
+      linksTo: (ref) => call('refs.links', { ref, dir: 'to' }),
+      linksFrom: (ref) => call('refs.links', { ref, dir: 'from' }),
       // Items this module may link to (kinds it consumes), matching the text, in this place
       // or (from a room) { scope: 'server' }. Each is a card with its pointer in card.ref.
       search: (text, o) => call('refs.search', { q: text || '', ...opts(o) }),

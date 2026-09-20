@@ -9,6 +9,7 @@ const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
 const { buildModule, bundledModules } = require('./module-build');
+const { ModuleLinks } = require('./module-links');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
@@ -1121,6 +1122,7 @@ app.delete('/api/modules/:id', requireAdmin, (req, res) => {
   if (req.query.keepData === '0') {
     moduleHooks.forget(req.params.id);
     moduleHooks.dropModule(req.params.id);
+    moduleLinks.dropModule(req.params.id);
   }
   res.json({ ok: true });
 });
@@ -1235,30 +1237,47 @@ app.get('/api/modules/:id/rooms-data', (req, res) => {
 });
 
 // --- refs: one module pointing at another's items ---------------------------
-// Modules cannot reach each other's storage, and that stays. Instead a module may declare, in its
-// manifest, kinds of item it lets others point at (`refs.produces`: a kind, the stored key its items
-// live under and which stored fields make up a small "card") and kinds of other modules' items it wants
-// to point at (`refs.consumes`, approved by an admin). The consumer stores only a pointer
-// ({ module, kind, id, scope, room }) and asks the host for the card whenever it draws it. The host
-// answers only what the viewer could already see in the producing module: it must be enabled, the
-// viewer must hold its read permission in that scope (and be in the room), and the consumer must have
-// been approved for that kind. What comes back is the card, never the stored record.
+// Modules cannot reach each other's storage, and that stays. Tavern knows nothing about any module's
+// items; it offers conduits. A module declares in its manifest the kinds of item it lets others point
+// at (`refs.produces`: a kind, the stored key its items live under, which stored fields make up a
+// small card, and whether it can open one or show what links to it) and which kinds it wants to point
+// at (`refs.consumes`: named kinds, or "*" for whatever other modules share; approved by an admin).
+// The consumer stores only a pointer ({ module, kind, id, scope, room }) and asks Tavern for the card
+// whenever it draws it. Tavern answers only what the viewer could already see in the producing
+// module: it must be enabled, the viewer must hold its read permission in that scope (and be in the
+// room), and the consumer must have been approved for that kind. What comes back is the card, never
+// the stored record. Nothing here names a module: a module installed tomorrow takes part by declaring.
 
 const refError = (status, message) => Object.assign(new Error(message), { status });
 const REF_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const moduleLinks = new ModuleLinks(modules.dir);
 
-// Check that this viewer, through module `from`, may look at one scope of `provider`'s items of `kind`.
-function refScope(who, { provider, kind, scope, room, from }) {
-  if (!from) throw refError(400, 'say which module is asking');
+const refScopeKey = (ref) => (ref.scope === 'room' ? `room:${ref.room}` : 'server');
+const refShape = (r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && REF_ID_RE.test(String(r.id ?? ''))
+  && (r.scope === 'server' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+
+// Whether the consumer's manifest declares, and the admin approved, linking to provider:kind.
+function consumerMayLink(consumer, provider, kind) {
+  const want = `${provider}:${kind}`;
+  const declared = consumer.manifest.refs.consumes;
+  const approved = consumer.entry.approved?.refs || [];
+  return (declared.includes('*') || declared.includes(want)) && (approved.includes('*') || approved.includes(want));
+}
+
+// Check that this viewer may look at one scope of `provider`'s items of `kind`. Through a consumer
+// (`from`, which must have been approved for the kind), or, for backlinks, with no consumer at all
+// (`skipConsumer`): a module may always see what points at its own items, as far as the viewer may.
+function refScope(who, { provider, kind, scope, room, from, skipConsumer = false }) {
   const found = modules.enabled(provider);
   if (!found) throw refError(404, 'no such module');
   const produce = found.manifest.refs.produces.find((p) => p.kind === kind);
   if (!produce) throw refError(404, 'that module does not share that kind of item');
-  const consumer = modules.enabled(from);
-  if (!consumer) throw refError(404, 'no such module');
-  const want = `${provider}:${kind}`;
-  if (!consumer.manifest.refs.consumes.includes(want) || !(consumer.entry.approved?.refs || []).includes(want)) {
-    throw refError(403, 'that module has not been approved to link to those items');
+  let consumer = null;
+  if (!skipConsumer) {
+    if (!from) throw refError(400, 'say which module is asking');
+    consumer = modules.enabled(from);
+    if (!consumer) throw refError(404, 'no such module');
+    if (!consumerMayLink(consumer, provider, kind)) throw refError(403, 'that module has not been approved to link to those items');
   }
   const { manifest, entry } = found;
   let scopeKey;
@@ -1269,13 +1288,13 @@ function refScope(who, { provider, kind, scope, room, from }) {
     if (!manifest.scope.includes('room')) throw refError(400, 'that module has no room scope');
     if (!moduleRoomAccess(entry, who, r)) throw refError(403, 'that module is not available in that room for you');
     // The asking module must itself be on in that room, and readable by the viewer.
-    if (!moduleRoomAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read')) throw refError(403, 'the linking module is not available in that room for you');
+    if (consumer && (!moduleRoomAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, 'the linking module is not available in that room for you');
     perms = modulePerms(who, r.id);
     scopeKey = `room:${r.id}`;
   } else {
     if (!who.user) throw refError(403, 'guests can only use room modules');
     if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
-    if (!moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
+    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
     perms = modulePerms(who, null);
     scopeKey = 'server';
   }
@@ -1290,6 +1309,8 @@ function refCard({ manifest, produce, ref }, id, value) {
   const card = {
     ref: { ...ref, id },
     kind: produce.kind,
+    kindName: produce.name,
+    open: produce.open,
     module: { id: manifest.id, name: manifest.name, icon: manifest.icon },
     title: String(text(field('title')) ?? '').trim() || 'Untitled',
   };
@@ -1303,14 +1324,36 @@ function refCard({ manifest, produce, ref }, id, value) {
   return card;
 }
 
-function resolveRef(who, ref, from) {
-  const id = String(ref?.id ?? '');
-  if (!REF_ID_RE.test(id)) throw refError(400, 'that is not a valid reference');
-  const at = refScope(who, { provider: String(ref.module || ''), kind: String(ref.kind || ''), scope: ref.scope, room: ref.room, from });
-  const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', id));
+function resolveRef(who, ref, from, opts = {}) {
+  if (!refShape(ref)) throw refError(400, 'that is not a valid reference');
+  const at = refScope(who, { provider: ref.module, kind: ref.kind, scope: ref.scope, room: ref.room, from, ...opts });
+  const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', String(ref.id)));
   if (!item || !item.value) throw refError(404, 'that item is no longer there');
-  return refCard(at, id, item.value);
+  return refCard(at, String(ref.id), item.value);
 }
+
+// The kinds the consumer may point at: every kind of every other enabled module it was approved for.
+function consumableKinds(consumerId) {
+  const consumer = modules.enabled(consumerId);
+  if (!consumer) return [];
+  const out = [];
+  for (const { manifest } of modules.enabledAll()) {
+    if (manifest.id === consumerId) continue;
+    for (const p of manifest.refs.produces) {
+      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: manifest.name, icon: manifest.icon, kind: p.kind, name: p.name, open: p.open });
+    }
+  }
+  return out;
+}
+
+const refAnswer = (fn) => {
+  try {
+    return fn();
+  } catch (err) {
+    if (!err.status) throw err;
+    return { error: err.message, status: err.status };
+  }
+};
 
 // Cards for a list of pointers, one answer each (a card, or why not).
 app.post('/api/refs/resolve', (req, res) => {
@@ -1318,16 +1361,13 @@ app.post('/api/refs/resolve', (req, res) => {
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.body?.from || '');
   const refs = Array.isArray(req.body?.refs) ? req.body.refs.slice(0, 50) : [];
-  res.json({
-    cards: refs.map((ref) => {
-      try {
-        return resolveRef(who, ref, from);
-      } catch (err) {
-        if (!err.status) throw err;
-        return { ref, error: err.message, status: err.status };
-      }
-    }),
-  });
+  res.json({ cards: refs.map((ref) => refAnswer(() => resolveRef(who, ref, from)) ) .map((c, i) => (c.error ? { ref: refs[i], ...c } : c)) });
+});
+
+// The kinds the asking module may link to, so it does not have to know other modules by name.
+app.get('/api/refs/kinds', (req, res) => {
+  if (!moduleViewer(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({ kinds: consumableKinds(String(req.query.from || '')) });
 });
 
 // Items the asking module could link to, in one scope: every kind it was approved to consume.
@@ -1335,22 +1375,19 @@ app.get('/api/refs/search', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.query.from || '');
-  const consumer = modules.enabled(from);
-  if (!consumer) return res.status(404).json({ error: 'no such module' });
+  if (!modules.enabled(from)) return res.status(404).json({ error: 'no such module' });
   const scope = req.query.scope === 'room' ? 'room' : 'server';
   const q = String(req.query.q || '').trim().toLowerCase();
   const cards = [];
-  for (const want of consumer.manifest.refs.consumes) {
-    if (!(consumer.entry.approved?.refs || []).includes(want)) continue;
-    const [provider, kind] = want.split(':');
+  for (const k of consumableKinds(from)) {
     let at;
     try {
-      at = refScope(who, { provider, kind, scope, room: req.query.room, from });
+      at = refScope(who, { provider: k.module, kind: k.kind, scope, room: req.query.room, from });
     } catch {
       continue; // not on for this scope, or not for this viewer
     }
     const prefix = at.produce.key.replace('{id}', '');
-    for (const item of moduleData.list(provider, at.scopeKey, prefix)) {
+    for (const item of moduleData.list(k.module, at.scopeKey, prefix)) {
       if (!item.value || !REF_ID_RE.test(item.key.slice(prefix.length))) continue;
       const card = refCard(at, item.key.slice(prefix.length), item.value);
       if (q && !`${card.title} ${card.subtitle || ''}`.toLowerCase().includes(q)) continue;
@@ -1366,12 +1403,82 @@ app.get('/api/refs/search', (req, res) => {
 app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
+  const out = refAnswer(() => ({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, room: req.query.room }, String(req.query.from || '')) }));
+  res.status(out.status || 200).json(out);
+});
+
+// Links: a module tells Tavern which items one of its items points at, so the items pointed at can
+// ask what points at them. `module` is the asking module, `from` one of its own items, `to` the items
+// it now points at (the whole list: it replaces the last). Each target must be something the viewer
+// can see and the module is approved to link to, and the viewer must be able to write to the module.
+app.post('/api/refs/links', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  const asker = String(req.body?.module || '');
+  const from = req.body?.from;
+  const found = modules.enabled(asker);
+  if (!found) return res.status(404).json({ error: 'no such module' });
+  if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: 'a module can only say what its own items point at' });
+  if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: 'that module does not share that kind of item' });
+  // The viewer must be allowed to change the asking module's data in that scope.
+  let perms;
+  if (from.scope === 'room') {
+    const r = store.roomById(String(from.room || ''));
+    if (!r || !moduleRoomAccess(found.entry, who, r)) return res.status(403).json({ error: 'that module is not available in that room for you' });
+    perms = modulePerms(who, r.id);
+  } else {
+    if (!who.user) return res.status(403).json({ error: 'guests can only use room modules' });
+    perms = modulePerms(who, null);
+  }
+  if (!moduleCan(found.manifest, perms, 'write')) return res.status(403).json({ error: 'your role can\'t do that in this module' });
+  const tos = [];
+  for (const to of (Array.isArray(req.body?.to) ? req.body.to : []).slice(0, 20)) {
+    try {
+      resolveRef(who, to, asker);
+      tos.push(to);
+    } catch (err) {
+      if (!err.status) throw err; // one that cannot be seen or is gone is left out
+    }
+  }
+  moduleLinks.set(from, tos, who.user?.key || 'guest');
+  res.json({ links: tos.length });
+});
+
+// What points at an item (`dir=to`, for the module that owns it, if it shows backlinks) or what it
+// points at (`dir=from`): cards, each only for what the viewer may see.
+app.get('/api/refs/links', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  let ref;
   try {
-    res.json({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, room: req.query.room }, String(req.query.from || '')) });
+    ref = JSON.parse(String(req.query.ref || ''));
+  } catch {
+    return res.status(400).json({ error: 'that is not a valid reference' });
+  }
+  const asker = String(req.query.from || '');
+  const found = modules.enabled(asker);
+  if (!found) return res.status(404).json({ error: 'no such module' });
+  if (!refShape(ref) || ref.module !== asker) return res.status(400).json({ error: 'a module can only ask about its own items' });
+  const produce = found.manifest.refs.produces.find((p) => p.kind === ref.kind);
+  if (!produce) return res.status(400).json({ error: 'that module does not share that kind of item' });
+  const dir = req.query.dir === 'from' ? 'from' : 'to';
+  if (dir === 'to' && !produce.backlinks) return res.status(403).json({ error: 'that kind of item does not show what links to it' });
+  // The asking module's own item must itself be visible to the viewer.
+  try {
+    resolveRef(who, ref, null, { skipConsumer: true });
   } catch (err) {
     if (!err.status) throw err;
-    res.status(err.status).json({ error: err.message });
+    return res.status(err.status).json({ error: err.message });
   }
+  const cards = [];
+  for (const other of dir === 'to' ? moduleLinks.to(ref) : moduleLinks.from(ref)) {
+    try {
+      cards.push(dir === 'to' ? resolveRef(who, other, null, { skipConsumer: true }) : resolveRef(who, other, asker));
+    } catch (err) {
+      if (!err.status) throw err; // gone, or not for this viewer
+    }
+  }
+  res.json({ cards });
 });
 
 // Modules with a page of their own that this viewer can open: the header nav.
@@ -1595,13 +1702,22 @@ app.get('/api/modules/stream', (req, res) => {
     const at = place(fire.module, fire.scopeKey);
     if (at && at.scope !== 'rooms') res.write(`event: schedule\ndata: ${JSON.stringify({ module: fire.module, key: fire.key, payload: fire.payload, ...at })}\n\n`);
   };
+  // What points at (or from) an item changed: only the pointers go, and the module asks again for what it may see.
+  const onLinks = ({ refs }) => {
+    for (const ref of refs) {
+      const at = place(ref.module, refScopeKey(ref));
+      if (at) res.write(`event: links\ndata: ${JSON.stringify({ module: ref.module, ref, ...at })}\n\n`);
+    }
+  };
   moduleData.on('change', onChange);
   moduleHooks.on('fire', onFire);
+  moduleLinks.on('change', onLinks);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
     clearInterval(beat);
     moduleData.off('change', onChange);
     moduleHooks.off('fire', onFire);
+    moduleLinks.off('change', onLinks);
   });
 });
 

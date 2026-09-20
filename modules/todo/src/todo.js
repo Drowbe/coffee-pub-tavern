@@ -27,8 +27,16 @@
   let editing = null; // { key, id, version } while the editor is open
   let editingLinks = []; // the links the open editor will save
   const MAX_LINKS = 5;
-  // What this module may link to (approved by an admin; see module.json refs.consumes).
-  const LINKABLE = ['calendar:event', 'polls:poll'];
+  // What this module may link to is whatever other modules share and Tavern says it may (module.json
+  // refs.consumes is "*"), so a module written later takes part with no change here.
+  let consumable = new Set(); // "module:kind"
+  async function loadKinds() {
+    try {
+      consumable = new Set((await tavern.refs.kinds()).map((k) => k.module + ':' + k.kind));
+    } catch (err) {
+      consumable = new Set();
+    }
+  }
   const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
 
   // --- dates ---------------------------------------------------------------
@@ -89,7 +97,22 @@
   // viewer may see. The pointers are checked in the drop and search: only the kinds above.
 
   const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
-  const linkable = (r) => LINKABLE.includes(r.module + ':' + r.kind);
+  const linkable = (r) => consumable.has(r.module + ':' + r.kind);
+  const myRef = (id) => tavern.refs.make('task', id);
+  const syncedLinks = new Map(); // task id -> the links last told to Tavern
+
+  // Tell Tavern what a task points at, so the things it points at can show it. Only when it changed.
+  async function syncLinks(id, links) {
+    if (!tavern.refs || !tavern.refs.setLinks) return;
+    const sig = JSON.stringify(links.map(refKey));
+    if (syncedLinks.get(id) === sig) return;
+    syncedLinks.set(id, sig);
+    try {
+      await tavern.refs.setLinks(myRef(id), links);
+    } catch (err) {
+      syncedLinks.delete(id); // try again next time
+    }
+  }
 
   async function resolveLinks() {
     if (!tavern.refs) return;
@@ -121,7 +144,11 @@
     if (!c) return `<span class="link gone">Loading...${x}</span>`;
     if (c.error) return `<span class="link gone" title="Deleted, or not something you can see">Not available${x}</span>`;
     const when = dateText(c.when, c.allDay);
-    return `<span class="link" title="${esc(c.title)}"><b>${esc(c.module.name)}</b> ${esc(c.title)}${when ? ' &middot; ' + esc(when) : ''}${x}</span>`;
+    const body = `<b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}${when ? ' &middot; ' + esc(when) : ''}`;
+    // A card that says its module can show the item is a button that does.
+    return c.open
+      ? `<span class="link"><span class="open" role="button" tabindex="0" data-open-ref="${esc(refKey(r))}" title="Open ${esc(c.title)}">${body}</span>${x}</span>`
+      : `<span class="link" title="${esc(c.title)}">${body}${x}</span>`;
   }
 
   // Add a pointer to a task (from a drop) and save it.
@@ -255,6 +282,7 @@
   async function put(x, t) {
     const saved = await tavern.storage.set('task:' + t.id, t, x && x.version ? { version: x.version } : {});
     remember('own', { key: 'task:' + t.id, value: t, version: saved.version });
+    syncLinks(t.id, t.links || []);
     return saved;
   }
 
@@ -335,6 +363,8 @@
     $('f-links').innerHTML = editingLinks.map((r) => linkChip(r, !readOnly)).join('');
   }
   $('f-links').addEventListener('click', (e) => {
+    const o = e.target.closest('[data-open-ref]');
+    if (o) return void openLink(o.dataset.openRef);
     const b = e.target.closest('[data-unlink]');
     if (!b) return;
     editingLinks = editingLinks.filter((r) => refKey(r) !== b.dataset.unlink);
@@ -447,6 +477,7 @@
     deleteArmed = false;
     try {
       await tavern.storage.delete('task:' + editing.id);
+      syncLinks(editing.id, []);
       try { await tavern.cancelSchedule('remind:' + editing.id); } catch (err) { /* nothing to cancel */ }
       tasks.delete(editing.key);
       closeEditor();
@@ -470,7 +501,15 @@
     if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
     render();
   });
+  // A link to another module's item opens it there; Tavern opens that module and hands it the pointer.
+  const openLink = (key) => {
+    const c = cards.get(key);
+    if (!c || c.error || !c.open || !tavern.refs || !tavern.refs.open) return;
+    tavern.refs.open(c.ref).catch((err) => showNote(err.message));
+  };
   $('body').addEventListener('click', (e) => {
+    const ref = e.target.closest('[data-open-ref]');
+    if (ref) return void openLink(ref.dataset.openRef);
     const open = e.target.closest('[data-open]');
     if (open) {
       const x = tasks.get(open.dataset.open);
@@ -572,6 +611,7 @@
   $('add').hidden = !canEdit;
   $('quick-form').hidden = !canEdit;
   try {
+    await loadKinds();
     await load();
   } catch (err) {
     $('msg').textContent = 'The to-do list could not load: ' + err.message;
@@ -580,7 +620,16 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
+  // Another module asking to show one of this module's tasks (from a link to it): open it.
+  if (tavern.refs && tavern.refs.onOpen) {
+    tavern.refs.onOpen((ref) => {
+      const x = ref.kind === 'task' ? tasks.get('own:' + ref.id) : null;
+      if (x) openEditor(x);
+    });
+  }
   resolveLinks();
+  // Tell Tavern about links made before it was told (and only those that changed).
+  for (const x of [...tasks.values()].filter((t) => t.scope === 'own' && (t.t.links || []).length).slice(0, 100)) syncLinks(x.id, x.t.links);
   // The items linked to can change or go; look again now and then.
   setInterval(() => { cards.clear(); resolveLinks(); }, 60000);
 })();

@@ -118,18 +118,22 @@ tavern.on('schedule', ({ key, payload }) => {});   // when one fires, if the mod
 
 Modules cannot read each other's storage, and that does not change. Refs are the one narrow door between them: a module stores a **pointer** to another module's item, never a copy, and asks Tavern for a small **card** whenever it draws it.
 
-A module that lets others point at its items lists them in `module.json`. Each entry names a `kind`, the stored key its items live under (a fixed prefix then `{id}`) and which of its stored fields fill the card. Only the fields named here ever leave the module, so a record's other fields stay private.
+Tavern names no module in any of this. A module says what it can do in `module.json`, and Tavern is only the conduit; a module written tomorrow takes part by declaring, with no change to Tavern or to the modules around it.
+
+A module that lets others point at its items lists them in `module.json`. Each entry names a `kind`, its `name` (what a person sees it called), the stored key its items live under (a fixed prefix then `{id}`) and which of its stored fields fill the card. Only the fields named here ever leave the module, so a record's other fields stay private. Two optional flags say what else the module can do with its items: `"open": true` (it can show one when asked, see `onOpen`) and `"backlinks": true` (it shows what links to its items, see `linksTo`).
 
 ```json
 "refs": {
   "produces": [
     { "kind": "event", "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
   ],
-  "consumes": ["polls:poll"]
+  "consumes": ["*"]
 }
 ```
 
-The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay` and `done`. A module that wants to point at other modules' kinds lists them in `consumes` as `"module:kind"`. The admin approves that list when enabling the module, like permissions and hooks, and an upgrade that adds to it waits for approval.
+`consumes` lists the kinds this module wants to point at: named, as `"module:kind"`, or `"*"` for whatever other modules share. `"*"` is what lets a module link to items of modules that did not exist when it was written. The admin approves the list when enabling.
+
+The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay` and `done`. An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
 
 A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
 
@@ -147,6 +151,20 @@ const cards = await tavern.refs.resolve([refA, refB]);
 
 // Find items to link to, in this place (or from a room, { scope: 'server' }): every kind this module consumes.
 const found = await tavern.refs.search('retreat');     // cards, each with its pointer in card.ref
+
+// What can I link to? Whatever other modules share and Tavern says this module may, so never name modules in your code.
+const kinds = await tavern.refs.kinds();               // [{ module, moduleName, icon, kind, name, open }]
+
+// Show an item in the module that owns it. Its pane opens (or its page) and it is handed the pointer.
+await tavern.refs.open(card.ref);                      // only useful when card.open is true
+tavern.refs.onOpen((ref) => { /* you own ref: show it (select it, scroll to it, open it) */ });
+
+// Tell Tavern what one of your items points at (the whole list, replacing the last), so what is pointed at can ask.
+await tavern.refs.setLinks(tavern.refs.make('task', id), [refA, refB]);
+// What points at one of your items (kind has "backlinks": true), and what one points at: cards.
+const from = await tavern.refs.linksTo(ref);
+const to = await tavern.refs.linksFrom(ref);
+tavern.on('links', (e) => { /* e.ref: one of your items whose links changed: ask again */ });
 ```
 
 Tavern answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
