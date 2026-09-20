@@ -4063,7 +4063,9 @@ body.at-table .module-nav {
     flex: none;
     width: auto;
     margin: 0;
-    min-height: var(--tabbar-h);
+    /* The tabs get their full height; the safe-area padding (a browser's bottom bar, the home
+       indicator) comes on top of it, not out of it. */
+    min-height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
     box-sizing: border-box;
     padding: 0 4px env(safe-area-inset-bottom);
     align-items: stretch;
@@ -4128,6 +4130,12 @@ body.at-table .module-nav {
   body.at-table .subnav #fullscreen-toggle,
   body.at-table .subnav #popout {
     display: none; /* a phone has no use for either */
+  }
+
+  /* A pane fills the screen: no floating it over the page or opening it in a window. */
+  body.at-table .stage [data-mode],
+  body.at-table .stage [data-popout] {
+    display: none;
   }
 
   body.at-table .subnav #leave-room {
