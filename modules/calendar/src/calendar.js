@@ -42,10 +42,26 @@
     return ev.allDay ? parseYmd(ev.start) : new Date(ev.start);
   }
   const timeText = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  function whenText(ev, start) {
-    if (ev.allDay) return 'All day';
-    const end = ev.end ? new Date(ev.end) : null;
-    return end ? `${timeText(start)} - ${timeText(end)}` : timeText(start);
+  const shortDay = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+
+  // An event runs from `start` to `end`, which may be days later. A timed event's end is a date and
+  // time; an all-day event's end is the last day (inclusive). Neither: it lasts as long as it lasts
+  // on the one day it starts.
+  function durationOf(ev) {
+    if (ev.allDay) return ev.end ? Math.max(0, parseYmd(ev.end) - parseYmd(ev.start)) + DAY : DAY;
+    return ev.end ? Math.max(0, new Date(ev.end) - new Date(ev.start)) : 0;
+  }
+  // When one occurrence (starting at `start`) ends: a moment, exclusive.
+  const endOf = (ev, start) => new Date(start.getTime() + durationOf(ev));
+
+  function whenText(ev, start, end) {
+    const last = new Date(end.getTime() - (ev.allDay ? 1 : 0));
+    const multi = startOfDay(last) > startOfDay(start);
+    if (ev.allDay) return multi ? `${shortDay(start)} - ${shortDay(last)}` : 'All day';
+    if (!ev.end) return timeText(start);
+    return multi ? `${shortDay(start)} ${timeText(start)} - ${shortDay(end)} ${timeText(end)}` : `${timeText(start)} - ${timeText(end)}`;
   }
   const dayHeading = (d) => d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
   const REPEAT_NAMES = { day: 'daily', week: 'weekly', '2weeks': 'every 2 weeks', month: 'monthly', year: 'yearly' };
@@ -92,12 +108,17 @@
     return out;
   }
 
-  // Every occurrence of every event in [from, to), soonest first.
+  // Every occurrence of every event that touches [from, to), soonest first: one that began earlier
+  // and runs into the range counts too.
   function inRange(from, to) {
     const out = [];
     for (const x of events.values()) {
       if (x.scope === 'rooms' && hiddenRooms.has(x.roomId)) continue;
-      for (const start of occurrences(x.ev, from, to)) out.push({ x, start });
+      const dur = durationOf(x.ev);
+      for (const start of occurrences(x.ev, new Date(from.getTime() - dur), to)) {
+        const end = endOf(x.ev, start);
+        if (end > from || start >= from) out.push({ x, start, end });
+      }
     }
     return out.sort((a, b) => a.start - b.start);
   }
@@ -153,8 +174,9 @@
 
   const isCompact = () => $('app').classList.contains('compact');
 
-  function chipHtml({ x, start }) {
-    const label = (x.ev.allDay ? '' : timeText(start) + ' ') + x.ev.title;
+  function chipHtml({ x, start, cont }) {
+    // A multi-day event shows its time on the first day and an arrow on the days after.
+    const label = cont ? '\u2192 ' + x.ev.title : (x.ev.allDay ? '' : timeText(start) + ' ') + x.ev.title;
     return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.key)}" title="${esc(x.ev.title)}">${roomIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
   }
 
@@ -164,9 +186,14 @@
     const gridEnd = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + 42);
     const byDay = new Map();
     for (const occ of inRange(gridStart, gridEnd)) {
-      const k = ymd(occ.start);
-      if (!byDay.has(k)) byDay.set(k, []);
-      byDay.get(k).push(occ);
+      // Every day the occurrence covers, within the grid.
+      const firstDay = startOfDay(occ.start);
+      const lastDay = startOfDay(new Date(Math.max(occ.end.getTime() - 1, occ.start.getTime())));
+      for (let d = firstDay < gridStart ? gridStart : firstDay; d <= lastDay && d < gridEnd; d = addDays(d, 1)) {
+        const k = ymd(d);
+        if (!byDay.has(k)) byDay.set(k, []);
+        byDay.get(k).push({ ...occ, cont: d > firstDay });
+      }
     }
     const today = ymd(new Date());
     let html = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => `<div class="dow">${d}</div>`).join('');
@@ -182,30 +209,31 @@
   }
 
   // Occurrences as a list grouped by day.
-  function listHtml(occs, emptyText) {
+  function listHtml(occs, emptyText, floor) {
     if (!occs.length) return `<p class="empty">${emptyText}</p>`;
     const groups = new Map();
     for (const occ of occs) {
-      const k = ymd(occ.start);
+      // An event that began before the list does starts it on the list's first day.
+      const k = ymd(occ.start < floor ? floor : occ.start);
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(occ);
     }
-    return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start))}</h4>${g.map(({ x, start }) => `
-      <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start))}</span>
+    return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start < floor ? floor : g[0].start))}</h4>${g.map(({ x, start, end }) => `
+      <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start, end))}</span>
         <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag room">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
   function monthList() {
     const from = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
     const to = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-    return listHtml(inRange(from, to), `Nothing in ${cursor.toLocaleDateString([], { month: 'long' })}.${canEdit ? ' Add an event to get started.' : ''}`);
+    return listHtml(inRange(from, to), `Nothing in ${cursor.toLocaleDateString([], { month: 'long' })}.${canEdit ? ' Add an event to get started.' : ''}`, from);
   }
 
   function upcomingList() {
     const from = new Date();
     from.setHours(0, 0, 0, 0);
     const to = new Date(from.getTime() + 90 * DAY);
-    return listHtml(inRange(from, to).slice(0, 300), `Nothing coming up.${canEdit ? ' Add an event to get started.' : ''}`);
+    return listHtml(inRange(from, to).slice(0, 300), `Nothing coming up.${canEdit ? ' Add an event to get started.' : ''}`, from);
   }
 
   function render() {
@@ -274,12 +302,15 @@
     const start = x ? startOf(ev) : null;
     $('f-date').value = start ? ymd(start) : day || ymd(new Date());
     $('f-time').value = start && !ev.allDay ? `${pad(start.getHours())}:${pad(start.getMinutes())}` : '19:00';
-    $('f-end').value = ev.end ? `${pad(new Date(ev.end).getHours())}:${pad(new Date(ev.end).getMinutes())}` : '';
+    // The end: a date and time for a timed event, the last day for an all-day one.
+    const endAt = ev.end && !ev.allDay ? new Date(ev.end) : null;
+    $('f-end-date').value = ev.end ? (ev.allDay ? ev.end : ymd(endAt)) : '';
+    $('f-end').value = endAt ? `${pad(endAt.getHours())}:${pad(endAt.getMinutes())}` : '';
     $('f-desc').value = ev.desc || '';
     $('f-remind').value = ev.remind === null || ev.remind === undefined ? '' : String(ev.remind);
     $('f-repeat').value = ev.repeat ? ev.repeat.every : '';
     $('f-until').value = ev.repeat && ev.repeat.until ? ev.repeat.until : '';
-    for (const id of ['f-title', 'f-date', 'f-time', 'f-end', 'f-allday', 'f-desc', 'f-remind', 'f-repeat', 'f-until']) $(id).disabled = readOnly;
+    for (const id of ['f-title', 'f-date', 'f-time', 'f-end-date', 'f-end', 'f-allday', 'f-desc', 'f-remind', 'f-repeat', 'f-until']) $(id).disabled = readOnly;
     $('f-save').hidden = readOnly;
     $('f-delete').hidden = readOnly || !x;
     $('f-delete').textContent = 'Delete';
@@ -337,13 +368,21 @@
     const allDay = $('f-allday').checked;
     let start = date;
     let end = null;
-    if (!allDay) {
+    const endDate = $('f-end-date').value;
+    if (allDay) {
+      // An all-day event's end is its last day.
+      if (endDate && endDate < date) return showError('The end is before the start.');
+      if (endDate && endDate > date) end = endDate;
+    } else {
       const time = $('f-time').value || '19:00';
       const s = new Date(`${date}T${time}`);
       if (Number.isNaN(s.getTime())) return showError('That time is not valid.');
       start = s.toISOString();
-      if ($('f-end').value) {
-        const t = new Date(`${date}T${$('f-end').value}`);
+      // An end date, an end time, or both. Missing one takes the start's.
+      if (endDate || $('f-end').value) {
+        const t = new Date(`${endDate || date}T${$('f-end').value || time}`);
+        if (Number.isNaN(t.getTime())) return showError('That end is not valid.');
+        if (t < s) return showError('The end is before the start.');
         if (t > s) end = t.toISOString();
       }
     }

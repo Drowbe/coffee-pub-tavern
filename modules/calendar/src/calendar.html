@@ -33,9 +33,12 @@
       <h3 id="editor-title">New event</h3>
       <label>Title<input id="f-title" type="text" maxlength="100" required></label>
       <div class="row">
-        <label>Date<input id="f-date" type="date" required></label>
-        <label id="f-time-wrap">Starts<input id="f-time" type="time"></label>
-        <label id="f-end-wrap">Ends<input id="f-end" type="time"></label>
+        <label>Starts<input id="f-date" type="date" required></label>
+        <label id="f-time-wrap">at<input id="f-time" type="time"></label>
+      </div>
+      <div class="row">
+        <label>Ends (optional)<input id="f-end-date" type="date"></label>
+        <label id="f-end-wrap">at<input id="f-end" type="time"></label>
       </div>
       <label class="check"><input id="f-allday" type="checkbox"> All day</label>
       <div class="row">

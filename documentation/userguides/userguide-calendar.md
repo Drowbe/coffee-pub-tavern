@@ -6,7 +6,7 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/calendar-1.3.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
+1. Upload `modules/dist/calendar-1.4.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
@@ -25,6 +25,10 @@ In a call, choose the Modules button in the header and then **Calendar**. It ope
 If you can edit, choose **Add event** (in the bar along the bottom of the Calendar; docked, it sits in the same row as the video toolbar and the chat box), or click a day in the month. Give it a title, a date, and a start and end time (or tick **All day**), and add details if you like. Choose **Save**. Click an event to change or delete it; the delete button asks you to click a second time. If two people change the same event at once, the second person is told and can reopen it to see the other change.
 
 Events appear for everyone who has the calendar open as soon as they are saved.
+
+## Events that last more than a day
+
+Give an event an **Ends** date, and a time if it is not all day, to make it run over several days: a trip, a convention, a night train. An all-day event's end date is its last day. The event shows on every day it covers in the month, with its time on the first day and an arrow on the days after, and the list shows its whole span, such as "Sep 22 - Sep 25". Leave **Ends** empty for an event on one day, and for a timed event you can give just an end time. A repeating event keeps its length in every repeat. Reminders still go out before the start.
 
 ## Repeating events
 

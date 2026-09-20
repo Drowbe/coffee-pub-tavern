@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",

@@ -3796,3 +3796,9 @@ body.chat-window {
   width: auto;
   margin: 0;
 }
+
+/* In a room the Modules menu is the way to a module; the header's links to the global pages would be
+   a second, confusing way to the same thing. */
+body.at-table .module-nav {
+  display: none;
+}

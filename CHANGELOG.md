@@ -4,6 +4,14 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- In a room the header no longer shows the links to the global module pages (Calendar, To-do, Polls); the Modules button is the way to a module there. Out of a room they are unchanged.
+
+### Added
+- Calendar 1.4.0: events can last several days. An event has a start date and time and an optional end date and time (an all-day event's end is its last day). It shows on every day it covers in the month, with an arrow on the days after the first, and the list shows the span; a repeating event keeps its length, and an event that began before the month still appears in it. Existing events are unchanged. It replaces 1.3.0 (upload the new zip on Manage > Modules).
+
+Verified in a browser against a sandbox server: an all-day event over four days, an overnight event across midnight, a five-day timed event that began before the week, the list and month views, and the editor's end fields. Not verified: saving a multi-day event from the editor, and repeating multi-day events.
+
 ### Fixed
 - With three or four modules open in a room, each showed "Tavern did not answer". Every module (two streams for a room panel) held a live connection open, and a browser allows about six to one site over HTTP/1.1, so the modules' first requests never completed. All the modules on a page now share one live stream (`/api/modules/stream`). Verified in a browser: the Calendar, To-do and Polls docked together in a room all loaded, and a change made elsewhere appeared live in a room pane and on a module's server page.
 
