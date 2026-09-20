@@ -169,7 +169,16 @@ tavern.on('links', (e) => { /* e.ref: one of your items whose links changed: ask
 
 Tavern answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
 
-**Dragging.** A module can offer its items to be dragged onto another module. In a `dragstart` handler call `tavern.refs.drag(event, kind, id, { label })`. A drag that starts in one module frame does not reliably deliver its data into another, so Tavern brokers it: while the drag lasts it puts an invisible layer over the other module frames on the page, and tells the frame under the pointer where the drag is and what was dropped. A module that accepts drops calls `tavern.refs.dropTarget`:
+**Dragging.** A module can offer its items to be dragged onto another module. The browser's own drag and drop is unreliable between sandboxed frames, so this is driven by the pointer and brokered by Tavern: press an item, move a few pixels, and Tavern shows the item's label at the pointer and tells the module frame under it where the pointer is and, on release, what was dropped. A module offers items with `tavern.refs.draggable(root, resolve)`, where `resolve(target)` says what the pressed element is (`{ kind, id, label, ...options for make() }`, or `null`):
+
+```js
+tavern.refs.draggable(document.body, (target) => {
+  const row = target.closest('[data-id]');
+  return row ? { kind: 'event', id: row.dataset.id, label: row.textContent.trim() } : null;
+});
+```
+
+The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. It works with a mouse or pen; on a touch screen, search is the way to link. A module that accepts drops calls `tavern.refs.dropTarget`:
 
 ```js
 tavern.refs.dropTarget({
@@ -180,7 +189,7 @@ tavern.refs.dropTarget({
 // point is { x, y } in your own page: document.elementFromPoint(point.x, point.y)
 ```
 
-Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, which is where Tavern checks what the viewer may see. A drag from a module in another window cannot be brokered, and reaches you as an ordinary drag: `tavern.refs.accepts(event)` (true when the drag carries a pointer, in which case call `preventDefault()` in `dragover`) and `tavern.refs.parse(event)` (in `drop`, a checked pointer or `null`). Search is the way to link without dragging at all.
+Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, which is where Tavern checks what the viewer may see. Tavern brokers a drag between module frames in the same window (the page, or the popped-out app). `tavern.refs.drag(event, ...)`, called from a native `dragstart`, and `tavern.refs.accepts` / `tavern.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
 
 ### The titlebar
 

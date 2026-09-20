@@ -177,7 +177,7 @@
   function chipHtml({ x, start, cont }) {
     // A multi-day event shows its time on the first day and an arrow on the days after.
     const label = cont ? '\u2192 ' + x.ev.title : (x.ev.allDay ? '' : timeText(start) + ' ') + x.ev.title;
-    return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.key)}" draggable="true" title="${esc(x.ev.title)}">${roomIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
+    return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.key)}" title="${esc(x.ev.title)}">${roomIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
   }
 
   function monthGrid() {
@@ -219,7 +219,7 @@
       groups.get(k).push(occ);
     }
     return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start < floor ? floor : g[0].start))}</h4>${g.map(({ x, start, end }) => `
-      <button class="item" data-open="${esc(x.key)}" draggable="true"><span class="when">${esc(whenText(x.ev, start, end))}</span>
+      <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start, end))}</span>
         <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag room">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
@@ -584,13 +584,13 @@
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a
   // pointer to the event, and the other module asks Tavern for what it may show.
-  $('body').addEventListener('dragstart', (e) => {
-    const open = e.target.closest('[data-open]');
-    const x = open && events.get(open.dataset.open);
-    if (!x || !tavern.refs) return;
-    const where = x.scope === 'rooms' ? { room: x.roomId } : x.scope === 'server' && inRoom ? { scope: 'server' } : undefined;
-    tavern.refs.drag(e, 'event', x.id, { ...where, label: x.ev.title });
-  });
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable($('body'), (target) => {
+      const open = target.closest('[data-open]');
+      const x = open && events.get(open.dataset.open);
+      return x ? { kind: 'event', id: x.id, label: x.ev.title, ...whereFor(x) } : null;
+    });
+  }
   $('body').addEventListener('click', (e) => {
     const open = e.target.closest('[data-open]');
     if (open) {

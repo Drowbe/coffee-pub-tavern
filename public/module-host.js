@@ -114,6 +114,73 @@ function beginDrag(source, ref) {
   activeDrag = { source, ref, layers, timer: setTimeout(endDrag, 20000) };
 }
 
+// A drag driven by the pointer instead of the browser's drag and drop, which is unreliable between
+// sandboxed frames. The source frame (tavern.refs.draggable) tells the host when a drag begins, where
+// the pointer is as it moves, and where it lets go, in its own coordinates; the host turns those into
+// the page's, finds the module frame under the pointer, and forwards over, leave and drop to it in
+// that frame's coordinates, drawing a small label at the pointer meanwhile.
+let ptrDrag = null; // { source, ref, label, ghost, over, timer, doc }
+
+function ptrEnd() {
+  if (!ptrDrag) return;
+  clearTimeout(ptrDrag.timer);
+  ptrDrag.ghost.remove();
+  if (ptrDrag.over) ptrDrag.over.send('refsdrag', { type: 'leave' });
+  ptrDrag = null;
+}
+
+// The module frame in the same window as the source that is under a point of the page, and where in it.
+function ptrTarget(px, py) {
+  for (const target of mounted) {
+    if (target === ptrDrag.source || target.frame.ownerDocument !== ptrDrag.doc) continue;
+    const r = target.frame.getBoundingClientRect();
+    if (px >= r.left && px < r.right && py >= r.top && py < r.bottom) return { target, x: Math.round(px - r.left), y: Math.round(py - r.top) };
+  }
+  return null;
+}
+
+function ptrPoint(x, y) {
+  const r = ptrDrag.source.frame.getBoundingClientRect();
+  return { px: r.left + x, py: r.top + y };
+}
+
+function ptrBegin(source, ref, label, x, y) {
+  ptrEnd();
+  endDrag();
+  const doc = source.frame.ownerDocument;
+  const ghost = doc.createElement('div');
+  ghost.textContent = String(label || '').slice(0, 40);
+  ghost.style.cssText = 'position:fixed;z-index:2147483001;pointer-events:none;padding:3px 9px;border-radius:6px;background:#c8873a;color:#1a1206;font:600 12px sans-serif;max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.4)';
+  doc.body.appendChild(ghost);
+  ptrDrag = { source, ref, label, ghost, over: null, doc, timer: setTimeout(ptrEnd, 60000) };
+  ptrMove(x, y);
+}
+
+function ptrMove(x, y) {
+  if (!ptrDrag) return;
+  const { px, py } = ptrPoint(x, y);
+  ptrDrag.ghost.style.left = `${px + 12}px`;
+  ptrDrag.ghost.style.top = `${py + 12}px`;
+  const hit = ptrTarget(px, py);
+  if (ptrDrag.over && (!hit || hit.target !== ptrDrag.over)) {
+    ptrDrag.over.send('refsdrag', { type: 'leave' });
+    ptrDrag.over = null;
+  }
+  if (hit) {
+    ptrDrag.over = hit.target;
+    hit.target.send('refsdrag', { type: 'over', x: hit.x, y: hit.y, ref: ptrDrag.ref });
+  }
+}
+
+function ptrDrop(x, y) {
+  if (!ptrDrag) return;
+  const { px, py } = ptrPoint(x, y);
+  const hit = ptrTarget(px, py);
+  if (hit) hit.target.send('refsdrag', { type: 'drop', x: hit.x, y: hit.y, ref: ptrDrag.ref });
+  ptrDrag.over = null; // the drop already ended it for the target
+  ptrEnd();
+}
+
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
 export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null }) {
@@ -348,6 +415,21 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     },
     async 'refs.dragEnd'() {
       if (activeDrag && activeDrag.source === mine) endDrag();
+      if (ptrDrag && ptrDrag.source === mine) ptrEnd();
+      return true;
+    },
+    // The pointer-driven drag (see tavern.refs.draggable): begin, move, and let go.
+    async 'refs.ptrStart'({ ref, label, x, y }) {
+      if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      ptrBegin(mine, { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }, label, Number(x) || 0, Number(y) || 0);
+      return true;
+    },
+    async 'refs.ptrMove'({ x, y }) {
+      if (ptrDrag && ptrDrag.source === mine) ptrMove(Number(x) || 0, Number(y) || 0);
+      return true;
+    },
+    async 'refs.ptrDrop'({ x, y }) {
+      if (ptrDrag && ptrDrag.source === mine) ptrDrop(Number(x) || 0, Number(y) || 0);
       return true;
     },
     async resize(size) {
@@ -420,11 +502,14 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     send,
     // For tests: start a brokered drag of `ref` from this module, as its SDK would.
     beginDragForTest: (ref) => beginDrag(mine, ref),
+    // For tests: run the pointer-driven drag from this module as its SDK would (steps: start, move, drop).
+    ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
     deliver,
     destroy() {
       hostWin.removeEventListener('message', onMessage);
       mounted.delete(mine);
       if (activeDrag && (activeDrag.source === mine || activeDrag.layers.some((l) => l.target === mine))) endDrag();
+      if (ptrDrag && ptrDrag.source === mine) ptrEnd();
       leaveStream();
       frame.removeAttribute('src');
     },

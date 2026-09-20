@@ -198,6 +198,53 @@
         event.target.addEventListener('dragend', () => call('refs.dragEnd', {}).catch(() => {}), { once: true });
         return ref;
       },
+      // Make items draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
+      // element is: { kind, id, label, ...the options make() takes } for one of your items, or null. The drag
+      // is driven by the pointer (press, move a few pixels, let go), not the browser's drag and drop, which is
+      // unreliable between sandboxed frames; the host shows the label at the pointer and hands the drop to
+      // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
+      draggable: (root, resolve) => {
+        let down = null;
+        let dragging = false;
+        let sent = 0;
+        root.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0 || e.pointerType === 'touch' || e.target.closest('input, textarea, select')) return;
+          const item = resolve(e.target);
+          if (!item) return;
+          down = { id: e.pointerId, x: e.clientX, y: e.clientY, item, el: e.target };
+          // Follow the pointer from the first press, even when it leaves this module's frame at once.
+          try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* it is followed while inside */ }
+        });
+        window.addEventListener('pointermove', (e) => {
+          if (!down || e.pointerId !== down.id) return;
+          if (!dragging) {
+            if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) return;
+            dragging = true;
+            const { kind, id, label, ...where } = down.item;
+            call('refs.ptrStart', { ref: tavern.refs.make(kind, id, where), label, x: e.clientX, y: e.clientY }).catch(() => {});
+            return;
+          }
+          const now = Date.now();
+          if (now - sent < 30) return;
+          sent = now;
+          call('refs.ptrMove', { x: e.clientX, y: e.clientY }).catch(() => {});
+        });
+        const finish = (e, dropped) => {
+          if (!down || e.pointerId !== down.id) return;
+          if (dragging) {
+            if (dropped) call('refs.ptrDrop', { x: e.clientX, y: e.clientY }).catch(() => {});
+            else call('refs.dragEnd', {}).catch(() => {});
+            // The release would otherwise count as a click on the item.
+            const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+            window.addEventListener('click', stop, { capture: true, once: true });
+            setTimeout(() => window.removeEventListener('click', stop, { capture: true }), 100);
+          }
+          down = null;
+          dragging = false;
+        };
+        window.addEventListener('pointerup', (e) => finish(e, true));
+        window.addEventListener('pointercancel', (e) => finish(e, false));
+      },
       // Receive a pointer dragged from another module on the same page. over(point, ref) as it moves across
       // this module, leave() when it goes, drop(ref, point) when it is let go; the point is { x, y } in
       // this module's own page, for document.elementFromPoint. Call this rather than (or as well as)

@@ -190,7 +190,7 @@
     const due = t.due ? dueText(t.due) : null;
     const notes = t.notes ? `<small>${esc(t.notes.split('\n')[0].slice(0, 90))}</small>` : '';
     const links = (t.links || []).length ? `<span class="links">${t.links.map((r) => linkChip(r, false)).join('')}</span>` : '';
-    return `<div class="task ${t.done ? 'done' : ''}" data-task="${esc(x.key)}" ${x.scope === 'own' ? 'draggable="true"' : ''}>
+    return `<div class="task ${t.done ? 'done' : ''}" data-task="${esc(x.key)}">
       <input class="tick" type="checkbox" data-tick="${esc(x.key)}" ${t.done ? 'checked' : ''} ${editable ? '' : 'disabled'} aria-label="Done">
       <button class="text" type="button" data-open="${esc(x.key)}">${esc(t.title)}${notes}${links}</button>
       ${due && !t.done ? `<span class="due ${due.cls}">${esc(due.text)}</span>` : ''}
@@ -521,11 +521,13 @@
   });
   // A task can be dragged (to another module that links to tasks), and an event or a poll dragged from
   // another module onto a task links to it.
-  $('body').addEventListener('dragstart', (e) => {
-    const row = e.target.closest('[data-task]');
-    const x = row && tasks.get(row.dataset.task);
-    if (x && x.scope === 'own' && tavern.refs) tavern.refs.drag(e, 'task', x.id, { label: x.t.title });
-  });
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable($('body'), (target) => {
+      const row = target.closest('[data-task]');
+      const x = row && tasks.get(row.dataset.task);
+      return x && x.scope === 'own' ? { kind: 'task', id: x.id, label: x.t.title } : null;
+    });
+  }
   $('body').addEventListener('dragover', (e) => {
     const row = e.target.closest('[data-task]');
     const x = row && tasks.get(row.dataset.task);

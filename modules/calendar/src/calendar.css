@@ -102,3 +102,5 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .links .link b { color: var(--accent); font-weight: 600; }
 .links button.link { cursor: pointer; }
 .links button.link:hover { color: var(--text); border-color: var(--accent); }
+
+.chip, .item { user-select: none; }

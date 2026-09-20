@@ -186,7 +186,7 @@
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
-      <h3 draggable="true" data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
+      <h3 data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
       ${p.addable && votable && p.options.length < MAX_OPTIONS ? `<div class="addopt"><input type="text" maxlength="100" placeholder="Suggest another option" data-addtext="${esc(x.key)}" aria-label="Suggest another option"><button class="btn btn-small" type="button" data-addopt="${esc(x.key)}">Add</button></div>` : ''}
@@ -537,12 +537,13 @@
     render();
   });
   // A poll's question can be dragged onto another module that links to polls (a to-do, say).
-  $('body').addEventListener('dragstart', (e) => {
-    const h = e.target.closest('[data-drag]');
-    const x = h && polls.get(h.dataset.drag);
-    if (!x || !tavern.refs) return;
-    tavern.refs.drag(e, 'poll', x.id, { ...(x.scope === 'rooms' ? { room: x.roomId } : {}), label: x.p.question });
-  });
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable($('body'), (target) => {
+      const h = target.closest('[data-drag]');
+      const x = h && polls.get(h.dataset.drag);
+      return x ? { kind: 'poll', id: x.id, label: x.p.question, ...(x.scope === 'rooms' ? { room: x.roomId } : {}) } : null;
+    });
+  }
   $('body').addEventListener('click', (e) => {
     const act = e.target.closest('[data-action]');
     if (act) {
