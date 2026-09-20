@@ -104,12 +104,34 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
       <span class="nav-divider"></span>
       <a class="icon-link" href="/logout" id="logout-link" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
     </nav>
+    <button class="icon-link nav-toggle" id="nav-toggle" type="button" title="Menu" aria-label="Menu" aria-expanded="false"><i class="fa-solid fa-bars fa-fw" aria-hidden="true"></i></button>
   `;
+  wireNavMenu(header);
   setTopbarLocation(location);
   wireInstall();
   loadModuleNav();
   loadUpdateBadge();
   startNotifications();
+}
+
+// On a phone the header's links are a menu (see the phone header rules in style.css): the button
+// opens them, and a tap anywhere else or Escape closes them.
+function wireNavMenu(header) {
+  const toggle = header.querySelector('#nav-toggle');
+  const setOpen = (on) => {
+    header.classList.toggle('menu-open', on);
+    toggle.setAttribute('aria-expanded', String(on));
+  };
+  toggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpen(!header.classList.contains('menu-open'));
+  });
+  header.ownerDocument.addEventListener('click', (event) => {
+    if (!event.target.closest('#nav-toggle')) setOpen(false);
+  });
+  header.ownerDocument.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
 }
 
 // --- module notifications ----------------------------------------------------
