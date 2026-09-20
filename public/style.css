@@ -4044,9 +4044,15 @@ body.at-table .module-nav {
 @media (max-width: 640px) {
   body.at-table {
     --tabbar-h: 54px;
+    /* Sized in dynamic viewport units, not pinned with inset: 0 (which is the large viewport in
+       Chrome on an iPhone, 37px taller than what shows) and not 100% (47px short in the
+       home-screen app). Measured on an iPhone 13 Pro Max, see documentation/architecture. */
     position: fixed;
-    inset: 0;
-    height: auto;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100vh;
+    height: 100dvh;
   }
 
   body.at-table .topbar {

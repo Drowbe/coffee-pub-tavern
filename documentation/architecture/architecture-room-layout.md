@@ -66,7 +66,23 @@ The header at the top of the page has two rows. The first is the shared header (
 
 ## Phones
 
-Below 640px (the width `applyLayout()` calls `narrow`) the table is a phone layout, in one `@media (max-width: 640px)` block at the end of `public/style.css`: a slim header, then the stage, then the room bar as a tab bar (icon over name, the accent color for an open pane; Full screen and Pop out are hidden, Leave stays). `public/room.js` moves `#subnav` out of the header and after the stage on a phone (and back when the window widens), so the bar is the last thing in the page's column and the call toolbar sits directly above it; nothing measures or pads for it. Its own bottom padding is the safe-area inset, which keeps the icons clear of a browser's bottom bar. `body.at-table` is `position: fixed; inset: 0` rather than a measured height, so the page is the visible screen. The tab bar switches the view: the highlighted tab (`.on`) is the view being shown, tapping another tab shows it, and tapping never closes a pane or hangs up (the hang-up button and the conference's own close are the way out of the call). The other views stay open but hidden, so the call keeps running, and because the microphone can be live while the conference is hidden, the Conference tab carries a dot while you are in the call: green with the microphone off, red while it is live (`reflectMic()` in `public/room.js` sets `data-mic` on `#modules-menu`, and `room-modules.js` puts `in-call` on the tab).
+Below 640px (the width `applyLayout()` calls `narrow`) the table is a phone layout, in one `@media (max-width: 640px)` block at the end of `public/style.css`: a slim header, then the stage, then the room bar as a tab bar (icon over name, the accent color for an open pane; Full screen and Pop out are hidden, Leave stays). `public/room.js` moves `#subnav` out of the header and after the stage on a phone (and back when the window widens), so the bar is the last thing in the page's column and the call toolbar sits directly above it; nothing measures or pads for it. Its own bottom padding is the safe-area inset, which keeps the icons clear of a browser's bottom bar. `body.at-table` is `position: fixed; top: 0` with `height: 100dvh` (no `inset: 0`, no `100%`): see the measurements below. The tab bar switches the view: the highlighted tab (`.on`) is the view being shown, tapping another tab shows it, and tapping never closes a pane or hangs up (the hang-up button and the conference's own close are the way out of the call). The other views stay open but hidden, so the call keeps running, and because the microphone can be live while the conference is hidden, the Conference tab carries a dot while you are in the call: green with the microphone off, red while it is live (`reflectMic()` in `public/room.js` sets `data-mic` on `#modules-menu`, and `room-modules.js` puts `in-call` on the tab).
+
+### What an iPhone reports (measured with /diag.html)
+
+iPhone 13 Pro Max, iOS 26.6, portrait, screen 428 x 926:
+
+| | `window.innerHeight` | `100dvh` / `svh` / `lvh` | `100%` | fixed `bottom:0` ends at | safe-area top / bottom |
+|---|---|---|---|---|---|
+| Chrome tab, address bar showing | 740 | 740 / 740 / 777 | 740 | 740 (just above the bar) | 0 / 0 |
+| Home-screen app, `viewport-fit=cover` | 926 | 926 / 879 / 926 | 879 | 926 | 47 / 34 |
+| Home-screen app, `viewport-fit=auto` | 879 | 879 (all) | 879 | 879 | 0 / 0 |
+
+- In Chrome the page starts below the status bar and ends above the address bar; `100dvh` is exactly the visible height, and a fixed `bottom: 0` is right. The safe-area insets are 0 there, so nothing may depend on them in a browser tab.
+- An element pinned with both `top: 0` and `bottom: 0` (`inset: 0`) took the large viewport (777), which put the bottom 37px under Chrome's bar.
+- In the home-screen app with `cover` the page is under the status bar (top inset 47) and the home indicator (bottom inset 34), and the insets are real, so the header and the tab bar pad by them. `100%` is 47px short there (the strip under the tab bar), so nothing uses it for the height.
+- The home-screen app runs in Safari's engine (its user agent says Safari), not Chrome's.
+`/diag.html` (linked from Manage, About) reports these numbers for any device.
 
 ## Remembered layouts
 
