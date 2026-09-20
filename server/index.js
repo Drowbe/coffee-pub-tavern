@@ -10,6 +10,7 @@ const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-ser
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
 const { buildModule, bundledModules } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
+const { ModuleBus } = require('./module-bus');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
@@ -1123,6 +1124,7 @@ app.delete('/api/modules/:id', requireAdmin, (req, res) => {
     moduleHooks.forget(req.params.id);
     moduleHooks.dropModule(req.params.id);
     moduleLinks.dropModule(req.params.id);
+    moduleBus.dropModule(req.params.id);
   }
   res.json({ ok: true });
 });
@@ -1481,6 +1483,200 @@ app.get('/api/refs/links', (req, res) => {
   res.json({ cards });
 });
 
+// --- events and actions: modules reacting to and asking things of each other -------------------
+// Like refs, Tavern is only the conduit. A module declares in module.json the events it publishes and
+// the ones it wants to hear (`events`), and the actions it provides and the ones it wants to ask
+// for (`actions`); an admin approves what a module hears and asks for; this code checks who may do
+// what and carries the messages, and knows nothing of what any of them mean. An event is delivered
+// live to the modules that may hear it and kept a while for those not open at the time. An action
+// request waits in the providing module's queue until a person has that module open: its page claims
+// the request (one page only), does it under its own rules, and reports back.
+
+const moduleBus = new ModuleBus(modules.dir);
+
+const busMay = (rules, approved, want) => (rules.includes('*') || rules.includes(want)) && (approved.includes('*') || approved.includes(want));
+const mayHear = ({ manifest, entry }, publisher, name) => busMay(manifest.events.subscribes, entry.approved?.events || [], `${publisher}:${name}`);
+const mayUse = ({ manifest, entry }, provider, action) => busMay(manifest.actions.uses, entry.approved?.actions || [], `${provider}:${action}`);
+
+// Resolve one module's place (the server, or a room) for this viewer with the permission needed.
+function busPlace(who, moduleId, scope, room, need) {
+  const found = modules.enabled(moduleId);
+  if (!found) throw refError(404, 'no such module');
+  const { manifest, entry } = found;
+  let scopeKey;
+  let perms;
+  let roomId = null;
+  if (scope === 'room') {
+    const r = store.roomById(String(room || ''));
+    if (!r) throw refError(404, 'no such room');
+    if (!manifest.scope.includes('room')) throw refError(400, 'that module has no room scope');
+    if (!moduleRoomAccess(entry, who, r)) throw refError(403, 'that module is not available in that room for you');
+    perms = modulePerms(who, r.id);
+    scopeKey = `room:${r.id}`;
+    roomId = r.id;
+  } else {
+    if (!who.user) throw refError(403, 'guests can only use room modules');
+    if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
+    perms = modulePerms(who, null);
+    scopeKey = 'server';
+  }
+  if (!moduleCan(manifest, perms, need)) throw refError(403, 'your role can\'t do that in this module');
+  return { found, scopeKey, roomId, perms };
+}
+
+const busScope = (v) => (v === 'room' ? 'room' : 'server');
+const busRoute = (fn) => (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  try {
+    res.json(fn(who, req));
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ error: err.message });
+  }
+};
+const publicEvent = (e) => ({ id: e.id, at: e.at, module: e.module, name: e.name, ref: e.ref, data: e.data });
+const publicAction = (a) => ({ id: a.id, at: a.at, from: a.from, name: a.action, input: a.input, by: store.userByKey(a.by)?.displayName || 'someone' });
+
+// A module says something happened. It must have declared the event, and the person must be able to
+// change that module here (they are the reason it happened).
+app.post('/api/bus/publish', busRoute((who, req) => {
+  const { module: id, name, ref, data, scope, room } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  if (!at.found.manifest.events.publishes.some((p) => p.name === name)) throw refError(400, 'that module does not publish that event');
+  let pointer = null;
+  if (ref !== undefined && ref !== null) {
+    if (!refShape(ref) || ref.module !== id || !at.found.manifest.refs.produces.some((p) => p.kind === ref.kind) || refScopeKey(ref) !== at.scopeKey) {
+      throw refError(400, 'an event can only point at one of its module\'s own items, in the same place');
+    }
+    pointer = { module: ref.module, kind: ref.kind, id: String(ref.id), scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) };
+  }
+  const event = moduleBus.publish({ module: id, name, ref: pointer, data, scopeKey: at.scopeKey, by: who.user?.key || 'guest' });
+  if (!event) throw refError(400, 'the event\'s data is too large');
+  return { id: event.id };
+}));
+
+// What a module missed, in its own place: the events it may hear (declared and approved) about
+// modules the person can see. `after=now` says where things stand, to start listening from.
+app.get('/api/bus/events', busRoute((who, req) => {
+  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'read');
+  if (req.query.after === 'now') return { events: [], latest: moduleBus.latestEvent(at.scopeKey) };
+  const after = Number(req.query.after) || 0;
+  const events = [];
+  for (const e of moduleBus.eventsAfter(at.scopeKey, after)) {
+    if (!mayHear(at.found, e.module, e.name)) continue;
+    try {
+      busPlace(who, e.module, busScope(req.query.scope), req.query.room, 'read');
+    } catch {
+      continue; // a module the person cannot see here
+    }
+    events.push(publicEvent(e));
+    if (events.length >= 100) break;
+  }
+  return { events, latest: events.length ? events[events.length - 1].id : moduleBus.latestEvent(at.scopeKey) };
+}));
+
+// The actions the asking module may request here: every one, of every other module, it was approved for.
+app.get('/api/bus/actions', busRoute((who, req) => {
+  const from = String(req.query.from || '');
+  const scope = busScope(req.query.scope);
+  const asker = busPlace(who, from, scope, req.query.room, 'read');
+  const actions = [];
+  for (const { manifest } of modules.enabledAll()) {
+    if (manifest.id === from) continue;
+    for (const a of manifest.actions.provides) {
+      if (!mayUse(asker.found, manifest.id, a.name)) continue;
+      try {
+        busPlace(who, manifest.id, scope, req.query.room, 'write'); // you can ask only for what you could do yourself
+      } catch {
+        continue;
+      }
+      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input });
+    }
+  }
+  return { actions };
+}));
+
+// Check an action's input against what the module said it takes; only those fields come out.
+function busInput(who, shape, input) {
+  const out = {};
+  const given = input && typeof input === 'object' ? input : {};
+  for (const [field, type] of Object.entries(shape)) {
+    const optional = type.endsWith('?');
+    const base = optional ? type.slice(0, -1) : type;
+    const v = given[field];
+    if (v === undefined || v === null || v === '') {
+      if (!optional) throw refError(400, `${field} is needed`);
+      continue;
+    }
+    if (base === 'string' || base === 'text') {
+      if (typeof v !== 'string') throw refError(400, `${field} must be text`);
+      out[field] = v.replace(/\p{Cc}/gu, ' ').trim().slice(0, base === 'string' ? 200 : 1000);
+      if (!out[field] && !optional) throw refError(400, `${field} is needed`);
+    } else if (base === 'date') {
+      if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(`${v}T00:00:00Z`).getTime())) throw refError(400, `${field} must be a date`);
+      out[field] = v;
+    } else if (base === 'datetime') {
+      const d = new Date(v);
+      if (typeof v !== 'string' || Number.isNaN(d.getTime())) throw refError(400, `${field} must be a date and time`);
+      out[field] = d.toISOString();
+    } else if (base === 'boolean') {
+      if (typeof v !== 'boolean') throw refError(400, `${field} must be true or false`);
+      out[field] = v;
+    } else if (base === 'number') {
+      if (typeof v !== 'number' || !Number.isFinite(v)) throw refError(400, `${field} must be a number`);
+      out[field] = v;
+    } else if (base === 'ref') {
+      if (!refShape(v)) throw refError(400, `${field} must be a reference`);
+      resolveRef(who, v, null, { skipConsumer: true }); // the asker must be able to see what it points at
+      out[field] = { module: v.module, kind: v.kind, id: String(v.id), scope: v.scope, ...(v.scope === 'room' ? { room: v.room } : {}) };
+    }
+  }
+  return out;
+}
+
+// One module asks another to do something. Queued for the module that owns the action.
+app.post('/api/bus/actions/request', busRoute((who, req) => {
+  const { from, action, input, scope, room } = req.body || {};
+  const [providerId, name] = String(action || '').split(':');
+  const sc = busScope(scope);
+  const asker = busPlace(who, String(from || ''), sc, room, 'read');
+  const provider = busPlace(who, String(providerId || ''), sc, room, 'write');
+  const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
+  if (!def) throw refError(404, 'that module does not offer that action');
+  if (!mayUse(asker.found, providerId, name)) throw refError(403, 'that module has not been approved to ask for that');
+  const request = moduleBus.request({ from, provider: providerId, action: name, input: busInput(who, def.input, input), scopeKey: provider.scopeKey, by: who.user?.key || 'guest' });
+  return { id: request.id, status: request.status };
+}));
+
+// The providing module's page: what is waiting, take one, say how it went.
+app.get('/api/bus/actions/pending', busRoute((who, req) => {
+  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'write');
+  return { actions: moduleBus.pending(String(req.query.module), at.scopeKey).map(publicAction) };
+}));
+app.post('/api/bus/actions/claim', busRoute((who, req) => {
+  const { module: id, id: requestId, scope, room } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  const request = moduleBus.claim(Number(requestId), id, at.scopeKey);
+  return request ? { ok: true, action: publicAction(request) } : { ok: false };
+}));
+app.post('/api/bus/actions/complete', busRoute((who, req) => {
+  const { module: id, id: requestId, scope, room, result } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  const clean = { ok: Boolean(result?.ok) };
+  if (typeof result?.error === 'string') clean.error = result.error.slice(0, 200);
+  if (refShape(result?.ref) && result.ref.module === id) clean.ref = { module: result.ref.module, kind: result.ref.kind, id: String(result.ref.id), scope: result.ref.scope, ...(result.ref.scope === 'room' ? { room: result.ref.room } : {}) };
+  return { ok: Boolean(moduleBus.complete(Number(requestId), id, at.scopeKey, clean)) };
+}));
+// The asking module: how did it go?
+app.get('/api/bus/actions/status', busRoute((who, req) => {
+  const from = String(req.query.from || '');
+  const at = busPlace(who, from, busScope(req.query.scope), req.query.room, 'read');
+  const request = moduleBus.actionById(Number(req.query.id));
+  if (!request || request.from !== from || request.scopeKey !== at.scopeKey) throw refError(404, 'no such request');
+  return { status: request.status, result: request.result };
+}));
+
 // Modules with a page of their own that this viewer can open: the header nav.
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);
@@ -1709,15 +1905,31 @@ app.get('/api/modules/stream', (req, res) => {
       if (at) res.write(`event: links\ndata: ${JSON.stringify({ module: ref.module, ref, ...at })}\n\n`);
     }
   };
+  // A module said something happened: sent to every module here that may hear it (the host delivers it to those frames).
+  const onBus = (ev) => {
+    const at = place(ev.module, ev.scopeKey);
+    if (!at) return;
+    const subscribers = modules.enabledAll().filter((m) => m.manifest.id !== ev.module && mayHear(m, ev.module, ev.name) && place(m.manifest.id, ev.scopeKey)).map((m) => m.manifest.id);
+    if (subscribers.length) res.write(`event: bus\ndata: ${JSON.stringify({ ...publicEvent(ev), scope: at.scope, subscribers })}\n\n`);
+  };
+  // A request for a module to do something: the providing module's frames are told; one claims it.
+  const onAction = (r) => {
+    const at = place(r.provider, r.scopeKey);
+    if (at) res.write(`event: action\ndata: ${JSON.stringify({ ...publicAction(r), provider: r.provider, scope: at.scope })}\n\n`);
+  };
   moduleData.on('change', onChange);
   moduleHooks.on('fire', onFire);
   moduleLinks.on('change', onLinks);
+  moduleBus.on('event', onBus);
+  moduleBus.on('action', onAction);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
     clearInterval(beat);
     moduleData.off('change', onChange);
     moduleHooks.off('fire', onFire);
     moduleLinks.off('change', onLinks);
+    moduleBus.off('event', onBus);
+    moduleBus.off('action', onAction);
   });
 });
 

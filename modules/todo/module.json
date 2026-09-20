@@ -1,7 +1,7 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "icon": "list-check",
   "description": "A shared to-do list for the whole server and for each room, with due dates and reminders.",
   "author": "Coffee Pub",
@@ -16,6 +16,12 @@
   ],
   "access": { "read": "view", "write": "edit" },
   "hooks": { "schedule": true, "notify": true },
+  "events": { "subscribes": ["*"] },
+  "actions": {
+    "provides": [
+      { "name": "createTask", "label": "Add a task", "input": { "title": "string", "notes": "text?", "ref": "ref?" } }
+    ]
+  },
   "refs": {
     "produces": [
       { "kind": "task", "name": "Task", "open": true, "key": "task:{id}", "card": { "title": "title", "subtitle": "notes", "when": "due", "done": "done" } }

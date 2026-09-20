@@ -43,6 +43,8 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
   permission before an admin changes it.
 - `hooks` names what the module may ask Tavern to do for it: `schedule` and `notify`.
 - `refs.produces` lists up to 10 kinds of item other modules may point at: a `kind` (lowercase letters, digits, dashes), an optional display `name`, optional `open` and `backlinks` flags (the module can show one of its items when asked, and shows what links to them), a `key` that is a fixed prefix then `{id}` (`"event:{id}"`), and a `card` mapping the card fields `title` (required), `subtitle`, `when`, `end`, `allDay` and `done` to top-level stored field names. `refs.consumes` lists up to 20 kinds of other modules' items as `"module:kind"`, or `"*"` for whatever other modules share; an admin approves them, and a module cannot consume its own kinds.
+- `events.publishes` lists up to 10 events the module says (`name`, an optional `kind` of its refs the event concerns, a `label`); `events.subscribes` lists up to 20 events it wants to hear, as `"*"` or `"module:name"`, approved by an admin.
+- `actions.provides` lists up to 10 actions the module carries out: a `name`, a `label` and an `input` mapping up to 10 fields to `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref` (a trailing `?` for optional); `actions.uses` lists up to 20 it wants to ask for, as `"*"` or `"module:name"`, approved by an admin.
 - `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both.
 - Anything else in the manifest is ignored.
 
@@ -63,7 +65,7 @@ A module in the list has the manifest fields plus:
 | `enabled` | Whether it is on |
 | `allRooms`, `rooms` | Where a room module is available |
 | `versions` | Installed versions, newest first |
-| `needsApproval`, `pending` | Whether the active version asks for permissions, hooks or refs to consume not yet approved, and which |
+| `needsApproval`, `pending` | Whether the active version asks for permissions, hooks, refs to consume, events to hear or actions to ask for that are not yet approved, and which |
 | `installedAt`, `updatedAt` | Timestamps |
 
 ## Behavior to rely on
@@ -90,6 +92,11 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
 | `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
 | `POST /api/refs/resolve` | Body `{ from, refs: [{ module, kind, id, scope, room? }] }` (`from` is the asking module, up to 50 refs). Returns `{ cards }` in the same order: a card, or `{ ref, error, status }` for each that is missing, invalid or not allowed |
+| `POST /api/bus/publish` | Body `{ module, name, ref?, data?, scope, room? }`: the module says one of its declared events happened. Needs write access to the module; `ref` must be one of its own items in the same place; `data` at most 2 KB |
+| `GET /api/bus/events?module=&scope=&room=&after=` | The events the module may hear (declared and approved) after event `after`, about modules the person can see here, at most 100; `after=now` returns just where things stand |
+| `GET /api/bus/actions?from=&scope=&room=` | The actions the asking module may request, only those the person could do themselves |
+| `POST /api/bus/actions/request` | Body `{ from, action: "module:name", input, scope, room? }`; the input is checked against the action's declared types. Returns `{ id, status }` |
+| `GET /api/bus/actions/pending`, `POST /api/bus/actions/claim`, `POST /api/bus/actions/complete`, `GET /api/bus/actions/status` | The providing module's page takes a waiting request (one page only), reports the result; the asking module reads the status. Need write access to the providing module |
 | `GET /api/refs/kinds?from=` | The kinds of other modules' items the asking module may link to: `{ kinds: [{ module, moduleName, icon, kind, name, open }] }`. A module installed later appears here with no change to anything else |
 | `POST /api/refs/links` | Body `{ module, from, to: [refs] }`: the asking module says what one of its own items points at (the whole list). Targets the viewer cannot see, or the module may not link to, are left out. Needs write access to the module |
 | `GET /api/refs/links?from=&ref=&dir=to\|from` | What points at (`to`, only for a kind with `backlinks`) or is pointed at by (`from`) one of the asking module's own items: cards, each only for what the viewer may see |

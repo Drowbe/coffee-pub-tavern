@@ -329,6 +329,8 @@
     const t = x ? x.t : { title: '', notes: '', due: null, remind: false, done: false };
     editing = x ? { key: x.key, id: x.id, version: x.version } : { key: null, id: null, version: null };
     editingLinks = ((x && x.t.links) || []).slice();
+    $('f-auto').checked = Boolean(x && x.t.autoDone);
+    $('f-auto').disabled = readOnly;
     $('f-link-search').value = '';
     $('f-link-results').innerHTML = '';
     $('f-link-search').hidden = readOnly || !tavern.refs;
@@ -443,6 +445,7 @@
       createdAt: current ? current.t.createdAt : Date.now(),
       by: current ? current.t.by : info.user.name,
       links: editingLinks.slice(0, MAX_LINKS),
+      autoDone: $('f-auto').checked,
     };
     $('f-save').disabled = true;
     try {
@@ -620,6 +623,44 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
+  // Other modules say what happens to their items (an event on a poll, say); Tavern delivers what this
+  // module was approved to hear. A task marked to follow what it links to is ticked when a linked item is
+  // finished: the conventional names are closed, done, completed and finished. Doing it twice is harmless.
+  const FINISHED = new Set(['closed', 'done', 'completed', 'finished']);
+  if (tavern.events && tavern.events.subscribe) {
+    tavern.events.subscribe(async (e) => {
+      if (!FINISHED.has(e.name) || !e.ref) return;
+      const k = refKey(e.ref);
+      for (const x of [...tasks.values()]) {
+        if (x.scope !== 'own' || x.t.done || !x.t.autoDone || !(x.t.links || []).some((r) => refKey(r) === k)) continue;
+        try {
+          const t = { ...x.t, done: true, doneAt: Date.now() };
+          await put(x, t);
+          applyReminder(t).catch(() => {});
+        } catch (err) {
+          // changed or ticked by someone else meanwhile
+        }
+      }
+      render();
+    });
+  }
+
+  // What other modules may ask of this one. A task made this way links to the item it came from.
+  if (tavern.actions && tavern.actions.provide) {
+    tavern.actions.provide({
+      createTask: async (input, meta) => {
+        const t = {
+          id: newId(), title: input.title, notes: input.notes || '', due: null, remind: false, done: false, doneAt: null,
+          createdAt: Date.now(), by: (meta && meta.by) || 'someone', links: input.ref && linkable(input.ref) ? [input.ref] : [], autoDone: false,
+        };
+        await put(null, t);
+        render();
+        resolveLinks();
+        return { ref: myRef(t.id) };
+      },
+    });
+  }
+
   // Another module asking to show one of this module's tasks (from a link to it): open it.
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {

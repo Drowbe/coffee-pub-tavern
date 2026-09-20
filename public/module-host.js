@@ -36,7 +36,7 @@ function joinStream(room, guest, onEvent) {
     if (guest) p.set('guest', guest);
     const source = new EventSource(`/api/modules/stream?${p}`);
     s = { source, subs: new Set() };
-    for (const type of ['change', 'schedule', 'links']) {
+    for (const type of ['change', 'schedule', 'links', 'bus', 'action']) {
       source.addEventListener(type, (ev) => {
         let data;
         try {
@@ -143,6 +143,15 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     return `${base}${path}?${p}`;
   };
 
+  // The place this module is in, for the bus routes: a room's pane is in its room, a page in the server.
+  const busPlaceBody = () => (scope === 'room' ? { scope: 'room', room: roomId } : { scope: 'server' });
+  const busGuest = () => (guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '');
+  const busQuery = (extra) => {
+    const p = new URLSearchParams({ ...extra, ...busPlaceBody() });
+    if (guestToken) p.set('guest', guestToken);
+    return p;
+  };
+
   // This module, as the drag brokering sees it (its `send` is defined below).
   const mine = { frame, module, send: (event, data) => send(event, data) };
 
@@ -216,6 +225,32 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
       const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(ref), dir: dir === 'from' ? 'from' : 'to' });
       if (guestToken) p.set('guest', guestToken);
       return (await api('GET', `/api/refs/links?${p}`)).cards;
+    },
+    // Events and actions between modules (see the SDK's tavern.events and tavern.actions). Always in this
+    // module's own place, and always on its behalf: the server checks what it declared and was approved for.
+    async 'events.publish'({ name, ref, data }) {
+      return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref, data, ...busPlaceBody() });
+    },
+    async 'events.since'({ after }) {
+      return api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
+    },
+    async 'actions.list'() {
+      return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id })}`)).actions;
+    },
+    async 'actions.request'({ action, input }) {
+      return api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
+    },
+    async 'actions.pending'() {
+      return (await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions;
+    },
+    async 'actions.claim'({ id }) {
+      return api('POST', `/api/bus/actions/claim${busGuest()}`, { module: module.id, id, ...busPlaceBody() });
+    },
+    async 'actions.complete'({ id, result }) {
+      return api('POST', `/api/bus/actions/complete${busGuest()}`, { module: module.id, id, result, ...busPlaceBody() });
+    },
+    async 'actions.status'({ id }) {
+      return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
     },
     async 'refs.search'({ q, scope: s }) {
       const sc = scopeOf(s);
@@ -360,9 +395,16 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   // A room's pane hears that room and the server; a module's server page hears the server and
   // the viewer's rooms (see the stream's scopes on the server).
   const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
-    if (d.module !== module.id) return;
+    if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
     if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
     else if (type === 'links') send('links', { ref: d.ref });
+    else if (type === 'bus') {
+      // An event some module published: only the modules the server named may hear it, in their own place.
+      if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === (scope === 'room' ? 'room' : 'server')) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: d.ref, data: d.data });
+    } else if (type === 'action') {
+      // A request for this module to do something.
+      if (d.provider === module.id && d.scope === (scope === 'room' ? 'room' : 'server')) send('action', { id: d.id, name: d.name, from: d.from, by: d.by });
+    }
     else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
   });
 

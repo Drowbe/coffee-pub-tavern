@@ -1,7 +1,7 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole server and for each room, with live results.",
   "author": "Coffee Pub",
@@ -17,6 +17,10 @@
   ],
   "access": { "read": "view", "write": "vote" },
   "hooks": { "notify": true },
+  "events": {
+    "publishes": [{ "name": "closed", "kind": "poll", "label": "A poll closed" }]
+  },
+  "actions": { "uses": ["*"] },
   "refs": {
     "produces": [
       { "kind": "poll", "name": "Poll", "open": true, "backlinks": true, "key": "poll:{id}", "card": { "title": "question", "when": "closesAt" } }

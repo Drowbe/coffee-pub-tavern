@@ -29,6 +29,10 @@ Choose an option to vote for it. In a one-choice poll, choosing another option m
 
 Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. Clicking the link on the task opens the poll here, and a poll lists what is linked to it under its details, where clicking one opens it. See [To-do](userguide-todo.md).
 
+## After a poll closes
+
+Closing a poll (or its closing time passing) tells the other modules that were set up to listen, so a task that follows the poll can tick itself off. A closed poll also offers a button for each thing another module can do with it, such as **Add a task** from the To-do module, which creates a task named for the poll and its winner, linked to the poll. These buttons come from whatever modules you have installed; there is nothing to set up in Polls.
+
 ## Close it
 
 The person who started a poll, and an admin, can **Close** it, and **Reopen** it later. A closed poll no longer takes votes and marks its winner, or **Tied** if several options share the top count. **Delete** removes the poll and all its votes; it asks you to press it twice.

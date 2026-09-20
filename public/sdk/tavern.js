@@ -225,6 +225,120 @@
       },
     },
 
+    // Events: a module says something happened, and other modules that were approved to hear it can react.
+    // Neither side names the other. Declare what you publish in module.json (events.publishes: [{ name,
+    // kind, label }]) and what you want to hear (events.subscribes: ["*"] or ["module:name"], approved by
+    // the admin). By convention an event named `closed`, `done`, `completed` or `finished` means the item it
+    // points at is finished.
+    events: {
+      // publish('closed', { ref, data }): `ref` (optional) is a pointer to one of your own items, `data` a small
+      // plain object (under 2 KB) that means something to whoever listens.
+      publish: (name, o) => call('events.publish', { name, ref: o && o.ref, data: o && o.data }),
+      // Hear events: handler({ id, at, module, name, ref, data }) for each, in order, including those that
+      // happened while this module was not open (from where it last got to; a module hears nothing from
+      // before its first subscribe). More than one person may have the module open, so handle an event so
+      // that doing it twice is harmless.
+      subscribe: (handler) => {
+        const CURSOR = '_cursor:events';
+        let cursor = null;
+        let chain = Promise.resolve();
+        const deliver = (e) => {
+          chain = chain.then(async () => {
+            if (cursor !== null && e.id <= cursor) return;
+            try {
+              await handler(e);
+            } catch (err) {
+              console.error(err);
+            }
+            cursor = e.id;
+            try {
+              await tavern.storage.set(CURSOR, { id: cursor });
+            } catch (err) {
+              // read-only here: the cursor is kept for this visit only
+            }
+          });
+        };
+        const off = tavern.on('bus', deliver);
+        (async () => {
+          let saved = null;
+          try {
+            const item = await tavern.storage.get(CURSOR);
+            saved = item && item.value && item.value.id;
+          } catch (err) {
+            saved = null;
+          }
+          const r = await call('events.since', { after: saved == null ? 'now' : saved });
+          if (saved == null) {
+            if (cursor === null || cursor < r.latest) cursor = r.latest;
+            try {
+              await tavern.storage.set(CURSOR, { id: cursor });
+            } catch (err) {
+              // read-only here
+            }
+          } else if (cursor === null || cursor < saved) {
+            cursor = saved;
+          }
+          for (const e of r.events) deliver(e);
+        })().catch((err) => console.error(err));
+        return off;
+      },
+    },
+
+    // Actions: one module asks another to do something, without either naming the other in Tavern. A module
+    // lists what it can do in module.json (actions.provides: [{ name, label, input: { title: 'string',
+    // due: 'date?' } }]; field types are string, text, date, datetime, boolean, number and ref, and a
+    // trailing ? means optional) and what it wants to ask for (actions.uses: ["*"] or ["module:name"],
+    // approved by the admin).
+    actions: {
+      // What this module may ask for here: [{ action, module, moduleName, icon, name, label, input }]. Offer
+      // whichever you can fill in from what you have (an action that takes a `title`, say), and do not name modules.
+      list: () => call('actions.list', {}),
+      // Ask for one. Tavern checks the input against what the action takes and queues it for the module
+      // that owns it, which carries it out the next time a person has it open (or at once if one does).
+      // With { wait: true } this waits a few seconds for the answer: { status, result: { ok, ref?, error? } }.
+      request: async (action, input, o) => {
+        const queued = await call('actions.request', { action, input });
+        if (!(o && o.wait)) return queued;
+        for (let i = 0; i < 10; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          const s = await call('actions.status', { id: queued.id });
+          if (s.status === 'done') return s;
+        }
+        return { status: 'queued', id: queued.id };
+      },
+      // Carry out the actions this module provides: provide({ createTask: async (input, { from, by }) => ({ ref }) }).
+      // Called for each request, once (only one page takes it), under the rules of whoever has the module open.
+      provide: (handlers) => {
+        let chain = Promise.resolve();
+        const run = async (a) => {
+          const fn = handlers[a.name];
+          if (!fn) return;
+          let claim;
+          try {
+            claim = await call('actions.claim', { id: a.id });
+          } catch (err) {
+            return;
+          }
+          if (!claim || !claim.ok) return;
+          let result;
+          try {
+            const out = await fn(claim.action.input, { from: claim.action.from, by: claim.action.by });
+            result = { ok: true, ref: out && out.ref };
+          } catch (err) {
+            result = { ok: false, error: String((err && err.message) || err) };
+          }
+          try {
+            await call('actions.complete', { id: a.id, result });
+          } catch (err) {
+            // the requester can still see it was claimed
+          }
+        };
+        const queue = (a) => { chain = chain.then(() => run(a)); };
+        tavern.on('action', queue);
+        call('actions.pending', {}).then((list) => list.forEach(queue)).catch(() => {});
+      },
+    },
+
     // Ask Tavern to run something later, on your behalf. Needs "schedule" (and
     // "notify" for a notification) in the manifest's hooks. `at` is a time
     // (ms since 1970 or an ISO string); `key` names the schedule so setting it

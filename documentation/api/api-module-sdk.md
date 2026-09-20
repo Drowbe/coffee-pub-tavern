@@ -196,6 +196,20 @@ tavern.on('header', (e) => { /* e.id is the button clicked */ });
 
 Up to six buttons; `icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true.
 
+### Events and actions: reacting to and asking things of other modules
+
+The other two conduits between modules, and like refs they name no module. Declare them in `module.json` and an admin approves what your module hears and asks for.
+
+```json
+"events":  { "publishes": [{ "name": "closed", "kind": "poll", "label": "A poll closed" }], "subscribes": ["*"] },
+"actions": { "provides": [{ "name": "createTask", "label": "Add a task", "input": { "title": "string", "notes": "text?", "ref": "ref?" } }],
+             "uses": ["*"] }
+```
+
+**Events.** `tavern.events.publish(name, { ref, data })` says something happened (`ref` an optional pointer to one of your own items, `data` a small plain object under 2 KB). `tavern.events.subscribe(handler)` hears the events your module was approved for (`"*"`, or `"module:name"`), about modules the person can see here, in order, including those that happened while your module was not open (from where it last got to; a module hears nothing from before its first subscribe). An event has `{ id, at, module, name, ref, data }`. By convention an event named `closed`, `done`, `completed` or `finished` means the item it points at is finished. More than one person may have your module open, so make handling an event safe to do twice.
+
+**Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `tavern.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `tavern.actions.request(action, input, { wait })` asks for one; Tavern checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `tavern.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })`: its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open.
+
 ### The action bar
 
 A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.

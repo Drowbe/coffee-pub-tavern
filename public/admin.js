@@ -722,6 +722,8 @@ function moduleCard(m) {
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
     ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people at the table</span></li>'] : []),
+    ...(m.events && m.events.subscribes.length ? [`<li><strong>Hear what happens in other modules</strong> <span class="hint">${escapeHtml(m.events.subscribes.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: their events, only for people who can see them</span></li>`] : []),
+    ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other modules to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: each request is carried out by the module that owns the action</span></li>`] : []),
     ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other modules' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
   ];
   const state = m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>';

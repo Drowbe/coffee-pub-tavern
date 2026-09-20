@@ -20,7 +20,7 @@ const FILES = [
   'public/gate-worklet.js', 'server/index.js', 'server/store.js', 'server/modules.js', 'server/module-build.js', 'server/auth.js',
   'public/room.js', 'public/view.js', 'public/admin.js', 'public/login.js', 'public/profile.js', 'public/brand.js',
   'public/roomconfig.js', 'public/register.js', 'public/hotkeys.js', 'public/module.js', 'public/module-host.js',
-  'public/room-modules.js', 'public/sdk/tavern.js', 'server/module-data.js', 'server/module-links.js', 'server/module-hooks.js',
+  'public/room-modules.js', 'public/sdk/tavern.js', 'server/module-data.js', 'server/module-links.js', 'server/module-bus.js', 'server/module-hooks.js',
 ];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tavern-check-'));
 let failed = 0;

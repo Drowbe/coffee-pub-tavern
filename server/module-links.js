@@ -36,7 +36,7 @@ class ModuleLinks extends EventEmitter {
     fs.renameSync(tmp, this.file);
   }
 
-  // Replace everything \`from\` points at with \`tos\`. Returns every pointer whose links changed.
+  // Replace everything `from` points at with `tos`. Returns every pointer whose links changed.
   set(from, tos, by) {
     const fk = key(from);
     const before = this.items.filter((l) => key(l.from) === fk);
@@ -59,7 +59,7 @@ class ModuleLinks extends EventEmitter {
     return changed;
   }
 
-  // What points at \`ref\`, and what \`ref\` points at.
+  // What points at `ref`, and what `ref` points at.
   to(ref) {
     const k = key(ref);
     return this.items.filter((l) => key(l.to) === k).map((l) => l.from);

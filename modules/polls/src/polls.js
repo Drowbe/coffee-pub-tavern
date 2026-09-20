@@ -192,6 +192,7 @@
       ${p.addable && votable && p.options.length < MAX_OPTIONS ? `<div class="addopt"><input type="text" maxlength="100" placeholder="Suggest another option" data-addtext="${esc(x.key)}" aria-label="Suggest another option"><button class="btn btn-small" type="button" data-addopt="${esc(x.key)}">Add</button></div>` : ''}
       ${x.scope === 'rooms' && !closed ? '<div class="meta">Vote in that room.</div>' : ''}
       ${backlinksHtml(x)}
+      ${closed && x.scope === 'own' && offered.length ? `<div class="actions">${offered.map((a) => `<button class="btn btn-small" type="button" data-action="${esc(x.key)}|${esc(a.action)}" title="${esc(a.moduleName)}">${esc(a.label)}</button>`).join('')}</div>` : ''}
       ${canManage ? `<div class="actions"><button class="btn btn-small" data-toggle="${esc(x.key)}" type="button">${p.closed ? 'Reopen' : 'Close'}</button><button class="btn btn-small btn-danger" data-delete="${esc(x.key)}" type="button">Delete</button></div>` : ''}
     </article>`;
   }
@@ -253,10 +254,38 @@
     $('body').innerHTML = html || `<p class="empty">${show === 'closed' ? 'No closed polls.' : 'No open polls.'}${canCreate && show !== 'closed' ? ' Start one to get a vote going.' : ''}</p>`;
   }
 
-  function showNote(text) {
+  function showNote(text, ok) {
     $('note').textContent = text;
+    $('note').classList.toggle('ok', Boolean(ok));
     $('note').hidden = !text;
     if (text) setTimeout(() => { $('note').hidden = true; }, 5000);
+  }
+
+  // What other modules can do for a finished poll (whatever they offer that takes a title), offered as
+  // buttons named by the action, so nothing here knows which modules there are.
+  let offered = [];
+  async function loadActions() {
+    if (!tavern.actions || !canVote) return;
+    try {
+      offered = (await tavern.actions.list()).filter((a) => a.input && a.input.title);
+    } catch (err) {
+      offered = [];
+    }
+  }
+  async function runAction(key, action) {
+    const x = polls.get(key);
+    const a = offered.find((o) => o.action === action);
+    if (!x || !a) return;
+    const { winner } = winnerOf(x);
+    const input = { title: winner ? `${x.p.question}: ${winner}` : x.p.question };
+    if (a.input.notes) input.notes = x.p.question;
+    if (a.input.ref) input.ref = tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+    try {
+      await tavern.actions.request(action, input);
+      showNote(`Sent to ${a.moduleName}: ${a.label}`, true);
+    } catch (err) {
+      showNote(err.message);
+    }
   }
 
   // --- voting and managing -----------------------------------------------------
@@ -285,13 +314,48 @@
     render();
   }
 
+  // Closing a poll is something other modules may care about (a task waiting on it, say): say so through
+  // Tavern, which delivers it to whichever modules were approved to hear it. Nothing here knows which.
+  function winnerOf(x) {
+    const { counts } = tally(x);
+    const max = Math.max(0, ...[...counts.values()].map((v) => v.length));
+    const top = max > 0 ? x.p.options.filter((o) => counts.get(o.id).length === max) : [];
+    return { winner: top.length === 1 ? top[0].text : null, tied: top.length > 1 ? top.map((o) => o.text).slice(0, 5) : [] };
+  }
+  const announcing = new Set();
+  async function announceClosed(x) {
+    try {
+      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: winnerOf(x) });
+    } catch (err) {
+      // nobody may hear it, or this person cannot publish: the poll is closed either way
+    }
+  }
+  // A poll that closes by its time closes with nobody clicking: whoever sees it first announces it, once.
+  async function announceIfDue() {
+    if (!tavern.events || !canVote) return;
+    for (const x of polls.values()) {
+      if (x.scope !== 'own' || x.p.closed || x.p.announced || !x.p.closesAt || Date.now() < x.p.closesAt || announcing.has(x.key)) continue;
+      announcing.add(x.key);
+      const p = { ...x.p, announced: true };
+      try {
+        const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+        rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
+        await announceClosed({ ...x, p });
+      } catch (err) {
+        // someone else got there first
+      }
+    }
+  }
+
   async function setClosed(key) {
     const x = polls.get(key);
     if (!x) return;
-    const p = { ...x.p, closed: !x.p.closed, closesAt: x.p.closed ? null : x.p.closesAt };
+    const closing = !x.p.closed;
+    const p = { ...x.p, closed: closing, closesAt: closing ? x.p.closesAt : null, announced: closing };
     try {
       const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
       rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
+      if (closing) announceClosed({ ...x, p });
     } catch (err) {
       showNote(err.status === 409 ? 'Someone changed that poll first. It has been refreshed.' : err.message);
       try { await load(); } catch (e) { /* keep what we have */ }
@@ -480,6 +544,11 @@
     tavern.refs.drag(e, 'poll', x.id, { ...(x.scope === 'rooms' ? { room: x.roomId } : {}), label: x.p.question });
   });
   $('body').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-action]');
+    if (act) {
+      const [k, a] = act.dataset.action.split('|');
+      return void runAction(k, a);
+    }
     const link = e.target.closest('[data-ref]');
     if (link && tavern.refs) return void tavern.refs.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
     const v = e.target.closest('[data-vote]');
@@ -514,7 +583,7 @@
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
   // A poll with a closing time closes on its own: redraw now and then to show it.
-  setInterval(render, 30000);
+  setInterval(() => { render(); announceIfDue(); }, 30000);
 
   $('add').hidden = !canCreate;
   try {
@@ -523,7 +592,9 @@
     $('msg').textContent = 'Polls could not load: ' + err.message;
     return;
   }
+  await loadActions();
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
+  announceIfDue();
 })();

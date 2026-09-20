@@ -160,6 +160,50 @@ function cleanRefs(rawRefs, id) {
   return refs;
 }
 
+// Events and actions: how modules react to and ask things of each other, carried by Tavern without
+// naming any module. A module lists the events it `publishes` and the ones it wants to hear
+// (`subscribes`), and the actions it `provides` (a name, a label, the input it takes) and the ones it
+// wants to ask for (`uses`). What a module subscribes to or uses is approved by an admin, like refs.
+const EVENT_NAME_RE = /^[a-z][a-zA-Z0-9]{0,31}$/;
+const FIELD_RE = /^[a-z][a-zA-Z0-9]{0,23}$/;
+const FIELD_TYPES = ['string', 'text', 'date', 'datetime', 'boolean', 'number', 'ref'];
+const BUS_USE_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-zA-Z0-9]{0,31}$/;
+
+function cleanBus(rawEvents, rawActions, id) {
+  const events = { publishes: [], subscribes: [] };
+  for (const p of Array.isArray(rawEvents?.publishes) ? rawEvents.publishes.slice(0, 10) : []) {
+    const name = typeof p?.name === 'string' ? p.name.trim() : '';
+    if (!EVENT_NAME_RE.test(name)) throw new ModuleError(`module.json: event name "${name}" must be letters and digits, starting with a lowercase letter`);
+    if (events.publishes.some((x) => x.name === name)) throw new ModuleError(`module.json: event "${name}" is listed twice`);
+    const kind = typeof p.kind === 'string' && REF_KIND_RE.test(p.kind) ? p.kind : '';
+    events.publishes.push({ name, kind, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name });
+  }
+  for (const c of Array.isArray(rawEvents?.subscribes) ? rawEvents.subscribes.slice(0, 20) : []) {
+    if (typeof c !== 'string' || (c !== '*' && !BUS_USE_RE.test(c))) throw new ModuleError(`module.json: events.subscribes "${c}" must be "*" or look like "module:event"`);
+    if (c !== '*' && c.split(':')[0] === id) throw new ModuleError('module.json: a module does not need to subscribe to its own events');
+    if (!events.subscribes.includes(c)) events.subscribes.push(c);
+  }
+  const actions = { provides: [], uses: [] };
+  for (const p of Array.isArray(rawActions?.provides) ? rawActions.provides.slice(0, 10) : []) {
+    const name = typeof p?.name === 'string' ? p.name.trim() : '';
+    if (!EVENT_NAME_RE.test(name)) throw new ModuleError(`module.json: action name "${name}" must be letters and digits, starting with a lowercase letter`);
+    if (actions.provides.some((x) => x.name === name)) throw new ModuleError(`module.json: action "${name}" is listed twice`);
+    const input = {};
+    for (const [field, type] of Object.entries(p.input && typeof p.input === 'object' ? p.input : {}).slice(0, 10)) {
+      const base = typeof type === 'string' ? type.replace(/\?$/, '') : '';
+      if (!FIELD_RE.test(field) || !FIELD_TYPES.includes(base)) throw new ModuleError(`module.json: action "${name}" input "${field}" must be one of ${FIELD_TYPES.join(', ')} (add ? for optional)`);
+      input[field] = type;
+    }
+    actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input });
+  }
+  for (const c of Array.isArray(rawActions?.uses) ? rawActions.uses.slice(0, 20) : []) {
+    if (typeof c !== 'string' || (c !== '*' && !BUS_USE_RE.test(c))) throw new ModuleError(`module.json: actions.uses "${c}" must be "*" or look like "module:action"`);
+    if (c !== '*' && c.split(':')[0] === id) throw new ModuleError('module.json: a module does not need to use its own actions');
+    if (!actions.uses.includes(c)) actions.uses.push(c);
+  }
+  return { events, actions };
+}
+
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
@@ -204,6 +248,7 @@ function cleanManifest(raw, files) {
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
 
   const refs = cleanRefs(raw.refs, id);
+  const { events, actions } = cleanBus(raw.events, raw.actions, id);
 
   // Which of the module's own permissions guards reading and writing its data.
   const access = {};
@@ -216,7 +261,7 @@ function cleanManifest(raw, files) {
     access[kind] = named;
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, access };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -269,6 +314,14 @@ class ModuleManager {
       } catch {
         manifest.refs = { produces: [], consumes: [] };
       }
+      try {
+        const bus = cleanBus(manifest.events, manifest.actions, id);
+        manifest.events = bus.events;
+        manifest.actions = bus.actions;
+      } catch {
+        manifest.events = { publishes: [], subscribes: [] };
+        manifest.actions = { provides: [], uses: [] };
+      }
       this.manifests.set(cacheKey, manifest);
     }
     return manifest;
@@ -314,16 +367,18 @@ class ModuleManager {
 
   // What the active version asks for that an admin hasn't approved yet.
   pendingFor(entry, manifest) {
-    const approved = entry.approved || { permissions: [], hooks: [], refs: [] };
+    const approved = entry.approved || { permissions: [], hooks: [], refs: [], events: [], actions: [] };
     return {
       permissions: manifest.permissions.filter((p) => !approved.permissions.includes(p.key)).map((p) => p.key),
       hooks: HOOKS.filter((h) => manifest.hooks[h] && !approved.hooks.includes(h)),
       refs: manifest.refs.consumes.filter((c) => !(approved.refs || []).includes(c)),
+      events: manifest.events.subscribes.filter((c) => !(approved.events || []).includes(c)),
+      actions: manifest.actions.uses.filter((c) => !(approved.actions || []).includes(c)),
     };
   }
 
   hasPending(pending) {
-    return pending.permissions.length > 0 || pending.hooks.length > 0 || pending.refs.length > 0;
+    return pending.permissions.length > 0 || pending.hooks.length > 0 || pending.refs.length > 0 || pending.events.length > 0 || pending.actions.length > 0;
   }
 
   view(id) {
@@ -389,7 +444,7 @@ class ModuleManager {
 
     const now = new Date().toISOString();
     const entry = existing || {
-      id: manifest.id, versions: [], enabled: false, allRooms: false, rooms: [], approved: { permissions: [], hooks: [], refs: [] }, installedAt: now,
+      id: manifest.id, versions: [], enabled: false, allRooms: false, rooms: [], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, installedAt: now,
     };
     entry.versions.push(manifest.version);
     entry.version = manifest.version;
@@ -427,7 +482,7 @@ class ModuleManager {
     if (patch.enabled !== undefined) {
       entry.enabled = Boolean(patch.enabled);
       if (entry.enabled) {
-        entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes] };
+        entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes], events: [...manifest.events.subscribes], actions: [...manifest.actions.uses] };
       }
     }
     if (patch.allRooms !== undefined) {
