@@ -6,12 +6,12 @@ stepping away.
 ## Join and leave
 
 The join screen lists the rooms you belong to. Join is one click. The page then becomes the table:
-the header stays, now naming the room you are in with a **Leave room** button, the tiles fill the
+the header stays, now naming the room you are in, with the room bar under it (see below), the tiles fill the
 middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 
 Left to right, the bar holds: microphone (with a live level meter inside the button), deafen, camera,
 share screen, layout, away, reactions, settings, the room's launch link if it has one, and hang up. The
-Modules button, Full screen and Pop out are in the header, to the left of Sign out. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
+The room bar under the header has the panes, Full screen, Pop out and Leave room. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
 layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat puts the conference in a strip above the chat, with the toolbar under both.
 
 ## What opens when you join
@@ -27,9 +27,9 @@ conference next time; the **Join with** button on the room list changes that bef
 The red hang-up button leaves the call, not the room. The conference closes, your microphone and camera
 stop, you stop receiving anyone's audio and video, and your tile disappears for everyone else, but you
 stay in the room and stay online, with the chat and the modules still open. The room's own **Leave
-room** button, in the header, is what leaves the room.
+room** button, at the right of the room bar, is what leaves the room.
 
-With the conference closed, the Modules button in the header, next to Sign out, still opens the menu. It
+With the conference closed, the room bar under the header still opens the chat and the modules. It
 offers **Rejoin call** to bring the conference back, along with the chat and the modules. If nothing at
 all is open, the stage says so and points at that button. In a pop-out window, hang up brings the app back
 to the page first.
@@ -49,7 +49,7 @@ order and pin are remembered in your browser.
 
 ## Chat
 
-Open chat from the **Modules** button (the puzzle piece) or with **C**. The button shows an unread count while the chat is closed. The Modules button is the one place to show and hide panes: its menu lists Chat and each module the room has on, and choosing one opens or closes it.
+Open chat from the **room bar**, under the header, or with **C**. The room bar is the one place to show and hide panes: it has a switch for the conference, the chat and each module the room has on, on when the pane is open, and clicking one opens or closes it. A pane with something unread shows a count.
 
 - **Formatting.** The buttons above the box add **bold**, *italic*, code and bullet lists, and the
   question mark shows the shortcuts.
@@ -118,9 +118,9 @@ To run the table without browser bars, install it as an app: Chrome and Edge sho
 app** in the settings popover, Safari on macOS has **File, Add to Dock**, and iPhones and iPads use
 **Share, Add to Home Screen**.
 
-In Chrome and Edge the **pop out** button in the header (next to Full screen) moves the whole app, header
+In Chrome and Edge the **pop out** button in the room bar (next to Full screen) moves the whole app, header
 and every pane included, into a small window and back; **Full screen** applies to the whole app too. The
-page behind shows **Bring the app back**, and the button in the header becomes **Pop it back in**. Popped
+page behind shows **Bring the app back**, and the button in the room bar becomes **Pop it back in**. Popped
 out, the header, the conference's titlebar and the toolbar all slide away when the pointer rests and come
 back on any movement, leaving only the tiles. A header link (your profile, the rooms, a module's page)
 brings the app back to the page first.
