@@ -178,7 +178,7 @@ tavern.refs.draggable(document.body, (target) => {
 });
 ```
 
-The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. It works with a mouse or pen; on a touch screen, search is the way to link. A module that accepts drops calls `tavern.refs.dropTarget`:
+The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. To see where a drag stops, open Tavern once with `?debug=1` (`?debug=0` turns it off): every step, in the module that starts the drag, in the page and in the module under it, adds a line to a box at the bottom left. `tavern.refs.trace(text)` adds your own. It works with a mouse or pen; on a touch screen, search is the way to link. A module that accepts drops calls `tavern.refs.dropTarget`:
 
 ```js
 tavern.refs.dropTarget({

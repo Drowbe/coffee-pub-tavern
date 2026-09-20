@@ -563,12 +563,16 @@
       leave: clearDrop,
       drop: (ref, pt) => {
         clearDrop();
-        if (!ref || !linkable(ref) || !canEdit) return;
+        if (!ref || !linkable(ref) || !canEdit) {
+          tavern.refs.trace(`drop ignored: ${!ref ? 'no pointer' : !linkable(ref) ? ref.module + ':' + ref.kind + ' is not something this module may link to (' + [...consumable].join(', ') + ')' : 'cannot edit'}`);
+          return;
+        }
         if (!$('editor').hidden) {
           if (!$('f-link-search').hidden) addEditorLink(ref);
           return;
         }
         const row = taskAt(pt);
+        tavern.refs.trace(row ? 'linking to the task under the drop' : 'drop ignored: no task under the pointer');
         if (row) linkTo(row.dataset.task, ref);
       },
     });

@@ -21,6 +21,9 @@ Verified in a browser: a task's link opened the Calendar pane on the event's edi
 ### Fixed
 - Installing a module whose module.json omitted `hooks`, `permissions` or `access` failed with a server error; the stored manifest is the author's original, so the gaps are now filled in when it is read.
 
+### Added
+- A trace for drags between modules, to find where one stops: open Tavern once with `?debug=1` (`?debug=0` turns it off) and every step (pressed an item, drag began, pointer over a module, released, drop received, why it was ignored) shows as a line in a box at the bottom left of the page. To-do 1.4.2 adds the reason a drop was ignored.
+
 ### Fixed
 - Joining a room with only the chat left the conference's titlebar and toolbar showing over the chat's (the conference pane was hidden only after it had been closed once, never at the start). It now starts hidden.
 - Dragging still did nothing on drop for you, so it no longer uses the browser's drag and drop, which does not reliably carry a drag between sandboxed frames. It is driven by the pointer: press an item (an event, a poll's question, a task), move a few pixels, and Tavern draws its label at the pointer and hands the drop to the module under it (`tavern.refs.draggable`). Calendar 1.7.1, Polls 1.4.1 and To-do 1.4.1 use it. Verified in a browser through the host: the label followed the pointer, the task under it highlighted, and the drop linked the event to the task; the frame's press-and-move handling is checked in isolation. Not verified with a real mouse in a real browser, which my test browser cannot do: if it still does nothing, the browser console shows nothing yet, so tell me and I will add a visible trace.

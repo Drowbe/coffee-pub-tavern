@@ -114,6 +114,39 @@ function beginDrag(source, ref) {
   activeDrag = { source, ref, layers, timer: setTimeout(endDrag, 20000) };
 }
 
+// A trace of a drag on screen, for finding out where one stops: open Tavern once with ?debug=1 (?debug=0
+// turns it off). Every step, in the module that starts the drag, in the host and in the module under it,
+// adds a line at the bottom left of the page.
+try {
+  const flag = new URLSearchParams(location.search).get('debug');
+  if (flag === '1') localStorage.setItem('tavern.debug', '1');
+  else if (flag === '0') localStorage.removeItem('tavern.debug');
+} catch {
+  // no storage: no trace
+}
+const debugOn = () => {
+  try {
+    return localStorage.getItem('tavern.debug') === '1';
+  } catch {
+    return false;
+  }
+};
+const traceLines = [];
+function trace(text) {
+  if (!debugOn()) return;
+  traceLines.push(`${new Date().toLocaleTimeString([], { hour12: false })} ${text}`);
+  if (traceLines.length > 12) traceLines.shift();
+  console.log('[tavern]', text);
+  let box = document.getElementById('tavern-debug');
+  if (!box) {
+    box = document.createElement('pre');
+    box.id = 'tavern-debug';
+    box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483002;margin:0;padding:8px 10px;max-width:60vw;max-height:40vh;overflow:auto;background:rgba(0,0,0,.85);color:#9f9;font:11px/1.35 monospace;border-radius:6px;pointer-events:none';
+    document.body.appendChild(box);
+  }
+  box.textContent = traceLines.join('\n');
+}
+
 // A drag driven by the pointer instead of the browser's drag and drop, which is unreliable between
 // sandboxed frames. The source frame (tavern.refs.draggable) tells the host when a drag begins, where
 // the pointer is as it moves, and where it lets go, in its own coordinates; the host turns those into
@@ -145,6 +178,7 @@ function ptrPoint(x, y) {
 }
 
 function ptrBegin(source, ref, label, x, y) {
+  trace(`host: drag begins from ${source.module.id} (${ref.kind} ${ref.id}) at ${x},${y}; ${[...mounted].filter((t) => t !== source).map((t) => t.module.id).join(', ') || 'no other module frames'} to drop on`);
   ptrEnd();
   endDrag();
   const doc = source.frame.ownerDocument;
@@ -166,6 +200,7 @@ function ptrMove(x, y) {
     ptrDrag.over.send('refsdrag', { type: 'leave' });
     ptrDrag.over = null;
   }
+  if (hit && ptrDrag.over !== hit.target) trace(`host: pointer is over ${hit.target.module.id} at ${hit.x},${hit.y}`);
   if (hit) {
     ptrDrag.over = hit.target;
     hit.target.send('refsdrag', { type: 'over', x: hit.x, y: hit.y, ref: ptrDrag.ref });
@@ -173,9 +208,13 @@ function ptrMove(x, y) {
 }
 
 function ptrDrop(x, y) {
-  if (!ptrDrag) return;
+  if (!ptrDrag) {
+    trace('host: released, but no drag was in progress');
+    return;
+  }
   const { px, py } = ptrPoint(x, y);
   const hit = ptrTarget(px, py);
+  trace(hit ? `host: released over ${hit.target.module.id} at ${hit.x},${hit.y}: dropping` : `host: released at page ${Math.round(px)},${Math.round(py)}, over no module frame`);
   if (hit) hit.target.send('refsdrag', { type: 'drop', x: hit.x, y: hit.y, ref: ptrDrag.ref });
   ptrDrag.over = null; // the drop already ended it for the target
   ptrEnd();
@@ -241,6 +280,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
         module: contextInfo.module,
         context: { scope, roomId },
         theme: readTheme(),
+        debug: debugOn(),
       };
     },
     async 'storage.get'({ key, scope: s }) {
@@ -416,6 +456,11 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     async 'refs.dragEnd'() {
       if (activeDrag && activeDrag.source === mine) endDrag();
       if (ptrDrag && ptrDrag.source === mine) ptrEnd();
+      return true;
+    },
+    // A line for the on-screen trace (see the top of this file), from a module that was told tracing is on.
+    async 'refs.trace'({ msg }) {
+      trace(`${module.id}: ${String(msg).slice(0, 160)}`);
       return true;
     },
     // The pointer-driven drag (see tavern.refs.draggable): begin, move, and let go.

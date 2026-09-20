@@ -198,18 +198,25 @@
         event.target.addEventListener('dragend', () => call('refs.dragEnd', {}).catch(() => {}), { once: true });
         return ref;
       },
+      // A line on the page's drag trace, when tracing is on (open Tavern with ?debug=1); does nothing otherwise.
+      trace: (msg) => {
+        if (info && info.debug) call('refs.trace', { msg: String(msg).slice(0, 160) }).catch(() => {});
+      },
       // Make items draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
       // element is: { kind, id, label, ...the options make() takes } for one of your items, or null. The drag
       // is driven by the pointer (press, move a few pixels, let go), not the browser's drag and drop, which is
       // unreliable between sandboxed frames; the host shows the label at the pointer and hands the drop to
       // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
       draggable: (root, resolve) => {
+        const say = (msg) => tavern.refs.trace(msg);
+        say('draggable ready');
         let down = null;
         let dragging = false;
         let sent = 0;
         root.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.pointerType === 'touch' || e.target.closest('input, textarea, select')) return;
           const item = resolve(e.target);
+          say(item ? `pressed ${item.kind} ${item.id}` : 'pressed something that is not draggable');
           if (!item) return;
           down = { id: e.pointerId, x: e.clientX, y: e.clientY, item, el: e.target };
           // Follow the pointer from the first press, even when it leaves this module's frame at once.
@@ -220,6 +227,7 @@
           if (!dragging) {
             if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) return;
             dragging = true;
+            say('moved far enough: telling the page a drag began');
             const { kind, id, label, ...where } = down.item;
             call('refs.ptrStart', { ref: tavern.refs.make(kind, id, where), label, x: e.clientX, y: e.clientY }).catch(() => {});
             return;
@@ -231,6 +239,7 @@
         });
         const finish = (e, dropped) => {
           if (!down || e.pointerId !== down.id) return;
+          say(dragging ? (dropped ? 'released: sending the drop' : 'pointer cancelled') : 'released without dragging');
           if (dragging) {
             if (dropped) call('refs.ptrDrop', { x: e.clientX, y: e.clientY }).catch(() => {});
             else call('refs.dragEnd', {}).catch(() => {});
@@ -252,6 +261,7 @@
       dropTarget: (handlers) => tavern.on('refsdrag', (e) => {
         const ref = e.ref && cleanRef(e.ref);
         const point = { x: e.x, y: e.y };
+        if (e.type !== 'over') tavern.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : 'no valid pointer'})`);
         if (e.type === 'over') handlers.over && handlers.over(point, ref);
         else if (e.type === 'leave') handlers.leave && handlers.leave();
         else if (e.type === 'drop') {
