@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- An update indicator on the settings gear in the header: a small count badge (and a tooltip, "Manage: 1 module update available") when a module that ships with this Tavern has a newer version than the one installed. Admins only; it clears when the update is applied on the Modules tab. Verified in a browser with a newer bundled version: the badge showed on the gear, and disappeared after the update was installed.
+
 ### Changed
 - Icons: the To-do titlebar uses an empty square for open and a ticked square for done; Polls uses an open padlock for open and a closed padlock for closed; the quick-add button is a plus in a circle. To-do 1.9.1, Polls 1.9.1.
 

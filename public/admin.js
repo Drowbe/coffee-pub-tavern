@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -712,6 +712,7 @@ async function loadModules() {
   renderModules();
   // Say on the tab itself when an update is waiting, so it is seen without opening it.
   const updates = bundledModules.filter((b) => b.update).length;
+  setUpdateBadge(updates);
   const tab = document.querySelector('[data-tab="modules"]');
   if (tab) tab.textContent = updates ? `Modules (${updates} update${updates === 1 ? '' : 's'})` : 'Modules';
 }

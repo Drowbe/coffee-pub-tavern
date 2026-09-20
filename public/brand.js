@@ -108,6 +108,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   setTopbarLocation(location);
   wireInstall();
   loadModuleNav();
+  loadUpdateBadge();
   startNotifications();
 }
 
@@ -188,6 +189,43 @@ async function startNotifications() {
       // ignore a malformed event
     }
   });
+}
+
+// A count on the settings gear when modules that ship with this Tavern have a newer version than the one
+// installed, so an admin sees it without opening Manage. Only an admin can ask (anyone else gets a refusal
+// and no badge); the Manage page calls setUpdateBadge again when it installs an update.
+export function setUpdateBadge(count) {
+  const link = byId('admin-link');
+  if (!link) return;
+  let badge = link.querySelector('.badge');
+  const base = link.getAttribute('data-title') || link.title;
+  link.setAttribute('data-title', base);
+  if (!count) {
+    badge?.remove();
+    link.title = base;
+    link.setAttribute('aria-label', base);
+    return;
+  }
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'badge update-badge';
+    badge.setAttribute('aria-hidden', 'true');
+    link.appendChild(badge);
+  }
+  badge.textContent = count > 9 ? '9+' : String(count);
+  const text = `${base}: ${count} module update${count === 1 ? '' : 's'} available`;
+  link.title = text;
+  link.setAttribute('aria-label', text);
+}
+async function loadUpdateBadge() {
+  try {
+    const res = await fetch('/api/modules');
+    if (!res.ok) return;
+    const { bundled } = await res.json();
+    setUpdateBadge((bundled || []).filter((b) => b.update).length);
+  } catch {
+    // no badge is fine
+  }
 }
 
 // Modules with a page of their own get an item in the header. Opened from
