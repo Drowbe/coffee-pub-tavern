@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Two more dashboard widgets. To-do 1.10.0 provides **Due soon**: tasks not done that are due within a week or overdue (overdue in red), soonest first, across all your rooms and the server's list. Polls 1.10.0 provides **Need your vote**: open polls you have not voted in, soonest closing first. Each item shows its room's icon and opens in its room. Verified in a browser with seeded data: overdue, tomorrow and later tasks listed, and done, far-off, undated, voted and closed items left out; clicking a poll opened it in the room's Polls. Not verified: two people, and a poll in a room where the viewer cannot vote (the widget lists polls the viewer can read).
+
+### Added
 - A dashboard on the rooms page, under the room cards: who is around, and a card for every module that offers a widget. A module declares `surfaces.widget` (an entry, a title, a size and an order), Tavern lists them (`GET /api/modules/widgets`) and hosts each as it hosts a module page, so Tavern names no module. Calendar 1.12.2 provides **Coming up**: the next seven days across all your rooms and the server calendar, with each room's icon; clicking an item opens it in its room, the heading opens the calendar. A module's build can share code between its page and its widget (`src/<id>-lib.js`). Verified in a browser: the dashboard with the Calendar widget in the page and in a sandboxed frame (sized to its content), on desktop and at phone width, and an item opening its event in the room's calendar. Not verified: a repeating event from a room the viewer is a member of, and two people.
 
 ### Changed

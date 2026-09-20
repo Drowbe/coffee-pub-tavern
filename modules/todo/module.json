@@ -1,14 +1,15 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "icon": "list-check",
   "description": "A shared to-do list for the whole server and for each room, with due dates and reminders.",
   "author": "Coffee Pub",
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 380, "height": 540, "mode": ["dock", "float"] }
+    "panel": { "entry": "panel.html", "width": 380, "height": 540, "mode": ["dock", "float"] },
+    "widget": { "entry": "widget.html", "title": "Due soon", "size": "small", "order": 20 }
   },
   "permissions": [
     { "key": "view", "label": "See the to-do list", "default": { "user": true, "guest": true, "moderator": true } },

@@ -1,14 +1,15 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.9.1",
+  "version": "1.10.0",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole server and for each room, with live results.",
   "author": "Coffee Pub",
   "scope": ["server", "room"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 380, "height": 560, "mode": ["dock", "float"] }
+    "panel": { "entry": "panel.html", "width": 380, "height": 560, "mode": ["dock", "float"] },
+    "widget": { "entry": "widget.html", "title": "Need your vote", "size": "small", "order": 30 }
   },
   "permissions": [
     { "key": "view", "label": "See polls and their results", "default": { "user": true, "guest": true, "moderator": true } },

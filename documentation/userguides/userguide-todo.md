@@ -18,6 +18,10 @@ Choose **To-do** in the header. Type a task in the box at the top and press Ente
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
 - Under the toolbar the server list also shows, read-only, the lists of every room you belong to that has To-do on. Each is headed by its room's icon and name, and a row of your rooms shows or hides each one. To tick off or change a room's task, open that room's list.
 
+## Due soon on the dashboard
+
+On the rooms page, the dashboard's **Due soon** card lists tasks that are not done and are due within the next week or already overdue, soonest first (up to eight), across every room you are in and the server's own list. Overdue ones are marked in red, and each shows its room's icon. Clicking a task opens it in its room; the heading opens the full list. Tasks with no due date are not shown. See [Rooms](userguide-rooms.md).
+
 ## Add a task quickly
 
 The field at the bottom of the To-do with a **+** button opens the task form filled in. Type "book flights by sep 25" and the task is "book flights" and its due date is Sep 25; a day such as "tomorrow", "fri" or "9/29" works the same way. Anything it does not understand stays in the title. Clicking **+** with nothing typed opens a blank form. The field at the top adds a task straight away, with no form.
