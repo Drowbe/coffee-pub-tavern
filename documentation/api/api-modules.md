@@ -85,6 +85,7 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
 | `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
 | `GET /api/modules/:id/rooms-data?prefix=` | For a module's server page: `{ rooms, items }` across the caller's own rooms (a member, module on for the room, role can read it), each item with its `roomId`, each room `{ id, name, icon, svg }`. `?info=1` returns just `{ rooms }`. Guests get 403 |
+| `GET /api/modules/stream?room=` | One server-sent stream for all modules on a page: `change` and `schedule` events with `module`, `scope` (`room` and `server` with a room; `server` and `rooms` without) and `roomId`, filtered to what the caller may read |
 | `GET /api/modules/:id/events` | Server-sent events: `change` for data changes and `schedule` when one fires. `?scope=rooms` streams changes from all the caller's rooms, each with a `roomId` |
 | `POST /api/modules/:id/schedule` | `{ key, at, payload?, notify? }`; needs the `schedule` hook |
 | `DELETE /api/modules/:id/schedule/:key` | Cancel a schedule |

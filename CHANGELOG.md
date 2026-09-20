@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- With three or four modules open in a room, each showed "Tavern did not answer". Every module (two streams for a room panel) held a live connection open, and a browser allows about six to one site over HTTP/1.1, so the modules' first requests never completed. All the modules on a page now share one live stream (`/api/modules/stream`). Verified in a browser: the Calendar, To-do and Polls docked together in a room all loaded, and a change made elsewhere appeared live in a room pane and on a module's server page.
+
 ### Added
 - A Polls module (1.0.0), for deciding things together such as where to go, where to stay and what to do: polls for the server and for each room, as a header page and a room pane. Each option can carry a detail; a poll can allow more than one choice, let people add options while it is open, close itself at a set time, and notify people when it starts. Results update live with a bar, a count and the names of the voters; a closed poll marks its winner or a tie. Each person's vote is its own stored value, so people voting at once never conflict. It asks for three permissions (see, vote, start and close polls, of which only the first two are enforced by the server) and the notify hook. Guests can see but not vote. Build it with `node tools/build-module.mjs modules/polls`.
 

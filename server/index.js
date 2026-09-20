@@ -1393,6 +1393,56 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
   });
 });
 
+// One live stream for every module on a page. A browser allows only a handful of long-lived
+// connections to one site (six over HTTP/1.1), and a stream per module (two for a room panel) used
+// up all of them with three modules open, so nothing else could load. This carries every module's
+// changes and fired schedules, each labelled with its module and where it happened, and filtered
+// to what the viewer may read:
+//   with ?room=<id>   scope 'room' (that room) and 'server'   -- a room's panes
+//   without a room    scope 'server' and 'rooms' (the viewer's own rooms) -- a module's server page
+app.get('/api/modules/stream', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  const room = req.query.room ? store.roomById(String(req.query.room)) : null;
+  if (req.query.room && !room) return res.status(404).json({ error: 'no such room' });
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  // Where a change belongs for this viewer, or null if they may not see it.
+  const place = (moduleId, scopeKey) => {
+    const found = modules.enabled(moduleId);
+    if (!found) return null;
+    const { manifest, entry } = found;
+    if (scopeKey === 'server') {
+      return who.user && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'server', roomId: null } : null;
+    }
+    if (!scopeKey.startsWith('room:')) return null;
+    const r = store.roomById(scopeKey.slice(5));
+    if (!r) return null;
+    if (room) {
+      return r.id === room.id && moduleRoomAccess(entry, who, r) && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'room', roomId: r.id } : null;
+    }
+    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && (entry.allRooms || entry.rooms.includes(r.id));
+    return mine && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'rooms', roomId: r.id } : null;
+  };
+  const onChange = (change) => {
+    const at = place(change.module, change.scopeKey);
+    if (at) res.write(`event: change\ndata: ${JSON.stringify({ ...change, ...at })}\n\n`);
+  };
+  const onFire = (fire) => {
+    const at = place(fire.module, fire.scopeKey);
+    if (at && at.scope !== 'rooms') res.write(`event: schedule\ndata: ${JSON.stringify({ module: fire.module, key: fire.key, payload: fire.payload, ...at })}\n\n`);
+  };
+  moduleData.on('change', onChange);
+  moduleHooks.on('fire', onFire);
+  const beat = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(beat);
+    moduleData.off('change', onChange);
+    moduleHooks.off('fire', onFire);
+  });
+});
+
 app.get('/api/modules/:id/events', (req, res) => {
   // scope=rooms: changes in any of the viewer's rooms (a module's page showing them all).
   const all = req.query.scope === 'rooms' ? moduleRoomsFor(req, res) : null;

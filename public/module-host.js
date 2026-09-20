@@ -23,11 +23,46 @@ export function readTheme() {
   return theme;
 }
 
+// One live stream per page (and room) is shared by every module frame on it. Browsers allow only a
+// few long-lived connections to one site, so a stream per module would starve everything else once
+// a handful of modules were open. See GET /api/modules/stream in server/index.js.
+const streams = new Map(); // "<room>|<guest>" -> { source, subs }
+function joinStream(room, guest, onEvent) {
+  const key = `${room || ''}|${guest || ''}`;
+  let s = streams.get(key);
+  if (!s) {
+    const p = new URLSearchParams();
+    if (room) p.set('room', room);
+    if (guest) p.set('guest', guest);
+    const source = new EventSource(`/api/modules/stream?${p}`);
+    s = { source, subs: new Set() };
+    for (const type of ['change', 'schedule']) {
+      source.addEventListener(type, (ev) => {
+        let data;
+        try {
+          data = JSON.parse(ev.data);
+        } catch {
+          return; // ignore a malformed event
+        }
+        for (const fn of s.subs) fn(type, data);
+      });
+    }
+    streams.set(key, s);
+  }
+  s.subs.add(onEvent);
+  return () => {
+    s.subs.delete(onEvent);
+    if (!s.subs.size) {
+      s.source.close();
+      streams.delete(key);
+    }
+  };
+}
+
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
 export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
-  const sources = [];
   let contextInfo = null;
 
   const q = (sc) => {
@@ -168,28 +203,13 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   function send(event, data) {
     frame.contentWindow?.postMessage({ tavern: 1, tk: secret, event, data }, '*');
   }
-  function listen(sc) {
-    const source = new EventSource(url('/events', sc));
-    source.addEventListener('change', (ev) => {
-      try {
-        const change = JSON.parse(ev.data);
-        send('change', { key: change.key, value: change.value, version: change.version, deleted: change.deleted, by: change.by, scope: sc, roomId: change.roomId });
-      } catch {
-        // ignore a malformed event
-      }
-    });
-    source.addEventListener('schedule', (ev) => {
-      try {
-        send('schedule', { ...JSON.parse(ev.data), scope: sc });
-      } catch {
-        // ignore a malformed event
-      }
-    });
-    sources.push(source);
-  }
-  listen(scope);
-  if (scope === 'room' && module.scope?.includes('server') && !guestToken) listen('server');
-  if (scope === 'server' && module.scope?.includes('room') && !guestToken) listen('rooms');
+  // A room's pane hears that room and the server; a module's server page hears the server and
+  // the viewer's rooms (see the stream's scopes on the server).
+  const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
+    if (d.module !== module.id) return;
+    if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
+    else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
+  });
 
   // No same-origin: an opaque origin, no cookies, no Tavern DOM. allow-forms lets a
   // module's own <form> fire its submit event (a sandboxed frame without it
@@ -203,7 +223,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     send,
     destroy() {
       hostWin.removeEventListener('message', onMessage);
-      for (const s of sources) s.close();
+      leaveStream();
       frame.removeAttribute('src');
     },
   };

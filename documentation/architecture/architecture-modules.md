@@ -103,7 +103,7 @@ Every runtime route calls `moduleAccess` in `server/index.js`, which resolves th
 
 ### Live changes
 
-`GET /api/modules/:id/events` is a server-sent event stream. It subscribes to `change` events from the data store and `fire` events from the scheduler for one module and scope, and writes them as `change` and `schedule` events. The hosting page opens one stream per scope the frame can see (its own, plus `server` for a room panel) and forwards each event into the frame. Browsers cap concurrent connections per host on HTTP/1.1, so behind a proxy that speaks HTTP/2 this is a non-issue; on plain HTTP/1.1 several tabs with several open modules can run into the cap.
+`GET /api/modules/stream` is one server-sent event stream for every module on a page. It subscribes to `change` events from the data store and `fire` events from the scheduler and writes them as `change` and `schedule` events, each labelled with its module and a scope (`room` and `server` for a room's panes, `server` and `rooms` for a module's server page), checked against what the viewer may read. `public/module-host.js` shares one stream per room and page between all its frames and forwards each event into the right one. This matters because browsers allow only about six long-lived connections to one host over HTTP/1.1: a stream per module (two for a room panel) used them all with three modules open, and every other request, including a frame's first call to the host, waited forever, which the frame reported as "Tavern did not answer". `GET /api/modules/:id/events` remains for a single module and scope.
 
 ### Hooks
 
