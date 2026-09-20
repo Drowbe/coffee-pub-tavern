@@ -32,6 +32,9 @@
      neighbouring columns line up. Nothing else sets a module header height
      (tools/check-room-layout.mjs enforces it). */
   --module-header-h: 42px;
+  /* The height of every control in the shared bottom row (the call toolbar's buttons, the chat's input and
+     Send, each module's quick-add), so they line up whatever cell they are in. */
+  --bar-control-h: 38px;
   /* Themeable on their own (Manage > Theme); each follows the tokens above
      until a theme sets it. */
   --header-bg: var(--bg);
@@ -1700,8 +1703,8 @@ a.crumb-here:hover {
 
 .fbtn {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: var(--bar-control-h);
+  height: var(--bar-control-h);
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--secondary);
@@ -2191,14 +2194,22 @@ a.crumb-here:hover {
   display: flex;
   align-items: flex-end;
   gap: 6px;
-  padding: 10px 8px 10px 6px;
+  padding: 8px 10px 8px 8px; /* as the module bars beside it */
 }
 
 .chat form .msg-btn {
+  width: var(--bar-control-h);
+  height: var(--bar-control-h);
   font-size: 16px;
 }
 
+.chat form .btn {
+  height: var(--bar-control-h);
+}
+
 .chat textarea {
+  box-sizing: border-box;
+  min-height: var(--bar-control-h);
   flex: 1;
   min-width: 0;
   resize: none;
@@ -2208,8 +2219,9 @@ a.crumb-here:hover {
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
-  padding: 7px 9px;
+  padding: 9px;
   font: inherit;
+  line-height: 18px; /* one line plus padding is exactly the control height */
 }
 
 .popover {
@@ -3836,6 +3848,12 @@ body.module-popout .topbar {
 
 .quick-add input::placeholder {
   color: var(--text-dim);
+}
+
+.quick-add input,
+.quick-add-go {
+  box-sizing: border-box;
+  height: var(--bar-control-h);
 }
 
 .quick-add-go {

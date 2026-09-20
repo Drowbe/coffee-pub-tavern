@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- The controls in the shared bottom row were different heights (the call toolbar's 38px buttons, the chat's 25 to 33px input and Send, each module's quick-add) and sat a couple of pixels apart. They all use one height token now, `--bar-control-h`, and line up. Verified in a browser: the chat icons button, input and Send, and the Calendar and To-do quick-add fields and buttons all measure 38px tall from the same top and bottom edge, and a multi-line message grows the chat upward. Not verified with the call toolbar itself on screen (it needs a joined call); its buttons were already 38px.
+
 ### Changed
 - The chat box's formatting toolbar is a layer above the input row, opened by a new icons button to the left of the box, so the chat bar is one row instead of two. The picture button moved into that layer. It closes on a click elsewhere, Escape, or choosing a picture. Verified in a browser at desktop and phone width: bold applied to the selection with the layer staying open, the emoji popup opened inside it, and outside click, Escape and the picture button closed it.
 

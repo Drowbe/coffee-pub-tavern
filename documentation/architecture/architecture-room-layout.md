@@ -41,6 +41,7 @@ The settings popover, the reactions tray and the overflow menu live inside the v
 ## Rules
 
 - **The header height is one token.** `--module-header-h` sets every module header strip so neighbouring columns line up. Nothing else sets a module header height.
+- **The bottom row has one control height.** `--bar-control-h` (38px) is the height of every control in the shared bottom row: the call toolbar's buttons (`.fbtn`), the chat's icons button, input and Send, and each module's quick-add field and button. The bars pad by the same 8px, so a single-line bar is the same height in every cell and the controls line up; a multi-line chat message grows the chat cell upward from the bottom edge. Nothing else sets a control height in that row.
 - **No measured heights.** `--barh` and `--floatbar-h` are gone. Anchor to the bar instead of measuring it, and let the row size itself.
 - **No hand-subtracted widths.** A module that needs room gets a column; nobody writes `calc(100% - chat-w)`.
 - **Colors come from tokens.** See [design-theme](../designsystem/design-theme.md).
