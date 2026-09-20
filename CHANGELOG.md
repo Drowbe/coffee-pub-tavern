@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- The container image left out the `modules/` folder, so the bundled modules (and their updates) were never offered on a deployed server. The image now includes it, and a `.dockerignore` keeps local data, git and built zips out of the build.
+
 ### Added
 - Modules that ship with Tavern install and update from Manage without uploading a zip. The Modules tab lists the ones not installed under "Available with this Tavern" with an Install button. When a server update carries a newer version of an installed module, its card says "Update available" with an "Update to" button, and the tab reads "Modules (1 update)". An update keeps the data, keeps the old version to switch back to, and stays off until approved if it asks for anything new. The zip builder moved to `server/module-build.js`, shared by the build tool and the server; uploading a zip still works, and is the way to add a module that does not ship with Tavern. Verified in a browser and against the API: the update banner and the tab count, an update that asks for a new link staying off until approval while keeping the old version, an unknown or path-like id refused, and a non-admin refused.
 
