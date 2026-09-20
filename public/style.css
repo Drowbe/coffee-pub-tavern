@@ -1882,7 +1882,7 @@ a.crumb-here:hover {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  background: var(--shade); /* the same as the video toolbar and the module bars in the shared bottom row */
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
 }

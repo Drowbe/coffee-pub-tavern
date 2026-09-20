@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- The chat box's bottom bar was painted from the page colour while the video toolbar and the module bars beside it used the shared shade, so in a light theme it looked like a different theme. All the cells of the shared bottom row now use the same background.
+
 ### Changed
 - On a phone (a stage under 640px wide) one pane is open at a time, and a module opens docked, filling the area under the conference strip like the chat does, instead of floating. Opening the chat or a module closes any other pane except the conference; a module that cannot dock still floats; its titlebar buttons are wider for touch. Verified in a browser at 375px wide: opening the chat, then the Calendar, then the To-do left one pane at a time, each filling the screen with its quick-add bar at the bottom. Not verified: with the conference joined (the strip above the pane), which needs a real call.
 
