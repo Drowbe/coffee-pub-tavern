@@ -11,3 +11,6 @@ body { margin: 0; font: 13px/1.35 ui-monospace, Menlo, monospace; color: #111; }
 #fx-bottom-env { bottom: env(safe-area-inset-bottom); background: #2a2; margin-bottom: 36px; }
 #out { position: relative; margin: 44px 8px 0; padding: 6px; background: #fffd; white-space: pre-wrap; z-index: 4; }
 #tall { height: 2400px; padding: 20px; }
+#back { position: relative; z-index: 7; margin: 44px 8px 0; font-size: 15px; }
+#back a { color: #06c; }
+#out { margin-top: 6px; }
