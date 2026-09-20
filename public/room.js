@@ -2423,7 +2423,7 @@ $('chat-delete-confirm').addEventListener('click', () => {
   if (currentRoom) localStorage.removeItem(chatHistoryKey(currentRoom.id));
   $('chat-delete-overlay').hidden = true;
 });
-$('chat-pic').addEventListener('click', () => $('chat-file').click());
+$('chat-pic').addEventListener('click', () => { toggleChatTools(false); $('chat-file').click(); });
 $('chat-file').addEventListener('change', () => {
   for (const f of imageFiles($('chat-file').files)) sendImage(f);
   $('chat-file').value = '';
@@ -2503,6 +2503,26 @@ $('chat-list').addEventListener('click', () => {
   el.focus();
   el.setSelectionRange(lineStart, lineStart + newBlock.length);
   resizeChatInput();
+});
+// The formatting tools are a layer above the input row, opened from the icons button and closed by a click
+// elsewhere, Escape, or choosing a picture.
+function toggleChatTools(open) {
+  const bar = $('chat-format-bar');
+  const show = open ?? bar.hidden;
+  bar.hidden = !show;
+  $('chat-tools').setAttribute('aria-expanded', String(show));
+  $('chat-tools').classList.toggle('on', show);
+  if (!show) { $('chat-help-popup').hidden = true; $('chat-emoji-popup').hidden = true; }
+}
+$('chat-tools').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleChatTools();
+});
+document.addEventListener('click', (e) => {
+  if (!$('chat-format-bar').hidden && !e.target.closest('#chat-format-bar, #chat-tools')) toggleChatTools(false);
+});
+$('chat-format-bar').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { toggleChatTools(false); $('chat-input').focus(); }
 });
 $('chat-help').addEventListener('click', (e) => {
   e.stopPropagation();

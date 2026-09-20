@@ -262,7 +262,9 @@
       </div>
       </div>
       <div class="mod-bar chat-bar" id="chat-bar">
-      <div class="chat-format-bar" id="chat-format-bar">
+      <!-- The formatting tools open as a layer above the input row from the icons button, so the bar stays one row. -->
+      <div class="chat-format-bar" id="chat-format-bar" hidden>
+        <button class="msg-btn" id="chat-pic" type="button" title="Send a picture" aria-label="Send a picture"><i class="fa-solid fa-image fa-fw" aria-hidden="true"></i></button>
         <button class="msg-btn" id="chat-bold" type="button" title="Bold" aria-label="Bold"><i class="fa-solid fa-bold fa-fw" aria-hidden="true"></i></button>
         <button class="msg-btn" id="chat-italic" type="button" title="Italic" aria-label="Italic"><i class="fa-solid fa-italic fa-fw" aria-hidden="true"></i></button>
         <button class="msg-btn" id="chat-code" type="button" title="Code" aria-label="Code"><i class="fa-solid fa-code fa-fw" aria-hidden="true"></i></button>
@@ -280,7 +282,7 @@
         </span>
       </div>
       <form id="chat-form">
-        <button class="msg-btn" id="chat-pic" type="button" title="Send a picture" aria-label="Send a picture"><i class="fa-solid fa-image fa-fw" aria-hidden="true"></i></button>
+        <button class="msg-btn" id="chat-tools" type="button" title="Formatting, emoji and pictures" aria-label="Formatting, emoji and pictures" aria-expanded="false" aria-controls="chat-format-bar"><i class="fa-solid fa-icons fa-fw" aria-hidden="true"></i></button>
         <textarea id="chat-input" maxlength="500" placeholder="Say something..." rows="1"></textarea>
         <button class="btn btn-primary btn-small" type="submit">Send</button>
         <input type="file" id="chat-file" accept="image/*" hidden>

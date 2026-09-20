@@ -51,9 +51,10 @@ order and pin are remembered in your browser.
 
 Open chat from the **room bar**, under the header, or with **C**. The room bar is the one place to show and hide panes: it has a switch for the conference, the chat and each module the room has on, on when the pane is open, and clicking one opens or closes it. A pane with something unread shows a count.
 
-- **Formatting.** The buttons above the box add **bold**, *italic*, code and bullet lists, and the
-  question mark shows the shortcuts.
-- **Pictures.** Paste, drop or pick a picture to send it. Pictures larger than 1600 px or 1.5 MB are
+- **Formatting.** The icons button to the left of the box opens a small layer above it with the
+  picture button, **bold**, *italic*, code, bullet lists and emoji, and a question mark that shows the
+  shortcuts. It closes when you click elsewhere or press Escape, so the chat bar stays one row.
+- **Pictures.** Paste, drop or pick a picture (the picture button is in that layer) to send it. Pictures larger than 1600 px or 1.5 MB are
   shrunk first.
 - **Reply, copy and save.** Hover a message for **Reply** (it quotes the message and puts your cursor
   on the next line), **Copy** (the text, or the picture itself) and, on pictures, **Save**. The
