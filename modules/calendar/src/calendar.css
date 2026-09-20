@@ -62,3 +62,12 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .stack { display: flex; flex-direction: column; gap: 10px; }
 .stack .list-title { margin: 6px 0 0; font-size: 13px; color: var(--text-dim); }
 .hosted { display: none !important; }
+
+/* Other rooms' events on the server page: the room's icon, and a row to show or hide each room. */
+.ri { display: inline-flex; align-items: center; margin-right: 3px; }
+.ri svg { width: 1em; height: 1em; fill: currentColor; }
+.tag.room { display: inline-flex; align-items: center; }
+.compact .chip .ri { display: none; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filter { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; opacity: 0.6; }
+.filter.on { color: var(--text); border-color: var(--accent); opacity: 1; }

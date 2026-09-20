@@ -1158,6 +1158,60 @@ function moduleAccess(req, res, need) {
   return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : 'server', who, perms, by: who.user?.key || 'guest' };
 }
 
+// --- a module's page reading every room the viewer belongs to ---------------
+// A module with a server page and a room panel (the Calendar) can show, on its page, what is
+// stored in each of the viewer's rooms. Only rooms the viewer is a member of count (not every
+// room an admin could open), the module must be on for the room, and the viewer's role must
+// be allowed to read it there. Read-only: writes always go to one scope.
+
+const roomIconSvgs = new Map();
+// A Font Awesome icon as inline SVG, for a module's sandboxed frame, which cannot load the icon font.
+function iconSvg(id) {
+  if (roomIconSvgs.has(id)) return roomIconSvgs.get(id);
+  const icon = (store.settings.icons || []).find((i) => i.id === id);
+  const classes = icon?.classes || `fa-solid fa-${id}`;
+  const style = /fa-brands/.test(classes) ? 'brands' : /fa-regular/.test(classes) ? 'regular' : 'solid';
+  const name = classes.split(/\s+/).filter((c) => c.startsWith('fa-')).map((c) => c.slice(3)).find((n) => !['solid', 'regular', 'brands', 'fw'].includes(n));
+  let svg = null;
+  if (name && /^[a-z0-9-]+$/.test(name)) {
+    try {
+      svg = fs.readFileSync(path.join(faDir, 'svgs', style, `${name}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    } catch {
+      svg = null;
+    }
+  }
+  roomIconSvgs.set(id, svg);
+  return svg;
+}
+
+// The viewer's rooms for this module, or null after sending the error.
+function moduleRoomsFor(req, res) {
+  const found = modules.enabled(req.params.id);
+  if (!found) return void res.status(404).json({ error: 'no such module' });
+  const who = moduleViewer(req);
+  if (!who?.user) return void res.status(403).json({ error: 'guests can only use room modules' });
+  const { manifest, entry } = found;
+  if (!manifest.scope.includes('room')) return void res.status(400).json({ error: 'this module has no room scope' });
+  if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
+  const rooms = store.rooms.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
+    && (entry.allRooms || entry.rooms.includes(r.id)) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
+  return { manifest, rooms };
+}
+const roomSummary = (r) => {
+  const icon = r.linkIcon && r.linkIcon !== 'link' ? r.linkIcon : 'message';
+  return { id: r.id, name: r.name, icon, svg: iconSvg(icon) };
+};
+
+app.get('/api/modules/:id/rooms-data', (req, res) => {
+  const found = moduleRoomsFor(req, res);
+  if (!found) return;
+  const rooms = found.rooms.map(roomSummary);
+  if (req.query.info) return res.json({ rooms });
+  const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
+  const items = found.rooms.flatMap((r) => moduleData.list(found.manifest.id, `room:${r.id}`, prefix).map((item) => ({ ...item, roomId: r.id })));
+  res.json({ rooms, items });
+});
+
 // Modules with a page of their own that this viewer can open: the header nav.
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);
@@ -1166,7 +1220,7 @@ app.get('/api/modules/nav', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, page: manifest.surfaces.page.entry })),
+      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, page: manifest.surfaces.page.entry })),
   });
 });
 
@@ -1340,17 +1394,27 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
 });
 
 app.get('/api/modules/:id/events', (req, res) => {
-  const ctx = moduleAccess(req, res, 'read');
+  // scope=rooms: changes in any of the viewer's rooms (a module's page showing them all).
+  const all = req.query.scope === 'rooms' ? moduleRoomsFor(req, res) : null;
+  if (req.query.scope === 'rooms' && !all) return;
+  const ctx = all ? { manifest: all.manifest, scopeKey: null } : moduleAccess(req, res, 'read');
   if (!ctx) return;
+  const roomIds = all ? new Set(all.rooms.map((r) => r.id)) : null;
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 3000\n\n');
   const onChange = (change) => {
-    if (change.module !== ctx.manifest.id || change.scopeKey !== ctx.scopeKey) return;
+    if (change.module !== ctx.manifest.id) return;
+    if (roomIds) {
+      const roomId = change.scopeKey.startsWith('room:') ? change.scopeKey.slice(5) : null;
+      if (!roomIds.has(roomId)) return;
+      return void res.write(`event: change\ndata: ${JSON.stringify({ ...change, roomId })}\n\n`);
+    }
+    if (change.scopeKey !== ctx.scopeKey) return;
     res.write(`event: change\ndata: ${JSON.stringify(change)}\n\n`);
   };
   const onFire = (fire) => {
-    if (fire.module !== ctx.manifest.id || fire.scopeKey !== ctx.scopeKey) return;
+    if (roomIds || fire.module !== ctx.manifest.id || fire.scopeKey !== ctx.scopeKey) return;
     res.write(`event: schedule\ndata: ${JSON.stringify({ key: fire.key, payload: fire.payload })}\n\n`);
   };
   moduleData.on('change', onChange);

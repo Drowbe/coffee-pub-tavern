@@ -5,6 +5,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Calendar 1.3.0: the server calendar shows, read-only, the events of every room you belong to (with the Calendar on for it), each marked with its room's icon, and a row of room chips to show or hide a room. It replaces 1.2.0 (upload the new zip on Manage > Modules; it asks for no new permissions).
+- Modules: a server page can read across the viewer's rooms. `storage.list(prefix, { scope: 'rooms' })` returns items with a `roomId`, `tavern.rooms()` lists those rooms with their icons as inline SVG, and the module's live `change` events cover them. Only rooms the viewer is a member of, with the module on and readable by their role (an admin's access to every room does not count).
+
+Verified in a browser against a sandbox server: events from two rooms on the month grid and the list with icons, a room the viewer is not in staying out, the filter chips, and a live add from another request appearing. Not verified: two people, and a guest.
+
+### Added
 - Rooms remember their layout. The panes open when you last used a room (the conference, the chat, modules), each pane's mode (docked, floating, in a window) and its sizes are restored when you join it; a room you have not used before opens with the conference. Hanging up is remembered like any other change.
 - "Join with" on each room card (the button with sliders): choose the panes a room opens with before you join, so you can join with only the chat, or the chat and the Calendar. The list leaves out what your role does not allow.
 

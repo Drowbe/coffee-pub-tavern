@@ -51,7 +51,7 @@ async function start() {
   } else {
     const found = (await api('GET', '/api/modules/nav')).modules.find((m) => m.id === id);
     if (found) {
-      mod = { ...found, scope: ['server'], entry: found.page };
+      mod = { ...found, entry: found.page };
       entry = found.page;
     }
   }

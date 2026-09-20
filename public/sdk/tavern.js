@@ -109,6 +109,12 @@
       list: (prefix, o) => call('storage.list', { prefix: prefix || '', ...opts(o) }),
     },
 
+    // The rooms the viewer belongs to that have this module on, on a module's server page:
+    // [{ id, name, icon, svg }] (`svg` is the room's icon as inline SVG, since a module cannot
+    // load the icon font). Read stored data across them with storage.list(prefix, { scope: 'rooms' }),
+    // which returns each item with its `roomId`; 'change' events for those rooms carry `roomId` too.
+    rooms: () => call('rooms'),
+
     // Ask Tavern to run something later, on your behalf. Needs "schedule" (and
     // "notify" for a notification) in the manifest's hooks. `at` is a time
     // (ms since 1970 or an ISO string); `key` names the schedule so setting it

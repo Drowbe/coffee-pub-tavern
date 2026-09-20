@@ -68,7 +68,7 @@ Every call returns a promise. Do not call anything before `ready()` resolves.
 
 ### Storage
 
-A small key-value store per module, with a scope: the whole **server**, or one **room**. A page uses its own scope (`'context'`, the default). A room panel may also ask for `{ scope: 'server' }` to read server data.
+A small key-value store per module, with a scope: the whole **server**, or one **room**. A page uses its own scope (`'context'`, the default). A room panel may also ask for `{ scope: 'server' }` to read server data. A module with both a server page and a room panel may, on its server page, read `{ scope: 'rooms' }`: read-only, across every room the viewer is a member of that has the module on and lets their role read it. Each item comes back with its `roomId`, and `tavern.rooms()` returns those rooms as `[{ id, name, icon, svg }]`, where `svg` is the room's icon as inline SVG (a module cannot load the icon font). Live `change` events from those rooms carry a `roomId` and `scope: 'rooms'`.
 
 ```js
 await tavern.storage.set('event:123', { title: 'Session' });        // returns { key, value, version, updatedAt, by }

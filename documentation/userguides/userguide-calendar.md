@@ -6,13 +6,15 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/calendar-1.2.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
+1. Upload `modules/dist/calendar-1.3.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
 ## The server calendar
 
 Choose **Calendar** in the header. You see a month with each day's events. Use the arrows and **Today** to move around, and **Month** and **List** to switch between the month grid and an upcoming list. On a narrow window it starts in the list.
+
+The server calendar also shows, read-only, the events of every room you belong to that has the Calendar on. Each shows its room's icon (the room's launch-link icon, or the message icon if it has none) before the time and title, and in the list beside the room's name. A row of your rooms under the toolbar shows or hides each room. To change a room's event, open that room's Calendar from a call.
 
 ## A room's calendar
 

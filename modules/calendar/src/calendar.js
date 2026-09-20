@@ -1,7 +1,8 @@
 // Calendar module. One file of code for every place it shows: the server's own
 // page, a room's docked pane or floating panel, and a window of its own. On the
-// server page it holds the server's events; in a room it holds that room's events
-// and shows the server's beside them. The SDK (window.tavern) is injected by Tavern.
+// server page it holds the server's events and shows, read-only, the events of every
+// room the viewer belongs to (each marked with its room's icon); in a room it holds
+// that room's events and shows the server's beside them. The SDK (window.tavern) is injected by Tavern.
 (async function () {
   'use strict';
 
@@ -24,6 +25,8 @@
   // (this room, or the server on the server page -- the frame's own context) or
   // 'server' (shown read-only in a room).
   const events = new Map();
+  const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
+  const hiddenRooms = new Set(); // rooms filtered out on the server page
   let cursor = new Date();
   cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   let view = 'month';
@@ -92,17 +95,29 @@
   // Every occurrence of every event in [from, to), soonest first.
   function inRange(from, to) {
     const out = [];
-    for (const x of events.values()) for (const start of occurrences(x.ev, from, to)) out.push({ x, start });
+    for (const x of events.values()) {
+      if (x.scope === 'rooms' && hiddenRooms.has(x.roomId)) continue;
+      for (const start of occurrences(x.ev, from, to)) out.push({ x, start });
+    }
     return out.sort((a, b) => a.start - b.start);
   }
 
   // --- loading and live updates --------------------------------------------
 
-  const keyOf = (scope, id) => `${scope}:${id}`;
-  function remember(scope, item) {
+  // scope 'rooms' is another room's event on the server page: read-only, kept by room and id.
+  const keyOf = (scope, id, roomId) => (scope === 'rooms' ? `rooms:${roomId}:${id}` : `${scope}:${id}`);
+  function remember(scope, item, roomId) {
     if (!item.key.startsWith('event:') || !item.value) return;
-    events.set(keyOf(scope, item.key.slice(6)), { scope, id: item.key.slice(6), version: item.version, ev: item.value });
+    const id = item.key.slice(6);
+    const key = keyOf(scope, id, roomId);
+    events.set(key, { key, scope, roomId, id, version: item.version, ev: item.value });
   }
+
+  // A room's icon (inline SVG from Tavern) with its name for a tooltip.
+  const roomIcon = (x) => {
+    const r = x.scope === 'rooms' ? roomInfo.get(x.roomId) : null;
+    return r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : '';
+  };
   async function load() {
     events.clear();
     for (const item of await tavern.storage.list('event:')) remember('room', item);
@@ -112,14 +127,22 @@
       } catch (err) {
         // guests and people without server access see just the room's events
       }
+    } else if (info.context.scope === 'server') {
+      // Every room the viewer belongs to that has the calendar on.
+      try {
+        for (const r of await tavern.rooms()) roomInfo.set(r.id, r);
+        for (const item of await tavern.storage.list('event:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
+      } catch (err) {
+        // no rooms is fine: just the server's own events
+      }
     }
   }
   tavern.on('change', (e) => {
     if (!e.key.startsWith('event:')) return;
-    const scope = e.scope === 'server' && inRoom ? 'server' : 'room';
+    const scope = e.scope === 'rooms' ? 'rooms' : e.scope === 'server' && inRoom ? 'server' : 'room';
     const id = e.key.slice(6);
-    if (e.deleted) events.delete(keyOf(scope, id));
-    else remember(scope, { key: e.key, value: e.value, version: e.version });
+    if (e.deleted) events.delete(keyOf(scope, id, e.roomId));
+    else remember(scope, { key: e.key, value: e.value, version: e.version }, e.roomId);
     if (editing && editing.scope === scope && editing.id === id && e.by !== info.user.key) {
       showError('This event was just changed by someone else. Close and reopen it to see the change.');
     }
@@ -132,7 +155,7 @@
 
   function chipHtml({ x, start }) {
     const label = (x.ev.allDay ? '' : timeText(start) + ' ') + x.ev.title;
-    return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.scope)}:${esc(x.id)}" title="${esc(x.ev.title)}">${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
+    return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.key)}" title="${esc(x.ev.title)}">${roomIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
   }
 
   function monthGrid() {
@@ -168,8 +191,8 @@
       groups.get(k).push(occ);
     }
     return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start))}</h4>${g.map(({ x, start }) => `
-      <button class="item" data-open="${esc(x.scope)}:${esc(x.id)}"><span class="when">${esc(whenText(x.ev, start))}</span>
-        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
+      <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start))}</span>
+        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag room">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
   function monthList() {
@@ -192,6 +215,7 @@
     $('prev').hidden = $('next').hidden = !showMonth;
     $('view-month').classList.toggle('on', view === 'month');
     $('view-list').classList.toggle('on', view === 'list');
+    renderFilters();
     $('title').textContent = showMonth ? cursor.toLocaleDateString([], { month: 'long', year: 'numeric' }) : 'Next 90 days';
     if (compact) {
       // A narrow pane shows the month on top and that month's events beneath.
@@ -200,6 +224,20 @@
       $('body').innerHTML = view === 'month' ? monthGrid() : upcomingList();
     }
   }
+
+  // On the server page, a row of the viewer's rooms to show or hide.
+  function renderFilters() {
+    const box = $('filters');
+    box.hidden = roomInfo.size === 0;
+    if (box.hidden) return;
+    box.innerHTML = [...roomInfo.values()].map((r) => `<button type="button" class="filter ${hiddenRooms.has(r.id) ? '' : 'on'}" data-room="${esc(r.id)}" title="${hiddenRooms.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
+  }
+  $('filters').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-room]');
+    if (!b) return;
+    if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
+    render();
+  });
 
   // --- the editor -----------------------------------------------------------
 
@@ -225,11 +263,12 @@
   $('f-remind').addEventListener('change', remindHint);
 
   function openEditor(x, day) {
-    const readOnly = !canEdit || (x && x.scope === 'server' && inRoom);
+    const readOnly = !canEdit || (x && ((x.scope === 'server' && inRoom) || x.scope === 'rooms'));
     const ev = x ? x.ev : { title: '', allDay: false, start: '', end: null, desc: '', remind: null, repeat: null };
     editing = x ? { scope: x.scope, id: x.id, version: x.version } : { scope: 'room', id: null, version: null };
     showError('');
-    $('editor-title').textContent = x ? (readOnly ? ev.title : 'Edit event') : 'New event';
+    const from = x && x.scope === 'rooms' && roomInfo.get(x.roomId) ? ` (${roomInfo.get(x.roomId).name})` : '';
+    $('editor-title').textContent = x ? (readOnly ? ev.title + from : 'Edit event') : 'New event';
     $('f-title').value = ev.title;
     $('f-allday').checked = Boolean(ev.allDay);
     const start = x ? startOf(ev) : null;

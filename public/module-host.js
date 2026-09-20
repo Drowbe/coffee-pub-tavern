@@ -32,15 +32,17 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
 
   const q = (sc) => {
     const p = new URLSearchParams();
-    if (sc === 'room') { p.set('scope', 'room'); p.set('room', roomId); } else { p.set('scope', 'server'); }
+    if (sc === 'room') { p.set('scope', 'room'); p.set('room', roomId); } else if (sc === 'rooms') p.set('scope', 'rooms'); else { p.set('scope', 'server'); }
     if (guestToken) p.set('guest', guestToken);
     return p;
   };
   // 'context' means wherever this frame is showing; a room panel may also ask for 'server'.
   const scopeOf = (requested) => {
     if (!requested || requested === 'context') return scope;
-    if (requested === 'server' || requested === 'room') {
+    if (requested === 'server' || requested === 'room' || requested === 'rooms') {
       if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a room'), { status: 400 });
+      // 'rooms' is the server page reading every room the viewer belongs to (read-only)
+      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('room'))) throw Object.assign(new Error('only a module\'s server page can read across rooms'), { status: 400 });
       return requested;
     }
     throw Object.assign(new Error('bad scope'), { status: 400 });
@@ -77,7 +79,12 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
       return api('DELETE', url(`/data/${encodeURIComponent(key)}`, scopeOf(s), { version }));
     },
     async 'storage.list'({ prefix, scope: s }) {
-      return (await api('GET', url('/data', scopeOf(s), { prefix }))).items;
+      const sc = scopeOf(s);
+      if (sc === 'rooms') return (await api('GET', url('/rooms-data', sc, { prefix }))).items;
+      return (await api('GET', url('/data', sc, { prefix }))).items;
+    },
+    async rooms() {
+      return (await api('GET', url('/rooms-data', 'rooms', { info: 1 }))).rooms;
     },
     async schedule(spec) {
       return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined });
@@ -166,7 +173,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     source.addEventListener('change', (ev) => {
       try {
         const change = JSON.parse(ev.data);
-        send('change', { key: change.key, value: change.value, version: change.version, deleted: change.deleted, by: change.by, scope: sc });
+        send('change', { key: change.key, value: change.value, version: change.version, deleted: change.deleted, by: change.by, scope: sc, roomId: change.roomId });
       } catch {
         // ignore a malformed event
       }
@@ -182,6 +189,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   }
   listen(scope);
   if (scope === 'room' && module.scope?.includes('server') && !guestToken) listen('server');
+  if (scope === 'server' && module.scope?.includes('room') && !guestToken) listen('rooms');
 
   // No same-origin: an opaque origin, no cookies, no Tavern DOM. allow-forms lets a
   // module's own <form> fire its submit event (a sandboxed frame without it
