@@ -71,6 +71,9 @@ const toolsHtml = ({ mode, canDock, canFloat, closable = true }) => `
 export function createRoomModules({ guestToken = null } = {}) {
   const toggle = document.getElementById('modules-toggle');
   const menu = document.getElementById('modules-menu');
+  // An inline menu (the pane buttons sit in a bar in the room header) is always shown: it is never hidden
+  // or positioned by this file, only kept up to date.
+  const inline = () => Boolean(menu && menu.classList.contains('subnav-panes'));
   const stage = document.getElementById('stage');
   let saved = loadSaved(null);
   // Nothing is remembered until a join has restored the room's panes, and not while the room is
@@ -542,7 +545,7 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   function closeAllModules() {
     for (const p of [...panes.values()]) if (p.kind === 'module') closePane(p.id);
-    if (menu) menu.hidden = true;
+    if (menu && !inline()) menu.hidden = true;
   }
 
   function setMode(id, mode) {
@@ -673,7 +676,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (bound.has(doc)) return;
     bound.add(doc);
     doc.addEventListener('click', (event) => {
-      if (menu && !menu.hidden && !event.target.closest('#modules-menu, #modules-toggle')) menu.hidden = true;
+      if (menu && !inline() && !menu.hidden && !event.target.closest('#modules-menu, #modules-toggle')) menu.hidden = true;
     });
     (doc.defaultView || window).addEventListener('resize', () => {
       for (const p of panes.values()) {
@@ -681,7 +684,7 @@ export function createRoomModules({ guestToken = null } = {}) {
         if (panel && panel.ownerDocument === doc) place(panel, currentBox(panel));
       }
       syncDock();
-      if (menu && !menu.hidden) positionMenu();
+      if (menu && !inline() && !menu.hidden) positionMenu();
     });
   }
   bindDoc(document);
@@ -693,6 +696,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   // The menu belongs to the stage, so it works with the conference closed. It opens under the
   // Modules button in the page header (the one place to open panes).
   function positionMenu() {
+    if (inline()) return;
     const visible = (el) => el && el.getBoundingClientRect().width > 0;
     // The header moves with the stage when the app is popped out, so the button is always beside it.
     const anchor = [toggle].find(visible);
@@ -714,7 +718,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   function toggleMenu() {
-    if (!menu) return;
+    if (!menu || inline()) return;
     menu.hidden = !menu.hidden;
     if (!menu.hidden) positionMenu();
   }
@@ -729,7 +733,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       const id = native.dataset.native;
       if (panes.has(id)) closeNative(id);
       else api_openNative(id);
-      menu.hidden = true;
+      if (!inline()) menu.hidden = true;
       return;
     }
     const item = event.target.closest('[data-module]');
@@ -738,7 +742,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (!m) return;
     if (panes.has(m.id)) closePane(m.id);
     else openModule(m);
-    menu.hidden = true;
+    if (!inline()) menu.hidden = true;
   });
 
   // The modules on for this room and this viewer, or none (null = not in a room).
