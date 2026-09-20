@@ -3820,3 +3820,17 @@ body.at-table .module-nav {
   align-items: center;
   margin-top: 8px;
 }
+
+/* A module's own icon buttons in its titlebar (tavern.header.set), then a pipe before the pane's buttons. */
+.titlebar-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-pipe {
+  width: 1px;
+  height: 16px;
+  margin: 0 6px;
+  background: var(--border);
+}

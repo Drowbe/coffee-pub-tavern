@@ -8,6 +8,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 - The container image left out the `modules/` folder, so the bundled modules (and their updates) were never offered on a deployed server. The image now includes it, and a `.dockerignore` keeps local data, git and built zips out of the build.
 
 ### Added
+- Calendar 1.6.0: a date picker. Each date field has a calendar button that opens a small month with the days of the week across the top, so the weekday is visible while choosing; typing still works, the weekday of the date in the field shows beneath it, and when choosing an end date the days from the start are shaded.
+- Modules can put icon buttons in their titlebar (`tavern.header.set`), before the pane's buttons and set off by a pipe. To-do 1.2.0 and Polls 1.2.0 use it for Open / Done (Closed) / All, and drop the title that repeated the titlebar's name above their content. On a module's server page, which has no titlebar, the buttons stay in the page.
+
+Verified in a browser: the To-do and Polls titlebars with the filter icons (choosing Done changed the list and marked the icon), the picker opening under the end date and filling it, with the weekday shown. Not verified: the module's own window titlebar.
+
+### Added
 - Modules that ship with Tavern install and update from Manage without uploading a zip. The Modules tab lists the ones not installed under "Available with this Tavern" with an Install button. When a server update carries a newer version of an installed module, its card says "Update available" with an "Update to" button, and the tab reads "Modules (1 update)". An update keeps the data, keeps the old version to switch back to, and stays off until approved if it asks for anything new. The zip builder moved to `server/module-build.js`, shared by the build tool and the server; uploading a zip still works, and is the way to add a module that does not ship with Tavern. Verified in a browser and against the API: the update banner and the tab count, an update that asks for a new link staying off until approval while keeping the old version, an unknown or path-like id refused, and a non-admin refused.
 
 ### Added

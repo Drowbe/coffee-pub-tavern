@@ -71,3 +71,25 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; opacity: 0.6; }
 .filter.on { color: var(--text); border-color: var(--accent); opacity: 1; }
+
+/* Date fields: the typed field, a button for the picker, and the weekday it lands on. */
+.datefield { display: flex; gap: 4px; align-items: center; }
+.datefield input { flex: 1; min-width: 0; }
+.datefield input::-webkit-calendar-picker-indicator { display: none; }
+.dp-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); color: var(--secondary-text); cursor: pointer; }
+.dp-btn:hover { background: var(--secondary-hover); }
+.dow-hint { min-height: 14px; color: var(--accent); font-size: 11px; font-weight: 600; }
+.editor-card { position: relative; }
+.dp { position: absolute; z-index: 20; width: 252px; padding: 8px; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; color: var(--text); }
+.dp-head button, .dp-foot button { border: 0; border-radius: 6px; padding: 3px 9px; background: var(--secondary); color: var(--secondary-text); font: inherit; cursor: pointer; }
+.dp-head button:hover, .dp-foot button:hover { background: var(--secondary-hover); }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-dow { padding: 2px 0; text-align: center; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.dp-day { height: 30px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.dp-day:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.dp-day.other { color: var(--text-dim); opacity: 0.55; }
+.dp-day.inrange { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.dp-day.today { border-color: var(--accent); }
+.dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }

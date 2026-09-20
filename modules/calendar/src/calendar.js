@@ -290,6 +290,84 @@
   }
   $('f-remind').addEventListener('change', remindHint);
 
+  // --- the date picker -----------------------------------------------------
+  // A small month grid under a date field, with the weekdays across the top, so the day a date falls
+  // on is visible while choosing. The typed field keeps working; the button opens this, and the
+  // weekday of whatever is in the field shows beneath it.
+
+  const DATE_FIELDS = ['f-date', 'f-end-date', 'f-until'];
+  function showWeekdays() {
+    for (const id of DATE_FIELDS) {
+      const hint = document.querySelector(`[data-dow="${id}"]`);
+      const v = $(id).value;
+      hint.textContent = v ? parseYmd(v).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : '';
+    }
+  }
+  for (const id of DATE_FIELDS) $(id).addEventListener('input', showWeekdays);
+  for (const id of DATE_FIELDS) $(id).addEventListener('change', showWeekdays);
+
+  let picker = null; // { el, input }
+  function closePicker() {
+    if (picker) picker.el.remove();
+    picker = null;
+  }
+  function openPicker(inputId) {
+    if (picker && picker.input === inputId) return closePicker();
+    closePicker();
+    const input = $(inputId);
+    const seed = input.value || (inputId !== 'f-date' && $('f-date').value) || ymd(new Date());
+    let month = new Date(parseYmd(seed).getFullYear(), parseYmd(seed).getMonth(), 1);
+    const el = document.createElement('div');
+    el.className = 'dp';
+    const draw = () => {
+      const gridStart = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay());
+      const from = $('f-date').value;
+      const to = $('f-end-date').value;
+      const today = ymd(new Date());
+      let cells = '';
+      for (let i = 0; i < 42; i += 1) {
+        const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+        const k = ymd(d);
+        const cls = ['dp-day', d.getMonth() !== month.getMonth() ? 'other' : '', k === today ? 'today' : '', k === input.value ? 'sel' : '', from && to && k >= from && k <= to ? 'inrange' : ''].join(' ');
+        cells += `<button type="button" class="${cls}" data-day="${k}">${d.getDate()}</button>`;
+      }
+      el.innerHTML = `<div class="dp-head"><button type="button" data-dp="prev" aria-label="Previous month">&lsaquo;</button><strong>${esc(month.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</strong><button type="button" data-dp="next" aria-label="Next month">&rsaquo;</button></div>
+        <div class="dp-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((n) => `<span class="dp-dow">${n}</span>`).join('')}${cells}</div>
+        <div class="dp-foot"><button type="button" data-dp="today">Today</button>${inputId === 'f-date' ? '<span></span>' : '<button type="button" data-dp="clear">Clear</button>'}</div>`;
+    };
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const day = e.target.closest('[data-day]');
+      const nav = e.target.closest('[data-dp]');
+      const set = (v) => {
+        input.value = v;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        closePicker();
+      };
+      if (day) return set(day.dataset.day);
+      if (!nav) return;
+      if (nav.dataset.dp === 'prev') month = new Date(month.getFullYear(), month.getMonth() - 1, 1);
+      else if (nav.dataset.dp === 'next') month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+      else if (nav.dataset.dp === 'today') return set(ymd(new Date()));
+      else if (nav.dataset.dp === 'clear') return set('');
+      draw();
+    });
+    draw();
+    const card = $('form');
+    card.appendChild(el);
+    // Under the field, kept inside the card.
+    const c = card.getBoundingClientRect();
+    const r = input.getBoundingClientRect();
+    el.style.top = `${r.bottom - c.top + 4}px`;
+    el.style.left = `${Math.max(8, Math.min(r.left - c.left, c.width - 252 - 8))}px`;
+    picker = { el, input: inputId };
+  }
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-picker]');
+    if (btn) return openPicker(btn.dataset.picker);
+    if (picker && !e.target.closest('.dp')) closePicker();
+  });
+
   function openEditor(x, day) {
     const readOnly = !canEdit || (x && ((x.scope === 'server' && inRoom) || x.scope === 'rooms'));
     const ev = x ? x.ev : { title: '', allDay: false, start: '', end: null, desc: '', remind: null, repeat: null };
@@ -317,10 +395,13 @@
     $('f-cancel').textContent = readOnly ? 'Close' : 'Cancel';
     syncForm();
     remindHint();
+    closePicker();
+    showWeekdays();
     $('editor').hidden = false;
     $(readOnly ? 'f-cancel' : 'f-title').focus();
   }
   function closeEditor() {
+    closePicker();
     $('editor').hidden = true;
     editing = null;
   }
@@ -476,7 +557,11 @@
     const day = e.target.closest('[data-day]');
     if (day && canEdit) openEditor(null, day.dataset.day);
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (picker) return closePicker();
+    if (!$('editor').hidden) closeEditor();
+  });
 
   // A frame can report no width while it is still being laid out, so wait for a real
   // one before choosing the compact layout.

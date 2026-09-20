@@ -33,7 +33,7 @@ Drag a poll's question onto a task in the To-do module to link the task to the p
 
 The person who started a poll, and an admin, can **Close** it, and **Reopen** it later. A closed poll no longer takes votes and marks its winner, or **Tied** if several options share the top count. **Delete** removes the poll and all its votes; it asks you to press it twice.
 
-**Open**, **Closed** and **All** choose what the list shows.
+In a room, three icons in the Polls' titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the empty circle for open polls (its tooltip says how many), the lock for closed ones, and the list icon for all. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.
 
 ## Where it shows
 

@@ -153,6 +153,20 @@ Tavern answers only what the viewer could already see in the producing module: i
 
 **Dragging.** A module can offer its items to be dragged onto another module. In a `dragstart` handler call `tavern.refs.drag(event, kind, id, { label })`, which puts the pointer on the drag under the type `application/x-tavern-ref`. A module that accepts drops calls `preventDefault()` in `dragover` when `tavern.refs.accepts(event)` is true, and in `drop` reads `tavern.refs.parse(event)`, which returns a checked pointer or `null`. Treat the pointer as untrusted: check the kind is one you consume, and `resolve` it. A drag carries only the pointer, so it works between panes and windows, and search is the way to link without dragging.
 
+### The titlebar
+
+A module shown as a pane (docked or floating), or in a window of its own, has a titlebar the host draws with the module's name and the pane's buttons. `tavern.header.set([...])` adds icon buttons of the module's own to it, ahead of the pane's buttons and set off by a pipe: a good place for a filter or a view switch that would otherwise repeat the module's name above its content.
+
+```js
+const drawn = await tavern.header.set([
+  { id: 'open', icon: 'circle', regular: true, title: 'Open', on: true },   // regular: true for the outline style
+  { id: 'done', icon: 'circle-check', title: 'Done' },
+]);
+tavern.on('header', (e) => { /* e.id is the button clicked */ });
+```
+
+Up to six buttons; `icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true.
+
 ### The action bar
 
 A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.

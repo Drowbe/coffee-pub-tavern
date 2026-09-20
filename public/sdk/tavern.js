@@ -189,6 +189,15 @@
       set: (items) => call('bar.set', { items }),
     },
 
+    // Icon buttons in the module's titlebar, ahead of the pane's own buttons and set off by a pipe:
+    // set([{ id, icon, title, on, regular, disabled }]), where `icon` is a Font Awesome name (solid, or
+    // regular with `regular: true`) and `on` marks the current choice. A click arrives as the 'header'
+    // event with the button's id. Resolves true when the host drew them, false when it has no titlebar
+    // to draw in (a module's server page), in which case keep the controls in the page.
+    header: {
+      set: (items) => call('header.set', { items }),
+    },
+
     // Layout: ask the host for a size, and set the title shown above the module.
     resize: (size) => call('resize', size),
     setTitle: (title) => call('setTitle', { title }),

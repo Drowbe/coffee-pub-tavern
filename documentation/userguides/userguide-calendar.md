@@ -26,6 +26,10 @@ If you can edit, choose **Add event** (in the bar along the bottom of the Calend
 
 Events appear for everyone who has the calendar open as soon as they are saved.
 
+## Picking a date
+
+Each date field (start, end and the last day of a repeat) has a calendar button beside it. It opens a small month, with the days of the week across the top, so you can see what day a date falls on; choose a day to fill the field, or use the arrows to change month, **Today**, or **Clear** on the optional fields. Typing the date still works, and the day of the week it lands on appears under the field either way. When you are choosing an end date the days between the start and the end are shaded.
+
 ## Events that last more than a day
 
 Give an event an **Ends** date, and a time if it is not all day, to make it run over several days: a trip, a convention, a night train. An all-day event's end date is its last day. The event shows on every day it covers in the month, with its time on the first day and an arrow on the days after, and the list shows its whole span, such as "Sep 22 - Sep 25". Leave **Ends** empty for an event on one day, and for a timed event you can give just an end time. A repeating event keeps its length in every repeat. Reminders still go out before the start.

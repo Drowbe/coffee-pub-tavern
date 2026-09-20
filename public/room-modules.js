@@ -258,7 +258,7 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   const moduleHeader = (m, mode, canDock, canFloat) => `
     <span class="module-panel-title"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> <span data-title>${escapeHtml(m.name)}</span></span>
-    <span class="mod-header-tools">${toolsHtml({ mode, canDock, canFloat })}</span>`;
+    <span class="mod-header-tools"><span class="titlebar-custom" data-header-custom></span>${toolsHtml({ mode, canDock, canFloat })}</span>`;
 
   function mountFor(pane, frame, bar, extra = {}) {
     const m = pane.m;
@@ -266,6 +266,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       module: { id: m.id, version: m.version, scope: m.scope },
       frame,
       bar,
+      header: pane.el.querySelector('[data-header-custom]'),
       scope: 'room',
       roomId,
       guestToken,

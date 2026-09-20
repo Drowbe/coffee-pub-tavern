@@ -61,7 +61,7 @@ function joinStream(room, guest, onEvent) {
 
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar }) {
+export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -174,6 +174,42 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
         bar.hidden = clean.length === 0;
       }
       if (onBar) onBar(clean.length > 0);
+      return true;
+    },
+    // Icon buttons in the module's titlebar, before the pane's own buttons and set off by a pipe. Only a
+    // host with a titlebar (a pane, or a module's own window) has room for them: the answer says which,
+    // so a module can keep its own controls in the page when it is not.
+    async 'header.set'({ items }) {
+      if (!header) return false;
+      const clean = (Array.isArray(items) ? items : []).slice(0, 6).map((i) => ({
+        id: String(i?.id ?? '').slice(0, 40),
+        title: String(i?.title ?? '').slice(0, 40),
+        icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
+        regular: Boolean(i?.regular),
+        on: Boolean(i?.on),
+        disabled: Boolean(i?.disabled),
+      })).filter((i) => i.id && i.icon);
+      header.textContent = '';
+      for (const item of clean) {
+        const b = header.ownerDocument.createElement('button');
+        b.type = 'button';
+        b.className = `msg-btn${item.on ? ' on' : ''}`;
+        b.title = item.title;
+        b.setAttribute('aria-label', item.title || item.id);
+        b.setAttribute('aria-pressed', String(item.on));
+        b.disabled = item.disabled;
+        const i = header.ownerDocument.createElement('i');
+        i.className = `fa-${item.regular ? 'regular' : 'solid'} fa-${item.icon} fa-fw`;
+        i.setAttribute('aria-hidden', 'true');
+        b.appendChild(i);
+        b.addEventListener('click', () => send('header', { id: item.id }));
+        header.appendChild(b);
+      }
+      if (clean.length) {
+        const pipe = header.ownerDocument.createElement('span');
+        pipe.className = 'header-pipe';
+        header.appendChild(pipe);
+      }
       return true;
     },
     async resize(size) {

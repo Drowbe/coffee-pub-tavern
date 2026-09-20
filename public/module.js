@@ -69,6 +69,7 @@ async function start() {
     module: { id: mod.id, version: mod.version, scope: mod.scope },
     frame,
     bar: $('module-bar'),
+    header: popout ? $('module-titlebar-custom') : null,
     scope,
     roomId,
     guestToken,

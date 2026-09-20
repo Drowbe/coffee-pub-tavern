@@ -18,6 +18,10 @@ Choose **To-do** in the header. Type a task in the box at the top and press Ente
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
 - Under the toolbar the server list also shows, read-only, the lists of every room you belong to that has To-do on. Each is headed by its room's icon and name, and a row of your rooms shows or hides each one. To tick off or change a room's task, open that room's list.
 
+## Open, Done and All
+
+In a room, three icons in the To-do's titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the empty circle for the tasks still open (its tooltip says how many), the ticked circle for done tasks, and the list icon for all of them. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.
+
 ## Link a task to an event or a poll
 
 A task can point at a Calendar event or a poll, so the task shows what it is for: "Book flights" next to the retreat's dates, or next to the poll that is deciding where to go. Open a task, then in **Linked** type in the box to search your events and polls and choose one, or drag an event from the Calendar (or a poll's question from Polls) onto a task, or onto the open editor. The link shows on the task with the item's name and date, and the item is looked up each time, so it stays current. If the item has been deleted, or you cannot see it, the link reads "Not available". A task can have up to five links.

@@ -178,11 +178,41 @@
     return `<section class="group">${label ? `<h4>${label}</h4>` : ''}${[...open, ...done].map(taskHtml).join('')}</section>`;
   }
 
+  // Open / Done / All are icons in the titlebar when the host has one (a pane, or a module's own
+  // window); on the server page there is none, and the buttons stay in the page.
+  const FILTERS = [
+    { id: 'open', icon: 'circle', regular: true, title: 'Open' },
+    { id: 'done', icon: 'circle-check', title: 'Done' },
+    { id: 'all', icon: 'list', title: 'All' },
+  ];
+  let headerSig = '';
+  async function syncHeader(openCount) {
+    if (!tavern.header) return;
+    const sig = show + '|' + openCount;
+    if (sig === headerSig) return;
+    headerSig = sig;
+    let hosted = false;
+    try {
+      hosted = await tavern.header.set(FILTERS.map((f) => ({ ...f, on: f.id === show, title: f.id === 'open' && openCount ? `Open (${openCount})` : f.title })));
+    } catch (err) {
+      hosted = false;
+    }
+    $('app').classList.toggle('hosted-header', Boolean(hosted));
+  }
+  if (tavern.header) {
+    tavern.on('header', (e) => {
+      if (!FILTERS.some((f) => f.id === e.id)) return;
+      show = e.id;
+      render();
+    });
+  }
+
   function render() {
     for (const b of $('filter').querySelectorAll('[data-show]')) b.classList.toggle('on', b.dataset.show === show);
     const own = [...tasks.values()].filter((x) => x.scope === 'own');
     const openCount = own.filter((x) => !x.t.done).length;
     $('count').textContent = own.length ? `${openCount} open` : '';
+    syncHeader(openCount);
 
     $('rooms').hidden = roomInfo.size === 0;
     if (roomInfo.size) {

@@ -68,3 +68,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .buttons { align-items: center; }
 .grow { flex: 1; }
 .hosted { display: none !important; }
+
+/* With the filter buttons in the titlebar (tavern.header), this row has nothing left to show. */
+.hosted-header .bar { display: none; }
