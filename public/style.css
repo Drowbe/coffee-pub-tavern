@@ -311,6 +311,19 @@ input[type="range"] {
   align-items: stretch; /* every card as tall as the tallest, Join at the bottom */
 }
 
+/* The room list's dashboard: the widgets that modules provide, in a grid of cards under the rooms, one
+   column on a phone. The widgets style themselves (.dashboard-widget). */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.dashboard[hidden] {
+  display: none;
+}
+
 .room-choice {
   display: flex;
   flex-direction: column;
