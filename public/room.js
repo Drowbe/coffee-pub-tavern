@@ -28,6 +28,8 @@ subnav.innerHTML = `
   <span class="subnav-tools">
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
+  <span class="nav-divider"></span>
+  <button class="icon-link" id="leave-room" type="button" title="Leave room" aria-label="Leave room"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
   </span>`;
 topbarEl.appendChild(subnav);
 // Only this page loads your profile/Manage as an overlay over a running
@@ -1969,10 +1971,9 @@ async function leaveRoom() {
 // nothing more specific to say -- the path never skips a level, so it's
 // always here and always a link back to the room list, whether or not
 // there's anything after it.
-// Leave/Rejoin are icon-only, styled like the header's other icon buttons
+// Rejoin is icon-only, styled like the header's other icon buttons
 // (settings, sign out) rather than a labeled pill -- title carries the
-// name for a screen reader or a hover, same as those.
-const LEAVE_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="leave" title="Leave" aria-label="Leave"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></button>';
+// name for a screen reader or a hover, same as those. Leave is in the subnav.
 const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
 // The label text hides at narrow widths (see .crumb-label in style.css),
 // leaving just the icon -- which is why every crumb-here needs one.
@@ -1988,12 +1989,12 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
-      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN +
+      crumbHere(roomCrumbIcon(originRoom), originName) +
       `<span class="crumb-sep">&rsaquo;</span>` +
       crumbHere('people-arrows', kind) + REJOIN_BTN
     );
   } else {
-    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN);
+    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName));
   }
 }
 
@@ -2385,9 +2386,10 @@ $('hangup').addEventListener('click', hangUp);
 // container instead of rewiring a fresh element's click every time.
 $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
-  if (action === 'leave') leaveRoom();
-  else if (action === 'rejoin') returnToTable();
+  if (action === 'rejoin') returnToTable();
 });
+// Leave is in the room's bar (the subnav), which is not the crumb, so it has its own listener.
+$('leave-room').addEventListener('click', leaveRoom);
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
 $('aside-cancel').addEventListener('click', cancelAsideSelection);

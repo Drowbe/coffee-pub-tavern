@@ -744,6 +744,10 @@ body.at-table .subnav {
   margin-left: auto;
 }
 
+.subnav .nav-divider {
+  height: 14px;
+}
+
 .subnav .icon-link {
   height: 20px;
   padding: 0 6px;
@@ -810,7 +814,8 @@ body.at-table .topbar {
 /* A phone has no use for a pop-out window, and the header has no room for the extra buttons. */
 @media (max-width: 560px) {
   .subnav #fullscreen-toggle,
-  .subnav #popout {
+  .subnav #popout,
+  .subnav .nav-divider {
     display: none;
   }
 
