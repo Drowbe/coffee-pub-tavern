@@ -42,6 +42,10 @@ An event can be dragged onto a task in the To-do module, or onto an open task th
 
 Drag an item from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the item to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choices come from what the other modules can do with the item, so a module added later can add more. A short note confirms what was done.
 
+## When an event has passed
+
+Once an event is over, the Calendar tells the modules that follow it, once, with a line such as "Trip day one, Sep 19". A task linked to the event can then tick itself and keep that line in its notes, if you chose that for the link (see [To-do](userguide-todo.md)). It is announced by whoever has the Calendar open first after the event ends, so it waits for someone to open it if nobody has. Repeating events are not announced, and neither is one that ended more than a week ago. Changing an event's date makes it announce again when the new date passes.
+
 ## Repeating events
 
 Set **Repeats** to every day, week, 2 weeks, month or year, and optionally an **Until** date. The whole series is one event: changing it changes every occurrence, and deleting it deletes them all. A monthly event stays on its day of the month, or the last day of a shorter month. Repeating events show a small repeat mark in the month and a tag in the list.

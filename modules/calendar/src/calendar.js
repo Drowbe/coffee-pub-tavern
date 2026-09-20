@@ -652,4 +652,36 @@
   $('app').hidden = false;
   fit();
   render();
+
+  // An event that has passed is announced once, for the modules that follow it (a task that is done when the
+  // event is over, say). Whoever has the calendar open first after it ends announces it, marking the event so
+  // nobody repeats it; moving the event clears the mark. Repeating events are not announced, and neither is
+  // one that ended more than a week ago (so opening an old calendar announces nothing from long ago).
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+  const announcing = new Set();
+  async function announceEnded() {
+    if (!tavern.events || !canEdit) return;
+    const now = Date.now();
+    let sent = 0;
+    for (const x of [...events.values()]) {
+      if (x.scope !== 'room' || x.ev.repeat || x.ev.announced || announcing.has(x.id) || sent >= 5) continue;
+      const ends = startOf(x.ev).getTime() + durationOf(x.ev);
+      if (ends > now || now - ends > WEEK) continue;
+      announcing.add(x.id);
+      sent += 1;
+      const ev = { ...x.ev, announced: true };
+      try {
+        const saved = await tavern.storage.set('event:' + x.id, ev, { version: x.version });
+        remember('room', { key: 'event:' + x.id, value: ev, version: saved.version });
+        const day = startOf(ev).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        await tavern.events.publish('ended', { ref: tavern.refs.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
+      } catch (err) {
+        // someone else announced it first, or nobody may hear it: the event is fine either way
+      } finally {
+        announcing.delete(x.id);
+      }
+    }
+  }
+  announceEnded();
+  setInterval(announceEnded, 60000);
 })();

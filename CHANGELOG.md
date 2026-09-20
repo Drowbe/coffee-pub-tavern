@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- The Calendar announces when an event has passed (Calendar 1.10.0, event `ended`, with a one-line summary), once, by whoever has it open first after it ends; repeating events and events more than a week old are skipped, and moving an event clears the mark. A task linked to the event can follow it with the same rules as a poll closing. Verified in a browser: a past event with a linked task set to tick and keep the result was announced on opening the Calendar, and the task ticked and got "Result: Trip day one, Sep 19".
+
+### Added
 - Shared tools in the SDK. `tavern.ui.datePicker` (the Calendar's picker, now for any date field, with the weekday shown under it, Escape to close and an optional shaded range) and `tavern.util` (`esc`, `id`, `refKey`, `ymd`, `parseYmd`), so modules do not each carry a copy. Calendar 1.9.2, To-do 1.7.2 and Polls 1.7.1 use them; the To-do's due date and a poll's closing time now have the picker. Verified in a browser: the picker in the To-do (open, choose a day, weekday updated), and the three pickers in the Calendar's editor and one in Polls'. Not verified: the Calendar's shaded range after the move.
 
 ### Added
