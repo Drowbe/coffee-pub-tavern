@@ -225,6 +225,10 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Outcomes.** An event may carry `data` (at most 2 KB). By convention `data.summary` is one line, at most 200 characters, saying how it turned out ("Where to stay: Hotel Nova"). A module that follows an item can keep it: the To-do adds it to a linked task's notes when the task asks for that, and ticks the task when it is set to follow what it links to. Nothing in Tavern knows what a summary means.
 
+**Rules on links.** An event declares the data it carries (`events.publishes[].data`, for example `{ "summary": "string", "pick": "ref?" }`), and `tavern.refs.kinds()` returns, for each kind, the events it can report with their data. A module that links to items can then let the person choose, per link, what to do when the item reports something, offering only what the event's data supports. The To-do does this: for a linked poll's close it offers to tick the task, add the `summary` to its notes, use it as the title, or link the item in `pick`. By convention `summary` is one line about the outcome and `pick` is a pointer to the item the outcome chose; neither means anything to Tavern. Treat `pick` as untrusted: check the kind is one you may link to.
+
+**Links on parts of an item.** An item can hold links of its own for its parts. A poll option takes a link (drop an item on it) and the poll passes the winning option's link out as `pick` when it closes. Tell Tavern what the whole item points at with `tavern.refs.setLinks`, so those items list it under what links to them.
+
 ### The action bar
 
 A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.

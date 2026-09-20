@@ -34,6 +34,21 @@
   const canCreate = tavern.can('create');
   const MAX_OPTIONS = 20;
 
+  // An option can point at an item in another module (a place to stay, a date on the calendar): drop the item
+  // on the option. When the poll closes, the item the winning option points at goes out with the result, for
+  // whoever follows the poll to use. What may be linked is whatever other modules share and Tavern allows.
+  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
+  let consumable = new Set();
+  const linkable = (r) => Boolean(r) && consumable.has(r.module + ':' + r.kind);
+  const optCards = new Map(); // pointer key -> card, or { error }
+  async function loadKinds() {
+    try {
+      consumable = new Set((await tavern.refs.kinds()).map((k) => k.module + ':' + k.kind));
+    } catch (err) {
+      consumable = new Set();
+    }
+  }
+
   // Every poll we know of by key, and each poll's votes. `scope` is 'own' (this place's poll) or
   // 'rooms' (another room's, read-only). The votes are keyed by the poll's key, then the voter's.
   const polls = new Map();
@@ -173,6 +188,65 @@
     return Date.now() >= p.closesAt ? `Closed ${when}` : `Closes ${when}`;
   }
 
+  const mayManage = (x) => canCreate && x.scope === 'own' && (x.p.byKey === me || info.user.role === 'admin');
+  function optionLinkHtml(x, o) {
+    if (!o.link) return '';
+    const c = optCards.get(refKey(o.link));
+    const remove = mayManage(x) && !isClosed(x.p) ? `<button class="x" type="button" data-unlink="${esc(x.key)}|${esc(o.id)}" aria-label="Remove link">&times;</button>` : '';
+    if (!c) return '<div class="optlink"><span class="tag">Loading...</span></div>';
+    if (c.error) return `<div class="optlink"><span class="tag" title="Deleted, or not something you can see">Not available</span>${remove}</div>`;
+    const body = `<b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}`;
+    return `<div class="optlink">${c.open ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}">${body}</span>` : `<span class="tag">${body}</span>`}${remove}</div>`;
+  }
+  async function resolveOptionLinks() {
+    if (!tavern.refs || !tavern.refs.resolve) return;
+    const want = new Map();
+    for (const x of polls.values()) for (const o of x.p.options) if (o.link && !optCards.has(refKey(o.link))) want.set(refKey(o.link), o.link);
+    if (!want.size) return;
+    const list = [...want.values()].slice(0, 50);
+    try {
+      const got = await tavern.refs.resolve(list);
+      list.forEach((r, i) => optCards.set(refKey(r), got[i] || { error: 'unavailable' }));
+    } catch (err) {
+      list.forEach((r) => optCards.set(refKey(r), { error: 'unavailable' }));
+    }
+    render();
+  }
+  // Tell Tavern what this poll points at (all its options' links, as one list), so those items can show it.
+  const syncedOptionLinks = new Map();
+  async function syncOptionLinks(x) {
+    if (!tavern.refs || !tavern.refs.setLinks || x.scope !== 'own') return;
+    const links = x.p.options.filter((o) => o.link).map((o) => o.link);
+    const sig = JSON.stringify(links.map(refKey));
+    if (syncedOptionLinks.get(x.id) === sig || (!links.length && !syncedOptionLinks.has(x.id))) return;
+    syncedOptionLinks.set(x.id, sig);
+    try {
+      await tavern.refs.setLinks(tavern.refs.make('poll', x.id), links);
+    } catch (err) {
+      syncedOptionLinks.delete(x.id);
+    }
+  }
+  async function setOptionLink(key, optionId, ref) {
+    const x = polls.get(key);
+    if (!x || !mayManage(x) || isClosed(x.p)) return;
+    if (ref && !linkable(ref)) return showNote('A poll option cannot link to that.');
+    const p = { ...x.p, options: x.p.options.map((o) => {
+      if (o.id !== optionId) return o;
+      const { link, ...rest } = o;
+      return ref ? { ...rest, link: ref } : rest;
+    }) };
+    try {
+      const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+      rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
+      syncOptionLinks(polls.get(key));
+      resolveOptionLinks();
+    } catch (err) {
+      showNote(err.status === 409 ? 'Someone changed that poll first. It has been refreshed.' : err.message);
+      try { await load(); } catch (e) { /* keep what we have */ }
+    }
+    render();
+  }
+
   function pollHtml(x) {
     const p = x.p;
     const closed = isClosed(p);
@@ -186,7 +260,7 @@
       const win = leaders.some((l) => l.id === o.id);
       return `<button type="button" class="opt ${mine.includes(o.id) ? 'mine' : ''} ${win ? 'win' : ''}" data-vote="${esc(x.key)}|${esc(o.id)}" ${votable ? '' : 'disabled'}>
         <span class="fill" style="width:${width}%"></span><span class="name">${esc(o.text)}${o.desc ? `<small>${esc(o.desc)}</small>` : ''}</span><span class="num">${win ? (leaders.length > 1 ? 'Tied &middot; ' : 'Winner &middot; ') : ''}${names.length}</span></button>
-        ${names.length ? `<div class="who">${esc(names.join(', '))}</div>` : ''}`;
+        ${names.length ? `<div class="who">${esc(names.join(', '))}</div>` : ''}${optionLinkHtml(x, o)}`;
     }).join('');
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
@@ -327,6 +401,12 @@
     const top = max > 0 ? x.p.options.filter((o) => counts.get(o.id).length === max) : [];
     return { winner: top.length === 1 ? top[0].text : null, tied: top.length > 1 ? top.map((o) => o.text).slice(0, 5) : [] };
   }
+  // The item the winning option points at, when there is one winner and it points at something.
+  function pickOf(x) {
+    const { winner } = winnerOf(x);
+    const o = winner ? x.p.options.find((opt) => opt.text === winner) : null;
+    return o && o.link ? { pick: o.link } : {};
+  }
   // A short line on how it turned out, for whoever follows the poll.
   function summaryOf(x) {
     const { winner, tied } = winnerOf(x);
@@ -335,7 +415,7 @@
   const announcing = new Set();
   async function announceClosed(x) {
     try {
-      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x) } });
+      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x), ...pickOf(x) } });
     } catch (err) {
       // nobody may hear it, or this person cannot publish: the poll is closed either way
       if (tavern.refs && tavern.refs.trace) tavern.refs.trace('polls: could not announce the close: ' + err.message);
@@ -556,6 +636,11 @@
     });
   }
   $('body').addEventListener('click', (e) => {
+    const un = e.target.closest('[data-unlink]');
+    if (un) {
+      const [k, o] = un.dataset.unlink.split('|');
+      return void setOptionLink(k, o, null);
+    }
     const act = e.target.closest('[data-action]');
     if (act) {
       const [k, a] = act.dataset.action.split('|');
@@ -585,6 +670,32 @@
     const key = input.dataset.addtext;
     addOption(key, input.value);
   });
+  // An item dragged from another module onto an option links the option to it.
+  const optionAt = (pt) => {
+    const el = tavern.refs.elementAt(pt);
+    const opt = el && el.closest('[data-vote]');
+    if (!opt) return null;
+    const [key, id] = opt.dataset.vote.split('|');
+    const x = polls.get(key);
+    return x && mayManage(x) && !isClosed(x.p) ? { el: opt, key, id } : null;
+  };
+  const clearDrop = () => { for (const e of root.querySelectorAll('.opt.drop')) e.classList.remove('drop'); };
+  if (tavern.refs && tavern.refs.dropTarget) {
+    tavern.refs.dropTarget({
+      over: (pt, ref) => {
+        clearDrop();
+        const at = ref && linkable(ref) ? optionAt(pt) : null;
+        if (at) at.el.classList.add('drop');
+      },
+      leave: clearDrop,
+      drop: (ref, pt) => {
+        clearDrop();
+        const at = ref && linkable(ref) ? optionAt(pt) : null;
+        if (at) setOptionLink(at.key, at.id, ref);
+        else tavern.refs.trace('drop ignored: no option of yours under the pointer, or not linkable');
+      },
+    });
+  }
   $('add').addEventListener('click', openEditor);
   // The host draws New poll in the module's action bar (in the room's bottom row when docked);
   // the button in the header stays only for a host without one.
@@ -604,7 +715,10 @@
     $('msg').textContent = 'Polls could not load: ' + err.message;
     return;
   }
+  await loadKinds();
   await loadActions();
+  resolveOptionLinks();
+  for (const x of [...polls.values()]) syncOptionLinks(x);
   $('msg').hidden = true;
   $('app').hidden = false;
   render();

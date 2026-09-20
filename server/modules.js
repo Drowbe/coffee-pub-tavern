@@ -176,7 +176,15 @@ function cleanBus(rawEvents, rawActions, id) {
     if (!EVENT_NAME_RE.test(name)) throw new ModuleError(`module.json: event name "${name}" must be letters and digits, starting with a lowercase letter`);
     if (events.publishes.some((x) => x.name === name)) throw new ModuleError(`module.json: event "${name}" is listed twice`);
     const kind = typeof p.kind === 'string' && REF_KIND_RE.test(p.kind) ? p.kind : '';
-    events.publishes.push({ name, kind, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name });
+    // What the event carries in its data (up to 6 named fields, typed as an action's input is), so a module
+    // that follows an item can offer what to do with each.
+    const data = {};
+    for (const [field, type] of Object.entries(p.data && typeof p.data === 'object' ? p.data : {}).slice(0, 6)) {
+      const base = typeof type === 'string' ? type.replace(/\?$/, '') : '';
+      if (!FIELD_RE.test(field) || !FIELD_TYPES.includes(base)) throw new ModuleError(`module.json: event "${name}" data "${field}" must be one of ${FIELD_TYPES.join(', ')} (add ? for optional)`);
+      data[field] = type;
+    }
+    events.publishes.push({ name, kind, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, data });
   }
   for (const c of Array.isArray(rawEvents?.subscribes) ? rawEvents.subscribes.slice(0, 20) : []) {
     if (typeof c !== 'string' || (c !== '*' && !BUS_USE_RE.test(c))) throw new ModuleError(`module.json: events.subscribes "${c}" must be "*" or look like "module:event"`);

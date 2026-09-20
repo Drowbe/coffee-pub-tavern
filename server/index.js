@@ -1342,7 +1342,7 @@ function consumableKinds(consumerId) {
   for (const { manifest } of modules.enabledAll()) {
     if (manifest.id === consumerId) continue;
     for (const p of manifest.refs.produces) {
-      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: manifest.name, icon: manifest.icon, kind: p.kind, name: p.name, open: p.open });
+      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: manifest.name, icon: manifest.icon, kind: p.kind, name: p.name, open: p.open, events: (manifest.events?.publishes || []).filter((e) => e.kind === p.kind).map((e) => ({ name: e.name, label: e.label, data: e.data || {} })) });
     }
   }
   return out;

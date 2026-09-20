@@ -29,6 +29,10 @@ Choose an option to vote for it. In a one-choice poll, choosing another option m
 
 Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. Clicking the link on the task opens the poll here, and a poll lists what is linked to it under its details, where clicking one opens it. See [To-do](userguide-todo.md).
 
+## Link an option to something
+
+Drag an item from another module (an event on the Calendar, say) onto an option to link the option to it. The option shows the item, and clicking it opens the item. You can remove the link with the cross while the poll is open. Only the person who started the poll, or an admin, can link options. When the poll closes and one option wins, the item that option points at goes out with the result, so a task that follows the poll can link to it or use it. A poll that ties, or whose winner has no link, sends only the result line.
+
 ## After a poll closes
 
 Closing a poll (or its closing time passing) tells the other modules that were set up to listen, with a one-line result such as "Where to stay: Hotel Nova" (or who tied, or that nobody voted), so a task that follows the poll can tick itself off and keep the result in its notes. A closed poll also offers a button for each thing another module can do with it, such as **Add a task** from the To-do module, which creates a task named for the poll and its winner, linked to the poll. These buttons come from whatever modules you have installed; there is nothing to set up in Polls.

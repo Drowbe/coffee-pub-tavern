@@ -31,17 +31,32 @@
   let show = 'open';
   let editing = null; // { key, id, version } while the editor is open
   let editingLinks = []; // the links the open editor will save
+  let editingRules = {}; // and what each does when the item reports something: { pointerKey: { eventName: outcome } }
   const MAX_LINKS = 5;
   // What this module may link to is whatever other modules share and Tavern says it may (module.json
   // refs.consumes is "*"), so a module written later takes part with no change here.
   let consumable = new Set(); // "module:kind"
+  const kindEvents = new Map(); // "module:kind" -> what that kind of item can report: [{ name, label, data }]
   async function loadKinds() {
     try {
-      consumable = new Set((await tavern.refs.kinds()).map((k) => k.module + ':' + k.kind));
+      const kinds = await tavern.refs.kinds();
+      consumable = new Set(kinds.map((k) => k.module + ':' + k.kind));
+      for (const k of kinds) kindEvents.set(k.module + ':' + k.kind, k.events || []);
     } catch (err) {
       consumable = new Set();
     }
   }
+  // What a task can do when an item it links to reports something. Each is offered only when the event
+  // carries what it needs: the summary is a line about how it turned out, the pick is an item it chose.
+  const OUTCOMES = [
+    { id: 'tick', label: 'Tick this', needs: [] },
+    { id: 'note', label: 'Add the result to the notes', needs: ['summary'] },
+    { id: 'both', label: 'Tick this and add the result', needs: ['summary'] },
+    { id: 'title', label: 'Use the result as the title', needs: ['summary'] },
+    { id: 'link', label: 'Link what it picked', needs: ['pick'] },
+  ];
+  const FINISHED = new Set(['closed', 'done', 'completed', 'finished']);
+  const outcomesFor = (event) => OUTCOMES.filter((o) => o.needs.every((f) => Object.keys(event.data || {}).includes(f)));
   const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
 
   // --- dates ---------------------------------------------------------------
@@ -334,10 +349,7 @@
     const t = x ? x.t : { title: '', notes: '', due: null, remind: false, done: false };
     editing = x ? { key: x.key, id: x.id, version: x.version } : { key: null, id: null, version: null };
     editingLinks = ((x && x.t.links) || []).slice();
-    $('f-auto').checked = Boolean(x && x.t.autoDone);
-    $('f-auto').disabled = readOnly;
-    $('f-note').checked = Boolean(x && x.t.autoNote);
-    $('f-note').disabled = readOnly;
+    editingRules = rulesFor(x && x.t);
     $('f-link-search').value = '';
     $('f-link-results').innerHTML = '';
     $('f-link-search').hidden = readOnly || !tavern.refs;
@@ -368,8 +380,43 @@
     editingLinks = [];
   }
 
+  // The task's rules with the older per-task settings folded in: those meant "tick, and keep the result" for
+  // a finished item, which is what a rule on a link now says.
+  function rulesFor(t) {
+    const rules = {};
+    const legacy = t && t.autoDone && t.autoNote ? 'both' : t && t.autoDone ? 'tick' : t && t.autoNote ? 'note' : null;
+    for (const r of (t && t.links) || []) {
+      for (const ev of kindEvents.get(r.module + ':' + r.kind) || []) {
+        const set = t.rules && t.rules[refKey(r)] && t.rules[refKey(r)][ev.name];
+        const use = set || (FINISHED.has(ev.name) ? legacy : null);
+        if (use && outcomesFor(ev).some((o) => o.id === use)) (rules[refKey(r)] = rules[refKey(r)] || {})[ev.name] = use;
+      }
+    }
+    return rules;
+  }
+  function renderRules(readOnly) {
+    const rows = [];
+    for (const r of editingLinks) {
+      const c = cards.get(refKey(r));
+      for (const ev of kindEvents.get(r.module + ':' + r.kind) || []) {
+        const chosen = (editingRules[refKey(r)] || {})[ev.name] || '';
+        rows.push(`<label class="rule"><span>${esc(c && !c.error ? c.title : 'That item')}: ${esc(ev.label)}</span><select data-rule="${esc(refKey(r))}|${esc(ev.name)}" ${readOnly ? 'disabled' : ''}><option value="">Do nothing</option>${outcomesFor(ev).map((o) => `<option value="${o.id}"${o.id === chosen ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select></label>`);
+      }
+    }
+    $('f-rules').innerHTML = rows.join('');
+  }
+  $('f-rules').addEventListener('change', (e) => {
+    const s = e.target.closest('[data-rule]');
+    if (!s) return;
+    const cut = s.dataset.rule.lastIndexOf('|'); // the pointer's own key holds bars
+    const key = s.dataset.rule.slice(0, cut);
+    const name = s.dataset.rule.slice(cut + 1);
+    const rule = editingRules[key] = editingRules[key] || {};
+    if (s.value) rule[name] = s.value; else delete rule[name];
+  });
   function renderEditorLinks(readOnly = $('f-link-search').hidden) {
     $('f-links').innerHTML = editingLinks.map((r) => linkChip(r, !readOnly)).join('');
+    renderRules(readOnly);
   }
   $('f-links').addEventListener('click', (e) => {
     const o = e.target.closest('[data-open-ref]');
@@ -452,8 +499,7 @@
       createdAt: current ? current.t.createdAt : Date.now(),
       by: current ? current.t.by : info.user.name,
       links: editingLinks.slice(0, MAX_LINKS),
-      autoDone: $('f-auto').checked,
-      autoNote: $('f-note').checked,
+      rules: Object.fromEntries(Object.entries(editingRules).filter(([k, v]) => editingLinks.some((r) => refKey(r) === k) && Object.keys(v).length)),
     };
     $('f-save').disabled = true;
     try {
@@ -637,23 +683,28 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
-  // Other modules say what happens to their items (an event on a poll, say); Tavern delivers what this
-  // module was approved to hear. A task marked to follow what it links to is ticked when a linked item is
-  // finished: the conventional names are closed, done, completed and finished. Doing it twice is harmless.
-  const FINISHED = new Set(['closed', 'done', 'completed', 'finished']);
+  // Other modules say what happens to their items (a poll closing, say); Tavern delivers what this module
+  // was approved to hear. Each link on a task can carry a rule for an event it may report: tick the task, keep
+  // the result in its notes, use it as the title, or link what the item picked. A task from before rules that
+  // asked to follow a finished item keeps doing that (the conventional names closed, done, completed and
+  // finished). Doing a rule twice is harmless.
   if (tavern.events && tavern.events.subscribe) {
     tavern.events.subscribe(async (e) => {
-      if (!FINISHED.has(e.name) || !e.ref) return;
+      if (!e.ref) return;
       const k = refKey(e.ref);
-      // An event may carry a short summary of how it turned out (data.summary); a task that asks for it keeps it.
       const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
+      const pick = e.data && e.data.pick && typeof e.data.pick === 'object' && linkable(e.data.pick) ? e.data.pick : null;
       for (const x of [...tasks.values()]) {
         if (x.scope !== 'own' || !(x.t.links || []).some((r) => refKey(r) === k)) continue;
-        const note = x.t.autoNote && summary && !(x.t.notes || '').includes('Result: ' + summary);
-        const tick = x.t.autoDone && !x.t.done;
-        if (!note && !tick) continue;
+        const rule = rulesFor(x.t)[k] && rulesFor(x.t)[k][e.name];
+        if (!rule) continue;
+        let t = { ...x.t };
+        if ((rule === 'tick' || rule === 'both') && !t.done) t = { ...t, done: true, doneAt: Date.now() };
+        if ((rule === 'note' || rule === 'both') && summary && !(t.notes || '').includes('Result: ' + summary)) t.notes = ((t.notes ? t.notes + '\n' : '') + 'Result: ' + summary).slice(0, 1000);
+        if (rule === 'title' && summary && t.title !== summary) t.title = summary.slice(0, 200);
+        if (rule === 'link' && pick && !(t.links || []).some((r) => refKey(r) === refKey(pick)) && (t.links || []).length < MAX_LINKS) t.links = [...(t.links || []), pick];
+        if (JSON.stringify(t) === JSON.stringify(x.t)) continue;
         try {
-          const t = { ...x.t, ...(tick ? { done: true, doneAt: Date.now() } : {}), ...(note ? { notes: ((x.t.notes ? x.t.notes + '\n' : '') + 'Result: ' + summary).slice(0, 1000) } : {}) };
           await put(x, t);
           applyReminder(t).catch(() => {});
         } catch (err) {

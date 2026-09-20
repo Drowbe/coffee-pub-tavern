@@ -70,3 +70,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .tag.ref:hover { color: var(--text); border-color: var(--accent); }
 .tag b { color: var(--accent); font-weight: 600; }
 .poll.flash { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+.opt.drop { outline: 2px solid var(--accent); outline-offset: -2px; }
+.optlink { display: flex; align-items: center; gap: 4px; margin: 2px 0 6px 4px; }
+.optlink .tag { margin-left: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.optlink .tag.ref { cursor: pointer; }
+.optlink .x { padding: 0 4px; border: 0; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }

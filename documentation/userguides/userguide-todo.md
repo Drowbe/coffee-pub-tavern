@@ -30,9 +30,7 @@ An admin approves the To-do's links when enabling it, and they show only what yo
 
 ## Following a linked item
 
-In the task's editor, **Tick this when what it links to is finished** makes the task tick itself when something it links to finishes. A poll closing is one example, and any module can tell the To-do the same way. **Add a task** buttons in other modules (a finished poll, say) create a task in the To-do for you, linked to where it came from.
-
-**Add the result to the notes when it is finished** does the same for the outcome: when a linked poll closes, the task's notes get a line such as "Result: Where to stay: Hotel Nova". It is added once, however often the poll announces it.
+Under each link in the task's editor, a line says what the linked item can report and asks what the task should do about it. For a poll closing you can choose **Tick this**, **Add the result to the notes**, **Tick this and add the result**, **Use the result as the title**, or **Link what it picked**. The result is a line such as "Where to stay: Hotel Nova". It is added to the notes once however often the poll announces it, and the task is only changed by choices you made. **Link what it picked** links the task to the item the winning poll option points at (see [Polls](userguide-polls.md)). What is offered depends on what the linked item reports, so a module added later brings its own choices. Tasks that were set to tick themselves before this keep doing that.
 
 Other modules can also ask the To-do to link a task or set its due date. Dropping a task on a Calendar day or event offers exactly that. See [Calendar](userguide-calendar.md).
 
