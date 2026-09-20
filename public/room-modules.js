@@ -761,6 +761,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     stagePopped,
     layoutChanged: syncDock,
     updateMenu: update,
+    // For tests: send a host event to an open module's frame.
+    sendTo: (id, event, data) => panes.get(id)?.mount?.send(event, data),
+    testDrag: (id, ref) => panes.get(id)?.mount?.beginDragForTest(ref),
     toggleMenu,
     // `mode` (a module's own window asking to come back as a column or a panel) is remembered.
     open: (id, mode) => {

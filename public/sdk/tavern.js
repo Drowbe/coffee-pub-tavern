@@ -18,6 +18,14 @@
   // The drag data type a pointer to a module's item travels under (see tavern.refs).
   const REF_MIME = 'application/x-tavern-ref';
 
+  // A pointer checked for shape, or null. Says nothing about whether the viewer may see the item.
+  function cleanRef(ref) {
+    const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string'
+      && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id)
+      && (ref.scope === 'server' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
+    return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
+  }
+
   const pending = new Map();
   const listeners = new Map();
   let seq = 0;
@@ -152,18 +160,32 @@
         event.dataTransfer.setData(REF_MIME, JSON.stringify(ref));
         if (o && o.label) event.dataTransfer.setData('text/plain', String(o.label));
         event.dataTransfer.effectAllowed = 'copyLink';
+        // Tell the host, which brokers the drop onto the other modules on the page (see dropTarget).
+        call('refs.dragStart', { ref }).catch(() => {});
+        event.target.addEventListener('dragend', () => call('refs.dragEnd', {}).catch(() => {}), { once: true });
         return ref;
       },
+      // Receive a pointer dragged from another module on the same page. over(point, ref) as it moves across
+      // this module, leave() when it goes, drop(ref, point) when it is let go; the point is { x, y } in
+      // this module's own page, for document.elementFromPoint. Call this rather than (or as well as)
+      // listening for dragover and drop yourself: a drag between two module frames reaches only this.
+      dropTarget: (handlers) => tavern.on('refsdrag', (e) => {
+        const ref = e.ref && cleanRef(e.ref);
+        const point = { x: e.x, y: e.y };
+        if (e.type === 'over') handlers.over && handlers.over(point, ref);
+        else if (e.type === 'leave') handlers.leave && handlers.leave();
+        else if (e.type === 'drop') {
+          handlers.leave && handlers.leave();
+          handlers.drop && handlers.drop(ref, point);
+        }
+      }),
       // Whether a drag over this module carries a pointer (call preventDefault on dragover to accept it).
       accepts: (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes(REF_MIME),
       // The pointer dropped, checked for shape, or null. It says nothing about whether the viewer may
       // see the item: resolve() does that.
       parse: (event) => {
         try {
-          const ref = JSON.parse(event.dataTransfer.getData(REF_MIME));
-          const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind)
-            && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id) && (ref.scope === 'server' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
-          return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
+          return cleanRef(JSON.parse(event.dataTransfer.getData(REF_MIME)));
         } catch (err) {
           return null;
         }

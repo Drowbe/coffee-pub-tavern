@@ -7,6 +7,10 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ### Fixed
 - The container image left out the `modules/` folder, so the bundled modules (and their updates) were never offered on a deployed server. The image now includes it, and a `.dockerignore` keeps local data, git and built zips out of the build.
 
+### Fixed
+- Dragging an event or a poll onto a task did nothing on drop. A drag that starts in one module frame does not reliably deliver its data into another, so Tavern now brokers it: while a drag lasts it puts an invisible layer over the other module frames, tells the frame under the pointer where the drag is and what was dropped, and removes the layers when the drag ends (or after 20 seconds). Modules receive it with `tavern.refs.dropTarget`. To-do 1.2.1 uses it, and highlights the task the drag is over. Verified in a browser: the layer went up over the other pane, accepted the drag, the task highlighted, the drop linked the event to the task, and the layers came down. Not verified with a real mouse drag, which the test browser cannot perform.
+- `npm run check` did not parse the browser scripts as modules, so an error only a module parse finds (a name declared twice) passed, and one such error broke the room page. It now checks those files as modules (`tools/check-syntax.mjs`).
+
 ### Added
 - Calendar 1.6.0: a date picker. Each date field has a calendar button that opens a small month with the days of the week across the top, so the weekday is visible while choosing; typing still works, the weekday of the date in the field shows beneath it, and when choosing an end date the days from the start are shaded.
 - Modules can put icon buttons in their titlebar (`tavern.header.set`), before the pane's buttons and set off by a pipe. To-do 1.2.0 and Polls 1.2.0 use it for Open / Done (Closed) / All, and drop the title that repeated the titlebar's name above their content. On a module's server page, which has no titlebar, the buttons stay in the page.

@@ -489,8 +489,46 @@
     const x = row && tasks.get(row.dataset.task);
     if (!x || x.scope !== 'own' || !canEdit || !acceptsRef(e)) return;
     e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'link';
     row.classList.add('drop');
   });
+
+  // A drag from another module on the same page is brokered by Tavern: it says where the pointer is
+  // and what was dropped, in this page's own coordinates.
+  const clearDrop = () => {
+    for (const r of document.querySelectorAll('.task.drop')) r.classList.remove('drop');
+    $('editor').classList.remove('drop');
+  };
+  const taskAt = (pt) => {
+    const el = document.elementFromPoint(pt.x, pt.y);
+    const row = el && el.closest('[data-task]');
+    return row && tasks.get(row.dataset.task) && tasks.get(row.dataset.task).scope === 'own' ? row : null;
+  };
+  if (tavern.refs && tavern.refs.dropTarget) {
+    tavern.refs.dropTarget({
+      over: (pt, ref) => {
+        clearDrop();
+        if (!ref || !linkable(ref) || !canEdit) return;
+        if (!$('editor').hidden) {
+          if (!$('f-link-search').hidden) $('editor').classList.add('drop');
+          return;
+        }
+        const row = taskAt(pt);
+        if (row) row.classList.add('drop');
+      },
+      leave: clearDrop,
+      drop: (ref, pt) => {
+        clearDrop();
+        if (!ref || !linkable(ref) || !canEdit) return;
+        if (!$('editor').hidden) {
+          if (!$('f-link-search').hidden) addEditorLink(ref);
+          return;
+        }
+        const row = taskAt(pt);
+        if (row) linkTo(row.dataset.task, ref);
+      },
+    });
+  }
   $('body').addEventListener('dragleave', (e) => {
     const row = e.target.closest('[data-task]');
     if (row) row.classList.remove('drop');

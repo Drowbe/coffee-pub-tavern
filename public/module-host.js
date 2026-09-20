@@ -59,6 +59,61 @@ function joinStream(room, guest, onEvent) {
   };
 }
 
+// --- dragging an item from one module onto another ---------------------------------------------
+// A drag that starts in one module frame does not reliably carry its data into another, so the host
+// brokers it. The source says a drag of a pointer began (tavern.refs.drag), the host puts an invisible
+// layer over every other module frame on the page for the length of the drag, and the layer, being in
+// the host's own page, receives the drag. It tells the frame under it where the pointer is and, on a
+// drop, which pointer was dropped, in the frame's own coordinates. The frame decides what that means
+// (and Tavern still checks the pointer when it is resolved). Nothing else crosses.
+const mounted = new Set(); // every module frame the host has on this page: { frame, module, send }
+let activeDrag = null; // { source, ref, layers, timer }
+
+const REF_SHAPE = (r) => r && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string'
+  && /^[a-z][a-z0-9-]{1,31}$/.test(r.module) && /^[a-z][a-z0-9-]{0,23}$/.test(r.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(r.id)
+  && (r.scope === 'server' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+
+function endDrag() {
+  if (!activeDrag) return;
+  clearTimeout(activeDrag.timer);
+  for (const { el, target } of activeDrag.layers) {
+    el.remove();
+    target.send('refsdrag', { type: 'leave' });
+  }
+  activeDrag = null;
+}
+
+function beginDrag(source, ref) {
+  endDrag();
+  const layers = [];
+  for (const target of mounted) {
+    if (target === source) continue;
+    const rect = target.frame.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    const doc = target.frame.ownerDocument;
+    const el = doc.createElement('div');
+    el.style.cssText = `position:fixed;z-index:2147483000;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;background:transparent`;
+    const at = (e) => ({ x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top) });
+    el.addEventListener('dragenter', (e) => e.preventDefault());
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'link';
+      target.send('refsdrag', { type: 'over', ...at(e), ref });
+    });
+    el.addEventListener('dragleave', () => target.send('refsdrag', { type: 'leave' }));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      target.send('refsdrag', { type: 'drop', ...at(e), ref });
+      endDrag();
+    });
+    // A click on the layer means no drag is going on (a module cannot keep the layers up).
+    el.addEventListener('pointerdown', endDrag);
+    doc.body.appendChild(el);
+    layers.push({ el, target });
+  }
+  activeDrag = { source, ref, layers, timer: setTimeout(endDrag, 20000) };
+}
+
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
 export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null }) {
@@ -87,6 +142,9 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== null && v !== '') p.set(k, v);
     return `${base}${path}?${p}`;
   };
+
+  // This module, as the drag brokering sees it (its `send` is defined below).
+  const mine = { frame, module, send: (event, data) => send(event, data) };
 
   const handlers = {
     async hello() {
@@ -212,6 +270,16 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
       }
       return true;
     },
+    // A drag of a pointer to one of this module's items began or ended (see tavern.refs.drag).
+    async 'refs.dragStart'({ ref }) {
+      if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      beginDrag(mine, { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) });
+      return true;
+    },
+    async 'refs.dragEnd'() {
+      if (activeDrag && activeDrag.source === mine) endDrag();
+      return true;
+    },
     async resize(size) {
       if (onResize) onResize(size || {});
       return true;
@@ -248,6 +316,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   // when the call has been popped out.
   const hostWin = frame.ownerDocument.defaultView || window;
   hostWin.addEventListener('message', onMessage);
+  mounted.add(mine);
 
   // Live changes: one stream per scope the frame can see.
   function send(event, data) {
@@ -271,8 +340,12 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
 
   return {
     send,
+    // For tests: start a brokered drag of `ref` from this module, as its SDK would.
+    beginDragForTest: (ref) => beginDrag(mine, ref),
     destroy() {
       hostWin.removeEventListener('message', onMessage);
+      mounted.delete(mine);
+      if (activeDrag && (activeDrag.source === mine || activeDrag.layers.some((l) => l.target === mine))) endDrag();
       leaveStream();
       frame.removeAttribute('src');
     },

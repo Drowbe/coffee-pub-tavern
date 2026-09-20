@@ -151,7 +151,18 @@ const found = await tavern.refs.search('retreat');     // cards, each with its p
 
 Tavern answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
 
-**Dragging.** A module can offer its items to be dragged onto another module. In a `dragstart` handler call `tavern.refs.drag(event, kind, id, { label })`, which puts the pointer on the drag under the type `application/x-tavern-ref`. A module that accepts drops calls `preventDefault()` in `dragover` when `tavern.refs.accepts(event)` is true, and in `drop` reads `tavern.refs.parse(event)`, which returns a checked pointer or `null`. Treat the pointer as untrusted: check the kind is one you consume, and `resolve` it. A drag carries only the pointer, so it works between panes and windows, and search is the way to link without dragging.
+**Dragging.** A module can offer its items to be dragged onto another module. In a `dragstart` handler call `tavern.refs.drag(event, kind, id, { label })`. A drag that starts in one module frame does not reliably deliver its data into another, so Tavern brokers it: while the drag lasts it puts an invisible layer over the other module frames on the page, and tells the frame under the pointer where the drag is and what was dropped. A module that accepts drops calls `tavern.refs.dropTarget`:
+
+```js
+tavern.refs.dropTarget({
+  over: (point, ref) => { /* highlight what is at point; ref is the pointer being dragged, or null */ },
+  leave: () => { /* clear the highlight */ },
+  drop: (ref, point) => { /* link ref to whatever is at point */ },
+});
+// point is { x, y } in your own page: document.elementFromPoint(point.x, point.y)
+```
+
+Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, which is where Tavern checks what the viewer may see. A drag from a module in another window cannot be brokered, and reaches you as an ordinary drag: `tavern.refs.accepts(event)` (true when the drag carries a pointer, in which case call `preventDefault()` in `dragover`) and `tavern.refs.parse(event)` (in `drop`, a checked pointer or `null`). Search is the way to link without dragging at all.
 
 ### The titlebar
 
