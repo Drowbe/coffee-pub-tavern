@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Fixed
+- Typing an S (or M, V, D, C, L, R, F or a digit) in a module's field opened the screen-share picker, or toggled the mic, camera, chat and so on. A module that runs in the page keeps its fields in a shadow root, where the page's key handler saw only the root's host as the target and did not know a text field had the focus. It now looks at the field the key actually went to. Verified in a browser: typing "Yes, Sms Mvd" into a poll option did not call the screen-share picker, or open the chat.
+
+### Fixed
 - The controls in the shared bottom row were different heights (the call toolbar's 38px buttons, the chat's 25 to 33px input and Send, each module's quick-add) and sat a couple of pixels apart. They all use one height token now, `--bar-control-h`, and line up. Verified in a browser: the chat icons button, input and Send, and the Calendar and To-do quick-add fields and buttons all measure 38px tall from the same top and bottom edge, and a multi-line message grows the chat upward. Not verified with the call toolbar itself on screen (it needs a joined call); its buttons were already 38px.
 
 ### Changed

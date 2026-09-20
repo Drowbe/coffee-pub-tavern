@@ -2673,9 +2673,11 @@ $('react-tray').addEventListener('click', (event) => {
 // of them.
 document.addEventListener('keydown', onKey);
 document.addEventListener('keyup', onKeyUp);
+// Whether the key went to a text field. A module that runs in the page keeps its fields in a shadow root, where
+// event.target is only the root's host, so the field itself is the first thing on the event's path.
 function typing(event) {
-  const target = event.target;
-  return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
+  const target = (event.composedPath && event.composedPath()[0]) || event.target;
+  return Boolean(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable));
 }
 function onKeyUp(event) {
   if (prefs.ptt && pttHeld && !typing(event) && hotkeyMatches(event, prefs.pttKey)) {
