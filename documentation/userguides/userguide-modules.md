@@ -6,13 +6,17 @@ A module is a zip file that adds a feature to Tavern, such as the [Calendar](use
 
 Chat and Conference are listed first on the Modules tab as built-in modules. They are always on and cannot be removed; their permissions are the ones already on the Roles tab.
 
+## Modules that come with Tavern
+
+The Calendar, To-do and Polls modules ship with the server, so there is no zip to upload. The Modules tab lists the ones you have not installed under **Available with this Tavern**, each with an **Install** button. When you update the server and a module it carries has a newer version than the one you have installed, the module's card shows **Update available** with an **Update to** button, and the Modules tab itself says how many updates are waiting. The update keeps the module's data, keeps the old version so you can switch back, and, if it asks for anything new (a permission, a hook, a link to another module), stays off until you approve it. A module you upload yourself is updated by uploading a newer zip.
+
 ## Install a module
 
 1. On the Modules tab, choose the zip file and click **Install**.
 2. Read the card that appears. It lists what the module asks for: permissions that will appear on the Roles tab, and whether it wants to run things on a schedule or send notifications.
 3. Click **Enable** (or **Approve and enable**), which records that you approved exactly what is listed. A new module always starts disabled.
 
-The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. The Calendar zip is built into the repository at `modules/dist/calendar-1.5.0.zip`.
+The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. (The modules that ship with Tavern can also be built into a zip with `node tools/build-module.mjs modules/<name>`, which writes it to `modules/dist/`.) The Calendar zip, if you build it, is at `modules/dist/calendar-1.5.0.zip`.
 
 ## Where a module shows up
 

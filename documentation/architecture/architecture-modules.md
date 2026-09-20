@@ -49,6 +49,10 @@ registry, and it checks that each surface entry exists in the zip. It returns th
 throws a `ModuleError`, which is a `StoreError` and so is turned into a JSON error by the server's
 error handler.
 
+## Modules that ship with Tavern
+
+`server/module-build.js` builds a module's zip from its source folder (`modules/<id>/module.json` and `src/`), inlining the CSS and JS into the pages; `tools/build-module.mjs` uses it to write a zip, and the server uses it to offer the modules in the deployment's own `modules/` folder. `GET /api/modules` compares each bundled version with the installed one (`update` is true when it is newer and not already kept), and `POST /api/modules/bundled/:id/install` builds the zip in memory and passes it to `install()`, so a bundled install or update goes through the same validation, version keeping and approval as an upload: an update that asks for something new is left disabled until approved. Only folders directly under `modules/` whose `module.json` id matches the folder name and that have a `src/` are offered, by id, so a request cannot name a path.
+
 ## Install, upgrade and rollback
 
 Files are written to a staging folder next to the final location and moved into place with a single

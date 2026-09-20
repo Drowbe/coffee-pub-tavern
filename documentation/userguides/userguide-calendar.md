@@ -6,7 +6,7 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/calendar-1.5.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
+1. On the Modules tab, choose **Install** beside Calendar under **Available with this Tavern**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). The Calendar asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 

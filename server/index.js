@@ -7,7 +7,8 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
-const { ModuleManager, LIMITS: MODULE_LIMITS } = require('./modules');
+const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
+const { buildModule, bundledModules } = require('./module-build');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
@@ -1083,7 +1084,28 @@ const BUILTIN_MODULES = [
   { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the room: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group' },
   { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the room, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
 ];
-app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES, limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+// Modules that ship with this Tavern (the modules/ folder of the deployment), and where each stands:
+// not installed, installed and current, or installed with a newer version available. Installing or
+// updating one builds its zip on the server, so nothing has to be uploaded; it then goes through the
+// same approval as any zip (an update that asks for something new waits for the admin).
+const BUNDLED_DIR = path.join(__dirname, '..', 'modules');
+function bundledList() {
+  const installed = new Map(modules.list().map((m) => [m.id, m.version]));
+  return bundledModules(BUNDLED_DIR).map((m) => {
+    const have = installed.get(m.id) || null;
+    return {
+      id: m.id, name: m.name, icon: m.icon, description: m.description, version: m.version, installed: have,
+      update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
+    };
+  });
+}
+app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES, bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  if (!bundledModules(BUNDLED_DIR).some((m) => m.id === id)) return res.status(404).json({ error: 'that module does not ship with this Tavern' });
+  const { zip } = buildModule(path.join(BUNDLED_DIR, id));
+  res.status(201).json({ module: await modules.install(zip) });
+});
 app.post('/api/modules', requireAdmin, rawZip, async (req, res) => {
   res.status(201).json({ module: await modules.install(req.body) });
 });

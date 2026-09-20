@@ -702,12 +702,18 @@ $('save-reactions').addEventListener('click', async () => {
 // Upload a zip, review what it asks for, enable it. See docs/MODULES.md.
 let installedModules = [];
 let builtinModules = [];
+let bundledModules = []; // the modules that ship with this Tavern, and whether each is installed or has an update
 
 async function loadModules() {
   const data = await api('GET', '/api/modules');
   installedModules = data.modules;
   builtinModules = data.builtin || [];
+  bundledModules = data.bundled || [];
   renderModules();
+  // Say on the tab itself when an update is waiting, so it is seen without opening it.
+  const updates = bundledModules.filter((b) => b.update).length;
+  const tab = document.querySelector('[data-tab="modules"]');
+  if (tab) tab.textContent = updates ? `Modules (${updates} update${updates === 1 ? '' : 's'})` : 'Modules';
 }
 
 function moduleCard(m) {
@@ -739,6 +745,14 @@ function moduleCard(m) {
       ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
       <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
     </div>`;
+  // A newer version ships with this Tavern: offer it, no zip to upload.
+  const newer = bundledModules.find((b) => b.id === m.id && b.update);
+  if (newer) {
+    const note = document.createElement('div');
+    note.className = 'module-update';
+    note.innerHTML = `<span class="pill warn">Update available</span> <strong>Version ${escapeHtml(newer.version)}</strong> comes with this Tavern. <button class="btn btn-primary btn-small" data-bundled-action="install" data-bundled-id="${escapeHtml(newer.id)}" type="button">Update to ${escapeHtml(newer.version)}</button> <span class="hint">Your data stays as it is, and you can switch back below. If it asks for anything new you approve it first.</span>`;
+    el.querySelector('.module-head').after(note);
+  }
   return el;
 }
 
@@ -765,10 +779,39 @@ function renderModules() {
     none.className = 'panel';
     none.innerHTML = '<p class="hint">No other modules installed yet.</p>';
     list.appendChild(none);
-    return;
   }
   for (const m of installedModules) list.appendChild(moduleCard(m));
+  // Modules that ship with this Tavern and are not installed yet.
+  const available = bundledModules.filter((b) => !b.installed);
+  if (available.length) {
+    const box = document.createElement('div');
+    box.className = 'panel';
+    box.innerHTML = `<h2>Available with this Tavern</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
+      <div class="row module-available">
+        <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
+        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div></div>
+        <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button">Install</button>
+      </div>`).join('')}`;
+    list.appendChild(box);
+  }
 }
+
+// Install or update a module that ships with this Tavern, by building it here.
+$('modules-list').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-bundled-action]');
+  if (!button) return;
+  button.disabled = true;
+  say($('modules-status'), 'installing...');
+  try {
+    const { module } = await api('POST', `/api/modules/bundled/${encodeURIComponent(button.dataset.bundledId)}/install`);
+    await loadModules();
+    await loadRoles();
+    say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
+  } catch (err) {
+    say($('modules-status'), err.message, true);
+    button.disabled = false;
+  }
+});
 
 $('module-install').addEventListener('click', async () => {
   const file = $('module-file').files[0];

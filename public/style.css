@@ -3802,3 +3802,21 @@ body.chat-window {
 body.at-table .module-nav {
   display: none;
 }
+
+/* A newer version of a module ships with this Tavern. */
+.module-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.module-available {
+  align-items: center;
+  margin-top: 8px;
+}
