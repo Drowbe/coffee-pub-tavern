@@ -14,6 +14,14 @@ share screen, layout, away, reactions, settings, the room's launch link if it ha
 Modules button, Full screen and Pop out are in the header, to the left of Sign out. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
 layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat puts the conference in a strip above the chat, with the toolbar under both.
 
+## What opens when you join
+
+Each room remembers the panes you had open when you last used it, in which mode (docked, floating or in
+a window), and how big, and opens them again when you join. A room you have not used before opens with
+the conference. Hanging up is remembered too, so hang up and leave, and the room opens without the
+conference next time; the **Join with** button on the room list changes that before you join (see
+[Rooms](userguide-rooms.md)).
+
 ## Leaving the call, staying in the room
 
 The red hang-up button leaves the call, not the room. The conference closes, your microphone and camera
@@ -21,10 +29,10 @@ stop, you stop receiving anyone's audio and video, and your tile disappears for 
 stay in the room and stay online, with the chat and the modules still open. The room's own **Leave
 room** button, in the header, is what leaves the room.
 
-With the conference closed the Modules button moves up to the header, next to Leave room. Its menu offers
-**Rejoin call** to bring the conference back, along with the chat and the modules. If nothing at all is
-open, the stage says so and points at that button. In a pop-out window, hang up brings the table back to
-the page first.
+With the conference closed, the Modules button in the header, next to Sign out, still opens the menu. It
+offers **Rejoin call** to bring the conference back, along with the chat and the modules. If nothing at
+all is open, the stage says so and points at that button. In a pop-out window, hang up brings the app back
+to the page first.
 
 A role without **See and join the conference** joins with the conference closed and cannot reopen it: the
 person has the chat and the modules only.

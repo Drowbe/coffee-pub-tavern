@@ -3752,3 +3752,47 @@ body.chat-window {
   top: -2px;
   right: -2px;
 }
+
+/* "Join with": the panes a room opens with, from its card on the room list. */
+.room-choice {
+  position: relative;
+}
+
+.join-with {
+  position: absolute;
+  right: 12px;
+  bottom: 64px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-section);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.join-with-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.join-with .check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.join-with .check input {
+  width: auto;
+  margin: 0;
+}

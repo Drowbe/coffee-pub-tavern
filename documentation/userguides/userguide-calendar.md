@@ -16,7 +16,7 @@ Choose **Calendar** in the header. You see a month with each day's events. Use t
 
 ## A room's calendar
 
-In a call, choose the Modules button in the toolbar and then **Calendar**. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to a floating panel or open it in a window of its own. It shows that room's events, and the server's events beside them marked **server**. Server events are read-only in a room; change them on the server calendar.
+In a call, choose the Modules button in the header and then **Calendar**. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to a floating panel or open it in a window of its own. It shows that room's events, and the server's events beside them marked **server**. Server events are read-only in a room; change them on the server calendar.
 
 ## Add and change events
 

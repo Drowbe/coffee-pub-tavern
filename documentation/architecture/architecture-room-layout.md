@@ -63,6 +63,14 @@ Floating or in a window, the conference is not inside the stage, but its tiles a
 
 The header at the top of the page holds the controls for the whole app, at the right: the Modules button, Full screen and Pop out, then Sign out. Full screen and Pop out apply to the whole app (they show their exit and pop-in forms while active). Pop out moves the header (`#topbar`) and the stage into the popup, so every control works where you are; the page behind shows `#away` with a "Bring the app back" button. Code that reads header parts looks inside the header element as well as the document (`byId`/`qsa` in `public/brand.js`, and `$()` in `public/room.js`). The header's links would navigate the popup away from the table, so a click on one in the popup brings the app back first and then acts on the page. Idle hides the header along with the titlebar and toolbar (`.popout:has(.stage.idle) .topbar`).
 
+## Remembered layouts
+
+Each room remembers its own layout in the browser (`localStorage`, key `tavern.panels.<room id>`): the panes that were open when it was last used (`__open`, ids in column order) and, per pane, its mode, docked width, floating box and window size. `tavern.panels` alone is what earlier versions kept for every room, and is the starting point for a room with nothing saved.
+
+- `createRoomModules()` in `public/room-modules.js` writes the open list from `update()` (`snapshot()`), so any change of panes is remembered. Nothing is written while the manager is suspended: from the start of a room's teardown (`suspend()`, called first in the Disconnected handler) until the next join has restored its panes (`restore()`), and while a pop-out reopens the modules. Closing every pane on the way out therefore never becomes the layout. An aside has no room id and remembers nothing.
+- `restore()` runs after a join connects: it opens the saved panes (natives first, then modules the room has on), or just the conference for a room with nothing saved. A pane the person no longer has (a permission taken away, a module turned off) is skipped. Hanging up before leaving is remembered like any other change, so the next join has no conference.
+- The room list's "Join with" button writes the same list (`setJoinPanes()`) without joining, so a person can choose a chat-only or Calendar-only join. It lists the conference, the chat and the room's modules, minus what the role does not allow.
+
 ## The conference and the call
 
 Being in the room and being in the conference are separate. The page stays connected to the room's LiveKit session for the chat and the modules (chat travels over LiveKit's data channel), and sends and receives audio and video only while the conference pane is open.
@@ -70,7 +78,7 @@ Being in the room and being in the conference are separate. The page stays conne
 - The conference is a native pane (`id: 'conference'`, `order: -1`, `flex: true`, docked only). Its `onChange` in `public/room.js` runs `startCall()` when it opens and `stopCall()` when it closes. The page connects with `autoSubscribe: false`; `startCall()` subscribes to everyone's tracks and publishes the microphone, and `stopCall()` unpublishes, unsubscribes and removes the tiles.
 - A participant attribute, `call` (`on` or `off`), says whether a person is in the conference. The server sets it in the token; the page changes it with `setAttributes`. A tile exists only for a person whose attribute is not `off`, and only while I am in the conference myself (`shownInCall()`). `/api/table` reports `inCall` per person, and the aside route refuses anyone who is not in the conference.
 - The hang-up button closes the conference pane, which leaves the call and stays in the room. Leave room, in the header, disconnects. Closing the pane in a pop-out window first brings the stage back to the page.
-- The Modules menu (`#modules-menu`) is a child of the stage, not of the toolbar, so it works with the conference closed: it opens above the toolbar's Modules button, or under the Modules button the header shows while the conference is closed. The conference's menu entry reads "Rejoin call" while it is closed.
+- The Modules menu (`#modules-menu`) is a child of the stage, not of the toolbar, so it works with the conference closed: it opens under the header's Modules button. The conference's menu entry reads "Rejoin call" while it is closed.
 - The "See and join the conference" permission is enforced in the token: without it the token cannot publish or subscribe, and the pane cannot be opened.
 
 ## Docked modules

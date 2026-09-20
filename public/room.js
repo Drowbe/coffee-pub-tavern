@@ -1,7 +1,7 @@
 // The table: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
-import { createRoomModules } from '/room-modules.js';
+import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
@@ -319,6 +319,7 @@ function renderRooms() {
     const rejoin = room.state === 'connected' && currentRoom?.id === r.id;
     card.querySelector('[data-join-icon]').className = `fa-solid fa-${rejoin ? 'circle-left' : 'comments'} fa-fw`;
     card.querySelector('[data-join-label]').textContent = rejoin ? 'Rejoin' : 'Join';
+    card.querySelector('[data-join-with]').hidden = Boolean(r.ephemeral);
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || me?.role !== 'admin';
     edit.href = `/rooms/${encodeURIComponent(r.id)}`;
@@ -417,7 +418,58 @@ async function joinInPopout(roomId) {
   else await join(roomId);
   if (room.state !== 'connected') closePopout(); // it failed; don't leave an empty window
 }
+// "Join with": which panes a room opens with, remembered for that room (see joinPanes in
+// room-modules.js). The list is the conference, the chat and the room's modules.
+const roomModuleList = new Map(); // room id -> the modules on for it, fetched once
+const canIn = (roomId, permission) => me?.role === 'admin' || !!(me?.rooms?.[roomId]?.effective || me?.permissions || {})[permission];
+
+async function toggleJoinWith(card, roomId) {
+  const open = card.querySelector('.join-with');
+  closeJoinWith();
+  if (open) return;
+  const pop = document.createElement('div');
+  pop.className = 'join-with';
+  pop.innerHTML = '<strong>Join with</strong><div class="join-with-list"></div><p class="hint">Remembered for this room.</p>';
+  card.appendChild(pop);
+  if (!roomModuleList.has(roomId)) {
+    try {
+      roomModuleList.set(roomId, (await api('GET', `/api/modules/for-room?room=${encodeURIComponent(roomId)}`)).modules);
+    } catch {
+      roomModuleList.set(roomId, []);
+    }
+  }
+  const items = [
+    ...(canIn(roomId, 'conference') ? [{ id: 'conference', name: 'Conference', icon: 'video' }] : []),
+    ...(canIn(roomId, 'chatRead') ? [{ id: 'chat', name: 'Chat', icon: 'message' }] : []),
+    ...roomModuleList.get(roomId).map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
+  ];
+  const chosen = new Set(joinPanes(roomId) ?? ['conference']);
+  const list = pop.querySelector('.join-with-list');
+  for (const item of items) {
+    const label = document.createElement('label');
+    label.className = 'check';
+    label.innerHTML = `<input type="checkbox" data-pane="${escapeHtml(item.id)}"> <i class="fa-solid fa-${escapeHtml(item.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(item.name)}`;
+    label.querySelector('input').checked = chosen.has(item.id);
+    list.appendChild(label);
+  }
+  list.addEventListener('change', () => {
+    setJoinPanes(roomId, [...list.querySelectorAll('input:checked')].map((i) => i.dataset.pane));
+  });
+}
+function closeJoinWith() {
+  for (const pop of document.querySelectorAll('.join-with')) pop.remove();
+}
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.join-with, [data-join-with]')) closeJoinWith();
+});
+
 $('rooms').addEventListener('click', (event) => {
+  const withBtn = event.target.closest('[data-join-with]');
+  if (withBtn) {
+    const card = withBtn.closest('.room-choice');
+    toggleJoinWith(card, card.dataset.room);
+    return;
+  }
   const popout = event.target.closest('[data-join-popout]');
   if (popout) {
     joinInPopout(popout.closest('.room-choice').dataset.room);
@@ -1749,6 +1801,7 @@ room
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`in ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
+    roomModules.suspend(); // tearing the room down must not become its remembered layout
     inCall = false; // the whole room is gone, so there is nothing to stop; the rest of this clears it
     closeMic();
     closePopout();
@@ -1948,7 +2001,7 @@ async function join(roomId = 'lobby') {
     me = (await api('GET', '/api/me')).user;
     await loadTable();
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
-    roomModules.refresh(currentRoom.ephemeral ? null : currentRoom.id); // asides have no modules
+    await roomModules.refresh(currentRoom.ephemeral ? null : currentRoom.id); // asides have no modules
     tableName = roomDisplayName(currentRoom);
     renderRoomLink();
     applyPermissions();
@@ -1976,7 +2029,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentRoom.members downstream breaks.
     currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
-    roomModules.refresh(currentRoom.id);
+    await roomModules.refresh(currentRoom.id);
     renderRoomLink();
     applyPermissions();
     updateRecallButton();
@@ -2006,7 +2059,8 @@ async function connectAndSetup(token, livekitUrl) {
     setStatus(`in ${tableName}`);
     if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
     roomModules.updateMenu();
-    if (roomModules.openNative('conference')) await callStarting;
+    roomModules.restore(); // the panes this room had open last time, or the conference the first time
+    if (roomModules.nativeOpen('conference')) await callStarting;
     else setStatus(`in ${tableName} (not in the call)`);
 }
 

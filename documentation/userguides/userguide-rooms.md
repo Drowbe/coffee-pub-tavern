@@ -12,6 +12,15 @@ Every room card has a **Join** button, an icon button to the right of it that jo
 pop-out window instead of the page, and (for admins) an **Edit** button. If a room has a launch link,
 its icon button sits there too. A room you are still connected to offers **Rejoin** instead of Join.
 
+## Join with
+
+The button with sliders on a room card, next to Join, chooses which panes the room opens with: the
+conference, the chat, and any module the room has on. A person can join with only the chat, or the chat
+and the Calendar, and still be in the room and online for everyone else. The choice is remembered for
+that room in this browser and is the same list the room updates itself as you open and close panes, so
+the next join opens what you had open last time. A room you have not used before opens with the
+conference. Someone whose role does not allow the conference or the chat does not see them in the list.
+
 ## Add and set up a room
 
 The **Rooms** tab on the Manage page holds the **Lobby**, which everyone belongs to and which cannot

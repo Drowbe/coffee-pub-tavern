@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the room page's pane model, and the author reviewing it before any of it is built.
 
-**Status:** Stages 1 to 3 built, awaiting a real call to verify; stage 4 not started. The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
+**Status:** All four stages built, awaiting a real call to verify. Delete this plan once the real-call checks below pass and the TODO entry is done; the rules are already in [architecture-room-layout](../architecture/architecture-room-layout.md). The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
 
 ## The idea
 
@@ -70,7 +70,13 @@ Stages 2 and 3 (built together, as asked):
 - [ ] Reported after a real test and not reproduced: in a popped-out app, the icons in the chat and calendar titlebars did nothing. The header now moves with the app; needs a retest in a real window, with the console open if it still happens.
 - [ ] Verified in a real call and in real windows (the test browser blocks popups): the conference floating with live tiles, the conference alone in its own window (tiles and audio keep playing after the move, hotkeys, idle, popovers), closing that window, the whole-app pop-out with the new titlebar and toolbar sliding, Full screen from the header while popped out, and the header's Modules button beside a conference in a window.
 
-Stage 4: not started.
+Stage 4 (remembered layouts):
+
+- [x] Each room remembers its open panes, modes and sizes in the browser and restores them on join; a room not used before opens with the conference.
+- [x] Teardown never becomes the layout (the manager is suspended from the start of a disconnect until the next restore); an aside remembers nothing.
+- [x] "Join with" on the room card: a sliders button opens a list of the conference, the chat and the room's modules (limited by the role), saved for that room without joining.
+- [x] Checked in a browser: the card's popover, a chat-only choice restoring chat without the conference, the saved list following opens and closes, and a simulated teardown leaving it alone.
+- [ ] Verified in a real call: joining chat-only and reading the chat, joining with the Calendar only, the layout surviving a reload, a dropped connection, and a real leave.
 
 ## Risks
 

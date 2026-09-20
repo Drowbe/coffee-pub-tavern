@@ -4,6 +4,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Rooms remember their layout. The panes open when you last used a room (the conference, the chat, modules), each pane's mode (docked, floating, in a window) and its sizes are restored when you join it; a room you have not used before opens with the conference. Hanging up is remembered like any other change.
+- "Join with" on each room card (the button with sliders): choose the panes a room opens with before you join, so you can join with only the chat, or the chat and the Calendar. The list leaves out what your role does not allow.
+
+Verified in a browser with forced states: the card's popover, a chat-only join restoring the chat without the conference, the saved list following changes, and a simulated disconnect leaving the saved layout alone. Not verified: a real join, a real reload and a dropped connection.
+
 ### Fixed
 - A floating conference could not be resized: its toolbar reached the panel's corner and covered the drag handle.
 - A pane in a window of its own could only dock again; its titlebar now offers both dock and float.

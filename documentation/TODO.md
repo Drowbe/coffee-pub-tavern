@@ -13,7 +13,7 @@ Built and only checked in a browser with the LiveKit connection unavailable, and
 
 ## Canvas: video as a pane
 
-Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions, progress and the four stages are in plans/plan-canvas.md. Stage 1 is built and needs a real call with two people to verify (close and rejoin the conference, the other person's tile leaving and returning, chat with no conference, hang-up in a pop-out, a role without the conference, an aside with someone out of the conference). Then stage 2, the floating conference.
+Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions, progress and the four stages are in plans/plan-canvas.md. All four stages are built and need real calls and real windows to verify: close and rejoin the conference; the other person's tile leaving and returning; chat with no conference; a role without the conference; an aside with someone out of the conference; the conference floating and in its own window (tiles and audio after the move, hotkeys, popovers); the whole app popped out (the header and pane icons, idle sliding, full screen, header links); a module window's dock and float buttons; and Join with and the remembered layout across a reload, a dropped connection and a real leave. Then delete the plan.
 
 ## Ideas and open questions
 

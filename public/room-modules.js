@@ -15,18 +15,46 @@
 import { api, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
+// What each room remembers (`tavern.panels.<room>`): the panes open when the person last used it,
+// and each pane's mode and sizes. `tavern.panels` alone is what earlier versions kept for all
+// rooms, and is the starting point for a room with nothing saved yet.
 const STORE_KEY = 'tavern.panels';
+const storeKey = (roomId) => `${STORE_KEY}.${roomId}`;
 const MIN_W = 240;
 const MIN_H = 160;
 const HEAD_H = 42; // the shared module header height (--module-header-h in style.css)
 const DOCK_MIN = 240;
 const VIDEO_MIN = 280; // the flexible column always keeps at least this much of the stage
 
-function loadSaved() {
+function readStore(key) {
   try {
-    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {};
+    return JSON.parse(localStorage.getItem(key) || 'null');
   } catch {
-    return {};
+    return null;
+  }
+}
+
+function loadSaved(roomId) {
+  const own = roomId ? readStore(storeKey(roomId)) : null;
+  if (own) return own;
+  const { __open, ...rest } = readStore(STORE_KEY) || {};
+  return rest;
+}
+
+// The panes a room opens with (ids, in order), or null when nothing is remembered yet. The room
+// list's "Join with" choice reads and writes this.
+export function joinPanes(roomId) {
+  const open = loadSaved(roomId).__open;
+  return Array.isArray(open) ? open : null;
+}
+
+export function setJoinPanes(roomId, ids) {
+  const saved = loadSaved(roomId);
+  saved.__open = ids;
+  try {
+    localStorage.setItem(storeKey(roomId), JSON.stringify(saved));
+  } catch {
+    // private mode: nothing is remembered
   }
 }
 
@@ -44,7 +72,10 @@ export function createRoomModules({ guestToken = null } = {}) {
   const toggle = document.getElementById('modules-toggle');
   const menu = document.getElementById('modules-menu');
   const stage = document.getElementById('stage');
-  const saved = loadSaved();
+  let saved = loadSaved(null);
+  // Nothing is remembered until a join has restored the room's panes, and not while the room is
+  // being torn down: closing every pane on the way out must not become the layout.
+  let suspended = true;
   const panes = new Map(); // id -> pane; a pane is open while it is in here
   const natives = new Map(); // id -> the built-in pane's definition (the conference and the chat)
   const stageEmpty = document.getElementById('stage-empty');
@@ -81,11 +112,19 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   function persist() {
+    if (!roomId) return; // an aside remembers nothing
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(saved));
+      localStorage.setItem(storeKey(roomId), JSON.stringify(saved));
     } catch {
       // private mode: panes still work, they just do not remember where they were
     }
+  }
+
+  // The panes open now, in column order.
+  function snapshot() {
+    if (suspended || !roomId) return;
+    saved.__open = [...panes.values()].sort((a, b) => a.order - b.order).map((p) => p.id);
+    persist();
   }
 
   function remember(id, patch) {
@@ -534,6 +573,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   // window, the same way it was. A floating chat is carried over; a docked one is
   // inside the stage and goes with it.
   function stagePopped() {
+    suspended = true; // closing and reopening the modules is not a change of layout
     const doc = stageDoc();
     const again = [...panes.values()].filter((p) => p.kind === 'module').map((p) => ({ m: p.m, mode: p.mode }));
     for (const { m } of again) closePane(m.id);
@@ -545,7 +585,25 @@ export function createRoomModules({ guestToken = null } = {}) {
     }
     bindDoc(doc);
     for (const { m, mode } of again) openModule(m, isNarrow() ? 'float' : mode);
+    suspended = false;
     syncDock();
+    snapshot();
+  }
+
+  // Open the room's remembered panes: what was open when it was last used, or just the
+  // conference for a room not used before.
+  function restore() {
+    suspended = true;
+    const want = Array.isArray(saved.__open) ? saved.__open : ['conference'];
+    for (const id of want) {
+      if (natives.has(id)) api_openNative(id);
+      else {
+        const m = available.find((x) => x.id === id);
+        if (m) openModule(m);
+      }
+    }
+    suspended = false;
+    snapshot();
   }
 
   // --- the toolbar button and its menu --------------------------------------
@@ -559,6 +617,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       badge.hidden = total === 0;
       badge.textContent = total > 9 ? '9+' : String(total);
     }
+    snapshot();
     toggle?.classList.toggle('on', [...panes.keys()].some((id) => id !== 'conference'));
     if (stageEmpty) stageEmpty.hidden = panes.size > 0;
     if (!menu) return;
@@ -664,8 +723,10 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   // The modules on for this room and this viewer, or none (null = not in a room).
   async function refresh(id) {
+    suspended = true;
     closeAllModules();
     roomId = id;
+    saved = loadSaved(id);
     available = [];
     if (id) {
       try {
@@ -689,6 +750,8 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   return {
     refresh,
+    restore,
+    suspend: () => { suspended = true; },
     setNativeUnread(id, n) {
       nativeUnread[id] = n;
       update();
