@@ -93,14 +93,21 @@ function livekitApiUrl() {
 
 const roomService = new RoomServiceClient(livekitApiUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
-async function mintToken({ identity, name, room, publisher }) {
+// `media` is whether they may send and receive the conference's audio and video
+// (the "See and join the conference" permission); without it they still connect,
+// for chat and the modules, and are online, but carry no media. `inCall` is
+// whether they start in the conference: everyone else sees a person who is not
+// in it as present in the room, with no tile.
+async function mintToken({ identity, name, room, publisher, media = publisher, inCall = media }) {
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: publisher ? '24h' : '12h' });
+  if (publisher) token.attributes = { call: media && inCall ? 'on' : 'off' };
   token.addGrant({
     room,
     roomJoin: true,
-    canPublish: publisher,
-    canSubscribe: true,
+    canPublish: media,
+    canSubscribe: publisher ? media : true,
     canPublishData: publisher,
+    canUpdateOwnMetadata: publisher, // to say whether they are in the conference (the "call" attribute)
     hidden: !publisher, // OBS viewers do not show up at the table
   });
   return token.toJwt();
@@ -138,6 +145,7 @@ async function participants() {
           name: p.name,
           room: roomId,
           joinedAt: Number(p.joinedAt || 0),
+          inCall: p.attributes?.call !== 'off',
           micOn: !!mic && !mic.muted,
           cameraOn: !!cam && !cam.muted,
         });
@@ -659,8 +667,9 @@ app.post('/api/token', async (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
   if (!tavernRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
-  const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId });
+  const media = Boolean(store.roomPermissions(user.key, roomId).conference);
+  const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId, conference: media });
 });
 
 // Guests: no account, just a name and a room's guest link (see the
@@ -677,8 +686,9 @@ app.post('/api/guest-join', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'a name is required' });
   const identity = `guest-${randomToken(8)}`;
   const room = livekitRoomName(tavernRoom.id);
-  const token = await mintToken({ identity, name, room, publisher: true });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token, permissions: store.roleSet('guest') });
+  const permissions = store.roleSet('guest');
+  const token = await mintToken({ identity, name, room, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token, permissions });
 });
 
 // A user may replace or clear their own profile photo. This is separate from
@@ -752,7 +762,7 @@ app.get('/api/table', async (req, res) => {
   store.pruneAsideRooms(byKey);
   res.json({
     ...branding(),
-    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null })),
+    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
     rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
@@ -786,9 +796,11 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
     if (!initiatorRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
     const perms = store.roomPermissions(initiator.key, roomIdOfLivekit(initiatorRoom));
     if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
+    const here = new Map((await participants()).map((p) => [p.key, p]));
     for (const target of targets) {
-      const targetRoom = await roomOf(target.key);
-      if (targetRoom !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
+      const there = here.get(target.key);
+      if (!there || livekitRoomName(there.room) !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
+      if (!there.inCall) return res.status(409).json({ error: `${target.displayName} is not in the conference right now` });
     }
     const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], roomIdOfLivekit(initiatorRoom), priv);
     // byAdmin tells the target's client whether to just go (an admin's

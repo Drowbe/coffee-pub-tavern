@@ -4,6 +4,13 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- The conference is a pane like the chat and the modules, and it can be closed. The hang-up button now leaves the call and keeps you in the room, with the chat and the modules still open; your tile goes for everyone else, and your microphone, camera and incoming audio and video stop. The Modules menu offers "Rejoin call", and while the conference is closed the Modules button is shown in the header. Leave room, in the header, is what leaves the room. The conference is the flexible column when it is docked, otherwise the first docked pane takes the leftover width, and an empty stage says nothing is open. On a narrow window the conference stays as a strip above the chat instead of being replaced by it.
+- Two permissions in a new Panes group on the Roles tab: "See and join the conference" and "Open and read the chat". Everyone has both by default. The first is enforced in the LiveKit token: a role without it joins for the chat and modules only.
+- `/api/table` reports `inCall` for each person. Anyone in the room is online whether or not they are in the conference; the aside tools refuse someone who is not in it.
+
+Verified in a browser with forced states (no LiveKit server here): the columns with and without the conference, the chat as the flexible column, the empty hint, the menu under the header button and above the toolbar button, the narrow strip layout, the Roles grid, and the tokens for an admin, a join with the call off and a role without the conference. Not verified: a real call, two people, closing and rejoining the conference, and hang-up in a pop-out window.
+
 ### Changed
 - The Modules tab of Manage lists Chat and Conference first, as built-in modules that are always on and cannot be removed. Every other module is listed beneath them.
 - The toolbar has one button for panes: the Modules button (the puzzle piece), always shown, whose menu lists Chat and the room's modules. The separate chat button is gone; C still toggles the chat, and the chat's unread count shows on the Modules button. The menu now opens just above the button (or above More when the button has been tucked into it) instead of at the toolbar's right end. Verified in a browser: the menu centered on the button, Chat and Calendar listed, Chat opening and closing from it, and the unread badge. Not verified in a real call.

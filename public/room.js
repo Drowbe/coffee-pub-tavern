@@ -26,6 +26,11 @@ let tableName = 'The Table';
 const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
 let tableRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
+// Being in the room and being in the conference are separate: the page stays connected
+// for the chat and the modules, and only sends and receives audio and video while the
+// conference pane is open. Others see the difference through the "call" attribute.
+let inCall = false;
+let callStarting = Promise.resolve(); // settles once the conference has finished starting
 const LOBBY = 'lobby';
 let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
 let adminOnline = false; // whether that's actually backed by a real online admin right now
@@ -237,7 +242,7 @@ function removeGhost(key) {
 }
 
 function reconcileGhostTiles() {
-  if (!currentRoom || !document.body.classList.contains('at-table')) return;
+  if (!currentRoom || !inCall || !document.body.classList.contains('at-table')) return;
   let changed = false;
   for (const key of currentRoom.members) {
     if (key === me?.key) continue;
@@ -555,6 +560,10 @@ function adminToolsFor(participant) {
   }
   return tools;
 }
+
+// A tile exists only while I am in the conference and the person is too.
+const shownInCall = (participant) => inCall && (participant.isLocal || participant.attributes?.call !== 'off');
+const subscribeAll = (participant) => { for (const pub of participant.trackPublications.values()) pub.setSubscribed(true); };
 
 function tileFor(participant) {
   let tile = tiles.get(participant.identity);
@@ -959,6 +968,7 @@ function onDragEnd() {
 }
 
 function attachTrack(participant, track) {
+  if (!shownInCall(participant)) return;
   if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
     const screenTile = screenTileFor(participant);
     screenTile.querySelector('video')?.remove();
@@ -1016,6 +1026,7 @@ function removeParticipant(participant) {
 }
 
 function updateMuted(participant) {
+  if (!shownInCall(participant)) return;
   const tile = tileFor(participant);
   const mic = participant.getTrackPublication(Track.Source.Microphone);
   let badge = tile.querySelector('.muted');
@@ -1036,6 +1047,7 @@ function updateMuted(participant) {
 
 // A camera turned off keeps its publication but mutes it: show the image again.
 function updateCamera(participant) {
+  if (!shownInCall(participant)) return;
   const tile = tileFor(participant);
   const cam = participant.getTrackPublication(Track.Source.Camera);
   const off = !cam || cam.isMuted;
@@ -1381,6 +1393,28 @@ function openSettings(group) {
   toggleTray(false);
 }
 
+// The conference is a pane too: it docks (for now) and can be closed, which leaves the
+// call but not the room. It is the flexible column, and the first one. Opening it starts
+// the call (from a join or "Rejoin call"), closing it stops it.
+roomModules.registerNative({
+  id: 'conference',
+  name: 'Conference',
+  closedLabel: 'Rejoin call',
+  icon: 'video',
+  el: $('conference'),
+  order: -1,
+  flex: true,
+  modes: ['dock'],
+  allowed: () => canDo('conference'),
+  onChange: ({ open }) => {
+    $('stage').classList.toggle('conference-open', open);
+    if (open) callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
+    else stopCall();
+    updateCrumb();
+    applyLayout();
+  },
+});
+
 // The chat is a pane like a module's: a column beside the video, a floating panel,
 // or a window of its own (see room-modules.js). This is what the pane manager
 // tells the chat when it opens or closes.
@@ -1389,6 +1423,7 @@ roomModules.registerNative({
   name: 'Chat',
   icon: 'message',
   el: $('chat'),
+  allowed: () => canDo('chatRead'),
   width: prefs.chatWidth,
   onWidth: (w) => { prefs.chatWidth = w; savePrefs(); },
   onChange: ({ open, mode }) => {
@@ -1593,7 +1628,19 @@ room
   .on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => detachTrack(participant, track))
   .on(RoomEvent.LocalTrackPublished, (pub) => pub.track && attachTrack(room.localParticipant, pub.track))
   .on(RoomEvent.LocalTrackUnpublished, (pub) => pub.track && detachTrack(room.localParticipant, pub.track))
-  .on(RoomEvent.ParticipantConnected, (p) => tileFor(p))
+  .on(RoomEvent.ParticipantConnected, (p) => { if (shownInCall(p)) tileFor(p); })
+  // Nothing is received until I am in the conference; then everything published is taken.
+  .on(RoomEvent.TrackPublished, (pub, p) => { if (shownInCall(p)) pub.setSubscribed(true); })
+  // Someone left or rejoined the conference without leaving the room.
+  .on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
+    if (p.isLocal || !inCall || !('call' in changed)) return;
+    if (p.attributes?.call === 'off') return removeParticipant(p);
+    tileFor(p);
+    subscribeAll(p);
+    updateMuted(p);
+    updateCamera(p);
+    applyLayout();
+  })
   .on(RoomEvent.ParticipantDisconnected, removeParticipant)
   .on(RoomEvent.TrackMuted, (_pub, participant) => {
     updateMuted(participant);
@@ -1613,6 +1660,7 @@ room
     }
   })
   .on(RoomEvent.ChatMessage, (message, participant) => {
+    if (!canDo('chatRead')) return;
     addMessage(message.message, participant?.name || participant?.identity || 'someone', participant?.isLocal);
   })
   .on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
@@ -1663,8 +1711,10 @@ room
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`in ${tableName}`))
   .on(RoomEvent.Disconnected, () => {
+    inCall = false; // the whole room is gone, so there is nothing to stop; the rest of this clears it
     closeMic();
     closePopout();
+    roomModules.closeNative('conference');
     setStatus('left the call');
     currentRoom = null;
     roomModules.refresh(null);
@@ -1825,10 +1875,14 @@ async function leaveRoom() {
 // (settings, sign out) rather than a labeled pill -- title carries the
 // name for a screen reader or a hover, same as those.
 const LEAVE_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="leave" title="Leave" aria-label="Leave"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></button>';
+// With the conference closed there is no toolbar, so its Modules button moves up here.
+const MODULES_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="modules" title="Chat and modules" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></button>';
 const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
 // The label text hides at narrow widths (see .crumb-label in style.css),
 // leaving just the icon -- which is why every crumb-here needs one.
 const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
+
+const modulesBtn = () => (roomModules.nativeOpen('conference') ? '' : MODULES_BTN);
 
 function updateCrumb() {
   if (!currentRoom) {
@@ -1840,12 +1894,12 @@ function updateCrumb() {
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setTopbarLocation(
-      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN +
+      crumbHere(roomCrumbIcon(originRoom), originName) + LEAVE_BTN + modulesBtn() +
       `<span class="crumb-sep">&rsaquo;</span>` +
       crumbHere('people-arrows', kind) + REJOIN_BTN
     );
   } else {
-    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN);
+    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName) + LEAVE_BTN + modulesBtn());
   }
 }
 
@@ -1902,10 +1956,12 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
 }
 
 // Shared by join() and joinAsGuest() once a LiveKit token is in hand:
-// connect, reveal the stage, publish mic/camera. Errors propagate to
-// whichever of those called it, to land on the right error message.
+// connect, reveal the stage, and open the conference (unless the role has no
+// conference). Errors propagate to whichever of those called it, to land on the
+// right error message. Nothing is received until the conference starts, so
+// autoSubscribe is off.
 async function connectAndSetup(token, livekitUrl) {
-    await room.connect(livekitUrl, token);
+    await room.connect(livekitUrl, token, { autoSubscribe: false });
     console.debug('[tavern] connected to', currentRoom.id);
     $('join').hidden = true;
     $('guest-join').hidden = true;
@@ -1914,41 +1970,98 @@ async function connectAndSetup(token, livekitUrl) {
     document.body.classList.add('at-table');
     wake();
     setStatus(`in ${tableName}`);
-
-    tileFor(room.localParticipant);
-    applyMirror();
-    for (const p of room.remoteParticipants.values()) {
-      tileFor(p);
-      updateMuted(p);
-    }
-    reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
     if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
-    // Only the microphone publishes on join. The camera stays off until
-    // deliberately turned on -- a safety default, so nobody's video goes out
-    // before they mean it to, and camera permission is only ever asked for
-    // once someone actually reaches for it. toggleCam()'s setCameraEnabled
-    // call already handles publishing a fresh track the first time, same as
-    // it does for anyone who declined the camera here and turns it on later.
-    let haveMic = false;
-    try {
-      const track = await openMic();
-      await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
-      haveMic = true;
-      console.debug('[tavern] published audio');
-      if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
-    } catch (err) {
-      console.warn('[tavern] no microphone:', err.message);
+    roomModules.updateMenu();
+    if (roomModules.openNative('conference')) await callStarting;
+    else setStatus(`in ${tableName} (not in the call)`);
+}
+
+// Start the conference: tiles for everyone in it, their media, and my own microphone.
+// Runs when the conference pane opens (a join, or "Rejoin call").
+async function startCall() {
+  if (inCall || room.state !== 'connected') return;
+  inCall = true;
+  if (room.localParticipant.attributes?.call !== 'on') {
+    await room.localParticipant.setAttributes({ call: 'on' }).catch(() => {});
+  }
+  tileFor(room.localParticipant);
+  applyMirror();
+  for (const p of room.remoteParticipants.values()) {
+    if (!shownInCall(p)) continue;
+    tileFor(p);
+    subscribeAll(p);
+    updateMuted(p);
+    updateCamera(p);
+  }
+  reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
+  // Only the microphone publishes on join. The camera stays off until
+  // deliberately turned on -- a safety default, so nobody's video goes out
+  // before they mean it to, and camera permission is only ever asked for
+  // once someone actually reaches for it. toggleCam()'s setCameraEnabled
+  // call already handles publishing a fresh track the first time, same as
+  // it does for anyone who declined the camera here and turns it on later.
+  let haveMic = false;
+  try {
+    const track = await openMic();
+    await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
+    haveMic = true;
+    console.debug('[tavern] published audio');
+    if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
+  } catch (err) {
+    console.warn('[tavern] no microphone:', err.message);
+  }
+  updateMuted(room.localParticipant);
+  updateCamera(room.localParticipant);
+  await fillDevices();
+  reflectMic();
+  $('cam').classList.remove('on');
+  $('cam').classList.add('off');
+  setStatus(haveMic ? `in ${tableName}` : `in ${tableName} (no microphone)`);
+  applyLayout();
+}
+
+// Leave the conference and stay in the room: stop sending and receiving media, drop the
+// tiles, and tell everyone I am not in it (the "call" attribute), so they drop mine.
+async function stopCall() {
+  if (!inCall) return;
+  inCall = false;
+  if (room.state === 'connected') {
+    await room.localParticipant.setAttributes({ call: 'off' }).catch(() => {});
+    for (const pub of [...room.localParticipant.trackPublications.values()]) {
+      if (pub.track) await room.localParticipant.unpublishTrack(pub.track, true).catch(() => {});
     }
-    updateMuted(room.localParticipant);
-    updateCamera(room.localParticipant);
-    await fillDevices();
-    reflectMic();
-    $('cam').classList.remove('on');
-    $('cam').classList.add('off');
-    if (!haveMic) setStatus(`in ${tableName} (no microphone)`);
+    for (const p of room.remoteParticipants.values()) for (const pub of p.trackPublications.values()) pub.setSubscribed(false);
+  }
+  closeMic();
+  // Away is a conference state: going out of the call ends it without a word to anyone.
+  $('away-overlay').hidden = true;
+  isAway = false;
+  $('away-toggle').classList.remove('off');
+  $('away-toggle').title = 'Away: pauses your mic and camera and lets everyone know';
+  for (const [, tile] of tiles) tile.remove();
+  tiles.clear();
+  for (const [, tile] of ghostTiles) tile.remove();
+  ghostTiles.clear();
+  stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
+  asideSelection.clear();
+  updateAsideConfirm();
+  $('cam').classList.remove('on');
+  $('cam').classList.add('off');
+  $('screen-share').classList.remove('on');
+  toggleTray(false);
+  closeSettings();
+  setStatus(`in ${tableName} (not in the call)`);
+}
+
+// The hang-up button. In a pop-out window the stage comes back to the page first, since the
+// Modules button that brings the conference back is in the page's header.
+function hangUp() {
+  if (pipWindow) closePopout();
+  roomModules.closeNative('conference');
 }
 
 async function toggleMic() {
+  if (!inCall) return;
   const enabled = !room.localParticipant.isMicrophoneEnabled;
   try {
     await room.localParticipant.setMicrophoneEnabled(enabled);
@@ -1960,6 +2073,7 @@ async function toggleMic() {
 
 let camToggling = false;
 async function toggleCam() {
+  if (!inCall) return;
   // getUserMedia (plus the retry above) can take a moment -- without this
   // guard a quick double-tap fires a second toggle before the first one has
   // actually turned the camera on, landing on whichever finishes last.
@@ -2000,6 +2114,7 @@ async function setCameraEnabledWithRetry(enabled) {
 // Desktop sharing: LiveKit's own screen-share track (getDisplayMedia under
 // the hood), published and rendered as its own tile -- see screenTileFor.
 async function toggleScreenShare() {
+  if (!inCall) return;
   try {
     await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true });
   } catch (err) {
@@ -2169,7 +2284,7 @@ async function restartCamera() {
     setStatus(`camera: ${err.message}`, true);
   }
 }
-$('leave').addEventListener('click', () => leaveRoom());
+$('hangup').addEventListener('click', hangUp);
 // The crumb's own action buttons (Leave, Rejoin Call) get regenerated with
 // every updateCrumb() call, so one delegated listener on the stable
 // container instead of rewiring a fresh element's click every time.
@@ -2177,6 +2292,7 @@ $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
   if (action === 'leave') leaveRoom();
   else if (action === 'rejoin') returnToTable();
+  else if (action === 'modules') roomModules.toggleMenu();
 });
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));

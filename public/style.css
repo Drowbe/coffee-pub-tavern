@@ -1417,8 +1417,9 @@ a.crumb-here:hover {
   flex: 1;
   min-height: 0;
   display: grid;
-  /* the video, then a column for each docked pane (the chat, then modules) */
-  grid-template-columns: minmax(0, 1fr) var(--dock-cols, );
+  /* a column for each docked pane (conference, chat, then modules); the room-modules
+     manager sets the whole template, one column flexible and the rest fixed */
+  grid-template-columns: var(--stage-cols, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg);
   overflow: hidden;
@@ -3251,12 +3252,22 @@ input[type="color"] {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
-.stage.narrow.chat-open .module-video .mod-content {
-  display: none;
+/* In the call too, the conference stays visible as a strip above the chat, so
+   whoever can see you is never hidden from you. */
+.stage.narrow.chat-open.conference-open {
+  grid-template-rows: minmax(96px, 0.45fr) minmax(0, 1fr) auto auto;
 }
 
-.stage.narrow.chat-open .module-video .video-bar {
+.stage.narrow.chat-open.conference-open .module-chat .mod-content {
+  grid-row: 2;
+}
+
+.stage.narrow.chat-open.conference-open .module-chat .chat-bar {
   grid-row: 3;
+}
+
+.stage.narrow.chat-open.conference-open .module-video .video-bar {
+  grid-row: 4;
 }
 
 .stage.narrow.chat-open .module-chat > * {
@@ -3331,10 +3342,30 @@ body.module-page {
   margin: 40px auto;
 }
 
+/* Nothing docked, floating or in a window of its own. */
+.stage-empty {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* The flexible column takes what is left, so it has no edge to drag. */
+.is-flex .chat-resize,
+.is-flex .dock-resize {
+  display: none;
+}
+
 /* Room modules: the toolbar menu and the floating panels. */
 .modules-menu {
-  left: auto;
-  right: 12px;
+  z-index: 30;
+  left: 0;
+  right: auto;
+  bottom: auto;
   transform: none;
   width: max-content;
   min-width: 180px;

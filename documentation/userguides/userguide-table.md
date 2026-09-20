@@ -11,8 +11,23 @@ middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 
 Left to right, the bar holds: microphone (with a live level meter inside the button), deafen, camera,
 share screen, layout, away, chat and modules, reactions, settings, the room's launch link if it has one, and
-leave. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
-layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat replaces the video with the chat while the toolbar stays under it, and the chat button brings the video back.
+hang up. Keys: **M** microphone, **D** deafen, **V** camera, **C** chat, **R** reactions, **L**
+layout, **1** to **6** send a reaction. As the window narrows, buttons tuck under a **More** button (the three-dot button): the extras first, then chat, then camera, then the microphone. At its smallest the bar is just **More** and leave. On a narrow window, such as a phone, opening chat puts the conference in a strip above the chat, with the toolbar under both.
+
+## Leaving the call, staying in the room
+
+The red hang-up button leaves the call, not the room. The conference closes, your microphone and camera
+stop, you stop receiving anyone's audio and video, and your tile disappears for everyone else, but you
+stay in the room and stay online, with the chat and the modules still open. The room's own **Leave
+room** button, in the header, is what leaves the room.
+
+With the conference closed the Modules button moves up to the header, next to Leave room. Its menu offers
+**Rejoin call** to bring the conference back, along with the chat and the modules. If nothing at all is
+open, the stage says so and points at that button. In a pop-out window, hang up brings the table back to
+the page first.
+
+A role without **See and join the conference** joins with the conference closed and cannot reopen it: the
+person has the chat and the modules only.
 
 A player with no camera or microphone still joins; whatever is missing is named in the status line
 and your Online picture stands in for the camera.

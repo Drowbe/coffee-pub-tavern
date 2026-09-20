@@ -72,6 +72,8 @@ const ROOM_PERMISSIONS = ['moderator'];
 // are enforced by the page itself, since chat, reactions and screen share
 // travel peer to peer through LiveKit with no server hop to check.
 const ROLE_PERMISSIONS = [
+  { key: 'conference', label: 'See and join the conference', group: 'Panes' },
+  { key: 'chatRead', label: 'Open and read the chat', group: 'Panes' },
   { key: 'chat', label: 'Send chat messages', group: 'In the Room' },
   { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the Room' },
   { key: 'react', label: 'Use reactions', group: 'In the Room' },
@@ -103,8 +105,8 @@ const imageDefaults = (own) => Object.fromEntries(IMAGE_KEYS.map((k) => [k, own 
 const EDITABLE_ROLES = ['moderator', 'user', 'guest'];
 const ROLE_DEFAULTS = {
   moderator: { ...Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])), ...imageDefaults(true) },
-  user: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(true) },
-  guest: { chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(false) },
+  user: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(true) },
+  guest: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(false) },
 };
 function cleanRoomPermissions(p) {
   return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));

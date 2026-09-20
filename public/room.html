@@ -69,7 +69,7 @@
     <!-- Each module owns a column of the room's grid: a content area over
          an action bar, the bars sharing one bottom row so they line up. Video
          and chat are the first two; see documentation/architecture/architecture-room-layout.md. -->
-    <section class="module module-video">
+    <section class="module module-video" id="conference">
       <div class="mod-content" id="video-content">
       <div class="grid" id="grid"></div>
   
@@ -112,10 +112,9 @@
         <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more" data-collapse="2"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="room-link" type="button" title="Open this room's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="floatbar-more" type="button" title="More" aria-label="More" hidden><span class="glyph"><i class="fa-solid fa-ellipsis fa-fw" aria-hidden="true"></i></span></button>
-        <button class="fbtn danger" id="leave" type="button" title="Leave the room"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn danger" id="hangup" type="button" title="Leave the call (you stay in the room)"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
       </div>
       <div class="popover floatbar-overflow" id="floatbar-overflow" hidden></div>
-        <div class="popover modules-menu" id="modules-menu" hidden></div>
 
       <!-- Filled in from the server's reaction list (Manage > Settings); the
            admin can add, remove or reorder what shows up here. -->
@@ -289,6 +288,15 @@
       </form>
       </div>
     </aside>
+
+    <!-- Shown when nothing is open on the stage: no conference, no chat, no module. -->
+    <div class="stage-empty" id="stage-empty" hidden>
+      <p>Nothing is open. Use the Modules button to open the chat or a module, or to rejoin the call.</p>
+    </div>
+
+    <!-- The Modules menu belongs to the stage, not to the conference's toolbar, so it
+         still works after the conference is closed. -->
+    <div class="popover modules-menu" id="modules-menu" hidden></div>
   </main>
 
   <!-- @livekit/track-processors (background blur) imports these two by bare

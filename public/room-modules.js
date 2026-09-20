@@ -1,9 +1,9 @@
-// The panes beside the call: the Modules button on the toolbar and its menu, and
-// every pane a room has open. A pane is either a module (a sandboxed frame driven
-// by module-host.js) or a native pane, which today is the chat. Both work the same
-// way and can be shown three ways:
+// The panes of a room: the Modules button and its menu, and every pane the room has
+// open. A pane is either a module (a sandboxed frame driven by module-host.js) or a
+// native pane, which are the conference and the chat. Both work the same way and can
+// be shown three ways (the conference only docks, for now):
 //
-//   docked   as a column of the room's grid, after the video: video, chat, module...
+//   docked   as a column of the room's grid: conference, chat, module...
 //   floating as a draggable, resizable panel over the call
 //   window   as a window of its own
 //
@@ -20,7 +20,7 @@ const MIN_W = 240;
 const MIN_H = 160;
 const HEAD_H = 42; // the shared module header height (--module-header-h in style.css)
 const DOCK_MIN = 240;
-const VIDEO_MIN = 280; // the video always keeps at least this much of the stage
+const VIDEO_MIN = 280; // the flexible column always keeps at least this much of the stage
 
 function loadSaved() {
   try {
@@ -46,7 +46,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   const stage = document.getElementById('stage');
   const saved = loadSaved();
   const panes = new Map(); // id -> pane; a pane is open while it is in here
-  const natives = new Map(); // id -> the built-in pane's definition (the chat)
+  const natives = new Map(); // id -> the built-in pane's definition (the conference and the chat)
+  const stageEmpty = document.getElementById('stage-empty');
   let roomId = null;
   let available = [];
   let z = 40;
@@ -158,22 +159,29 @@ export function createRoomModules({ guestToken = null } = {}) {
   const maxDock = () => Math.max(DOCK_MIN, Math.round(stage.clientWidth * 0.6));
   const clampDock = (w) => Math.min(Math.max(Math.round(w), DOCK_MIN), maxDock());
 
-  // Docked panes are the columns after the video: 2, 3, ... On a narrow stage CSS
-  // takes over (the chat replaces the video; modules float instead).
+  // Docked panes are the columns, in order: the conference, the chat, then modules. One
+  // column is flexible and takes what is left: the conference when it is docked, else the
+  // first docked pane, so the stage is never left with an empty column. The others keep
+  // their widths. On a narrow stage CSS takes over (see architecture-room-layout).
   function syncDock() {
     const docked = dockedPanes();
+    for (const p of panes.values()) p.el.classList?.remove('is-flex');
     for (const p of docked) for (const el of p.parts()) el.style.gridColumn = '';
-    if (isNarrow()) {
-      stage.style.removeProperty('--dock-cols');
+    if (stageEmpty) stageEmpty.hidden = panes.size > 0;
+    if (isNarrow() || !docked.length) {
+      stage.style.removeProperty('--stage-cols');
       return;
     }
-    // The columns together may not crowd the video out: past that, they all shrink in step
-    // (each pane keeps the width it was given for when there is room again).
-    const total = docked.reduce((sum, p) => sum + p.width, 0);
+    const flex = docked.find((p) => p.def?.flex) || docked[0];
+    flex.el.classList.add('is-flex');
+    // The fixed columns together may not crowd the flexible one out: past that, they all shrink
+    // in step (each pane keeps the width it was given for when there is room again).
+    const fixed = docked.filter((p) => p !== flex);
+    const total = fixed.reduce((sum, p) => sum + p.width, 0);
     const room = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
     const ratio = total > room ? room / total : 1;
-    stage.style.setProperty('--dock-cols', docked.map((p) => `${Math.max(160, Math.floor(p.width * ratio))}px`).join(' '));
-    docked.forEach((p, i) => { for (const el of p.parts()) el.style.gridColumn = String(2 + i); });
+    stage.style.setProperty('--stage-cols', docked.map((p) => (p === flex ? 'minmax(0, 1fr)' : `${Math.max(160, Math.floor(p.width * ratio))}px`)).join(' '));
+    docked.forEach((p, i) => { for (const el of p.parts()) el.style.gridColumn = String(1 + i); });
   }
 
   // `current` returns the pane the handle belongs to right now (a native pane is a new object each time it opens).
@@ -298,11 +306,13 @@ export function createRoomModules({ guestToken = null } = {}) {
   const wired = new WeakSet();
 
   function openNativeIn(def, mode) {
+    if (def.allowed && !def.allowed()) return false;
+    if (mode !== 'dock' && def.modes && !def.modes.includes(mode)) mode = 'dock';
     if (mode === 'window') return openNativeWindow(def);
     const doc = stageDoc();
     const el = def.el;
     const pane = {
-      id: def.id, kind: 'native', mode, def, el, modes: ['dock', 'float'], order: def.order,
+      id: def.id, kind: 'native', mode, def, el, modes: def.modes || ['dock', 'float'], order: def.order,
       width: clampDock(saved[def.id]?.dockW || def.width || 320),
       onWidth: def.onWidth,
       parts: () => [...el.children],
@@ -404,6 +414,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (pane.floatEl) pane.floatEl.remove();
     stage.appendChild(def.el); // home again, before a window goes and takes it along
     def.el.hidden = true;
+    def.el.classList.remove('is-flex');
     for (const el of def.el.children) el.style.gridColumn = '';
     if (pane.mode === 'window') pane.win.close();
     syncDock();
@@ -521,17 +532,20 @@ export function createRoomModules({ guestToken = null } = {}) {
       badge.hidden = total === 0;
       badge.textContent = total > 9 ? '9+' : String(total);
     }
-    toggle?.classList.toggle('on', panes.size > 0);
+    toggle?.classList.toggle('on', [...panes.keys()].some((id) => id !== 'conference'));
+    if (stageEmpty) stageEmpty.hidden = panes.size > 0;
     if (!menu) return;
     menu.innerHTML = '';
-    for (const def of natives.values()) {
+    for (const def of [...natives.values()].sort((a, b) => a.order - b.order)) {
+      if (def.allowed && !def.allowed()) continue;
+      const open = panes.has(def.id);
       const b = menu.ownerDocument.createElement('button');
       b.type = 'button';
       b.className = 'modules-menu-item';
       b.dataset.native = def.id;
-      b.classList.toggle('on', panes.has(def.id));
+      b.classList.toggle('on', open);
       const n = nativeUnread[def.id] || 0;
-      b.innerHTML = `<i class="fa-solid fa-${escapeHtml(def.icon)} fa-fw" aria-hidden="true"></i><span>${escapeHtml(def.name)}</span>${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}`;
+      b.innerHTML = `<i class="fa-solid fa-${escapeHtml(def.icon)} fa-fw" aria-hidden="true"></i><span>${escapeHtml(!open && def.closedLabel ? def.closedLabel : def.name)}</span>${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}`;
       menu.appendChild(b);
     }
     for (const m of available) {
@@ -553,7 +567,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (bound.has(doc)) return;
     bound.add(doc);
     doc.addEventListener('click', (event) => {
-      if (menu && !menu.hidden && !event.target.closest('#modules-menu') && !event.target.closest('#modules-toggle')) menu.hidden = true;
+      if (menu && !menu.hidden && !event.target.closest('#modules-menu, #modules-toggle, [data-crumb-action="modules"]')) menu.hidden = true;
     });
     (doc.defaultView || window).addEventListener('resize', () => {
       for (const p of panes.values()) {
@@ -561,6 +575,7 @@ export function createRoomModules({ guestToken = null } = {}) {
         if (panel && panel.ownerDocument === doc) place(panel, currentBox(panel));
       }
       syncDock();
+      if (menu && !menu.hidden) positionMenu();
     });
   }
   bindDoc(document);
@@ -569,27 +584,41 @@ export function createRoomModules({ guestToken = null } = {}) {
     unread = event.detail || {};
     update();
   });
-  // The menu opens just above the button that opened it (or above More, when the button has
-  // been tucked away into that menu), kept inside the toolbar.
+  // The menu belongs to the stage, so it works with the conference closed. It opens just
+  // above the toolbar's Modules button (or above More, when the button has been tucked into
+  // that menu); with the conference closed there is no toolbar, and it opens under the
+  // Modules button in the page header instead.
   function positionMenu() {
-    const bar = menu.offsetParent;
-    if (!bar) return;
-    let anchor = toggle;
-    if (!anchor || anchor.getBoundingClientRect().width === 0) anchor = stage.querySelector('#floatbar-more') || toggle;
+    const visible = (el) => el && el.getBoundingClientRect().width > 0;
+    let anchor = [toggle, stage.querySelector('#floatbar-more'), document.querySelector('[data-crumb-action="modules"]')].find(visible);
+    if (!anchor) anchor = toggle;
+    if (!anchor) return;
     const a = anchor.getBoundingClientRect();
-    const p = bar.getBoundingClientRect();
-    const half = menu.offsetWidth / 2;
-    const center = Math.min(Math.max(a.left - p.left + a.width / 2, half + 8), Math.max(half + 8, p.width - half - 8));
+    const s = stage.getBoundingClientRect();
+    const w = menu.offsetWidth;
+    const inStage = stage.contains(anchor);
+    const left = Math.min(Math.max(a.left - s.left + a.width / 2 - w / 2, 8), Math.max(8, s.width - w - 8));
+    menu.style.transform = 'none';
     menu.style.right = 'auto';
-    menu.style.transform = 'translateX(-50%)';
-    menu.style.left = `${center}px`;
+    menu.style.left = `${left}px`;
+    if (inStage) {
+      menu.style.top = 'auto';
+      menu.style.bottom = `${s.bottom - a.top + 10}px`;
+    } else {
+      menu.style.bottom = 'auto';
+      menu.style.top = '8px';
+    }
+  }
+
+  function toggleMenu() {
+    if (!menu) return;
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) positionMenu();
   }
 
   toggle?.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (!menu) return;
-    menu.hidden = !menu.hidden;
-    if (!menu.hidden) positionMenu();
+    toggleMenu();
   });
   menu?.addEventListener('click', (event) => {
     const native = event.target.closest('[data-native]');
@@ -630,7 +659,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const def = natives.get(id);
     if (!def) return false;
     if (panes.has(id)) return true;
-    const want = saved[id]?.mode === 'float' ? 'float' : 'dock';
+    const want = saved[id]?.mode === 'float' && (!def.modes || def.modes.includes('float')) ? 'float' : 'dock';
     return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
   };
 
@@ -643,6 +672,8 @@ export function createRoomModules({ guestToken = null } = {}) {
     closeAll: closeAllModules,
     stagePopped,
     layoutChanged: syncDock,
+    updateMenu: update,
+    toggleMenu,
     open: (id, mode) => { const m = available.find((x) => x.id === id); if (m) openModule(m, mode); },
     close: closePane,
     isOpen: (id) => panes.has(id),
@@ -650,9 +681,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     setMode,
     popOut,
     list: () => available.slice(),
-    // The built-in panes: the chat registers its element and how to be told about changes.
+    // The built-in panes: the conference and the chat register their element and how to be told about changes.
     registerNative(def) {
-      def.order = 0; // the chat is the first column after the video
+      def.order ??= 0; // the conference sets -1 to come first; the chat is the next column
       natives.set(def.id, def);
       update(); // the menu lists it
     },

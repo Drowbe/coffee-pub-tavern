@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the room page's pane model, and the author reviewing it before any of it is built.
 
-**Status:** Planned. The decisions below are settled; nothing here is built. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
+**Status:** Stage 1 built, awaiting a real call to verify; stages 2 to 4 not started. The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
 
 ## The idea
 
@@ -25,11 +25,13 @@ The plan is to make the conference a pane too, with the same three modes, so a p
 
 ## What presence needs
 
-Today "online" and "in this room" come from LiveKit's participant list. A person with only the Calendar open would not be in LiveKit at all, so presence needs its own signal:
+Today "online" and "in this room" come from LiveKit's participant list, and chat travels over LiveKit's data channel, so a person with only the chat or the Calendar still has to be connected to LiveKit. That changes the presence design from the heartbeat first planned:
 
-- The room page reports that it is open in a room with a short heartbeat, and the server keeps a person "in the room" while heartbeats keep arriving and for a short grace period after they stop, or immediately when they leave.
-- `/api/table` combines that with LiveKit's list (a person in the call is in the room). The room a person is "in", used by OBS views and Studio, comes from the same combined answer.
-- An aside is still a call feature: pulling someone aside needs them in the call, so the aside tools only act on people who are.
+- The page stays connected to the room's LiveKit session for as long as the person is in the room, and sends and receives audio and video only while the conference pane is open. So "in the room" is still LiveKit's participant list, and no heartbeat or grace period is needed.
+- A participant attribute, `call`, says whether they are in the conference (`on` or `off`). The server puts it in the token, so a person who joins without the conference is never shown as a tile, and a person changes it when they close or reopen the pane. Others draw a tile only for people whose `call` is not `off`.
+- `/api/table` adds `inCall` for each person. OBS views, Studio and the room list treat anyone in the room as online whether or not they are in the conference.
+- An aside is still a call feature: the aside tools only act on people who are in the conference (the server refuses the others).
+- The "See and join the conference" permission is enforced by the server: a role without it gets a token that cannot publish or subscribe. "Open and read the chat" is enforced by the page, as the chat's other permissions are.
 
 ## Stages
 
@@ -40,9 +42,26 @@ Each stage keeps the default experience unchanged and is verified before the nex
 3. **The conference in its own window.** Replaces the whole-stage pop-out: the conference pane moves to a window and the other panes stay on the main page. The room card's pop-out join opens the chosen panes accordingly.
 4. **Remembered layouts.** The panes, modes and sizes used last in each room are restored on join, and "Join with" on the room card exposes them.
 
+## Progress
+
+Stage 1 (the conference as a closable pane):
+
+- [x] The conference joins the pane manager as a native pane (docked only), first column and the flexible one; the flexible-column rule lives in the manager (`syncDock`, `--stage-cols`).
+- [x] Closing the conference leaves the call and stays in the room: media stops both ways, tiles go, the `call` attribute goes to `off`; "Rejoin call" in the Modules menu brings it back.
+- [x] The hang-up button leaves the call; Leave room stays in the header. In a pop-out window hang-up brings the stage back to the page first.
+- [x] The Modules button moves to the header while the conference is closed; the menu belongs to the stage.
+- [x] Nothing open shows a hint instead of an empty stage.
+- [x] Permissions "See and join the conference" and "Open and read the chat" (Panes group), everyone on by default; the first is enforced in the LiveKit token.
+- [x] Presence: settled without a heartbeat (see above); `inCall` on `/api/table`; aside targets must be in the conference.
+- [x] Narrow screens: the conference stays as a strip above the chat; a module still floats. Picking the chat on a narrow screen replaces nothing else, since only one docked pane fits below the strip.
+- [x] Checked in a browser with forced states: docked columns with and without the conference, the chat as the flexible column, the empty hint, the menu under the header button and above the toolbar button, the narrow strip layout, the Roles grid, and tokens for an admin, a call-off join and a role without the conference.
+- [ ] Verified in a real call with two people: closing and rejoining the conference, the other person's tile leaving and returning, chat with no conference, hang-up in a pop-out, a role without the conference, an aside with someone who is out of the conference.
+
+Stages 2 to 4: not started.
+
 ## Risks
 
 - The conference pane is the most tightly coupled thing on the page: tile sizing, toolbar collapsing, three overlays, the popovers, fullscreen and the pop-out. Stage 2 is where regressions will show; it needs real calls to verify.
 - "Leave the call, stay in the room" is a new state with its own edge cases: reconnects, asides in progress, admin tools, and the away state.
 - Presence by heartbeat can lag a browser that vanishes without saying goodbye; the grace period trades accuracy for stability.
-- On a narrow screen with the conference showing, a picked pane that has no lower priority pane to replace needs a defined result (it could share the screen or take over the rest of it); stage 1 must settle which.
+- On a narrow screen with the conference showing, a picked module still floats over it, which can hide the conference. Modules join the split below the conference strip in a later stage.
