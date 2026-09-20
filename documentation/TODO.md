@@ -35,7 +35,7 @@ Wanted, not started. Needs decisions first (whose Google account, which directio
 
 ## Links with outcomes
 
-A link should exist for a result. Built: typed pointers in actions, a drop menu, a rule on each link in the To-do (chosen from what the linked kind reports and what the To-do can do), a poll option that takes a link and sends it out with the result, tasks linked or dated from a drop. Still to do: rules that create things in other modules (a calendar event from a winning date) rather than only changing the task; and a drop that remembers the last choice for a pair of modules.
+A link should exist for a result. Built: typed pointers in actions, a drop menu, a rule on each link in the To-do (chosen from what the linked kind reports and what the To-do can do), a poll option that takes a link and sends it out with the result, tasks linked or dated from a drop. Still to do: a drop that remembers the last choice for a pair of modules.
 
 ## Modules: what is left
 

@@ -56,7 +56,40 @@
     { id: 'link', label: 'Link what it picked', needs: ['pick'] },
   ];
   const FINISHED = new Set(['closed', 'done', 'completed', 'finished']);
-  const outcomesFor = (event) => OUTCOMES.filter((o) => o.needs.every((f) => Object.keys(event.data || {}).includes(f)));
+  // And what it can ask other modules to do with what an item reports: any action another module offers whose
+  // required fields can be filled from the event (a date from its date, text from its summary, the item itself),
+  // shown as "Module: what it does". Nothing here names those modules.
+  let askable = [];
+  async function loadAskable() {
+    try {
+      askable = (await tavern.actions.list()).filter((a) => a && a.input);
+    } catch (err) {
+      askable = [];
+    }
+  }
+  const baseType = (t) => t.replace(/\?$/, '');
+  const fillable = (a, event) => Object.entries(a.input).every(([, type]) => {
+    if (type.endsWith('?')) return true;
+    const base = baseType(type);
+    const has = (f) => Object.keys(event.data || {}).includes(f);
+    return base === 'date' ? has('date') : base === 'string' || base === 'text' ? has('summary') : base === 'ref';
+  }) && Object.values(a.input).some((t) => !t.endsWith('?'));
+  const outcomesFor = (event) => [
+    ...OUTCOMES.filter((o) => o.needs.every((f) => Object.keys(event.data || {}).includes(f))),
+    ...askable.filter((a) => fillable(a, event)).map((a) => ({ id: 'ask:' + a.action, label: a.moduleName + ': ' + a.label })),
+  ];
+  const askInput = (a, e) => {
+    const data = e.data || {};
+    const input = {};
+    for (const [field, type] of Object.entries(a.input)) {
+      if (type.endsWith('?')) continue;
+      const base = baseType(type);
+      if (base === 'date') input[field] = String(data.date || '');
+      else if (base === 'string' || base === 'text') input[field] = String(data.summary || '');
+      else if (base === 'ref') input[field] = e.ref;
+    }
+    return input;
+  };
   const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
 
   // --- dates ---------------------------------------------------------------
@@ -673,6 +706,7 @@
   $('quick-form').hidden = !canEdit;
   try {
     await loadKinds();
+    await loadAskable();
     await load();
   } catch (err) {
     $('msg').textContent = 'The to-do list could not load: ' + err.message;
@@ -697,6 +731,15 @@
         const rule = rulesFor(x.t)[k] && rulesFor(x.t)[k][e.name];
         if (!rule) continue;
         let t = { ...x.t };
+        let ask = null;
+        if (rule.startsWith('ask:')) {
+          // Ask another module to do something; the first page to record it does the asking, the others fail to save.
+          const a = askable.find((o) => 'ask:' + o.action === rule);
+          const marker = k + '|' + e.name;
+          if (!a || (e.id && t.fired && t.fired[marker] === e.id) || (e.data && e.data.date && !/^\d{4}-\d{2}-\d{2}$/.test(String(e.data.date)))) continue;
+          t = { ...t, fired: { ...(t.fired || {}), [marker]: e.id || Date.now() } };
+          ask = { a, input: askInput(a, e) };
+        }
         if ((rule === 'tick' || rule === 'both') && !t.done) t = { ...t, done: true, doneAt: Date.now() };
         if ((rule === 'note' || rule === 'both') && summary && !(t.notes || '').includes('Result: ' + summary)) t.notes = ((t.notes ? t.notes + '\n' : '') + 'Result: ' + summary).slice(0, 1000);
         if (rule === 'title' && summary && t.title !== summary) t.title = summary.slice(0, 200);
@@ -705,6 +748,14 @@
         try {
           await put(x, t);
           applyReminder(t).catch(() => {});
+          if (ask) {
+            try {
+              await tavern.actions.request(ask.a.action, ask.input);
+              showNote(ask.a.moduleName + ': ' + ask.a.label + ' (from "' + t.title + '")');
+            } catch (err) {
+              showNote(err.message);
+            }
+          }
         } catch (err) {
           // changed or ticked by someone else meanwhile
         }

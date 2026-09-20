@@ -76,3 +76,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .optlink .tag { margin-left: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .optlink .tag.ref { cursor: pointer; }
 .optlink .x { padding: 0 4px; border: 0; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }
+
+.opt-row { flex-wrap: wrap; }
+.o-datewrap { flex: 1 1 100%; }

@@ -258,7 +258,7 @@
       const width = voters ? Math.round((names.length / Math.max(voters, max, 1)) * 100) : 0;
       const win = leaders.some((l) => l.id === o.id);
       return `<button type="button" class="opt ${mine.includes(o.id) ? 'mine' : ''} ${win ? 'win' : ''}" data-vote="${esc(x.key)}|${esc(o.id)}" ${votable ? '' : 'disabled'}>
-        <span class="fill" style="width:${width}%"></span><span class="name">${esc(o.text)}${o.desc ? `<small>${esc(o.desc)}</small>` : ''}</span><span class="num">${win ? (leaders.length > 1 ? 'Tied &middot; ' : 'Winner &middot; ') : ''}${names.length}</span></button>
+        <span class="fill" style="width:${width}%"></span><span class="name">${esc(o.text)}${o.date ? `<small>${esc(new Date(o.date + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}</small>` : ''}${o.desc ? `<small>${esc(o.desc)}</small>` : ''}</span><span class="num">${win ? (leaders.length > 1 ? 'Tied &middot; ' : 'Winner &middot; ') : ''}${names.length}</span></button>
         ${names.length ? `<div class="who">${esc(names.join(', '))}</div>` : ''}${optionLinkHtml(x, o)}`;
     }).join('');
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
@@ -404,7 +404,7 @@
   function pickOf(x) {
     const { winner } = winnerOf(x);
     const o = winner ? x.p.options.find((opt) => opt.text === winner) : null;
-    return o && o.link ? { pick: o.link } : {};
+    return { ...(o && o.link ? { pick: o.link } : {}), ...(o && o.date ? { date: o.date } : {}) };
   }
   // A short line on how it turned out, for whoever follows the poll.
   function summaryOf(x) {
@@ -520,8 +520,17 @@
     desc.className = 'o-desc';
     desc.maxLength = 140;
     desc.placeholder = 'Detail (optional)';
-    row.append(name, desc);
+    const dateWrap = document.createElement('div');
+    dateWrap.className = 'o-datewrap';
+    const date = document.createElement('input');
+    date.type = 'date';
+    date.className = 'o-date';
+    date.title = 'A date this option stands for (optional)';
+    date.setAttribute('aria-label', 'Date (optional)');
+    dateWrap.appendChild(date);
+    row.append(name, desc, dateWrap);
     $('f-options').appendChild(row);
+    tavern.ui.datePicker(date, { clearable: true });
     $('f-more').hidden = $('f-options').children.length >= MAX_OPTIONS;
     return name;
   }
@@ -553,7 +562,7 @@
     showError('');
     const question = $('f-question').value.trim();
     const rows = [...$('f-options').children]
-      .map((r) => ({ text: r.querySelector('.o-text').value.trim(), desc: r.querySelector('.o-desc').value.trim() }))
+      .map((r) => ({ text: r.querySelector('.o-text').value.trim(), desc: r.querySelector('.o-desc').value.trim(), date: r.querySelector('.o-date').value }))
       .filter((o) => o.text);
     if (!question) return showError('A poll needs a question.');
     if (rows.length < 2) return showError('Give at least two options.');
@@ -566,7 +575,7 @@
     const p = {
       id: newId(),
       question,
-      options: rows.map((o, i) => ({ id: 'o' + (i + 1), text: o.text, ...(o.desc ? { desc: o.desc } : {}) })),
+      options: rows.map((o, i) => ({ id: 'o' + (i + 1), text: o.text, ...(o.desc ? { desc: o.desc } : {}), ...(o.date ? { date: o.date } : {}) })),
       multi: $('f-multi').checked,
       addable: $('f-addable').checked,
       closed: false,

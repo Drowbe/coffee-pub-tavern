@@ -29,6 +29,10 @@ Choose an option to vote for it. In a one-choice poll, choosing another option m
 
 Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. Clicking the link on the task opens the poll here, and a poll lists what is linked to it under its details, where clicking one opens it. See [To-do](userguide-todo.md).
 
+## Give an option a date
+
+An option can have a date, chosen with the calendar button beside it when you start the poll: "First weekend, Oct 3". The date shows under the option. When the poll closes and one option wins, its date goes out with the result, so something that follows the poll can use it, for example a task that puts the winning date on the Calendar (see [To-do](userguide-todo.md)).
+
 ## Link an option to something
 
 Drag an item from another module (an event on the Calendar, say) onto an option to link the option to it. The option shows the item, and clicking it opens the item. You can remove the link with the cross while the poll is open. Only the person who started the poll, or an admin, can link options. When the poll closes and one option wins, the item that option points at goes out with the result, so a task that follows the poll can link to it or use it. A poll that ties, or whose winner has no link, sends only the result line.

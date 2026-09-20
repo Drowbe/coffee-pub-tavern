@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Rules that create things in other modules. A rule on a task's link can ask another module to act on what the item reports: the To-do offers every action another module provides whose required fields the event can fill (a date, its summary, the item itself), and asks once however many people have it open. Poll options can carry a date (Polls 1.8.0) that goes out with the result. To-do 1.8.1 asks for `actions.uses`, which an admin approves. Verified in a browser: a poll with dated options was voted and closed, and the task's rule created the calendar event on the winning date; the editor offered "Calendar: Add it to the calendar". Not verified: two people with the To-do open at once (the once-only guard is the task's version check).
+
+### Added
 - The Calendar announces when an event has passed (Calendar 1.10.0, event `ended`, with a one-line summary), once, by whoever has it open first after it ends; repeating events and events more than a week old are skipped, and moving an event clears the mark. A task linked to the event can follow it with the same rules as a poll closing. Verified in a browser: a past event with a linked task set to tick and keep the result was announced on opening the Calendar, and the task ticked and got "Result: Trip day one, Sep 19".
 
 ### Added
