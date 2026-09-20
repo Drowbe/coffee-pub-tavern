@@ -6,7 +6,12 @@
 (async function () {
   'use strict';
 
-  const $ = (id) => document.getElementById(id);
+  // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
+  // either way it looks elements up in tavern.root, never in document, so it works in both.
+  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
+  const root = tavern.root;
+
+  const $ = (id) => root.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   let info;
@@ -298,7 +303,7 @@
   const DATE_FIELDS = ['f-date', 'f-end-date', 'f-until'];
   function showWeekdays() {
     for (const id of DATE_FIELDS) {
-      const hint = document.querySelector(`[data-dow="${id}"]`);
+      const hint = root.querySelector(`[data-dow="${id}"]`);
       const v = $(id).value;
       hint.textContent = v ? parseYmd(v).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : '';
     }
@@ -362,7 +367,7 @@
     el.style.left = `${Math.max(8, Math.min(r.left - c.left, c.width - 252 - 8))}px`;
     picker = { el, input: inputId };
   }
-  document.addEventListener('click', (e) => {
+  root.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-picker]');
     if (btn) return openPicker(btn.dataset.picker);
     if (picker && !e.target.closest('.dp')) closePicker();
@@ -601,7 +606,7 @@
     const day = e.target.closest('[data-day]');
     if (day && canEdit) openEditor(null, day.dataset.day);
   });
-  document.addEventListener('keydown', (e) => {
+  root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (picker) return closePicker();
     if (!$('editor').hidden) closeEditor();
@@ -610,11 +615,11 @@
   // A frame can report no width while it is still being laid out, so wait for a real
   // one before choosing the compact layout.
   const fit = () => {
-    const w = document.documentElement.clientWidth;
+    const w = tavern.rootElement.clientWidth;
     if (!w) return;
     $('app').classList.toggle('compact', w < 520);
   };
-  new ResizeObserver(() => { fit(); render(); }).observe(document.documentElement);
+  new ResizeObserver(() => { fit(); render(); }).observe(tavern.rootElement);
 
   $('add').hidden = !canEdit;
   try {

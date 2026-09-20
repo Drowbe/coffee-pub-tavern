@@ -5,7 +5,12 @@
 (async function () {
   'use strict';
 
-  const $ = (id) => document.getElementById(id);
+  // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
+  // either way it looks elements up in tavern.root, never in document, so it works in both.
+  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
+  const root = tavern.root;
+
+  const $ = (id) => root.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   let info;
@@ -540,11 +545,11 @@
   // A drag from another module on the same page is brokered by Tavern: it says where the pointer is
   // and what was dropped, in this page's own coordinates.
   const clearDrop = () => {
-    for (const r of document.querySelectorAll('.task.drop')) r.classList.remove('drop');
+    for (const r of root.querySelectorAll('.task.drop')) r.classList.remove('drop');
     $('editor').classList.remove('drop');
   };
   const taskAt = (pt) => {
-    const el = document.elementFromPoint(pt.x, pt.y);
+    const el = tavern.refs.elementAt(pt);
     const row = el && el.closest('[data-task]');
     return row && tasks.get(row.dataset.task) && tasks.get(row.dataset.task).scope === 'own' ? row : null;
   };
@@ -615,7 +620,7 @@
     tavern.bar.set(canEdit ? [{ id: 'add', label: 'Add task', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
     tavern.on('bar', (e) => { if (e.id === 'add' && canEdit) openEditor(null); });
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
 
   $('add').hidden = !canEdit;
   $('quick-form').hidden = !canEdit;

@@ -394,6 +394,10 @@ class ModuleManager {
       rooms: entry.rooms || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
       needsApproval: this.hasPending(pending),
+      source: entry.source || 'upload',
+      runMode: this.runModeOf(entry),
+      runModeChosen: entry.runMode === 'page' || entry.runMode === 'sandbox',
+      riskAcceptedAt: entry.riskAcceptedAt || null,
       pending,
       installedAt: entry.installedAt,
       updatedAt: entry.updatedAt,
@@ -404,7 +408,16 @@ class ModuleManager {
     return Object.keys(this.registry.modules).map((id) => this.view(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async install(buffer) {
+  // Where a module runs. A module that ships with Tavern is the server's own code and runs in the page;
+  // an uploaded one runs in a sandboxed frame, unless an admin chose otherwise for it and accepted what
+  // that means (see update). `sandbox`: a frame that can reach only what the SDK lets it. `page`: in
+  // the page in a container of its own, with the page's own power.
+  runModeOf(entry) {
+    if (entry.runMode === 'page' || entry.runMode === 'sandbox') return entry.runMode;
+    return entry.source === 'bundled' ? 'page' : 'sandbox';
+  }
+
+  async install(buffer, { source = 'upload' } = {}) {
     if (!buffer || !buffer.length) throw new ModuleError('choose a zip file to install');
     if (buffer.length > LIMITS.zipBytes) throw new ModuleError(`the zip is larger than ${LIMITS.zipBytes / MB} MB`);
     const files = stripWrapperFolder(await readZip(buffer));
@@ -449,6 +462,7 @@ class ModuleManager {
     entry.versions.push(manifest.version);
     entry.version = manifest.version;
     entry.updatedAt = now;
+    entry.source = source; // 'bundled' (shipped with this Tavern) or 'upload'
     // An upgrade that asks for anything new goes back to waiting for approval.
     if (this.hasPending(this.pendingFor(entry, manifest))) entry.enabled = false;
     this.registry.modules[manifest.id] = entry;
@@ -483,6 +497,19 @@ class ModuleManager {
       entry.enabled = Boolean(patch.enabled);
       if (entry.enabled) {
         entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes], events: [...manifest.events.subscribes], actions: [...manifest.actions.uses] };
+      }
+    }
+    // Running in the page gives a module the page's own power, so for an uploaded module the admin has to
+    // say they understand (`acceptRisk`); one that ships with Tavern already does. Sandboxed is always allowed.
+    if (patch.runMode !== undefined) {
+      if (patch.runMode === 'sandbox') {
+        entry.runMode = 'sandbox';
+      } else if (patch.runMode === 'page') {
+        if (entry.source !== 'bundled' && patch.acceptRisk !== true) throw new ModuleError('running a module in the page means accepting the risk');
+        entry.runMode = 'page';
+        if (entry.source !== 'bundled') entry.riskAcceptedAt = new Date().toISOString();
+      } else {
+        throw new ModuleError('runMode must be "page" or "sandbox"');
       }
     }
     if (patch.allRooms !== undefined) {

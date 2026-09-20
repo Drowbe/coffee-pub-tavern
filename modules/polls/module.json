@@ -1,7 +1,7 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole server and for each room, with live results.",
   "author": "Coffee Pub",

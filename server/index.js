@@ -1106,7 +1106,7 @@ app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
   const id = req.params.id;
   if (!bundledModules(BUNDLED_DIR).some((m) => m.id === id)) return res.status(404).json({ error: 'that module does not ship with this Tavern' });
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
-  res.status(201).json({ module: await modules.install(zip) });
+  res.status(201).json({ module: await modules.install(zip, { source: 'bundled' }) });
 });
 app.post('/api/modules', requireAdmin, rawZip, async (req, res) => {
   res.status(201).json({ module: await modules.install(req.body) });
@@ -1677,6 +1677,24 @@ app.get('/api/bus/actions/status', busRoute((who, req) => {
   return { status: request.status, result: request.result };
 }));
 
+// --- what modules have been doing ------------------------------------------------------------
+// The last things modules did through Tavern (data they saved, events they published, actions they asked
+// for), so an admin can see, above all for a module running in the page, what it has been up to. Only
+// what passes through Tavern is seen: a module in the page can also do things Tavern never hears of.
+const moduleActivity = [];
+function noteActivity(module, what, by, scopeKey) {
+  moduleActivity.push({ at: Date.now(), module, what, by: by || null, scope: scopeKey || null });
+  if (moduleActivity.length > 300) moduleActivity.shift();
+}
+moduleData.on('change', (c) => noteActivity(c.module, `${c.deleted ? 'deleted' : 'saved'} ${c.key}`, c.by, c.scopeKey));
+moduleBus.on('event', (e) => noteActivity(e.module, `published the event ${e.name}`, e.by, e.scopeKey));
+moduleBus.on('action', (a) => noteActivity(a.from, `asked ${a.provider} to ${a.action}`, a.by, a.scopeKey));
+app.get('/api/modules/activity', requireAdmin, (_req, res) => {
+  res.json({
+    activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? 'a guest' : a.by) })),
+  });
+});
+
 // Modules with a page of their own that this viewer can open: the header nav.
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);
@@ -1685,7 +1703,7 @@ app.get('/api/modules/nav', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, page: manifest.surfaces.page.entry })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry })),
   });
 });
 
@@ -1711,7 +1729,7 @@ app.get('/api/modules/for-room', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest, entry }) => manifest.scope.includes('room') && manifest.surfaces.panel && moduleRoomAccess(entry, who, room) && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
   });
 });
 
@@ -1730,6 +1748,20 @@ app.get('/m/:id/:version/*path', (req, res) => {
   const rel = [].concat(req.params.path).join('/');
   const file = modules.resolveFile(req.params.id, req.params.version, rel);
   if (!file) return res.status(404).end();
+  // A module that runs in the page (not in a frame) is loaded in parts: its styles, its markup and its
+  // script, taken from its single HTML file, each for the page to place in the module's own container.
+  const part = req.query.part;
+  if (part === 'css' || part === 'body' || part === 'js') {
+    const found = modules.enabled(req.params.id);
+    if (!found || modules.runModeOf(found.entry) !== 'page' || !/\.html?$/i.test(file)) return res.status(403).json({ error: 'that module does not run in the page' });
+    const html = fs.readFileSync(file, 'utf8');
+    const grab = (re) => [...html.matchAll(re)].map((m) => m[1]).join('\n');
+    res.set({ 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
+    if (part === 'css') return res.type('text/css').send(grab(/<style\b[^>]*>([\s\S]*?)<\/style>/gi));
+    if (part === 'js') return res.type('application/javascript').send(grab(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
+    const body = /<body\b[^>]*>([\s\S]*)<\/body>/i.exec(html);
+    return res.type('text/html').send((body ? body[1] : html).replace(/<script\b[\s\S]*?<\/script>/gi, '').replace(/<style\b[\s\S]*?<\/style>/gi, ''));
+  }
   res.set({
     'Content-Security-Policy': "sandbox allow-scripts allow-forms; default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
     'X-Content-Type-Options': 'nosniff',

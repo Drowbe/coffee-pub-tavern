@@ -220,9 +220,14 @@ function ptrDrop(x, y) {
   ptrEnd();
 }
 
+// Mounts one module: into an empty <iframe> (`frame`; sandboxed, with only the SDK to reach the page), or,
+// for a module that runs in the page, into an empty element (`container`), where it lives in a shadow
+// root of its own, beside the page's own elements, with the page's power (see the run modes in
+// documentation/architecture/architecture-modules.md).
+//
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null }) {
+export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -259,7 +264,9 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   };
 
   // This module, as the drag brokering sees it (its `send` is defined below).
-  const mine = { frame, module, send: (event, data) => send(event, data) };
+  const pageMode = Boolean(container);
+  // `frame` in the drag brokering below is whichever element holds the module: its frame, or its container.
+  const mine = { frame: pageMode ? container : frame, module, send: (event, data) => send(event, data) };
 
   // Events for the module before its page has said hello wait until it has.
   let ready = false;
@@ -498,7 +505,7 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   }
 
   async function onMessage(e) {
-    if (e.source !== frame.contentWindow) return; // only our own frame
+    if (pageMode || e.source !== frame.contentWindow) return; // only our own frame
     const m = e.data;
     if (!m || m.tavern !== 1 || typeof m.id !== 'number' || typeof m.method !== 'string') return;
     const handler = handlers[m.method];
@@ -511,12 +518,18 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   }
   // A frame's messages arrive in the window it lives in, which is not this one
   // when the call has been popped out.
-  const hostWin = frame.ownerDocument.defaultView || window;
-  hostWin.addEventListener('message', onMessage);
+  const hostWin = (pageMode ? container : frame).ownerDocument.defaultView || window;
+  if (!pageMode) hostWin.addEventListener('message', onMessage);
   mounted.add(mine);
 
-  // Live changes: one stream per scope the frame can see.
+  // Live changes: one stream per scope the frame can see. For a module in the page, an event goes
+  // straight to its SDK.
+  let sdkEmit = null;
   function send(event, data) {
+    if (pageMode) {
+      if (sdkEmit) sdkEmit(event, data);
+      return;
+    }
     frame.contentWindow?.postMessage({ tavern: 1, tk: secret, event, data }, '*');
   }
   // A room's pane hears that room and the server; a module's server page hears the server and
@@ -539,9 +552,67 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
   // module's own <form> fire its submit event (a sandboxed frame without it
   // swallows the submit, so a Save button appears to do nothing); the frame's
   // policy sets form-action 'none', so nothing can actually be submitted anywhere.
-  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
-  frame.setAttribute('referrerpolicy', 'no-referrer');
-  frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}?tk=${secret}`;
+  if (!pageMode) {
+    frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}?tk=${secret}`;
+  } else {
+    startInPage().catch((err) => {
+      container.textContent = `This module could not start: ${err.message}`;
+    });
+  }
+
+  // A module running in the page: its styles, markup and script come from the server in parts, into a
+  // shadow root on the container. Its page-wide selectors (html, body) mean the container, the theme
+  // reaches it because CSS variables inherit into a shadow root, and it gets its own SDK, whose calls
+  // go straight to the handlers above instead of through a frame. Nothing stops the module reaching
+  // beyond that: it runs with the page's power.
+  async function startInPage() {
+    const scopeCss = (text) => text.replace(/:root\s*\{[^}]*\}/g, '').replace(/(^|[\s,}])(html|body)(?=[\s,{.:[])/g, '$1:host');
+    const base = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}`;
+    const text = async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url} ${res.status}`);
+      return res.text();
+    };
+    const [sdkCss, css, body] = await Promise.all([text('/sdk/tavern.css'), text(`${base}?part=css`), text(`${base}?part=body`)]);
+    const root = container.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = scopeCss(sdkCss) + '\n' + scopeCss(css);
+    root.appendChild(style);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = body;
+    root.appendChild(tpl.content);
+    const call = (method, params) => {
+      const handler = handlers[method];
+      if (!handler) return Promise.reject(Object.assign(new Error(`unknown call ${method}`), { status: 400 }));
+      return Promise.resolve().then(() => handler(params || {}));
+    };
+    const built = window.createTavern({
+      call,
+      root,
+      rootElement: container,
+      // The pointer in the page's coordinates, in the module's own.
+      localPoint: (x, y) => {
+        const r = container.getBoundingClientRect();
+        return { x: x - r.left, y: y - r.top };
+      },
+      // Points from the SDK are in the module's own coordinates; a shadow root wants the page's.
+      elementAt: (pt) => {
+        const r = container.getBoundingClientRect();
+        return root.elementFromPoint(pt.x + r.left, pt.y + r.top);
+      },
+    });
+    sdkEmit = built.emit;
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = `${base}?part=js&v=${encodeURIComponent(module.version)}`;
+      script.tavern = built.tavern; // the module reads it from document.currentScript when it starts
+      script.onload = () => { script.remove(); resolve(); };
+      script.onerror = () => { script.remove(); reject(new Error('its script did not load')); };
+      document.head.appendChild(script);
+    });
+  }
 
   return {
     send,
@@ -551,12 +622,14 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
     ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
     deliver,
     destroy() {
-      hostWin.removeEventListener('message', onMessage);
+      if (!pageMode) hostWin.removeEventListener('message', onMessage);
+      sdkEmit = null;
       mounted.delete(mine);
       if (activeDrag && (activeDrag.source === mine || activeDrag.layers.some((l) => l.target === mine))) endDrag();
       if (ptrDrag && ptrDrag.source === mine) ptrEnd();
       leaveStream();
-      frame.removeAttribute('src');
+      if (pageMode) container.shadowRoot?.replaceChildren();
+      else frame.removeAttribute('src');
     },
   };
 }

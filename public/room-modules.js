@@ -260,11 +260,16 @@ export function createRoomModules({ guestToken = null } = {}) {
     <span class="module-panel-title"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> <span data-title>${escapeHtml(m.name)}</span></span>
     <span class="mod-header-tools"><span class="titlebar-custom" data-header-custom></span>${toolsHtml({ mode, canDock, canFloat })}</span>`;
 
+  // A module's place in a pane: a frame for a sandboxed module, an element of its own for one that runs in the page.
+  const holder = (m, cls) => (m.runMode === 'page'
+    ? `<div class="module-root ${cls}" data-module-root="${escapeHtml(m.id)}"></div>`
+    : `<iframe class="${cls}" title="${escapeHtml(m.name)}"></iframe>`);
+
   function mountFor(pane, frame, bar, extra = {}) {
     const m = pane.m;
     return mountModule({
       module: { id: m.id, version: m.version, scope: m.scope },
-      frame,
+      ...(frame.tagName === 'IFRAME' ? { frame } : { container: frame }),
       bar,
       header: pane.el.querySelector('[data-header-custom]'),
       onOpenRef: openRef,
@@ -284,7 +289,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     panel.dataset.module = m.id;
     panel.innerHTML = `
       <header class="mod-header module-panel-head">${moduleHeader(m, 'float', supports({ modes: m.panel.mode }, 'dock') && !isNarrow(), true)}</header>
-      <iframe class="module-panel-frame" title="${escapeHtml(m.name)}"></iframe>
+      ${holder(m, 'module-panel-frame')}
       <div class="module-panel-bar" hidden></div>
       <span class="module-panel-grip" title="Drag to resize"></span>`;
     layerFor(doc).appendChild(panel);
@@ -298,7 +303,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     });
     front(panel);
     const pane = { id: m.id, kind: 'module', mode: 'float', m, el: panel, modes: m.panel.mode, order: ++order, parts: () => [] };
-    pane.mount = mountFor(pane, panel.querySelector('iframe'), panel.querySelector('.module-panel-bar'), {
+    pane.mount = mountFor(pane, panel.querySelector('iframe, .module-root'), panel.querySelector('.module-panel-bar'), {
       onResize: ({ width, height }) => {
         const b = currentBox(panel);
         if (Number.isFinite(width)) b.w = width;
@@ -320,7 +325,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       <div class="dock-resize" title="Drag to resize"></div>
       <div class="mod-content dock-content">
         <header class="mod-header">${moduleHeader(m, 'dock', false, true)}</header>
-        <iframe class="dock-frame" title="${escapeHtml(m.name)}"></iframe>
+        ${holder(m, 'dock-frame')}
       </div>
       <div class="mod-bar dock-bar" hidden></div>`;
     stage.appendChild(section);
@@ -330,7 +335,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       parts: () => [...section.children],
     };
     // With a bar the module's content stops above the shared bottom row; without one it fills the column.
-    pane.mount = mountFor(pane, section.querySelector('iframe'), section.querySelector('.dock-bar'), {
+    pane.mount = mountFor(pane, section.querySelector('iframe, .module-root'), section.querySelector('.dock-bar'), {
       onBar: (has) => section.classList.toggle('has-bar', has),
     });
     panes.set(m.id, pane);

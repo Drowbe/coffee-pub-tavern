@@ -13,7 +13,12 @@
 (async function () {
   'use strict';
 
-  const $ = (id) => document.getElementById(id);
+  // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
+  // either way it looks elements up in tavern.root, never in document, so it works in both.
+  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
+  const root = tavern.root;
+
+  const $ = (id) => root.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   let info;
@@ -128,7 +133,7 @@
       show = 'all';
       hiddenRooms.delete(ref.room);
       render();
-      const el = document.querySelector(`[data-poll="${CSS.escape(key)}"]`);
+      const el = root.querySelector(`[data-poll="${CSS.escape(key)}"]`);
       if (el) {
         el.scrollIntoView({ block: 'center' });
         el.classList.add('flash');
@@ -392,7 +397,7 @@
     if (!x) return;
     if (!armed.has(key)) {
       armed.add(key);
-      const b = document.querySelector(`[data-delete="${CSS.escape(key)}"]`);
+      const b = root.querySelector(`[data-delete="${CSS.escape(key)}"]`);
       if (b) b.textContent = 'Really delete?';
       setTimeout(() => { armed.delete(key); render(); }, 4000);
       return;
@@ -582,7 +587,7 @@
     tavern.bar.set(canCreate ? [{ id: 'add', label: 'New poll', icon: 'plus', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
     tavern.on('bar', (e) => { if (e.id === 'add' && canCreate) openEditor(); });
   }
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
+  root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
   // A poll with a closing time closes on its own: redraw now and then to show it.
   setInterval(() => { render(); announceIfDue(); }, 30000);
 

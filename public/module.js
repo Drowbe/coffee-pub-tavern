@@ -63,7 +63,16 @@ async function start() {
   if (popout) wireTitlebar(mod);
   if (!popout) setTopbarLocation(crumbLink(mod.icon, mod.name, location.pathname));
   if (!guestToken) markModuleRead(mod.id);
-  const frame = $('module-frame');
+  let frame = $('module-frame');
+  // A module that runs in the page gets an element of its own where the frame would be.
+  const inPage = mod.runMode === 'page';
+  if (inPage) {
+    const holder = document.createElement('div');
+    holder.className = 'module-frame module-root';
+    holder.id = 'module-frame';
+    frame.replaceWith(holder);
+    frame = holder;
+  }
   frame.hidden = false;
   // Showing an item in the module that owns it, from a module's own page: go to that module's page,
   // which is given the pointer in the address (#ref=...) and passes it to the module.
@@ -83,7 +92,7 @@ async function start() {
   const mounted = mountModule({
     onOpenRef: openRef,
     module: { id: mod.id, version: mod.version, scope: mod.scope },
-    frame,
+    ...(inPage ? { container: frame } : { frame }),
     bar: $('module-bar'),
     header: popout ? $('module-titlebar-custom') : null,
     scope,

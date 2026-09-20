@@ -3,16 +3,19 @@
  *
  *   <script src="/sdk/tavern.js"></script>
  *
- * A module runs in a sandboxed frame with no access to Tavern's pages,
- * cookies or network. Everything it can do goes through the calls here; the
- * page hosting the frame (public/module-host.js) makes the real requests on
- * its behalf and the server checks every one. See
- * documentation/api/api-module-sdk.md.
+ * A module runs either in a sandboxed frame, with no access to Tavern's pages, cookies or network, or
+ * (when the admin has chosen that for it, and for the modules that ship with Tavern) in the page itself,
+ * in a container of its own. Either way everything it can do goes through the calls here; the page
+ * hosting it (public/module-host.js) makes the real requests on its behalf and the server checks every
+ * one. A module in the page is not confined: it could bypass this. See documentation/api/api-module-sdk.md.
+ *
+ * The API is built by createTavern(env): in a frame this file boots it over postMessage; the page host
+ * calls it directly for a module running in the page.
  *
  * Every call returns a promise. tavern.ready() resolves once the host has
  * answered, with who is looking, where the module is showing, and the theme.
  */
-(function () {
+(function (global) {
   'use strict';
 
   // The drag data type a pointer to a module's item travels under (see tavern.refs).
@@ -26,22 +29,13 @@
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
   }
 
-  const pending = new Map();
+  // env: { call(method, params) -> Promise, root, rootElement, elementAt({x, y}), localPoint(clientX, clientY),
+  // applyTheme(theme) }.
+  // Returns { tavern, emit }: `emit` is how the host pushes an event to the module.
+  function createTavern(env) {
   const listeners = new Map();
-  let seq = 0;
   let info = null;
-
-  function call(method, params) {
-    return new Promise((resolve, reject) => {
-      const id = ++seq;
-      pending.set(id, { resolve, reject });
-      window.parent.postMessage({ tavern: 1, id, method, params }, '*');
-      setTimeout(() => {
-        if (!pending.delete(id)) return;
-        reject(new Error('Tavern did not answer'));
-      }, 30000);
-    });
-  }
+  const call = env.call;
 
   // An "open this item" from the host can arrive before the module has said what to do with one.
   let pendingOpen = null;
@@ -57,40 +51,9 @@
     }
   }
 
-  // The host puts a secret in this frame's address and in every message it sends.
-  const secret = new URLSearchParams(window.location.search).get('tk');
-
-  window.addEventListener('message', (e) => {
-    const m = e.data;
-    if (!m || m.tavern !== 1 || m.tk !== secret) return;
-    if (m.id !== undefined) {
-      const p = pending.get(m.id);
-      if (!p) return;
-      pending.delete(m.id);
-      if (m.error) {
-        const err = new Error(m.error.message || 'failed');
-        err.status = m.error.status;
-        err.current = m.error.current;
-        p.reject(err);
-      } else {
-        p.resolve(m.result);
-      }
-    } else if (m.event) {
-      if (m.event === 'theme') applyTheme(m.data);
-      emit(m.event, m.data);
-    }
-  });
-
-  // The theme arrives as CSS custom properties; setting them on :root lets a
-  // module's plain CSS follow the theme (var(--bg), var(--text) ...).
-  function applyTheme(theme) {
-    if (!theme) return;
-    for (const [name, value] of Object.entries(theme)) document.documentElement.style.setProperty(name, value);
-  }
-
   const readyPromise = call('hello').then((result) => {
     info = result;
-    applyTheme(result.theme);
+    if (env.applyTheme) env.applyTheme(result.theme);
     return result;
   });
 
@@ -102,6 +65,13 @@
   const tavern = {
     // Resolves with { user, context, permissions, theme, module }.
     ready: () => readyPromise,
+
+    // Where the module's page is: `root` is what to look elements up in (document.getElementById becomes
+    // tavern.root.getElementById: in a frame it is the document, in the page it is the module's own
+    // shadow root) and `rootElement` the element whose size is the module's (the frame's document element, or
+    // its container). Use these rather than document, so the module runs in either place.
+    root: env.root,
+    rootElement: env.rootElement,
 
     // Whether the viewer has one of this module's own permissions (by its
     // short key in module.json, such as "edit").
@@ -202,6 +172,8 @@
       trace: (msg) => {
         if (info && info.debug) call('refs.trace', { msg: String(msg).slice(0, 160) }).catch(() => {});
       },
+      // The element of this module under a point given by dropTarget (its own coordinates), or null.
+      elementAt: (pt) => env.elementAt(pt),
       // Make items draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
       // element is: { kind, id, label, ...the options make() takes } for one of your items, or null. The drag
       // is driven by the pointer (press, move a few pixels, let go), not the browser's drag and drop, which is
@@ -209,6 +181,8 @@
       // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
       draggable: (root, resolve) => {
         const say = (msg) => tavern.refs.trace(msg);
+        // The pointer in the module's own coordinates (a frame's are already; in the page they are shifted).
+        const local = (e) => (env.localPoint ? env.localPoint(e.clientX, e.clientY) : { x: e.clientX, y: e.clientY });
         say('draggable ready');
         let down = null;
         let dragging = false;
@@ -229,19 +203,19 @@
             dragging = true;
             say('moved far enough: telling the page a drag began');
             const { kind, id, label, ...where } = down.item;
-            call('refs.ptrStart', { ref: tavern.refs.make(kind, id, where), label, x: e.clientX, y: e.clientY }).catch(() => {});
+            call('refs.ptrStart', { ref: tavern.refs.make(kind, id, where), label, ...local(e) }).catch(() => {});
             return;
           }
           const now = Date.now();
           if (now - sent < 30) return;
           sent = now;
-          call('refs.ptrMove', { x: e.clientX, y: e.clientY }).catch(() => {});
+          call('refs.ptrMove', local(e)).catch(() => {});
         });
         const finish = (e, dropped) => {
           if (!down || e.pointerId !== down.id) return;
           say(dragging ? (dropped ? 'released: sending the drop' : 'pointer cancelled') : 'released without dragging');
           if (dragging) {
-            if (dropped) call('refs.ptrDrop', { x: e.clientX, y: e.clientY }).catch(() => {});
+            if (dropped) call('refs.ptrDrop', local(e)).catch(() => {});
             else call('refs.dragEnd', {}).catch(() => {});
             // The release would otherwise count as a click on the item.
             const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
@@ -438,5 +412,63 @@
     },
   };
 
-  window.tavern = tavern;
-})();
+  return { tavern, emit };
+  }
+
+  // A Tavern page that hosts modules includes this file with data-tavern-host, to build SDKs for modules
+  // that run in the page; anywhere else, inside a frame, it boots for the module in that frame.
+  const hostPage = Boolean(document.currentScript && document.currentScript.hasAttribute('data-tavern-host'));
+  if (!hostPage && global.parent !== global) {
+    // In a sandboxed frame: talk to the page that hosts it.
+    const pending = new Map();
+    let seq = 0;
+    const call = (method, params) => new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      global.parent.postMessage({ tavern: 1, id, method, params }, '*');
+      setTimeout(() => {
+        if (!pending.delete(id)) return;
+        reject(new Error('Tavern did not answer'));
+      }, 30000);
+    });
+    // The theme arrives as CSS custom properties; setting them on :root lets a module's plain CSS follow
+    // the theme (var(--bg), var(--text) ...).
+    const applyTheme = (theme) => {
+      if (!theme) return;
+      for (const [name, value] of Object.entries(theme)) document.documentElement.style.setProperty(name, value);
+    };
+    const built = createTavern({
+      call,
+      root: document,
+      rootElement: document.documentElement,
+      elementAt: (pt) => document.elementFromPoint(pt.x, pt.y),
+      applyTheme,
+    });
+    global.tavern = built.tavern;
+    // The host puts a secret in this frame's address and in every message it sends.
+    const secret = new URLSearchParams(global.location.search).get('tk');
+    global.addEventListener('message', (e) => {
+      const m = e.data;
+      if (!m || m.tavern !== 1 || m.tk !== secret) return;
+      if (m.id !== undefined) {
+        const p = pending.get(m.id);
+        if (!p) return;
+        pending.delete(m.id);
+        if (m.error) {
+          const err = new Error(m.error.message || 'failed');
+          err.status = m.error.status;
+          err.current = m.error.current;
+          p.reject(err);
+        } else {
+          p.resolve(m.result);
+        }
+      } else if (m.event) {
+        if (m.event === 'theme') applyTheme(m.data);
+        built.emit(m.event, m.data);
+      }
+    });
+  } else {
+    // In the page: the host builds one per module running in the page.
+    global.createTavern = createTavern;
+  }
+})(window);
