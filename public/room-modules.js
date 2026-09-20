@@ -209,6 +209,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const docked = dockedPanes();
     // The narrow layout keys off this, as it does off chat-open.
     stage.classList.toggle('module-open', docked.some((p) => p.kind === 'module'));
+    syncView();
     for (const p of panes.values()) p.el.classList?.remove('is-flex');
     for (const p of docked) for (const el of p.parts()) el.style.gridColumn = '';
     if (stageEmpty) stageEmpty.hidden = panes.size > 0;
@@ -508,10 +509,31 @@ export function createRoomModules({ guestToken = null } = {}) {
     return supports(p, 'dock') ? 'dock' : 'float';
   }
 
-  // On a narrow stage (a phone) only one pane is open at a time: opening one closes the others, except the
-  // conference, which stays while you are in the call.
-  function closeOthers(keepId) {
-    for (const other of [...panes.values()]) if (other.id !== keepId && other.id !== 'conference') closePane(other.id);
+  // On a narrow stage (a phone) one view is shown at a time: the conference, the chat or a module. The others
+  // stay open, only hidden, so the call keeps running (its microphone and camera as they were) while you read
+  // the chat; a tab switches the view and never closes anything. `view` is the id being shown.
+  let view = null;
+  function syncView() {
+    const narrow = isNarrow();
+    const shown = [...panes.values()].filter((p) => p.mode === 'dock').map((p) => p.id);
+    if (narrow && !shown.includes(view)) view = shown.includes('conference') ? 'conference' : shown[shown.length - 1] || null;
+    for (const p of panes.values()) {
+      if (p.mode !== 'dock') continue;
+      const hide = narrow && p.id !== view;
+      for (const el of p.parts()) el.classList.toggle('narrow-hidden', hide);
+    }
+  }
+  function setView(id) {
+    if (!panes.has(id)) return;
+    const pane = panes.get(id);
+    if (pane.mode !== 'dock') {
+      if (pane.el.classList && pane.mode === 'float') front(pane.el);
+      return;
+    }
+    view = id;
+    syncView();
+    if (pane.kind === 'module') markModuleRead(id);
+    update();
   }
 
   function openModule(m, mode) {
@@ -521,7 +543,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       if (pane.mode === 'float') front(pane.el);
       return;
     }
-    if (isNarrow()) closeOthers(m.id);
+    if (isNarrow()) view = m.id;
     mode ||= preferredMode(p);
     if (mode === 'dock' && !supports(p, 'dock')) mode = 'float';
     if (mode === 'dock') openModuleDocked(m); else openModuleFloating(m);
@@ -635,7 +657,11 @@ export function createRoomModules({ guestToken = null } = {}) {
         if (m) openModule(m);
       }
     }
+    // On a phone the call is the view to start on, whatever was opened last.
+    if (isNarrow() && panes.has('conference')) view = 'conference';
     suspended = false;
+    syncDock();
+    update();
     snapshot();
   }
 
@@ -662,7 +688,10 @@ export function createRoomModules({ guestToken = null } = {}) {
       b.type = 'button';
       b.className = 'modules-menu-item';
       b.dataset.native = def.id;
-      b.classList.toggle('on', open);
+      // On a phone the highlighted tab is the view being shown, not just an open pane.
+      b.classList.toggle('on', isNarrow() && open ? view === def.id : open);
+      // The call is on: the phone's tab bar marks it, since the conference can be hidden while it runs.
+      b.classList.toggle('in-call', def.id === 'conference' && open);
       const n = nativeUnread[def.id] || 0;
       b.innerHTML = `<i class="fa-solid fa-${escapeHtml(def.icon)} fa-fw" aria-hidden="true"></i><span>${escapeHtml(!open && def.closedLabel ? def.closedLabel : def.name)}</span>${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}`;
       menu.appendChild(b);
@@ -672,7 +701,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       b.type = 'button';
       b.className = 'modules-menu-item';
       b.dataset.module = m.id;
-      b.classList.toggle('on', panes.has(m.id));
+      b.classList.toggle('on', isNarrow() && panes.has(m.id) ? view === m.id : panes.has(m.id));
       const n = unread[m.id] || 0;
       b.innerHTML = `<i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i><span>${escapeHtml(m.name)}</span>${n ? `<span class="badge">${n > 9 ? '9+' : n}</span>` : ''}`;
       menu.appendChild(b);
@@ -741,7 +770,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     const native = event.target.closest('[data-native]');
     if (native) {
       const id = native.dataset.native;
-      if (panes.has(id)) closeNative(id);
+      // On a phone a tab switches the view; it never closes a pane (so it never hangs up the call).
+      if (isNarrow()) { if (panes.has(id)) setView(id); else api_openNative(id); }
+      else if (panes.has(id)) closeNative(id);
       else api_openNative(id);
       if (!inline()) menu.hidden = true;
       return;
@@ -750,7 +781,8 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (!item) return;
     const m = available.find((x) => x.id === item.dataset.module);
     if (!m) return;
-    if (panes.has(m.id)) closePane(m.id);
+    if (isNarrow()) { if (panes.has(m.id)) setView(m.id); else openModule(m); }
+    else if (panes.has(m.id)) closePane(m.id);
     else openModule(m);
     if (!inline()) menu.hidden = true;
   });
@@ -778,7 +810,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const def = natives.get(id);
     if (!def) return false;
     if (panes.has(id)) return true;
-    if (isNarrow() && id !== 'conference') closeOthers(id);
+    if (isNarrow()) view = id;
     const want = saved[id]?.mode === 'float' && (!def.modes || def.modes.includes('float')) ? 'float' : 'dock';
     return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
   };

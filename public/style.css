@@ -3336,22 +3336,10 @@ input[type="color"] {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
-/* In the call too, the conference stays visible as a strip above the chat, so
-   whoever can see you is never hidden from you. */
-.stage.narrow.chat-open.conference-open {
-  grid-template-rows: minmax(96px, 0.45fr) minmax(0, 1fr) auto auto;
-}
-
-.stage.narrow.chat-open.conference-open .module-chat .mod-content {
-  grid-row: 2;
-}
-
-.stage.narrow.chat-open.conference-open .module-chat .chat-bar {
-  grid-row: 3;
-}
-
-.stage.narrow.chat-open.conference-open .module-video .video-bar {
-  grid-row: 4;
+/* One view at a time: the pane being shown (the conference, the chat or a module) takes the whole stage above
+   the tab bar. The others stay open but hidden, so a call keeps running while the chat is read. */
+.narrow-hidden {
+  display: none !important;
 }
 
 .stage.narrow.chat-open .module-chat > * {
@@ -3362,15 +3350,9 @@ input[type="color"] {
   display: none;
 }
 
-/* A docked module on a narrow window is laid out exactly as the chat is: it fills the area below the
-   conference strip (or the whole stage when the call is not joined), its action bar under it, the video
-   toolbar last. Only one pane is open at a time on a narrow window, so this never meets chat-open. */
+/* A docked module on a narrow window is laid out as the chat is: it fills the stage, its action bar under it. */
 .stage.narrow.module-open {
   grid-template-rows: minmax(0, 1fr) auto auto;
-}
-
-.stage.narrow.module-open.conference-open {
-  grid-template-rows: minmax(96px, 0.45fr) minmax(0, 1fr) auto auto;
 }
 
 .stage.narrow.module-open .module-docked > * {
@@ -3383,18 +3365,6 @@ input[type="color"] {
 
 .stage.narrow.module-open .module-docked .dock-bar {
   grid-row: 2;
-}
-
-.stage.narrow.module-open.conference-open .module-docked .mod-content {
-  grid-row: 2;
-}
-
-.stage.narrow.module-open.conference-open .module-docked .dock-bar {
-  grid-row: 3;
-}
-
-.stage.narrow.module-open.conference-open .module-video .video-bar {
-  grid-row: 4;
 }
 
 .stage.narrow.module-open .dock-resize {

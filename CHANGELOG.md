@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- On a phone, one view at a time, the conference included: the conference, the chat and each module are tabs, and the one shown takes the whole stage. The others stay open and hidden, so the call keeps running while the chat is read; tapping a tab switches the view and never closes a pane or hangs up. The conference strip above the chat is gone. The conference tab carries `in-call` while the call is on, so the tab bar can show that a microphone may be live with the conference out of sight. Verified in a browser at 375px wide with the call panes open: chat, calendar and conference each took the whole stage, the highlighted tab followed the view, and tapping the shown tab did nothing. Not verified in a real call with a live microphone.
+
 ### Fixed
 - The chat box's bottom bar was painted from the page colour while the video toolbar and the module bars beside it used the shared shade, so in a light theme it looked like a different theme. All the cells of the shared bottom row now use the same background.
 
