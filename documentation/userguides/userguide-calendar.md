@@ -6,7 +6,7 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/calendar-1.4.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
+1. Upload `modules/dist/calendar-1.5.0.zip` on the Modules tab and choose **Approve and enable**. The Calendar asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
@@ -29,6 +29,10 @@ Events appear for everyone who has the calendar open as soon as they are saved.
 ## Events that last more than a day
 
 Give an event an **Ends** date, and a time if it is not all day, to make it run over several days: a trip, a convention, a night train. An all-day event's end date is its last day. The event shows on every day it covers in the month, with its time on the first day and an arrow on the days after, and the list shows its whole span, such as "Sep 22 - Sep 25". Leave **Ends** empty for an event on one day, and for a timed event you can give just an end time. A repeating event keeps its length in every repeat. Reminders still go out before the start.
+
+## Linking an event elsewhere
+
+An event can be dragged onto a task in the To-do module, or onto an open task there, to link the task to it. The task then shows the event's name and date. See [To-do](userguide-todo.md).
 
 ## Repeating events
 

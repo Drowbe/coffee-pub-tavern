@@ -6,7 +6,7 @@ The To-do module keeps a shared task list. There is one for the whole server and
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/todo-1.0.0.zip` on the Modules tab and choose **Approve and enable**. It asks to add two permissions to the Roles tab and to run reminders.
+1. Upload `modules/dist/todo-1.1.0.zip` on the Modules tab and choose **Approve and enable**. It asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: To-do**, choose who can **See the to-do list** and who can **Add, change and tick off tasks**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
@@ -17,6 +17,12 @@ Choose **To-do** in the header. Type a task in the box at the top and press Ente
 - Tick the box to mark a task done. **Open**, **Done** and **All** choose what the list shows. Open tasks are ordered by due date, with undated ones after, and done tasks are listed newest first.
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
 - Under the toolbar the server list also shows, read-only, the lists of every room you belong to that has To-do on. Each is headed by its room's icon and name, and a row of your rooms shows or hides each one. To tick off or change a room's task, open that room's list.
+
+## Link a task to an event or a poll
+
+A task can point at a Calendar event or a poll, so the task shows what it is for: "Book flights" next to the retreat's dates, or next to the poll that is deciding where to go. Open a task, then in **Linked** type in the box to search your events and polls and choose one, or drag an event from the Calendar (or a poll's question from Polls) onto a task, or onto the open editor. The link shows on the task with the item's name and date, and the item is looked up each time, so it stays current. If the item has been deleted, or you cannot see it, the link reads "Not available". A task can have up to five links.
+
+An admin approves the To-do's links when enabling it, and they show only what you can already see in the Calendar and Polls.
 
 ## In a room
 

@@ -6,7 +6,7 @@ Polls lets a group decide something together: where to go on a trip, where to st
 
 ## Set it up (admin)
 
-1. Upload `modules/dist/polls-1.0.0.zip` on the Modules tab and choose **Approve and enable**. It asks to add three permissions to the Roles tab and to send notifications.
+1. Upload `modules/dist/polls-1.1.0.zip` on the Modules tab and choose **Approve and enable**. It asks to add three permissions to the Roles tab and to send notifications.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**. By default users and moderators can do all three, and guests can only see. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
 
@@ -24,6 +24,10 @@ Choose **New poll**. Give the question and at least two options; each option can
 ## Vote
 
 Choose an option to vote for it. In a one-choice poll, choosing another option moves your vote, and choosing the same one again takes it back. In a many-choice poll each option is a switch. Results update live for everyone, with a bar and a count for each option and the names of the people who voted for it, so votes are not secret.
+
+## Link a poll to a task
+
+Drag a poll's question onto a task in the To-do module to link the task to the poll, for example a task to book whatever wins. See [To-do](userguide-todo.md).
 
 ## Close it
 

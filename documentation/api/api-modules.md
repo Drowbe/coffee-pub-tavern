@@ -27,7 +27,11 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } }
   ],
-  "hooks": { "schedule": true, "notify": true }
+  "hooks": { "schedule": true, "notify": true },
+  "refs": {
+    "produces": [{ "kind": "event", "key": "event:{id}", "card": { "title": "title", "when": "start" } }],
+    "consumes": ["polls:poll"]
+  }
 }
 ```
 
@@ -38,6 +42,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 - `permissions` holds up to 20 entries with unique lowercase keys. `default` says which roles have the
   permission before an admin changes it.
 - `hooks` names what the module may ask Tavern to do for it: `schedule` and `notify`.
+- `refs.produces` lists up to 10 kinds of item other modules may point at: a `kind` (lowercase letters, digits, dashes), a `key` that is a fixed prefix then `{id}` (`"event:{id}"`), and a `card` mapping the card fields `title` (required), `subtitle`, `when`, `end`, `allDay` and `done` to top-level stored field names. `refs.consumes` lists up to 20 other modules' kinds as `"module:kind"`; an admin approves them, and a module cannot consume its own kinds.
 - `access` names which of the module's own permissions guards reading and writing its data, for example `{ "read": "view", "write": "edit" }`. `surfaces.panel.mode` lists `float`, `dock` or both.
 - Anything else in the manifest is ignored.
 
@@ -58,7 +63,7 @@ A module in the list has the manifest fields plus:
 | `enabled` | Whether it is on |
 | `allRooms`, `rooms` | Where a room module is available |
 | `versions` | Installed versions, newest first |
-| `needsApproval`, `pending` | Whether the active version asks for permissions or hooks not yet approved, and which |
+| `needsApproval`, `pending` | Whether the active version asks for permissions, hooks or refs to consume not yet approved, and which |
 | `installedAt`, `updatedAt` | Timestamps |
 
 ## Behavior to rely on
@@ -84,6 +89,9 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `GET /api/modules/:id/data/:key` | `{ item }`, or 404 |
 | `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
 | `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
+| `POST /api/refs/resolve` | Body `{ from, refs: [{ module, kind, id, scope, room? }] }` (`from` is the asking module, up to 50 refs). Returns `{ cards }` in the same order: a card, or `{ ref, error, status }` for each that is missing, invalid or not allowed |
+| `GET /api/refs/search?from=&scope=&room=&q=` | Cards for items `from` may link to in one scope: every kind it was approved to consume, matching `q`, newest `when` first, up to 50 |
+| `GET /api/modules/:id/refs/:kind/:refId?from=&scope=&room=` | One card, `{ card }`, or an error |
 | `GET /api/modules/:id/rooms-data?prefix=` | For a module's server page: `{ rooms, items }` across the caller's own rooms (a member, module on for the room, role can read it), each item with its `roomId`, each room `{ id, name, icon, svg }`. `?info=1` returns just `{ rooms }`. Guests get 403 |
 | `GET /api/modules/stream?room=` | One server-sent stream for all modules on a page: `change` and `schedule` events with `module`, `scope` (`room` and `server` with a room; `server` and `rooms` without) and `roomId`, filtered to what the caller may read |
 | `GET /api/modules/:id/events` | Server-sent events: `change` for data changes and `schedule` when one fires. `?scope=rooms` streams changes from all the caller's rooms, each with a `roomId` |

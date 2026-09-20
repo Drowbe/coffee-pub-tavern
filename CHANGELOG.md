@@ -4,6 +4,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Modules can point at each other's items (refs), the one narrow door between otherwise isolated modules. A module lists in `module.json` the kinds of item it lets others point at (`refs.produces`: a kind, the stored key and which fields make the card) and the kinds it wants to point at (`refs.consumes`, approved by an admin when enabling, and shown on the module's card). A pointer is stored instead of a copy, and Tavern turns it into a small card each time it is drawn, only for people who can already see the item; a deleted or hidden item reads as not available. The SDK gains `tavern.refs` (`make`, `resolve`, `search`, `drag`, `accepts`, `parse`) and the server `/api/refs/resolve`, `/api/refs/search` and `/api/modules/:id/refs/:kind/:id`. Storage and permissions are unchanged. This is the module issue's proposal (Refs #1), with one change: the card is built by the server from the fields the producer names, because modules have no server code to ask.
+- Calendar 1.5.0, Polls 1.1.0 and To-do 1.1.0 use them. Events and polls can be dragged, and a task can link to up to five events and polls (search from the task editor, or drop one on a task), shown on the task with their name and date. To-do 1.1.0 asks the admin to approve its links. Upload the three new zips on Manage > Modules after deploying.
+
+Verified against a sandbox server: an approved consumer resolves events and polls, unapproved, missing, invalid and unauthenticated requests are refused with the right errors, a stored record's other fields never leave it, a non-member gets nothing from a room's data, a role without a module's view permission gets nothing from it, and the search and link flow in the To-do editor showed both links on the saved task. Not verified: dragging between two frames (the test browser does not perform real drag and drop), and two people.
+
 ### Changed
 - In a room the header no longer shows the links to the global module pages (Calendar, To-do, Polls); the Modules button is the way to a module there. Out of a room they are unchanged.
 

@@ -40,6 +40,12 @@
         <label>Due<input id="f-due" type="date"></label>
         <label class="check" id="f-remind-wrap"><input id="f-remind" type="checkbox"> Remind people at 9:00 that day</label>
       </div>
+      <div class="links-edit" id="f-links-wrap">
+        <span class="lbl">Linked</span>
+        <div id="f-links" class="links"></div>
+        <input id="f-link-search" type="text" maxlength="100" placeholder="Link an event or poll: type to search, or drop one here" aria-label="Search events and polls to link">
+        <div id="f-link-results" class="results"></div>
+      </div>
       <label class="check"><input id="f-done" type="checkbox"> Done</label>
       <p class="hint" id="f-by"></p>
       <p class="error" id="f-error" hidden></p>

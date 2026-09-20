@@ -1212,6 +1212,146 @@ app.get('/api/modules/:id/rooms-data', (req, res) => {
   res.json({ rooms, items });
 });
 
+// --- refs: one module pointing at another's items ---------------------------
+// Modules cannot reach each other's storage, and that stays. Instead a module may declare, in its
+// manifest, kinds of item it lets others point at (`refs.produces`: a kind, the stored key its items
+// live under and which stored fields make up a small "card") and kinds of other modules' items it wants
+// to point at (`refs.consumes`, approved by an admin). The consumer stores only a pointer
+// ({ module, kind, id, scope, room }) and asks the host for the card whenever it draws it. The host
+// answers only what the viewer could already see in the producing module: it must be enabled, the
+// viewer must hold its read permission in that scope (and be in the room), and the consumer must have
+// been approved for that kind. What comes back is the card, never the stored record.
+
+const refError = (status, message) => Object.assign(new Error(message), { status });
+const REF_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// Check that this viewer, through module `from`, may look at one scope of `provider`'s items of `kind`.
+function refScope(who, { provider, kind, scope, room, from }) {
+  if (!from) throw refError(400, 'say which module is asking');
+  const found = modules.enabled(provider);
+  if (!found) throw refError(404, 'no such module');
+  const produce = found.manifest.refs.produces.find((p) => p.kind === kind);
+  if (!produce) throw refError(404, 'that module does not share that kind of item');
+  const consumer = modules.enabled(from);
+  if (!consumer) throw refError(404, 'no such module');
+  const want = `${provider}:${kind}`;
+  if (!consumer.manifest.refs.consumes.includes(want) || !(consumer.entry.approved?.refs || []).includes(want)) {
+    throw refError(403, 'that module has not been approved to link to those items');
+  }
+  const { manifest, entry } = found;
+  let scopeKey;
+  let perms;
+  if (scope === 'room') {
+    const r = store.roomById(String(room || ''));
+    if (!r) throw refError(404, 'no such room');
+    if (!manifest.scope.includes('room')) throw refError(400, 'that module has no room scope');
+    if (!moduleRoomAccess(entry, who, r)) throw refError(403, 'that module is not available in that room for you');
+    // The asking module must itself be on in that room, and readable by the viewer.
+    if (!moduleRoomAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read')) throw refError(403, 'the linking module is not available in that room for you');
+    perms = modulePerms(who, r.id);
+    scopeKey = `room:${r.id}`;
+  } else {
+    if (!who.user) throw refError(403, 'guests can only use room modules');
+    if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
+    if (!moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
+    perms = modulePerms(who, null);
+    scopeKey = 'server';
+  }
+  if (!moduleCan(manifest, perms, 'read')) throw refError(403, 'your role can\'t see that module');
+  return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'room' ? 'room' : 'server', ...(scope === 'room' ? { room: String(room) } : {}) } };
+}
+
+// The card for one stored item: only the fields the producer named, trimmed and typed.
+function refCard({ manifest, produce, ref }, id, value) {
+  const text = (v) => (typeof v === 'string' ? v.slice(0, 200) : typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const field = (name) => (produce.card[name] ? value?.[produce.card[name]] : undefined);
+  const card = {
+    ref: { ...ref, id },
+    kind: produce.kind,
+    module: { id: manifest.id, name: manifest.name, icon: manifest.icon },
+    title: String(text(field('title')) ?? '').trim() || 'Untitled',
+  };
+  const subtitle = text(field('subtitle'));
+  if (subtitle !== undefined && subtitle !== '') card.subtitle = subtitle;
+  for (const name of ['when', 'end']) {
+    const v = text(field(name));
+    if (v !== undefined && v !== '') card[name] = v;
+  }
+  for (const name of ['allDay', 'done']) if (typeof field(name) === 'boolean') card[name] = field(name);
+  return card;
+}
+
+function resolveRef(who, ref, from) {
+  const id = String(ref?.id ?? '');
+  if (!REF_ID_RE.test(id)) throw refError(400, 'that is not a valid reference');
+  const at = refScope(who, { provider: String(ref.module || ''), kind: String(ref.kind || ''), scope: ref.scope, room: ref.room, from });
+  const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', id));
+  if (!item || !item.value) throw refError(404, 'that item is no longer there');
+  return refCard(at, id, item.value);
+}
+
+// Cards for a list of pointers, one answer each (a card, or why not).
+app.post('/api/refs/resolve', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  const from = String(req.body?.from || '');
+  const refs = Array.isArray(req.body?.refs) ? req.body.refs.slice(0, 50) : [];
+  res.json({
+    cards: refs.map((ref) => {
+      try {
+        return resolveRef(who, ref, from);
+      } catch (err) {
+        if (!err.status) throw err;
+        return { ref, error: err.message, status: err.status };
+      }
+    }),
+  });
+});
+
+// Items the asking module could link to, in one scope: every kind it was approved to consume.
+app.get('/api/refs/search', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  const from = String(req.query.from || '');
+  const consumer = modules.enabled(from);
+  if (!consumer) return res.status(404).json({ error: 'no such module' });
+  const scope = req.query.scope === 'room' ? 'room' : 'server';
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const cards = [];
+  for (const want of consumer.manifest.refs.consumes) {
+    if (!(consumer.entry.approved?.refs || []).includes(want)) continue;
+    const [provider, kind] = want.split(':');
+    let at;
+    try {
+      at = refScope(who, { provider, kind, scope, room: req.query.room, from });
+    } catch {
+      continue; // not on for this scope, or not for this viewer
+    }
+    const prefix = at.produce.key.replace('{id}', '');
+    for (const item of moduleData.list(provider, at.scopeKey, prefix)) {
+      if (!item.value || !REF_ID_RE.test(item.key.slice(prefix.length))) continue;
+      const card = refCard(at, item.key.slice(prefix.length), item.value);
+      if (q && !`${card.title} ${card.subtitle || ''}`.toLowerCase().includes(q)) continue;
+      cards.push(card);
+    }
+  }
+  // Newest dates first, undated last.
+  cards.sort((a, b) => String(b.when ?? '').localeCompare(String(a.when ?? '')) || a.title.localeCompare(b.title));
+  res.json({ cards: cards.slice(0, 50) });
+});
+
+// One item, by address (the same answer the batch gives).
+app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
+  const who = moduleViewer(req);
+  if (!who) return res.status(401).json({ error: 'sign in first' });
+  try {
+    res.json({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, room: req.query.room }, String(req.query.from || '')) });
+  } catch (err) {
+    if (!err.status) throw err;
+    res.status(err.status).json({ error: err.message });
+  }
+});
+
 // Modules with a page of their own that this viewer can open: the header nav.
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);

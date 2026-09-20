@@ -23,7 +23,7 @@
 
 ## Module interoperability
 
-Wanted: the core API manages how modules work together and exchange data, so a poll's winner can become a Calendar event or a to-do, and a to-do's due date can show on the Calendar. This is not built and needs design. Today a module sees only its own storage (plus, on its server page, its own data across the viewer's rooms), and the sandbox gives modules no way to reach each other; that is deliberate and stays. The exchange goes through the core.
+**Status:** the first piece is built: refs (declared, approved pointers that the core resolves into cards; see [api-module-sdk](../api/api-module-sdk.md) and [architecture-modules](../architecture/architecture-modules.md)). The Calendar, Polls and To-do use them: a task can link to an event or a poll. Still open: published events between modules (`poll.closed`), and modules asking each other to create things (a poll's winner becoming an event). Wanted: the core API manages how modules work together and exchange data, so a poll's winner can become a Calendar event or a to-do, and a to-do's due date can show on the Calendar. This is not built and needs design. Today a module sees only its own storage (plus, on its server page, its own data across the viewer's rooms), and the sandbox gives modules no way to reach each other; that is deliberate and stays. The exchange goes through the core.
 
 A sketch to react to:
 

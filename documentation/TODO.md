@@ -23,7 +23,7 @@ Collected, none started:
 - An LLM module.
 - A module for WhatsApp or SMS hooks.
 - A dashboard or hub view, on the rooms page, in place of the dedicated global module pages: what is coming up, what is due, which polls need a vote and who is around, across all your rooms. Thoughts first; see the discussion before building.
-- Module interoperability and data exchange through the core API: see plans/plan-modules.md. Design first.
+- Module interoperability, next steps beyond refs (which are built): published events between modules (`poll.closed`) and modules asking each other to create things. See plans/plan-modules.md. Also verify refs in a real browser: dragging an event or a poll from one pane onto a task in another, and between windows.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
 - Call time in the conference titlebar.
 - Reduce the height of the header a bit.

@@ -50,6 +50,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 - `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role. Admins can always do everything.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
 - `hooks` names what the module may ask Tavern to do: `schedule` and `notify`. The admin approves them when enabling the module.
+- `refs` lets modules point at each other's items without reaching into each other's data; see [Refs](#refs-pointing-at-another-modules-items). `refs.produces` lists the kinds of item this module lets others point at, and `refs.consumes` the other modules' kinds it wants to point at, which the admin approves when enabling the module.
 
 ## Pages and the SDK
 
@@ -112,6 +113,45 @@ tavern.on('schedule', ({ key, payload }) => {});   // when one fires, if the mod
 - A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
 - `repeat` makes Tavern schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
 - `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
+
+### Refs: pointing at another module's items
+
+Modules cannot read each other's storage, and that does not change. Refs are the one narrow door between them: a module stores a **pointer** to another module's item, never a copy, and asks Tavern for a small **card** whenever it draws it.
+
+A module that lets others point at its items lists them in `module.json`. Each entry names a `kind`, the stored key its items live under (a fixed prefix then `{id}`) and which of its stored fields fill the card. Only the fields named here ever leave the module, so a record's other fields stay private.
+
+```json
+"refs": {
+  "produces": [
+    { "kind": "event", "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
+  ],
+  "consumes": ["polls:poll"]
+}
+```
+
+The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay` and `done`. A module that wants to point at other modules' kinds lists them in `consumes` as `"module:kind"`. The admin approves that list when enabling the module, like permissions and hooks, and an upgrade that adds to it waits for approval.
+
+A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
+
+```js
+// Make a pointer to one of your own items, and keep it (with the rest of your data):
+const ref = tavern.refs.make('event', 'e1');           // { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: '...' }
+//   tavern.refs.make('event', 'e1', { scope: 'server' })   an item in the server's scope, from a room
+//   tavern.refs.make('event', 'e1', { room: roomId })      another room's item, from a module's server page
+
+// Later, ask Tavern what to show. One pointer gives a card, a list gives cards in the same order:
+const card = await tavern.refs.resolve(ref);
+// { ref, kind, module: { id, name, icon }, title, subtitle?, when?, end?, allDay?, done? }
+// or { ref, error, status } when the item is gone or the viewer may not see it (404, 403).
+const cards = await tavern.refs.resolve([refA, refB]);
+
+// Find items to link to, in this place (or from a room, { scope: 'server' }): every kind this module consumes.
+const found = await tavern.refs.search('retreat');     // cards, each with its pointer in card.ref
+```
+
+Tavern answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
+
+**Dragging.** A module can offer its items to be dragged onto another module. In a `dragstart` handler call `tavern.refs.drag(event, kind, id, { label })`, which puts the pointer on the drag under the type `application/x-tavern-ref`. A module that accepts drops calls `preventDefault()` in `dragover` when `tavern.refs.accepts(event)` is true, and in `drop` reads `tavern.refs.parse(event)`, which returns a checked pointer or `null`. Treat the pointer as untrusted: check the kind is one you consume, and `resolve` it. A drag carries only the pointer, so it works between panes and windows, and search is the way to link without dragging.
 
 ### The action bar
 

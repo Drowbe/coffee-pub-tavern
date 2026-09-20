@@ -25,6 +25,11 @@
   const hiddenRooms = new Set();
   let show = 'open';
   let editing = null; // { key, id, version } while the editor is open
+  let editingLinks = []; // the links the open editor will save
+  const MAX_LINKS = 5;
+  // What this module may link to (approved by an admin; see module.json refs.consumes).
+  const LINKABLE = ['calendar:event', 'polls:poll'];
+  const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
 
   // --- dates ---------------------------------------------------------------
 
@@ -49,7 +54,10 @@
     if (!item.key.startsWith('task:') || !item.value) return;
     const id = item.key.slice(5);
     const key = keyOf(scope, id, roomId);
-    tasks.set(key, { key, scope, roomId, id, version: item.version, t: item.value });
+    // Stored data is whatever a writer put there: keep only well-formed links.
+    const t = item.value;
+    t.links = Array.isArray(t.links) ? t.links.filter((r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string' && linkable(r)).slice(0, MAX_LINKS) : [];
+    tasks.set(key, { key, scope, roomId, id, version: item.version, t });
   }
   async function load() {
     tasks.clear();
@@ -75,6 +83,63 @@
     render();
   });
 
+  // --- links to other modules' items ----------------------------------------
+  // A task stores only pointers ({ module, kind, id, scope, room }); what to show comes from
+  // Tavern each time (tavern.refs.resolve), so it is always current and never more than the
+  // viewer may see. The pointers are checked in the drop and search: only the kinds above.
+
+  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
+  const linkable = (r) => LINKABLE.includes(r.module + ':' + r.kind);
+
+  async function resolveLinks() {
+    if (!tavern.refs) return;
+    const want = new Map();
+    for (const x of tasks.values()) for (const r of x.t.links || []) if (!cards.has(refKey(r))) want.set(refKey(r), r);
+    for (const r of editingLinks) if (!cards.has(refKey(r))) want.set(refKey(r), r);
+    if (!want.size) return;
+    const list = [...want.values()];
+    try {
+      const got = await tavern.refs.resolve(list);
+      list.forEach((r, i) => cards.set(refKey(r), got[i] || { error: 'unavailable' }));
+    } catch (err) {
+      list.forEach((r) => cards.set(refKey(r), { error: 'unavailable' }));
+    }
+    render();
+    renderEditorLinks();
+  }
+
+  function dateText(when, allDay) {
+    if (when === undefined || when === null || when === '') return '';
+    const d = typeof when === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(when) ? parseYmd(when) : new Date(when);
+    if (Number.isNaN(d.getTime())) return '';
+    return allDay === false ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function linkChip(r, removable) {
+    const c = cards.get(refKey(r));
+    const x = removable ? `<button class="x" type="button" data-unlink="${esc(refKey(r))}" aria-label="Remove link">&times;</button>` : '';
+    if (!c) return `<span class="link gone">Loading...${x}</span>`;
+    if (c.error) return `<span class="link gone" title="Deleted, or not something you can see">Not available${x}</span>`;
+    const when = dateText(c.when, c.allDay);
+    return `<span class="link" title="${esc(c.title)}"><b>${esc(c.module.name)}</b> ${esc(c.title)}${when ? ' &middot; ' + esc(when) : ''}${x}</span>`;
+  }
+
+  // Add a pointer to a task (from a drop) and save it.
+  async function linkTo(key, ref) {
+    const x = tasks.get(key);
+    if (!x || !canEdit || x.scope !== 'own' || !ref || !linkable(ref)) return;
+    const links = x.t.links || [];
+    if (links.some((r) => refKey(r) === refKey(ref))) return;
+    if (links.length >= MAX_LINKS) return showNote('A task can link to ' + MAX_LINKS + ' things.');
+    try {
+      await put(x, { ...x.t, links: [...links, ref] });
+    } catch (err) {
+      showNote(err.status === 409 ? 'Someone changed that task first. Try again.' : err.message);
+    }
+    render();
+    resolveLinks();
+  }
+
   // --- drawing -------------------------------------------------------------
 
   const roomIcon = (roomId) => {
@@ -97,9 +162,10 @@
     const editable = canEdit && x.scope === 'own';
     const due = t.due ? dueText(t.due) : null;
     const notes = t.notes ? `<small>${esc(t.notes.split('\n')[0].slice(0, 90))}</small>` : '';
-    return `<div class="task ${t.done ? 'done' : ''}">
+    const links = (t.links || []).length ? `<span class="links">${t.links.map((r) => linkChip(r, false)).join('')}</span>` : '';
+    return `<div class="task ${t.done ? 'done' : ''}" data-task="${esc(x.key)}" ${x.scope === 'own' ? 'draggable="true"' : ''}>
       <input class="tick" type="checkbox" data-tick="${esc(x.key)}" ${t.done ? 'checked' : ''} ${editable ? '' : 'disabled'} aria-label="Done">
-      <button class="text" type="button" data-open="${esc(x.key)}">${esc(t.title)}${notes}</button>
+      <button class="text" type="button" data-open="${esc(x.key)}">${esc(t.title)}${notes}${links}</button>
       ${due && !t.done ? `<span class="due ${due.cls}">${esc(due.text)}</span>` : ''}
     </div>`;
   }
@@ -204,6 +270,13 @@
     const readOnly = !canEdit || (x && x.scope !== 'own');
     const t = x ? x.t : { title: '', notes: '', due: null, remind: false, done: false };
     editing = x ? { key: x.key, id: x.id, version: x.version } : { key: null, id: null, version: null };
+    editingLinks = ((x && x.t.links) || []).slice();
+    $('f-link-search').value = '';
+    $('f-link-results').innerHTML = '';
+    $('f-link-search').hidden = readOnly || !tavern.refs;
+    $('f-links-wrap').hidden = !tavern.refs || (readOnly && !editingLinks.length);
+    renderEditorLinks(readOnly);
+    resolveLinks();
     showError('');
     const from = x && x.scope === 'rooms' && roomInfo.get(x.roomId) ? ` (${roomInfo.get(x.roomId).name})` : '';
     $('editor-title').textContent = x ? (readOnly ? t.title + from : 'Edit task') : 'New task';
@@ -225,7 +298,69 @@
   function closeEditor() {
     $('editor').hidden = true;
     editing = null;
+    editingLinks = [];
   }
+
+  function renderEditorLinks(readOnly = $('f-link-search').hidden) {
+    $('f-links').innerHTML = editingLinks.map((r) => linkChip(r, !readOnly)).join('');
+  }
+  $('f-links').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-unlink]');
+    if (!b) return;
+    editingLinks = editingLinks.filter((r) => refKey(r) !== b.dataset.unlink);
+    renderEditorLinks();
+  });
+
+  function addEditorLink(ref) {
+    if (!linkable(ref) || editingLinks.some((r) => refKey(r) === refKey(ref))) return;
+    if (editingLinks.length >= MAX_LINKS) return showError('A task can link to ' + MAX_LINKS + ' things.');
+    editingLinks.push(ref);
+    renderEditorLinks();
+    resolveLinks();
+  }
+
+  // Search the things this module may link to: here, and (from a room) the server's.
+  let searchTimer = 0;
+  async function searchLinks() {
+    const text = $('f-link-search').value.trim();
+    const box = $('f-link-results');
+    if (!tavern.refs) return;
+    try {
+      const found = [...await tavern.refs.search(text)];
+      if (inRoom) found.push(...await tavern.refs.search(text, { scope: 'server' }).catch(() => []));
+      const fresh = found.filter((c) => !editingLinks.some((r) => refKey(r) === refKey(c.ref))).slice(0, 12);
+      for (const c of fresh) cards.set(refKey(c.ref), c);
+      box.innerHTML = fresh.length ? fresh.map((c) => `<button type="button" class="result" data-link="${esc(refKey(c.ref))}"><span>${esc(c.module.name)}: ${esc(c.title)}</span><small>${esc(dateText(c.when, c.allDay))}</small></button>`).join('') : '<span class="hint">Nothing found.</span>';
+      box.dataset.found = JSON.stringify(fresh.map((c) => c.ref));
+    } catch (err) {
+      box.innerHTML = '';
+    }
+  }
+  $('f-link-search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchLinks, 250); });
+  $('f-link-search').addEventListener('focus', searchLinks);
+  $('f-link-results').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-link]');
+    if (!b) return;
+    const ref = JSON.parse($('f-link-results').dataset.found || '[]').find((r) => refKey(r) === b.dataset.link);
+    if (ref) addEditorLink(ref);
+    b.remove();
+  });
+
+  // Dropping an event or poll from another module on the open editor links it.
+  const acceptsRef = (e) => tavern.refs && tavern.refs.accepts(e);
+  $('editor').addEventListener('dragover', (e) => {
+    if (!acceptsRef(e) || $('f-link-search').hidden) return;
+    e.preventDefault();
+    $('editor').classList.add('drop');
+  });
+  $('editor').addEventListener('dragleave', (e) => { if (e.target === $('editor')) $('editor').classList.remove('drop'); });
+  $('editor').addEventListener('drop', (e) => {
+    $('editor').classList.remove('drop');
+    if (!acceptsRef(e) || $('f-link-search').hidden) return;
+    e.preventDefault();
+    const ref = tavern.refs.parse(e);
+    if (ref) addEditorLink(ref);
+  });
   $('f-cancel').addEventListener('click', closeEditor);
   $('editor').addEventListener('click', (e) => { if (e.target === $('editor')) closeEditor(); });
 
@@ -247,6 +382,7 @@
       doneAt: done ? (current && current.t.done ? current.t.doneAt : Date.now()) : null,
       createdAt: current ? current.t.createdAt : Date.now(),
       by: current ? current.t.by : info.user.name,
+      links: editingLinks.slice(0, MAX_LINKS),
     };
     $('f-save').disabled = true;
     try {
@@ -311,6 +447,32 @@
       if (x) openEditor(x);
     }
   });
+  // A task can be dragged (to another module that links to tasks), and an event or a poll dragged from
+  // another module onto a task links to it.
+  $('body').addEventListener('dragstart', (e) => {
+    const row = e.target.closest('[data-task]');
+    const x = row && tasks.get(row.dataset.task);
+    if (x && x.scope === 'own' && tavern.refs) tavern.refs.drag(e, 'task', x.id, { label: x.t.title });
+  });
+  $('body').addEventListener('dragover', (e) => {
+    const row = e.target.closest('[data-task]');
+    const x = row && tasks.get(row.dataset.task);
+    if (!x || x.scope !== 'own' || !canEdit || !acceptsRef(e)) return;
+    e.preventDefault();
+    row.classList.add('drop');
+  });
+  $('body').addEventListener('dragleave', (e) => {
+    const row = e.target.closest('[data-task]');
+    if (row) row.classList.remove('drop');
+  });
+  $('body').addEventListener('drop', (e) => {
+    const row = e.target.closest('[data-task]');
+    for (const r of $('body').querySelectorAll('.drop')) r.classList.remove('drop');
+    if (!row || !acceptsRef(e)) return;
+    e.preventDefault();
+    const ref = tavern.refs.parse(e);
+    if (ref) linkTo(row.dataset.task, ref);
+  });
   $('body').addEventListener('change', (e) => {
     const box = e.target.closest('[data-tick]');
     if (box) tick(box.dataset.tick, box.checked);
@@ -350,4 +512,7 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
+  resolveLinks();
+  // The items linked to can change or go; look again now and then.
+  setInterval(() => { cards.clear(); resolveLinks(); }, 60000);
 })();

@@ -15,6 +15,9 @@
 (function () {
   'use strict';
 
+  // The drag data type a pointer to a module's item travels under (see tavern.refs).
+  const REF_MIME = 'application/x-tavern-ref';
+
   const pending = new Map();
   const listeners = new Map();
   let seq = 0;
@@ -114,6 +117,58 @@
     // load the icon font). Read stored data across them with storage.list(prefix, { scope: 'rooms' }),
     // which returns each item with its `roomId`; 'change' events for those rooms carry `roomId` too.
     rooms: () => call('rooms'),
+
+    // Refs: pointing at another module's items without reaching into its data. A module lists what
+    // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
+    // the latter. A pointer is { module, kind, id, scope: 'room' | 'server', room? }: store it, never
+    // a copy of the item. resolve() asks Tavern for the item's card (title, subtitle, when, end,
+    // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
+    // a pointer is only ever as revealing as the viewer's own access.
+    refs: {
+      // A pointer to one of this module's own items, for a drag or to store.
+      make: (kind, id, o) => {
+        const ctx = (info && info.context) || {};
+        // { room } names another room's item (a module's server page showing the rooms it belongs to).
+        const otherRoom = o && o.room;
+        const server = !otherRoom && ((o && o.scope === 'server') || ctx.scope !== 'room');
+        const ref = { module: info && info.module && info.module.id, kind, id: String(id), scope: server ? 'server' : 'room' };
+        if (!server) ref.room = otherRoom || ctx.roomId;
+        return ref;
+      },
+      // One pointer, or a list, to cards. A list keeps its order.
+      resolve: async (refs) => {
+        const list = Array.isArray(refs) ? refs : [refs];
+        // Tavern answers up to 50 at a time.
+        const cards = [];
+        for (let i = 0; i < list.length; i += 50) cards.push(...await call('refs.resolve', { refs: list.slice(i, i + 50) }));
+        return Array.isArray(refs) ? cards : cards[0];
+      },
+      // Items this module may link to (kinds it consumes), matching the text, in this place
+      // or (from a room) { scope: 'server' }. Each is a card with its pointer in card.ref.
+      search: (text, o) => call('refs.search', { q: text || '', ...opts(o) }),
+      // Start a drag carrying a pointer to one of this module's items: call it from a dragstart handler.
+      drag: (event, kind, id, o) => {
+        const ref = tavern.refs.make(kind, id, o);
+        event.dataTransfer.setData(REF_MIME, JSON.stringify(ref));
+        if (o && o.label) event.dataTransfer.setData('text/plain', String(o.label));
+        event.dataTransfer.effectAllowed = 'copyLink';
+        return ref;
+      },
+      // Whether a drag over this module carries a pointer (call preventDefault on dragover to accept it).
+      accepts: (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes(REF_MIME),
+      // The pointer dropped, checked for shape, or null. It says nothing about whether the viewer may
+      // see the item: resolve() does that.
+      parse: (event) => {
+        try {
+          const ref = JSON.parse(event.dataTransfer.getData(REF_MIME));
+          const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind)
+            && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id) && (ref.scope === 'server' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
+          return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
+        } catch (err) {
+          return null;
+        }
+      },
+    },
 
     // Ask Tavern to run something later, on your behalf. Needs "schedule" (and
     // "notify" for a notification) in the manifest's hooks. `at` is a time

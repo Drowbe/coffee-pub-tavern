@@ -118,6 +118,20 @@ export function mountModule({ module, frame, scope, roomId = null, guestToken = 
       if (sc === 'rooms') return (await api('GET', url('/rooms-data', sc, { prefix }))).items;
       return (await api('GET', url('/data', sc, { prefix }))).items;
     },
+    // Refs: cards for pointers to other modules' items, and a search for items this module may link to.
+    // Always asked on this module's behalf (`from`), so the server can check it was approved for them.
+    async 'refs.resolve'({ refs }) {
+      const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
+      return (await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).cards;
+    },
+    async 'refs.search'({ q, scope: s }) {
+      const sc = scopeOf(s);
+      if (sc === 'rooms') throw Object.assign(new Error('search one place at a time'), { status: 400 });
+      const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: sc });
+      if (sc === 'room') p.set('room', roomId);
+      if (guestToken) p.set('guest', guestToken);
+      return (await api('GET', `/api/refs/search?${p}`)).cards;
+    },
     async rooms() {
       return (await api('GET', url('/rooms-data', 'rooms', { info: 1 }))).rooms;
     },

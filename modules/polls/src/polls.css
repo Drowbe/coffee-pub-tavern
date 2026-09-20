@@ -21,7 +21,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .group h4 { display: flex; align-items: center; gap: 4px; margin: 8px 0 4px; font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
 .poll { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
 .poll.closed { opacity: 0.85; }
-.poll h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.poll h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; cursor: grab; }
 .meta { color: var(--text-dim); font-size: 12px; }
 .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border: 1px solid var(--border); border-radius: 999px; font-size: 10px; color: var(--text-dim); }
 .opt { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; text-align: left; overflow: hidden; cursor: pointer; }

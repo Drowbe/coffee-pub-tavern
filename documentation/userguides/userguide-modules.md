@@ -12,7 +12,7 @@ Chat and Conference are listed first on the Modules tab as built-in modules. The
 2. Read the card that appears. It lists what the module asks for: permissions that will appear on the Roles tab, and whether it wants to run things on a schedule or send notifications.
 3. Click **Enable** (or **Approve and enable**), which records that you approved exactly what is listed. A new module always starts disabled.
 
-The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. The Calendar zip is built into the repository at `modules/dist/calendar-1.4.0.zip`.
+The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. The Calendar zip is built into the repository at `modules/dist/calendar-1.5.0.zip`.
 
 ## Where a module shows up
 

@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
@@ -15,5 +15,10 @@
     { "key": "edit", "label": "Add and change events", "default": { "user": true, "guest": false, "moderator": true } }
   ],
   "access": { "read": "view", "write": "edit" },
-  "hooks": { "schedule": true, "notify": true }
+  "hooks": { "schedule": true, "notify": true },
+  "refs": {
+    "produces": [
+      { "kind": "event", "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
+    ]
+  }
 }

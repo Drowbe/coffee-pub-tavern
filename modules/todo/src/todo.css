@@ -33,6 +33,22 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .due.late { color: var(--danger); border-color: var(--danger); }
 .empty { padding: 24px 8px; color: var(--text-dim); text-align: center; }
 
+/* links to other modules' items (a calendar event, a poll) */
+.links { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.link b { color: var(--accent); font-weight: 600; }
+.link.gone { opacity: 0.6; font-style: italic; }
+.link .x { padding: 0 2px; border: 0; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }
+.links-edit { display: flex; flex-direction: column; gap: 6px; }
+.links-edit .lbl { color: var(--text-dim); font-size: 12px; }
+.results { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
+.result { display: flex; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.result:hover { border-color: var(--accent); }
+.result small { color: var(--text-dim); white-space: nowrap; }
+.task.drop { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg-card)); }
+.editor.drop .editor-card { border-color: var(--accent); }
+.tick { cursor: pointer; }
+
 /* other rooms' tasks on the server page */
 .ri { display: inline-flex; align-items: center; margin-right: 2px; }
 .ri svg { width: 1em; height: 1em; fill: currentColor; }

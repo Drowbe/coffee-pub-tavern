@@ -29,6 +29,11 @@ const ALLOWED_EXT = new Set([
   '.woff', '.woff2', '.ttf', '.otf',
 ]);
 const HOOKS = ['schedule', 'notify'];
+// What a card (the small summary another module may show of an item) can carry, and which of the
+// producing module's own stored fields fill it. See documentation/api/api-module-sdk.md ("Refs").
+const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done'];
+const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
+const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['server', 'room'];
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
@@ -118,6 +123,38 @@ const clamp = (value, min, max, fallback) => (Number.isFinite(Number(value)) ? M
 
 // The validated manifest we keep, or a ModuleError saying what's wrong.
 // Anything the manifest says beyond these fields is ignored.
+// Refs: items a module lets other modules point at (`produces`), and other modules' items it wants
+// to point at (`consumes`, approved by an admin like permissions and hooks are). Always returns both
+// lists; throws on a bad declaration. The stored module.json is the author's original, so this runs
+// again whenever a manifest is read (see manifestOf).
+function cleanRefs(rawRefs, id) {
+  const refs = { produces: [], consumes: [] };
+  for (const p of Array.isArray(rawRefs?.produces) ? rawRefs.produces.slice(0, 10) : []) {
+    const kind = typeof p?.kind === 'string' ? p.kind.trim() : '';
+    if (!REF_KIND_RE.test(kind)) throw new ModuleError(`module.json: refs kind "${kind}" must be lowercase letters, digits or dashes`);
+    if (refs.produces.some((x) => x.kind === kind)) throw new ModuleError(`module.json: refs kind "${kind}" is listed twice`);
+    // The stored key an item lives under: a fixed prefix then {id}, such as "event:{id}".
+    const key = typeof p.key === 'string' ? p.key : '';
+    if (!/^[a-z][a-z0-9_-]{0,23}:\{id\}$/.test(key)) throw new ModuleError(`module.json: refs "${kind}" needs a "key" like "event:{id}"`);
+    const card = {};
+    for (const field of CARD_FIELDS) {
+      const from = p.card?.[field];
+      if (from === undefined || from === null) continue;
+      if (typeof from !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(from)) throw new ModuleError(`module.json: refs "${kind}" card.${field} must name a stored field`);
+      card[field] = from;
+    }
+    if (!card.title) throw new ModuleError(`module.json: refs "${kind}" needs a card.title`);
+    refs.produces.push({ kind, key, card });
+  }
+  for (const c of Array.isArray(rawRefs?.consumes) ? rawRefs.consumes.slice(0, 20) : []) {
+    if (typeof c !== 'string' || !REF_CONSUME_RE.test(c)) throw new ModuleError(`module.json: refs.consumes "${c}" must look like "module:kind"`);
+    if (c.split(':')[0] === id) throw new ModuleError('module.json: a module does not need to consume its own kinds');
+    if (!refs.consumes.includes(c)) refs.consumes.push(c);
+  }
+
+  return refs;
+}
+
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
@@ -161,6 +198,8 @@ function cleanManifest(raw, files) {
   }
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
 
+  const refs = cleanRefs(raw.refs, id);
+
   // Which of the module's own permissions guards reading and writing its data.
   const access = {};
   for (const kind of ['read', 'write']) {
@@ -172,7 +211,7 @@ function cleanManifest(raw, files) {
     access[kind] = named;
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, access };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, access };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -215,7 +254,14 @@ class ModuleManager {
     } catch {
       // not installed
     }
-    if (manifest) this.manifests.set(cacheKey, manifest);
+    if (manifest) {
+      try {
+        manifest.refs = cleanRefs(manifest.refs, id);
+      } catch {
+        manifest.refs = { produces: [], consumes: [] };
+      }
+      this.manifests.set(cacheKey, manifest);
+    }
     return manifest;
   }
 
@@ -259,11 +305,16 @@ class ModuleManager {
 
   // What the active version asks for that an admin hasn't approved yet.
   pendingFor(entry, manifest) {
-    const approved = entry.approved || { permissions: [], hooks: [] };
+    const approved = entry.approved || { permissions: [], hooks: [], refs: [] };
     return {
       permissions: manifest.permissions.filter((p) => !approved.permissions.includes(p.key)).map((p) => p.key),
       hooks: HOOKS.filter((h) => manifest.hooks[h] && !approved.hooks.includes(h)),
+      refs: manifest.refs.consumes.filter((c) => !(approved.refs || []).includes(c)),
     };
+  }
+
+  hasPending(pending) {
+    return pending.permissions.length > 0 || pending.hooks.length > 0 || pending.refs.length > 0;
   }
 
   view(id) {
@@ -278,7 +329,7 @@ class ModuleManager {
       allRooms: Boolean(entry.allRooms),
       rooms: entry.rooms || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
-      needsApproval: pending.permissions.length > 0 || pending.hooks.length > 0,
+      needsApproval: this.hasPending(pending),
       pending,
       installedAt: entry.installedAt,
       updatedAt: entry.updatedAt,
@@ -329,13 +380,13 @@ class ModuleManager {
 
     const now = new Date().toISOString();
     const entry = existing || {
-      id: manifest.id, versions: [], enabled: false, allRooms: false, rooms: [], approved: { permissions: [], hooks: [] }, installedAt: now,
+      id: manifest.id, versions: [], enabled: false, allRooms: false, rooms: [], approved: { permissions: [], hooks: [], refs: [] }, installedAt: now,
     };
     entry.versions.push(manifest.version);
     entry.version = manifest.version;
     entry.updatedAt = now;
     // An upgrade that asks for anything new goes back to waiting for approval.
-    if (this.pendingFor(entry, manifest).permissions.length || this.pendingFor(entry, manifest).hooks.length) entry.enabled = false;
+    if (this.hasPending(this.pendingFor(entry, manifest))) entry.enabled = false;
     this.registry.modules[manifest.id] = entry;
     this.manifests.delete(`${manifest.id}@${manifest.version}`);
     this.prune(entry);
@@ -367,7 +418,7 @@ class ModuleManager {
     if (patch.enabled !== undefined) {
       entry.enabled = Boolean(patch.enabled);
       if (entry.enabled) {
-        entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]) };
+        entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes] };
       }
     }
     if (patch.allRooms !== undefined) {
@@ -390,7 +441,7 @@ class ModuleManager {
     entry.updatedAt = new Date().toISOString();
     const manifest = this.manifestOf(id, version);
     const pending = this.pendingFor(entry, manifest);
-    if (pending.permissions.length || pending.hooks.length) entry.enabled = false;
+    if (this.hasPending(pending)) entry.enabled = false;
     this.save();
     return this.view(id);
   }

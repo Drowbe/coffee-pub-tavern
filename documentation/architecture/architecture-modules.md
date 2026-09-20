@@ -60,7 +60,7 @@ one.
 
 ## Approval
 
-`pendingFor` returns the permissions and hooks in the active manifest that are not in `approved`.
+`pendingFor` returns the permissions, hooks and `refs.consumes` entries in the active manifest that are not in `approved`.
 Enabling copies the whole current set into `approved`. That is why an upgrade can quietly gain a
 capability only if the admin approves it.
 
@@ -104,6 +104,14 @@ Every runtime route calls `moduleAccess` in `server/index.js`, which resolves th
 ### Live changes
 
 `GET /api/modules/stream` is one server-sent event stream for every module on a page. It subscribes to `change` events from the data store and `fire` events from the scheduler and writes them as `change` and `schedule` events, each labelled with its module and a scope (`room` and `server` for a room's panes, `server` and `rooms` for a module's server page), checked against what the viewer may read. `public/module-host.js` shares one stream per room and page between all its frames and forwards each event into the right one. This matters because browsers allow only about six long-lived connections to one host over HTTP/1.1: a stream per module (two for a room panel) used them all with three modules open, and every other request, including a frame's first call to the host, waited forever, which the frame reported as "Tavern did not answer". `GET /api/modules/:id/events` remains for a single module and scope.
+
+### Refs
+
+Modules cannot read each other's data, and refs are the single, declared exception. The stored `module.json` is the author's original, so `cleanRefs` in `server/modules.js` normalises `refs` when a manifest is installed and again whenever one is read (`manifestOf`). A producing module maps a kind to a stored key (`event:{id}`) and to card fields; a consuming module lists `module:kind` entries an admin must approve. Because modules are front-end only there is no provider code to ask, so the card is built by the server from the provider's stored value, and only the named fields are copied.
+
+The routes in `server/index.js` (`/api/refs/resolve`, `/api/refs/search`, and one card by address) all pass through `refScope`, which checks, in order: the asking module is named, the provider is enabled and produces that kind, the asker declared and was approved for `provider:kind`, the scope exists (a room the viewer may open, or the server for a signed-in person), and the viewer holds the provider's `read` permission there. Missing or refused items come back as an error per pointer, never a stack trace or a partial record. The host (`public/module-host.js`) always sends the frame's own module id as `from`; that is a consistency check rather than a security boundary, since the viewer is the one authorised, and their own permissions in the provider are what decide the answer.
+
+A consumer stores only `{ module, kind, id, scope, room? }` and resolves it each time it draws. Dragging carries the same pointer as `application/x-tavern-ref` between frames; the receiver validates its shape (the SDK's `refs.parse`) and resolves it, so a forged drag reveals nothing.
 
 ### Hooks
 
