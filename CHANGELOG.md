@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- The chat's Send button is the right-from-bracket icon (it keeps the label "Send" for screen readers and as a tooltip), the same size as the other controls in the bottom row.
+
 ### Added
 - Chat history on the server. A room now keeps its last 500 text messages (none older than 30 days), so someone who joins late, or from a new browser, reads what was said; before, each browser kept its own copy and a new person saw almost nothing. The sender posts each message to the server (`POST /api/rooms/:id/chat`) and everyone reads the history on joining (`GET /api/rooms/:id/chat`), above a line marking where they came in. Text only: pictures stay live, and a pull-aside room keeps nothing. Reading needs the chat permission and membership of the room; posting is rate limited; deleting a room deletes its history. Clear chat now hides what came before on that browser only. Verified against a running server: anonymous 401, unknown room 404, an outsider refused on a room, empty and oversized messages, the rate limit, and history surviving a restart. The join-time rendering (history above live messages, Clear chat, no posting from asides) was run in Node against the real code with a stubbed page. Not verified in a real call with two people.
 

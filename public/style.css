@@ -2208,6 +2208,7 @@ a.crumb-here:hover {
 
 .chat form .btn {
   height: var(--bar-control-h);
+  min-width: var(--bar-control-h);
 }
 
 .chat textarea {
