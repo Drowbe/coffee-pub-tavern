@@ -4032,10 +4032,11 @@ body.at-table .module-nav {
     height: auto;
   }
 
+  /* Installed to the home screen, the page runs under the status bar (black-translucent in room.html),
+     so the header starts below it. The inset is 0 in a browser tab. */
   body.at-table .topbar {
     min-height: 40px;
-    padding: 0 10px;
-    padding-block: 0;
+    padding: env(safe-area-inset-top) 10px 0;
   }
 
   body.at-table .topbar .brand .icon {

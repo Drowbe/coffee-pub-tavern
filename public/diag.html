@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!-- A measuring page for phone layout: shows what the browser really reports. Open it in the browser and
+       again from the home screen: /diag.html?fit=cover (default) or ?fit=auto, ?bar=default|black-translucent -->
+  <script src="/diag-head.js"></script>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Layout diagnostics</title>
+  <link rel="stylesheet" href="/diag.css">
+</head>
+<body>
+  <div id="frame"></div>
+  <div class="probe" id="p-vh"></div><div class="probe" id="p-dvh"></div><div class="probe" id="p-svh"></div><div class="probe" id="p-lvh"></div><div class="probe" id="p-pct"></div>
+  <div class="probe" id="p-top"></div><div class="probe" id="p-bottom"></div><div class="probe" id="p-left"></div><div class="probe" id="p-right"></div>
+  <div id="fx-top" class="fx">top:0</div>
+  <div id="fx-bottom" class="fx">bottom:0 (blue)</div>
+  <div id="fx-bottom-env" class="fx">bottom:env(safe-area-inset-bottom) (green)</div>
+  <pre id="out">measuring...</pre>
+  <div id="tall">scroll me: the browser's bars may move</div>
+  <script src="/diag.js"></script>
+</body>
+</html>

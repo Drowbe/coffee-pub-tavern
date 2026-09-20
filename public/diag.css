@@ -1,0 +1,13 @@
+html { background: #f0f0f0; }
+body { margin: 0; font: 13px/1.35 ui-monospace, Menlo, monospace; color: #111; }
+.probe { position: absolute; visibility: hidden; width: 1px; left: 0; top: 0; }
+#p-vh { height: 100vh; } #p-dvh { height: 100dvh; } #p-svh { height: 100svh; } #p-lvh { height: 100lvh; } #p-pct { height: 100%; }
+#p-top { padding-top: env(safe-area-inset-top); } #p-bottom { padding-bottom: env(safe-area-inset-bottom); }
+#p-left { padding-left: env(safe-area-inset-left); } #p-right { padding-right: env(safe-area-inset-right); }
+#frame { position: fixed; inset: 0; border: 3px solid magenta; box-sizing: border-box; pointer-events: none; z-index: 5; }
+.fx { position: fixed; left: 0; right: 0; height: 36px; line-height: 36px; padding: 0 8px; color: #fff; font-weight: 700; z-index: 6; box-sizing: border-box; }
+#fx-top { top: 0; background: #b22; }
+#fx-bottom { bottom: 0; background: #22b; }
+#fx-bottom-env { bottom: env(safe-area-inset-bottom); background: #2a2; margin-bottom: 36px; }
+#out { position: relative; margin: 44px 8px 0; padding: 6px; background: #fffd; white-space: pre-wrap; z-index: 4; }
+#tall { height: 2400px; padding: 20px; }
