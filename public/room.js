@@ -43,6 +43,22 @@ const placeSubnav = () => {
 };
 phoneWidth.addEventListener('change', placeSubnav);
 placeSubnav();
+// On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
+// only be reachable from the Conference view's toolbar. This item, in the menu only and only while
+// in the call, shows the conference and opens them.
+const callSettingsLink = document.createElement('button');
+callSettingsLink.className = 'icon-link call-settings-link';
+callSettingsLink.type = 'button';
+callSettingsLink.hidden = true;
+callSettingsLink.setAttribute('aria-label', 'Call settings');
+callSettingsLink.innerHTML = '<i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i>';
+const logoutDivider = topbarEl.querySelector('#logout-link')?.previousElementSibling;
+logoutDivider?.parentNode.insertBefore(callSettingsLink, logoutDivider);
+topbarEl.querySelector('#nav-toggle')?.addEventListener('click', () => { callSettingsLink.hidden = !inCall; });
+callSettingsLink.addEventListener('click', () => {
+  document.querySelector('.modules-menu-item[data-native="conference"]')?.click(); // shows the conference view
+  setTimeout(() => { if ($('settings').hidden || $('settings').dataset.group !== 'more') openSettings('more'); }, 50);
+});
 // Only this page loads your profile/Manage as an overlay over a running
 // call instead of a real navigation (see openOverlay() below) -- the
 // shared header doesn't know that, so it's marked here instead.

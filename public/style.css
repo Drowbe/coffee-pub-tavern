@@ -4166,7 +4166,8 @@ body.at-table .module-nav {
    Below 640px, on every page, the header keeps where you are (the server, the crumb) and a menu
    button. The links (your profile, the rooms, Manage, install, the module pages, sign out) open
    as a panel under it, with their names, big enough to tap. brand.js builds the button. */
-.topbar .nav-toggle {
+.topbar .nav-toggle,
+.topbar .call-settings-link {
   display: none;
 }
 
