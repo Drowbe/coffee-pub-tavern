@@ -63,9 +63,11 @@ Stages 2 and 3 (built together, as asked):
 - [x] The conference can float (a panel, wrapped in its own `.stage`) and can be in a window of its own with the other panes staying on the page; moving between the three leaves the call running.
 - [x] The aside, recall and away overlays cover the conference itself, wherever it is. The settings and reaction popovers hang off the toolbar as before.
 - [x] The floating toolbar in the popped-out window is gone: the popout has the same titlebar and toolbar, which slide away when idle and back on movement.
-- [x] Full screen and Pop out moved out of the conference into the header, at the right (Modules, Full screen, Pop out, Sign out), and apply to the whole app. The Modules button left the toolbar and is only in the header; the popped-out conference has its own Modules and Full screen buttons because the header is out of reach there.
+- [x] Full screen and Pop out moved out of the conference into the header, at the right (Modules, Full screen, Pop out, Sign out), and apply to the whole app. The Modules button left the toolbar and is only in the header. Pop out moves the header too, so the popped-out app is complete; the page behind offers "Bring the app back".
+- [x] Fixed after a first real test: a pane's window fired its "closed" handler when the blank page it opens as navigated, which closed the pane at once (and left the call) and left an empty window with dead icons.
 - [x] The compact and tiny sizes follow the conference's own width, not the stage's.
 - [x] Checked in a browser with forced states: docked with the chat, floating and docking back, the popout look in both idle and awake states, the header order, the menu from the header and from the popped-out titlebar, a phone-width header and strip.
+- [ ] Reported after a real test and not reproduced: in a popped-out app, the icons in the chat and calendar titlebars did nothing. The header now moves with the app; needs a retest in a real window, with the console open if it still happens.
 - [ ] Verified in a real call and in real windows (the test browser blocks popups): the conference floating with live tiles, the conference alone in its own window (tiles and audio keep playing after the move, hotkeys, idle, popovers), closing that window, the whole-app pop-out with the new titlebar and toolbar sliding, Full screen from the header while popped out, and the header's Modules button beside a conference in a window.
 
 Stage 4: not started.

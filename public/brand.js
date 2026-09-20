@@ -26,8 +26,8 @@ export async function loadBranding() {
     // keep the defaults
   }
   ICONS = Array.isArray(b.icons) ? b.icons : [];
-  document.querySelectorAll('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
-  document.querySelectorAll('[data-brand="home-icon"]').forEach((el) => {
+  qsa('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
+  qsa('[data-brand="home-icon"]').forEach((el) => {
     el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
     el.dataset.iconId = b.homeIcon || 'couch';
   });
@@ -64,9 +64,16 @@ export async function loadBranding() {
 // the same), the crumb (changes with where you are and what you can do
 // from here), and the global nav (always the same, on every page,
 // regardless of which of those icons is the page you're already on).
+// The header can be moved to the popped-out window with the rest of the app, so its parts are
+// looked up inside it as well as in this document.
+let headerEl = null;
+const qsa = (sel) => [...new Set([...document.querySelectorAll(sel), ...(headerEl ? headerEl.querySelectorAll(sel) : [])])];
+const byId = (id) => document.getElementById(id) || headerEl?.querySelector(`#${id}`) || null;
+
 export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   const header = document.querySelector('.topbar');
   if (!header) return;
+  headerEl = header;
   // Opened as an overlay iframe (see openOverlay() in room.js), the parent
   // page already knows the real server name and icon -- passing them along
   // means the very first paint gets it right, instead of flashing the
@@ -113,7 +120,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
 const unreadByModule = {};
 
 function paintUnread() {
-  for (const link of document.querySelectorAll('.module-nav-link')) {
+  for (const link of qsa('.module-nav-link')) {
     const n = unreadByModule[link.dataset.module] || 0;
     let badge = link.querySelector('.nav-badge');
     if (!n) { badge?.remove(); continue; }
@@ -188,7 +195,7 @@ async function startNotifications() {
 // inside a call they use the same in-page overlay as the profile, so the call
 // keeps running (see openOverlay in room.js).
 async function loadModuleNav() {
-  const slot = document.getElementById('module-nav');
+  const slot = byId('module-nav');
   if (!slot) return;
   try {
     const res = await fetch('/api/modules/nav');
@@ -224,7 +231,7 @@ export function crumbLink(icon, label, href) {
 }
 
 export function setTopbarLocation(html) {
-  const crumb = document.getElementById('topbar-crumb');
+  const crumb = byId('topbar-crumb');
   if (crumb) crumb.innerHTML = html ? `<span class="crumb-sep">&rsaquo;</span>${html}` : '';
 }
 
@@ -235,16 +242,16 @@ let installPromptEvent = null;
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   installPromptEvent = event;
-  document.getElementById('install-link')?.removeAttribute('hidden');
+  byId('install-link')?.removeAttribute('hidden');
 });
 function wireInstall() {
-  if (installPromptEvent) document.getElementById('install-link')?.removeAttribute('hidden');
-  document.getElementById('install-link')?.addEventListener('click', async () => {
+  if (installPromptEvent) byId('install-link')?.removeAttribute('hidden');
+  byId('install-link')?.addEventListener('click', async () => {
     if (!installPromptEvent) return;
     installPromptEvent.prompt();
     await installPromptEvent.userChoice.catch(() => {});
     installPromptEvent = null;
-    document.getElementById('install-link')?.setAttribute('hidden', '');
+    byId('install-link')?.setAttribute('hidden', '');
   });
 }
 

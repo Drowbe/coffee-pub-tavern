@@ -51,10 +51,10 @@
     </article>
   </template>
 
-  <!-- Shown on the page while the stage is popped out into its own window. -->
+  <!-- Shown on the page while the whole app (header and stage) is popped out into its own window. -->
   <div class="away" id="away" hidden>
-    <p>Your room is in its own window.</p>
-    <button class="btn" id="bring-back" type="button">Bring it back here</button>
+    <p>The app is in its own window.</p>
+    <button class="btn btn-primary" id="bring-back" type="button">Bring the app back</button>
   </div>
 
   <!-- Your profile or Manage, opened from inside a call: loads for real in
@@ -74,8 +74,6 @@
       <header class="mod-header conference-head">
         <span class="module-panel-title"><i class="fa-solid fa-video fa-fw" aria-hidden="true"></i> <span>Conference</span></span>
         <span class="mod-header-tools pane-tools">
-          <button class="msg-btn conf-popout-only" id="conf-fullscreen" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw" aria-hidden="true"></i></button>
-          <button class="msg-btn conf-popout-only" id="conf-modules" type="button" title="Chat and modules" aria-label="Chat and modules"><i class="fa-solid fa-puzzle-piece fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="conf-close" data-pane-close type="button" title="Leave the call" aria-label="Leave the call"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>
         </span>
       </header>

@@ -4,6 +4,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- Popping the conference out with its titlebar button opened an empty window and left the call: the window's "closed" handler ran when its blank starting page navigated, closing the pane at once. The handler is now registered once the window has loaded. The chat's own window had the same fault.
+
+### Changed
+- Pop out (in the header) now moves the whole app, header included, into the popup, and the page behind shows a "Bring the app back" button. The header hides with the titlebar and toolbar when idle. The conference titlebar's own Modules and Full screen buttons are gone, since the header comes along. A header link in the popup brings the app back before it acts.
+
 ### Added
 - The conference has the same titlebar as the chat and the modules, with buttons to float it, open it in a window of its own (the chat and modules stay on the page), and close it, which leaves the call. The header now holds the controls for the whole app, at the right: Modules, Full screen and Pop out, then Sign out; the Modules button left the toolbar, and Full screen and Pop out left the corner of the video. The header also reads profile, then the module links, then rooms and settings.
 - The popped-out window no longer has a floating pill toolbar: it has the same titlebar and toolbar as the page, and both slide away when nothing moves and back on any movement, leaving only the tiles. Since the header is not there, the titlebar has its own Modules and Full screen buttons while popped out.

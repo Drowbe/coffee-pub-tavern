@@ -1521,12 +1521,20 @@ a.crumb-here:hover {
    nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
    and slide back on the next movement. Gone, they leave the flow, so the tiles take the
    whole window. */
-.popout .stage {
-  height: 100vh;
-}
-
 .popout .conference-head,
 .popout .video-bar {
+  transition: transform 0.25s ease;
+}
+
+/* The header goes with the titlebar and toolbar, so an idle popout is only tiles. */
+.popout:has(.stage.idle) .topbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-100%);
+}
+
+.popout .topbar {
   transition: transform 0.25s ease;
 }
 
@@ -1547,16 +1555,6 @@ a.crumb-here:hover {
   bottom: 0;
   z-index: 6;
   transform: translateY(100%);
-}
-
-/* What only makes sense while the header (with its Modules and Full screen buttons) is out of
-   reach in another window: the conference's own copies. */
-.conf-popout-only {
-  display: none;
-}
-
-.popout .conf-popout-only {
-  display: inline-flex;
 }
 
 .popout .conference-head [data-popout] {

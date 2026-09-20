@@ -110,12 +110,12 @@ To run the table without browser bars, install it as an app: Chrome and Edge sho
 app** in the settings popover, Safari on macOS has **File, Add to Dock**, and iPhones and iPads use
 **Share, Add to Home Screen**.
 
-In Chrome and Edge the **pop out** button in the header (next to Full screen) moves the whole table,
-every pane included, into a small window and back; **Full screen** applies to the whole table too. Popped
-out, the conference keeps its titlebar and toolbar, but they slide away when the pointer rests and come
-back on any movement, leaving only the tiles. The titlebar has its own Modules and Full screen buttons
-there, since the header stays behind on the page, which offers **Bring it back here**. Pop out again from
-the button, which becomes **Pop it back in** while the table is out.
+In Chrome and Edge the **pop out** button in the header (next to Full screen) moves the whole app, header
+and every pane included, into a small window and back; **Full screen** applies to the whole app too. The
+page behind shows **Bring the app back**, and the button in the header becomes **Pop it back in**. Popped
+out, the header, the conference's titlebar and the toolbar all slide away when the pointer rests and come
+back on any movement, leaving only the tiles. A header link (your profile, the rooms, a module's page)
+brings the app back to the page first.
 
 The conference can also go alone into a window of its own with the button on its titlebar, leaving the
 chat and the modules on the page. Closing that window leaves the call.

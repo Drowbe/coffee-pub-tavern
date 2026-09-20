@@ -412,16 +412,22 @@ export function createRoomModules({ guestToken = null } = {}) {
       def.onChange?.({ open: true, mode: 'window', moving: opts.moving });
       update();
     };
-    win.addEventListener('load', setup, { once: true });
-    // Closing the window closes the chat, and its parts go back to the page.
-    win.addEventListener('pagehide', () => {
-      if (panes.get(def.id) !== pane) return;
-      stage.appendChild(def.el);
-      def.el.hidden = true;
-      panes.delete(def.id);
-      def.onChange?.({ open: false, mode: 'window' });
-      update();
-    });
+    win.addEventListener('load', () => {
+      setup();
+      // Closing the window closes the pane, and its parts go back to the page. Registered only
+      // once the window has loaded: the blank page it starts as also fires pagehide, when it
+      // navigates to the real one, and that must not count as the person closing it.
+      win.addEventListener('pagehide', () => {
+        if (panes.get(def.id) !== pane) return;
+        stage.appendChild(def.el);
+        def.el.hidden = true;
+        def.el.classList.remove('is-flex');
+        panes.delete(def.id);
+        syncDock();
+        def.onChange?.({ open: false, mode: 'window' });
+        update();
+      });
+    }, { once: true });
     return true;
   }
 
@@ -588,7 +594,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (bound.has(doc)) return;
     bound.add(doc);
     doc.addEventListener('click', (event) => {
-      if (menu && !menu.hidden && !event.target.closest('#modules-menu, #modules-toggle, #conf-modules')) menu.hidden = true;
+      if (menu && !menu.hidden && !event.target.closest('#modules-menu, #modules-toggle')) menu.hidden = true;
     });
     (doc.defaultView || window).addEventListener('resize', () => {
       for (const p of panes.values()) {
@@ -609,9 +615,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   // Modules button in the page header (the one place to open panes).
   function positionMenu() {
     const visible = (el) => el && el.getBoundingClientRect().width > 0;
-    // In a popped-out window the page's header is in another window, so the conference's own
-    // Modules button (shown there) is the anchor; the menu opens under it.
-    const anchor = [stage.querySelector('#conf-modules'), toggle].find(visible);
+    // The header moves with the stage when the app is popped out, so the button is always beside it.
+    const anchor = [toggle].find(visible);
     const s = stage.getBoundingClientRect();
     const w = menu.offsetWidth;
     menu.style.transform = 'none';

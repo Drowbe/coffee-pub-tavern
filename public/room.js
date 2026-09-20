@@ -9,7 +9,9 @@ import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 const stageEl = document.getElementById('stage');
 // The conference can live in a floating panel or a window of its own, away from the stage.
 const confEl = document.getElementById('conference');
-const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`));
+// The header moves to the popped-out window with the stage, so it is searched too.
+const topbarEl = document.getElementById('topbar');
+const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`));
 // Before anything else touches a header element -- the header itself is
 // built here, not left static in room.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
@@ -454,7 +456,7 @@ function setStatus(text, error = false) {
   $('status').classList.toggle('error', error);
   // The page header shows the same status, except the plain "in <room>"
   // which the room name next to the brand already says.
-  const top = document.getElementById('topbar-status');
+  const top = $('topbar-status');
   top.textContent = !error && text === `in ${tableName}` ? '' : text;
   top.classList.toggle('error', error);
 }
@@ -1449,11 +1451,7 @@ roomModules.registerNative({
   },
 });
 $('conf-close').addEventListener('click', hangUp);
-$('conf-modules').addEventListener('click', (event) => {
-  event.stopPropagation();
-  roomModules.toggleMenu();
-});
-$('conf-fullscreen').addEventListener('click', (event) => toggleFullscreen(event.currentTarget.ownerDocument));
+
 
 // The chat is a pane like a module's: a column beside the video, a floating panel,
 // or a window of its own (see room-modules.js). This is what the pane manager
@@ -2685,10 +2683,8 @@ function toggleFullscreen(doc = stageDoc()) {
 // on the popout's own document once it exists (see setUpPopoutWindow).
 function syncFullscreenButton() {
   const on = !!document.fullscreenElement || !!stageDoc().fullscreenElement || !!confEl.ownerDocument.fullscreenElement;
-  for (const id of ['fullscreen-toggle', 'conf-fullscreen']) {
-    $(id).classList.toggle('on', on);
-    $(id).title = on ? 'Exit full screen (F)' : 'Full screen (F)';
-  }
+  $('fullscreen-toggle').classList.toggle('on', on);
+  $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
 }
 document.addEventListener('fullscreenchange', syncFullscreenButton);
 $('fullscreen-toggle').addEventListener('click', () => toggleFullscreen());
@@ -2749,7 +2745,10 @@ function setUpPopoutWindow(win) {
     win.document.head.appendChild(sheet.cloneNode(true));
   }
   win.document.body.className = 'at-table popout';
-  win.document.body.appendChild($('stage')); // moving the node adopts it into the new document, video/audio and all
+  // The whole app moves: the header too, so everything works from where you are. Moving a
+  // node adopts it into the new document, video and audio and all.
+  win.document.body.appendChild(topbarEl);
+  win.document.body.appendChild($('stage'));
   roomModules.stagePopped(); // the panes open again in this window
   $('away').hidden = false;
   watchPointer(win.document);
@@ -2759,6 +2758,18 @@ function setUpPopoutWindow(win) {
   // Full screen while popped out should fullscreen that window, not the
   // (now mostly empty) main one left behind -- see toggleFullscreen().
   win.document.addEventListener('fullscreenchange', syncFullscreenButton);
+  // The header's links would navigate this window away from the table. They bring the app back
+  // first, then do their thing on the page.
+  win.document.addEventListener('click', (event) => {
+    const link = event.target.closest('#topbar a[href]');
+    if (!link) return;
+    event.preventDefault();
+    const href = link.getAttribute('href');
+    closePopout();
+    if (link.matches('#rooms-link, .brand-home')) showRoomList();
+    else if (href === '/logout') location.href = '/logout';
+    else if (link.matches('[data-overlay-link]')) openOverlay(href);
+  });
   win.addEventListener('resize', () => {
     prefs.popout = { w: win.innerWidth, h: win.innerHeight };
     savePrefs();
@@ -2766,6 +2777,7 @@ function setUpPopoutWindow(win) {
   });
   setTimeout(applyLayout, 50);
   win.addEventListener('pagehide', () => {
+    document.body.prepend(topbarEl);
     document.body.appendChild($('stage'));
     roomModules.stagePopped(); // and back in this one
     $('away').hidden = true;
