@@ -135,8 +135,10 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 16px;
-  min-height: 44px; /* border-box: 43px of content plus the 1px rule below */
+  /* Installed to the home screen, a page runs under the status bar (black-translucent), so the
+     header starts below it; the inset is 0 in a browser tab. */
+  padding: env(safe-area-inset-top) 16px 0;
+  min-height: calc(44px + env(safe-area-inset-top)); /* border-box: 43px of content plus the 1px rule below */
   border-bottom: 1px solid var(--border);
   color: var(--header-text);
   background: linear-gradient(180deg, color-mix(in srgb, var(--header-bg) 85%, var(--border) 15%), var(--header-bg));
@@ -1402,7 +1404,8 @@ a.btn {
 @media (max-width: 600px) {
   .topbar {
     flex-wrap: wrap;
-    padding-block: 4px;
+    padding-top: calc(4px + env(safe-area-inset-top));
+    padding-bottom: 4px;
   }
   .links {
     flex-wrap: wrap;
@@ -4032,10 +4035,8 @@ body.at-table .module-nav {
     height: auto;
   }
 
-  /* Installed to the home screen, the page runs under the status bar (black-translucent in room.html),
-     so the header starts below it. The inset is 0 in a browser tab. */
   body.at-table .topbar {
-    min-height: 40px;
+    min-height: calc(40px + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 10px 0;
   }
 
