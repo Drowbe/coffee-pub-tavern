@@ -4100,4 +4100,23 @@ body.at-table .module-nav {
     font-size: 20px;
     color: var(--danger-text);
   }
+
+  /* In the call but looking at something else: a dot on the Conference tab, green with the
+     microphone off and red while it is live, so nobody talks unseen. */
+  body.at-table .subnav-panes .modules-menu-item.in-call::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 6px);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--ok);
+    border: 2px solid var(--header-bg);
+  }
+
+  body.at-table .subnav-panes[data-mic="live"] .modules-menu-item.in-call::after {
+    background: var(--danger);
+  }
+
 }

@@ -1728,6 +1728,10 @@ function reflectMic() {
   $('mic').classList.toggle('on', !!on);
   $('mic').classList.toggle('off', !on);
   $('mic').classList.toggle('ptt', prefs.ptt);
+  // On a phone the conference can be hidden behind the chat while the mic is live, so the room bar
+  // says so (see the in-call dot in style.css). The bar's own element is kept, its items are rebuilt.
+  const bar = $('modules-menu');
+  if (bar) bar.dataset.mic = on ? 'live' : 'off';
   if (room.state === 'connected') updateMuted(room.localParticipant);
 }
 
