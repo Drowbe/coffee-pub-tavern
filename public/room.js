@@ -1159,18 +1159,16 @@ function stageDoc() {
 
 // --- chat ---------------------------------------------------------------------
 
-// Text and pictures travel over LiveKit's data channel; nothing is stored
-// server-side. The log lives here for Save and for late reads; it goes when
-// you leave. Text messages (not pictures, which don't fit in localStorage
-// sanely) additionally get mirrored to this browser's local storage per
-// room, so reopening a regular room later still shows what was said --
-// deliberately skipped for an aside/private room, which stays exactly as
-// off-the-record as everything else about it.
+// Text and pictures travel live over LiveKit's data channel. The sender also posts a text message to the server,
+// which keeps a rolling window per room (see server/chat-history.js), and everyone who joins reads it back, so a
+// late joiner or a new browser sees what was said. Pictures are live only. An aside/private room keeps nothing,
+// staying as off-the-record as everything else about it. The log here is what Save writes out and goes when you
+// leave; "Clear chat" hides what came before from this browser only.
 const chatLog = []; // { who, at, text } or { who, at, blob, name }
-const CHAT_HISTORY_LIMIT = 200;
-// Keyed by who's looking, not just the room: a shared household device
-// shouldn't surface one person's chat history to whoever logs in next.
+// Older versions kept the history in this browser only; it is still read when the server has none for the room
+// (or cannot be reached). "Clear chat" remembers when, per person, so what came before stays hidden here.
 const chatHistoryKey = (roomId) => `tavern:chat:${roomId}:${me?.key || guestToken || 'guest'}`;
+const chatClearedKey = (roomId) => `tavern:chatclear:${roomId}:${me?.key || guestToken || 'guest'}`;
 function loadChatHistory(roomId) {
   try {
     return JSON.parse(localStorage.getItem(chatHistoryKey(roomId))) || [];
@@ -1178,23 +1176,43 @@ function loadChatHistory(roomId) {
     return [];
   }
 }
-function saveChatHistory(roomId, entries) {
+function chatClearedAt(roomId) {
   try {
-    localStorage.setItem(chatHistoryKey(roomId), JSON.stringify(entries.slice(-CHAT_HISTORY_LIMIT)));
+    return Number(localStorage.getItem(chatClearedKey(roomId))) || 0;
   } catch {
-    // storage full, disabled, or unavailable (private browsing) -- the chat
-    // still works for the session, it just won't be there next time
+    return 0;
   }
+}
+async function fetchChatHistory(roomId) {
+  const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
+  const { messages } = await api('GET', `/api/rooms/${encodeURIComponent(roomId)}/chat${q}`);
+  return messages.map((m) => ({ who: m.who, text: m.text, at: new Date(m.at).toISOString() }));
+}
+// Tell the server what was just said, so the room's history has it. Best effort: the message already went out live.
+function postChatMessage(text) {
+  if (!currentRoom || currentRoom.ephemeral) return;
+  const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
+  api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/chat${q}`, { text, name: me?.displayName || room.localParticipant.name }).catch(() => {});
 }
 // Called once per join, after the stage is up but before anything live has
 // arrived -- fills #messages with whatever this room already said, so it
 // reads as "still here" rather than the chat looking wiped on every rejoin.
-function renderChatHistory(roomId) {
-  const history = loadChatHistory(roomId);
+async function renderChatHistory(roomId) {
+  let history;
+  try {
+    history = await fetchChatHistory(roomId);
+    if (!history.length) history = loadChatHistory(roomId);
+  } catch {
+    history = loadChatHistory(roomId);
+  }
+  const cleared = chatClearedAt(roomId);
+  history = history.filter((e) => new Date(e.at).getTime() > cleared);
+  // Anything live that arrived while this was loading is already there, so the history goes above it.
+  const fragment = document.createDocumentFragment();
   for (const entry of history) {
     const el = messageEl({ who: entry.who, text: entry.text, at: new Date(entry.at) }, entry.who === me?.displayName);
     el.classList.add('history');
-    $('messages').appendChild(el);
+    fragment.appendChild(el);
   }
   // Everything above this line was said before you opened the table just
   // now; everything below it is happening live. Only worth marking when
@@ -1203,7 +1221,8 @@ function renderChatHistory(roomId) {
     const divider = document.createElement('div');
     divider.className = 'chat-session-divider';
     divider.innerHTML = `<span>${escapeHtml(new Date().toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }))}</span>`;
-    $('messages').appendChild(divider);
+    fragment.appendChild(divider);
+    $('messages').prepend(fragment);
     $('messages').scrollTop = $('messages').scrollHeight;
   }
 }
@@ -1337,11 +1356,6 @@ function addEntry(entry, own = false) {
   if (!roomModules.nativeOpen('chat') && !own) {
     unread += 1;
     roomModules.setNativeUnread('chat', unread);
-  }
-  if (entry.text && currentRoom && !currentRoom.ephemeral) {
-    const history = loadChatHistory(currentRoom.id);
-    history.push({ who: entry.who, text: entry.text, at: entry.at.toISOString() });
-    saveChatHistory(currentRoom.id, history);
   }
 }
 
@@ -2420,7 +2434,14 @@ $('chat-delete-confirm').addEventListener('click', () => {
   $('messages').textContent = '';
   unread = 0;
   roomModules.setNativeUnread('chat', 0);
-  if (currentRoom) localStorage.removeItem(chatHistoryKey(currentRoom.id));
+  if (currentRoom) {
+    try {
+      localStorage.setItem(chatClearedKey(currentRoom.id), String(Date.now()));
+      localStorage.removeItem(chatHistoryKey(currentRoom.id));
+    } catch {
+      // private browsing: the chat is cleared for now, but the history returns on the next join
+    }
+  }
   $('chat-delete-overlay').hidden = true;
 });
 $('chat-pic').addEventListener('click', () => { toggleChatTools(false); $('chat-file').click(); });
@@ -2452,6 +2473,7 @@ $('chat-form').addEventListener('submit', async (event) => {
   resizeChatInput();
   try {
     await room.localParticipant.sendChatMessage(text); // echoed back through ChatMessage
+    postChatMessage(text);
   } catch (err) {
     setStatus(`chat: ${err.message}`, true);
   }

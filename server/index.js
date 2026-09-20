@@ -11,6 +11,7 @@ const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./mod
 const { buildModule, bundledModules } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { ModuleBus } = require('./module-bus');
+const { ChatHistory } = require('./chat-history');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
@@ -914,6 +915,7 @@ app.patch('/api/rooms/:id', requireAdmin, (req, res) => {
 });
 app.delete('/api/rooms/:id', requireAdmin, (req, res) => {
   store.removeRoom(req.params.id);
+  chatHistory.forgetRoom(req.params.id);
   res.json({ ok: true });
 });
 app.put('/api/rooms/:id/image', requireAdmin, rawImage, (req, res) => {
@@ -1183,6 +1185,52 @@ function moduleAccess(req, res, need) {
   if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
   return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : 'server', who, perms, by: who.user?.key || 'guest' };
 }
+
+// --- chat history --------------------------------------------------------------------------------
+// Chat travels live over LiveKit; the sender also posts the text here so someone who joins later reads what
+// was said (see server/chat-history.js for what is kept and for how long). Only a real room keeps history, never
+// an aside. Reading needs the "open and read the chat" permission, posting "send chat messages", and the person
+// must be in the room (or an admin, or a guest of that room).
+const chatHistory = new ChatHistory(DATA_DIR);
+process.on('exit', () => chatHistory.flush());
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(0));
+const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a room's history
+
+function chatRoomFor(req, res, permission) {
+  const who = moduleViewer(req);
+  if (!who) return void res.status(401).json({ error: 'sign in first' });
+  const room = store.roomById(req.params.id);
+  if (!room) return void res.status(404).json({ error: 'no such room' });
+  const allowed = who.user ? who.user.role === 'admin' || room.members.includes(who.user.key) : who.guestRoom.id === room.id;
+  if (!allowed) return void res.status(403).json({ error: 'you are not in that room' });
+  const perms = who.user ? store.roomPermissions(who.user.key, room.id) : store.roleSet('guest');
+  if (!perms[permission]) return void res.status(403).json({ error: 'your role cannot do that' });
+  return { who, room };
+}
+
+app.get('/api/rooms/:id/chat', (req, res) => {
+  const found = chatRoomFor(req, res, 'chatRead');
+  if (!found) return;
+  res.json({ messages: found.room.ephemeral ? [] : chatHistory.list(found.room.id) });
+});
+
+app.post('/api/rooms/:id/chat', (req, res) => {
+  const found = chatRoomFor(req, res, 'chat');
+  if (!found) return;
+  const { who, room } = found;
+  if (room.ephemeral) return res.json({ message: null });
+  const key = who.user ? who.user.key : `guest:${room.id}`;
+  const now = Date.now();
+  const recent = (chatPosts.get(key) || []).filter((t) => now - t < 10000);
+  if (recent.length >= 30) return res.status(429).json({ error: 'too many messages, slow down' });
+  chatPosts.set(key, [...recent, now]);
+  const message = chatHistory.add(room.id, {
+    by: who.user ? who.user.key : 'guest',
+    who: who.user ? who.user.displayName : req.body?.name,
+    text: req.body?.text,
+  });
+  res.json({ message });
+});
 
 // --- a module's page reading every room the viewer belongs to ---------------
 // A module with a server page and a room panel (the Calendar) can show, on its page, what is

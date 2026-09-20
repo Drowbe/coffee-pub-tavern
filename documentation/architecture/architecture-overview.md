@@ -48,6 +48,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `server/index.js` | Routes, tokens, LiveKit server API, permission checks |
 | `server/store.js` | Users, rooms, settings, roles and images on disk |
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
+| `server/chat-history.js` | A room's recent chat text (500 messages, 30 days), in `chat.json` |
 | `server/modules.js` | Module install and registry; see [architecture-modules](architecture-modules.md) |
 | `public/login.html` | Sign-in page |
 | `public/register.html` | Self sign-up and invite acceptance |
@@ -71,6 +72,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 - A member's room entry holds their per-room pictures, whether those replace their defaults, and that
   Moderator flag. Picture lookups fall from room picture, to the member's default, to the server's
   Default Images.
+- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/rooms/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per room, none older than 30 days, in `DATA_DIR/chat.json`, and `GET /api/rooms/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 

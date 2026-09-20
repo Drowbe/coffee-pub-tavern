@@ -60,8 +60,11 @@ Open chat from the **room bar**, under the header, or with **C**. The room bar i
   on the next line), **Copy** (the text, or the picture itself) and, on pictures, **Save**. The
   download button in the header saves the whole chat as a text file.
 - **Emoji.** The smiley button offers the same emoji as the reactions tray.
-- Everything travels over the media server and nothing is stored: someone who joins late sees only
-  what comes after them.
+- **History.** Text messages travel live over the media server, and the server also keeps a rolling
+  window for each room: the last 500 messages, none older than 30 days. Whoever joins, late or from
+  another browser, sees what was said above a line that marks where they came in. Pictures are live
+  only and are not kept. A pull-aside (private conversation) room keeps nothing. **Clear chat**
+  hides what came before from your view on that browser; it does not delete anything for anyone else.
 
 Who may send messages or pictures is set per role on the Roles tab; if a permission is off the
 chat box is hidden.
