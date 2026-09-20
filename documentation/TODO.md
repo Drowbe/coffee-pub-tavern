@@ -33,6 +33,10 @@ Collected, none started:
 
 Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
 
+## Links with outcomes
+
+A link should exist for a result. Built: typed pointers in actions, a drop menu, a poll's summary going into a linked task's notes and ticking it, tasks linked or dated from a drop. Still to do: a rule on each link, chosen by the person from what the linked module reports and what the receiving module can do ("when it finishes: put the winner in the title / set the due date / create a calendar event"); a poll option that accepts a link of its own; the Calendar announcing when an event has passed so a task can follow it; and a drop that asks the person when the same two modules could do more than one thing, with the last choice remembered.
+
 ## Modules: what is left
 
 See plans/plan-modules.md: Google Calendar sync, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.

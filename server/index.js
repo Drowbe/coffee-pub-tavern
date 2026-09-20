@@ -1581,17 +1581,25 @@ app.get('/api/bus/actions', busRoute((who, req) => {
   const from = String(req.query.from || '');
   const scope = busScope(req.query.scope);
   const asker = busPlace(who, from, scope, req.query.room, 'read');
+  // `accepts=module:kind` keeps the actions that take a pointer to that kind of item; `self=1` also lists the
+  // asking module's own, which it may always use.
+  const accepts = String(req.query.accepts || '');
+  const takes = (input) => !accepts || Object.values(input).some((t) => { const b = t.replace(/\?$/, ''); return b === 'ref' || b === `ref:${accepts}`; });
   const actions = [];
   for (const { manifest } of modules.enabledAll()) {
-    if (manifest.id === from) continue;
+    const own = manifest.id === from;
+    if (own && req.query.self !== '1') continue;
     for (const a of manifest.actions.provides) {
-      if (!mayUse(asker.found, manifest.id, a.name)) continue;
-      try {
-        busPlace(who, manifest.id, scope, req.query.room, 'write'); // you can ask only for what you could do yourself
-      } catch {
-        continue;
+      if (!takes(a.input)) continue;
+      if (!own) {
+        if (!mayUse(asker.found, manifest.id, a.name)) continue;
+        try {
+          busPlace(who, manifest.id, scope, req.query.room, 'write'); // you can ask only for what you could do yourself
+        } catch {
+          continue;
+        }
       }
-      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input });
+      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input, ...(own ? { own: true } : {}) });
     }
   }
   return { actions };
@@ -1626,8 +1634,9 @@ function busInput(who, shape, input) {
     } else if (base === 'number') {
       if (typeof v !== 'number' || !Number.isFinite(v)) throw refError(400, `${field} must be a number`);
       out[field] = v;
-    } else if (base === 'ref') {
+    } else if (base === 'ref' || base.startsWith('ref:')) {
       if (!refShape(v)) throw refError(400, `${field} must be a reference`);
+      if (base !== 'ref' && base !== `ref:${v.module}:${v.kind}`) throw refError(400, `${field} must be a ${base.slice(4).replace(':', ' ')}`);
       resolveRef(who, v, null, { skipConsumer: true }); // the asker must be able to see what it points at
       out[field] = { module: v.module, kind: v.kind, id: String(v.id), scope: v.scope, ...(v.scope === 'room' ? { room: v.room } : {}) };
     }

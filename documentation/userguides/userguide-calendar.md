@@ -38,6 +38,10 @@ Give an event an **Ends** date, and a time if it is not all day, to make it run 
 
 An event can be dragged onto a task in the To-do module, or onto an open task there, to link the task to it. The task then shows the event's name and date, and clicking that link opens the event here. When you open an event that tasks (or anything else) link to, it lists them under **Linked from**, and clicking one opens it. See [To-do](userguide-todo.md).
 
+## Dropping something on the calendar
+
+Drag an item from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the item to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choices come from what the other modules can do with the item, so a module added later can add more. A short note confirms what was done.
+
 ## Repeating events
 
 Set **Repeats** to every day, week, 2 weeks, month or year, and optionally an **Until** date. The whole series is one event: changing it changes every occurrence, and deleting it deletes them all. A monthly event stays on its day of the month, or the last day of a shorter month. Repeating events show a small repeat mark in the month and a tag in the list.

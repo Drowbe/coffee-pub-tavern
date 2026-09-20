@@ -323,7 +323,46 @@
     actions: {
       // What this module may ask for here: [{ action, module, moduleName, icon, name, label, input }]. Offer
       // whichever you can fill in from what you have (an action that takes a `title`, say), and do not name modules.
-      list: () => call('actions.list', {}),
+      // { accepts: "module:kind" } keeps the ones that take a pointer to that kind of item; { self: true } also
+      // lists this module's own, marked own: true.
+      list: (o) => call('actions.list', { accepts: o && o.accepts, self: Boolean(o && o.self) }),
+      // A small menu at a point (in your own coordinates, as a drop gives it) to let the person choose what to
+      // do: pick([{ label, hint? }], point) resolves to the chosen item, or null if they dismiss it. With a single
+      // item there is nothing to ask, and it resolves to it at once.
+      pick: (items, at) => new Promise((resolve) => {
+        const list = (items || []).filter(Boolean);
+        if (list.length < 2) return resolve(list[0] || null);
+        const host = tavern.rootElement;
+        const menu = document.createElement('div');
+        menu.setAttribute('role', 'menu');
+        menu.style.cssText = 'position:fixed;z-index:9999;min-width:200px;max-width:320px;padding:4px;border-radius:8px;border:1px solid var(--border,#555);background:var(--bg-card,#2a231d);color:var(--text,#f1e8dc);box-shadow:0 8px 24px rgba(0,0,0,.45);font:14px system-ui,sans-serif';
+        const done = (v) => { menu.remove(); document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); resolve(v); };
+        const key = (e) => { if (e.key === 'Escape') done(null); };
+        const away = (e) => { if (!menu.contains(e.target)) done(null); };
+        for (const item of list) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.setAttribute('role', 'menuitem');
+          b.style.cssText = 'display:block;width:100%;text-align:left;padding:7px 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer';
+          b.textContent = item.label;
+          if (item.hint) { const h = document.createElement('div'); h.textContent = item.hint; h.style.cssText = 'font-size:12px;opacity:.65'; b.appendChild(h); }
+          b.addEventListener('mouseenter', () => { b.style.background = 'rgba(255,255,255,.1)'; });
+          b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+          b.addEventListener('click', () => done(item));
+          menu.appendChild(b);
+        }
+        // Inside the module's own root (a shadow root in the page), placed by the page's coordinates.
+        (env.root === document ? document.body : env.root).appendChild(menu);
+        const box = host.getBoundingClientRect();
+        const w = host.clientWidth || 400;
+        const h = host.clientHeight || 400;
+        menu.style.left = box.left + Math.max(4, Math.min(((at && at.x) || 0), w - menu.offsetWidth - 4)) + 'px';
+        menu.style.top = box.top + Math.max(4, Math.min(((at && at.y) || 0), h - menu.offsetHeight - 4)) + 'px';
+        document.addEventListener('keydown', key, true);
+        env.root.addEventListener('pointerdown', away, true);
+        const first = menu.querySelector('button');
+        if (first) first.focus();
+      }),
       // Ask for one. Tavern checks the input against what the action takes and queues it for the module
       // that owns it, which carries it out the next time a person has it open (or at once if one does).
       // With { wait: true } this waits a few seconds for the answer: { status, result: { ok, ref?, error? } }.

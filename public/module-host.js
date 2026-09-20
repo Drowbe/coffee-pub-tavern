@@ -348,8 +348,11 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'events.since'({ after }) {
       return api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
     },
-    async 'actions.list'() {
-      return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id })}`)).actions;
+    async 'actions.list'({ accepts, self } = {}) {
+      const extra = {};
+      if (typeof accepts === 'string' && accepts) extra.accepts = accepts.slice(0, 80);
+      if (self) extra.self = '1';
+      return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id, ...extra })}`)).actions;
     },
     async 'actions.request'({ action, input }) {
       return api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });

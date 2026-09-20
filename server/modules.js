@@ -191,7 +191,9 @@ function cleanBus(rawEvents, rawActions, id) {
     const input = {};
     for (const [field, type] of Object.entries(p.input && typeof p.input === 'object' ? p.input : {}).slice(0, 10)) {
       const base = typeof type === 'string' ? type.replace(/\?$/, '') : '';
-      if (!FIELD_RE.test(field) || !FIELD_TYPES.includes(base)) throw new ModuleError(`module.json: action "${name}" input "${field}" must be one of ${FIELD_TYPES.join(', ')} (add ? for optional)`);
+      // A pointer field may say which kind of item it takes: "ref" (any) or "ref:module:kind".
+      const plain = /^ref:[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,31}$/.test(base) ? 'ref' : base;
+      if (!FIELD_RE.test(field) || !FIELD_TYPES.includes(plain)) throw new ModuleError(`module.json: action "${name}" input "${field}" must be one of ${FIELD_TYPES.join(', ')} (add ? for optional)`);
       input[field] = type;
     }
     actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input });

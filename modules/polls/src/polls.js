@@ -327,12 +327,18 @@
     const top = max > 0 ? x.p.options.filter((o) => counts.get(o.id).length === max) : [];
     return { winner: top.length === 1 ? top[0].text : null, tied: top.length > 1 ? top.map((o) => o.text).slice(0, 5) : [] };
   }
+  // A short line on how it turned out, for whoever follows the poll.
+  function summaryOf(x) {
+    const { winner, tied } = winnerOf(x);
+    return (winner ? `${x.p.question}: ${winner}` : tied.length ? `${x.p.question}: tied between ${tied.join(', ')}` : `${x.p.question}: no votes`).slice(0, 200);
+  }
   const announcing = new Set();
   async function announceClosed(x) {
     try {
-      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: winnerOf(x) });
+      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x) } });
     } catch (err) {
       // nobody may hear it, or this person cannot publish: the poll is closed either way
+      if (tavern.refs && tavern.refs.trace) tavern.refs.trace('polls: could not announce the close: ' + err.message);
     }
   }
   // A poll that closes by its time closes with nobody clicking: whoever sees it first announces it, once.

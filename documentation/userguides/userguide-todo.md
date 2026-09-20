@@ -32,6 +32,10 @@ An admin approves the To-do's links when enabling it, and they show only what yo
 
 In the task's editor, **Tick this when what it links to is finished** makes the task tick itself when something it links to finishes. A poll closing is one example, and any module can tell the To-do the same way. **Add a task** buttons in other modules (a finished poll, say) create a task in the To-do for you, linked to where it came from.
 
+**Add the result to the notes when it is finished** does the same for the outcome: when a linked poll closes, the task's notes get a line such as "Result: Where to stay: Hotel Nova". It is added once, however often the poll announces it.
+
+Other modules can also ask the To-do to link a task or set its due date. Dropping a task on a Calendar day or event offers exactly that. See [Calendar](userguide-calendar.md).
+
 An admin approves what the To-do may hear from other modules when enabling it (and, for a module that asks others to do things, what it may ask for).
 
 ## In a room

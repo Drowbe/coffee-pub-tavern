@@ -31,7 +31,7 @@ Drag a poll's question onto a task in the To-do module to link the task to the p
 
 ## After a poll closes
 
-Closing a poll (or its closing time passing) tells the other modules that were set up to listen, so a task that follows the poll can tick itself off. A closed poll also offers a button for each thing another module can do with it, such as **Add a task** from the To-do module, which creates a task named for the poll and its winner, linked to the poll. These buttons come from whatever modules you have installed; there is nothing to set up in Polls.
+Closing a poll (or its closing time passing) tells the other modules that were set up to listen, with a one-line result such as "Where to stay: Hotel Nova" (or who tied, or that nobody voted), so a task that follows the poll can tick itself off and keep the result in its notes. A closed poll also offers a button for each thing another module can do with it, such as **Add a task** from the To-do module, which creates a task named for the poll and its winner, linked to the poll. These buttons come from whatever modules you have installed; there is nothing to set up in Polls.
 
 ## Close it
 

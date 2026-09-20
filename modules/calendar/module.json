@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.8.0",
+  "version": "1.9.1",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
@@ -16,9 +16,16 @@
   ],
   "access": { "read": "view", "write": "edit" },
   "hooks": { "schedule": true, "notify": true },
+  "actions": {
+    "provides": [
+      { "name": "createEvent", "label": "Add it to the calendar", "input": { "title": "string", "date": "date", "ref": "ref?" } }
+    ],
+    "uses": ["*"]
+  },
   "refs": {
     "produces": [
       { "kind": "event", "name": "Event", "open": true, "backlinks": true, "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
-    ]
+    ],
+    "consumes": ["*"]
   }
 }

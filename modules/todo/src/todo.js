@@ -336,6 +336,8 @@
     editingLinks = ((x && x.t.links) || []).slice();
     $('f-auto').checked = Boolean(x && x.t.autoDone);
     $('f-auto').disabled = readOnly;
+    $('f-note').checked = Boolean(x && x.t.autoNote);
+    $('f-note').disabled = readOnly;
     $('f-link-search').value = '';
     $('f-link-results').innerHTML = '';
     $('f-link-search').hidden = readOnly || !tavern.refs;
@@ -451,6 +453,7 @@
       by: current ? current.t.by : info.user.name,
       links: editingLinks.slice(0, MAX_LINKS),
       autoDone: $('f-auto').checked,
+      autoNote: $('f-note').checked,
     };
     $('f-save').disabled = true;
     try {
@@ -642,10 +645,15 @@
     tavern.events.subscribe(async (e) => {
       if (!FINISHED.has(e.name) || !e.ref) return;
       const k = refKey(e.ref);
+      // An event may carry a short summary of how it turned out (data.summary); a task that asks for it keeps it.
+      const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
       for (const x of [...tasks.values()]) {
-        if (x.scope !== 'own' || x.t.done || !x.t.autoDone || !(x.t.links || []).some((r) => refKey(r) === k)) continue;
+        if (x.scope !== 'own' || !(x.t.links || []).some((r) => refKey(r) === k)) continue;
+        const note = x.t.autoNote && summary && !(x.t.notes || '').includes('Result: ' + summary);
+        const tick = x.t.autoDone && !x.t.done;
+        if (!note && !tick) continue;
         try {
-          const t = { ...x.t, done: true, doneAt: Date.now() };
+          const t = { ...x.t, ...(tick ? { done: true, doneAt: Date.now() } : {}), ...(note ? { notes: ((x.t.notes ? x.t.notes + '\n' : '') + 'Result: ' + summary).slice(0, 1000) } : {}) };
           await put(x, t);
           applyReminder(t).catch(() => {});
         } catch (err) {
@@ -656,6 +664,12 @@
     });
   }
 
+  // What other modules may ask of this one about a task it names: link it to something, or set its due date.
+  const ownTask = (ref) => {
+    const x = ref && ref.kind === 'task' ? tasks.get('own:' + ref.id) : null;
+    if (!x) throw new Error('that task is not here');
+    return x;
+  };
   // What other modules may ask of this one. A task made this way links to the item it came from.
   if (tavern.actions && tavern.actions.provide) {
     tavern.actions.provide({
@@ -668,6 +682,20 @@
         render();
         resolveLinks();
         return { ref: myRef(t.id) };
+      },
+      linkTask: async (input) => {
+        const x = ownTask(input.task);
+        if (!linkable(input.target)) throw new Error('this list may not link to that');
+        await linkTo(x.key, input.target);
+        return { ref: myRef(x.id) };
+      },
+      setTaskDue: async (input) => {
+        const x = ownTask(input.task);
+        const t = { ...x.t, due: input.date, remind: x.t.remind };
+        await put(x, t);
+        applyReminder(t).catch(() => {});
+        render();
+        return { ref: myRef(x.id) };
       },
     });
   }
