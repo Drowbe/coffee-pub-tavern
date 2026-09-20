@@ -23,7 +23,7 @@ Collected, none started:
 - An LLM module.
 - A module for WhatsApp or SMS hooks.
 - Updating modules that do not ship with Tavern without uploading a zip: a module could name an update address (a GitHub release, say) that the server checks and installs from, with the same approval. Bundled modules already update from Manage.
-- A dashboard or hub view, on the rooms page, in place of the dedicated global module pages: what is coming up, what is due, which polls need a vote and who is around, across all your rooms. Thoughts first; see the discussion before building.
+- The dashboard: decided and planned, not started. See plans/plan-dashboard.md.
 - Module interoperability is built (refs, opening, backlinks, events, actions). What is left is in plans/plan-modules.md: audit and rate limits, a second provider to prove it (the Calendar creating events), and verifying with two people. Also verify in a real browser: dragging an event or a poll from one pane onto a task in another, and between windows.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
 - Call time in the conference titlebar.
