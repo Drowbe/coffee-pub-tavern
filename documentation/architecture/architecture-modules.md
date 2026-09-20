@@ -83,6 +83,10 @@ What an admin does is [userguide-modules](../userguides/userguide-modules.md); w
                                                                                             module-data.js, module-hooks.js
 ```
 
+### Shared tools
+
+The SDK carries what more than one module needs (the date picker, the drop menu, small helpers in `tavern.util`), so modules stay small and look and behave alike. The picker and menu draw their elements inside the module's own root, positioned by the page's coordinates, and add their styles once to that root in the theme's colours, so they work in a frame and in the page. The rule for the SDK: when a second module needs something a first one wrote for itself, it moves into the SDK and the first module uses it from there.
+
 ### Run modes
 
 `runModeOf` in `server/modules.js` decides how a module runs: the admin's explicit choice, else the page for a module installed from those that ship with Tavern (`source: 'bundled'`), else a sandboxed frame. Switching an uploaded module to the page needs `acceptRisk`, and the server records when. The frame path is described below. For the page, `/m/<id>/<version>/<entry>?part=css|body|js` returns the style, the markup and the script of the module's single HTML file, and answers 403 unless the module runs in the page. `startInPage` in `public/module-host.js` attaches a shadow root to the module's container, injects the base stylesheet (scoped) and the module's style and markup, and loads its script as an external script carrying the SDK instance (the room page's content security policy forbids inline script). The SDK is the same code (`createTavern`); over a frame it talks by `postMessage`, in the page the host calls its handlers directly. A module in the page can bypass the SDK, so the approved-permissions list, which the server checks per call, stops being a limit on it; that is why the choice is the admin's, behind a warning. `GET /api/modules/activity` (admin) lists what modules have done recently, shown on the Modules tab.

@@ -11,7 +11,7 @@
   const root = tavern.root;
 
   const $ = (id) => root.getElementById(id);
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const { esc, ymd, parseYmd, refKey, id: newId } = tavern.util;
 
   let info;
   try {
@@ -62,8 +62,6 @@
   // --- dates ---------------------------------------------------------------
 
   const pad = (n) => String(n).padStart(2, '0');
-  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   const startOfToday = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
 
   function dueText(due) {
@@ -116,7 +114,6 @@
   // Tavern each time (tavern.refs.resolve), so it is always current and never more than the
   // viewer may see. The pointers are checked in the drop and search: only the kinds above.
 
-  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
   const linkable = (r) => consumable.has(r.module + ':' + r.kind);
   const myRef = (id) => tavern.refs.make('task', id);
   const syncedLinks = new Map(); // task id -> the links last told to Tavern
@@ -306,7 +303,6 @@
     return saved;
   }
 
-  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   async function quickAdd(title) {
     const t = { id: newId(), title, notes: '', due: null, remind: false, done: false, doneAt: null, createdAt: Date.now(), by: info.user.name };
@@ -343,6 +339,7 @@
     $('f-remind-wrap').hidden = !$('f-due').value;
   }
   $('f-due').addEventListener('change', syncForm);
+  const duePicker = tavern.ui.datePicker($('f-due'), { clearable: true });
 
   function openEditor(x) {
     const readOnly = !canEdit || (x && x.scope !== 'own');
@@ -362,6 +359,7 @@
     $('f-title').value = t.title;
     $('f-notes').value = t.notes || '';
     $('f-due').value = t.due || '';
+    duePicker.refresh();
     $('f-remind').checked = Boolean(t.remind);
     $('f-done').checked = Boolean(t.done);
     $('f-by').textContent = x && t.by ? `Added by ${t.by}` : '';

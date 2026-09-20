@@ -29,6 +29,28 @@
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
   }
 
+  const UI_CSS = `
+.tv-datefield { display: flex; gap: 4px; align-items: center; }
+.tv-datefield input { flex: 1; min-width: 0; }
+.tv-datefield input::-webkit-calendar-picker-indicator { display: none; }
+.tv-dp-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); color: var(--secondary-text); cursor: pointer; }
+.tv-dp-btn:hover { background: var(--secondary-hover); }
+.tv-dow-hint { display: block; min-height: 14px; color: var(--accent); font-size: 11px; font-weight: 600; }
+.tv-dp { position: fixed; z-index: 9999; width: 252px; padding: 8px; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; color: var(--text); }
+.tv-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.tv-dp-head button, .tv-dp-foot button { border: 0; border-radius: 6px; padding: 3px 9px; background: var(--secondary); color: var(--secondary-text); font: inherit; cursor: pointer; }
+.tv-dp-head button:hover, .tv-dp-foot button:hover { background: var(--secondary-hover); }
+.tv-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.tv-dp-dow { padding: 2px 0; text-align: center; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.tv-dp-day { height: 30px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.tv-dp-day:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.tv-dp-day.other { color: var(--text-dim); opacity: .55; }
+.tv-dp-day.inrange { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.tv-dp-day.today { border-color: var(--accent); }
+.tv-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.tv-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+`;
+
   // env: { call(method, params) -> Promise, root, rootElement, elementAt({x, y}), localPoint(clientX, clientY),
   // applyTheme(theme) }.
   // Returns { tavern, emit }: `emit` is how the host pushes an event to the module.
@@ -62,6 +84,16 @@
   // for 'server'.
   const opts = (o) => ({ scope: (o && o.scope) || 'context' });
 
+  // The shared interface's styles, added once to wherever the module's elements live, in the theme's colours.
+  let uiStyles = false;
+  function ensureUiStyles() {
+    if (uiStyles) return;
+    uiStyles = true;
+    const s = document.createElement('style');
+    s.textContent = UI_CSS;
+    (env.root === document ? document.head : env.root).appendChild(s);
+  }
+
   const tavern = {
     // Resolves with { user, context, permissions, theme, module }.
     ready: () => readyPromise,
@@ -72,6 +104,108 @@
     // its container). Use these rather than document, so the module runs in either place.
     root: env.root,
     rootElement: env.rootElement,
+
+    // Small helpers more than one module needs, so each does not carry its own copy.
+    util: {
+      // Text made safe to put in HTML.
+      esc: (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]),
+      // A new id for something a module stores: short, and unlikely to repeat.
+      id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      // A pointer's identity as one string, for keeping and comparing them.
+      refKey: (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|'),
+      // Dates as "2026-09-24" (a local day): text from a Date, and back.
+      ymd: (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      parseYmd: (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); },
+    },
+
+    // Interface the modules share, drawn the same everywhere and following the theme.
+    ui: {
+      // A date picker for a date field: a small month grid under it, weekdays across the top, so the day a date
+      // falls on is visible while choosing. The typed field keeps working; a button opens the grid and the
+      // weekday of what is in the field shows under it. Works on <input type="date"> and
+      // <input type="datetime-local"> (which keeps its time, or takes 12:00 when it has none).
+      // datePicker(input, { range: () => [from, to], clearable }): highlight a span of days, and offer Clear.
+      // Returns { close, destroy }.
+      datePicker: (input, o) => {
+        const options = o || {};
+        const u = tavern.util;
+        ensureUiStyles();
+        const wrap = document.createElement('span');
+        wrap.className = 'tv-datefield';
+        input.parentNode.insertBefore(wrap, input);
+        wrap.appendChild(input);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tv-dp-btn';
+        btn.title = 'Pick a date';
+        btn.setAttribute('aria-label', 'Pick a date');
+        btn.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 0v2H2.5A1.5 1.5 0 0 0 1 3.5v10A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 13.5 2H12V0h-1.5v2h-5V0zM2.5 5h11v8.5h-11z"/></svg>';
+        wrap.appendChild(btn);
+        const hint = document.createElement('span');
+        hint.className = 'tv-dow-hint';
+        wrap.parentNode.insertBefore(hint, wrap.nextSibling);
+        const dayOf = () => String(input.value || '').slice(0, 10);
+        const showDow = () => { hint.textContent = dayOf() ? u.parseYmd(dayOf()).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : ''; };
+        input.addEventListener('input', showDow);
+        input.addEventListener('change', showDow);
+        showDow();
+        let pop = null;
+        const close = () => { if (pop) pop.remove(); pop = null; document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); };
+        const key = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+        const away = (e) => { if (pop && !pop.contains(e.target) && !wrap.contains(e.target)) close(); };
+        const open = () => {
+          if (pop) return close();
+          const seed = dayOf() || u.ymd(new Date());
+          let month = new Date(u.parseYmd(seed).getFullYear(), u.parseYmd(seed).getMonth(), 1);
+          pop = document.createElement('div');
+          pop.className = 'tv-dp';
+          const draw = () => {
+            const start = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay());
+            const [from, to] = options.range ? options.range() : [];
+            const today = u.ymd(new Date());
+            let cells = '';
+            for (let i = 0; i < 42; i += 1) {
+              const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+              const k = u.ymd(d);
+              cells += `<button type="button" class="tv-dp-day${d.getMonth() !== month.getMonth() ? ' other' : ''}${k === today ? ' today' : ''}${k === dayOf() ? ' sel' : ''}${from && to && k >= from && k <= to ? ' inrange' : ''}" data-day="${k}">${d.getDate()}</button>`;
+            }
+            pop.innerHTML = `<div class="tv-dp-head"><button type="button" data-dp="prev" aria-label="Previous month">&lsaquo;</button><strong>${u.esc(month.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</strong><button type="button" data-dp="next" aria-label="Next month">&rsaquo;</button></div>
+              <div class="tv-dp-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((n) => `<span class="tv-dp-dow">${n}</span>`).join('')}${cells}</div>
+              <div class="tv-dp-foot"><button type="button" data-dp="today">Today</button>${options.clearable ? '<button type="button" data-dp="clear">Clear</button>' : '<span></span>'}</div>`;
+          };
+          pop.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const set = (day) => {
+              input.value = !day ? '' : input.type === 'datetime-local' ? day + 'T' + ((input.value.split('T')[1]) || '12:00') : day;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              close();
+            };
+            const day = e.target.closest('[data-day]');
+            if (day) return set(day.dataset.day);
+            const nav = e.target.closest('[data-dp]');
+            if (!nav) return;
+            if (nav.dataset.dp === 'prev') month = new Date(month.getFullYear(), month.getMonth() - 1, 1);
+            else if (nav.dataset.dp === 'next') month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+            else if (nav.dataset.dp === 'today') return set(u.ymd(new Date()));
+            else if (nav.dataset.dp === 'clear') return set('');
+            draw();
+          });
+          draw();
+          (env.root === document ? document.body : env.root).appendChild(pop);
+          // Under the field, by the page's coordinates, kept on screen.
+          const r = input.getBoundingClientRect();
+          const box = env.rootElement.getBoundingClientRect();
+          const w = env.rootElement.clientWidth || 400;
+          pop.style.top = r.bottom + 4 + 'px';
+          pop.style.left = box.left + Math.max(8, Math.min(r.left - box.left, w - 252 - 8)) + 'px';
+          document.addEventListener('keydown', key, true);
+          env.root.addEventListener('pointerdown', away, true);
+        };
+        btn.addEventListener('click', open);
+        return { close, refresh: () => { close(); showDow(); }, destroy: () => { close(); hint.remove(); wrap.parentNode.insertBefore(input, wrap); wrap.remove(); } };
+      },
+    },
 
     // Whether the viewer has one of this module's own permissions (by its
     // short key in module.json, such as "edit").

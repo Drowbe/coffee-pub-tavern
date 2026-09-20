@@ -28,7 +28,7 @@ Events appear for everyone who has the calendar open as soon as they are saved.
 
 ## Picking a date
 
-Each date field (start, end and the last day of a repeat) has a calendar button beside it. It opens a small month, with the days of the week across the top, so you can see what day a date falls on; choose a day to fill the field, or use the arrows to change month, **Today**, or **Clear** on the optional fields. Typing the date still works, and the day of the week it lands on appears under the field either way. When you are choosing an end date the days between the start and the end are shaded.
+Each date field (start, end and the last day of a repeat) has a calendar button beside it. The same picker is on the To-do's due date and on a poll's closing time. It opens a small month, with the days of the week across the top, so you can see what day a date falls on; choose a day to fill the field, or use the arrows to change month, **Today**, or **Clear** on the optional fields. Typing the date still works, and the day of the week it lands on appears under the field either way. When you are choosing an end date the days between the start and the end are shaded.
 
 ## Events that last more than a day
 

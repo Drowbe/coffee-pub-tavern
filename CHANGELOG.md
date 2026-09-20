@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Shared tools in the SDK. `tavern.ui.datePicker` (the Calendar's picker, now for any date field, with the weekday shown under it, Escape to close and an optional shaded range) and `tavern.util` (`esc`, `id`, `refKey`, `ymd`, `parseYmd`), so modules do not each carry a copy. Calendar 1.9.2, To-do 1.7.2 and Polls 1.7.1 use them; the To-do's due date and a poll's closing time now have the picker. Verified in a browser: the picker in the To-do (open, choose a day, weekday updated), and the three pickers in the Calendar's editor and one in Polls'. Not verified: the Calendar's shaded range after the move.
+
+### Added
 - A rule on each link. An event can declare the data it carries, and Tavern tells a module what each kind of item it may link to can report (`/api/refs/kinds` now lists events and their data). To-do 1.7.1 shows, under each link, what the item can report and lets the person choose what the task does: tick, add the result to the notes, use it as the title, or link what it picked. The older per-task settings are folded into rules.
 - A poll option takes a link. Polls 1.7.0: drop an item from another module on an option; the option shows it, the poll tells Tavern what it points at, and when the poll closes the winning option's item goes out with the result (`pick`). Verified in a browser: an event dropped on an option, a rule chosen on a task, the poll voted and closed, and the task then linked to the event. Not verified: two people, and a real mouse in the deployed build.
 

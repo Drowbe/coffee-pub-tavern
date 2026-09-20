@@ -19,7 +19,7 @@
   const root = tavern.root;
 
   const $ = (id) => root.getElementById(id);
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const { esc, refKey, id: newId } = tavern.util;
 
   let info;
   try {
@@ -37,7 +37,6 @@
   // An option can point at an item in another module (a place to stay, a date on the calendar): drop the item
   // on the option. When the poll closes, the item the winning option points at goes out with the result, for
   // whoever follows the poll to use. What may be linked is whatever other modules share and Tavern allows.
-  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
   let consumable = new Set();
   const linkable = (r) => Boolean(r) && consumable.has(r.module + ':' + r.kind);
   const optCards = new Map(); // pointer key -> card, or { error }
@@ -527,6 +526,7 @@
     return name;
   }
 
+  const closesPicker = tavern.ui.datePicker($('f-closes'), { clearable: true });
   function openEditor() {
     showError('');
     $('f-question').value = '';
@@ -536,6 +536,7 @@
     $('f-multi').checked = false;
     $('f-addable').checked = false;
     $('f-closes').value = '';
+    closesPicker.refresh();
     $('f-notify').checked = false;
     $('editor').hidden = false;
     $('f-question').focus();
@@ -547,7 +548,6 @@
   $('f-cancel').addEventListener('click', closeEditor);
   $('editor').addEventListener('click', (e) => { if (e.target === $('editor')) closeEditor(); });
 
-  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   async function save() {
     showError('');
