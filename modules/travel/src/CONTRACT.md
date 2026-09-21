@@ -198,6 +198,16 @@ Reference rendering: `design/markers.html` (`?state=normal|edge|hidden`, `?theme
 
 **Empty days.** A toggle in the toolbar (`button.tool-empty[data-action=toggle-empty][aria-pressed]`, icon `eye-slash`, tooltip "Hide empty days" or "Show empty days") sits in `.actions` beside the pencil. A day with no items (markers do not count) gets `.is-empty`, and so does its chip in the strip. While the toggle is on, `.app.hide-empty` hides both, and `p.emptynote` (`tpl-emptynote`: "2 empty days hidden" and a Show button) sits above the first day. If every day is empty nothing is hidden. The choice is remembered for the person, and the default is off.
 
+### The four plan-wide markers, coloured (0.6.8)
+
+They sit between the day blocks (`ol.timeline.ends[data-ends=before|after]`), not inside a day, each a band with a round icon in a colour of its own so the four read at a glance: **planning starts** blue (`flag`), **planning ends** purple (`flag-checkered`), **the trip starts** green (`plane-departure`), **the trip ends** orange (`plane-arrival`). The hues are the card families' turned from the accent, so a theme still rules them. A day that is part of the trip itself (from the first booked item's day to the last one's) carries `.day2.in-trip`: a green date badge. The strip's chips take `.daychip.in-trip` for the same day (a green date), when the script sets it.
+
+### Time blocks (draft: waiting for the author's answer on the list)
+
+Things that happen inside a day and have no place: **free time**, **rest**, a **buffer** (spare time in case), a **meet-up** and a **leave-by**. They are items a person adds (`li.row.entry[data-kind=block]`, `article.card.block[data-type=free-time|rest|buffer|meet-up|leave-by]`, `tpl-card-block`), drawn as a thin band with a left bar and a round icon in the type's colour, not a card: a title (the type's name, or the person's own label), a length pill (`[data-slot=minutes]`, empty for a meet-up or a leave-by) and a one-line note (`[data-slot=body]`). They can be edited, moved and removed like any item, and they take part in a day's time order. Colours: free time green-teal, rest violet, buffer yellow, meet-up pink, leave-by red. Icons: `face-smile`, `moon`, `hourglass-half`, `users`, `bell`. Reference: `design/markers.html?state=blocks`.
+
+In the editor they are a group "Time" in `#f-types` (five tiles, `data-type` as above), and a block shows only what it needs: the type, an optional label (`f-title`, defaulting to the type's name), the time, the length (not for a meet-up or leave-by) and a note. No place, cost, confirmation, owners or getting-there fields. Their hues are set in `travel-lib-editor.css`.
+
 ### A link whose item is gone or hidden
 
 The link card (`tpl-card-link`, `article.card.linkcard`) has two more states, set from what `refs.resolve` says (see plan-linked-items.md):

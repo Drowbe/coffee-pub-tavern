@@ -6,7 +6,7 @@
 <title>Planner: markers, days at the ends, empty days (design mock)</title>
 <!--
   A static mock of what the Planner adds around its days (see ../src/CONTRACT.md, "Markers, days at the ends and empty days").
-  Open it in a browser. Parameters: ?state=normal | edge | hidden, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
+  Open it in a browser. Parameters: ?state=normal | edge | hidden | blocks, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
   Icons come from the Font Awesome Free package in the repository (CC BY 4.0), as classes; the module itself uses data-icon.
 -->
 <link rel="stylesheet" href="../../../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
@@ -32,7 +32,8 @@ const stop = (t, title, sub) => `<li class="row entry" data-kind="stop" data-typ
 const day = (n, month, head, sub, rows, cls = '') => `<section class="day2${cls}"><header class="day-head2"><div class="dnum"><b>${n}</b><span>${month}</span></div><div class="dmeta"><h2>${head}</h2><p>${sub}</p></div></header><ol class="timeline">${rows}</ol></section>`;
 const edge = (side, open) => `<div class="dayedge" data-edge="${side}">${open ? '' : `<button class="btn" type="button" data-action="edge-open">${ic('plus')} <span>Add days ${side}</span></button>`}<form class="edge-form"${open ? '' : ' hidden'}><label>Add <input type="number" name="count" min="1" max="30" value="3"> <span>days</span></label><button class="btn btn-primary" type="submit">Add</button><button class="btn" type="button">Cancel</button></form></div>`;
 const emptyDay = (n, month, head) => day(n, month, head, 'Nothing planned', '<li class="day-empty">Nothing here yet</li>', ' is-empty');
-const days = [
+const block = (type, icon, title, t, mins, note) => `<li class="row entry" data-kind="block"><div class="when"><b>${t}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><article class="card block" data-type="${type}"><span class="badge">${ic(icon)}</span><b class="blocktitle">${title}</b><span class="blocklen">${mins}</span><span class="blocknote">${note}</span></article></div></li>`;
+const days = state === 'blocks' ? [day(2, 'SUN · OCT', 'Day 2 of 5', 'Free time, rest, a meet-up', block('leave-by', 'bell', 'Leave by', '09:15', '', 'for the airport transfer') + stop('10:05', 'A Brasileira', 'R. Garrett 120') + block('buffer', 'hourglass-half', 'Buffer', '11:00', '30 min', 'in case the queue is long') + block('free-time', 'face-smile', 'Free time', '11:30', '2 h', 'wander Chiado') + block('meet-up', 'users', 'Meet up', '14:00', '', 'everyone at the tram stop') + block('rest', 'moon', 'Rest', '15:00', '1 h 30', 'back at the hotel'))] : [
   day(1, 'SAT · OCT', 'Day 1 of 5', '2 stops', marker('planning-start', 'flag', 'Sat 3', 'Planning starts', 'the plan begins') + marker('trip-start', 'plane-departure', '17:40', 'Trip starts', 'TAP Air Portugal TP 214 · Denver') + stop('20:30', 'Cervejaria Ramiro', 'Av. Almirante Reis 1')),
   emptyDay(2, 'SUN · OCT', 'Day 2 of 5'),
   day(3, 'MON · OCT', 'Day 3 of 5', '1 stop', stop('13:00', 'Time Out Market', 'Av. 24 de Julho')),

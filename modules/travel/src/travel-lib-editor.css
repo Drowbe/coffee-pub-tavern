@@ -10,6 +10,7 @@
 .tile[data-type="bus"] { --turn: 100; } .tile[data-type="car"] { --turn: 45; } .tile[data-type="hotel"] { --turn: 255; }
 .tile[data-type="restaurant"] { --turn: 0; } .tile[data-type="cafe"] { --turn: 345; } .tile[data-type="bar"] { --turn: 320; }
 .tile[data-type="sight"] { --turn: 95; } .tile[data-type="museum"] { --turn: 285; } .tile[data-type="tour"] { --turn: 65; }
+.tile[data-type="free-time"] { --turn: 140; } .tile[data-type="rest"] { --turn: 225; } .tile[data-type="buffer"] { --turn: 45; } .tile[data-type="meet-up"] { --turn: 330; } .tile[data-type="leave-by"] { --turn: 15; }
 .tile[data-type="show"] { --turn: 305; } .tile[data-type="note"] { --turn: 25; } .tile[data-type="place"] { --turn: 130; }
 
 .typeset { display: flex; flex-direction: column; gap: 6px; }
