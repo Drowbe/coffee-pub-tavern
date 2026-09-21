@@ -192,12 +192,17 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
 
 /* ---- phones and narrow panes: the same list, with touch-sized items and the menu instead of the drag handle ---- */
-@media (max-width: 719px) {
-  .body { padding-bottom: 24px; }
-  .item { grid-template-columns: 54px minmax(0, 1fr) auto; padding-left: 8px; }
-  .item-handle { display: none; }
-  .item-menu { width: 36px; height: 36px; }
-  .gap { padding-left: 60px; }
-  .add-row input { font-size: 16px; }
-  .trip-title { font-size: 18px; }
-}
+/* phones and narrow panes: the script sets .narrow on .app from the pane width (under 720 px), not the window's */
+.app.narrow .body { padding-bottom: 24px; }
+
+.app.narrow .item { grid-template-columns: 54px minmax(0, 1fr) auto; padding-left: 8px; }
+
+.app.narrow .item-handle { display: none; }
+
+.app.narrow .item-menu { width: 36px; height: 36px; }
+
+.app.narrow .gap { padding-left: 60px; }
+
+.app.narrow .add-row input { font-size: 16px; }
+
+.app.narrow .trip-title { font-size: 18px; }

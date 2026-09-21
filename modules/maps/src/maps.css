@@ -133,27 +133,43 @@ body { margin: 0; overflow: hidden; }
 .app.listonly .panel { width: 100%; border-left: 0; }
 
 /* ---- phones and narrow panes: the panel is a sheet over the map's foot ---- */
-@media (max-width: 719px) {
-  .app { display: block; }
-  .stage { position: absolute; inset: 0; }
-  .panel { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
-  .panel[data-state="peek"] .panel-body { display: none; }
-  .panel[data-state="peek"] { max-height: none; }
-  .sheet-handle { display: block; width: 38px; height: 4px; margin: 8px auto 0; border: 0; border-radius: 2px; background: var(--border); }
-  .panel-head { padding-top: 6px; }
-  .icon-btn { width: 40px; height: 40px; }
-  .tool { height: 40px; }
-  .maplibregl-ctrl-group button { width: 40px; height: 40px; }
-  .maplibregl-ctrl-top-right { top: 104px; }
-  /* the credit stays above the sheet's peek */
-  .maplibregl-ctrl-bottom-right { bottom: 70px; }
-  .banner { bottom: 80px; }
-  .mapbar { flex-wrap: wrap; }
-  .search { flex: 1 1 100%; max-width: none; }
-  .search input { font-size: 16px; }
-  .app.listonly .panel { position: static; max-height: none; height: 100%; border-radius: 0; box-shadow: none; }
-  .app.listonly .panel[data-state="peek"] .panel-body { display: flex; }
-}
+/* phones and narrow panes: the script sets .narrow on .app from the pane width (under 720 px), not the window's */
+.app.narrow { display: block; }
+
+.app.narrow .stage { position: absolute; inset: 0; }
+
+.app.narrow .panel { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
+
+.app.narrow .panel[data-state="peek"] .panel-body { display: none; }
+
+.app.narrow .panel[data-state="peek"] { max-height: none; }
+
+.app.narrow .sheet-handle { display: block; width: 38px; height: 4px; margin: 8px auto 0; border: 0; border-radius: 2px; background: var(--border); }
+
+.app.narrow .panel-head { padding-top: 6px; }
+
+.app.narrow .icon-btn { width: 40px; height: 40px; }
+
+.app.narrow .tool { height: 40px; }
+
+.app.narrow .maplibregl-ctrl-group button { width: 40px; height: 40px; }
+
+.app.narrow .maplibregl-ctrl-top-right { top: 104px; }
+
+/* the credit stays above the sheet's peek */
+.app.narrow .maplibregl-ctrl-bottom-right { bottom: 70px; }
+
+.app.narrow .banner { bottom: 80px; }
+
+.app.narrow .mapbar { flex-wrap: wrap; }
+
+.app.narrow .search { flex: 1 1 100%; max-width: none; }
+
+.app.narrow .search input { font-size: 16px; }
+
+.app.narrow.listonly .panel { position: static; max-height: none; height: 100%; border-radius: 0; box-shadow: none; }
+
+.app.narrow.listonly .panel[data-state="peek"] .panel-body { display: flex; }
 
 /* a notice at the top of the panel (no WebGL, search unavailable, and so on) */
 .notice { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-dim); font-size: 12px; }
