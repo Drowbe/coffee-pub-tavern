@@ -314,3 +314,18 @@
 .app.narrow .row.marker .mk-icon, .app.narrow .row[data-kind="block"] .mk-icon { width: 26px; font-size: 13px; }
 /* the menu button of a block: on the label cell's right edge, over the hatch */
 .card.block.markerpill .menu-btn { top: 50%; right: 4px; margin-top: -14px; }
+
+/* markers that belong to no day: on the line between the day blocks. The same pill, with a menu button on its right edge. */
+.timeline.between { margin: 0 0 12px; padding: 0 14px 0 9px; }
+.timeline.between .rail::before { display: none; }
+.row.marker.lane .markerpill { padding-right: 34px; }
+.row.marker.lane .menu-btn { position: absolute; top: 50%; right: 4px; margin-top: -14px; z-index: 1; }
+.row.marker.lane .when b { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+/* the joint: a small + on the line where two days meet, so a marker can be added anywhere between them */
+.joint { position: relative; height: 0; z-index: 2; }
+.jointadd { position: absolute; left: var(--spine-x); top: -22px; width: 24px; height: 24px; margin-left: -12px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1.5px solid var(--text-dim); border-radius: 50%; background: var(--bg-section); color: var(--text-dim); font-size: 11px; cursor: pointer; opacity: 0; transform: scale(0.85); transition: opacity 0.12s ease, transform 0.12s ease, background 0.12s ease; }
+.jointadd .ic svg { width: 1em; height: 1em; fill: currentColor; }
+.days:hover .jointadd, .jointadd:focus-visible { opacity: 0.7; transform: none; }
+.jointadd:hover, .jointadd:focus-visible { opacity: 1; transform: scale(1.1); border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-section)); outline: none; }
+@media (hover: none) { .jointadd { opacity: 0.6; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .jointadd { transition: none; } }

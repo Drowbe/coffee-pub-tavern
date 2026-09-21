@@ -6,7 +6,7 @@
 <title>Planner: markers, days at the ends, empty days (design mock)</title>
 <!--
   A static mock of what the Planner adds around its days (see ../src/CONTRACT.md, "Markers, days at the ends and empty days").
-  Open it in a browser. Parameters: ?state=normal | edge | hidden | blocks, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
+  Open it in a browser. Parameters: ?state=normal | edge | hidden | blocks | lanes, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
   Icons come from the Font Awesome Free package in the repository (CC BY 4.0), as classes; the module itself uses data-icon.
 -->
 <link rel="stylesheet" href="../../../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
@@ -35,6 +35,8 @@ const stop = (t, title, sub) => `<li class="row entry" data-kind="stop" data-typ
 const day = (n, month, head, sub, rows, cls = '') => `<section class="day2${cls}"><header class="day-head2"><div class="dnum"><b>${n}</b><span>${month}</span></div><div class="dmeta"><h2>${head}</h2><p>${sub}</p></div></header><ol class="timeline">${rows}</ol></section>`;
 const edge = (side, open) => `<div class="dayedge" data-edge="${side}">${open ? '' : `<button class="btn" type="button" data-action="edge-open">${ic('plus')} <span>Add days ${side}</span></button>`}<form class="edge-form"${open ? '' : ' hidden'}><label>Add <input type="number" name="count" min="1" max="30" value="3"> <span>days</span></label><button class="btn btn-primary" type="submit">Add</button><button class="btn" type="button">Cancel</button></form></div>`;
 const gap = (n) => `<div class="gap"><span class="gapcount" title="${n} days between">${n}</span><button class="gapadd" type="button" aria-label="Add something between these days">${ic('plus')}</button></div>`;
+const lane = (icon, title, note, color) => `<ol class="timeline between" data-after="2026-10-04"><li class="row entry marker lane" data-kind="lane"><div class="when"><b></b></div><div class="rail"><span class="dot"></span></div><div class="slot"><div class="markerpill" style="--marker:${color}"><span class="mk-icon">${ic(icon)}</span><span class="mk-label"><b>${title}</b><span class="mk-note">${note}</span></span><button class="menu-btn" type="button" aria-label="Item menu">${ic('ellipsis')}</button></div></div></li></ol>`;
+const joint = () => `<div class="joint"><button class="jointadd" type="button" aria-label="Add a marker here" title="Add a marker here">${ic('plus')}</button></div>`;
 const emptyDay = (n, month, head) => day(n, month, head, 'Nothing planned', '<li class="day-empty">Nothing here yet</li>', ' is-empty');
 // a time block: an item in a day, the same pill, with a time on its row
 const block = (t, icon, title, mins, note, color) => `<li class="row entry" data-kind="block"><div class="when"><b>${t}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><article class="card block markerpill" data-type="custom"${color ? ` style="--marker:${color}"` : ''}><span class="mk-icon">${ic(icon)}</span><span class="mk-label"><b>${title}</b><span class="mk-len">${mins}</span><span class="mk-note">${note}</span></span><button class="menu-btn" type="button" aria-label="Item menu">${ic('ellipsis')}</button></article></div></li>`;
@@ -49,7 +51,7 @@ const before = ends('before', marker('planning-start', 'flag', 'Sat 3', 'Plannin
 const after = ends('after', marker('trip-end', 'plane-arrival', '14:20', 'Trip ends', 'TAP Air Portugal TP 215 · Lisbon') + marker('planning-end', 'flag-checkered', 'Wed 7', 'Planning ends', 'the plan ends'));
 const hidden = state === 'hidden';
 // with empty days hidden, each run of them is one badge on the line
-const body = state === 'blocks' ? days.join('') : hidden ? days[0] + gap(1) + days[2] + gap(1) + days[4] : days.join('');
+const body = state === 'lanes' ? days[0] + lane('moon', 'Rest days', 'nothing planned until Thursday', '#7a6fd0') + joint() + days[2] + joint() + days[4] : state === 'blocks' ? days.join('') : hidden ? days[0] + gap(1) + days[2] + gap(1) + days[4] : days.join('');
 const chips = ['Sat 3', 'Sun 4', 'Mon 5', 'Tue 6', 'Wed 7'].map((c, i) => `<button class="daychip${i === 0 ? ' current' : ''}${[0, 2, 4].includes(i) ? ' in-trip' : ''}${[1, 3].includes(i) ? ' is-empty' : ''}" type="button">${c.split(' ')[0]}<b>${c.split(' ')[1]}</b></button>`).filter((c, i) => !(hidden && [1, 3].includes(i))).join('');
 document.getElementById('stage').style.width = w + 'px';
 document.getElementById('stage').innerHTML = `<div class="app${w < 720 ? ' narrow' : ''}${hidden ? ' hide-empty' : ''}" id="app" style="height:auto;display:block">

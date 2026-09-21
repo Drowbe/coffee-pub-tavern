@@ -214,6 +214,15 @@ Reference rendering: `design/markers.html` (`?state=normal|edge|hidden|blocks`, 
 
 **A time block's menu** is the item menu (`#item-menu`, from its `⋯` button, `data-action=move-menu`) with the entries that make sense for it: **Change type** (`label[data-block-only]` with `select#menu-type`, the marker types of the settings; hidden for any other item), **Earlier**, **Later**, **Move to** (a day) and **Remove** (`[data-slot=delete-label]` reads "Remove" for a block, "Delete" for other items). Edit stays. The automatic plan-wide markers have no menu: they are not items.
 
+### Markers between the days (the author's: some markers belong to no day)
+
+A person can add a marker that sits on the plan's line **between** two day blocks instead of inside a day ("Rest days", "Travel", "Weekend at the lake"). It is an item of kind `lane` with a marker type, an optional label and note, and `after`: the date of the day it follows (none means before the first day). Several between the same two days keep their order.
+
+- Markup: `ol.timeline.between[data-after]` between the day blocks, holding `li.row.entry.marker.lane[data-kind=lane]` from `tpl-row-lane`: the same two-part pill on the line, with a `⋯` button (`data-action=move-menu`) on its right edge. `data-type`, `--marker`, the icon and the title are set as for a time block. It has no time (the `.when` column is empty).
+- Its menu is the item menu: **Change type**, **Earlier** and **Later** (move to the joint before or after), **Move to** (another joint, listed as "After Day 4"), **Remove**. Edit opens the editor with type, label and note only.
+- **The joint** (`div.joint`, `tpl-joint`): a small + on the line where two days meet (and before the first and after the last), quiet until the pointer is over the days (always faint on a touch screen). It opens `#gap-menu` with one entry per marker type, and the marker is added there. The badge for hidden days does the same for its own place.
+- Reference: `design/markers.html?state=lanes`.
+
 ### The line, and the days-between badge
 
 **The line.** `.days` draws one vertical line behind everything (`.days::before`, at `--spine-x`, aligned with the timelines' rails), so it is seen in the gaps and joins each day block, marker, badge and the day edges. The plan-wide markers' dots sit on it.
