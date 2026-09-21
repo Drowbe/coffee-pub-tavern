@@ -1,0 +1,139 @@
+{
+  "id": "research",
+  "name": "Research",
+  "version": "0.1.0",
+  "icon": "book-open",
+  "description": "What a group finds out while it plans: notes, links with the part that mattered, photos with a caption. Tagged, searchable, linkable from anywhere, and questioned or summarised by the AI the admin chose.",
+  "author": "Coffee Pub",
+  "scope": [
+    "room",
+    "person"
+  ],
+  "surfaces": {
+    "page": {
+      "entry": "page.html"
+    },
+    "panel": {
+      "entry": "panel.html",
+      "width": 520,
+      "height": 640,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    }
+  },
+  "permissions": [
+    {
+      "key": "view",
+      "label": "See research",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    },
+    {
+      "key": "edit",
+      "label": "Add, change and remove research",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    }
+  ],
+  "access": {
+    "read": "view",
+    "write": "edit"
+  },
+  "hooks": {
+    "ai": true
+  },
+  "uploads": {
+    "types": [
+      "image/jpeg",
+      "image/png",
+      "image/webp"
+    ],
+    "maxBytes": 10485760,
+    "maxFiles": 500
+  },
+  "refs": {
+    "produces": [
+      {
+        "kind": "note",
+        "name": "Note",
+        "open": true,
+        "backlinks": true,
+        "key": "note:{id}",
+        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+      },
+      {
+        "kind": "link",
+        "name": "Link",
+        "open": true,
+        "backlinks": true,
+        "key": "link:{id}",
+        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+      },
+      {
+        "kind": "photo",
+        "name": "Photo",
+        "open": true,
+        "backlinks": true,
+        "key": "photo:{id}",
+        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+      },
+      {
+        "kind": "answer",
+        "name": "Answer",
+        "open": true,
+        "backlinks": true,
+        "key": "answer:{id}",
+        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+      }
+    ],
+    "consumes": [
+      "*"
+    ]
+  },
+  "actions": {
+    "provides": [
+      {
+        "name": "saveNote",
+        "label": "Save it to research",
+        "input": {
+          "title": "string",
+          "body": "text?",
+          "ref": "ref?"
+        }
+      },
+      {
+        "name": "saveLink",
+        "label": "Save this link to research",
+        "input": {
+          "url": "string",
+          "title": "string?",
+          "excerpt": "text?",
+          "ref": "ref?"
+        }
+      }
+    ],
+    "uses": [
+      "*"
+    ]
+  },
+  "settings": [
+    {
+      "key": "tags",
+      "label": "Well-known tags",
+      "type": "list",
+      "scope": "server",
+      "maxLength": 30,
+      "fixed": [],
+      "help": "Tags with a colour, shared by everyone. A tag that is on this list wears its colour; any other tag stays plain.",
+      "default": []
+    }
+  ]
+}
