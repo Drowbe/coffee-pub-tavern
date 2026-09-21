@@ -19,7 +19,7 @@ function control(def) {
 // left hidden when there is nothing to set.
 // Why the list of files is empty, from what the server found in the folder.
 function fileHint(def) {
-  const where = def.folder ? `Looking in ${def.folder}` : 'Looking in the module-files folder of the data folder';
+  const where = def.folder ? `Looking in ${def.folder}` : 'Looking in the module\'s folder in the data folder';
   if (def.exists === false) return `${where}, which does not exist yet. Create it and copy the file in.`;
   const skipped = def.skipped || [];
   if ((def.available || []).length) return `Tavern ignored ${skipped.length} other file${skipped.length === 1 ? '' : 's'} in ${def.folder || 'the folder'}: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;

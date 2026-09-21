@@ -200,7 +200,7 @@ const prefs = await tavern.settings.get();          // { defaultView: 'week', ..
 tavern.settings.onChange((prefs) => { ... });       // called when any of them changes
 ```
 
-A `file` setting names a file the operator copied into `module-files/<module id>/` in the data folder (too large to upload through a page, such as a map archive); the admin picks it in the form, and a module running in the page reads it, range requests included, from `await tavern.files.url(name)`. A `url` setting holds an http or https address the admin chose.
+A `file` setting (with `"folder": "map-tiles"`, lowercase letters, digits and dashes) names a file the operator copied into that folder inside the module's own folder in the data folder (`modules/<module id>/<folder>/`; uninstalling and updating never delete it) (too large to upload through a page, such as a map archive); the admin picks it in the form, and a module running in the page reads it, range requests included, from `await tavern.files.url(name)`. A `url` setting holds an http or https address the admin chose.
 
 Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Tavern's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
 

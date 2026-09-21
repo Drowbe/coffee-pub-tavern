@@ -241,8 +241,12 @@ function cleanSettings(raw) {
     } else if (type === 'url') {
       def.default = '';
     } else if (type === 'file') {
-      // A file the admin placed for the module (DATA_DIR/module-files/<id>/): only the server can choose one.
+      // A file the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
+      // server can choose one.
       if (def.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "server"`);
+      const folder = r.folder === undefined ? 'files' : String(r.folder);
+      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder) || folder === 'versions') throw new ModuleError(`module.json: setting "${key}" folder must be lowercase letters, digits and dashes (not "versions")`);
+      def.folder = folder;
       def.default = '';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
@@ -606,10 +610,30 @@ class ModuleManager {
     return this.view(id);
   }
 
+  // The folders (inside modules/<id>/) the module's file settings name, across its installed versions.
+  fileFolders(id) {
+    const out = new Set();
+    const entry = this.registry.modules[id];
+    for (const v of (entry && entry.versions) || []) {
+      const m = this.manifestOf(id, v);
+      for (const d of (m && m.settings) || []) if (d.type === 'file' && d.folder) out.add(d.folder);
+    }
+    return out;
+  }
+
   uninstall(id, { keepData = true } = {}) {
     this.get(id);
+    const keep = this.fileFolders(id); // read while the versions are still there
     fs.rmSync(path.join(this.dir, id, 'versions'), { recursive: true, force: true });
-    if (!keepData) fs.rmSync(path.join(this.dir, id), { recursive: true, force: true });
+    if (!keepData) {
+      // Files an admin placed for the module (its `file` settings' folders) are never deleted here: they can be gigabytes and
+      // are not the module's data. Everything else in its folder goes.
+      const dir = path.join(this.dir, id);
+      let names = [];
+      try { names = fs.readdirSync(dir); } catch { /* nothing there */ }
+      for (const n of names) if (!keep.has(n)) fs.rmSync(path.join(dir, n), { recursive: true, force: true });
+      try { fs.rmdirSync(dir); } catch { /* not empty: it holds the admin's files */ }
+    }
     delete this.registry.modules[id];
     for (const key of [...this.manifests.keys()]) if (key.startsWith(`${id}@`)) this.manifests.delete(key);
     this.save();

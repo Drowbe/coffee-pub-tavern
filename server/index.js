@@ -1900,14 +1900,16 @@ function sendSettingError(err, res) {
 
 // --- files an admin placed for a module ---------------------------------------------------------------------
 // Some modules need a large file that cannot be uploaded through a page (a map's tile archive, gigabytes): the operator
-// copies it into DATA_DIR/module-files/<module id>/, the admin picks it in the module's settings, and the module reads
+// copies it into the folder the module's `file` setting names inside its own folder (DATA_DIR/modules/<module id>/<folder>/), the admin picks it in the module's settings, and the module reads
 // it here, by range, like any static file. Nothing else in that folder is reachable, and only by name.
-const moduleFilesDir = (id) => path.resolve(DATA_DIR, 'module-files', id);
+// Where a module's files live: a folder of its own inside its folder in the data folder, named by the `file` setting's `folder`
+// in its manifest (DATA_DIR/modules/<id>/<folder>/). Uninstalling and updating never touch it.
+const moduleFilesDir = (id, folder) => path.resolve(DATA_DIR, 'modules', id, folder);
 const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // What is in a module's folder: the usable files, and each thing skipped with the reason, so an admin whose file does not
 // show up is told why. A link to a file (a NAS shortcut) counts as the file.
-function inspectModuleFiles(id) {
-  const folder = moduleFilesDir(id);
+function inspectModuleFiles(id, sub) {
+  const folder = moduleFilesDir(id, sub);
   const out = { folder, exists: false, files: [], skipped: [] };
   let names;
   try {
@@ -1928,10 +1930,16 @@ function inspectModuleFiles(id) {
   }
   return out;
 }
-const listModuleFiles = (id) => inspectModuleFiles(id).files;
+const listModuleFiles = (id, sub) => inspectModuleFiles(id, sub).files;
+// The path of a file a module's file settings can name, or null.
+const moduleFilePath = (manifest, name) => {
+  if (!FILE_NAME_RE.test(name)) return null;
+  for (const d of manifest.settings || []) if (d.type === 'file' && listModuleFiles(manifest.id, d.folder).includes(name)) return path.join(moduleFilesDir(manifest.id, d.folder), name);
+  return null;
+};
 // The same, in words, for the log and for the picker.
-function describeModuleFiles(id) {
-  const f = inspectModuleFiles(id);
+function describeModuleFiles(id, sub) {
+  const f = inspectModuleFiles(id, sub);
   if (!f.exists) return `${f.folder} does not exist yet`;
   const skipped = f.skipped.map((s) => `${s.name} (${s.reason})`).join('; ');
   return `${f.folder} has ${f.files.length} usable file${f.files.length === 1 ? '' : 's'}${f.files.length ? ': ' + f.files.join(', ') : ''}${f.skipped.length ? `; Tavern ignored ${f.skipped.length}: ${skipped}` : ''}`;
@@ -1942,8 +1950,9 @@ app.get('/api/modules/:id/files/:name', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
   if (!ctx) return;
   const name = req.params.name;
-  if (!FILE_NAME_RE.test(name) || !listModuleFiles(ctx.manifest.id).includes(name)) return res.status(404).json({ error: 'no such file' });
-  res.sendFile(path.join(moduleFilesDir(ctx.manifest.id), name), { acceptRanges: true, headers: { 'Cache-Control': 'private, max-age=3600', 'Content-Type': 'application/octet-stream' } });
+  const file = moduleFilePath(ctx.manifest, name);
+  if (!file) return res.status(404).json({ error: 'no such file' });
+  res.sendFile(file, { acceptRanges: true, headers: { 'Cache-Control': 'private, max-age=3600', 'Content-Type': 'application/octet-stream' } });
 });
 
 // The values that apply to the viewer, for the module itself.
@@ -1973,7 +1982,7 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id)) : {}) }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id, d.folder)) : {}) }));
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
@@ -1994,7 +2003,7 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
   try {
     for (const [key, v] of Object.entries(req.body?.values || {})) {
       const def = found.manifest.settings.find((d) => d.key === key);
-      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest.id).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
+      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest.id, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
     }
     moduleSettings.set(found.manifest, req.params.scope, place.ctx, req.body?.values, place.user.key);
     res.json({ settings: withValues(found.manifest, req.params.scope, place.ctx) });
@@ -2386,5 +2395,6 @@ app.use((err, _req, res, _next) => {
 app.listen(Number(PORT), () => {
   console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
   // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
-  for (const m of modules.list()) if ((m.settings || []).some((d) => d.type === 'file')) console.log(`${m.name}: looks for its files in ${describeModuleFiles(m.id)}`);
+  for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
+  if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
 });

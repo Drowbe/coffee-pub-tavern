@@ -893,7 +893,7 @@ $('modules-list').addEventListener('click', async (event) => {
       await api('POST', `/api/modules/${m.id}/rollback`, { version });
     } else if (button.dataset.moduleAction === 'uninstall') {
       if (!window.confirm(`Uninstall ${m.name}?`)) return;
-      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.`);
+      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the module's own folder (a map file, say) are never deleted.`);
       await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
     }
     await loadModules();
