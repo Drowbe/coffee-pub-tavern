@@ -42,6 +42,9 @@ function cleanValue(def, raw) {
     let u;
     try { u = new URL(t); } catch { throw new SettingError(`${def.label} must be a web address`); }
     if (!/^https?:$/.test(u.protocol) || t.length > 500) throw new SettingError(`${def.label} must be an http or https address`);
+    if (u.username || u.password) throw new SettingError(`${def.label} must not contain a user name or password`);
+    if (def.httpsOnly && u.protocol !== 'https:') throw new SettingError(`${def.label} must be an https address`);
+    if (def.pathEnds && !u.pathname.toLowerCase().endsWith(def.pathEnds.toLowerCase())) throw new SettingError(`${def.label} must be the address of a ${def.pathEnds} file`);
     return t;
   }
   if (def.type === 'files') {

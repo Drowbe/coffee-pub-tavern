@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Maps 0.7.0: a **Map source** choice, as Place search has: **A map file on this server** (the default, so existing servers keep working) or **A map file at a web address**, an https link to a PMTiles file hosted elsewhere and read in pieces over the web. Its help says what it costs: every viewer's browser contacts that host, which can see their address and roughly the area they look at, and the host must allow CORS and range requests. A `url` setting can now be limited to https and to a path ending in a given extension, and always refuses a user name or password in the address. An unreachable address shows the map's "could not load" state with Try again. Verified: the three refusals against a running server and the unreachable state in a browser. Not verified: reading a real map from a real host (no https host to try here).
+
 ### Fixed
 - Planner 0.6.4: a linked item that has been deleted (a poll, an event, a place) no longer shows as if it were still there. Answers about a pointer now say what to draw (`state`: `gone` or `hidden`), and Planner draws a muted "No longer available" (or "Not available to you", without revealing anything else) with a **Remove from plan** button, never opens an editor for it, hides Open and Edit, and shows a linked item's current title instead of one it stored. It looks again every 20 seconds and when the page comes back into view. Verified in a browser: a poll linked to a day, deleted, then drawn as gone, its Edit hidden and Remove taking it off the plan. Not yet: the server announcing a deletion at once, cleaning up when no page is open, and date sync (the linked-items plan, steps 2 to 5).
 

@@ -39,7 +39,7 @@
 
   const state = {
     items: [], // the cards in this room that carry a place
-    settings: { maps: [] },
+    settings: { maps: [], web: false }, // the map files to draw (names on this server, or one https address when `web`)
     candidates: [], // search results drawn as pins to pick from
     searcher: null, // the action that searches for a place, if some module provides one
     selected: null, // the id of the card that is open
@@ -407,7 +407,7 @@
       fileUrls = [];
       headers = [];
       for (const name of wanted) {
-        const url = new URL(await tavern.files.url(name), location.href).href;
+        const url = state.settings.web ? name : new URL(await tavern.files.url(name), location.href).href;
         const archive = new pmtiles.PMTiles(url);
         protocol.add(archive);
         headers.push(await archive.getHeader());
@@ -591,9 +591,15 @@
 
   function applySettings(next) {
     // The map files chosen (a list; a single name from before is one file).
-    const files = (Array.isArray(next.map) ? next.map : next.map ? [next.map] : []).slice(0, 20);
-    const mapChanged = files.join('|') !== state.settings.maps.join('|');
-    state.settings = { maps: files };
+    // From this server's files (a list; a single name from before is one file), or one file at an https web address.
+    let files = (Array.isArray(next.map) ? next.map : next.map ? [next.map] : []).slice(0, 20);
+    let web = false;
+    if (next.mapSource === 'web') {
+      web = true;
+      files = typeof next.mapUrl === 'string' && /^https:\/\//i.test(next.mapUrl) ? [next.mapUrl] : [];
+    }
+    const mapChanged = files.join('|') !== state.settings.maps.join('|') || web !== state.settings.web;
+    state.settings = { maps: files, web };
     if (mapChanged && state.started) startMap();
   }
   tavern.settings.onChange((s) => applySettings(s || {}));

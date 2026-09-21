@@ -252,6 +252,9 @@ function cleanSettings(raw) {
       def.default = d;
     } else if (type === 'url') {
       def.default = '';
+      // Optional limits on an address: https only, and the path must end so (".pmtiles"). Credentials in an address are always refused.
+      if (r.httpsOnly === true) def.httpsOnly = true;
+      if (typeof r.pathEnds === 'string' && /^\.?[A-Za-z0-9]{1,12}$/.test(r.pathEnds)) def.pathEnds = r.pathEnds.startsWith('.') ? r.pathEnds : `.${r.pathEnds}`;
     } else if (type === 'file' || type === 'files') {
       // A file (or, for `files`, several: a table of what is there with a tick for each) the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
       // server can choose one.

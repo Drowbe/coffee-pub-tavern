@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -44,13 +44,51 @@
   ],
   "settings": [
     {
+      "key": "mapSource",
+      "label": "Map source",
+      "type": "choice",
+      "scope": "server",
+      "default": "file",
+      "help": "Where the map itself comes from.",
+      "options": [
+        {
+          "value": "file",
+          "label": "A map file on this server",
+          "help": "Tavern reads a PMTiles map file that you put in the map-tiles folder of this module's folder on the server. Nothing is sent to anyone else: the map works offline and nobody outside sees where your places are. A city is a few megabytes, a country hundreds, the world well over 100 GB."
+        },
+        {
+          "value": "web",
+          "label": "A map file at a web address",
+          "help": "Tavern reads a PMTiles map file from the address you give below, so the map does not have to be stored on this server.\nEvery person's browser contacts that host directly. The host can see their internet address and roughly which area they are looking at. Choose a host you trust, and tell the people who use this server.\nThe host must allow requests from this server's pages (CORS) and support range requests, as static hosting and most content delivery networks do. Its terms, cost and reliability are yours to check. Only https addresses work.\nThe credit © OpenStreetMap contributors always stays on the map."
+        }
+      ]
+    },
+    {
       "key": "map",
       "label": "Map files",
       "type": "files",
       "folder": "map-tiles",
       "scope": "server",
       "default": [],
-      "help": "PMTiles map files in modules/maps/map-tiles/ in the data folder. Tick the ones to use; several regions are drawn together."
+      "help": "PMTiles map files in modules/maps/map-tiles/ in the data folder. Tick the ones to use; several regions are drawn together.",
+      "showWhen": {
+        "key": "mapSource",
+        "value": "file"
+      }
+    },
+    {
+      "key": "mapUrl",
+      "label": "Map file address",
+      "type": "url",
+      "scope": "server",
+      "default": "",
+      "httpsOnly": true,
+      "pathEnds": ".pmtiles",
+      "showWhen": {
+        "key": "mapSource",
+        "value": "web"
+      },
+      "help": "An https link to a .pmtiles file, for example https://maps.example.org/region.pmtiles"
     }
   ],
   "access": {
