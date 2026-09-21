@@ -240,7 +240,7 @@
     const body = $('panel-body');
     if (sel) renderPlace(body, sel); else renderList(body);
     const total = own().length + shownItems().length;
-    for (const c of root.querySelectorAll('[data-slot="count"]')) if (!c.closest('template')) c.textContent = total ? String(total) : '';
+    for (const c of root.querySelectorAll('[data-slot="count"]')) if (!c.closest('template')) c.textContent = total && !(sel && c.closest('.panel-head')) ? String(total) : ''; // the header's count is for the list, not for one place
     $('panel').querySelector('[data-slot="heading"]').textContent = sel ? 'Place' : 'Places';
     hide($('panel').querySelector('[data-action="back"]'), !sel);
     syncPanel();
