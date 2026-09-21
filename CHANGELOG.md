@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- Travel 0.3.1: the nights a stay covers (and its check-out day) sit at the top of each day as a banner, not at the end after the timed items; an item from another module whose card is all day, or whose time is exactly midnight (a date with no time), is treated as having no time of day instead of sorting first as 00:00 with a false gap. A check covers the midnight case.
+
 ### Changed
 - Travel 0.3.0 lays the days out top to bottom at every width instead of as columns side by side, which did not scale to a long trip: one scrolling list with each day's heading held at the top and the strip of days always shown; on a wide pane the list keeps a readable width. A stay's later nights no longer squash into a narrow column. Verified in a browser with a 22-day trip.
 

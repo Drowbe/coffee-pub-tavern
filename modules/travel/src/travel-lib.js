@@ -186,14 +186,17 @@
 
   // When a card says something is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
   // closing time). Returns { day, time } with the time as "HH:MM" (empty for a whole day), or null.
+  // A card that says it is all day, or whose moment is exactly local midnight (what a date with no time turns into),
+  // has no time of day.
   const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const clockOf = (d, card) => (card.allDay === true || (d.getHours() === 0 && d.getMinutes() === 0) ? '' : hhmm(d));
   function cardWhen(card) {
     const w = card && card.when;
-    if (typeof w === 'number' && Number.isFinite(w)) { const d = new Date(w); return { day: ymd(d), time: hhmm(d) }; }
+    if (typeof w === 'number' && Number.isFinite(w)) { const d = new Date(w); return { day: ymd(d), time: clockOf(d, card) }; }
     if (typeof w !== 'string' || !w) return null;
     if (w.length <= 10) return isYmd(w) ? { day: w, time: '' } : null;
     const d = new Date(w);
-    return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: hhmm(d) };
+    return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: clockOf(d, card) };
   }
 
   // The bookings: stays and journeys, in date and time order.

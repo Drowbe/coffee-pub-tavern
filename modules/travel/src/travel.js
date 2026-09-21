@@ -191,10 +191,12 @@
   function entriesFor(day, days, by) {
     const list = by.get(day) || [];
     const out = list.map((item) => ({ item, span: item.kind === 'stay' && item.checkOut && item.checkOut > day ? 'start' : undefined }));
+    // The nights a stay covers (and its check-out) sit at the top of the day, like a banner, before the day's own items.
+    const covering = [];
     for (const s of plan.list().filter((i) => i.kind === 'stay' && i.date && i.checkOut)) {
-      if (day > s.date && day <= s.checkOut) out.push({ item: s, span: day === s.checkOut ? 'end' : 'middle' });
+      if (day > s.date && day <= s.checkOut) covering.push({ item: s, span: day === s.checkOut ? 'end' : 'middle' });
     }
-    return out;
+    return [...covering, ...out];
   }
 
   function buildDay(day, index, days, by) {

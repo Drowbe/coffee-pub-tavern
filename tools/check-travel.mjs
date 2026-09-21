@@ -122,6 +122,8 @@ test('a card says when in a day, a moment or milliseconds', () => {
   const d = new Date(2026, 9, 3, 18, 30);
   assert.deepEqual(lib.cardWhen({ when: d.toISOString() }), { day: '2026-10-03', time: '18:30' });
   assert.deepEqual(lib.cardWhen({ when: d.getTime() }), { day: '2026-10-03', time: '18:30' });
+  assert.deepEqual(lib.cardWhen({ when: new Date(2026, 9, 3, 0, 0).getTime() }), { day: '2026-10-03', time: '' }); // local midnight: no time of day
+  assert.deepEqual(lib.cardWhen({ when: d.toISOString(), allDay: true }), { day: '2026-10-03', time: '' });
   assert.equal(lib.cardWhen({}), null);
   assert.equal(lib.cardWhen({ when: 'soon' }), null);
 });
