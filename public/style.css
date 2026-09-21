@@ -4613,3 +4613,9 @@ body.at-table .module-nav {
 .files-table th, .files-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
 .files-table th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
 .files-table td:first-child, .files-table th:first-child { width: 48px; }
+
+/* a choice setting: what the chosen option means, under its list (e.g. a service's terms) */
+.option-help:empty { display: none; }
+.option-help { padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; background: color-mix(in srgb, var(--accent) 7%, var(--bg-card)); }
+.option-help p { margin: 4px 0; }
+.option-help a { color: var(--accent); }

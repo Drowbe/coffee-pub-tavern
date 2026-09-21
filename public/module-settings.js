@@ -8,7 +8,7 @@ function control(def) {
   const id = `ms-${def.key}`;
   if (def.type === 'boolean') return `<label class="check"><input type="checkbox" data-key="${escapeHtml(def.key)}" ${def.value ? 'checked' : ''}> ${escapeHtml(def.label)}</label>`;
   const head = `<label>${escapeHtml(def.label)}`;
-  if (def.type === 'choice') return `${head}<select data-key="${escapeHtml(def.key)}">${def.options.map((o) => `<option value="${escapeHtml(o.value)}" ${o.value === def.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></label>`;
+  if (def.type === 'choice') return `${head}<select data-key="${escapeHtml(def.key)}">${def.options.map((o) => `<option value="${escapeHtml(o.value)}" ${o.value === def.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select></label>${def.options.some((o) => o.help) ? '<div class="option-help" data-option-help></div>' : ''}`;
   if (def.type === 'files') {
     const chosen = new Set(Array.isArray(def.value) ? def.value : def.value ? [def.value] : []);
     const size = (n) => { const b = (def.sizes || {})[n]; return b === undefined ? '' : b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`; };
@@ -48,9 +48,26 @@ export async function renderModuleSettings(container, { scope, room = null, only
   container.innerHTML = modules.map((m) => `
     <div class="module-settings-card" data-module="${escapeHtml(m.id)}">
       ${heading ? `<h3><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}</h3>` : ''}
-      <div class="module-settings-fields">${m.settings.map((d) => `<div class="module-setting">${control(d)}${d.help ? `<p class="hint">${escapeHtml(d.help)}</p>` : ''}</div>`).join('')}</div>
+      <div class="module-settings-fields">${m.settings.map((d) => `<div class="module-setting"${d.showWhen ? ` data-when-key="${escapeHtml(d.showWhen.key)}" data-when-value="${escapeHtml(d.showWhen.value)}"` : ''}>${control(d)}${d.help ? `<p class="hint">${escapeHtml(d.help)}</p>` : ''}</div>`).join('')}</div>
       <div class="row"><button class="btn btn-primary btn-small" data-save type="button">Save</button><span class="status" data-status></span></div>
     </div>`).join('');
+  // What the chosen option says (its own help, more than a line can hold), and the settings that only apply to a choice.
+  const linkify = (text) => escapeHtml(text).replace(/https:\/\/[^\s<)]+/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+  const refresh = (card) => {
+    const module = modules.find((m) => m.id === card.dataset.module);
+    const value = (key) => { const el = card.querySelector(`[data-key="${key}"]`); return el ? (el.type === 'checkbox' ? String(el.checked) : el.value) : ''; };
+    for (const sel of card.querySelectorAll('select[data-key]')) {
+      const def = module.settings.find((d) => d.key === sel.dataset.key);
+      const box = sel.closest('.module-setting').querySelector('[data-option-help]');
+      const option = def && def.options.find((o) => o.value === sel.value);
+      if (box) box.innerHTML = option && option.help ? option.help.split(/\n+/).map((p) => `<p class="hint">${linkify(p)}</p>`).join('') : '';
+    }
+    for (const row of card.querySelectorAll('[data-when-key]')) row.hidden = value(row.dataset.whenKey) !== row.dataset.whenValue;
+  };
+  for (const card of container.querySelectorAll('.module-settings-card')) {
+    refresh(card);
+    card.addEventListener('change', () => refresh(card));
+  }
   container.onclick = async (event) => {
     const button = event.target.closest('[data-save]');
     if (!button) return;

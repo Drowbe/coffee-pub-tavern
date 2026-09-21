@@ -267,6 +267,8 @@
 
   // --- search (only when the admin set an address) ------------------------------------------------------------------
 
+  // What someone sees when they search and no search has been chosen in Places' settings.
+  const NO_SEARCH = 'Search is not available. It has not been configured for this room.';
   let searchToken = 0;
   let hits = [];
   let hit = -1;
@@ -303,7 +305,7 @@
       const out = await tavern.actions.request(state.searcher.action, { q, ...(near ? { lat: round6(near.lat), lon: round6(near.lng) } : {}) }, { wait: true });
       if (mine !== searchToken) return;
       if (out.status !== 'done' || !out.result || !out.result.ok) {
-        state.searchMessage = out.result && /not set up/.test(out.result.error || '') ? 'Search is not set up' : 'Search is not available right now';
+        state.searchMessage = out.result && /not set up|not configured/.test(out.result.error || '') ? NO_SEARCH : 'Search is not available right now';
       } else {
         const list = out.result.data && Array.isArray(out.result.data.results) ? out.result.data.results : [];
         hits = list.filter((h) => h && geo.inRange(Number(h.lat), Number(h.lng)) && typeof h.title === 'string').slice(0, 6).map((h) => ({ title: oneLine(h.title, 120), sub: oneLine(h.sub, 160), lat: Number(h.lat), lng: Number(h.lng) }));
@@ -552,7 +554,7 @@
       const p = parsePoint(text);
       if (p) { if (state.adder) draftAt(p.lat, p.lng); else if (state.map) state.map.easeTo({ center: [p.lng, p.lat], zoom: 15 }); return; }
       if (state.searcher) { search(text); return; }
-      say('Search is not set up. Paste coordinates or a map link, or click the map.');
+      say(`${NO_SEARCH} Paste coordinates or a map link, or click the map.`);
     });
   }
 
