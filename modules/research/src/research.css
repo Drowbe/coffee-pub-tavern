@@ -139,6 +139,15 @@ body { margin: 0; overflow: hidden; }
 .conflict-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--danger); border-radius: 6px; font-size: 12px; }
 .conflict-bar span { flex: 1 1 100%; }
 .conflict-bar .btn { padding: 2px 8px; font-size: 12px; }
+.with-button { display: flex; gap: 6px; align-items: stretch; }
+.with-button input { flex: 1; min-width: 0; }
+.with-button .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+/* a photo whose file is gone: the picture 404s, so the crop shows a quiet placeholder */
+.rcard .thumb.missing { object-fit: none; display: flex; }
+.rcard .thumb.missing { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--text-dim) 10%, transparent) 0 8px, transparent 8px 16px), color-mix(in srgb, var(--tone) 12%, var(--bg-card)); }
+/* dragging something from another module over the pane */
+.rs.drop-target::after { content: ""; position: absolute; inset: 6px; z-index: 40; border: 2px dashed var(--accent); border-radius: 14px; background: color-mix(in srgb, var(--accent) 6%, transparent); pointer-events: none; }
+.drop-hint { position: absolute; left: 50%; bottom: 72px; z-index: 41; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 8px 22px color-mix(in srgb, black 35%, transparent); pointer-events: none; }
 .asked p { margin: 2px 0 8px; overflow-wrap: anywhere; }
 .links { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font-size: 11px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

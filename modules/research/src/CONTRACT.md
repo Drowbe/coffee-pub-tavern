@@ -72,3 +72,9 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 - `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` (hidden unless AI is available), `delete`.
 - Ask: `#ask.ask-panel > .ask` with `#thread`, `#ask-form`, `#ask-input`, `#ask-send`, `[data-action=close-ask]`; clones `tpl-msg-you`, `tpl-msg-ai` (`who`, and `.parts` for `tpl-msg-text`, `tpl-aicard` and `tpl-writing` in order), `tpl-aicard` (`title`, `content`, `tags`, `place`, `when`, `sources`; `[data-action=keep-card]`, `[data-action=copy-card]`; the icon badge holds the card's icon).
 - States: `tpl-state-loading`, `tpl-state-empty` (`[data-action=new-note]`, `[data-action=add-photo]`), `tpl-state-noresults` (`[data-action=clear-filter]`).
+
+## Suggest tags, dropping onto Research, a missing photo (0.1.5)
+
+- **Suggest tags:** `button[data-action=suggest-tags]` beside the tags field (`.with-button`), hidden unless AI is available and the item is a saved note, link or answer. It puts suggested words into `#f-tags`; nothing is saved until Save.
+- **Drop onto the pane:** while something from another module is dragged over Research, `.rs.drop-target` draws a dashed accent frame round the pane and `#drop-hint` ("Drop to start a note about it") appears above the bottom bar; dropping starts a note linked to the item, with its title.
+- **A photo whose file is gone:** the script sets `.missing` on `.thumb` when the picture fails to load; it shows a quiet hatched placeholder.

@@ -39,6 +39,8 @@
   </div>
   <div class="rs-chips" id="tag-chips" role="group" aria-label="Tag"></div>
   <p class="error" id="note" hidden></p>
+  <!-- shown while something from another module is dragged over the pane: dropping it starts a note linked to it -->
+  <div class="drop-hint" id="drop-hint" hidden><span class="ic" data-icon="note-sticky"></span> Drop to start a note about it</div>
   <main id="body" class="rs-body"></main>
 
   <!-- the item menu: a popover the script places under the button that opened it -->
@@ -58,14 +60,12 @@
       <label data-kinds="link">Address<input id="f-url" name="url" type="url" maxlength="500" placeholder="https://" autocomplete="off"></label>
       <label data-kinds="note answer"><span data-slot="body-label">Note</span><textarea id="f-body" name="body" rows="6" maxlength="8000"></textarea></label>
       <label data-kinds="link">What to remember from it<textarea id="f-excerpt" name="excerpt" rows="4" maxlength="2000"></textarea></label>
-      <label data-kinds="note link photo answer">Tags<input id="f-tags" name="tags" type="text" maxlength="200" placeholder="words, separated by commas" list="tag-list" autocomplete="off"></label>
+      <label data-kinds="note link photo answer">Tags<span class="with-button"><input id="f-tags" name="tags" type="text" maxlength="200" placeholder="words, separated by commas" list="tag-list" autocomplete="off"><button type="button" class="btn" data-action="suggest-tags" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Suggest tags</button></span></label>
       <datalist id="tag-list"></datalist>
       <div class="editor-row" data-kinds="note link">
         <label>Place<input id="f-point" name="point" type="text" maxlength="200" placeholder="Paste coordinates or a map link (optional)" inputmode="decimal" autocomplete="off"><span class="hint" id="f-point-note"></span></label>
         <label>Date<input id="f-date" name="date" type="date"></label>
       </div>
-      <!-- no longer used: a photo's position is chosen when it is added. Kept (hidden) until research.js stops looking for it. -->
-      <label class="check" data-kinds="photo" id="f-keep-row" hidden><input id="f-keep" name="keep" type="checkbox"> Keep the position</label>
       <div class="asked" data-kinds="answer" id="f-asked" hidden><div class="hint">Asked</div><p data-slot="asked"></p><div class="hint">From</div><div class="links" data-slot="sources"></div></div>
       <p class="hint" id="f-by"></p>
       <p class="error" id="f-error" hidden></p>
