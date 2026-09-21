@@ -62,7 +62,7 @@ if (!q.has('bare')) {
   // views: the same places at three scopes (mine follows the person into every room; everyone is the server's)
   const view = state === 'mine' ? 'my' : state === 'everyone' ? 'global' : 'room';
   const VIEWS = [['my', 'user', 'Mine'], ['room', 'users', 'This room'], ['global', 'globe', 'Everyone']];
-  const NOTES = { my: 'Only you see these. They follow you into every room.', room: '', global: 'Everyone on this server sees these. Moderators change them.' };
+  const NOTES = { my: 'Only you see these. They follow you into every room.', room: '', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
   const views = `<div class="views" role="group" aria-label="Whose places">${VIEWS.map(([v, i, l]) => `<button class="view" type="button" data-view="${v}" aria-pressed="${v === view}">${ic(i)}${l}</button>`).join('')}</div>`;
   const note = NOTES[view] ? `<p class="view-note" data-slot="view-note">${ic('circle-info')}${NOTES[view]}</p>` : '';
   // find a place: results over the bottom bar (only when a search address is set)

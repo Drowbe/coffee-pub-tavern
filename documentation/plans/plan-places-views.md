@@ -34,7 +34,7 @@ Maps has no list panel. Maps requires Places, so Places is the list: it already 
 
 - **My.** Places that belong to the person, in their Profile. Visible in every room they are in, never to others unless shared to a room.
 - **Room.** Places shared with a room. What exists today.
-- **Global.** Places for the whole server (a company's offices, a group's regular haunts), set by moderators.
+- **Global.** Places for the whole server (a company's offices, a group's regular haunts), shared by everyone on the server, and changed by anyone who has the edit right for Places (the same right as for the room).
 - A place can be copied up (my to room) or down. A card in another module that holds a pointer to a place keeps working across scopes only if the viewer may see that place; otherwise it shows as unavailable, as any pointer does today.
 - Places shows a view switcher in its header (a segmented control, phone-safe); Maps draws whichever view is selected, and can show several at once.
 
@@ -46,7 +46,7 @@ Maps has no list panel. Maps requires Places, so Places is the list: it already 
 ## Open questions
 
 1. Does a module's data in the Profile use the same store and change events as a room's, with a different owner? (Server Development.)
-2. Global places: who may edit? Proposed: moderators.
+2. ~~Global places: who may edit?~~ Decided by the author: "everyone" means everyone who can edit. Whoever holds the module's edit right for a place may change it; nobody is singled out.
 3. Copy or move when promoting a place from my to room? Proposed: copy, with the original kept.
 4. ~~Does Maps keep any list panel?~~ Decided: no.
 
