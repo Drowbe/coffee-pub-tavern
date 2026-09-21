@@ -101,9 +101,11 @@ function renderWho(table) {
     const mine = u.key === table.me;
     const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
     const label = escapeHtml(u.displayName || u.login || 'Someone');
-    return `<span class="dashboard-person${where ? ' in-room' : ''}"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-name">${label}${mine ? ' (you)' : ''}</span>${where ? `<span class="dashboard-person-where">in ${escapeHtml(where)}</span>` : '<span class="dashboard-person-where">online</span>'}${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinRoom ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}</span>`;
+    // One cell of the grid: who, where they are, and what can be done (in the call, invite).
+    const actions = `${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinRoom ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}`;
+    return `<div class="dashboard-person${where ? ' in-room' : ''}"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-text"><span class="dashboard-person-name">${label}${mine ? ' (you)' : ''}</span><span class="dashboard-person-where">${where ? `in ${escapeHtml(where)}` : 'online'}</span></span><span class="dashboard-person-actions">${actions}</span></div>`;
   });
-  el.innerHTML = `<span class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around</span>` + (people.length ? people.join('') : '<span class="dashboard-empty">Nobody is around right now.</span>') + (whoNote ? `<span class="whos-around-note">${escapeHtml(whoNote)}</span>` : '');
+  el.innerHTML = `<h2 class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around <span class="whos-around-count">${people.length || ''}</span></h2>` + (people.length ? `<div class="whos-around-list">${people.join('')}</div>` : '<p class="dashboard-empty">Nobody is around right now.</p>') + (whoNote ? `<p class="whos-around-note">${escapeHtml(whoNote)}</p>` : '');
   el.hidden = false;
 }
 
