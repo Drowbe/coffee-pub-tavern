@@ -1,10 +1,10 @@
 /*
- * The itinerary card family for Travel (design draft; it moves into src/ when the data fields it needs exist).
- * One timeline per day: a time gutter, a rail with a dot, and a card. Every kind of thing has its own card, made to be told apart
- * at a glance by four things together: a silhouette (a boarding pass, a ticket, a hotel key band, a reservation, a note), a big
- * icon badge, a kicker that names it ("Flight", "Museum") and a colour. The colours are still the theme's: each family is the
- * accent turned around the colour wheel (relative colour syntax), so a theme with another accent gets a matching set, and a
- * browser without it falls back to mixes of the accent and the text colour. No fixed colours anywhere.
+ * The itinerary card family: one timeline per day (a time gutter, a rail with a dot, a card) and a card for every kind of thing
+ * that goes in a trip, each made to be told apart at a glance by four things together: a silhouette (a boarding pass, a ticket, a
+ * hotel key band, a reservation, a note), a big icon badge, a kicker that names it ("Flight", "Museum") and a colour. The colours
+ * are the theme's: each family is the accent turned around the colour wheel (relative colour syntax), so a theme with another
+ * accent gets a matching set, and a browser without it falls back to mixes of the accent and the text colour. No fixed colours.
+ * The markup is CONTRACT.md's "The card family"; design/cards.html is the reference. Narrow means `.app.narrow`.
  */
 .entry { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); --tone-ink: var(--bg); }
 @supports (color: oklch(from red l c h)) {
@@ -186,3 +186,14 @@
 .app.narrow .rail .dot { top: 12px; }
 .app.narrow .timeline { padding: 6px 10px 6px 6px; }
 .app.narrow .card h3 { overflow-wrap: break-word; }
+
+/* ---- states of a row (the same the old items had) ---- */
+.entry.done h3 { color: var(--text-dim); text-decoration: line-through; }
+.entry.dragging .card { opacity: 0.5; border-color: var(--accent); }
+.slot { position: relative; }
+.entry[data-drop="before"] .slot::before, .entry[data-drop="after"] .slot::after { content: ""; position: absolute; left: 0; right: 0; height: 3px; border-radius: 2px; background: var(--accent); z-index: 3; }
+.entry[data-drop="before"] .slot::before { top: -2px; }
+.entry[data-drop="after"] .slot::after { bottom: 4px; }
+.entry[data-drop="into"] .card { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.entry.conflict .card { border-color: var(--danger); }
+.card .conflict-bar { margin: 0 12px 10px; }

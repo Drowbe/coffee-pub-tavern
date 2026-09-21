@@ -153,3 +153,34 @@ A dialog over the page for an item and for the trip. The script shows the fields
 ## Not decided yet
 
 The map is designed when its phase starts.
+
+## The card family
+
+A day is a `tpl-day-head` and an `ol.timeline` of rows, replacing the old `.day-head`, `ol.items` and `li.item`. Every kind of thing in a trip has its own card, made to be told apart at a glance by four things together: a **silhouette** (a boarding pass, a ticket, a hotel key band, a reservation, a note), a big **icon badge**, a **kicker** that names it ("Flight", "Museum"), and a **colour family**. Colours stay the theme's: each family is the accent turned around the colour wheel (`--turn` on the row), so a different accent gives a matching set and nothing is a fixed colour. `design/cards.html` is the reference rendering (dark and light, three accents, phone to wide); `travel-lib-cards.css` is the stylesheet; the templates are `tpl-day-head`, `tpl-row`, `tpl-leg-row` and `tpl-card-*` in `travel.html`.
+
+**A row** (`li.row.entry[data-type][data-id][data-kind]`, plus `.done`, `.conflict`, `.dragging`, `data-drop="before|after|into"` as before): `.when` (`[data-slot=time]` bold, `[data-slot=sub]` small, e.g. "check-in"; both empty for an untimed item, and the CSS hides an empty one), `.rail` (the line and `.dot`, coloured by the family) and `.slot` holding exactly one card. **The way between two stops** is `li.row.leg-row` with `button.leg[data-mode=walk|drive|transit|bike|taxi][data-action=edit-leg]`: the mode's icon, `[data-slot=minutes]` ("12 min") and optional `[data-slot=dist]` ("· 0.9 km"). It sits between two stops that both have a place or a time; the person sets `travelMode` and `travelMinutes` by hand (the click opens a small editor), and a routing service may fill them later.
+
+**The day header** (`tpl-day-head`): `[data-slot=daynum]` (the day of the month, large), `[data-slot=daymonth]` ("Sat · Oct"), `[data-slot=position]` ("Day 2 of 7") and `[data-slot=summary]`, one line the script builds: the first and last time, how many stops, and the total time getting around, e.g. "10:05 – 23:30 · 6 stops · 1 h 24 min getting around".
+
+**Which card, and its family** (the script chooses the type from the item: a journey by `mode`, a stay by `type`, a stop by `type`; no type falls back to the last row of the group):
+
+| `data-type` | Template | Kicker | Badge icon | Fields the card shows |
+|---|---|---|---|---|
+| `flight` | `tpl-card-flight` (boarding pass) | Flight | plane | `operator` + `number` (title), `fromCode`, `toCode`, `from`, `to`, `time`, arrival, duration, `seat`, `gate`, `travelClass` |
+| `train` | `tpl-card-train` (ticket) | Train | train | `operator` + `number`, `from`, `to`, `time`, arrival, `platform`, `carriage` + `seat`, duration, `confirm` |
+| `ferry`, `bus`, `car` | `tpl-card-transit` | Ferry, Bus, Rental car | ship, bus, car | `title`, `operator` (in the kicker), `time`, `to`, `confirm` |
+| `hotel` (a stay of any `type`) | `tpl-card-hotel`; `tpl-card-hotel-mid` for the nights between | Hotel, Rental, Hostel, Camp | bed | `title`, `address`, nights, check-in and check-out, `roomType`, `guests`, `confirm` |
+| `restaurant`, `cafe`, `bar` | `tpl-card-meal` (reservation) | Restaurant, Café, Bar (or a note's own label, e.g. "Sundowner") | utensils, mug-hot, martini-glass | `title`, `address`, `partySize` ("Table for 4"), `reservationName` ("under Thomas"), `time`, `minutes` |
+| `sight`, `museum`, `tour` (also `hike`, `beach`, `shop`, `spa` as plain activity cards) | `tpl-card-activity` (pass with a stamp) | Sight, Museum, Tour, Hike, Beach, Shop, Spa | monument, building-columns, person-hiking, person-hiking, umbrella-beach, bag-shopping, spa | `title`, `address`, `minutes`, `admissionCount` ("4 tickets"), `confirm` |
+| `show` | `tpl-card-show` (ticket with a stub) | Show | masks-theater | `title`, `address`, `gate`, `confirm`, `admissionCount`, `time` |
+| `note` | `tpl-card-note` (sticky note) | Note | none | `title`, the note text |
+| `place` | `tpl-card-place` | Saved place | location-dot | `title`, `address` |
+| `link` | `tpl-card-link` (dashed) | "from <Module>" | that module's icon | `title`, its sub-line |
+
+Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few fields stays tidy. `[data-slot=owners]` is the same `.owner` initials as before. Every card except a note has `button.menu-btn[data-action=move-menu]` (the item menu, unchanged).
+
+**Colour families** (`--turn`, degrees added to the accent's hue): flight 195, train 150, ferry 120, bus 100, car 45, hotel 255, restaurant 0, cafe 345, bar 320, sight 95, museum 285, tour 65, show 305, note 25, place 130; `link` is the dimmed text colour. The stylesheet sets these; the script only sets `data-type`.
+
+**Narrow** (`.app.narrow`): the time moves above its card so the card has the whole width, the boarding pass and the show ticket stack their stub under the main part, and legs stay between cards.
+
+**What the mock does not cover yet:** an editor for the new fields (the modules side), the small editor for a leg, drag on the new rows (same `data-drop` and `.dragging` states, styled in `travel-lib-cards.css`), and a print or share view.
