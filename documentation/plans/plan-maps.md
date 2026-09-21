@@ -2,11 +2,18 @@
 
 **Audience:** the author deciding whether and how Tavern gets maps, and whoever builds it afterwards.
 
-**Status:** Proposed. Nothing is built. The recommendation below needs the author's answers to the questions at the end.
+**Status:** Direction agreed by the author (see Decisions). Nothing is built yet.
 
 ## What it is for
 
 Places belong to things people already plan in Tavern: a trip's stops and stays, a calendar event's location, a task that has to be done somewhere. A map lets a group see where the things are and how far apart, pick a place by clicking instead of typing an address, and open a place in their own maps app. It must work for an operator who runs Tavern on one small machine (a NAS, a mini PC) with no account with anyone, and it must not send a group's places to a service the operator did not choose.
+
+## Decisions
+
+- **Scope:** self-hosted Tavern now, with a hosted edition designed in: every map setting is a value on the server, so a hosted edition sets the same values to services it runs. Nothing else in the design assumes a hosted edition.
+- **Maps are their own module.** A bundled Maps module, not a core pane and not part of Travel. It owns the map, the places and its settings, and reaches other modules only through the generic conduits (a place on a card, actions, links, the drop menu), so Tavern and the other modules name no one.
+- **Tiles:** the admin supplies one map file (a PMTiles archive, a region or the world) and picks it in the Maps module's server settings. Tavern serves it and the map reads it with range requests; there is no tile server.
+- **Search yes, directions no.** Place search is an optional endpoint the admin sets; directions and routing are not built (a place opens in the person's own maps app for directions).
 
 ## What the proposed stack gets right, and where Tavern differs
 
@@ -17,8 +24,8 @@ The proposal read: MapLibre GL JS for the map, Martin serving locally stored til
 | MapLibre GL JS (BSD 3-clause) | **Yes.** The map in the browser. Ship it, its style, fonts and icons from Tavern's own server. |
 | Martin tile server | **Not needed.** Serve one PMTiles file: a single static archive the browser reads with HTTP range requests, so there is no tile server, database or key. Tavern's static server already handles range requests. |
 | Worldwide tiles | **Possible but the operator's choice.** The world is one file of about 107 GB. An extract of a region is far smaller (a city can be a few MB), cut with the `pmtiles extract` command from a bounding box. |
-| Photon (search) | **Optional endpoint, not shipped.** A planet index is about 95 GB on disk and 64 GB of RAM is recommended. That is not a NAS. |
-| Valhalla (directions) | **Optional endpoint, not shipped.** A planet graph is 70 to 140 GB and wants 32 GB of RAM; Europe alone about 16 GB. |
+| Photon (search) | **Optional endpoint, not shipped.** The Maps module's server setting takes the address of a Photon-compatible search service the operator runs or is licensed to use. A planet index is about 95 GB of disk and 64 GB of RAM is recommended, which is not a NAS; a regional index is much smaller. |
+| Valhalla (directions) | **Not part of this plan.** Directions are a link out to the person's maps app. It can be added later behind another optional endpoint. |
 | PostgreSQL | **No.** Places live on the items in the module store, with its versions and live changes. |
 | Hosted shared infrastructure | Out of scope for this repository. If a hosted edition ever exists, it sets the same three settings below to its own services. |
 
@@ -43,31 +50,36 @@ The About page lists every one of these under "Built on", with its licence, as i
 
 ## Design
 
-- **A generic conduit, not a Travel feature.** A map is a shared tool, so it belongs in the core SDK: a map surface any module can use to show places and to let a person pick one, and a place on a card as an optional field (`place: { lat, lng, name }`) next to `when`, so any module's items can appear on it. Tavern names no module: the map shows every item whose card has a place.
-- **A Map pane at the table.** Like the chat, a room pane that docks beside the call: pins from the room's items, tap a pin for the card and its open action, click the map to add a place (which asks the module that owns the target, through the existing actions and drop menu). On a phone it is one of the views in the tab bar.
-- **Three settings on the server page (Manage > Server > Maps), all off by default:**
-  1. **Tiles:** none, a PMTiles file the operator put on the server's volume, or a URL to one. With none, places are addresses that open in the person's own maps app, exactly as today.
-  2. **Search:** an optional endpoint that speaks the Photon or the Nominatim query format. Off: no search box, click or paste coordinates.
-  3. **Directions:** an optional endpoint that speaks the Valhalla or OSRM format. Off: straight-line distance and a link out for directions.
-- **Nothing calls home.** No default remote tiles (the OpenStreetMap public tile servers forbid default use by an application), no analytics, no key. Dataset downloads and updates are something the operator does on purpose; Tavern documents the command and, later, may offer a button.
-- **Attribution is built in.** The map always shows "© OpenStreetMap contributors" (and the tile builder's own credit when the style requires it), because the OpenStreetMap data licence (ODbL) requires attribution wherever a map made from it is shown. The setting cannot hide it.
-- **Two sizes for the operator:** Regional (a PMTiles extract of the area the group cares about, hundreds of MB to a few GB, a search and directions endpoint only if they run one) and Worldwide (the whole file, about 107 GB of disk and no extra RAM, because it is read by range, with search and directions still optional).
+**The experience**
+
+- **For a group:** a Maps view opens like any other module, from the room bar as a pane beside the call (a tab on a phone) or as a page of its own. It shows a map with a pin for every place the room has: places added in Maps itself, and places that other modules' items carry (a trip stop, a stay, a calendar event with a location), each pin showing the item's card and its open action. Clicking the map adds a place (a name, notes, who it is for). If the admin set up search, a search box finds a place by name and drops a pin; if not, clicking, or pasting a coordinate or a map link, does the same. A place has an "Open in my maps app" action for directions.
+- **For other modules:** a card may carry an optional `place` (`{ lat, lng, name }`) next to `when`; the Maps module shows every item whose card has one. Dropping an item on the map, or a Maps action ("Put this on the map", asked through the actions conduit), gives an item a place. Travel and the Calendar decide for themselves whether to offer it; nothing in Tavern names Maps.
+- **For the admin:** Manage > Modules > Maps > server settings (the module-settings mechanism): the map file, and optionally a search address. Both empty means Maps says so and shows nothing to configure for the group. Attribution "© OpenStreetMap contributors" is on every map and cannot be turned off.
+- **For the operator's disk and RAM:** a regional file is megabytes to a few gigabytes; the worldwide file is about 107 GB of disk and no extra RAM, read by range. No tile server, database or extra process.
+
+**Parts, and who builds them**
+
+1. **Tavern core (server):** a generic way to serve a file an admin placed in the data folder, with range requests, to modules (the map file), and a place for a module's own large assets. Not Maps-specific.
+2. **The Maps module (front-end, bundled):** MapLibre GL JS and the PMTiles reader inlined in its page, a style themed with the theme tokens (light and dark), the pins, the place list, the add and edit forms, the search box. Its data (places) is in the module store like any other module's.
+3. **The conduits:** the optional `place` on a card (the cards contract), and the Maps module's actions. Both generic.
+4. **The look:** the interface side designs the map page, the pins, the place cards and the phone layout, with a static mock and a short contract first, as for Travel.
 
 ## Constraints found in this repository
 
-- The table page's content security policy has `worker-src 'self'`; the map library runs its rendering in a worker built from a blob, so the policy needs `blob:` added for it, and only on the pages that show a map.
-- A module in a sandboxed frame cannot load a map library or tiles itself. Bundled modules run in the page, but an uploaded module must reach the map only through the SDK, which is one more reason for the map to be a host-drawn surface.
-- The fonts (glyph files) for a vector style are many small files and the largest part of what Tavern would ship; a Latin-only set keeps the image small, more scripts can be an optional download.
-- The map's style must be one Tavern ships and themes with the theme tokens, so a light theme gets a light map.
+- The module page's content security policy must allow the map's worker (`worker-src blob:`) and same-origin tile reads (`connect-src 'self'`), for this module's page only.
+- A bundled module runs in the page and its build inlines its script and CSS into one file; MapLibre is large (several hundred kilobytes), so the Maps page is heavier than the others and loads only when Maps is opened.
+- The style's fonts (glyph files) are many small files and the largest part of what would ship; a Latin-only set keeps the image small, more scripts can be an optional add-on.
+- The style is Tavern's own and follows the theme tokens, so a light theme gets a light map.
+- Map libraries need WebGL. A device without it gets a plain list of places with the open-in-maps-app action.
 
 ## Phases
 
-1. **Decide** (this plan's questions).
-2. **The map surface:** MapLibre and the PMTiles reader shipped from Tavern, the tiles setting, attribution, a themed style, the SDK call to show pins and to pick a place.
-3. **Places on items:** the `place` field on cards; Travel, the Calendar and the To-do give their items places; the Map pane at the table and on a phone.
-4. **Search:** the optional endpoint, with a search box in the picker.
-5. **Directions:** the optional endpoint; gaps between stops become real travel times.
-6. **A helper to cut a region** from the operator's chosen area, if asked for.
+1. **Core:** serve an admin-placed file with range requests for modules; the CSP for the Maps page; the module-settings fields for a file and an address.
+2. **Design:** the interface side's contract and static mock (map page, pin, place card, list fallback, phone).
+3. **Maps 0.1:** the map from the admin's file, attribution, places added by clicking and by pasting, the place list, open in my maps app, themed style, the phone layout.
+4. **Places on other modules' items:** the `place` on cards, showing them on the map, the drop and action to give an item a place; Travel and the Calendar offer it.
+5. **Search:** the optional endpoint and the search box.
+6. **A helper to cut a region**, if asked for. Directions are out of scope for now.
 
 ## Facts checked
 
@@ -80,7 +92,4 @@ The About page lists every one of these under "Built on", with its licence, as i
 
 ## Questions
 
-- **Is the hosted edition in scope?** The proposal assumed one. This plan is for the self-hosted Tavern only, with the three settings letting a hosted edition point at its own services later.
-- **Search and directions as optional endpoints, not shipped:** acceptable? The alternative is to ship them and require a server of 16 to 64 GB of RAM.
-- **Who supplies the tiles at first:** the operator downloads or cuts a file and points Tavern at it (this plan), or Tavern offers a region picker that fetches it?
-- **A Map pane at the table, or only a map inside the Travel module first?** The pane costs more but serves every module; Travel-only is quicker but would have to be redone.
+None open. Two things to confirm later, not now: the exact glyph font files and their licence when the style is chosen, and the wording of the attribution when a specific tile builder is chosen.
