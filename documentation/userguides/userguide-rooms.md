@@ -29,6 +29,8 @@ that room in this browser and is the same list the room updates itself as you op
 the next join opens what you had open last time. A room you have not used before opens with the
 conference. Someone whose role does not allow the conference or the chat does not see them in the list.
 
+If you reload the page while you are in a room, you are put back in that room rather than on the room list. It is remembered for that browser tab only; leaving the room, being removed from it, or a room that cannot be joined clears it, and a step-aside or private word is not remembered.
+
 ## Add and set up a room
 
 The **Rooms** tab on the Manage page holds the **Lobby**, which everyone belongs to and which cannot

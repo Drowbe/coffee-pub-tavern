@@ -75,6 +75,15 @@ let tableName = 'The Table';
 const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
 let tableRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
+// Reloading the page keeps you in your room: the room is remembered for this tab (not across tabs or restarts) and rejoined when the
+// page starts again. It is forgotten when you leave or are removed, but not when the page itself is going away.
+let unloading = false;
+addEventListener('pagehide', () => { unloading = true; });
+addEventListener('pageshow', () => { unloading = false; });
+const REMEMBERED_ROOM = 'tavern.room';
+const rememberRoom = (id) => { try { sessionStorage.setItem(REMEMBERED_ROOM, id); } catch { /* not remembered */ } };
+const forgetRoom = () => { if (unloading) return; try { sessionStorage.removeItem(REMEMBERED_ROOM); } catch { /* nothing */ } };
+const rememberedRoom = () => { try { return sessionStorage.getItem(REMEMBERED_ROOM) || ''; } catch { return ''; } };
 // Being in the room and being in the conference are separate: the page stays connected
 // for the chat and the modules, and only sends and receives audio and video while the
 // conference pane is open. Others see the difference through the "call" attribute.
@@ -1868,6 +1877,7 @@ room
     closePopout();
     roomModules.closeNative('conference');
     setStatus('left the call');
+    forgetRoom();
     currentRoom = null;
     roomModules.refresh(null);
     document.body.classList.remove('at-table');
@@ -2094,6 +2104,7 @@ async function join(roomId = 'lobby') {
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);
+    forgetRoom(); // a room that cannot be joined is not remembered, so a reload does not try it again
     $('join-error').textContent = err.message;
     $('join-error').hidden = false;
     await room.disconnect().catch(() => {});
@@ -2135,6 +2146,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
 async function connectAndSetup(token, livekitUrl) {
     await room.connect(livekitUrl, token, { autoSubscribe: false });
     console.debug('[tavern] connected to', currentRoom.id);
+    if (!guestToken && currentRoom && !currentRoom.ephemeral) rememberRoom(currentRoom.id); // an aside is gone once it ends, so it is not kept
     $('join').hidden = true;
     $('guest-join').hidden = true;
     $('stage').hidden = false;
@@ -3291,6 +3303,11 @@ async function init() {
   if (invited) {
     history.replaceState(null, '', location.pathname + location.search);
     joinInvitedRoom(invited[1]);
+  } else if (!guestToken && rememberedRoom()) {
+    // A reload: back into the room this tab was in, if it is still there for this person.
+    const again = tableRooms.find((r) => r.id === rememberedRoom() && !r.ephemeral);
+    if (again) join(again.id);
+    else forgetRoom();
   }
 }
 init();

@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Reloading the page keeps you in your room instead of sending you back to the rooms screen: the room is remembered for that browser tab and rejoined when the page starts again. It is forgotten when you leave, are removed, or the room cannot be joined; an aside or private word is not remembered (it is gone once it ends), and a guest link already stays in its room. Verified that a reload with a remembered room asks to join it; the live call itself could not be tested here.
+
 ### Added
 - Places 0.6.0: the **Everyone** view, the places for the whole server (the module's server scope). Anyone who holds Places' edit right may add, change and delete there, the same right as in a room; nobody is singled out, and guests, who are tied to one room, do not see it. Places also has a page of its own outside any room, with Mine and Everyone. Maps 0.5.4 draws everyone's places too. Verified: another ordinary user reads and edits the server's places, guests are refused, and in a browser the three views in a room and the two on the page, adding a place to Everyone. Not verified: the light theme, the phone layout.
 
