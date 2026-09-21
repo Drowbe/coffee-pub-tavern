@@ -177,3 +177,15 @@
     const end = isYmd(r.end) && start && r.end >= start ? r.end : start;
     return { title: clip(r.title, 80), destination: clip(r.destination, 80), start, end, notes: clip(r.notes, 2000), by: clip(r.by, 40) };
   }
+
+  // When a card says something is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
+  // closing time). Returns { day, time } with the time as "HH:MM" (empty for a whole day), or null.
+  const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  function cardWhen(card) {
+    const w = card && card.when;
+    if (typeof w === 'number' && Number.isFinite(w)) { const d = new Date(w); return { day: ymd(d), time: hhmm(d) }; }
+    if (typeof w !== 'string' || !w) return null;
+    if (w.length <= 10) return isYmd(w) ? { day: w, time: '' } : null;
+    const d = new Date(w);
+    return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: hhmm(d) };
+  }

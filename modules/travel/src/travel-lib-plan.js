@@ -59,9 +59,8 @@
     const dayOf = (item) => {
       if (item.date) return item.date;
       const c = item.ref ? cards.get(refKey(item.ref)) : null;
-      const when = c && !c.error && typeof c.when === 'string' ? c.when : '';
-      if (!when) return null;
-      return isYmd(when.slice(0, 10)) ? (when.length > 10 ? ymd(new Date(when)) : when) : null;
+      const w = c && !c.error ? cardWhen(c) : null;
+      return w ? w.day : null;
     };
 
     const list = () => [...items.values()].map((x) => x.item);
@@ -161,8 +160,7 @@
         found = [];
       }
       const pinned = new Set(list().filter((i) => i.ref).map((i) => refKey(i.ref)));
-      suggested = found.filter((c) => c && c.ref && c.module && c.module.id !== 'travel' && typeof c.when === 'string' && !pinned.has(refKey(c.ref))
-        && tripDaysList.includes(c.when.length > 10 ? ymd(new Date(c.when)) : c.when.slice(0, 10)));
+      suggested = found.filter((c) => c && c.ref && c.module && c.module.id !== 'travel' && !pinned.has(refKey(c.ref)) && tripDaysList.includes((cardWhen(c) || {}).day));
       changed();
       return suggested;
     }

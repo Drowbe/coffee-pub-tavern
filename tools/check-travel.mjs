@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights'];
+const names = ['cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -115,6 +115,15 @@ test('gaps are the minutes between the end of one timed item and the next start'
   assert.equal(lib.gapText(45), '45 min');
   assert.equal(lib.gapText(120), '2 h');
   assert.equal(lib.gapText(135), '2 h 15 min');
+});
+
+test('a card says when in a day, a moment or milliseconds', () => {
+  assert.deepEqual(lib.cardWhen({ when: '2026-10-03' }), { day: '2026-10-03', time: '' });
+  const d = new Date(2026, 9, 3, 18, 30);
+  assert.deepEqual(lib.cardWhen({ when: d.toISOString() }), { day: '2026-10-03', time: '18:30' });
+  assert.deepEqual(lib.cardWhen({ when: d.getTime() }), { day: '2026-10-03', time: '18:30' });
+  assert.equal(lib.cardWhen({}), null);
+  assert.equal(lib.cardWhen({ when: 'soon' }), null);
 });
 
 // --- the plan, against a small stand-in for the SDK -------------------------------------------------------------

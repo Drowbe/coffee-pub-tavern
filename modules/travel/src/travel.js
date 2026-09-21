@@ -86,7 +86,7 @@
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   const lengthText = (m) => (m ? (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : `${m} min`) : '');
   const initial = (key) => (nameOf(key)[0] || '?').toUpperCase();
-  const timeOf = (card) => (card && typeof card.when === 'string' && card.when.length > 10 ? new Date(card.when).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '');
+  const timeOf = (card) => (cardWhen(card) || {}).time || '';
   const planRef = (id) => tavern.refs.make('plan', id);
   const tripRef = () => tavern.refs.make('trip', 'main');
   const note = (text) => { $('note').textContent = text || ''; hide($('note'), !text); };
@@ -217,7 +217,7 @@
     // What other modules hold on this day that the plan could take in.
     const box = el.querySelector('.suggestions');
     const list2 = box.querySelector('.suggestions-list');
-    const mine = canEdit && !ideas ? plan.suggestions.filter((c) => (c.when.length > 10 ? ymd(new Date(c.when)) : c.when.slice(0, 10)) === day) : [];
+    const mine = canEdit && !ideas ? plan.suggestions.filter((c) => (cardWhen(c) || {}).day === day) : [];
     hide(box, !mine.length);
     for (const c of mine) {
       const s = clone('tpl-suggestion');
@@ -283,7 +283,8 @@
       for (const c of cards) {
         const row = clone('tpl-decision');
         setIcon(row.querySelector('[data-icon]'), c.module && c.module.icon);
-        const when = c.when ? (c.when.length > 10 ? new Date(c.when).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : parseYmd(c.when.slice(0, 10)).toLocaleDateString([], { month: 'short', day: 'numeric' })) : '';
+        const w = cardWhen(c);
+        const when = w ? `${parseYmd(w.day).toLocaleDateString([], { month: 'short', day: 'numeric' })}${w.time ? ' ' + w.time : ''}` : '';
         fill(row, { title: c.title, sub: [when, c.subtitle].filter(Boolean).join(' · ') });
         const btn = row.querySelector('[data-action="open"]');
         btn.textContent = 'Open';
