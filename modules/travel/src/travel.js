@@ -106,8 +106,9 @@
     if (after) cell.append(document.createTextNode(after));
   }
 
-  // --- one item ----------------------------------------------------------------------------------------------
+  // --- one entry of a day: a row with its card ---------------------------------------------------------------------
 
+  const LEG_MODES = Object.keys(LEG_ICONS);
   function ownersInto(el, item) {
     const box = slot(el, 'owners');
     if (!box) return;
@@ -116,73 +117,102 @@
     for (const key of item.owners) { const o = clone('tpl-owner'); o.textContent = initial(key); box.append(o); }
     box.setAttribute('title', item.owners.map(nameOf).join(', '));
   }
-  function linksInto(el, item) {
-    const box = slot(el, 'links');
-    if (!box) return;
-    box.textContent = '';
-    const cards = state.links.get(item.id) || [];
-    hide(box, !cards.length);
-    for (const c of cards) {
-      const l = clone('tpl-link');
-      setIcon(l.querySelector('[data-icon]'), c.module && c.module.icon);
-      fill(l, { kind: c.kindName || (c.module && c.module.name), title: c.title });
-      box.append(l);
+  const words = (n, one, many) => (n ? `${n} ${n === 1 ? one : many}` : '');
+  // Fill the slots named in `values`; a slot with no value hides, and so does a wrapper whose only content it was.
+  function put(el, values) {
+    fill(el, values);
+    for (const w of el.querySelectorAll('[data-slot$="-wrap"]')) {
+      const name = w.dataset.slot.replace(/-wrap$/, '');
+      const inner = slot(el, name === 'class' ? 'travelClass' : name);
+      w.hidden = !inner || inner.hidden;
     }
   }
 
+  // The card for an item, by its type (see cardOf in the model), filled by slot name.
+  function buildCard(entry, kind, card) {
+    const { item, span } = entry;
+    const c = cardOf(item, card);
+    const el = clone(`tpl-card-${span === 'middle' || span === 'end' ? 'hotel-mid' : c.card}`);
+    const arrive = item.time && item.minutes ? hm(minutesOfDay(item.time) + item.minutes) : '';
+    const duration = lengthText(item.minutes);
+    const where = item.place || item.address;
+    const badge = el.querySelector('.badge [data-icon]');
+    if (badge && c.badge && !badge.dataset.icon) setIcon(badge, c.badge);
+    if (c.card === 'flight') {
+      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, fromCode: item.fromCode, toCode: item.toCode, from: item.from, to: item.to, time: item.time, arrival: arrive, duration, seat: item.seat, gate: item.gate, travelClass: item.travelClass });
+    } else if (c.card === 'train') {
+      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: item.time, arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Car ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
+    } else if (c.card === 'transit') {
+      const to = item.to || item.dropoff || '';
+      put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: item.time, to, confirm: item.confirm });
+      const go = el.querySelector('.go');
+      if (go && !item.time && !to && !item.confirm) go.hidden = true;
+    } else if (c.card === 'hotel') {
+      const nights = stayNights(item);
+      put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), item.time].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
+    } else if (c.card === 'hotel-mid') {
+      put(el, { title: span === 'end' ? item.title : `Staying at ${item.title}` });
+    } else if (c.card === 'meal') {
+      setIcon(el.querySelector('.badge [data-icon]'), c.badge);
+      put(el, { kicker: c.kicker, title: item.title, address: where, partySize: item.partySize ? `Table for ${item.partySize}` : '', reservationName: item.reservationName ? `under ${item.reservationName}` : '', time: item.time, minutes: duration });
+    } else if (c.card === 'activity') {
+      setIcon(el.querySelector('.badge [data-icon]'), c.badge);
+      put(el, { kicker: c.kicker, title: item.title, address: where, minutes: duration, admissionCount: words(item.admissionCount, 'ticket', 'tickets'), confirm: item.confirm });
+    } else if (c.card === 'show') {
+      put(el, { kicker: c.kicker, title: item.title, address: where, gate: item.gate ? `Gate ${item.gate}` : '', confirm: item.confirm, admissionCount: item.admissionCount ? String(item.admissionCount) : '', time: item.time });
+    } else if (c.card === 'note') {
+      put(el, { title: item.title, body: item.notes });
+    } else if (c.card === 'place') {
+      put(el, { title: item.title || card.title, address: card.subtitle });
+    } else {
+      const gone = !card || card.error;
+      setIcon(el.querySelector('.src [data-icon]'), gone ? 'link-slash' : (card.module && card.module.icon) || 'link');
+      put(el, { module: gone ? 'another module' : (card.module && card.module.name) || 'another module', title: item.title || (gone ? 'No longer available' : card.title), sub: item.result ? `Result: ${item.result}` : gone ? '' : card.subtitle });
+      hide(el.querySelector('[data-action="open"]'), gone || !card.open);
+    }
+    ownersInto(el, item);
+    if (!canEdit) el.querySelector('.menu-btn')?.remove();
+    return el;
+  }
+
   // `entry` is { item, span } (a stay is drawn on each night it covers; only its first day is the real item).
-  function buildItem(entry) {
+  function buildEntry(entry) {
     const { item, span } = entry;
     const card = item.ref ? plan.cards.get(tavern.util.refKey(item.ref)) : null;
-    const el = clone(`tpl-item-${item.kind}`);
-    el.dataset.id = item.id;
-    el.dataset.kind = item.kind;
-    if (item.kind !== 'link') el.dataset.cat = CAT[item.category] || 'other';
-    if (item.kind === 'stay' && span) el.dataset.span = span;
-    el.classList.toggle('done', item.done);
-    const time = slot(el, 'time');
-
-    if (item.kind === 'link') {
-      const gone = !card || card.error;
-      setIcon(slot(el, 'source').querySelector('[data-icon]'), gone ? 'link-slash' : card.module.icon);
-      fill(el, { module: gone ? 'another module' : card.module.name, title: item.title || (gone ? 'No longer available' : card.title), body: item.result ? `Result: ${item.result}` : gone ? '' : card.subtitle });
-      setTime(time, timeOf(card), '');
-      const open = el.querySelector('[data-action="open"]');
-      hide(open, gone || !card.open);
-    } else if (item.kind === 'stay') {
-      fill(el, { title: span === 'middle' ? `Staying at ${item.title}` : item.title, code: item.confirm });
-      setPlace(el, span === 'middle' ? '' : item.place || item.address);
-      setTime(time, span === 'end' || span === 'middle' ? '' : item.time || '', span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in');
-    } else if (item.kind === 'journey') {
-      const arrive = item.time && item.minutes ? `→ ${hm(minutesOfDay(item.time) + item.minutes)}` : '';
-      fill(el, { title: item.title, from: item.from, to: item.to, code: item.confirm });
-      setTime(time, item.time || '', arrive);
-    } else if (item.kind === 'note') {
-      fill(el, { title: item.title, body: item.notes });
-      setTime(time, item.time || '', '');
-    } else {
-      fill(el, { title: item.title });
-      setPlace(el, item.place || item.address);
-      setTime(time, item.time || '', lengthText(item.minutes));
-      const cat = slot(el, 'category');
-      if (cat) {
-        cat.className = `cat cat-${CAT[item.category] || 'other'}`;
-        setIcon(cat.querySelector('[data-icon]'), CAT_ICON[item.category]);
-        fill(cat, { 'category-label': CAT_LABEL[item.category] });
-      }
-    }
-    if (span === 'middle') for (const n of el.querySelectorAll('.item-meta, .item-sub, .route')) n.remove();
-    if (span === 'middle' || span === 'end') el.querySelector('.item-handle')?.remove();
-    if (!canEdit) { el.querySelector('.item-handle')?.remove(); el.querySelector('.item-menu')?.remove(); }
-    ownersInto(el, item);
-    linksInto(el, item);
+    const c = cardOf(item, card);
+    const row = clone('tpl-row');
+    row.dataset.id = item.id;
+    row.dataset.kind = item.kind;
+    row.dataset.type = c.family;
+    row.classList.toggle('done', item.done);
+    let time = item.time || '';
+    let sub = '';
+    if (item.kind === 'link') { time = timeOf(card); sub = ''; }
+    else if (item.kind === 'stay') { time = span === 'end' || span === 'middle' ? '' : item.time || ''; sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
+    else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${hm(minutesOfDay(item.time) + item.minutes)}` : '';
+    else sub = lengthText(item.minutes);
+    fill(row, { time, sub });
+    row.querySelector('.slot').append(buildCard(entry, item.kind, card));
     if (state.conflicts.has(item.id)) {
-      el.classList.add('conflict');
+      row.classList.add('conflict');
       const bar = clone('tpl-conflict');
       fill(bar, { text: 'Someone changed this while you were editing.' });
-      el.append(bar);
+      row.querySelector('.slot').append(bar);
     }
-    return el;
+    return row;
+  }
+
+  // The way to a stop, drawn between it and the one before when the person has said how (and how long).
+  function buildLeg(item) {
+    if (!item.travelMode || item.travelMode === 'none' || !LEG_MODES.includes(item.travelMode)) return null;
+    const row = clone('tpl-leg-row');
+    row.dataset.id = item.id;
+    const button = row.querySelector('.leg');
+    button.dataset.mode = item.travelMode;
+    setIcon(button.querySelector('[data-icon]'), LEG_ICONS[item.travelMode]);
+    fill(row, { minutes: item.travelMinutes ? lengthText(item.travelMinutes) : '', dist: '' });
+    if (!canEdit) button.disabled = true;
+    return row;
   }
 
   // --- the days ----------------------------------------------------------------------------------------------
@@ -199,26 +229,41 @@
     return [...covering, ...out];
   }
 
+  // "10:05 – 23:30 · 6 stops · 1 h 24 min getting around": the first and last time, how many stops, and the time spent getting between them.
+  function daySummary(entries) {
+    const own = entries.filter((e) => !e.span || e.span === 'start');
+    const times = own.map((e) => e.item.time).filter(Boolean).sort();
+    const range = times.length ? (times.length > 1 && times[0] !== times[times.length - 1] ? `${times[0]} – ${times[times.length - 1]}` : times[0]) : '';
+    const around = own.reduce((sum, e) => sum + (e.item.travelMode && e.item.travelMode !== 'none' && e.item.travelMinutes ? e.item.travelMinutes : 0), 0);
+    return [range, words(own.length, 'stop', 'stops'), around ? `${lengthText(around)} getting around` : ''].filter(Boolean).join(' · ');
+  }
+
   function buildDay(day, index, days, by) {
-    const el = clone('tpl-day');
+    const el = clone('tpl-day2');
     const ideas = day === null;
     el.id = ideas ? 'day-ideas' : `day-${day}`;
     el.dataset.day = ideas ? '' : day;
     if (!ideas) el.dataset.index = String(index + 1);
     el.classList.toggle('today', !ideas && day === ymd(new Date()));
     const entries = ideas ? (by.get(null) || []).map((item) => ({ item })) : entriesFor(day, days, by);
-    fill(el, { date: ideas ? 'Ideas' : dayShort(day), position: ideas ? 'not on a day yet' : dayLabel(day, days).position.toLowerCase(), count: entries.length || '' });
-    const list = el.querySelector('.items');
+    const head = clone('tpl-day-head');
+    if (ideas) fill(head, { daynum: '', daymonth: 'Ideas', position: 'Ideas', summary: 'not on a day yet' });
+    else {
+      const d = parseYmd(day);
+      fill(head, { daynum: String(d.getDate()), daymonth: `${d.toLocaleDateString([], { weekday: 'short' })} · ${d.toLocaleDateString([], { month: 'short' })}`, position: dayLabel(day, days).position, summary: daySummary(entries) });
+    }
+    el.prepend(head);
+    const list = el.querySelector('.timeline');
     if (!entries.length) {
       const empty = clone('tpl-day-empty');
       empty.textContent = ideas ? 'Ideas with no day yet wait here.' : 'Nothing planned yet. Add something below.';
       list.append(empty);
     }
     entries.forEach((entry, i) => {
-      list.append(buildItem(entry));
-      const next = entries[i + 1];
-      const gap = next && !entry.span && !next.span ? gapMinutes(entry.item, next.item) : null;
-      if (gap) { const g = clone('tpl-gap'); g.textContent = gapText(gap); list.append(g); }
+      const prev = entries[i - 1];
+      const covers = (e) => e && (e.span === 'middle' || e.span === 'end');
+      if (i && !covers(entry) && !covers(prev)) { const leg = buildLeg(entry.item); if (leg) list.append(leg); }
+      list.append(buildEntry(entry));
     });
     const add = el.querySelector('.add-row');
     add.dataset.day = ideas ? '' : day;
@@ -479,7 +524,7 @@
     for (const c of root.querySelectorAll('.daychip')) c.classList.toggle('current', c.dataset.day === day);
   }
   $('body').addEventListener('scroll', () => {
-    const days = [...root.querySelectorAll('.day[data-day]')].filter((d) => d.dataset.day);
+    const days = [...root.querySelectorAll('.day2[data-day]')].filter((d) => d.dataset.day);
     const top = $('body').getBoundingClientRect().top;
     const first = days.find((d) => d.getBoundingClientRect().bottom > top + 24);
     if (first) markCurrent(first.dataset.day);
@@ -577,15 +622,15 @@
   const clearDrop = () => {
     if (lastTarget) lastTarget.removeAttribute('data-drop');
     lastTarget = null;
-    for (const d of root.querySelectorAll('.day.drop-target')) d.classList.remove('drop-target');
+    for (const d of root.querySelectorAll('.day2.drop-target')) d.classList.remove('drop-target');
   };
   // The handle is the only drag source: an item becomes draggable only while it is pressed.
   root.addEventListener('pointerdown', (e) => {
-    const handle = e.target.closest('.item-handle');
-    if (handle && canEdit) handle.closest('.item').draggable = true;
+    const handle = e.target.closest('.rail');
+    if (handle && canEdit) { const row = handle.closest('.row.entry'); if (row) row.draggable = true; }
   });
   root.addEventListener('dragstart', (e) => {
-    const li = e.target.closest && e.target.closest('.item[draggable="true"]');
+    const li = e.target.closest && e.target.closest('.row.entry[draggable="true"]');
     if (!li) return;
     dragId = li.dataset.id;
     li.classList.add('dragging');
@@ -593,18 +638,18 @@
     e.dataTransfer.setData('text/plain', dragId);
   });
   root.addEventListener('dragend', () => {
-    for (const li of root.querySelectorAll('.item.dragging, .item[draggable="true"]')) { li.classList.remove('dragging'); li.draggable = false; }
+    for (const li of root.querySelectorAll('.row.entry.dragging, .row.entry[draggable="true"]')) { li.classList.remove('dragging'); li.draggable = false; }
     dragId = null;
     clearDrop();
   });
   root.addEventListener('dragover', (e) => {
     if (!dragId) return;
-    const day = e.target.closest && e.target.closest('.day');
+    const day = e.target.closest && e.target.closest('.day2');
     if (!day) return;
     e.preventDefault();
     clearDrop();
     day.classList.add('drop-target');
-    const over = e.target.closest('.item');
+    const over = e.target.closest('.row.entry');
     if (over && over.dataset.id !== dragId) {
       const r = over.getBoundingClientRect();
       over.dataset.drop = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
@@ -614,10 +659,10 @@
   root.addEventListener('drop', (e) => {
     if (!dragId) return;
     e.preventDefault();
-    const day = e.target.closest('.day');
+    const day = e.target.closest('.day2');
     if (!day) return;
     const date = day.dataset.day || null;
-    const over = e.target.closest('.item');
+    const over = e.target.closest('.row.entry');
     const id = dragId;
     const dayUntimed = sortDay(plan.sortable().filter((i) => !i.time && plan.dayOf(i) === date && i.id !== id));
     let index = dayUntimed.length;
@@ -631,7 +676,7 @@
 
   // Something from another module dropped on a day: put it on that day.
   if (tavern.refs && tavern.refs.dropTarget && canEdit) {
-    const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day') : null; };
+    const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day2') : null; };
     tavern.refs.dropTarget({
       over: (pt, ref) => {
         clearDrop();
@@ -645,7 +690,7 @@
         if (!day) return;
         const date = day.dataset.day || null;
         const over = tavern.refs.elementAt(pt);
-        const li = over && over.closest ? over.closest('.item') : null;
+        const li = over && over.closest ? over.closest('.row.entry') : null;
         const target = li && li.dataset.id ? planRef(li.dataset.id) : null;
         attempt(async () => {
           // What can be done with it here: put it on the day, and (dropped on an item) whatever other modules offer to
@@ -676,8 +721,8 @@
   // handle is the other drag (reordering), so a press there is left alone.
   if (tavern.refs && tavern.refs.draggable) {
     tavern.refs.draggable(root, (target) => {
-      const li = target.closest && target.closest('.item');
-      if (!li || !li.dataset.id || target.closest('.item-handle, .item-menu, button, input, select, textarea, a')) return null;
+      const li = target.closest && target.closest('.row.entry');
+      if (!li || !li.dataset.id || target.closest('.rail, .menu-btn, button, input, select, textarea, a')) return null;
       const item = plan.list().find((i) => i.id === li.dataset.id);
       return item ? { kind: 'plan', id: item.id, label: item.title || 'Trip item' } : null;
     });
@@ -705,12 +750,8 @@
 
   // --- the editor ---------------------------------------------------------------------------------------------
 
-  const KIND_TABS = ['stop', 'stay', 'journey', 'note'];
-  function showKind(kind) {
-    for (const b of $('f-kinds').querySelectorAll('[data-kind]')) b.classList.toggle('on', b.dataset.kind === kind);
-    for (const el of $('form').querySelectorAll('[data-kinds]')) el.hidden = !el.dataset.kinds.split(/\s+/).includes(kind);
-    state.editing.kind = kind;
-  }
+  // A placeholder for the title of each kind of thing.
+  const TITLES = { flight: 'Flight to Lisbon', train: 'Train to Porto', ferry: 'Ferry to the island', bus: 'Bus to the airport', car: 'Rental car', hotel: 'Hotel Avenida', restaurant: 'Dinner at Cervejaria Ramiro', cafe: 'Coffee at the pier', bar: 'Drinks at the rooftop', sight: 'Belem Tower', museum: 'The tile museum', tour: 'Walking tour', show: 'Fado night', note: 'Remember to...' };
   function dayOptions(select, { ideas, after }) {
     select.replaceChildren();
     if (ideas) { const o = document.createElement('option'); o.value = ''; o.textContent = 'Not on a day yet'; select.append(o); }
@@ -737,21 +778,36 @@
     }
   }
   function paidByOptions(selected) {
-    const select = $('f-paidby');
+    const select = $('f-paidBy');
     select.replaceChildren(...[{ key: '', name: 'Nobody yet' }, ...state.people].map((p) => { const o = document.createElement('option'); o.value = p.key; o.textContent = p.name; return o; }));
     select.value = selected || '';
   }
-  const val = (id) => $(id).value.trim();
+  // The value of a field, or '' when the chosen type does not show it (so a field that is hidden is never saved).
+  const shown = (id) => { const w = $(id) && $(id).closest('[data-types]'); return !w || w.classList.contains('on-type'); };
+  const get = (id) => (shown(id) ? $(id).value.trim() : '');
+  const num = (id) => (shown(id) && $(id).value ? Number($(id).value) : null);
+  const setVal = (id, v) => { const el = $(id); if (!el) return; if (el.tagName === 'SELECT' && v && ![...el.options].some((o) => o.value === String(v))) { const o = document.createElement('option'); o.value = String(v); o.textContent = String(v); el.append(o); } el.value = v == null ? '' : String(v); };
+
+  // Choosing a kind of thing shows the fields it needs (each field wrapper lists its types in data-types).
+  function applyType(tile) {
+    const ed = state.editing;
+    if (!ed) return;
+    ed.tile = tile;
+    for (const el of $('form').querySelectorAll('[data-types]')) el.classList.toggle('on-type', el.dataset.types.split(/\s+/).includes(tile));
+    for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
+    $('f-title').placeholder = TITLES[tile] || '';
+  }
+  const chosenMode = () => { const on = $('f-travelMode') && $('f-travelMode').querySelector('.mode.on'); return on ? on.dataset.mode : null; };
+
   function openEditor(mode, item, day) {
     if (!canEdit) return;
-    state.editing = { mode, id: item ? item.id : null, kind: 'stop', day: day || null, version: item ? plan.versionOf(item.id) : null };
+    const isLink = Boolean(item && item.kind === 'link');
+    state.editing = { mode, id: item ? item.id : null, day: day || null, version: item ? plan.versionOf(item.id) : null, tile: 'sight', isLink };
+    $('editor').replaceChildren(clone(mode === 'trip' ? 'tpl-editor-trip' : 'tpl-editor2'));
     $('f-error').hidden = true;
-    $('f-delete').hidden = mode === 'trip' || !item;
     if (mode === 'trip') {
       const t = plan.trip || {};
       $('editor-title').textContent = plan.trip ? 'Edit the trip' : 'Plan a trip';
-      hide($('f-kinds'), true);
-      showKind('trip');
       $('f-title').value = t.title || '';
       $('f-destination').value = t.destination || '';
       $('f-start').value = t.start || '';
@@ -760,38 +816,39 @@
       $('f-notes').value = t.notes || '';
       $('f-by').textContent = '';
     } else {
-      const kind = item ? (item.kind === 'link' ? 'stop' : item.kind) : 'stop';
       $('editor-title').textContent = item ? 'Edit' : 'Add to the plan';
-      hide($('f-kinds'), Boolean(item));
-      showKind(kind);
+      hide($('f-types'), Boolean(item) && isLink);
+      hide($('f-delete'), !item);
+      applyType(item ? tileOf(item) || 'sight' : 'sight');
       dayOptions($('f-date'), { ideas: true });
       $('f-date').value = item ? item.date || '' : day || '';
-      $('f-time').value = item ? item.time || '' : '';
-      $('f-minutes').value = item && item.minutes ? item.minutes : '';
       dayOptions($('f-checkout'), { ideas: true, after: item ? item.date : day });
-      $('f-checkout').value = item ? item.checkOut || '' : '';
+      const v = item || {};
+      setVal('f-checkout', v.checkOut);
+      $('f-time').value = v.time || '';
+      $('f-minutes').value = v.minutes || '';
       $('f-title').value = item ? item.title : '';
-      $('f-from').value = item ? item.from : '';
-      $('f-to').value = item ? item.to : '';
-      $('f-category').value = item ? item.category : 'do';
-      $('f-place').value = item ? item.place : '';
-      $('f-address').value = item ? item.address : '';
-      $('f-confirm').value = item ? item.confirm : '';
-      $('f-notes').value = item ? item.notes : '';
-      $('f-cost').value = item && item.cost ? item.cost : '';
+      for (const f of ['operator', 'number', 'fromCode', 'toCode', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'roomType', 'partySize', 'reservationName', 'admissionCount', 'guests']) setVal(`f-${f}`, v[f]);
+      setVal('f-travelClass', v.travelClass);
+      setVal('f-gate', v.gate);
+      setVal('f-gate-show', v.gate);
+      setVal('f-address', v.address);
+      setVal('f-address-stop', v.address);
+      setVal('f-confirm', v.confirm);
+      $('f-notes').value = v.notes || '';
+      $('f-cost').value = v.cost || '';
       paidByOptions(item ? item.paidBy : info.user.key);
-      $('f-done').checked = item ? item.done : false;
-      ownerBoxes(item ? item.owners : []);
+      ownerBoxes(v.owners || []);
+      for (const b of $('f-travelMode').querySelectorAll('.mode')) b.classList.toggle('on', b.dataset.mode === v.travelMode);
+      setVal('f-travelMinutes', v.travelMinutes);
       $('f-by').textContent = item && item.by ? `Added by ${item.by}` : '';
     }
+    hydrate($('editor'));
     $('editor').hidden = false;
     $('f-title').focus();
   }
   const openItemEditor = (id) => { const item = plan.list().find((i) => i.id === id); if (item) openEditor('item', item); };
-  const closeEditor = () => { $('editor').hidden = true; state.editing = null; };
-  $('f-cancel').addEventListener('click', closeEditor);
-  $('editor').addEventListener('click', (e) => { if (e.target === $('editor')) closeEditor(); });
-  $('f-kinds').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b && KIND_TABS.includes(b.dataset.kind)) showKind(b.dataset.kind); });
+  const closeEditor = () => { $('editor').hidden = true; $('editor').replaceChildren(); state.editing = null; };
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('editor').hidden) closeEditor(); else closeMenu(); } });
 
   async function saveEditor() {
@@ -804,33 +861,50 @@
       if (ed.mode === 'trip') {
         if (!$('f-start').value) return fail('Give the trip a first day.');
         if ($('f-end').value && $('f-end').value < $('f-start').value) return fail('The last day is before the first.');
-        await plan.saveTrip({ title: val('f-title'), destination: val('f-destination'), start: $('f-start').value, end: $('f-end').value || $('f-start').value, currency: val('f-currency'), notes: $('f-notes').value.trim() });
+        await plan.saveTrip({ title: $('f-title').value.trim(), destination: $('f-destination').value.trim(), start: $('f-start').value, end: $('f-end').value || $('f-start').value, currency: $('f-currency').value.trim(), notes: $('f-notes').value.trim() });
         scrolled = false;
         plan.suggest().catch(() => {});
         return closeEditor();
       }
-      const kind = ed.kind;
       const item = ed.id ? plan.list().find((i) => i.id === ed.id) : null;
-      if (kind !== 'link' && !val('f-title')) return fail('Give it a title.');
-      const fields = {
-        kind: item && item.kind === 'link' ? 'link' : kind,
-        title: val('f-title'),
+      if (!ed.isLink && !$('f-title').value.trim()) return fail('Give it a title.');
+      const common = {
+        title: $('f-title').value.trim(),
         date: $('f-date').value || null,
-        time: kind === 'note' ? null : $('f-time').value || null,
-        minutes: kind === 'stop' && $('f-minutes').value ? Number($('f-minutes').value) : null,
-        checkOut: kind === 'stay' ? $('f-checkout').value || null : null,
-        category: kind === 'stay' ? 'stay' : kind === 'journey' ? 'travel' : kind === 'note' ? 'other' : $('f-category').value,
-        place: val('f-place'),
-        address: val('f-address'),
-        confirm: val('f-confirm'),
-        from: val('f-from'),
-        to: val('f-to'),
         notes: $('f-notes').value.trim(),
-        done: $('f-done').checked,
-        cost: $('f-cost').value ? Number($('f-cost').value) : null,
-        paidBy: $('f-cost').value ? $('f-paidby').value : '',
         owners: [...$('f-owners').querySelectorAll('input:checked')].map((i) => i.value),
+        travelMode: shown('f-travelMode') ? chosenMode() : null,
+        travelMinutes: num('f-travelMinutes'),
+        cost: num('f-cost'),
       };
+      common.paidBy = common.cost ? $('f-paidBy').value : '';
+      let fields;
+      if (ed.isLink) {
+        fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: num('f-minutes') };
+      } else {
+        const t = fromTile(ed.tile, item);
+        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: num('f-minutes') };
+        if (t.kind === 'journey') {
+          for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);
+          fields.fromCode = get('f-fromCode');
+          fields.toCode = get('f-toCode');
+          fields.gate = get('f-gate');
+          fields.confirm = get('f-confirm');
+        } else if (t.kind === 'stay') {
+          fields.checkOut = $('f-checkout').value || null;
+          fields.address = get('f-address');
+          fields.roomType = get('f-roomType');
+          fields.guests = num('f-guests');
+          fields.confirm = get('f-confirm');
+        } else if (t.kind === 'stop') {
+          fields.address = get('f-address-stop');
+          fields.partySize = num('f-partySize');
+          fields.reservationName = get('f-reservationName');
+          fields.admissionCount = num('f-admissionCount');
+          fields.gate = get('f-gate-show');
+          fields.confirm = get('f-confirm');
+        }
+      }
       if (item) {
         try {
           // Someone changed it since this editor opened (the change has already arrived): do not write over it.
@@ -849,25 +923,40 @@
     } catch (err) {
       fail(err.message);
     } finally {
-      $('f-save').disabled = false;
+      const save = $('f-save');
+      if (save) save.disabled = false;
     }
   }
-  $('form').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
+
+  // The dialog's buttons, by delegation (its form is made afresh each time it opens).
+  $('editor').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
   let deleteArmedInEditor = false;
-  $('f-delete').addEventListener('click', async () => {
-    const ed = state.editing;
-    if (!ed || !ed.id) return;
-    if (!deleteArmedInEditor) {
-      deleteArmedInEditor = true;
-      $('f-delete').textContent = 'Really delete?';
-      setTimeout(() => { deleteArmedInEditor = false; $('f-delete').textContent = 'Delete'; }, 4000);
+  $('editor').addEventListener('click', (e) => {
+    if (e.target === $('editor')) return closeEditor();
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.id === 'f-cancel') return closeEditor();
+    if (b.classList.contains('tile')) return applyType(b.dataset.type);
+    if (b.classList.contains('mode')) {
+      const was = b.classList.contains('on');
+      for (const m of $('f-travelMode').querySelectorAll('.mode')) m.classList.remove('on');
+      if (!was) b.classList.add('on');
       return;
     }
-    deleteArmedInEditor = false;
-    $('f-delete').textContent = 'Delete';
-    const id = ed.id;
-    closeEditor();
-    attempt(() => plan.removeItem(id));
+    if (b.id === 'f-delete') {
+      const ed = state.editing;
+      if (!ed || !ed.id) return;
+      if (!deleteArmedInEditor) {
+        deleteArmedInEditor = true;
+        b.textContent = 'Really delete?';
+        setTimeout(() => { deleteArmedInEditor = false; if (b.isConnected) b.textContent = 'Delete'; }, 4000);
+        return;
+      }
+      deleteArmedInEditor = false;
+      const id = ed.id;
+      closeEditor();
+      attempt(() => plan.removeItem(id));
+    }
   });
 
   // --- clicks and adding ---------------------------------------------------------------------------------------
@@ -881,7 +970,7 @@
       return redraw();
     }
     const action = b.dataset.action;
-    const li = b.closest('.item');
+    const li = b.closest('.row.entry, .leg-row');
     if (action === 'goto-day') {
       const target = $(`day-${b.dataset.day}`);
       if (target) { target.scrollIntoView({ inline: 'center', block: 'start' }); markCurrent(b.dataset.day); }
@@ -893,6 +982,8 @@
       if (ref) tavern.refs.open(ref).catch((err) => note(err.message));
     } else if (action === 'edit-item') {
       openItemEditor(b.dataset.id);
+    } else if (action === 'edit-leg' && li) {
+      openItemEditor(li.dataset.id);
     } else if (action === 'edit-trip' || action === 'create-trip') {
       openEditor('trip');
     } else if (action === 'use-theirs' && li) {
@@ -904,7 +995,7 @@
       attempt(async () => { await plan.updateItem(li.dataset.id, c.patch); state.conflicts.delete(li.dataset.id); redraw(); });
     } else if (action === 'add-suggestion') {
       const s = b.closest('.suggestion');
-      const day = b.closest('.day');
+      const day = b.closest('.day2');
       if (s && day) attempt(async () => { await plan.addLink(JSON.parse(s.dataset.ref), day.dataset.day || null); await plan.suggest(); });
     }
   });
@@ -960,7 +1051,7 @@
     state.people = await tavern.people().catch(() => []);
     state.loaded = true;
     // Warm the icons the page draws, so the first draw is not empty.
-    await Promise.all([...new Set([...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)).concat(Object.values(CAT_ICON), [...root.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)))].filter(Boolean).map(wantIcon));
+    await Promise.all([...new Set([...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)).concat(Object.values(CAT_ICON), Object.values(BADGES), Object.values(LEG_ICONS), ['link-slash'], [...root.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)))].filter(Boolean).map(wantIcon));
     redraw();
     plan.suggest().catch(() => {});
     hydrate(root === document ? document.body : root);

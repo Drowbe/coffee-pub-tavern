@@ -288,3 +288,51 @@
     for (const k of people) { out.paid[k] = (paid[k] || 0) / 100; out.share[k] = (share[k] || 0) / 100; out.net[k] = net[k] / 100; }
     return out;
   }
+
+  // --- what an item is, for its card and its editor ---------------------------------------------------------------
+  // The editor's tiles, one per kind of thing, and the card's colour family and silhouette for each. A card's family is what
+  // the stylesheet colours by (`data-type` on the row), so the kinds without a colour of their own borrow one.
+  const TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'note'];
+  const JOURNEY_TILES = ['flight', 'train', 'ferry', 'bus', 'car'];
+  const STOP_TILES = ['restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show'];
+  // The tile an item shows under in the editor. A link (another module's item) has none.
+  function tileOf(item) {
+    if (!item) return 'sight';
+    if (item.kind === 'journey') return item.mode === 'other' || !JOURNEY_TILES.includes(item.mode) ? 'bus' : item.mode;
+    if (item.kind === 'stay') return 'hotel';
+    if (item.kind === 'note') return 'note';
+    if (item.kind === 'link') return null;
+    if (STOP_TILES.includes(item.type)) return item.type;
+    if (item.type === 'hike') return 'tour';
+    if (item.type === 'beach' || item.type === 'shop' || item.type === 'spa') return 'sight';
+    return item.category === 'eat' ? 'restaurant' : 'sight';
+  }
+  // The fields a chosen tile decides: `kind`, `mode` or `type`, and `category`. An item that keeps its tile keeps its finer type
+  // (a hike stays a hike under the Tour tile; a rental stays a rental under Stay).
+  function fromTile(tile, item) {
+    const keep = item && tileOf(item) === tile;
+    if (JOURNEY_TILES.includes(tile)) return { kind: 'journey', mode: keep && item.mode ? item.mode : tile, category: 'travel' };
+    if (tile === 'hotel') return { kind: 'stay', type: keep && item.type ? item.type : 'hotel', category: 'stay' };
+    if (tile === 'note') return { kind: 'note', category: 'other' };
+    return { kind: 'stop', type: keep && item.type ? item.type : tile, category: tile === 'restaurant' || tile === 'cafe' || tile === 'bar' ? 'eat' : 'do' };
+  }
+  // How an item is drawn: its card template, the colour family on its row, the kicker and the badge icon.
+  const KICKERS = { flight: 'Flight', train: 'Train', ferry: 'Ferry', bus: 'Bus', car: 'Rental car', restaurant: 'Restaurant', cafe: 'Café', bar: 'Bar', sight: 'Sight', museum: 'Museum', tour: 'Tour', hike: 'Hike', beach: 'Beach', shop: 'Shop', spa: 'Spa', show: 'Show', other: 'Stop' };
+  const BADGES = { flight: 'plane', train: 'train', ferry: 'ship', bus: 'bus', car: 'car', restaurant: 'utensils', cafe: 'mug-hot', bar: 'martini-glass', sight: 'monument', museum: 'building-columns', tour: 'person-hiking', hike: 'person-hiking', beach: 'umbrella-beach', shop: 'bag-shopping', spa: 'spa', show: 'masks-theater', other: 'location-dot' };
+  const STAY_KICKERS = { hotel: 'Hotel', rental: 'Rental', hostel: 'Hostel', camp: 'Camp', other: 'Stay' };
+  function cardOf(item, card) {
+    if (item.kind === 'link') return { card: card && !card.error && card.kind === 'place' ? 'place' : 'link', family: card && !card.error && card.kind === 'place' ? 'place' : 'link', kicker: '', badge: '' };
+    if (item.kind === 'note') return { card: 'note', family: 'note', kicker: 'Note', badge: '' };
+    if (item.kind === 'stay') return { card: 'hotel', family: 'hotel', kicker: STAY_KICKERS[item.type] || 'Hotel', badge: 'bed' };
+    if (item.kind === 'journey') {
+      const mode = JOURNEY_TILES.includes(item.mode) ? item.mode : 'bus';
+      const cardName = mode === 'flight' ? 'flight' : mode === 'train' ? 'train' : 'transit';
+      return { card: cardName, family: mode, kicker: item.mode === 'other' ? 'Transit' : KICKERS[mode], badge: BADGES[mode] };
+    }
+    const t = item.type || (item.category === 'eat' ? 'restaurant' : item.category === 'do' ? 'sight' : 'other');
+    const family = ['hike', 'beach', 'shop', 'spa', 'other'].includes(t) ? 'sight' : t;
+    const cardName = t === 'restaurant' || t === 'cafe' || t === 'bar' ? 'meal' : t === 'show' ? 'show' : 'activity';
+    return { card: cardName, family, kicker: KICKERS[t] || 'Stop', badge: BADGES[t] || 'location-dot' };
+  }
+  // The icon for the way to a stop.
+  const LEG_ICONS = { walk: 'person-walking', drive: 'car', transit: 'bus', bike: 'bicycle', taxi: 'taxi' };

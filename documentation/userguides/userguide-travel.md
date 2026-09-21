@@ -17,14 +17,15 @@ Open the Travel pane in a room. With no trip yet it offers **Start planning**: g
 ## Add to a day
 
 - Type in the field at the bottom of the pane (with the plus button) and press Enter to add a stop to the day in view: "lunch at the pier at 1pm" adds "lunch at the pier" at 13:00, and a day of the trip in what you type ("museum oct 3 at 2pm") puts it on that day instead. Press the plus with nothing typed for the full form. When the pane has no bottom bar, each day has its own add row.
-- In the form, choose **Stop**, **Stay**, **Journey** or **Note**. A stop has a time, a length, a category (things to do, food, stay, travel or other), a place and an address. A stay has a check-in time, a check-out day and a booking reference, and appears on every night it covers. A journey has where from and to, a departure time and how long it takes, and a booking reference. Tick the people it belongs to under **Whose is it**.
+- In the form, first choose what it is, from the tiles: for getting there, a **flight**, **train**, **ferry**, **bus** or **car**; a **stay**; for eating and drinking, a **restaurant**, **café** or **bar**; for seeing and doing, a **sight**, **museum**, **tour** or **show**; or a **note**. The fields you need then appear: a flight has its airline, number, airport codes, terminal, gate, seat and class; a train its operator, number, platform, coach and seat; a stay its address, room, guests and check-out day; a meal its party size and the name it is booked under; a sight, museum, tour or show its number of tickets (and a show its entry). Every kind takes a day, a time and a length where they make sense, a booking reference, a cost and who paid, notes and the people it belongs to. Each kind has its own card in the day, in its own colour, so you can tell a flight from a dinner at a glance.
+- **Getting to a stop.** Under **Getting to this stop**, choose how you get there (walk, drive, transit, bike or taxi) and how many minutes it takes from the stop before. A line between the two cards then shows the mode and the time, and the day's heading adds up the time spent getting around.
 - **Ideas** (a column after the last day) holds things with no day yet. Choose **Back to ideas** in an item's menu, or add to it directly.
 
 Items with no time come first in a day, in the order you put them; items with a time follow, by time. An item from another module takes the time that item has (a Calendar event's start), so it sorts among the timed ones. Between two timed items a small line shows the gap, such as "45 min".
 
 ## Move things
 
-- On a computer, drag an item by its grip to another place in its day or to another day.
+- On a computer, drag an item by the line beside its card to another place in its day or to another day.
 - Anywhere, including a phone, open the item's menu (the three dots): **Edit**, **Earlier**, **Later** (an item with no time swaps places with its neighbour; an item with a time moves half an hour), **Move to** another day, **Back to ideas**, and **Delete**.
 
 ## What other modules bring

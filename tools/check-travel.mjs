@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -289,6 +289,42 @@ test('details for the cards: a journey has a mode, a stop and a stay a type, any
   assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'teleport', travelMinutes: -5 }).travelMinutes, null);
   assert.equal(lib.MODES.length, 6);
   assert.ok(lib.STOP_TYPES.includes('cafe') && lib.STAY_TYPES.includes('camp') && lib.TRAVEL_MODES.includes('none'));
+});
+
+test('what an item is: its editor tile, the fields a tile decides, and its card', () => {
+  const it = (o) => lib.cleanItem({ id: 'x', title: 't', ...o });
+  assert.equal(lib.tileOf(it({ kind: 'journey', mode: 'flight' })), 'flight');
+  assert.equal(lib.tileOf(it({ kind: 'journey' })), 'bus');
+  assert.equal(lib.tileOf(it({ kind: 'stay' })), 'hotel');
+  assert.equal(lib.tileOf(it({ kind: 'note' })), 'note');
+  assert.equal(lib.tileOf(it({ kind: 'stop', type: 'cafe' })), 'cafe');
+  assert.equal(lib.tileOf(it({ kind: 'stop', type: 'hike' })), 'tour');
+  assert.equal(lib.tileOf(it({ kind: 'stop', category: 'eat' })), 'restaurant');
+  assert.equal(lib.tileOf(it({ kind: 'stop', category: 'do' })), 'sight');
+  assert.equal(lib.tileOf(null), 'sight');
+  assert.deepEqual(lib.fromTile('flight'), { kind: 'journey', mode: 'flight', category: 'travel' });
+  assert.deepEqual(lib.fromTile('cafe'), { kind: 'stop', type: 'cafe', category: 'eat' });
+  assert.deepEqual(lib.fromTile('museum'), { kind: 'stop', type: 'museum', category: 'do' });
+  assert.deepEqual(lib.fromTile('note'), { kind: 'note', category: 'other' });
+  assert.equal(lib.fromTile('tour', it({ kind: 'stop', type: 'hike' })).type, 'hike');
+  assert.equal(lib.fromTile('sight', it({ kind: 'stop', type: 'hike' })).type, 'sight');
+  assert.equal(lib.fromTile('hotel', it({ kind: 'stay', type: 'camp' })).type, 'camp');
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'train' })).card, 'train');
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'ferry' })).card, 'transit');
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'ferry' })).badge, 'ship');
+  assert.equal(lib.cardOf(it({ kind: 'journey' })).family, 'bus');
+  assert.equal(lib.cardOf(it({ kind: 'stay', type: 'hostel' })).kicker, 'Hostel');
+  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'bar' })).card, 'meal');
+  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'spa' })).family, 'sight');
+  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'show' })).card, 'show');
+  assert.equal(lib.cardOf(it({ kind: 'stop', category: 'eat' })).family, 'restaurant');
+  assert.equal(lib.cardOf(it({ kind: 'stop', category: 'other' })).kicker, 'Stop');
+  assert.equal(lib.cardOf(it({ kind: 'note' })).card, 'note');
+  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'place', title: 'x' }).card, 'place');
+  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'event', title: 'x' }).card, 'link');
+  assert.equal(lib.cardOf({ kind: 'link' }, { error: 'gone' }).card, 'link');
+  assert.ok(lib.TILES.every((t) => lib.tileOf(it(lib.fromTile(t))) === t), 'every tile round-trips');
+  assert.equal(lib.LEG_ICONS.walk, 'person-walking');
 });
 
 console.log(`check-travel: OK (${n} checks)`);
