@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { cleanImage, readTiff } = require('../server/image-clean.js');
+const { cleanImage, inspectHead, readTiff } = require('../server/image-clean.js');
 const { ModuleUploads } = require('../server/module-uploads.js');
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
@@ -92,6 +92,14 @@ test('a JPEG loses its position and hidden data, and keeps its orientation', () 
   assert.equal(again.hasPosition, false);
   assert.equal(readTiff(r.bytes.subarray(r.bytes.indexOf(Buffer.from('MM')))).orientation, 6);
   assert.ok(r.bytes.subarray(-4).equals(Buffer.from([0x12, 0x34, 0xff, 0xd9])));
+});
+
+test('the start of a picture says what it carries', () => {
+  const i = inspectHead(jpeg().subarray(0, 300));
+  assert.deepEqual({ ...i }, { type: 'image/jpeg', taken: '2026-09-21T14:30:05', camera: 'Acme', hasPosition: true, position: { lat: 52.5, lng: 13.4 } });
+  assert.equal(inspectHead(jpeg({ exif: false })).hasPosition, false);
+  assert.equal(inspectHead(Buffer.from('nope nope nope')).type, null);
+  assert.equal(inspectHead(png()).hasPosition, false);
 });
 
 test('a JPEG keeps its position only when the person chose to', () => {

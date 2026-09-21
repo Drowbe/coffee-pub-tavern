@@ -425,11 +425,15 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {
       if (!(file instanceof Blob)) throw Object.assign(new Error('send a picture'), { status: 400 });
-      return api('POST', url('/uploads', scopeOf(s), { name: String(name ?? file.name ?? '').slice(0, 100), keepPosition: keepPosition ? '1' : '' }), file, file.type);
+      return (await api('POST', url('/uploads', scopeOf(s), { name: String(name ?? file.name ?? '').slice(0, 100), keepPosition: keepPosition ? '1' : '' }), file, file.type)).file;
+    },
+    async 'uploads.inspect'({ head, scope: s }) {
+      if (!(head instanceof Blob)) throw Object.assign(new Error('send a picture'), { status: 400 });
+      return api('POST', url('/uploads/inspect', scopeOf(s)), head.slice(0, 256 * 1024), head.type);
     },
     async 'uploads.thumb'({ id, file, scope: s }) {
       if (!(file instanceof Blob)) throw Object.assign(new Error('send a picture'), { status: 400 });
-      return api('PUT', url(`/uploads/${encodeURIComponent(String(id ?? ''))}/thumb`, scopeOf(s)), file, file.type);
+      return (await api('PUT', url(`/uploads/${encodeURIComponent(String(id ?? ''))}/thumb`, scopeOf(s)), file, file.type)).file;
     },
     async 'uploads.list'({ scope: s }) {
       return (await api('GET', url('/uploads', scopeOf(s)))).files;

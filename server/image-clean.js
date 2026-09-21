@@ -180,4 +180,41 @@ function cleanImage(buf, allowed, keepPosition) {
   return { type, bytes: done.bytes, taken: f.taken || null, camera: f.camera || '', hasPosition: !!f.position, position: keepPosition && f.position ? f.position : null };
 }
 
-module.exports = { cleanImage, sniff, readTiff, TYPES };
+// What the start of a picture says about itself (its first few hundred KB is enough: a JPEG's EXIF and a WebP's EXIF chunk come
+// before the picture data), for a page that is about to resize the picture and so lose it: { type, taken, camera, hasPosition,
+// position }. Reads nothing that is not there and never throws on a cut-off file.
+function inspectHead(b) {
+  const type = sniff(b);
+  const out = { type, taken: null, camera: '', hasPosition: false, position: null };
+  let f = {};
+  try {
+    if (type === 'image/jpeg') {
+      let i = 2;
+      while (i + 4 <= b.length && b[i] === 0xff) {
+        const m = b[i + 1];
+        if (m === 0xda || m === 0xd9) break;
+        if (m === 0xff) { i += 1; continue; }
+        const len = b.readUInt16BE(i + 2);
+        if (m === 0xe1 && b.toString('latin1', i + 4, i + 10) === 'Exif\0\0') { f = readTiff(b.subarray(i + 10, Math.min(b.length, i + 2 + len))); break; }
+        i += 2 + len;
+      }
+    } else if (type === 'image/webp') {
+      let i = 12;
+      while (i + 8 <= b.length) {
+        const t = b.toString('latin1', i, i + 4);
+        const len = b.readUInt32LE(i + 4);
+        if (t === 'EXIF') { const x = b.subarray(i + 8, Math.min(b.length, i + 8 + len)); f = readTiff(x.toString('latin1', 0, 6) === 'Exif\0\0' ? x.subarray(6) : x); break; }
+        i += 8 + len + (len % 2);
+      }
+    }
+  } catch {
+    f = {};
+  }
+  out.taken = f.taken || null;
+  out.camera = f.camera || '';
+  out.hasPosition = !!f.position;
+  out.position = f.position || null;
+  return out;
+}
+
+module.exports = { cleanImage, inspectHead, sniff, readTiff, TYPES };

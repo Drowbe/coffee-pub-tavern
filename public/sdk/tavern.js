@@ -366,6 +366,7 @@
     // you remove the item that shows it.
     uploads: {
       put: (file, o) => call('uploads.put', { file, name: o && o.name, keepPosition: !!(o && o.keepPosition), scope: o && o.scope }),
+      inspect: (file, o) => call('uploads.inspect', { head: file, scope: o && o.scope }), // -> { type, taken, camera, hasPosition, position }: read before you resize, which loses them
       thumb: (id, file, o) => call('uploads.thumb', { id, file, scope: o && o.scope }),
       list: (o) => call('uploads.list', { scope: o && o.scope }),
       remove: (id, o) => call('uploads.remove', { id, scope: o && o.scope }),

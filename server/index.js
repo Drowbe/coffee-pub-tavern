@@ -16,6 +16,7 @@ const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
 const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
 const { ModuleUploads } = require('./module-uploads');
+const { inspectHead } = require('./image-clean');
 const { Ai, AiError } = require('./ai');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
@@ -2021,6 +2022,15 @@ app.post('/api/modules/:id/uploads', rawUpload, (req, res) => {
   if (!Buffer.isBuffer(req.body)) return res.status(415).json({ error: 'send the picture itself, as a JPEG, PNG or WebP' });
   const file = moduleUploads.put(ctx.manifest.id, ctx.scopeKey, ctx.manifest.uploads, { bytes: req.body, name: req.query.name, by: ctx.by, keepPosition: req.query.keepPosition === '1' });
   res.status(201).json({ file: uploadView(file) });
+});
+// What the start of a picture says about itself, for a page that will resize it (a resize loses the picture's own facts): send its
+// first ~256 KB. The answer goes only to the person who sent it.
+app.post('/api/modules/:id/uploads/inspect', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: 300 * 1024 }), (req, res) => {
+  const ctx = uploadAccess(req, res, 'write');
+  if (!ctx) return;
+  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage });
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(415).json({ error: 'send the start of the picture' });
+  res.json(inspectHead(req.body));
 });
 app.put('/api/modules/:id/uploads/:fid/thumb', rawUpload, (req, res) => {
   const ctx = uploadAccess(req, res, 'write');
