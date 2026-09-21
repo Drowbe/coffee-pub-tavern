@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Calendar 1.16.0: a **Week** view (seven day columns with their events in full, a vertical list in a narrow pane; the arrows step a week and the month follows), and the view buttons are icons with titles (Month, Week, Month + list, List), now shown in narrow panes too. Opening a day from the dashboard also sets the week.
+
 ### Changed
 - The Modules tab shows how many module updates wait as the same count bubble as the header gear (9+ past nine) instead of "Modules (3 updates)", with a tooltip.
 

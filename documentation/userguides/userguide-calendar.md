@@ -12,7 +12,7 @@ The Calendar keeps sessions and events. There is one for the whole server, and o
 
 ## The server calendar
 
-On the rooms page, click the **Coming up** card's heading to open the full calendar. You see a month with each day's events. Use the arrows and **Today** to move around, and **Month**, **List** and **Month + list** to switch between the month grid, an upcoming list, and the month grid with that month's events listed under it. On a narrow window it starts in the list.
+On the rooms page, click the **Coming up** card's heading to open the full calendar. You see a month with each day's events. Use the arrows and **Today** to move around, and the four view buttons (icons; hover for the name) to switch between **Month** (the grid), **Week** (seven days with their events in full; the arrows step a week), **Month + list** (the grid with that month's events listed under it) and **List** (what is coming up). On a narrow window it starts in the list.
 
 The server calendar also shows, read-only, the events of every room you belong to that has the Calendar on. Each shows its room's icon (the room's launch-link icon, or the message icon if it has none) before the time and title, and in the list beside the room's name. A row of your rooms under the toolbar shows or hides each room. To change a room's event, open that room's Calendar from a call.
 
