@@ -6,8 +6,11 @@ The Maps module shows a map of the places a room cares about: places added in Ma
 
 ## Set it up (admin)
 
-1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world about 107 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
-2. **Put it on the server.** Copy the file into the server's data folder, in `module-files/maps/`. Create the folder if it is not there.
+**What you need:** the current Tavern (Maps and its map library ship inside it, so update the server the way you always do), and one map file. Nothing else is installed: no tile server, no database, no extra container, no account and no key.
+
+
+1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world about 107 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed. How to download or cut a file is in the [PMTiles documentation](https://docs.protomaps.com/pmtiles/).
+2. **Put it on the server.** Copy the file into the server's data folder, in `module-files/maps/`. Create the folder if it is not there. On a Docker or QNAP install the data folder is the volume mounted at `/app/data` in the container; in the sample `docker-compose.yml` that is `/share/appdata/tavern` on the NAS, so the file goes in `/share/appdata/tavern/module-files/maps/`.
 3. On the Modules tab, choose **Install** beside Maps under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items and to ask other modules to do things.
 4. Tick **Available in every room**, or tick it per room.
 5. Under Maps' settings, pick the **Map file**. Until you do, Maps says so and shows only the list of places.
