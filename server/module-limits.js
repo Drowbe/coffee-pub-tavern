@@ -7,7 +7,7 @@
 'use strict';
 
 const WINDOW_MS = 60 * 1000;
-const LIMITS = { write: 240, event: 60, action: 60, notify: 20, schedule: 60, search: 40, upload: 30 };
+const LIMITS = { write: 240, event: 60, action: 60, notify: 20, schedule: 60, search: 40, upload: 30, ai: 6 };
 
 class ModuleLimits {
   constructor() {

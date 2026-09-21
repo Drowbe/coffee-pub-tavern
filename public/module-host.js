@@ -415,6 +415,13 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'settings.get'() {
       return (await api('GET', url('/settings/values', scopeOf()))).values;
     },
+    // AI (a module that declares the `ai` hook): whether this person may use it here, and a request the server answers.
+    async 'ai.available'() {
+      return api('GET', url('/ai', scopeOf()));
+    },
+    async 'ai.ask'({ task, question, items }) {
+      return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: Array.isArray(items) ? items.slice(0, 12) : [] });
+    },
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {
       if (!(file instanceof Blob)) throw Object.assign(new Error('send a picture'), { status: 400 });

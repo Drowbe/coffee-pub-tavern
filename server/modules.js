@@ -28,10 +28,10 @@ const ALLOWED_EXT = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico',
   '.woff', '.woff2', '.ttf', '.otf',
 ]);
-const HOOKS = ['schedule', 'notify'];
+const HOOKS = ['schedule', 'notify', 'ai'];
 // What a card (the small summary another module may show of an item) can carry, and which of the
 // producing module's own stored fields fill it. See documentation/api/api-module-sdk.md ("Refs").
-const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category'];
+const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category', 'text'];
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['server', 'room', 'person'];

@@ -83,6 +83,7 @@ const ROLE_PERMISSIONS = [
   { key: 'canMute', label: 'Mute other people', group: 'Moderation' },
   { key: 'canKick', label: 'Kick other people', group: 'Moderation' },
   { key: 'canInvite', label: "Manage a room's guest link", group: 'Moderation' },
+  { key: 'useAi', label: 'Use AI in modules (needs an AI service set up)', group: 'AI' },
   { key: 'image_profile', label: 'Profile photo', group: 'Images' },
   { key: 'image_background', label: 'Call background', group: 'Images' },
   { key: 'image_playerOffline', label: 'Participant: Offline', group: 'Images' },
@@ -104,9 +105,9 @@ const IMAGE_KEYS = ROLE_PERMISSIONS.filter((p) => p.group === 'Images').map((p) 
 const imageDefaults = (own) => Object.fromEntries(IMAGE_KEYS.map((k) => [k, own && (k === 'image_profile' || k === 'image_background')]));
 const EDITABLE_ROLES = ['moderator', 'user', 'guest'];
 const ROLE_DEFAULTS = {
-  moderator: { ...Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])), ...imageDefaults(true) },
-  user: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(true) },
-  guest: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, ...imageDefaults(false) },
+  moderator: { ...Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])), useAi: false, ...imageDefaults(true) },
+  user: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(true) },
+  guest: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(false) },
 };
 function cleanRoomPermissions(p) {
   return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
@@ -911,6 +912,7 @@ class Store {
       if (!Array.isArray(patch.members)) throw new StoreError('members must be a list of user keys');
       room.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
     }
+    if (patch.aiOff !== undefined) room.aiOff = patch.aiOff === true; // this room does not use AI, whatever a role may do
     if (patch.profile !== undefined) {
       if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
       room.profile = patch.profile;

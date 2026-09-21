@@ -16,6 +16,7 @@ const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
 const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
 const { ModuleUploads } = require('./module-uploads');
+const { Ai, AiError } = require('./ai');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -1427,7 +1428,7 @@ function refScope(who, { provider, kind, scope, room, from, skipConsumer = false
 }
 
 // The card for one stored item: only the fields the producer named, trimmed and typed.
-function refCard({ manifest, produce, ref }, id, value) {
+function refCard({ manifest, produce, ref }, id, value, withText = false) {
   const text = (v) => (typeof v === 'string' ? v.slice(0, 200) : typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const field = (name) => (produce.card[name] ? value?.[produce.card[name]] : undefined);
   const card = {
@@ -1448,6 +1449,9 @@ function refCard({ manifest, produce, ref }, id, value) {
   // A short label a module may give its items to group or colour them ("eat", "stay"): lower case letters, digits and dashes.
   const category = text(field('category'));
   if (typeof category === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(category)) card.category = category.toLowerCase();
+  // The item's own words (a note's body), plain and up to 8 KB. Left out of the cards people browse; the server reads it only
+  // for the AI hook, as the person asking.
+  if (withText) { const t = field('text'); if (typeof t === 'string' && t.trim()) card.text = t.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000); }
   // A place on the map, if the item has one: { lat, lng, name? }, checked; anything else is left out.
   const place = field('place');
   if (place && typeof place === 'object' && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {
@@ -1461,7 +1465,7 @@ function resolveRef(who, ref, from, opts = {}) {
   const at = refScope(who, { provider: ref.module, kind: ref.kind, scope: ref.scope, room: ref.room, from, ...opts });
   const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', String(ref.id)));
   if (!item || !item.value) throw refError(404, 'that item is no longer there');
-  return refCard(at, String(ref.id), item.value);
+  return refCard(at, String(ref.id), item.value, opts.withText === true);
 }
 
 // The kinds the consumer may point at: every kind of every other enabled module it was approved for.
@@ -1922,6 +1926,76 @@ app.get('/api/modules/widgets', (req, res) => {
 // a room's own page (the room's) and the profile page (a person's own). Who may change what: the server's, an admin; a
 // room's, an admin or one of that room's moderators; a person's own, that person.
 const moduleSettings = new ModuleSettings(modules.dir);
+
+// --- AI, for the modules that ask ---------------------------------------------------------------------------------------------
+// One server-wide setting (see ai.js); the key never leaves the server and is never sent back. A module asks through the `ai` hook:
+// the server checks the person's role and the room, reads the chosen items as that person, asks the service the admin set up, and
+// returns text with any cards the model wrote (each checked). Nothing is kept: no question, no answer, no item text. The activity
+// list gets who, which module and task, and how many tokens.
+const ai = new Ai(DATA_DIR);
+process.on('exit', () => ai.flush());
+function sendAiError(err, res) {
+  if (err instanceof AiError) return res.status(err.status).json({ error: err.message });
+  throw err;
+}
+app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView() }));
+app.put('/api/ai', requireAdmin, (req, res) => {
+  try {
+    const before = ai.view();
+    const after = ai.set(req.body || {});
+    noteActivity('tavern', `changed the AI setting (${after.provider}${after.keySet && !before.keySet ? ', key set' : ''})`, currentUser(req)?.key, null);
+    res.json({ ai: after, usage: ai.usageView() });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
+// Whether AI is available to this person here (for a page to show or hide its buttons): { available, why? }.
+function aiAllowed(ctx) {
+  const user = ctx.who.user;
+  if (!user) return { ok: false, why: 'guests cannot use AI' };
+  if (!ai.ready()) return { ok: false, why: 'AI is not set up on this server' };
+  const room = ctx.roomId ? store.roomById(ctx.roomId) : null;
+  if (room && room.aiOff) return { ok: false, why: 'AI is turned off in this room' };
+  const perms = ctx.roomId ? store.roomPermissions(user.key, ctx.roomId) : store.roleSet(user.role);
+  if (!perms.useAi) return { ok: false, why: 'your role may not use AI' };
+  return { ok: true };
+}
+app.get('/api/modules/:id/ai', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx || !requireHook(ctx, res, 'ai')) return;
+  const a = aiAllowed(ctx);
+  res.json({ available: a.ok, why: a.why || '' });
+});
+app.post('/api/modules/:id/ai', async (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx || !requireHook(ctx, res, 'ai')) return;
+  const allowed = aiAllowed(ctx);
+  if (!allowed.ok) return res.status(403).json({ error: allowed.why });
+  if (overLimit(ctx.manifest.id, ctx.by, 'ai')) return res.status(429).json({ error: limitMessage });
+  const refs = Array.isArray(req.body?.items) ? req.body.items.slice(0, 12) : [];
+  // The items are read as this person: only what they may see, and only kinds this module produces or was approved to link to.
+  const items = [];
+  const given = [];
+  for (const ref of refs) {
+    try {
+      const own = ref && ref.module === ctx.manifest.id;
+      const card = resolveRef(ctx.who, ref, ctx.manifest.id, { withText: true, skipConsumer: own });
+      const bits = [card.subtitle, card.when ? `date: ${card.when}` : '', card.place && card.place.name ? `place: ${card.place.name}` : ''].filter(Boolean);
+      items.push({ title: card.title, text: [card.text, ...bits].filter(Boolean).join('\n') || card.title });
+      given.push(card.ref);
+    } catch {
+      // an item that is gone, or that this person may not see, is simply left out
+    }
+  }
+  try {
+    const task = String(req.body?.task || '');
+    const out = await ai.run(task, items, req.body?.question);
+    noteActivity(ctx.manifest.id, `used AI to ${task} (${out.tokens} tokens)`, ctx.by, ctx.scopeKey);
+    res.json({ text: out.text, cards: (out.cards || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) })), tags: out.tags, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
 
 // --- files a module's people upload ---------------------------------------------------------------------------------------
 // A module that declares `uploads` keeps pictures per scope (server, room, person), with the same read and write permissions as

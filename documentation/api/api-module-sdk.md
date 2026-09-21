@@ -219,6 +219,18 @@ await tavern.geocode.used(results[0].key);     // the person picked it: the serv
 
 The server looks in the places it has saved first, and asks the service the admin chose only when fewer than five match; the answers are saved if the admin allows it. Searches count against the module's rate limit.
 
+### AI
+
+A module that declares the `ai` hook can ask the AI the admin set up:
+
+```js
+const { available, why } = await tavern.ai.available();
+const r = await tavern.ai.ask({ task: 'ask', question: 'Where is the hotel?', items: [note.ref, place.ref] });
+// r.text: the words, with a line {{card:0}} where the first card goes; r.cards: [{ icon, title, content, tags?, place?, date?, links?, sources? }]
+```
+
+Tasks are `summarise`, `ask` and `tags` (`tags` returns `r.tags`, up to 6 words). The server reads the items as the person asking (only what they may see; up to 12, each up to 8 KB of `text`), sends them inside a fixed frame that tells the model they are data and never instructions, gives the model no tools, and returns its text. Where the model writes a card in a fenced block, the server checks each field (an icon from a fixed list, a title of 80 characters, plain content of 2000, up to 5 one-word tags, a place with an in-range position, a real date, https links, sources only among the items given) and returns it as a card; a block that is not a valid card stays as ordinary text. Draw a marker `{{card:N}}` only where N is a real index into `cards`. Nothing is stored by the server: not the question, not the answer. It logs who, which module and task, and the token count, never the text. Errors are plain messages: not set up, your role may not use AI, AI is off in this room, the monthly allowance is used, the service did not answer. A person is limited to a few requests a minute.
+
 ### Uploaded pictures
 
 A module whose manifest declares `uploads` (see [api-modules](api-modules.md)) keeps the pictures its people add:

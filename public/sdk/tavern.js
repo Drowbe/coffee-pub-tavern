@@ -345,6 +345,17 @@
       url: (name) => call('files.url', { name }),
     },
 
+    // AI, asked of the server (declare the `ai` hook; the admin approves it like the others). The admin chooses the service and
+    // keeps its key on the server; a page never sees either. `available()` -> { available, why } (say why a button is hidden);
+    // `ask({ task, question, items })` where task is 'summarise', 'ask' or 'tags' and items are pointers ({ module, kind, scope, id }),
+    // read by the server as the person asking. Answers: { text, cards, used, tags, tokens }. `text` holds the model's words with a
+    // line {{card:0}} where each card goes; `cards` are checked ({ icon, title, content, tags, place, date, links, sources }, sources
+    // as pointers). Nothing is kept by the server. The model has no tools and nothing it says is run.
+    ai: {
+      available: () => call('ai.available'),
+      ask: (o) => call('ai.ask', { task: o && o.task, question: o && o.question, items: o && o.items }),
+    },
+
     // Pictures people add (a module declares `uploads` in module.json). The server checks each from its own bytes and takes out
     // what rides along (text, thumbnails, maker notes); a photo's position is dropped unless `keepPosition` is true. Make the
     // picture the size you want first (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page.
