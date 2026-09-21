@@ -104,6 +104,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .item[data-kind="stay"][data-span="middle"] { padding-block: 5px; background: transparent; border-style: dashed; }
 .item[data-kind="stay"][data-span="middle"] .item-title { font-weight: 500; color: var(--text-dim); font-size: 13px; }
 .item[data-kind="stay"][data-span="middle"] .item-meta { display: none; }
+.item[data-kind="stay"][data-span="middle"] .item-time:empty::before { content: none; }
+.item[data-kind="stay"][data-span="middle"] .item-menu { height: 26px; }
 
 /* a journey: from, to, and a reference code */
 .route { display: flex; align-items: center; gap: 6px; margin-top: 3px; min-width: 0; font-size: 13px; }
