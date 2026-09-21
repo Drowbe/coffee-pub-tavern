@@ -1,6 +1,7 @@
 // One room's own page, the same idea as a user's profile page: click a
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
+import { renderModuleSettings } from '/module-settings.js';
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, roomCrumbIcon } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
@@ -304,6 +305,7 @@ async function init() {
     users = usersRes.users;
     renderCrumb();
     await loadRoomModules();
+    renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; });
   } catch (err) {
     location.href = '/admin#rooms';
     return;

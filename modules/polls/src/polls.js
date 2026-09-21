@@ -30,6 +30,11 @@
   }
   const inRoom = info.context.scope === 'room';
   const me = info.user.key;
+  // What the server's admin and this room's moderators chose (Module settings): a new poll's starting point.
+  let prefs = { addableByDefault: false, closeAfterDays: 0 };
+  const loadPrefs = () => tavern.settings.get().then((v) => { prefs = { ...prefs, ...v }; }).catch(() => {});
+  await loadPrefs();
+  tavern.settings.onChange((v) => { prefs = { ...prefs, ...v }; });
   const canVote = tavern.can('vote');
   const canCreate = tavern.can('create');
   const MAX_OPTIONS = 20;
@@ -543,11 +548,15 @@
     addOptionField();
     addOptionField();
     $('f-multi').checked = false;
-    $('f-addable').checked = false;
+    $('f-addable').checked = Boolean(prefs.addableByDefault);
     // A quick add fills the question, and the closing time when a day was typed (12:00 unless a time was).
     $('f-question').value = (prefill && prefill.title) || '';
     const closes = prefill && prefill.date ? prefill.date + 'T' + (prefill.time || '12:00') : '';
     $('f-closes').value = closes && new Date(closes).getTime() > Date.now() ? closes : '';
+    if (!$('f-closes').value && prefs.closeAfterDays > 0) {
+      const d = new Date(Date.now() + prefs.closeAfterDays * 24 * 60 * 60 * 1000);
+      $('f-closes').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T12:00`;
+    }
     closesPicker.refresh();
     $('f-notify').checked = false;
     $('editor').hidden = false;

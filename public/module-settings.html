@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1410">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
+  <title>Coffee Pub Tavern - Room settings</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+  <header class="topbar"></header>
+  <main class="admin">
+    <section class="panel">
+      <h1 id="title">Room settings</h1>
+      <p class="hint">What each module in this room does. An admin or one of the room's moderators can change these.</p>
+      <p class="hint" id="none" hidden>No module in this room has settings.</p>
+      <div id="settings"></div>
+    </section>
+  </main>
+  <script type="module" src="/module-settings-page.js"></script>
+</body>
+</html>

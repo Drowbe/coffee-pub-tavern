@@ -18,6 +18,8 @@
 <body>
   <header class="topbar" id="topbar"></header>
 
+  <!-- The rooms page scrolls in here, under the header, so the scrollbar starts below it. -->
+  <div class="page-scroll" id="page-scroll">
   <div class="join" id="join">
     <!-- The rooms page: a sidebar of widget cards that modules provide (the dashboard, filled by
          public/dashboard.js; empty and hidden until it has any) beside who is around and the room cards. -->
@@ -40,6 +42,7 @@
     <p class="status error" id="guest-join-error" hidden></p>
     <p class="hint join-note">Your browser will ask for your microphone. You join with your camera off; turn it on whenever you're ready. Nothing about you is kept once you leave.</p>
   </form>
+  </div>
 
   <template id="room-choice">
     <article class="room-choice">
@@ -56,6 +59,7 @@
         <button class="btn btn-accent btn-small" data-join-popout type="button" title="Join in a pop-out window" aria-label="Join in a pop-out window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>
         <button class="btn btn-small" data-join-with type="button" title="Choose what to join with" aria-label="Choose what to join with"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i></button>
         <a class="btn btn-small" data-edit data-overlay-link href="#" title="Room settings" hidden><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></a>
+        <a class="btn btn-small" data-module-settings data-overlay-link href="#" title="Module settings" hidden><i class="fa-solid fa-gears fa-fw" aria-hidden="true"></i></a>
       </div>
     </article>
   </template>

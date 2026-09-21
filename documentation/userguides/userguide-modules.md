@@ -28,6 +28,10 @@ The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not al
 
 A module with a room panel is off in every room until you turn it on. Either tick **Available in every room** on its card here, or open a room's own page from the Rooms tab and tick the module under **Modules**. The Modules section of a room only lists modules that are enabled.
 
+## Settings
+
+A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an admin on the Modules tab, under the module cards. **Room** settings, for one room, are chosen by an admin (on the room's own page, under Modules) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
+
 ## Who can use it
 
 An enabled module adds its permissions to the **Roles** tab, in a group named for the module. Untick one to take that ability from a role. Admins can always do everything, and a member marked Moderator in a room gets the Moderator role's permissions for a room module there. A module's data is stored per server or per room, and a person only sees a room's module data if they are in that room.

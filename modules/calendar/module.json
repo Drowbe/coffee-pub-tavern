@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
@@ -14,6 +14,9 @@
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },
     { "key": "edit", "label": "Add and change events", "default": { "user": true, "guest": false, "moderator": true } }
+  ],
+  "settings": [
+    { "key": "defaultView", "label": "Open on", "type": "choice", "scope": "person", "default": "month", "help": "The view the Calendar shows when you open it.", "options": [{ "value": "month", "label": "Month" }, { "value": "week", "label": "Week" }, { "value": "both", "label": "Month + list" }, { "value": "list", "label": "List" }] }
   ],
   "access": { "read": "view", "write": "edit" },
   "hooks": { "schedule": true, "notify": true },

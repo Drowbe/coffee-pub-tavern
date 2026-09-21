@@ -13,6 +13,7 @@ const { ModuleLinks } = require('./module-links');
 const { ModuleBus } = require('./module-bus');
 const { ChatHistory } = require('./chat-history');
 const { ModuleLimits } = require('./module-limits');
+const { ModuleSettings, SettingError } = require('./module-settings');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -393,6 +394,10 @@ app.get('/profile', (req, res) => {
   res.sendFile(page('profile.html'));
 });
 app.get('/me', (_req, res) => res.redirect('/profile')); // the profile page's old address
+app.get('/module-settings', (req, res) => {
+  if (!currentUser(req)) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  res.sendFile(page('module-settings.html'));
+});
 
 // An admin editing someone else's profile: the same page, in edit mode --
 // see public/profile.js, which tells the two apart by the URL.
@@ -956,6 +961,7 @@ app.patch('/api/rooms/:id', requireAdmin, (req, res) => {
 });
 app.delete('/api/rooms/:id', requireAdmin, (req, res) => {
   store.removeRoom(req.params.id);
+  moduleSettings.forgetRoom(req.params.id);
   chatHistory.forgetRoom(req.params.id);
   res.json({ ok: true });
 });
@@ -1168,6 +1174,7 @@ app.delete('/api/modules/:id', requireAdmin, (req, res) => {
     moduleHooks.dropModule(req.params.id);
     moduleLinks.dropModule(req.params.id);
     moduleBus.dropModule(req.params.id);
+    moduleSettings.forgetModule(req.params.id);
   }
   res.json({ ok: true });
 });
@@ -1870,6 +1877,75 @@ app.get('/api/modules/widgets', (req, res) => {
   res.json({ widgets });
 });
 
+// --- module settings -------------------------------------------------------------------------------------
+// What a module declares (module.json `settings`) and what people choose (server/module-settings.js). A module reads
+// the values that apply to the viewer; the forms that change them are drawn by Tavern on the Modules tab (the server's),
+// a room's own page (the room's) and the profile page (a person's own). Who may change what: the server's, an admin; a
+// room's, an admin or one of that room's moderators; a person's own, that person.
+const moduleSettings = new ModuleSettings(modules.dir);
+moduleSettings.on('change', (c) => {
+  if (c.scope === 'person') return;
+  const where = c.scope === 'room' ? ` for ${store.roomById(c.roomId)?.name || 'a room'}` : '';
+  noteActivity(c.module, `changed the ${c.scope} settings${where}: ${c.keys.join(', ')}`, c.by, null);
+});
+function sendSettingError(err, res) {
+  if (err instanceof SettingError) return res.status(err.status).json({ error: err.message });
+  throw err;
+}
+
+// The values that apply to the viewer, for the module itself.
+app.get('/api/modules/:id/settings/values', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  res.json({ values: moduleSettings.effective(ctx.manifest, { roomId: ctx.roomId, userKey: ctx.who.user?.key || null }) });
+});
+
+// Who may change the settings of a scope, and where they are kept; sends the error itself and returns null when not.
+function settingsPlace(req, res, scope) {
+  const user = currentUser(req);
+  if (!user) return void res.status(401).json({ error: 'sign in first' });
+  if (scope === 'server') {
+    if (user.role !== 'admin') return void res.status(403).json({ error: 'only an admin changes the server\'s settings' });
+    return { user, ctx: {} };
+  }
+  if (scope === 'person') return { user, ctx: { userKey: user.key } };
+  if (scope === 'room') {
+    const room = store.roomById(String(req.query.room || req.body?.room || ''));
+    if (!room) return void res.status(404).json({ error: 'no such room' });
+    // A moderator is a member ticked as one in that room (an admin ticks it on the member's profile).
+    if (!(user.role === 'admin' || (room.members.includes(user.key) && store.roomFlags(user.key, room.id).moderator))) return void res.status(403).json({ error: 'only an admin or the room\'s moderators change its settings' });
+    return { user, ctx: { roomId: room.id }, room };
+  }
+  return void res.status(404).json({ error: 'no such kind of setting' });
+}
+const withValues = (manifest, scope, ctx) => {
+  const values = moduleSettings.values(manifest, scope, ctx);
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key] }));
+};
+
+// The modules that have settings of a scope here, each with its settings and their values.
+app.get('/api/module-settings/:scope', (req, res) => {
+  const place = settingsPlace(req, res, req.params.scope);
+  if (!place) return;
+  const scope = req.params.scope;
+  const out = modules.enabledAll()
+    .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'room' || entry.allRooms || entry.rooms.includes(place.room.id)))
+    .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, settings: withValues(manifest, scope, place.ctx) }));
+  res.json({ modules: out });
+});
+app.put('/api/modules/:id/settings/:scope', (req, res) => {
+  const place = settingsPlace(req, res, req.params.scope);
+  if (!place) return;
+  const found = modules.enabled(req.params.id);
+  if (!found) return res.status(404).json({ error: 'no such module' });
+  try {
+    moduleSettings.set(found.manifest, req.params.scope, place.ctx, req.body?.values, place.user.key);
+    res.json({ settings: withValues(found.manifest, req.params.scope, place.ctx) });
+  } catch (err) {
+    sendSettingError(err, res);
+  }
+});
+
 // Who is looking and what they may do in this module, for the frame's hello.
 app.get('/api/modules/:id/context', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
@@ -2126,6 +2202,13 @@ app.get('/api/modules/stream', (req, res) => {
     const at = place(r.provider, r.scopeKey);
     if (at) res.write(`event: action\ndata: ${JSON.stringify({ ...publicAction(r), provider: r.provider, scope: at.scope })}\n\n`);
   };
+  // A setting of a module changed: its pages here read their values again.
+  const onSettings = (c) => {
+    if (c.scope === 'person' && c.userKey !== who.user?.key) return;
+    if (c.scope === 'room' && !(room && room.id === c.roomId) && !(who.user && store.roomById(c.roomId)?.members.includes(who.user.key))) return;
+    res.write(`event: settings\ndata: ${JSON.stringify({ module: c.module, scope: c.scope, roomId: c.roomId })}\n\n`);
+  };
+  moduleSettings.on('change', onSettings);
   moduleData.on('change', onChange);
   moduleHooks.on('fire', onFire);
   moduleLinks.on('change', onLinks);
@@ -2134,6 +2217,7 @@ app.get('/api/modules/stream', (req, res) => {
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
     clearInterval(beat);
+    moduleSettings.off('change', onSettings);
     moduleData.off('change', onChange);
     moduleHooks.off('fire', onFire);
     moduleLinks.off('change', onLinks);

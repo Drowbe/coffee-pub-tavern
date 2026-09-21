@@ -2,6 +2,7 @@
 // set. An admin visiting /profile/<key> gets the same page in edit mode
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
+import { renderModuleSettings } from '/module-settings.js';
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
@@ -571,5 +572,7 @@ async function init() {
   if (editingKey) setTopbarLocation(crumbLink('gear', 'Server Settings', '/admin#users') + '<span class="crumb-sep">&rsaquo;</span>' + crumbLink('user', user.displayName, location.pathname));
   render();
   selectTab(location.hash.slice(1));
+  // Your own module settings (not when an admin is editing someone else's profile).
+  if (!editingKey) renderModuleSettings($('module-settings'), { scope: 'person' }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; });
 }
 init();

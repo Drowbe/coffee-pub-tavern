@@ -362,6 +362,10 @@ function renderRooms() {
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || me?.role !== 'admin';
     edit.href = `/rooms/${encodeURIComponent(r.id)}`;
+    // A moderator cannot open the room's page, but changes what its modules do here.
+    const modSettings = card.querySelector('[data-module-settings]');
+    modSettings.hidden = r.ephemeral || me?.role === 'admin' || !me?.rooms?.[r.id]?.permissions?.moderator;
+    modSettings.href = `/module-settings?room=${encodeURIComponent(r.id)}`;
     const link = card.querySelector('[data-link]');
     link.hidden = !r.link;
     if (r.link) {

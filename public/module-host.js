@@ -36,7 +36,7 @@ function joinStream(room, guest, onEvent) {
     if (guest) p.set('guest', guest);
     const source = new EventSource(`/api/modules/stream?${p}`);
     s = { source, subs: new Set() };
-    for (const type of ['change', 'schedule', 'links', 'bus', 'action']) {
+    for (const type of ['change', 'schedule', 'links', 'bus', 'action', 'settings']) {
       source.addEventListener(type, (ev) => {
         let data;
         try {
@@ -399,6 +399,10 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     },
     // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
     // Empty on a module's server page, which is not in one room.
+    // What the module's settings are for this viewer here (server, this room and the person's own together).
+    async 'settings.get'() {
+      return (await api('GET', url('/settings/values', scopeOf()))).values;
+    },
     async people() {
       if (scope !== 'room' || !roomId) return [];
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
@@ -597,6 +601,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
     if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
     else if (type === 'links') send('links', { ref: d.ref });
+    else if (type === 'settings') send('settings', { scope: d.scope });
     else if (type === 'bus') {
       // An event some module published: only the modules the server named may hear it, in their own place.
       if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === (scope === 'room' ? 'room' : 'server')) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: d.ref, data: d.data });

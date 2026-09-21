@@ -20,6 +20,10 @@ The server calendar also shows, read-only, the events of every room you belong t
 
 In a call, choose the Modules button in the header and then **Calendar**. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to a floating panel or open it in a window of its own. It shows that room's events, and the server's events beside them marked **server**. Server events are read-only in a room; change them on the server calendar.
 
+## Settings
+
+On your profile page, under Module settings, **Open on** chooses the view the Calendar opens on: Month, Week, Month + list or List.
+
 ## Coming up on the dashboard
 
 On the rooms page, the dashboard's **Coming up** card lists the next seven days of events, up to eight, across every room you are in that has the Calendar on and the server's own calendar, each with its room's icon; repeating events show on the days they land on. Clicking an event opens it in its room; the heading opens the full calendar. See [Rooms](userguide-rooms.md).

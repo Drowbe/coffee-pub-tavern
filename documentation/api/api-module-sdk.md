@@ -191,6 +191,17 @@ tavern.refs.dropTarget({
 
 Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, which is where Tavern checks what the viewer may see. Tavern brokers a drag between module frames in the same window (the page, or the popped-out app). `tavern.refs.drag(event, ...)`, called from a native `dragstart`, and `tavern.refs.accepts` / `tavern.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
 
+### Settings
+
+A module declares settings in `module.json` (`settings`, see [api-modules](api-modules.md)) and reads what people chose:
+
+```js
+const prefs = await tavern.settings.get();          // { defaultView: 'week', ... }: server, room and person values together
+tavern.settings.onChange((prefs) => { ... });       // called when any of them changes
+```
+
+Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Tavern's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
+
 ### Shared tools
 
 Anything more than one module needs belongs in the SDK, not copied into each module. Use these rather than writing your own; they follow the theme and work the same in a frame and in the page.

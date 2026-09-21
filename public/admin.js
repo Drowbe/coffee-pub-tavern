@@ -1,3 +1,4 @@
+import { renderModuleSettings } from '/module-settings.js';
 import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
@@ -801,6 +802,12 @@ function renderModules() {
     list.appendChild(none);
   }
   for (const m of installedModules) list.appendChild(moduleCard(m));
+  const settings = document.createElement('div');
+  settings.className = 'panel';
+  settings.hidden = true;
+  settings.innerHTML = '';
+  list.appendChild(settings);
+  renderModuleSettings(settings, { scope: 'server' }).then(() => { if (!settings.hidden) settings.insertAdjacentHTML('afterbegin', '<h2>Module settings</h2><p class="hint">What each module does for everyone on this server.</p>'); });
   const log = document.createElement('div');
   log.className = 'panel';
   log.innerHTML = '<h2>Recent activity</h2><p class="hint">What modules have done lately.</p><ul class="module-activity" id="module-activity"><li class="hint">Loading...</li></ul>';

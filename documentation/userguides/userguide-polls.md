@@ -16,6 +16,10 @@ The permission to start polls is enforced by the Polls page itself, not by the s
 
 On the rooms page, the dashboard's **Need your vote** card lists the open polls you have not voted in, across every room you are in and the server's own polls, the ones closing soonest first (up to eight), each with its room's icon. Clicking one opens it in its room to vote; the heading opens all the polls. A poll disappears from the card once you vote or it closes. See [Rooms](userguide-rooms.md).
 
+## Settings
+
+An admin can set, on the Modules tab, to **close new polls after** a number of days (0 means never); a new poll's closing time then starts filled in, and can be changed. A room's moderators can choose, from the room's module settings, whether new polls in that room start with **let people suggest options** ticked.
+
 ## Start a poll
 
 At the bottom of Polls is a quick-add field with a **+** button. Type the question and press Enter or click **+**, and the New poll form opens with it filled in. A day in what you type, such as "where to stay by sep 29", becomes the closing time (noon that day, or the time you typed) when it is still ahead of you. Clicking **+** with nothing typed opens a blank form.

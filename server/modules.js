@@ -214,6 +214,41 @@ function cleanBus(rawEvents, rawActions, id) {
   return { events, actions };
 }
 
+// The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text'];
+const SETTING_SCOPES = ['server', 'room', 'person'];
+function cleanSettings(raw) {
+  const out = [];
+  for (const r of Array.isArray(raw) ? raw.slice(0, 20) : []) {
+    const key = typeof r?.key === 'string' ? r.key.trim() : '';
+    if (!/^[a-z][a-zA-Z0-9]{0,23}$/.test(key)) throw new ModuleError(`module.json: setting key "${key}" must be letters and digits, starting with a lowercase letter`);
+    if (out.some((d) => d.key === key)) throw new ModuleError(`module.json: setting "${key}" is listed twice`);
+    const type = SETTING_TYPES.includes(r.type) ? r.type : null;
+    if (!type) throw new ModuleError(`module.json: setting "${key}" needs a type: ${SETTING_TYPES.join(', ')}`);
+    const scope = SETTING_SCOPES.includes(r.scope) ? r.scope : 'server';
+    const def = { key, label: text(r.label, 60) || key, help: text(r.help, 200), type, scope };
+    if (type === 'choice') {
+      def.options = (Array.isArray(r.options) ? r.options.slice(0, 12) : []).map((o) => ({ value: typeof o?.value === 'string' ? o.value.trim().slice(0, 40) : '', label: text(o?.label, 40) })).filter((o) => o.value).map((o) => ({ value: o.value, label: o.label || o.value }));
+      if (def.options.length < 2) throw new ModuleError(`module.json: setting "${key}" needs at least two options`);
+      def.default = def.options.some((o) => o.value === r.default) ? r.default : def.options[0].value;
+    } else if (type === 'number') {
+      if (Number.isFinite(r.min)) def.min = r.min;
+      if (Number.isFinite(r.max)) def.max = r.max;
+      let d = Number.isFinite(r.default) ? r.default : def.min ?? 0;
+      if (def.min !== undefined) d = Math.max(def.min, d);
+      if (def.max !== undefined) d = Math.min(def.max, d);
+      def.default = d;
+    } else if (type === 'text') {
+      def.maxLength = clamp(r.maxLength, 1, 200, 100);
+      def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';
+    } else {
+      def.default = Boolean(r.default);
+    }
+    out.push(def);
+  }
+  return out;
+}
+
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
@@ -282,7 +317,9 @@ function cleanManifest(raw, files) {
     access[kind] = named;
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access };
+  const settings = cleanSettings(raw.settings);
+
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -342,6 +379,11 @@ class ModuleManager {
       } catch {
         manifest.events = { publishes: [], subscribes: [] };
         manifest.actions = { provides: [], uses: [] };
+      }
+      try {
+        manifest.settings = cleanSettings(manifest.settings);
+      } catch {
+        manifest.settings = [];
       }
       this.manifests.set(cacheKey, manifest);
     }

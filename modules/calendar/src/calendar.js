@@ -22,6 +22,9 @@
     return;
   }
   const inRoom = info.context.scope === 'room';
+  // The person's own choice of the view to open on (Settings > Module settings).
+  let prefs = {};
+  try { prefs = await tavern.settings.get(); } catch (err) { prefs = {}; }
   const canEdit = tavern.can('edit');
   const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { return undefined; } })();
 
@@ -33,7 +36,7 @@
   const hiddenRooms = new Set(); // rooms filtered out on the server page
   let cursor = new Date();
   cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  let view = 'month';
+  let view = ['month', 'week', 'both', 'list'].includes(prefs.defaultView) ? prefs.defaultView : 'month';
   let anchor = new Date(); // the day the week view is built around
   let editing = null; // { scope, id, version } while the editor is open
 
