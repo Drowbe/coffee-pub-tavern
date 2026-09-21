@@ -34,6 +34,7 @@
   let cursor = new Date();
   cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   let view = 'month';
+  let anchor = new Date(); // the day the week view is built around
   let editing = null; // { scope, id, version } while the editor is open
 
   /*__LIB__*/
@@ -166,21 +167,52 @@
     return listHtml(inRange(from, to).slice(0, 300), `Nothing coming up.${canEdit ? ' Add an event to get started.' : ''}`, from);
   }
 
+  // The seven days (Sunday first, like the month grid) around the anchor day, each with its events in full.
+  const weekStart = () => new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - anchor.getDay());
+  function weekHtml() {
+    const start = weekStart();
+    const byDay = new Map();
+    for (const occ of inRange(start, addDays(start, 7))) {
+      const firstDay = startOfDay(occ.start);
+      const lastDay = startOfDay(new Date(Math.max(occ.end.getTime() - 1, occ.start.getTime())));
+      for (let d = firstDay < start ? start : firstDay; d <= lastDay && d < addDays(start, 7); d = addDays(d, 1)) {
+        const k = ymd(d);
+        if (!byDay.has(k)) byDay.set(k, []);
+        byDay.get(k).push({ ...occ, cont: d > firstDay });
+      }
+    }
+    const today = ymd(new Date());
+    let html = '';
+    for (let i = 0; i < 7; i += 1) {
+      const day = addDays(start, i);
+      const list = byDay.get(ymd(day)) || [];
+      html += `<div class="day ${ymd(day) === today ? 'today' : ''}" data-day="${ymd(day)}"><span class="n">${esc(day.toLocaleDateString([], { weekday: 'short' }))} <b>${day.getDate()}</b></span><div class="chips">${list.map(chipHtml).join('')}</div></div>`;
+    }
+    return `<div class="week">${html}</div>`;
+  }
+  function weekTitle() {
+    const s = weekStart();
+    const e = addDays(s, 6);
+    const m = (d) => d.toLocaleDateString([], { month: 'short' });
+    return s.getMonth() === e.getMonth() ? `${m(s)} ${s.getDate()} \u2013 ${e.getDate()}, ${e.getFullYear()}` : `${m(s)} ${s.getDate()} \u2013 ${m(e)} ${e.getDate()}, ${e.getFullYear()}`;
+  }
+
   function render() {
     const compact = isCompact();
-    $('view-toggle').hidden = compact;
-    const showMonth = compact || view === 'month' || view === 'both';
-    $('prev').hidden = $('next').hidden = !showMonth;
-    $('view-month').classList.toggle('on', view === 'month');
-    $('view-both').classList.toggle('on', view === 'both');
-    $('view-list').classList.toggle('on', view === 'list');
+    const showNav = view !== 'list';
+    $('prev').hidden = $('next').hidden = !showNav;
+    for (const [v, id] of [['month', 'view-month'], ['week', 'view-week'], ['both', 'view-both'], ['list', 'view-list']]) $(id).classList.toggle('on', view === v);
     renderFilters();
-    $('title').textContent = showMonth ? cursor.toLocaleDateString([], { month: 'long', year: 'numeric' }) : 'Next 90 days';
-    if (compact || view === 'both') {
+    $('title').textContent = view === 'week' ? weekTitle() : view === 'list' ? 'Next 90 days' : cursor.toLocaleDateString([], { month: 'long', year: 'numeric' });
+    if (view === 'week') {
+      $('body').innerHTML = weekHtml();
+    } else if (view === 'list') {
+      $('body').innerHTML = upcomingList();
+    } else if (compact || view === 'both') {
       // A narrow pane, or the Month + list view, shows the month on top and that month's events beneath.
       $('body').innerHTML = `<div class="stack">${monthGrid()}<div><h3 class="list-title">This month</h3>${monthList()}</div></div>`;
     } else {
-      $('body').innerHTML = view === 'month' ? monthGrid() : upcomingList();
+      $('body').innerHTML = monthGrid();
     }
   }
 
@@ -266,6 +298,7 @@
       const d = parseYmd(m[1]);
       if (Number.isNaN(d.getTime())) return;
       cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+      anchor = d;
       view = 'month';
       render();
       const cell = root.querySelector(`.day[data-day="${m[1]}"]`);
@@ -282,6 +315,7 @@
       if (!x) return;
       const d = startOf(x.ev);
       cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+      anchor = d;
       view = 'month';
       render();
       openEditor(x);
@@ -454,10 +488,19 @@
 
   // --- wiring ---------------------------------------------------------------
 
-  $('prev').addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1); render(); });
-  $('next').addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); render(); });
-  $('today').addEventListener('click', () => { const n = new Date(); cursor = new Date(n.getFullYear(), n.getMonth(), 1); render(); });
+  // Previous and next step a month, or a week in the week view; the month and the week follow each other.
+  const step = (n) => {
+    if (view === 'week') anchor = addDays(anchor, 7 * n);
+    else anchor = new Date(cursor.getFullYear(), cursor.getMonth() + n, 1);
+    cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    render();
+  };
+  $('prev').addEventListener('click', () => step(-1));
+  $('next').addEventListener('click', () => step(1));
+  $('today').addEventListener('click', () => { anchor = new Date(); cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1); render(); });
   $('view-month').addEventListener('click', () => { view = 'month'; render(); });
+  $('view-week').addEventListener('click', () => { view = 'week'; render(); });
+  for (const el of root.querySelectorAll('[data-icon]')) tavern.ui.icon(el.dataset.icon).then((svg) => { el.innerHTML = svg; }).catch(() => {});
   $('view-both').addEventListener('click', () => { view = 'both'; render(); });
   $('view-list').addEventListener('click', () => { view = 'list'; render(); });
   $('add').addEventListener('click', () => openEditor(null));

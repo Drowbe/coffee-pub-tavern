@@ -8,8 +8,12 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .nav h2 { margin: 0 0 0 6px; font-size: 17px; }
 .seg { display: inline-flex; }
+.seg .btn:not(:first-child) { border-radius: 0; margin-left: -1px; }
 .seg .btn:first-child { border-radius: 6px 0 0 6px; }
-.seg .btn:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.seg .btn:last-child { border-radius: 0 6px 6px 0; }
+.ic { display: inline-flex; align-items: center; }
+.ic svg { width: 1em; height: 1em; fill: currentColor; }
+.seg .btn { padding-inline: 10px; }
 .seg .btn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .body { flex: 1; min-height: 0; overflow: auto; }
 
@@ -26,10 +30,22 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .chip:hover { background: color-mix(in srgb, var(--accent) 38%, transparent); }
 .chip.server { background: color-mix(in srgb, var(--text-dim) 25%, transparent); }
 .more { font-size: 11px; color: var(--text-dim); }
-.compact .day { min-height: 54px; }
-.compact .chip { font-size: 0; height: 6px; padding: 0; width: 6px; border-radius: 50%; display: inline-block; margin-right: 2px; background: var(--accent); }
-.compact .chip.server { background: var(--text-dim); }
-.compact .day .chips { display: flex; flex-wrap: wrap; }
+.compact .month .day { min-height: 54px; }
+.compact .month .chip { font-size: 0; height: 6px; padding: 0; width: 6px; border-radius: 50%; display: inline-block; margin-right: 2px; background: var(--accent); }
+.compact .month .chip.server { background: var(--text-dim); }
+.compact .month .day .chips { display: flex; flex-wrap: wrap; }
+
+/* week */
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.week .day { min-height: 150px; }
+.week .day .n { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.week .day .n b { font-size: 14px; color: var(--text); }
+.week .day.today .n b { color: var(--accent); }
+.week .chip { white-space: normal; overflow-wrap: anywhere; margin-bottom: 2px; }
+.compact .week { grid-template-columns: minmax(0, 1fr); }
+.compact .week .day { min-height: 0; flex-direction: row; align-items: flex-start; gap: 10px; }
+.compact .week .day .n { flex: none; width: 52px; }
+.compact .week .day .chips { flex: 1; min-width: 0; }
 
 /* list */
 .list { display: flex; flex-direction: column; gap: 6px; }
