@@ -28,7 +28,8 @@
 .entry[data-type="link"] { --turn: 0; --tone: var(--text-dim); }
 
 /* ---- the day ---- */
-.day2 { background: var(--bg-section); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+/* overflow: clip, not hidden: it rounds the corners without making this the scroller, so the sticky day header sticks to the page */
+.day2 { background: var(--bg-section); border: 1px solid var(--border); border-radius: 16px; overflow: clip; }
 .day-head2 { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--bg-section)), var(--bg-section)); border-bottom: 1px solid var(--border); }
 .dnum { display: flex; flex-direction: column; align-items: center; min-width: 54px; padding: 6px 8px; border-radius: 12px; background: var(--accent); color: var(--bg); line-height: 1.05; }
 .dnum b { font-size: 26px; font-weight: 700; }
@@ -197,3 +198,23 @@
 .entry[data-drop="into"] .card { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
 .entry.conflict .card { border-color: var(--danger); }
 .card .conflict-bar { margin: 0 12px 10px; }
+
+/* ---- the day: today, ideas with no day yet, a drop target ---- */
+.day2.today .day-head2 { box-shadow: inset 4px 0 0 var(--accent); }
+.day2.today .dmeta h2::after { content: " · today"; color: var(--accent); font-weight: 500; }
+.day2.ideas { border-style: dashed; }
+.day2.ideas .dnum { background: var(--text-dim); }
+.day2.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.day2.drop-target .day-empty { border-color: var(--accent); color: var(--text); }
+.timeline > .day-empty { margin: 4px 0 8px 12px; }
+.day2 .suggestions, .day2 .add-row { margin: 0; }
+.day2 { margin-bottom: 14px; }
+.day-head2 { position: sticky; top: 0; z-index: 3; }
+
+/* ---- the rail is the handle for reordering: a grab cursor, and the dot grows so it reads as something you can pick up ---- */
+@media (hover: hover) {
+  .row.entry .rail { cursor: grab; touch-action: none; }
+  .row.entry .rail:active { cursor: grabbing; }
+  .row.entry .rail .dot { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+  .row.entry .rail:hover .dot { transform: scale(1.5); box-shadow: 0 0 0 3px var(--bg-section), 0 0 0 5px color-mix(in srgb, var(--tone) 40%, transparent); }
+}
