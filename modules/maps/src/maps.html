@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maps</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<!--
+  The page and every piece of markup the script clones. The script fills a clone by hooks only:
+    [data-slot=name]   set its textContent (or hide it when there is no value)
+    [data-icon=name]   replace its content with tavern.ui.icon(name)
+  and toggles the state classes and data attributes listed in CONTRACT.md. It never builds markup from strings and
+  never sets a style. The map library draws into #map and positions the pins (the one style it sets).
+  The reference rendering is design/map.html.
+-->
+<div id="app" class="app" hidden>
+  <div class="stage">
+    <div id="map" class="map"></div>
+    <div class="mapbar">
+      <div class="search" id="search" hidden>
+        <span class="ic" data-icon="magnifying-glass"></span>
+        <input id="search-input" type="search" maxlength="200" placeholder="Search for a place" aria-label="Search for a place" autocomplete="off">
+        <ul class="results" id="results" hidden></ul>
+      </div>
+      <div class="tools">
+        <button class="tool" type="button" data-action="add-place" hidden><span class="ic" data-icon="plus"></span> Add place</button>
+        <button class="tool" type="button" data-action="toggle-panel" aria-label="Show or hide the list"><span class="ic" data-icon="list"></span> <span class="count" data-slot="count"></span></button>
+      </div>
+    </div>
+    <div class="maplibregl-ctrl-top-right" id="ctrl-zoom"></div>
+    <div class="maplibregl-ctrl-bottom-right"><div class="attribution" data-slot="attribution">&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>
+    <div class="banner" id="banner" hidden><span class="ic" data-icon="crosshairs"></span> <span data-slot="text">Click the map to place a pin</span><button class="btn" type="button" data-action="cancel">Cancel</button></div>
+    <div id="state" class="state" hidden></div>
+  </div>
+  <aside class="panel" id="panel" data-state="peek">
+    <button class="sheet-handle" type="button" data-action="toggle-sheet" aria-label="Show or hide the list"></button>
+    <header class="panel-head">
+      <button class="icon-btn" type="button" data-action="back" aria-label="Back to the list" hidden><span class="ic" data-icon="chevron-left"></span></button>
+      <h2 data-slot="heading">Places</h2>
+      <span class="hint" data-slot="count"></span>
+      <button class="icon-btn" type="button" data-action="close-panel" aria-label="Close"><span class="ic" data-icon="xmark"></span></button>
+    </header>
+    <div class="panel-body" id="panel-body"></div>
+  </aside>
+  <p class="error" id="note" hidden></p>
+
+  <!-- the editor for a place (a dialog over the module) -->
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3 id="editor-title">Add a place</h3>
+      <label>Name<input id="f-title" name="title" type="text" maxlength="120" required></label>
+      <div class="editor-row">
+        <label>Latitude<input id="f-lat" name="lat" type="text" inputmode="decimal" maxlength="24"></label>
+        <label>Longitude<input id="f-lng" name="lng" type="text" inputmode="decimal" maxlength="24"></label>
+      </div>
+      <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="1000"></textarea></label>
+      <p class="hint" id="f-by"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="editor-buttons">
+        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Cancel</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+
+<!-- ============================ templates ============================ -->
+
+<!-- a pin: an HTML marker. data-kind is place (added in Maps), item (another module's item) or cluster (several close together).
+     The script adds .selected for the pin whose card is open, .dragging while a place is being moved, .draft for the new place's pin. -->
+<template id="tpl-pin"><button class="pin" type="button"><span class="pin-body"><span class="ic" data-icon=""></span></span><span class="pin-label" data-slot="label"></span></button></template>
+<template id="tpl-pin-cluster"><button class="pin cluster" type="button" data-kind="cluster"><span class="pin-body" data-slot="count"></span></button></template>
+
+<!-- a row of the list -->
+<template id="tpl-row"><button class="place-row" type="button"><span class="ic" data-icon=""></span><span class="main"><span class="title" data-slot="title"></span><span class="sub" data-slot="sub"></span></span></button></template>
+<template id="tpl-group-title"><div class="group-title" data-slot="text"></div></template>
+<template id="tpl-empty"><p class="hint" data-slot="text"></p></template>
+<template id="tpl-notice"><p class="notice" data-slot="text"></p></template>
+
+<!-- the place being looked at. data-kind is place or item. -->
+<template id="tpl-place">
+  <article class="place">
+    <h3 data-slot="title"></h3>
+    <p class="place-where"><span data-slot="where"></span> <span class="coords" data-slot="coords"></span></p>
+    <p class="place-notes" data-slot="notes"></p>
+    <div class="place-source" data-slot="source"><span class="ic" data-icon=""></span> <span data-slot="from"></span><button class="btn" type="button" data-action="open">Open</button></div>
+    <div class="place-meta"><span class="owners" data-slot="owners"></span></div>
+    <div class="place-actions">
+      <a class="btn primary" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
+      <button class="btn" type="button" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
+      <button class="btn" type="button" data-action="edit"><span class="ic" data-icon="pen"></span> Edit</button>
+      <button class="btn btn-danger" type="button" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
+    </div>
+  </article>
+</template>
+<template id="tpl-owner"><span class="owner"></span></template>
+
+<!-- a search result -->
+<template id="tpl-result"><li><button class="result" type="button"><span class="ic" data-icon="location-dot"></span><span><span data-slot="title"></span><small data-slot="sub"></small></span></button></li></template>
+
+<!-- states that replace the map; the script puts one of these in #state and un-hides it -->
+<template id="tpl-state-loading"><div class="skel"></div></template>
+<template id="tpl-state-nomap-admin"><span class="ic" data-icon="map"></span><h2>No map yet</h2><p>Maps needs a map file on this server. Put a PMTiles file in the data folder, then pick it in Manage &gt; Modules &gt; Maps &gt; Settings.</p><p><a class="btn btn-primary" data-action="open-settings" href="#">Open the Maps settings</a></p></template>
+<template id="tpl-state-nomap-member"><span class="ic" data-icon="map"></span><h2>Maps is not set up</h2><p>An admin needs to add a map file to this server first. Your places are still listed below.</p></template>
+<template id="tpl-state-error"><span class="ic" data-icon="triangle-exclamation"></span><h2>The map could not load</h2><p>The map file did not answer. Try again, or ask an admin to check it.</p><p><button class="btn" type="button" data-action="retry">Try again</button></p></template>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

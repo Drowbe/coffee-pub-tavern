@@ -1,0 +1,160 @@
+/*
+ * The Maps module's look. The markup it styles is fixed in CONTRACT.md; the script builds that markup and
+ * toggles state classes and data attributes, it never sets a style (the one exception is a pin's position,
+ * which the map library sets on its marker element). Every colour comes from the theme tokens on :root
+ * (see public/sdk/tavern.css), so a light theme works, and the map style follows the same tokens (CONTRACT.md,
+ * "The map style"). Nothing has a fixed pixel height: the module fills its pane.
+ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; }
+[hidden] { display: none !important; }
+.ic { display: inline-flex; align-items: center; flex: none; }
+.ic svg { width: 1em; height: 1em; fill: currentColor; }
+.msg { padding: 16px; color: var(--text-dim); }
+.error { margin: 0; color: var(--danger); }
+
+/* ---- the frame: a map with a panel beside it (wide) or a sheet over its foot (phone) ---- */
+.app { position: relative; display: flex; height: 100%; background: var(--bg); }
+.stage { position: relative; flex: 1; min-width: 0; min-height: 0; }
+.map { position: absolute; inset: 0; background: var(--bg-section); }
+.map.adding { cursor: crosshair; }
+.map .maplibregl-canvas { outline: none; }
+
+/* ---- what floats over the map: the search box and the tools ---- */
+.mapbar { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
+.mapbar > * { pointer-events: auto; }
+.search { position: relative; flex: 1; max-width: 360px; }
+.search input { width: 100%; padding: 8px 12px 8px 34px; border-radius: 999px; background: var(--bg-section); box-shadow: 0 2px 10px color-mix(in srgb, black 25%, transparent); }
+.search > .ic { position: absolute; left: 12px; top: 10px; color: var(--text-dim); }
+.results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, black 30%, transparent); }
+.result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.result:hover, .result.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.result small { display: block; color: var(--text-dim); font-size: 12px; }
+.results .note { padding: 8px 10px; color: var(--text-dim); font-size: 12px; }
+.tools { margin-left: auto; display: flex; gap: 6px; }
+.tool { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-section); color: var(--text); font: inherit; cursor: pointer; box-shadow: 0 2px 10px color-mix(in srgb, black 25%, transparent); }
+.tool:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.tool.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tool .count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, var(--text) 14%, transparent); font-size: 11px; line-height: 18px; text-align: center; }
+
+/* the notice under the tools: adding a place, a warning */
+.banner { position: absolute; z-index: 3; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: calc(100% - 24px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--bg-section); box-shadow: 0 4px 16px color-mix(in srgb, black 30%, transparent); font-size: 13px; }
+.banner .btn { padding: 2px 10px; font-size: 12px; }
+
+/* ---- the map library's own controls, restyled with the tokens ---- */
+.maplibregl-ctrl-group { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-section); box-shadow: 0 2px 10px color-mix(in srgb, black 25%, transparent); overflow: hidden; }
+.maplibregl-ctrl-group button { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--border); }
+.maplibregl-ctrl-group button:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-right { position: absolute; z-index: 2; right: 10px; display: flex; flex-direction: column; gap: 6px; }
+.maplibregl-ctrl-top-right { top: 56px; }
+.maplibregl-ctrl-bottom-right { bottom: 10px; align-items: flex-end; }
+
+/* the credit the licence requires on every map: always shown, never hidden by a setting */
+.attribution { max-width: 100%; padding: 2px 8px; border-radius: 6px; background: color-mix(in srgb, var(--bg-section) 82%, transparent); color: var(--text-dim); font-size: 11px; line-height: 1.5; }
+.attribution a { color: inherit; }
+
+/* ---- a pin: an HTML marker the map library positions ---- */
+.pin { --pin: var(--accent); --pin-text: var(--on-accent); position: relative; display: block; width: 30px; height: 30px; padding: 0; border: 0; background: none; color: var(--pin-text); font: inherit; cursor: pointer; transform-origin: 50% 100%; }
+.pin-body { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 2px solid var(--bg-section); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); background: var(--pin); box-shadow: 0 2px 6px color-mix(in srgb, black 40%, transparent); }
+.pin-body .ic { transform: rotate(45deg); font-size: 14px; }
+.pin[data-kind="item"] { --pin: var(--bg-card); --pin-text: var(--text); }
+.pin[data-kind="item"] .pin-body { border-color: var(--accent); }
+.pin.selected { z-index: 2; }
+.pin.selected .pin-body { --pin: var(--text); border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent), 0 2px 6px color-mix(in srgb, black 40%, transparent); }
+.pin.selected { --pin-text: var(--bg); }
+.pin-label { position: absolute; left: 50%; top: calc(100% + 2px); transform: translateX(-50%); max-width: 160px; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--bg-section) 88%, transparent); color: var(--text); font-size: 11px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.pin.dragging { opacity: 0.7; }
+.pin.cluster { width: 38px; height: 38px; }
+.pin.cluster .pin-body { width: 38px; height: 38px; border-radius: 50%; transform: none; font-weight: 700; font-size: 13px; }
+.pin.cluster .pin-label { display: none; }
+.pin.draft { --pin: var(--bg-section); --pin-text: var(--accent); }
+.pin.draft .pin-body { border-style: dashed; border-color: var(--accent); }
+
+/* ---- the panel: the place list and the place being looked at ---- */
+.panel { flex: none; width: 340px; min-height: 0; display: flex; flex-direction: column; background: var(--bg-section); border-left: 1px solid var(--border); }
+.panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.panel-head h2 { margin: 0; font-size: 15px; flex: 1; }
+.panel-head .btn, .icon-btn { padding: 2px 8px; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }
+.icon-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.panel-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sheet-handle { display: none; }
+
+/* a row of the list */
+.place-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.place-row:hover, .place-row.selected { border-color: color-mix(in srgb, var(--accent) 65%, var(--border)); }
+.place-row.selected { background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); }
+.place-row .ic { margin-top: 2px; color: var(--accent); }
+.place-row[data-kind="item"] .ic { color: var(--text-dim); }
+.place-row .main { flex: 1; min-width: 0; }
+.place-row .title, .place-row .sub { display: block; }
+.place-row .title { font-weight: 600; overflow-wrap: anywhere; }
+.place-row .sub { color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
+.group-title { margin: 8px 2px 0; color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* the place being looked at */
+.place { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
+.place h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
+.place-where { margin: 0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+.place-where .coords { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.place-notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.place-source { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-dim); font-size: 12px; }
+.place-source .btn { margin-left: auto; padding: 1px 8px; font-size: 12px; }
+.place-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--text-dim); font-size: 12px; }
+.owners { display: inline-flex; }
+.owner { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -4px; border: 2px solid var(--bg-section); border-radius: 50%; background: color-mix(in srgb, var(--accent) 35%, var(--bg-section)); color: var(--text); font-size: 10px; font-weight: 600; }
+.owner:first-child { margin-left: 0; }
+.place-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.place-actions .btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.place-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ---- the editor for a place: a dialog over the module ---- */
+.editor { position: absolute; inset: 0; z-index: 30; display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; background: color-mix(in srgb, var(--bg) 70%, transparent); }
+.editor-card { width: 100%; max-width: 460px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--bg-section); border: 1px solid var(--border); border-radius: 12px; }
+.editor-card h3 { margin: 0; }
+.editor-card label { display: flex; flex-direction: column; gap: 3px; color: var(--text-dim); font-size: 12px; }
+.editor-card input, .editor-card textarea { width: 100%; }
+.editor-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.editor-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.editor-buttons .grow { flex: 1; }
+
+/* ---- states that replace the map ---- */
+.state { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 24px; text-align: center; color: var(--text-dim); background: var(--bg); }
+.state h2 { margin: 0; color: var(--text); }
+.state p { margin: 0; max-width: 420px; }
+.state .ic { font-size: 30px; color: var(--accent); margin-bottom: 4px; }
+.skel { width: 100%; height: 100%; background: linear-gradient(90deg, var(--bg-section), color-mix(in srgb, var(--bg-section) 82%, var(--text)), var(--bg-section)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+/* no WebGL, or no map file: the map's place is taken by the list, full width */
+.app.listonly .stage { display: none; }
+.app.listonly .panel { width: 100%; border-left: 0; }
+
+/* ---- phones and narrow panes: the panel is a sheet over the map's foot ---- */
+@media (max-width: 719px) {
+  .app { display: block; }
+  .stage { position: absolute; inset: 0; }
+  .panel { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
+  .panel[data-state="peek"] .panel-body { display: none; }
+  .panel[data-state="peek"] { max-height: none; }
+  .sheet-handle { display: block; width: 38px; height: 4px; margin: 8px auto 0; border: 0; border-radius: 2px; background: var(--border); }
+  .panel-head { padding-top: 6px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .tool { height: 40px; }
+  .maplibregl-ctrl-group button { width: 40px; height: 40px; }
+  .maplibregl-ctrl-top-right { top: 104px; }
+  /* the credit stays above the sheet's peek */
+  .maplibregl-ctrl-bottom-right { bottom: 70px; }
+  .banner { bottom: 80px; }
+  .mapbar { flex-wrap: wrap; }
+  .search { flex: 1 1 100%; max-width: none; }
+  .search input { font-size: 16px; }
+  .app.listonly .panel { position: static; max-height: none; height: 100%; border-radius: 0; box-shadow: none; }
+  .app.listonly .panel[data-state="peek"] .panel-body { display: flex; }
+}
+
+/* a notice at the top of the panel (no WebGL, search unavailable, and so on) */
+.notice { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-dim); font-size: 12px; }
+.notice.warn { border-color: var(--danger); color: var(--text); }
