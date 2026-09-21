@@ -1,0 +1,34 @@
+{
+  "id": "maps",
+  "name": "Maps",
+  "version": "0.1.0",
+  "icon": "map-location-dot",
+  "description": "A map of the places your room cares about: add places by clicking, pasting coordinates or a map link, and see the places other modules' items carry.",
+  "author": "Coffee Pub",
+  "scope": ["room"],
+  "surfaces": {
+    "page": { "entry": "page.html" },
+    "panel": { "entry": "panel.html", "width": 520, "height": 600, "mode": ["dock", "float"] }
+  },
+  "permissions": [
+    { "key": "view", "label": "See the map and its places", "default": { "user": true, "guest": true, "moderator": true } },
+    { "key": "edit", "label": "Add, change and remove places", "default": { "user": true, "guest": false, "moderator": true } }
+  ],
+  "settings": [
+    { "key": "map", "label": "Map file", "type": "file", "scope": "server", "default": "", "help": "A PMTiles map file (a region or the world) you copied into the module-files/maps folder in the data folder. Nothing is shown until one is chosen." },
+    { "key": "search", "label": "Search address", "type": "url", "scope": "server", "default": "", "help": "Optional. The address of a Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). Leave it empty for a map without search." }
+  ],
+  "access": { "read": "view", "write": "edit" },
+  "actions": {
+    "provides": [
+      { "name": "addPlace", "label": "Put it on the map", "input": { "title": "string", "lat": "number", "lng": "number", "notes": "text?", "ref": "ref?" } }
+    ],
+    "uses": ["*"]
+  },
+  "refs": {
+    "produces": [
+      { "kind": "place", "name": "Place", "open": true, "backlinks": true, "key": "place:{id}", "card": { "title": "title", "subtitle": "notes", "place": "point" } }
+    ],
+    "consumes": ["*"]
+  }
+}

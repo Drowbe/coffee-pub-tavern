@@ -73,8 +73,10 @@ function buildModule(dir) {
   const isLib = (f) => f === libFile || (f.startsWith(`${manifest.id}-lib-`) && f.endsWith('.js'));
   const libNames = fs.readdirSync(path.join(dir, 'src')).filter(isLib).sort((x, y) => (x === libFile ? -1 : y === libFile ? 1 : x.localeCompare(y)));
   const lib = libNames.map((f) => read(f.slice(0, -3), 'js')).join('\n');
+  // Stylesheets of a library the page carries (src/<id>-lib-*.css, in name order) come before the page's own.
+  const cssLib = fs.readdirSync(path.join(dir, 'src')).filter((f) => f.startsWith(`${manifest.id}-lib-`) && f.endsWith('.css')).sort().map((f) => read(f.slice(0, -4), 'css')).join('\n');
   const build = (name) => read(name, 'html')
-    .replace('/*__CSS__*/', () => read(name, 'css'))
+    .replace('/*__CSS__*/', () => (name === manifest.id ? cssLib + '\n' : '') + read(name, 'css'))
     .replace('/*__JS__*/', () => read(name, 'js').replace('/*__LIB__*/', () => lib).replace(/<\/script/gi, '<\\/script'));
   // The page and the panel are one file; a dashboard widget is its own (src/<id>-widget.*).
   const shared = build(manifest.id);
