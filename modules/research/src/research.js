@@ -137,6 +137,41 @@
     return state.thumbs.get(key);
   };
 
+  // What other modules point at each item (room view only: a person's own items are never linked): asked once per item, cleared by the
+  // 'links' event. Shown as one pill per kind of linker: "Task: book the hotel", or "2 plans".
+  const links = new Map(); // item id -> cards of what points at it
+  const linkTarget = new WeakMap(); // a pill -> the pointer to open
+  const askedLinks = new Set();
+  async function loadLinks() {
+    if (view === 'my' || !tavern.refs || !tavern.refs.linksTo) return;
+    let changed = false;
+    for (const it of research.list().slice(0, 100)) {
+      if (askedLinks.has(it.id)) continue;
+      askedLinks.add(it.id);
+      try {
+        const cards = await tavern.refs.linksTo(research.refOf(it.kind, it.id));
+        if (cards.length) { links.set(it.id, cards); changed = true; }
+      } catch (err) { /* nothing points at it */ }
+    }
+    if (changed) render();
+  }
+  if (tavern.on) tavern.on('links', () => { askedLinks.clear(); links.clear(); loadLinks().catch(() => {}); });
+  function backlinkPills(cards) {
+    const groups = new Map();
+    for (const c of cards) { const k = c.kindName || c.kind || 'item'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+    const all = [...groups.entries()];
+    const pills = all.slice(0, 3).map(([kind, list]) => {
+      const el = clone('tpl-backlink');
+      setIcon(el.querySelector('[data-icon]'), (list[0].module && list[0].module.icon) || 'link');
+      fill(el, { label: list.length === 1 ? `${kind}: ${list[0].title}` : `${list.length} ${kind.toLowerCase()}s` });
+      el.title = list.map((c) => c.title).join(', ');
+      linkTarget.set(el, list[0].ref);
+      return el;
+    });
+    if (all.length > 3) { const more = clone('tpl-backlink-more'); fill(more, { label: `+${all.length - 3}` }); pills.push(more); }
+    return pills;
+  }
+
   function card(it) {
     const el = clone('tpl-card');
     el.dataset.id = it.id;
@@ -154,6 +189,8 @@
     const tags = slot(el, 'tags');
     tags.replaceChildren(...it.tags.map((t) => tagNode(t, 'tpl-tag')));
     tags.hidden = !it.tags.length;
+    const back = slot(el, 'backlinks');
+    if (back) { back.replaceChildren(...backlinkPills(links.get(it.id) || [])); back.hidden = !back.children.length; }
     return el;
   }
 
@@ -593,6 +630,7 @@
       }
       return;
     }
+    if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) tavern.refs.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
     if (t && t.dataset.action === 'suggest-tags') return suggestTags();
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
@@ -678,8 +716,10 @@
     closeMenu();
     closeEditor();
     state.uploads = [];
+    links.clear();
+    askedLinks.clear();
     render();
-    try { await ensureLoaded(view); if (view === next) render(); } catch (err) { say('This could not load: ' + message(err)); }
+    try { await ensureLoaded(view); if (view === next) { render(); loadLinks().catch(() => {}); } } catch (err) { say('This could not load: ' + message(err)); }
   }
   $('views').addEventListener('click', (ev) => { const b = ev.target.closest('.view'); if (b && !b.hidden) showView(b.dataset.view); });
   for (const b of $('views').querySelectorAll('.view')) hide(b, !allowed[b.dataset.view]);
@@ -697,6 +737,7 @@
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(KIND_ICON), ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins']))].filter(Boolean).map(wantIcon));
     state.loaded = true;
     render();
+    loadLinks().catch(() => {});
     checkAi();
     if (state.openWanted) { const f = state.openWanted; state.openWanted = null; f(); }
   } catch (err) {
