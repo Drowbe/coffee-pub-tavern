@@ -1,0 +1,22 @@
+{
+  "calendar": {
+    "version": "1.17.0",
+    "hash": "1267b2ac59448c0d"
+  },
+  "maps": {
+    "version": "0.1.1",
+    "hash": "73f69cd87424f5d7"
+  },
+  "polls": {
+    "version": "1.12.0",
+    "hash": "6fc97aa323097a27"
+  },
+  "todo": {
+    "version": "1.11.1",
+    "hash": "c221a4f0518dcabf"
+  },
+  "travel": {
+    "version": "0.3.1",
+    "hash": "9744a3e7bcc4bbd9"
+  }
+}

@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- `tools/check-module-versions.mjs` (part of `npm run check`) fails when a bundled module's `module.json` or `src/` changed and its version did not, because an installed copy only updates when the bundled version is newer (Maps' new `folder` setting missed that once). After bumping a version, `node tools/check-module-versions.mjs --update` records it.
+
 ### Changed
 - A module's admin-placed files now live inside the module's own folder: a `file` setting declares a `folder` in `module.json` (lowercase letters, digits and dashes) and the files go in `DATA_DIR/modules/<module id>/<folder>/`, for Maps `modules/maps/map-tiles/`. The top-level `module-files/` folder is gone (the server logs a note if one exists). Updating or uninstalling a module never deletes that folder, even when its saved data is wiped; the uninstall prompt says so. Verified against a running server: listing, range read, a file outside the folder refused, and a data wipe that removed a stray file next to the folder but kept the folder.
 
