@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- A room's own page has a **Modules** tab that holds everything about modules: which are on for the room and their settings for it. The tab only appears when there is something to set, and a module's settings for the room appear as soon as it is ticked. Verified in a browser: the tab hidden with no modules, present with modules, opening on it from the address, and the settings appearing after ticking a module.
+
 ### Added
 - Module settings. A module declares settings in its manifest (yes/no, a choice, a number or short text) with a scope: `server` (an admin), `room` (an admin or that room's moderators) or `person` (each person). Tavern draws the forms (the Modules tab, the room's page, a page for a room's moderators, the profile page), keeps the values, checks them against the declaration and tells the module (`tavern.settings.get()` and `onChange`). Changes to server and room settings are logged in the activity list. A setting holds plain data, never a secret. First users: Calendar 1.17.0 ("Open on", per person) and Polls 1.12.0 (close new polls after N days, server; suggested options on by default, room). Verified against a running server and in a browser: the three scopes and their permissions (a member ticked as moderator may set a room's; another member, another room and the server's are refused), validation, the values a module sees, the activity lines, the moderator page saving, the profile panel, and the Calendar opening on the chosen view. Not verified: the Modules-tab and room-page panels in a browser, and the moderator button on the rooms page.
 

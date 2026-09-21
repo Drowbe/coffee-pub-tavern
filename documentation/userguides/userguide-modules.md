@@ -26,11 +26,11 @@ The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not al
 
 ## Turn a module on in rooms
 
-A module with a room panel is off in every room until you turn it on. Either tick **Available in every room** on its card here, or open a room's own page from the Rooms tab and tick the module under **Modules**. The Modules section of a room only lists modules that are enabled.
+A module with a room panel is off in every room until you turn it on. Either tick **Available in every room** on its card here, or open a room's own page from the Rooms tab, go to its **Modules** tab (it appears when there are modules to set) and tick the module. The Modules section of a room only lists modules that are enabled.
 
 ## Settings
 
-A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an admin on the Modules tab, under the module cards. **Room** settings, for one room, are chosen by an admin (on the room's own page, under Modules) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
+A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an admin on the Modules tab, under the module cards. **Room** settings, for one room, are chosen by an admin (on the **Modules** tab of the room's own page, under the module list) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
 
 ## Who can use it
 

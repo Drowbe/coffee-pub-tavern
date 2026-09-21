@@ -20,6 +20,7 @@
     <nav class="subtabs" id="subtabs">
       <button class="subtab active" data-tab="room" type="button">Room</button>
       <button class="subtab" data-tab="members" type="button">Members</button>
+      <button class="subtab" data-tab="modules" type="button" hidden>Modules</button>
     </nav>
 
     <section class="tab-stack" id="tab-room">
@@ -62,18 +63,6 @@
           <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
         </div>
       </div>
-
-      <div class="panel" id="section-modules" hidden>
-        <h2>Modules</h2>
-        <p class="hint">Modules with a room panel. Tick one to make it available to this room's members, in the Modules button on the call toolbar. A module marked on for every room is set on the Modules tab of Manage.</p>
-        <div id="room-modules"></div>
-        <span class="status" id="room-modules-status"></span>
-      </div>
-      <div class="panel" id="section-module-settings" hidden>
-        <h2>Module settings</h2>
-        <p class="hint">What each module does in this room. Room moderators can change these too.</p>
-        <div id="module-settings"></div>
-      </div>
     </section>
 
     <section class="tab-stack" id="tab-members" hidden>
@@ -110,6 +99,20 @@
           <button class="btn btn-small btn-danger" id="guest-link-off" type="button" hidden>Turn off</button>
         </div>
         <p class="status" id="guest-link-status"></p>
+      </div>
+    </section>
+
+    <section class="tab-stack" id="tab-modules" hidden>
+      <div class="panel" id="section-modules" hidden>
+        <h2>Modules</h2>
+        <p class="hint">Modules with a room panel. Tick one to make it available to this room's members, in the Modules button on the call toolbar. A module marked on for every room is set on the Modules tab of Manage.</p>
+        <div id="room-modules"></div>
+        <span class="status" id="room-modules-status"></span>
+      </div>
+      <div class="panel" id="section-module-settings" hidden>
+        <h2>Module settings</h2>
+        <p class="hint">What each module does in this room. Room moderators can change these too.</p>
+        <div id="module-settings"></div>
       </div>
     </section>
   </main>

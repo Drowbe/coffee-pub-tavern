@@ -183,6 +183,8 @@ $('room-modules').addEventListener('change', async (event) => {
     const { module } = await api('PATCH', `/api/modules/${m.id}`, { rooms: [...rooms] });
     m.rooms = module.rooms;
     say($('room-modules-status'), 'saved');
+    // The module's own settings for this room appear (or go) with it.
+    renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; syncModulesTab(); });
   } catch (err) {
     box.checked = !box.checked;
     say($('room-modules-status'), err.message, true);
@@ -273,10 +275,14 @@ $('delete-btn').addEventListener('click', async () => {
 
 // Room / Members tabs, remembered in the address -- same pattern as
 // admin.html's and profile.html's tabs.
+let wantedTab = location.hash.slice(1); // what the address asked for, even before the Modules tab exists
 function selectTab(name) {
-  const tab = name === 'members' ? 'members' : 'room';
+  wantedTab = name;
+  // The Modules tab only exists when the room has something to set there (see syncModulesTab).
+  const tab = name === 'members' ? 'members' : name === 'modules' && !document.querySelector('[data-tab="modules"]').hidden ? 'modules' : 'room';
   $('tab-room').hidden = tab !== 'room';
   $('tab-members').hidden = tab !== 'members';
+  $('tab-modules').hidden = tab !== 'modules';
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
 }
@@ -286,6 +292,13 @@ $('subtabs').addEventListener('click', (event) => {
 });
 window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
 selectTab(location.hash.slice(1));
+
+// Show the Modules tab when either of its panels has something, and open on it when the address asks for it.
+function syncModulesTab() {
+  const tab = document.querySelector('[data-tab="modules"]');
+  tab.hidden = $('section-modules').hidden && $('section-module-settings').hidden;
+  selectTab(wantedTab);
+}
 
 async function init() {
   renderTopbar({ adminHref: '/admin#rooms', location: crumbLink('gear', 'Server Settings', '/admin#rooms') });
@@ -305,7 +318,8 @@ async function init() {
     users = usersRes.users;
     renderCrumb();
     await loadRoomModules();
-    renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; });
+    syncModulesTab();
+    renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; syncModulesTab(); });
   } catch (err) {
     location.href = '/admin#rooms';
     return;
