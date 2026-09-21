@@ -4,6 +4,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Travel 0.2.2 adds items from the shared bar at the bottom of the pane, like the To-do, Polls and Calendar, instead of a row in each day (the Ideas column keeps its own row, and a pane with no bar keeps them all). A typed day of the trip wins over the day in view. Bookings shows each reference code as a chip.
+
+### Fixed
+- Quick add read "sunset" as Sunday, "monument" as Monday and so on: a weekday now has to be a whole name or a usual short form (mon, tue, tues, wed, thu, thur, thurs, fri, sat, sun). Verified: "Sunset walk at 6pm" keeps its title.
+
 ### Added
 - Travel 0.2.0: a **Bookings** view (stays and journeys with reference codes), a **Money** view (costs with who paid and who shares them, each person's balance, and the fewest payments that settle it; a trip currency), following a poll's result (an item can follow the item it points at: when it reports a result the item keeps it and a stop appears on the day it names), dragging a trip item out to link a task, and dropping items from other modules onto items with the same drop menu the Calendar uses. Travel now asks to hear events (an admin approves it on update). Verified in a browser with seeded data: Bookings and Money with the right balances and settlement, and a followed poll closing once (the result on the item and exactly one stop added); the sums are also checked without a page (`tools/check-travel.mjs`, 23 checks). Not verified: dragging out and the drop-on-item menu in a real browser, and two people.
 

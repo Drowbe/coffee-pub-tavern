@@ -42,6 +42,8 @@
     conflicts: new Map(), // item id -> { patch }: my edit that met someone else's change
     editing: null, // { mode: 'item' | 'trip', id, kind, day }
     menuFor: null, // item id
+    currentDay: null, // the day in view (where a quick add goes)
+    hosted: Boolean(tavern.bar), // the host draws the quick-add bar, so the days' own add rows step aside
     deleteArmed: null,
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || 'Someone';
@@ -219,6 +221,8 @@
     const add = el.querySelector('.add-row');
     add.dataset.day = ideas ? '' : day;
     add.setAttribute('aria-label', `Add to ${ideas ? 'ideas' : dayShort(day)}`);
+    // With the host's bar the days' add rows hide; the Ideas one stays, the only quick way to add an idea.
+    add.classList.toggle('hosted', state.hosted && !ideas);
     if (!canEdit) add.remove();
     // What other modules hold on this day that the plan could take in.
     const box = el.querySelector('.suggestions');
@@ -303,10 +307,10 @@
   }
 
   // A list row in the style of the Decisions rows: an icon, a title and a line under it, and optionally a button.
-  function row(list, { icon, title, sub, button, id }) {
+  function row(list, { icon, title, sub, code, button, id }) {
     const r = clone('tpl-decision');
     setIcon(r.querySelector('[data-icon]'), icon);
-    fill(r, { title, sub });
+    fill(r, { title, sub, code });
     const btn = r.querySelector('[data-action="open"]');
     if (button) { btn.textContent = button; btn.dataset.action = 'edit-item'; btn.dataset.id = id; } else btn.remove();
     list.append(r);
@@ -334,9 +338,9 @@
       for (const i of mine) {
         const nights = stayNights(i);
         const line = kind === 'stay'
-          ? [dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address, i.confirm && `ref ${i.confirm}`].filter(Boolean).join(' · ')
-          : [dayTime(i), [i.from, i.to].filter(Boolean).join(' → '), i.confirm && `ref ${i.confirm}`].filter(Boolean).join(' · ');
-        row(ul, { icon: kind === 'stay' ? 'bed' : 'plane', title: i.title, sub: line, button: 'Open', id: i.id });
+          ? [dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address].filter(Boolean).join(' · ')
+          : [dayTime(i), [i.from, i.to].filter(Boolean).join(' → ')].filter(Boolean).join(' · ');
+        row(ul, { icon: kind === 'stay' ? 'bed' : 'plane', title: i.title, sub: line, code: i.confirm, button: 'Open', id: i.id });
       }
     }
   }
@@ -469,6 +473,7 @@
   const redraw = () => { if (queued) return; queued = true; Promise.resolve().then(() => { queued = false; render(); }); };
 
   function markCurrent(day) {
+    if (day) state.currentDay = day;
     for (const c of root.querySelectorAll('.daychip')) c.classList.toggle('current', c.dataset.day === day);
   }
   $('body').addEventListener('scroll', () => {
@@ -915,6 +920,26 @@
   });
 
   // --- what other modules may ask, and the first load ---------------------------------------------------------
+
+  // The shared bar at the bottom of the pane (as the To-do, Polls and Calendar have): what is typed becomes a stop on the day
+  // in view, or on the day it names when that is a day of the trip.
+  const defaultDay = () => {
+    const days = plan.days();
+    const today = ymd(new Date());
+    return days.includes(state.currentDay) ? state.currentDay : days.includes(today) ? today : days[0] || null;
+  };
+  if (tavern.bar) {
+    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add to the plan', placeholder: 'Add to the trip: lunch at noon' }] : []).catch(() => { state.hosted = false; redraw(); });
+    tavern.on('bar', (e) => {
+      if (e.id !== 'add' || !canEdit) return;
+      if (!plan.days().length) return openEditor('trip');
+      const day = defaultDay();
+      if (!e.value) return openEditor('item', null, day);
+      const parsed = tavern.util.parseWhen ? tavern.util.parseWhen(e.value) : { title: e.value };
+      const named = parsed.date && plan.days().includes(parsed.date) ? parsed.date : day;
+      attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || e.value, date: named, time: parsed.time || null }));
+    });
+  }
 
   plan.provide();
   plan.subscribe(() => { if (state.loaded) redraw(); });

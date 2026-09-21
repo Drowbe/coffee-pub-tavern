@@ -16,7 +16,7 @@ Open the Travel pane in a room. With no trip yet it offers **Start planning**: g
 
 ## Add to a day
 
-- Type in the row at the bottom of a day and press Enter to add a stop: "lunch at the pier at 1pm" adds "lunch at the pier" at 13:00. Press the plus with nothing typed for the full form.
+- Type in the field at the bottom of the pane (with the plus button) and press Enter to add a stop to the day in view: "lunch at the pier at 1pm" adds "lunch at the pier" at 13:00, and a day of the trip in what you type ("museum oct 3 at 2pm") puts it on that day instead. Press the plus with nothing typed for the full form. When the pane has no bottom bar, each day has its own add row.
 - In the form, choose **Stop**, **Stay**, **Journey** or **Note**. A stop has a time, a length, a category (things to do, food, stay, travel or other), a place and an address. A stay has a check-in time, a check-out day and a booking reference, and appears on every night it covers. A journey has where from and to, a departure time and how long it takes, and a booking reference. Tick the people it belongs to under **Whose is it**.
 - **Ideas** (a column after the last day) holds things with no day yet. Choose **Back to ideas** in an item's menu, or add to it directly.
 
