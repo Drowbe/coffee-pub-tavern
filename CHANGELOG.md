@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- The Modules tab shows how many module updates wait as the same count bubble as the header gear (9+ past nine) instead of "Modules (3 updates)", with a tooltip.
+
+### Changed
 - Travel 0.2.2 adds items from the shared bar at the bottom of the pane, like the To-do, Polls and Calendar, instead of a row in each day (the Ideas column keeps its own row, and a pane with no bar keeps them all). A typed day of the trip wins over the day in view. Bookings shows each reference code as a chip.
 
 ### Fixed
