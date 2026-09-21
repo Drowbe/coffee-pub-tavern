@@ -14,7 +14,7 @@ body { margin: 0; overflow: hidden; }
 .msg { padding: 16px; color: var(--text-dim); }
 .error { margin: 0; color: var(--danger); }
 
-/* ---- the frame: a map with a panel beside it (wide) or a sheet over its foot (phone) ---- */
+/* ---- the frame: the map fills the pane; what is selected shows in a callout over it ---- */
 .app { position: relative; display: flex; height: 100%; background: var(--bg); }
 .stage { position: relative; flex: 1; min-width: 0; min-height: 0; }
 .map { position: absolute; inset: 0; background: var(--bg-section); }
@@ -64,13 +64,13 @@ body { margin: 0; overflow: hidden; }
 
 /* a card's category (do, eat, stay, travel, other) gives its pin and row the same colour family as the Travel cards and the Places cards,
    turned from the accent; a card with no category keeps the module-based look above. */
-.pin[data-cat], .place-row[data-cat] { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
-@supports (color: oklch(from red l c h)) { .pin[data-cat], .place-row[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
-.pin[data-cat="do"], .place-row[data-cat="do"] { --turn: 95; }
-.pin[data-cat="eat"], .place-row[data-cat="eat"] { --turn: 0; }
-.pin[data-cat="stay"], .place-row[data-cat="stay"] { --turn: 255; }
-.pin[data-cat="travel"], .place-row[data-cat="travel"] { --turn: 195; }
-.pin[data-cat="other"], .place-row[data-cat="other"] { --turn: 25; }
+.pin[data-cat] { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
+@supports (color: oklch(from red l c h)) { .pin[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+.pin[data-cat="do"] { --turn: 95; }
+.pin[data-cat="eat"] { --turn: 0; }
+.pin[data-cat="stay"] { --turn: 255; }
+.pin[data-cat="travel"] { --turn: 195; }
+.pin[data-cat="other"] { --turn: 25; }
 .pin[data-cat]:not(.selected) { --pin: var(--tone); --pin-text: var(--bg); }
 .pin[data-cat]:not(.selected) .pin-body { border-color: var(--bg-section); }
 .pin.selected[data-cat] .pin-body { border-color: var(--tone); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 40%, transparent), 0 2px 6px color-mix(in srgb, black 40%, transparent); }
@@ -85,46 +85,8 @@ body { margin: 0; overflow: hidden; }
 .pin.draft { --pin: var(--bg-section); --pin-text: var(--accent); }
 .pin.draft .pin-body { border-style: dashed; border-color: var(--accent); }
 
-/* ---- the panel: the place list and the place being looked at ---- */
-.panel { flex: none; width: 340px; min-height: 0; display: flex; flex-direction: column; background: var(--bg-section); border-left: 1px solid var(--border); }
-.panel-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-.panel-head h2 { margin: 0; font-size: 15px; flex: 1; }
-.panel-head .btn, .icon-btn { padding: 2px 8px; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }
 .icon-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
-.panel-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-.sheet-handle { display: none; }
-
-/* a row of the list */
-.place-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.place-row:hover, .place-row.selected { border-color: color-mix(in srgb, var(--accent) 65%, var(--border)); }
-.place-row.selected { background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); }
-.place-row .ic { margin-top: 2px; color: var(--accent); }
-.place-row[data-kind="item"] .ic { color: var(--text-dim); }
-.place-row[data-cat] { border-color: color-mix(in srgb, var(--tone) 38%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 10%, var(--bg-card)), color-mix(in srgb, var(--tone) 4%, var(--bg-card))); }
-.place-row[data-cat] .ic { color: var(--tone); }
-.place-row[data-cat]:hover, .place-row[data-cat].selected { border-color: var(--tone); }
-.place-row .main { flex: 1; min-width: 0; }
-.place-row .title, .place-row .sub { display: block; }
-.place-row .title { font-weight: 600; overflow-wrap: anywhere; }
-.place-row .sub { color: var(--text-dim); font-size: 12px; overflow-wrap: anywhere; }
-.group-title { margin: 8px 2px 0; color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-
-/* the place being looked at */
-.place { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
-.place h3 { margin: 0; font-size: 17px; overflow-wrap: anywhere; }
-.place-where { margin: 0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
-.place-where .coords { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.place-notes { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.place-source { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-dim); font-size: 12px; }
-.place-source .btn { margin-left: auto; padding: 1px 8px; font-size: 12px; }
-.place-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--text-dim); font-size: 12px; }
-.owners { display: inline-flex; }
-.owner { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -4px; border: 2px solid var(--bg-section); border-radius: 50%; background: color-mix(in srgb, var(--accent) 35%, var(--bg-section)); color: var(--text); font-size: 10px; font-weight: 600; }
-.owner:first-child { margin-left: 0; }
-.place-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.place-actions .btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.place-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* ---- the editor for a place: a dialog over the module ---- */
 .editor { position: absolute; inset: 0; z-index: 30; display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; background: color-mix(in srgb, var(--bg) 70%, transparent); }
@@ -144,25 +106,12 @@ body { margin: 0; overflow: hidden; }
 .skel { width: 100%; height: 100%; background: linear-gradient(90deg, var(--bg-section), color-mix(in srgb, var(--bg-section) 82%, var(--text)), var(--bg-section)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
-/* no WebGL, or no map file: the map's place is taken by the list, full width */
-.app.listonly .stage { display: none; }
-.app.listonly .panel { width: 100%; border-left: 0; }
 
-/* ---- phones and narrow panes: the panel is a sheet over the map's foot ---- */
+/* ---- phones and narrow panes ---- */
 /* phones and narrow panes: the script sets .narrow on .app from the pane width (under 720 px), not the window's */
 .app.narrow { display: block; }
 
 .app.narrow .stage { position: absolute; inset: 0; }
-
-.app.narrow .panel { padding-bottom: 24px; position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
-
-.app.narrow .panel[data-state="peek"] .panel-body { display: none; }
-
-.app.narrow .panel[data-state="peek"] { max-height: none; }
-
-.app.narrow .sheet-handle { display: block; width: 38px; height: 4px; margin: 8px auto 0; border: 0; border-radius: 2px; background: var(--border); }
-
-.app.narrow .panel-head { padding-top: 6px; }
 
 .app.narrow .icon-btn { width: 40px; height: 40px; }
 
@@ -172,10 +121,9 @@ body { margin: 0; overflow: hidden; }
 
 .app.narrow .maplibregl-ctrl-top-right { top: 104px; }
 
-/* the credit stays above the sheet's peek */
 .app.narrow .maplibregl-ctrl-bottom-right { bottom: 4px; right: 8px; z-index: 6; }
 
-.app.narrow .banner { bottom: 80px; }
+.app.narrow .banner { bottom: 44px; }
 
 .app.narrow .mapbar { flex-wrap: wrap; }
 
@@ -183,17 +131,8 @@ body { margin: 0; overflow: hidden; }
 
 .app.narrow .search input { font-size: 16px; }
 
-.app.narrow.listonly .panel { position: static; max-height: none; height: 100%; border-radius: 0; box-shadow: none; }
-
-.app.narrow.listonly .panel[data-state="peek"] .panel-body { display: flex; }
-
-/* a notice at the top of the panel (no WebGL, search unavailable, and so on) */
-.notice { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-dim); font-size: 12px; }
-.notice.warn { border-color: var(--danger); color: var(--text); }
-
 .state p + p { margin-top: 12px; }
 .state a.btn { text-decoration: none; }
-.app.listonly .sheet-handle, .app.listonly [data-action="close-panel"] { display: none; }
 
 /* the loading skeleton fills the map, with no padding around it */
 .state:has(> .skel) { padding: 0; }
@@ -205,3 +144,30 @@ body { margin: 0; overflow: hidden; }
 .pin.candidate .pin-label { border: 1px dashed var(--accent); }
 @keyframes candidate-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent), 0 2px 6px color-mix(in srgb, black 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .pin.candidate .pin-body { animation: none; } }
+
+/* ---- the callout: the selected place, over the map (the list is the Places module) ---- */
+.callout-box { position: absolute; z-index: 5; left: 10px; bottom: 30px; width: min(360px, calc(100% - 20px)); pointer-events: none; }
+.callout-box > * { pointer-events: auto; }
+.callout { --turn: 0; --tone: var(--accent); position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 12px; border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--border)); border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 12%, var(--bg-section)), var(--bg-section) 70%); box-shadow: 0 12px 32px color-mix(in srgb, black 35%, transparent); animation: callout-in 0.16s ease-out; }
+.callout[data-kind="item"] { --tone: var(--text-dim); }
+.callout[data-cat] { --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
+@supports (color: oklch(from red l c h)) { .callout[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+.callout[data-cat="do"] { --turn: 95; }
+.callout[data-cat="eat"] { --turn: 0; }
+.callout[data-cat="stay"] { --turn: 255; }
+.callout[data-cat="travel"] { --turn: 195; }
+.callout[data-cat="other"] { --turn: 25; }
+.callout::before { content: ""; position: absolute; left: 14px; top: -1px; width: 36px; height: 4px; border-radius: 0 0 4px 4px; background: var(--tone); }
+.callout h3 { margin: 4px 30px 0 0; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.callout-where { margin: 0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
+.callout-where .coords { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 11px; opacity: 0.85; }
+.callout-source { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 8px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-dim); font-size: 12px; }
+.callout-source .btn { margin-left: auto; padding: 1px 8px; font-size: 12px; }
+.callout-close { position: absolute; top: 8px; right: 8px; }
+.callout-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.callout-actions .btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.callout-actions .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.app.narrow .callout-box { left: 8px; right: 8px; bottom: 30px; width: auto; }
+.app.narrow .callout-actions .btn { min-height: 40px; }
+@keyframes callout-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .callout { animation: none; } }

@@ -42,7 +42,7 @@ if (theme === 'light') document.documentElement.classList.add('light');
 if (!q.has('bare')) {
   document.body.className = 'harness';
   const opt = (name, values, cur) => `<label>${name} <select data-k="${name}">${values.map((v) => `<option${v === cur ? ' selected' : ''}>${v}</option>`).join('')}</select></label>`;
-  document.body.insertAdjacentHTML('beforeend', `<div class="harness-bar">${opt('state', ['normal', 'selected', 'selected-item', 'search', 'adding', 'editor', 'noplaces', 'nosearch', 'loading', 'nomap-admin', 'nomap-member', 'nowebgl', 'error'], state)}${opt('theme', ['dark', 'light'], theme)}${opt('size', ['phone', 'pane', 'wide'], size)}<span class="hint">phone 390 wide, pane 560, wide 1100</span></div>`);
+  document.body.insertAdjacentHTML('beforeend', `<div class="harness-bar">${opt('state', ['normal', 'selected', 'selected-item', 'search', 'candidates', 'adding', 'noplaces', 'nosearch', 'loading', 'nomap-admin', 'nomap-member', 'nowebgl', 'error'], state)}${opt('theme', ['dark', 'light'], theme)}${opt('size', ['phone', 'pane', 'wide'], size)}<span class="hint">phone 390 wide, pane 560, wide 1100</span></div>`);
   const w = { phone: 390, pane: 560, wide: 1100 }[size];
   const f = document.createElement('iframe');
   f.className = 'harness-frame';
@@ -84,45 +84,32 @@ if (!q.has('bare')) {
     return `<div class="pinpos" style="left:${p.x}%;top:${p.y}%"><button class="pin${selected ? ' selected' : ''}" type="button" data-id="${p.id}" data-kind="${p.kind}" aria-label="${p.title}"><span class="pin-body">${ic(icon)}</span><span class="pin-label">${p.title}</span></button></div>`;
   };
   const cluster = `<div class="pinpos" style="left:60%;top:56%"><button class="pin cluster" type="button" data-kind="cluster" aria-label="3 places, zoom in"><span class="pin-body">3</span></button></div>`;
-  const row = (p, selected) => `<button class="place-row${selected ? ' selected' : ''}" type="button" data-id="${p.id}" data-kind="${p.kind}">${ic(p.kind === 'item' ? SRC[p.src][0] : 'location-dot')}<span class="main"><span class="title">${p.title}</span><span class="sub">${p.kind === 'item' ? `${SRC[p.src][1]} · ${p.sub}` : p.where}</span></span></button>`;
-  const list = () => {
-    const own = places.filter((p) => p.kind === 'place'), items = places.filter((p) => p.kind === 'item');
-    if (!places.length) return `<p class="hint" data-slot="empty">No places yet. Click the map to add one${state === 'nosearch' ? '' : ', or search for a place'}. Places on your trip, events and tasks appear here too.</p>`;
-    return `${own.length ? `<div class="group-title">Added here</div>${own.map((p) => row(p, p.id === sel)).join('')}` : ''}${items.length ? `<div class="group-title">From other modules</div>${items.map((p) => row(p, p.id === sel)).join('')}` : ''}`;
-  };
-  const card = (p) => `<article class="place" data-id="${p.id}" data-kind="${p.kind}">
-    <h3 data-slot="title">${p.title}</h3>
-    <p class="place-where" data-slot="where">${p.where} · <span class="coords" data-slot="coords">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></p>
-    ${p.notes ? `<p class="place-notes" data-slot="notes">${p.notes}</p>` : ''}
-    ${p.kind === 'item' ? `<div class="place-source" data-slot="source">${ic(SRC[p.src][0])} <span>from ${SRC[p.src][1]} · ${p.sub}</span><button class="btn" type="button" data-action="open">Open</button></div>` : ''}
-    <div class="place-meta">${owners(p.owners)}</div>
-    <div class="place-actions"><a class="btn primary" data-action="open-in-maps" href="geo:${p.lat},${p.lng}">${ic('arrow-up-right-from-square')} Open in my maps app</a><button class="btn" type="button" data-action="copy-coords">${ic('copy')} Copy coordinates</button>${p.kind === 'place' ? `<button class="btn" type="button" data-action="edit">${ic('pen')} Edit</button><button class="btn btn-danger" type="button" data-action="delete">${ic('trash')} Delete</button>` : ''}</div></article>`;
   const selectedP = sel && P.find((p) => p.id === sel);
-  const panel = (open) => `<aside class="panel" id="panel" data-state="${open ? 'open' : 'peek'}"><button class="sheet-handle" type="button" data-action="toggle-sheet" aria-label="Show or hide the list"></button>
-    <header class="panel-head">${selectedP ? `<button class="icon-btn" type="button" data-action="back" aria-label="Back to the list">${ic('chevron-up').replace('<svg', '<svg style="transform:rotate(-90deg)"')}</button><h2>Place</h2>` : `<h2>Places</h2><span class="hint" data-slot="count">${places.length}</span>`}<button class="icon-btn" type="button" data-action="close-panel" aria-label="Close">${ic('xmark')}</button></header>
-    <div class="panel-body" id="panel-body">${selectedP ? card(selectedP) : list()}</div></aside>`;
+  const callout = (p) => `<div class="callout-box" id="callout"><div class="callout" data-kind="${p.kind}" data-cat="${p.cat || 'stay'}"><button class="icon-btn callout-close" type="button" data-action="close-callout" aria-label="Close">${ic('xmark')}</button>
+    <h3 data-slot="title">${p.title}</h3>
+    <p class="callout-where"><span data-slot="where">${p.where}</span> <span class="coords" data-slot="coords">${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}</span></p>
+    ${p.kind === 'item' ? `<p class="callout-source" data-slot="source">${ic(SRC[p.src][0])} <span data-slot="from">from ${SRC[p.src][1]} · ${p.sub}</span><button class="btn" type="button" data-action="open">Open</button></p>` : ''}
+    <div class="callout-actions"><a class="btn primary" data-action="open-in-maps" href="geo:${p.lat},${p.lng}">${ic('arrow-up-right-from-square')} Open in my maps app</a><button class="btn" type="button" data-action="copy-coords">${ic('copy')} Copy coordinates</button></div></div></div>`;
 
   const search = (open) => state === 'nosearch' ? '' : `<div class="search" id="search">${ic('magnifying-glass')}<input type="search" placeholder="Search for a place" aria-label="Search for a place" ${open ? 'value="belém"' : ''}>${open ? `<ul class="results" id="results"><li><button class="result on" type="button">${ic('location-dot')}<span>Belém Tower<small>Av. Brasília, Lisbon, Portugal</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Belém, Lisbon<small>Neighbourhood, Portugal</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Pastéis de Belém<small>R. de Belém 84–92, Lisbon</small></span></button></li></ul>` : ''}</div>`;
-  const tools = `<div class="tools"><button class="tool${state === 'adding' || state === 'editor' ? ' on' : ''}" type="button" data-action="add-place">${ic('plus')} Add place</button><button class="tool" type="button" data-action="toggle-panel">${ic('list')} <span class="count" data-slot="count">${places.length}</span></button></div>`;
+  const tools = `<div class="tools"><button class="tool${state === 'adding' || state === 'editor' ? ' on' : ''}" type="button" data-action="add-place">${ic('plus')} Add place</button></div>`;
   const zoom = `<div class="maplibregl-ctrl-top-right"><div class="maplibregl-ctrl-group"><button type="button" aria-label="Zoom in">${ic('plus')}</button><button type="button" aria-label="Zoom out">${ic('minus')}</button><button type="button" aria-label="Show my location">${ic('location-crosshairs')}</button></div></div>`;
   const attrib = `<div class="maplibregl-ctrl-bottom-right"><div class="attribution" data-slot="attribution">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</div></div>`;
-  const editor = `<div class="editor" id="editor"><form class="editor-card" id="form"><h3 id="editor-title">Add a place</h3><label>Name<input name="title" type="text" maxlength="120" value="Sunset viewpoint" required></label><div class="editor-row"><label>Latitude<input name="lat" type="text" value="38.7133" inputmode="decimal"></label><label>Longitude<input name="lng" type="text" value="-9.1394" inputmode="decimal"></label></div><label>Notes<textarea name="notes" rows="3" maxlength="1000"></textarea></label><div class="editor-buttons"><button class="btn btn-primary" type="submit">Save</button><button class="btn" type="button" data-action="cancel">Cancel</button><span class="grow"></span></div></form></div>`;
   const stateBlock = (icn, h, p, extra = '') => `<div class="state" id="state">${ic(icn)}<h2>${h}</h2><p>${p}</p>${extra}</div>`;
 
   let body;
   if (state === 'loading') body = `<div class="app" id="app"><div class="stage"><div class="map"><div class="skel"></div></div></div></div>`;
   else if (state === 'nomap-admin') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'No map yet', 'Maps needs a map file on this server. Put a PMTiles file in the data folder, then pick it in Manage > Modules > Maps > Settings.', '<p><a class="btn btn-primary" data-action="open-settings" href="#">Open the Maps settings</a></p>')}</div></div>`;
-  else if (state === 'nomap-member') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'Maps is not set up', 'An admin needs to add a map file to this server first. Your places are still listed below.')}</div></div>`;
+  else if (state === 'nomap-member') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'Maps is not set up', 'An admin needs to add a map file to this server first. Your places are in the Places module.')}</div></div>`;
   else if (state === 'error') body = `<div class="app" id="app"><div class="stage">${stateBlock('triangle-exclamation', 'The map could not load', 'The map file did not answer. Try again, or ask an admin to check it.', '<p><button class="btn" type="button" data-action="retry">Try again</button></p>')}</div></div>`;
-  else if (state === 'nowebgl') body = `<div class="app listonly" id="app">${panel(true).replace('<div class="panel-body" id="panel-body">', '<div class="panel-body" id="panel-body"><p class="notice" data-slot="notice">The map needs WebGL, which this device or browser does not have, so the places are listed here.</p>')}</div>`;
+  else if (state === 'nowebgl') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'This device cannot draw the map', 'Your places are in the Places module, and each opens in your own maps app from there.')}</div></div>`;
   else {
-    const pins = places.map((p) => pin(p, p.id === sel)).join('') + (places.length ? cluster : '') + (state === 'adding' || state === 'editor' ? `<div class="pinpos" style="left:48%;top:46%"><button class="pin draft" type="button" aria-label="New place"><span class="pin-body">${ic('plus')}</span></button></div>` : '');
+    const pins = places.map((p) => pin(p, p.id === sel)).join('') + (places.length ? cluster : '') + (state === 'candidates' ? [[30, 62, 'Colosseum'], [52, 40, 'Trattoria al Colosseo'], [70, 58, 'Colosseo (metro)']].map(([x, y, t]) => `<div class="pinpos" style="left:${x}%;top:${y}%"><button class="pin candidate" type="button" aria-label="${t}"><span class="pin-body">${ic('location-dot')}</span><span class="pin-label">${t}</span></button></div>`).join('') : '') + (state === 'adding' ? `<div class="pinpos" style="left:48%;top:46%"><button class="pin draft" type="button" aria-label="New place"><span class="pin-body">${ic('plus')}</span></button></div>` : '');
     const banner = state === 'adding' ? `<div class="banner" id="banner">${ic('crosshairs')} <span>Click the map to place a pin</span><button class="btn" type="button" data-action="cancel">Cancel</button></div>` : '';
     const open = ['selected', 'selected-item', 'normal', 'noplaces', 'search', 'nosearch'].includes(state) && (state !== 'search') ;
-    body = `<div class="app" id="app"><div class="stage"><div class="map${state === 'adding' ? ' adding' : ''}" id="map">${fake}${pins}</div><div class="mapbar">${search(state === 'search')}${tools}</div>${zoom}${attrib}${banner}</div>${panel(size === 'wide' || size === 'pane' ? true : !!sel || state === 'noplaces')}${state === 'editor' ? editor : ''}</div>`;
+    body = `<div class="app" id="app"><div class="stage"><div class="map${state === 'adding' ? ' adding' : ''}" id="map">${fake}${pins}</div><div class="mapbar">${search(state === 'search')}${tools}</div>${zoom}${attrib}${banner}${selectedP ? callout(selectedP) : ''}</div></div>`;
   }
   document.body.insertAdjacentHTML('beforeend', body);
-  if (size === 'phone' && sel) document.getElementById('panel').dataset.state = 'open';
 }
 </script>
 </body>
