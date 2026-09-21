@@ -5,7 +5,7 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
-- Research 0.1.7: backlink pills on a card (room view): one pill per kind of item that points at it, "Task: book the hotel" or "2 plans", with the linking module's icon; a click opens the first. Asked once per item and refreshed when links change. Not verified in a browser.
+- Research 0.1.8: backlink pills on a card (room view): one pill per kind of item that points at it, "Task: book the hotel" or "2 plans", with the linking module's icon; a click opens the first. Asked once per item and refreshed when links change. Not verified in a browser.
 
 ### Added
 - Research 0.1.6: dropping an item from another module on the pane starts a note about it (titled from the item, linked to it in the room view; a note in Mine is not linked), with the pane framed and a hint shown while something is over it; a photo whose picture will not load shows a placeholder. Not verified in a browser: the drag and drop, and the suggest-tags button.
