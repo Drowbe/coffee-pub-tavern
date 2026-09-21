@@ -4,11 +4,11 @@ Pre-made background images that people can choose in place of uploading their ow
 
 ## Format
 
-WebP. A full background is up to 2560 px wide and about 250 KB; a pattern that repeats is 512 to 1024 px and about 60 KB. Photos and painted pieces are lossy at quality 80 to 85; flat patterns are lossless. Give each image a small copy 400 px wide named with `-thumb` (the picker shows many at once).
+WebP. A full background is up to 2560 px wide and about 250 KB; a pattern that repeats is 512 to 1024 px and about 60 KB. Photos and painted pieces are lossy at quality 80 to 85; flat patterns are lossless. There are no separate thumbnails: the images are small enough to show as they are, and the picker loads them as they scroll into view. If one is large (over about 300 KB), make it smaller.
 
 ## Names
 
-`background-<theme>-<style>-<name>-<index>.webp`, for example `background-fantasy-pattern-orange-01.webp`, with a thumbnail `background-fantasy-pattern-orange-01-thumb.webp`.
+`background-<theme>-<style>-<name>-<index>.webp`, for example `background-fantasy-pattern-orange-01.webp`.
 
 | Part | Meaning | Example |
 |---|---|---|
