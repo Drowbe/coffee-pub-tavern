@@ -69,6 +69,7 @@ function render() {
     renderIconGridSelection();
   }
   $('e-allow-guests').checked = room.allowGuests;
+  $('e-ai-off').checked = Boolean(room.aiOff);
 
   const img = $('room-image');
   img.hidden = !room.hasImage;
@@ -208,6 +209,15 @@ $('save-btn').addEventListener('click', async () => {
     renderCrumb();
     say($('save-status'), 'saved');
   } catch (err) {
+    say($('save-status'), err.message, true);
+  }
+});
+
+$('e-ai-off').addEventListener('change', async (event) => {
+  try {
+    room = (await api('PATCH', `/api/rooms/${room.id}`, { aiOff: event.target.checked })).room;
+  } catch (err) {
+    event.target.checked = Boolean(room.aiOff);
     say($('save-status'), err.message, true);
   }
 });

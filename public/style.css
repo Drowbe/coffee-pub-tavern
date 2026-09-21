@@ -4743,3 +4743,15 @@ body.at-table .module-nav {
 .cache-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .cache-older { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); }
 .cache-older input { width: 72px; text-align: center; }
+
+/* the AI service panel (Modules tab) */
+.ai-fields { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
+.ai-fields label { display: flex; flex-direction: column; gap: 4px; }
+.ai-fields [hidden] { display: none; }
+.ai-key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ai-key-row input { flex: 1; min-width: 200px; }
+.ai-usage { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.ai-usage h3 { margin: 0 0 8px; font-size: 14px; }
+.ai-meter { height: 8px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; }
+.ai-meter span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width 0.3s ease; }
+.ai-meter.warn span { background: var(--danger); }

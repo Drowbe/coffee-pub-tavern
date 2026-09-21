@@ -175,8 +175,9 @@ function renderRoles({ permissions, roles }) {
       rows.push(`<tr class="roles-group"><th colspan="${ROLE_COLUMNS.length + 1}">${escapeHtml(group)}</th></tr>`);
     }
     rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map(([role]) => {
-      const locked = role === 'admin';
-      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${roles[role][p.key] ? 'checked' : ''} ${locked ? 'disabled title="Admins can always do this"' : ''} aria-label="${escapeHtml(p.label)}, ${role}"></td>`;
+      const noGuestAi = role === 'guest' && p.key === 'useAi'; // the server refuses guests whatever the box says
+      const locked = role === 'admin' || noGuestAi;
+      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${roles[role][p.key] && !noGuestAi ? 'checked' : ''} ${locked ? `disabled title="${noGuestAi ? 'Guests can never use AI' : 'Admins can always do this'}"` : ''} aria-label="${escapeHtml(p.label)}, ${role}"></td>`;
     }).join('') + '</tr>');
   }
   rows.push('</tbody>');
@@ -711,6 +712,7 @@ async function loadModules() {
   bundledModules = data.bundled || [];
   renderModules();
   loadActivity();
+  loadAi();
   // Say on the tab itself when an update is waiting, so it is seen without opening it.
   const updates = bundledModules.filter((b) => b.update).length;
   setUpdateBadge(updates);
@@ -820,9 +822,74 @@ async function loadActivity() {
 }
 setInterval(() => { if (!document.hidden && !$('tab-modules').hidden) loadActivity(); }, 15000);
 
+// The AI service (server-wide). The key is write-only: the page is told only whether one is set, and a typed key replaces it.
+const AI_NOTICES = {
+  none: 'AI is off. A module that asks for it is told AI is not set up.',
+  openai: 'Sends the items a person selects, and their question, to the address below. For a hosted service that means to that company, under its terms and your account. For a model you run yourself (Ollama, LM Studio, llama.cpp, vLLM) nothing leaves your network. Only what a person selects is sent, never another room.',
+  anthropic: 'Sends the items a person selects, and their question, to Anthropic under your account and its terms. Only what a person selects is sent, never another room.',
+};
+let aiState = { provider: 'none', keySet: false, keyFromEnvironment: false };
+let aiKeyMode = 'keep'; // keep | replace | clear
+function syncAiPanel() {
+  const provider = $('ai-provider').value;
+  $('ai-notice').textContent = AI_NOTICES[provider] || '';
+  $('ai-notice').hidden = !AI_NOTICES[provider];
+  for (const el of $('ai-panel').querySelectorAll('[data-ai-for]')) el.hidden = !el.dataset.aiFor.split(' ').includes(provider);
+  $('ai-address-hint').textContent = provider === 'anthropic' ? '(optional; the default is api.anthropic.com)' : provider === 'openai' ? '(required: an https address, or your own server\'s)' : '';
+  const set = (aiState.keySet || aiKeyMode === 'replace') && aiKeyMode !== 'clear';
+  $('ai-key-state').textContent = aiState.keyFromEnvironment ? 'set by the server\'s environment' : aiKeyMode === 'clear' ? 'will be removed' : set ? 'set' : 'not set';
+  $('ai-key-state').classList.toggle('on', set);
+  $('ai-key').hidden = aiKeyMode !== 'replace';
+  $('ai-key-replace').hidden = aiState.keyFromEnvironment;
+  $('ai-key-replace').textContent = aiKeyMode === 'replace' ? 'Cancel' : aiState.keySet ? 'Replace the key' : 'Set a key';
+  $('ai-key-clear').hidden = aiState.keyFromEnvironment || !aiState.keySet || aiKeyMode === 'clear';
+  $('ai-key-help').textContent = aiState.keyFromEnvironment ? 'The key comes from the server\'s environment (TAVERN_AI_KEY); change it there.' : 'The key is kept on the server and is never shown again.';
+}
+function showAi({ ai, usage }) {
+  aiState = ai;
+  aiKeyMode = 'keep';
+  $('ai-provider').value = ai.provider || 'none';
+  $('ai-address').value = ai.address || '';
+  $('ai-model').value = ai.model || '';
+  $('ai-cap').value = String(ai.monthlyTokens || 0);
+  $('ai-key').value = '';
+  syncAiPanel();
+  const cap = usage.monthlyTokens || 0;
+  $('ai-usage').hidden = ai.provider === 'none';
+  const pct = cap ? Math.min(100, Math.round((usage.tokens / cap) * 100)) : 0;
+  $('ai-meter').hidden = !cap;
+  $('ai-meter').setAttribute('aria-valuenow', String(pct));
+  $('ai-meter-fill').style.width = pct + '%';
+  $('ai-meter').classList.toggle('warn', pct >= 90);
+  const tasks = Object.entries(usage.byTask || {}).map(([k, v]) => k + ' ' + Number(v).toLocaleString()).join(', ');
+  $('ai-usage-text').textContent = Number(usage.tokens || 0).toLocaleString() + ' tokens in ' + Number(usage.calls || 0).toLocaleString() + ' calls' + (cap ? ', ' + pct + '% of the ' + cap.toLocaleString() + ' allowance' : ', no limit set') + (tasks ? '. By task: ' + tasks + '.' : '.');
+}
+async function loadAi() {
+  try { showAi(await api('GET', '/api/ai')); } catch { $('ai-panel').hidden = true; }
+}
+$('ai-provider').addEventListener('change', syncAiPanel);
+$('ai-key-replace').addEventListener('click', () => { aiKeyMode = aiKeyMode === 'replace' ? 'keep' : 'replace'; $('ai-key').value = ''; syncAiPanel(); if (aiKeyMode === 'replace') $('ai-key').focus(); });
+$('ai-key-clear').addEventListener('click', () => { aiKeyMode = 'clear'; syncAiPanel(); });
+$('ai-save').addEventListener('click', async () => {
+  const body = { provider: $('ai-provider').value, address: $('ai-address').value.trim(), model: $('ai-model').value.trim(), monthlyTokens: Math.max(0, Number($('ai-cap').value) || 0) };
+  if (aiKeyMode === 'replace' && $('ai-key').value) body.key = $('ai-key').value;
+  if (aiKeyMode === 'clear') body.clearKey = true;
+  say($('ai-status'), 'saving...');
+  try {
+    await api('PUT', '/api/ai', body);
+    await loadAi();
+    say($('ai-status'), 'saved');
+  } catch (err) {
+    say($('ai-status'), err.message, true);
+  }
+});
+
 // Which modules the tab lists: all of them, or only those with an update waiting.
 let moduleFilter = 'all';
 const hasUpdate = (id) => bundledModules.some((b) => b.id === id && b.update);
+// A module can be configured when it has settings the admin chooses for the server (what Module Configuration shows).
+const isConfigurable = (m) => (m.settings || []).some((d) => d.scope === 'server');
+const moduleMatches = (m) => moduleFilter === 'updates' ? hasUpdate(m.id) : moduleFilter === 'configurable' ? isConfigurable(m) : true;
 function syncModuleFilters() {
   const updates = installedModules.filter((m) => hasUpdate(m.id)).length;
   for (const b of document.querySelectorAll('[data-module-filter]')) {
@@ -835,6 +902,8 @@ function syncModuleFilters() {
   all.textContent = String(builtinModules.length + installedModules.length);
   up.textContent = String(updates);
   up.hidden = !updates;
+  const conf = $('module-filters').querySelector('[data-count="configurable"]');
+  conf.textContent = String(installedModules.filter(isConfigurable).length);
 }
 $('module-filters').addEventListener('click', (event) => {
   const b = event.target.closest('[data-module-filter]');
@@ -847,7 +916,7 @@ function renderModules() {
   const list = $('modules-list');
   list.textContent = '';
   syncModuleFilters();
-  const updatesOnly = moduleFilter === 'updates';
+  const updatesOnly = moduleFilter !== 'all';
   // The built-in panes first: always on, and not removable.
   for (const b of updatesOnly ? [] : builtinModules) {
     const el = document.createElement('article');
@@ -863,13 +932,13 @@ function renderModules() {
       <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>`;
     list.appendChild(el);
   }
-  if (updatesOnly ? !installedModules.some((m) => hasUpdate(m.id)) : !installedModules.length) {
+  if (updatesOnly ? !installedModules.some(moduleMatches) : !installedModules.length) {
     const none = document.createElement('div');
     none.className = 'panel';
-    none.innerHTML = updatesOnly ? '<p class="hint">Everything is up to date.</p>' : '<p class="hint">No other modules installed yet.</p>';
+    none.innerHTML = updatesOnly ? `<p class="hint">${moduleFilter === 'configurable' ? 'No installed module has settings.' : 'Everything is up to date.'}</p>` : '<p class="hint">No other modules installed yet.</p>';
     list.appendChild(none);
   }
-  for (const m of installedModules) if (!updatesOnly || hasUpdate(m.id)) list.appendChild(moduleCard(m));
+  for (const m of installedModules) if (moduleMatches(m)) list.appendChild(moduleCard(m));
   // Modules that ship with this Tavern and are not installed yet.
   const available = updatesOnly ? [] : bundledModules.filter((b) => !b.installed);
   if (available.length) {

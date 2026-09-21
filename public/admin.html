@@ -206,12 +206,53 @@
         <div class="module-filters" id="module-filters" role="group" aria-label="Show">
           <button class="filter-chip on" type="button" data-module-filter="all" aria-pressed="true">All <span class="count" data-count="all"></span></button>
           <button class="filter-chip" type="button" data-module-filter="updates" aria-pressed="false">Updates available <span class="count" data-count="updates"></span></button>
+          <button class="filter-chip" type="button" data-module-filter="configurable" aria-pressed="false">Configurable <span class="count" data-count="configurable"></span></button>
         </div>
         <!-- what modules have done lately: newest first, in a box that scrolls -->
         <div class="activity-head"><h3>Recent activity</h3><span class="hint">What modules have done lately</span></div>
         <div class="activity-log-box" id="activity-box" tabindex="0" role="log" aria-label="Recent module activity">
           <ul class="activity-log" id="module-activity"></ul>
           <p class="hint activity-empty" id="module-activity-empty">No activity yet.</p>
+        </div>
+      </div>
+      <!-- The AI service for every module that asks for it (server-wide: not one module's setting). The key is write-only. -->
+      <div class="panel" id="ai-panel">
+        <h2><i class="fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i> AI service</h2>
+        <p class="hint">Lets modules that ask for it summarise, answer questions and write cards from what a person selects. Off until you set it up here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). Tavern ships no model and no key.</p>
+        <div class="ai-fields">
+          <label>Service
+            <select id="ai-provider">
+              <option value="none">None (AI is off)</option>
+              <option value="openai">An OpenAI-compatible service</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </label>
+          <div class="option-help" id="ai-notice"></div>
+          <label data-ai-for="openai anthropic" id="ai-address-row">Address <span class="hint" id="ai-address-hint"></span>
+            <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
+          </label>
+          <label data-ai-for="openai anthropic">Model
+            <input id="ai-model" type="text" maxlength="100" placeholder="the model's name" autocomplete="off">
+          </label>
+          <div class="ai-key" data-ai-for="openai anthropic">
+            <div class="hint">Key</div>
+            <div class="ai-key-row">
+              <span class="pill" id="ai-key-state">not set</span>
+              <input id="ai-key" type="password" maxlength="300" placeholder="paste a new key" autocomplete="new-password" hidden>
+              <button class="btn btn-small" type="button" id="ai-key-replace">Set a key</button>
+              <button class="btn btn-small btn-danger" type="button" id="ai-key-clear" hidden>Remove the key</button>
+            </div>
+            <p class="hint" id="ai-key-help">The key is kept on the server and is never shown again.</p>
+          </div>
+          <label data-ai-for="openai anthropic">Monthly allowance (tokens, 0 for no limit)
+            <input id="ai-cap" type="number" min="0" step="1000" value="0">
+          </label>
+        </div>
+        <div class="row"><button class="btn btn-primary" type="button" id="ai-save">Save</button><span class="status" id="ai-status" role="status"></span></div>
+        <div class="ai-usage" id="ai-usage" hidden>
+          <h3>Used this month</h3>
+          <div class="ai-meter" role="progressbar" aria-label="Monthly allowance used" aria-valuemin="0" aria-valuemax="100" id="ai-meter"><span id="ai-meter-fill"></span></div>
+          <p class="hint" id="ai-usage-text"></p>
         </div>
       </div>
       <div id="modules-list" class="stack"></div>

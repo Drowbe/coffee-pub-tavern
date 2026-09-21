@@ -45,3 +45,21 @@ Upload a newer version of the same module and it replaces the active one. Tavern
 ## Disable and uninstall
 
 **Disable** hides a module without losing anything, and takes its permissions off the Roles tab. **Uninstall** removes it and asks whether to keep its saved data, so a later reinstall picks up where it left off. Choosing to delete the data also removes its schedules and notifications.
+
+## Filters
+
+At the top of the Modules tab, **All**, **Updates available** and **Configurable** choose which modules are listed. Updates available shows only the modules with a newer version waiting; Configurable shows only the modules that have settings you can choose for the server (the ones with an enabled **Module Configuration** button). Each chip shows how many modules it holds.
+
+## Recent activity
+
+Under the filters, **Recent activity** lists what modules have done lately, newest first, in a box that scrolls: the time, the module, what it did and who for. A line about something Tavern refused or slowed is tinted and has a warning mark.
+
+## The AI service
+
+Some modules can ask an AI to summarise, answer a question, or write a card from what a person selects. The **AI service** panel on the Modules tab is where you set it up, once for the whole server. Nothing works until you do, and Tavern ships no model and no key.
+
+- **Service:** None (the default), an OpenAI-compatible service (an address, a model name and usually a key; a model you run yourself, such as Ollama or LM Studio, is the same choice pointed at an address on your own network), or Anthropic (a key and a model). Each choice says under it what is sent and to whom: with a hosted service, the items a person selects and their question go to that company under its terms; with your own model, nothing leaves your network. Only what a person selects is sent, never another room.
+- **Key:** kept on the server and never shown again. The panel says only whether one is set. **Set a key** or **Replace the key** takes a new one; **Remove the key** deletes it. If the key comes from the server's environment (`TAVERN_AI_KEY`), the panel says so and it is changed there.
+- **Monthly allowance:** a number of tokens for the month, or 0 for no limit. The panel shows how many were used this month, in how many calls and for which tasks.
+- **Who may use it:** the Roles tab has **Use AI in modules** under AI. It is off for every role until you tick it, admins always may, and guests never can (the tick is greyed out for them).
+- **Per room:** on a room's settings, **Turn AI off in this room** stops it there whatever the roles say.
