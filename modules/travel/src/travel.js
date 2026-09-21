@@ -899,7 +899,10 @@
   const clearDrop = () => {
     if (lastTarget) lastTarget.removeAttribute('data-drop');
     lastTarget = null;
-    for (const d of root.querySelectorAll('.day2.drop-target')) d.classList.remove('drop-target');
+    for (const d of root.querySelectorAll('.day2.drop-target, .joint.drop-target')) d.classList.remove('drop-target');
+    // A marker between days being dragged: the line shows every joint as a place to drop, and the days dim.
+    for (const d of root.querySelectorAll('.days.dragging-lane')) d.classList.remove('dragging-lane');
+    for (const d of root.querySelectorAll('.row.lane.dragging')) d.classList.remove('dragging');
   };
   // The handle is the only drag source: an item becomes draggable only while it is pressed.
   root.addEventListener('pointerdown', (e) => {
@@ -990,6 +993,32 @@
     const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day2') : null; };
     // One of this plan's own items, pressed on its body and dragged (the pointer drag every module's items share).
     const ownRef = (ref) => Boolean(ref) && ref.module === info.module.id && ref.kind === 'plan';
+    const laneOf = (ref) => { const it = plan.list().find((i) => i.id === ref.id); return it && it.kind === 'lane' ? it : null; };
+    // The joint nearest the pointer (the pointer is in this module's own coordinates, a box in the page's), and the marker under it, if
+    // it is in that joint: which half of it the pointer is in says before or after.
+    const laneSpot = (pt, id) => {
+      const y = pt.y + tavern.rootElement.getBoundingClientRect().top;
+      let best = null;
+      for (const j of root.querySelectorAll('.joint')) {
+        const r = j.getBoundingClientRect();
+        const d = Math.abs(y - (r.top + r.height / 2));
+        if (!best || d < best.d) best = { joint: j, d };
+      }
+      if (!best) return null;
+      const after = best.joint.dataset.after || '';
+      const el = tavern.refs.elementAt(pt);
+      const row = el && el.closest ? el.closest('.row.lane') : null;
+      const inJoint = row && row.dataset.id !== id && row.parentElement && row.parentElement.dataset.after === after;
+      let where = null;
+      if (inJoint) { const r = row.getBoundingClientRect(); where = y < r.top + r.height / 2 ? 'before' : 'after'; }
+      return { joint: best.joint, after: after || null, row: inJoint ? row : null, where };
+    };
+    // Put a marker at a joint, and among the markers already there.
+    function moveLane(id, spot) {
+      const others = plan.lanes().filter((l) => l.id !== id && (l.after || null) === spot.after);
+      const order = laneOrder(others, spot.row ? spot.row.dataset.id : null, spot.where);
+      return plan.updateItem(id, { after: spot.after, order });
+    }
     // The row under the pointer, and whether the pointer is in its top or bottom half (the pointer is in this module's own
     // coordinates, a row's box in the page's).
     const rowAt = (pt) => {
@@ -1003,6 +1032,18 @@
     tavern.refs.dropTarget({
       over: (pt, ref) => {
         clearDrop();
+        if (ownRef(ref) && laneOf(ref)) {
+          // A marker between days looks for the nearest joint on the line, and, over another marker there, before or after it.
+          const days = root.querySelector('.days');
+          if (days) days.classList.add('dragging-lane');
+          const me = root.querySelector(`.row.lane[data-id="${ref.id}"]`);
+          if (me) me.classList.add('dragging');
+          const spot = laneSpot(pt, ref.id);
+          if (!spot) return;
+          spot.joint.classList.add('drop-target');
+          if (spot.row) { spot.row.dataset.drop = spot.where; lastTarget = spot.row; }
+          return;
+        }
         if (ownRef(ref)) {
           const day = dayAt(pt);
           if (!day) return;
@@ -1016,6 +1057,12 @@
       },
       leave: clearDrop,
       drop: (ref, pt) => {
+        if (ownRef(ref) && laneOf(ref)) {
+          const spot = laneSpot(pt, ref.id);
+          clearDrop();
+          if (spot) attempt(() => moveLane(ref.id, spot));
+          return;
+        }
         clearDrop();
         if (ownRef(ref)) {
           const day = dayAt(pt);

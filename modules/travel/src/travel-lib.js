@@ -378,3 +378,13 @@
     const e = endOf(last);
     return { start: { id: first.id, day: first.date, time: first.time || '' }, end: { id: last.id, day: e.day, time: e.time } };
   }
+
+  // An `order` for a marker placed among the ones already at a joint (`others`, in their order): before or after the one with id
+  // `targetId`, or at the end when there is none.
+  function laneOrder(others, targetId, where) {
+    const at = targetId ? others.findIndex((l) => l.id === targetId) : -1;
+    if (at < 0) return others.length ? Math.max(...others.map((l) => l.order)) + 1000 : 1000;
+    const lo = where === 'before' ? (others[at - 1] ? others[at - 1].order : others[at].order - 2000) : others[at].order;
+    const hi = where === 'before' ? others[at].order : (others[at + 1] ? others[at + 1].order : others[at].order + 2000);
+    return (lo + hi) / 2;
+  }

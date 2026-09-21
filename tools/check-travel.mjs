@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'laneOrder', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -377,6 +377,16 @@ test('a marker between the days follows a day and has no time', () => {
   assert.equal(lib.tileOf(l), 'lane:free-time');
   assert.deepEqual(lib.fromTile('lane:rest'), { kind: 'lane', type: 'rest', category: 'other' });
   assert.equal(lib.cardOf(l).card, 'lane');
+});
+
+test('a marker dropped among others at a joint gets an order between its neighbours', () => {
+  const others = [{ id: 'a', order: 1000 }, { id: 'b', order: 2000 }];
+  assert.equal(lib.laneOrder([], null, null), 1000);
+  assert.equal(lib.laneOrder(others, null, null), 3000, 'at the end');
+  assert.equal(lib.laneOrder(others, 'a', 'before'), 0);
+  assert.equal(lib.laneOrder(others, 'a', 'after'), 1500);
+  assert.equal(lib.laneOrder(others, 'b', 'before'), 1500);
+  assert.equal(lib.laneOrder(others, 'b', 'after'), 3000);
 });
 
 console.log(`check-travel: OK (${n} checks)`);

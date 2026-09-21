@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Planner 0.7.8: markers between the days (a new item kind, `lane`): a marker of one of the marker types, with an optional label and a note and no time, that sits on the plan's line after a given day (or before the first day) rather than in a day. Added from the small + on the line at each joint (and from a hidden-days badge, which now adds one at its place rather than a time block), moved with the menu (Earlier, Later, Move to a joint) or by dragging the pill to another joint and among the markers there, edited with a type, label and note only, and removed from the menu. They never count as something planned. Verified in a browser: the joints and the markers between days in place, adding from a joint's menu, the menu's Move to and Later saving `after`, and the editor with the Between days tiles and no day. The order arithmetic for dropping among markers is tested. Not verified: the pointer drag itself, the light theme and the phone layout.
+
 ### Changed
 - Planner 0.7.4: a time block's menu has **Change type** (a choice of the marker types; the pill's icon and colour follow) and says **Remove** instead of Delete. The automatic plan-wide markers are drawn, not items, so they have no menu. Verified in a browser: the type list, a change from rest to buffer saved and recoloured, and the ordinary items' menu unchanged.
 
