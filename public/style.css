@@ -4782,3 +4782,13 @@ body.at-table .module-nav {
 @media (prefers-reduced-motion: reduce) { .bgpick-tile { transition: none; } .bgpick-tile:hover { transform: none; } }
 @media (max-width: 640px) { .bgpick { padding: 0; align-items: flex-end; } .bgpick-card { width: 100%; max-height: 92%; border-radius: 14px 14px 0 0; } .bgpick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .slot-library { margin-top: 6px; }
+
+/* the AI service panel: every field styled alike (the url and number boxes were plain), and the model list */
+.ai-fields input[type="url"], .ai-fields input[type="number"], .ai-fields input[type="text"], .ai-fields input[type="password"], .ai-fields select { background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 10px; font: inherit; font-size: 14px; text-transform: none; letter-spacing: normal; width: 100%; }
+.ai-fields > label, .ai-label { color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.ai-fields > label .hint, .ai-label .hint { text-transform: none; letter-spacing: normal; font-weight: 400; }
+.ai-label { margin-bottom: 4px; }
+.ai-model-row { display: flex; gap: 8px; align-items: stretch; }
+.ai-model-row select, .ai-model-row input { flex: 1; min-width: 0; }
+.ai-model-row .btn { flex: none; }
+.linklike { align-self: flex-start; margin-top: 2px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
