@@ -769,8 +769,18 @@
     // A link that cannot be read has nothing to edit.
     hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(tavern.util.refKey(item.ref)))));
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
+    // A time block can change its type; it is removed rather than deleted.
+    const isBlock = item.kind === 'block';
+    const typeLabel = menu.querySelector('[data-block-only]');
+    hide(typeLabel, !isBlock);
+    if (isBlock) {
+      const types = $('menu-type');
+      types.replaceChildren(...blockTypes().map((t) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.label; return o; }));
+      if (![...types.options].some((o) => o.value === item.type)) { const o = document.createElement('option'); o.value = item.type; o.textContent = markerType(item.type).label; types.append(o); }
+      types.value = item.type;
+    }
     const del = menu.querySelector('[data-action="delete"]');
-    del.lastChild.textContent = ' Delete';
+    fill(del, { 'delete-label': isBlock ? 'Remove' : 'Delete' });
     state.deleteArmed = null;
     menu.hidden = false;
     const app = $('app').getBoundingClientRect();
@@ -803,10 +813,16 @@
     }
     if (action === 'to-ideas') { closeMenu(); return void attempt(() => plan.moveTo(id, null, 1e6)); }
     if (action === 'delete') {
-      if (state.deleteArmed !== id) { state.deleteArmed = id; b.lastChild.textContent = ' Really delete?'; return; }
+      if (state.deleteArmed !== id) { const block = (plan.list().find((i) => i.id === id) || {}).kind === 'block'; state.deleteArmed = id; fill(b, { 'delete-label': block ? 'Really remove?' : 'Really delete?' }); return; }
       closeMenu();
       return void attempt(() => plan.removeItem(id));
     }
+  });
+  $('menu-type').addEventListener('change', (e) => {
+    const id = state.menuFor;
+    const type = e.target.value;
+    closeMenu();
+    if (id && type) attempt(() => plan.updateItem(id, { type }));
   });
   $('menu-day').addEventListener('change', (e) => {
     const id = state.menuFor;

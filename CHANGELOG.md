@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Planner 0.7.4: a time block's menu has **Change type** (a choice of the marker types; the pill's icon and colour follow) and says **Remove** instead of Delete. The automatic plan-wide markers are drawn, not items, so they have no menu. Verified in a browser: the type list, a change from rest to buffer saved and recoloured, and the ordinary items' menu unchanged.
+
 ### Added
 - Planner 0.7.1: markers as one two-part pill in a colour of their own, from a **Markers** list in Module Configuration (a new `list` setting type: rows with a label, an icon and a colour, some fixed; the four automatic markers can be changed but not removed, and others can be added, reordered and removed). Time blocks, a new kind of item for what happens inside a day and has no place (free time, rest, buffer, meet-up, leave-by to start with), with a **Time** group in the editor. A badge on the line stands in for each run of hidden empty days, its + adding a time block on the first hidden day or showing the days again, replacing the "N empty days hidden" note. Verified against a running server (a fixed row cannot be removed, a bad colour is refused, a new row's id is made from its label) and in a browser (the marker colours from the list, a time block, the gaps and their menu adding a block, the editor's Time tiles). Not verified: the settings page's list control, the light theme, the phone layout.
 
