@@ -2,7 +2,7 @@
 
 **Audience:** the author deciding what the Research module is and how its AI part works, and whoever builds it afterwards.
 
-**Status:** Proposed by the interface side from the author's outline. Nothing here is built; the open decisions are at the end.
+**Status:** Direction agreed by the author (the recommendations below, and the answer card). Nothing is built. Decisions taken are at the end.
 
 ## What it is for
 
@@ -15,13 +15,13 @@ A place to keep what a group finds out while it plans, and after: a note, a link
 - **Nothing leaves the server unless the admin turned it on and said where to.** Link previews and AI are both off until configured, and each says plainly what it sends and to whom.
 - **No secrets in modules.** An API key for an AI service is a server setting. The module asks the server; it never sees a key.
 
-## The three kinds of item, one card family
+## The kinds of item, one card family
 
 1. **Note.** A title, a body of plain text (paragraphs and lists; links in it are clickable), tags, and optionally a place and a date.
 2. **Snippet** (a link). A web address, a title, the site, and the person's own excerpt (what to remember from the page), tags. With the admin's "fetch link previews" turned on, the server reads the page's title, description and image so the person does not type them; off by default, because it is a request from the server to a site the person named.
 3. **Photo.** An image, a caption and tags. On upload the server reads the file's own facts: when it was taken, the camera, and where. **The position is dropped by default** (a shared photo must not give away a home address by accident); a per-photo choice keeps it, and a photo with a position shows on the map and one with a date shows on its day. The file is re-encoded by the server (a size limit, a maximum edge of about 2000 px, a thumbnail), which also removes anything hidden in it.
 
-All three are cards for the rest of Tavern: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
+All of them (and the AI answers below) are cards for the rest of Tavern: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
 
 ## Photos as a shared album while a trip happens
 
@@ -35,7 +35,7 @@ The room's view is a shared board: anyone in the room adds their own photos, eac
 
 ## How other modules use it (conduits)
 
-- **Produces** three kinds of item (note, snippet, photo) with cards as above, openable from anywhere.
+- **Produces** four kinds of item (note, snippet, photo, answer) with cards as above, openable from anywhere.
 - **Provides actions**: `saveNote` and `saveLink`, so any module can offer "Save to research" on something without knowing Research is there (a place, a stop, a search result). A photo is added in Research itself.
 - **Backlinks**: when an item links to research (or research links to an item), the item's owner lists it: "Used in 2 plans", "3 notes".
 - **Drop targets**: drop an item from another module onto Research to start a note linked to it; drag a research item onto a plan's day to link it there (the ordinary path).
@@ -51,6 +51,10 @@ Each is a button a person presses on what they are looking at; nothing runs on i
 - **Suggest tags** for an item, and **caption** a photo (only with a model that can see images).
 - **Extract:** read a note or snippet and propose the places, dates and prices in it as cards, which the person accepts one by one (a place goes to Places, a date to a plan).
 - **Draft** a day: from chosen research, propose stops for a day of a plan, as suggestions the person accepts.
+
+### Every answer is a card (the author's)
+
+**Whatever the AI answers is always saved as a card**, never left as text that scrolls away. An answer is a fourth kind of item, an **answer**: the question that was asked, the answer text, the items it drew on (as links, so each source opens), which task made it (summarise, ask, extract, draft), the date, and a plain "AI-generated" mark that is always shown. It is created in the place the person is working (Mine or This room), it can be edited and tagged like a note, and it is a card like the others, so it **can be dragged onto a plan's day** (or onto anything else that takes a link) with its answer as the card's text. A proposal list from Extract or Draft is an answer card too: its proposals sit on the card as items to accept. An answer made in Mine and dragged onto a shared plan is copied to the room first, as any private item is. Deleting an answer's sources does not delete the answer; its source links show as no longer available.
 
 **The AI never changes anything itself.** Its answer is text or a list of proposals; a person accepts each. Text in a note or on a web page is untrusted, and a page can say "ignore your instructions", so the model is given no tools and its output is never run.
 
@@ -80,11 +84,14 @@ The setting is a choice, as Place search is: **None** (the default), the two abo
 4. **The AI hook** and the provider setting: Summarise, Ask, Suggest tags. Usage, limits and the notice.
 5. **Extract and Draft**, photo captions, and the proposals flow.
 
-## Decisions for the author
+## Decisions taken
 
-1. **Photos and position.** Drop the position by default, with a per-photo choice to keep it (the recommendation)? Or keep it by default?
-2. **Which AI tasks first.** Summarise, Ask and Suggest tags first, Extract and Draft second (the recommendation)?
-3. **Providers.** The OpenAI-compatible endpoint first (it covers local models), the Anthropic API second (the recommendation)?
-4. **Who may use AI.** Off for everyone until the admin turns it on for a role, and never for guests (the recommendation)? It costs money or compute, so it should be deliberate.
-5. **Photo size and storage.** A limit of about 10 MB per photo, re-encoded to about 2000 px on the long edge with a thumbnail? What is the most photos a room may keep before the admin is warned?
-6. **Name.** "Research" as the module's name (id `research`)?
+The author agreed the recommendations:
+
+1. **Photos:** the position is dropped by default, with a per-photo choice to keep it.
+2. **AI tasks first:** Summarise, Ask and Suggest tags; Extract and Draft second.
+3. **Providers:** an OpenAI-compatible endpoint first (which covers a local model server), the Anthropic API second. The AI is reached through an API key kept on the server.
+4. **Who may use AI:** nobody until the admin turns it on for a role; never guests.
+5. **Photos:** about 10 MB each, re-encoded to about 2000 px on the long edge with a thumbnail. Still to settle: how many photos a room may keep before the admin is warned.
+6. **Name:** Research (id `research`).
+7. **Every AI answer is a card** that can be dragged onto a plan, as above.
