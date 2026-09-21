@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Research 0.1.6: dropping an item from another module on the pane starts a note about it (titled from the item, linked to it in the room view; a note in Mine is not linked), with the pane framed and a hint shown while something is over it; a photo whose picture will not load shows a placeholder. Not verified in a browser: the drag and drop, and the suggest-tags button.
+
+### Added
 - Research 0.1.4: the conflict bar and the answer source pills come from the interface's templates; a **Suggest tags** action (a button with `data-action="suggest-tags"` in the dialog, shown for a saved note, link or answer when the AI is available) asks the AI for tags and adds them to the tags field for the person to keep or change. Not verified in a browser: the button is not in the templates yet.
 
 ### Added

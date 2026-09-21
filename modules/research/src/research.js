@@ -148,6 +148,8 @@
     if (by) by.title = nameOf(it.by) ? `Added by ${nameOf(it.by)}` : '';
     hide(slot(el, 'by-wrap'), !it.by || view === 'my');
     const img = slot(el, 'thumb');
+    // A picture that will not load (its file was removed) shows a quiet placeholder instead of nothing.
+    img.addEventListener('error', () => { if (img.getAttribute('src')) { img.classList.add('missing'); img.hidden = false; } });
     if (it.kind === 'photo' && it.file) { const u = thumbUrl(it); if (u) { img.src = u; img.hidden = false; } } else hide(img, true);
     const tags = slot(el, 'tags');
     tags.replaceChildren(...it.tags.map((t) => tagNode(t, 'tpl-tag')));
@@ -629,6 +631,26 @@
       if (e.id !== 'add') return;
       const entry = readEntry(e.value);
       openEditor(null, entry || { kind: 'note' });
+    });
+  }
+  // Something from another module dropped on the pane starts a note about it, with its title, linked to it (a personal note is not
+  // linked: private items are not linked to or from).
+  if (tavern.refs && tavern.refs.dropTarget) {
+    const showDrop = (yes) => { $('app').classList.toggle('drop-target', yes); hide($('drop-hint'), !yes); };
+    const foreign = (ref) => ref && ref.module && ref.module !== info.module.id;
+    tavern.refs.dropTarget({
+      over: (_point, ref) => showDrop(canEdit && foreign(ref)),
+      leave: () => showDrop(false),
+      drop: async (ref) => {
+        showDrop(false);
+        if (!canEdit || !foreign(ref)) return;
+        try {
+          const card = await tavern.refs.resolve(ref);
+          const note = await research.save({ kind: 'note', title: geo.oneLine(card.title, 120) || 'Note', body: '', tags: [], date: '', by: me });
+          if (view !== 'my') tavern.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
+          openEditor(note.id);
+        } catch (err) { say('It could not start a note about that: ' + message(err), 4000); }
+      },
     });
   }
   if (inRoom) stores.room.provide(me); // other modules' requests to save a note or a link go to the room's research
