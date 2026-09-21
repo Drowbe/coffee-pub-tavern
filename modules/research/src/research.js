@@ -101,6 +101,13 @@
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   // What to call an item an answer came from: its title when it is one of ours, otherwise what kind of thing it is.
   const sourceLabel = (r) => (r.module === info.module.id && stores.room.get(r.id) ? stores.room.get(r.id).title : r.module === info.module.id && stores.my.get(r.id) ? stores.my.get(r.id).title : r.label || r.kind);
+  // A source of an answer as a pill; `gone` when it is one of ours that is no longer there.
+  const sourcePill = (r) => {
+    const el = clone('tpl-source');
+    fill(el, { label: sourceLabel(r) });
+    el.classList.toggle('gone', r.module === info.module.id && !stores.room.get(r.id) && !stores.my.get(r.id));
+    return el;
+  };
   const placeText = (p) => (p ? p.name || geo.coordsText(p.lat, p.lng) : '');
 
   // --- tags ---------------------------------------------------------------------------------------------------------
@@ -261,17 +268,17 @@
     $('f-point').value = it.point ? geo.coordsText(it.point.lat, it.point.lng) : '';
     $('f-point-note').textContent = '';
     $('f-date').value = it.date;
-    hide($('f-keep-row'), true); // a photo's position is chosen when it is added; the picture itself no longer carries it
     hide($('f-asked'), !(kind === 'answer' && it.ai));
     if (kind === 'answer' && it.ai) {
       fill($('f-asked'), { asked: it.ai.question });
       const src = $('f-asked').querySelector('[data-slot="sources"]');
-      src.replaceChildren(...it.ai.sources.map((r) => { const b = document.createElement('span'); b.className = 'link'; b.textContent = sourceLabel(r); return b; }));
+      src.replaceChildren(...it.ai.sources.map(sourcePill));
     }
     $('f-by').textContent = it.by ? `Added by ${nameOf(it.by) || 'someone'}${it.at ? ' on ' + dayText(it.at.slice(0, 10)) : ''}` : '';
     editorError('');
     setFormEditable(canEdit);
     hide($('f-save'), !canEdit);
+    hide($('form').querySelector('[data-action="suggest-tags"]'), !(state.ai && canEdit && id && kind !== 'photo'));
     hide($('f-delete'), !id || !cur || !mayRemove(cur));
     $('f-delete').textContent = 'Remove';
     state.armed = null;
@@ -294,16 +301,8 @@
     if (!e) return;
     dropConflict();
     e.conflict = { version };
-    const bar = document.createElement('div');
-    bar.className = 'conflict-bar';
-    bar.setAttribute('role', 'alert');
-    const text = document.createElement('span');
-    text.textContent = 'Someone changed this while you were editing.';
-    const theirs = document.createElement('button');
-    theirs.type = 'button'; theirs.className = 'btn'; theirs.dataset.action = 'use-theirs'; theirs.textContent = 'Use theirs';
-    const mine = document.createElement('button');
-    mine.type = 'button'; mine.className = 'btn'; mine.dataset.action = 'keep-mine'; mine.textContent = 'Keep mine';
-    bar.append(text, theirs, mine);
+    const bar = clone('tpl-conflict');
+    fill(bar, { text: 'Someone changed this while you were editing.' });
     $('form').querySelector('.editor-buttons').before(bar);
     editorError('');
   }
@@ -477,7 +476,7 @@
     tags.replaceChildren(...(c.tags || []).map((t) => tagNode(t, 'tpl-tag')));
     tags.hidden = !(c.tags || []).length;
     const srcs = slot(el, 'sources');
-    srcs.replaceChildren(...(c.sources || []).map((r) => { const s = document.createElement('span'); s.className = 'link'; s.textContent = sourceLabel(r); return s; }));
+    srcs.replaceChildren(...(c.sources || []).map(sourcePill));
     hide(slot(el, 'sources-wrap'), !(c.sources || []).length);
     hide(el.querySelector('[data-action="keep-card"]'), !canEdit);
     el.addEventListener('click', async (ev) => {
@@ -541,6 +540,22 @@
     hide($('ask-btn'), !state.ai || !state.loaded);
   }
 
+  // Suggest tags for the item in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
+  // for the person to keep or change; nothing is saved until they save.
+  async function suggestTags() {
+    const e = state.editing;
+    const btn = $('form').querySelector('[data-action="suggest-tags"]');
+    if (!e || !e.id || !state.ai || !btn) return;
+    btn.disabled = true;
+    editorError('');
+    try {
+      const r = await tavern.ai.ask({ task: 'tags', items: [research.refOf(e.kind, e.id)] });
+      const have = parseTags($('f-tags').value);
+      $('f-tags').value = [...new Set([...have, ...(r.tags || [])])].slice(0, 8).join(', ');
+      if (!(r.tags || []).length) editorError('The AI had no tags to suggest.');
+    } catch (err) { editorError('The AI could not suggest tags: ' + message(err)); } finally { btn.disabled = false; }
+  }
+
   // --- clicks on the page -------------------------------------------------------------------------------------------
 
   root.addEventListener('click', async (ev) => {
@@ -576,6 +591,7 @@
       }
       return;
     }
+    if (t && t.dataset.action === 'suggest-tags') return suggestTags();
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
