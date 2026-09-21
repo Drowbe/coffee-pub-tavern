@@ -99,6 +99,10 @@ The script toggles, the stylesheet draws; no coordinates, no inline styles.
 - Exactly one target has a `data-drop` at a time; the script removes it from the last one when the pointer moves or the drag ends.
 - An empty day is a target too: `.day.drop-target` and its `.day-empty`.
 
+## The add row and the host's bar
+
+The way to add is the host's bottom bar, the same quick-add the To-do, Polls and Calendar have (`tavern.bar.set` with a `quickadd` item). When the host has a bar, every day's `form.add-row` gets the class `hosted` (the stylesheet hides it), except the Ideas column's, which stays: it is the only quick way to add something with no day. When `bar.set` is refused, or a host has no bar, `hosted` is removed and each day keeps its own row. Text typed in the bar becomes a stop on the **current day**: the day named in the text if it finds one inside the trip, else the day whose chip is `.current` (the one in view), else today if it is on the trip, else the first day. An empty submit opens the editor; with no trip yet it opens the trip form.
+
 ## The Decisions view
 
 `#body` holds, instead of `#days`:
@@ -113,7 +117,7 @@ The script toggles, the stylesheet draws; no coordinates, no inline styles.
 </ul>
 <div class="section-title">Tasks due before the trip</div> <ul class="decisions">…same rows…</ul>
 ```
-The Bookings view (phase 3) is designed when we get to it.
+The Bookings and Money views reuse the same list markup: `.section-title` headings and `ul.decisions > li.decision` rows (`tpl-decisions`, `tpl-decision`). A row has an icon, `.decision-title`, `.decision-sub`, an optional `.code[data-slot=code]` (a booking reference, hidden when empty) and one `button` (Open, or an amount).
 
 ## States
 
