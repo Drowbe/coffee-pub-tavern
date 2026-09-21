@@ -34,6 +34,16 @@
   const CAT_ICON = { do: 'ticket', eat: 'utensils', stay: 'bed', travel: 'plane', other: 'note-sticky' };
 
   const places = createPlaces(tavern);
+  // A module that can show a place on a map, if one is installed: found by what it offers, never by name.
+  let showAction = null;
+  async function findShowAction() {
+    try {
+      const list = await tavern.actions.list({ accepts: 'places:place' });
+      showAction = list.find((a) => a.name === 'showOnMap') || null;
+    } catch (err) {
+      showAction = null;
+    }
+  }
   const state = {
     people: [],
     filter: '',
@@ -412,13 +422,18 @@
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.cat = ''; $('filter').value = ''; return render(); }
     const chip = ev.target.closest('.chip');
     if (chip) { state.cat = chip.dataset.cat === state.cat ? '' : chip.dataset.cat; return render(); }
-    if (rowEl && !ev.target.closest('.item-menu')) openEditor(rowEl.dataset.id);
+    if (rowEl && !ev.target.closest('.item-menu')) {
+      // A click on a place with a position shows it on the map when something offers that; otherwise it opens the place.
+      const p = places.get(rowEl.dataset.id);
+      if (p && p.point && showAction) return void tavern.actions.request(showAction.action, { ref: placeRef(p.id) }).catch(() => openEditor(p.id));
+      openEditor(rowEl.dataset.id);
+    }
   });
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor();
     } else if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('place-row')) {
-      openEditor(ev.target.dataset.id);
+      ev.target.click();
     }
   });
 
@@ -468,6 +483,7 @@
     await places.load();
     state.people = await tavern.people().catch(() => []);
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(CAT_ICON), ['layer-group', 'link']))].filter(Boolean).map(wantIcon));
+    findShowAction();
     state.loaded = true;
     render();
     loadLinks().catch(() => {});

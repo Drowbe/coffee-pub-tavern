@@ -20,7 +20,7 @@ Another module can also add a place for you: a trip's stop can offer to save its
 
 ## Find and open a place
 
-Places are listed by category, with a chip for each category and a filter box that matches the name, address and notes as you type. Each place shows whether it is **On the map** or has **No position yet**, who it belongs to, and the items in other modules that point at it. Click a place to open it. Its menu (the three dots) has **Edit**, **Open in my maps app** (which hands the place to the maps app on your device, and searches the address when there is no position), **Copy coordinates** and **Delete**. Someone who may not edit sees **View** and a read-only card.
+Places are listed by category, with a chip for each category and a filter box that matches the name, address and notes as you type. Each place shows whether it is **On the map** or has **No position yet**, who it belongs to, and the items in other modules that point at it. Click a place to open it. When a map module is installed and enabled, clicking a place that has a position shows it on the map instead (the map opens if it is not open); its menu's **Edit** or **View** opens the place itself, and so does a click on a place with no position. Its menu (the three dots) has **Edit**, **Open in my maps app** (which hands the place to the maps app on your device, and searches the address when there is no position), **Copy coordinates** and **Delete**. Someone who may not edit sees **View** and a read-only card.
 
 ## When two people edit at once
 

@@ -1,30 +1,98 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
-  "scope": ["room"],
+  "scope": [
+    "room"
+  ],
   "surfaces": {
-    "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 460, "height": 600, "mode": ["dock", "float"] }
+    "page": {
+      "entry": "page.html"
+    },
+    "panel": {
+      "entry": "panel.html",
+      "width": 460,
+      "height": 600,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    }
   },
   "permissions": [
-    { "key": "view", "label": "See places", "default": { "user": true, "guest": true, "moderator": true } },
-    { "key": "edit", "label": "Add, change and remove places", "default": { "user": true, "guest": false, "moderator": true } }
+    {
+      "key": "view",
+      "label": "See places",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    },
+    {
+      "key": "edit",
+      "label": "Add, change and remove places",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    }
   ],
-  "access": { "read": "view", "write": "edit" },
+  "access": {
+    "read": "view",
+    "write": "edit"
+  },
   "actions": {
     "provides": [
-      { "name": "addPlace", "label": "Save it as a place", "input": { "title": "string", "lat": "number?", "lng": "number?", "address": "string?", "category": "string?", "notes": "text?", "ref": "ref?" } },
-      { "name": "setPlacePoint", "label": "Give a place a position", "input": { "place": "ref:places:place", "lat": "number", "lng": "number" } }
+      {
+        "name": "addPlace",
+        "label": "Save it as a place",
+        "input": {
+          "title": "string",
+          "lat": "number?",
+          "lng": "number?",
+          "address": "string?",
+          "category": "string?",
+          "notes": "text?",
+          "ref": "ref?"
+        }
+      },
+      {
+        "name": "setPlacePoint",
+        "label": "Give a place a position",
+        "input": {
+          "place": "ref:places:place",
+          "lat": "number",
+          "lng": "number"
+        }
+      }
+    ],
+    "uses": [
+      "*"
     ]
   },
   "refs": {
     "produces": [
-      { "kind": "place", "name": "Place", "open": true, "backlinks": true, "key": "place:{id}", "card": { "title": "title", "subtitle": "address", "place": "point", "category": "category" } }
+      {
+        "kind": "place",
+        "name": "Place",
+        "open": true,
+        "backlinks": true,
+        "key": "place:{id}",
+        "card": {
+          "title": "title",
+          "subtitle": "address",
+          "place": "point",
+          "category": "category"
+        }
+      }
     ],
-    "consumes": ["*"]
+    "consumes": [
+      "*"
+    ]
   }
 }

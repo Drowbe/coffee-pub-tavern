@@ -204,7 +204,9 @@ function cleanBus(rawEvents, rawActions, id) {
       if (!FIELD_RE.test(field) || !FIELD_TYPES.includes(plain)) throw new ModuleError(`module.json: action "${name}" input "${field}" must be one of ${FIELD_TYPES.join(', ')} (add ? for optional)`);
       input[field] = type;
     }
-    actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input });
+    // `local`: a view, carried out only by the requesting person's own open page of the module and needing only read access
+    // (showing something on a map), not something done for the room.
+    actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input, ...(p.local === true ? { local: true } : {}) });
   }
   for (const c of Array.isArray(rawActions?.uses) ? rawActions.uses.slice(0, 20) : []) {
     if (typeof c !== 'string' || (c !== '*' && !BUS_USE_RE.test(c))) throw new ModuleError(`module.json: actions.uses "${c}" must be "*" or look like "module:action"`);

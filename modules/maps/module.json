@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -66,6 +66,16 @@
     "write": "edit"
   },
   "actions": {
+    "provides": [
+      {
+        "name": "showOnMap",
+        "label": "Show on the map",
+        "local": true,
+        "input": {
+          "ref": "ref"
+        }
+      }
+    ],
     "uses": [
       "*"
     ]

@@ -1712,7 +1712,7 @@ app.get('/api/bus/actions', busRoute((who, req) => {
       if (!own) {
         if (!mayUse(asker.found, manifest.id, a.name)) continue;
         try {
-          busPlace(who, manifest.id, scope, req.query.room, 'write'); // you can ask only for what you could do yourself
+          busPlace(who, manifest.id, scope, req.query.room, a.local ? 'read' : 'write'); // you can ask only for what you could do yourself
         } catch {
           continue;
         }
@@ -1769,28 +1769,36 @@ app.post('/api/bus/actions/request', busRoute((who, req) => {
   const sc = busScope(scope);
   const asker = busPlace(who, String(from || ''), sc, room, 'read');
   if (overLimit(asker.found.manifest.id, who.user?.key, 'action')) throw refError(429, limitMessage);
-  const provider = busPlace(who, String(providerId || ''), sc, room, 'write');
+  const provider = busPlace(who, String(providerId || ''), sc, room, 'read');
   const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
   if (!def) throw refError(404, 'that module does not offer that action');
   if (!mayUse(asker.found, providerId, name)) throw refError(403, 'that module has not been approved to ask for that');
-  const request = moduleBus.request({ from, provider: providerId, action: name, input: busInput(who, def.input, input), scopeKey: provider.scopeKey, by: who.user?.key || 'guest' });
+  if (!def.local) busPlace(who, String(providerId), sc, room, 'write'); // asking for a change takes the right to make it
+  const request = moduleBus.request({ from, provider: providerId, action: name, input: busInput(who, def.input, input), scopeKey: provider.scopeKey, by: who.user?.key || 'guest', local: def.local });
   return { id: request.id, status: request.status };
 }));
 
 // The providing module's page: what is waiting, take one, say how it went.
 app.get('/api/bus/actions/pending', busRoute((who, req) => {
-  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'write');
-  return { actions: moduleBus.pending(String(req.query.module), at.scopeKey).map(publicAction) };
+  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'read');
+  let canWrite = true;
+  try { busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'write'); } catch { canWrite = false; }
+  // A view (`local`) is for the person who asked, from their own page; anything else waits for a page that may make the change.
+  return { actions: moduleBus.pending(String(req.query.module), at.scopeKey).filter((a) => (a.local ? a.by === (who.user?.key || 'guest') : canWrite)).map(publicAction) };
 }));
 app.post('/api/bus/actions/claim', busRoute((who, req) => {
   const { module: id, id: requestId, scope, room } = req.body || {};
-  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  const at = busPlace(who, String(id || ''), busScope(scope), room, 'read');
+  const waiting = moduleBus.actionById(Number(requestId));
+  if (waiting && waiting.local) { if (waiting.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), room, 'write');
   const request = moduleBus.claim(Number(requestId), id, at.scopeKey);
   return request ? { ok: true, action: publicAction(request) } : { ok: false };
 }));
 app.post('/api/bus/actions/complete', busRoute((who, req) => {
   const { module: id, id: requestId, scope, room, result } = req.body || {};
-  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  const at = busPlace(who, String(id || ''), busScope(scope), room, 'read');
+  const done = moduleBus.actionById(Number(requestId));
+  if (done && done.local) { if (done.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), room, 'write');
   const clean = { ok: Boolean(result?.ok) };
   if (typeof result?.error === 'string') clean.error = result.error.slice(0, 200);
   if (refShape(result?.ref) && result.ref.module === id) clean.ref = { module: result.ref.module, kind: result.ref.kind, id: String(result.ref.id), scope: result.ref.scope, ...(result.ref.scope === 'room' ? { room: result.ref.room } : {}) };
@@ -2268,6 +2276,7 @@ app.get('/api/modules/stream', (req, res) => {
   };
   // A request for a module to do something: the providing module's frames are told; one claims it.
   const onAction = (r) => {
+    if (r.local && r.by !== (who.user?.key || 'guest')) return; // a view is for the person who asked
     const at = place(r.provider, r.scopeKey);
     if (at) res.write(`event: action\ndata: ${JSON.stringify({ ...publicAction(r), provider: r.provider, scope: at.scope })}\n\n`);
   };

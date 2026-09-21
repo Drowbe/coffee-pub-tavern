@@ -656,6 +656,23 @@
     });
   }
 
+  // Show an item on the map for the person who asked (a view: only their own page does it). The request waits for the page to
+  // have started, and the item must be one that has a place.
+  let startedResolve;
+  const startedPromise = new Promise((r) => { startedResolve = r; });
+  if (tavern.actions && tavern.actions.provide) {
+    tavern.actions.provide({
+      showOnMap: async (input) => {
+        await startedPromise;
+        const id = tavern.util.refKey(input.ref);
+        if (!state.items.some((c) => cardId(c) === id)) { await loadItems(); render(); }
+        if (!state.items.some((c) => cardId(c) === id)) throw new Error('that place is not on the map');
+        if (state.mapReady || state.listonly) select(id); else state.openWanted = id;
+        return {};
+      },
+    });
+  }
+
   // Asked to show an item on the map (the map shows what has a place): select it when it is there.
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
@@ -695,6 +712,7 @@
     $('app').hidden = false;
     state.started = true;
     render();
+    startedResolve();
     await startMap();
   } catch (err) {
     $('app').hidden = true;

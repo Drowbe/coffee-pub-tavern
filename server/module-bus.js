@@ -75,8 +75,8 @@ class ModuleBus extends EventEmitter {
 
   // --- actions --------------------------------------------------------------
 
-  request({ from, provider, action, input, scopeKey, by }) {
-    const request = { id: ++this.state.seq, at: Date.now(), from, provider, action, input, scopeKey, by, status: 'pending', claimedAt: 0, result: null };
+  request({ from, provider, action, input, scopeKey, by, local }) {
+    const request = { id: ++this.state.seq, at: Date.now(), from, provider, action, input, scopeKey, by, ...(local ? { local: true } : {}), status: 'pending', claimedAt: 0, result: null };
     this.state.actions.push(request);
     this.prune();
     this.save();
