@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Places 0.5.0: a **Mine** and **This room** switch. Mine is the person's own places, kept in their private store (the same in every room, invisible to everyone else including administrators); This room is the room's, as before. A place's menu copies it between them (**Share to this room**, **Save to mine**). Personal places are not linked to other modules' items. Maps 0.5.3 draws the viewer's own places too, with `data-scope="person"` on their pins and callout. The Everyone view is not built yet (who may change it is undecided). Verified in a browser: the switch and its note, the two lists, a copy from Mine to the room, and Maps drawing a personal place with its category and scope marks.
+
+### Added
 - A `person` scope for module data: a module that declares it keeps data for the signed-in person alone, from any page of theirs (`scope: 'person'` in the SDK), with the same store, versions and live changes as a room's. Nobody else can read it, not even an administrator; guests have none. Pointers to personal items resolve only for their owner and are never linked. Places 0.4.0 declares it (the my-places view is next). Verified against a running server: an admin's personal data invisible to another user, refused for guests and for a module without the scope, card search and resolve returning only the owner's, and links refused. Not verified: live changes to a personal store over the stream in a browser.
 
 ### Changed

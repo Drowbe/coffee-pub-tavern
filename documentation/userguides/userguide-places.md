@@ -20,6 +20,10 @@ The Places module keeps the places your room cares about: where you are staying,
 
 Another module can also add a place for you: a trip's stop can offer to save itself as a place.
 
+## Mine and this room
+
+At the top, **Mine** and **This room** switch between two lists. **This room** is what the room shares. **Mine** is your own places: only you can see them, not even an administrator, and they follow you into every room you are in. Guests have only the room's. A place's menu has **Share to this room** (in Mine) or **Save to mine** (in This room), which copies it to the other list and leaves the original where it is. Places you keep in Mine are not linked to trips, events or tasks, so their "used by" pills do not apply.
+
 ## Find and open a place
 
 Places are listed by category, with a chip for each category and a filter box that matches the name, address and notes as you type. Each place shows whether it is **On the map** or has **No position yet**, who it belongs to, and the items in other modules that point at it. Click a place to open it. When a map module is installed and enabled, clicking a place that has a position shows it on the map instead (the map opens if it is not open); its menu's **Edit** or **View** opens the place itself, and so does a click on a place with no position. Its menu (the three dots) has **Edit**, **Open in my maps app** (which hands the place to the maps app on your device, and searches the address when there is no position), **Copy coordinates** and **Delete**. Someone who may not edit sees **View** and a read-only card.

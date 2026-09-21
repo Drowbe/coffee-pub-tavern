@@ -28,12 +28,17 @@
   /*__LIB__*/
 
   const canEdit = tavern.can('edit');
+  const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so no personal places
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
   const CAT_ORDER = ['do', 'eat', 'stay', 'travel', 'other'];
   const CAT_LABEL = { do: 'Things to do', eat: 'Food', stay: 'Stay', travel: 'Travel', other: 'Other' };
   const CAT_ICON = { do: 'ticket', eat: 'utensils', stay: 'bed', travel: 'plane', other: 'note-sticky' };
 
-  const places = createPlaces(tavern);
+  // Two stores of the same kind of thing: this room's, and the person's own (private, in their profile, the same in every room).
+  // `places` is whichever the person is looking at.
+  const stores = { room: createPlaces(tavern, { scope: 'room' }), my: createPlaces(tavern, { scope: 'person' }) };
+  let view = 'room';
+  const places = new Proxy({}, { get: (_, key) => stores[view][key] });
   // A module that can show a place on a map, if one is installed: found by what it offers, never by name.
   let showAction = null;
   async function findShowAction() {
@@ -88,7 +93,7 @@
   }
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
   const say = (text) => { const n = $('note'); n.textContent = text || ''; n.hidden = !text; };
-  const placeRef = (id) => tavern.refs.make('place', id);
+  const placeRef = (id) => tavern.refs.make('place', id, view === 'my' ? { scope: 'person' } : undefined);
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
@@ -109,7 +114,7 @@
   // What other modules point at each place (asked once per place; the 'links' event clears it).
   const asked = new Set();
   async function loadLinks() {
-    if (!tavern.refs || !tavern.refs.linksTo) return;
+    if (view !== 'room' || !tavern.refs || !tavern.refs.linksTo) return; // personal places are not linked
     let changed = false;
     for (const p of places.list().slice(0, 100)) {
       if (asked.has(p.id)) continue;
@@ -195,10 +200,13 @@
     body.replaceChildren(...groups);
     hydrate(root);
   }
-  places.subscribe(() => {
-    if (state.loaded) render();
-    checkConflict();
-  });
+  for (const key of Object.keys(stores)) {
+    stores[key].subscribe(() => {
+      if (view !== key) return; // a change to the store not being looked at needs no redraw
+      if (state.loaded) render();
+      checkConflict();
+    });
+  }
 
   $('filter').addEventListener('input', () => { state.filter = $('filter').value; render(); });
 
@@ -218,6 +226,10 @@
     menu.querySelector('[data-action="open-in-maps"]').href = openLinkFor(p);
     hide(menu.querySelector('[data-action="copy-coords"]'), !p.point);
     hide(menu.querySelector('[data-action="delete"]'), !canEdit);
+    // Copy between mine and this room: the original stays where it is.
+    const share = menu.querySelector('[data-action="share"]');
+    hide(share, !canEdit || !personal || (view !== 'my' && view !== 'room'));
+    fill(share, { 'share-label': view === 'my' ? 'Share to this room' : 'Save to mine' });
     menu.querySelector('[data-action="delete"]').lastChild.textContent = ' Delete';
     state.armed = null;
     menu.hidden = false;
@@ -406,7 +418,15 @@
       const p = id && places.get(id);
       const a = t.dataset.action;
       if (!p) return closeMenu();
-      if (a === 'edit') { closeMenu(); openEditor(id); }
+      if (a === 'share') {
+        closeMenu();
+        const target = view === 'my' ? stores.room : stores.my;
+        try {
+          await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: view === 'my' ? [info.user.key] : [info.user.key] });
+          say(view === 'my' ? 'Shared to this room.' : 'Saved to your places.');
+          setTimeout(() => say(''), 2500);
+        } catch (err) { say('It could not be copied: ' + ((err && err.message) || err)); }
+      } else if (a === 'edit') { closeMenu(); openEditor(id); }
       else if (a === 'open-in-maps') closeMenu();
       else if (a === 'copy-coords' && p.point) {
         closeMenu();
@@ -554,7 +574,7 @@
     });
   }
 
-  places.provide(info.user.key);
+  stores.room.provide(info.user.key);
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
@@ -565,11 +585,35 @@
 
   // --- start --------------------------------------------------------------------------------------------------------
 
+  // Whose places: the person's own need a signed-in person (a guest has no profile).
+  const VIEW_NOTES = { my: 'Only you see these. They follow you into every room.', global: 'Everyone on this server sees these. Moderators change them.' };
+  function showView(next) {
+    if (next === 'my' && !personal) next = 'room';
+    view = next;
+    try { localStorage.setItem('places-view', view); } catch (err) { /* not remembered */ }
+    for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    const note = root.querySelector('[data-slot="view-note"]');
+    fill(note, { text: VIEW_NOTES[view] || '' });
+    hide(note, !VIEW_NOTES[view]);
+    state.links = new Map();
+    asked.clear();
+    closeMenu();
+    closeFound();
+    closeEditor();
+    render();
+    loadLinks().catch(() => {});
+  }
+  $('views').addEventListener('click', (ev) => { const b = ev.target.closest('.view'); if (b && !b.hidden) showView(b.dataset.view); });
+  hide($('views'), !personal);
+  hide($('views').querySelector('[data-view="global"]'), true);
+  try { const last = localStorage.getItem('places-view'); if (personal && last === 'my') view = 'my'; } catch (err) { /* room */ }
+  if (view === 'my') { for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === 'my')); fill(root.querySelector('[data-slot="view-note"]'), { text: VIEW_NOTES.my }); hide(root.querySelector('[data-slot="view-note"]'), false); }
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
   try {
-    await places.load();
+    await stores.room.load();
+    if (personal) stores.my.load().catch(() => {});
     state.people = await tavern.people().catch(() => []);
     try { state.search = ((await tavern.settings.get()) || {}).search || ''; } catch (err) { state.search = ''; }
     tavern.settings.onChange((v) => { state.search = (v && v.search) || ''; if (!state.search) closeFound(); });

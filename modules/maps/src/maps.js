@@ -97,7 +97,9 @@
   async function loadItems() {
     if (!tavern.refs || !tavern.refs.search) return;
     try {
-      const found = await tavern.refs.search('');
+      // This room's, and the person's own (private to them: a guest has none, so that answers with nothing).
+      const [room, mine] = await Promise.all([tavern.refs.search(''), tavern.refs.search('', { scope: 'person' }).catch(() => [])]);
+      const found = [...room, ...mine];
       state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
       state.items = [];
@@ -131,6 +133,7 @@
     const el = clone('tpl-callout');
     el.dataset.kind = kindOf(c);
     if (c.category) el.dataset.cat = c.category;
+    if (c.ref.scope === 'person') el.dataset.scope = 'person';
     fill(el, { title: c.title, where: c.subtitle || '', coords: coordsText(c.place.lat, c.place.lng), from: `from ${moduleName(c)}${c.when ? ' \u00b7 ' + whenText(c.when) : ''}` });
     setIcon(el.querySelector('.callout-source [data-icon]'), (c.module && c.module.icon) || 'link');
     el.querySelector('[data-action="open-in-maps"]').href = mapsLink(c.place.lat, c.place.lng, c.title, apple);
@@ -174,11 +177,12 @@
   let draftMarker = null;
   function clearPins() { while (markers.length) markers.pop().remove(); }
 
-  function makePin(kind, id, icon, label, on, cat) {
+  function makePin(kind, id, icon, label, on, cat, scope) {
     const pin = clone('tpl-pin');
     pin.dataset.kind = kind;
     pin.dataset.id = id;
     if (cat) pin.dataset.cat = cat;
+    if (scope) pin.dataset.scope = scope;
     setIcon(pin.querySelector('[data-icon]'), icon);
     if (label && state.map.getZoom() >= 11) fill(pin, { label }); else pin.querySelector('.pin-label').remove();
     if (state.selected === id) pin.classList.add('selected');
@@ -190,13 +194,13 @@
     if (!state.map || !state.mapReady) return;
     clearPins();
     const map = state.map;
-    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, cat: c.category || '', icon: (c.module && c.module.icon) || 'location-dot' }));
+    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, cat: c.category || '', scope: c.ref.scope === 'person' ? 'person' : '', icon: (c.module && c.module.icon) || 'location-dot' }));
     const picked = all.filter((x) => x.id === state.selected);
     const rest = all.filter((x) => !picked.includes(x));
     for (const g of clusterPoints(rest, (lat, lng) => map.project([lng, lat]), 36)) {
       if (g.points.length === 1) {
         const x = g.points[0];
-        markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => select(x.id), x.cat), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
+        markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => select(x.id), x.cat, x.scope), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
       } else {
         const c = clone('tpl-pin-cluster');
         fill(c, { count: g.points.length });
@@ -216,7 +220,7 @@
       pin.addEventListener('click', (e) => { e.stopPropagation(); draftAt(c.lat, c.lng, { title: c.title, address: c.sub }); });
       markers.push(new maplibregl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([c.lng, c.lat]).addTo(map));
     }
-    for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}, x.cat), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
+    for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}, x.cat, x.scope), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
     hydrate(root);
   }
 

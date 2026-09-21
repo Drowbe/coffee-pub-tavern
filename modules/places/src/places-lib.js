@@ -63,7 +63,10 @@
   }
 
   // The places of a room, kept live, and what other modules may ask of them. `tavern` is the SDK.
-  function createPlaces(tavern) {
+  // `opts.scope` says whose they are: 'room' (this room's, the default) or 'person' (the signed-in person's own, private).
+  function createPlaces(tavern, opts) {
+    const scope = (opts && opts.scope) || 'room';
+    const at = { scope };
     const items = new Map(); // id -> { place, version }
     const listeners = new Set();
     const changed = () => { for (const fn of listeners) fn(); };
@@ -75,11 +78,11 @@
     };
     async function load() {
       items.clear();
-      for (const it of await tavern.storage.list(PLACE_PREFIX)) remember(it.key.slice(PLACE_PREFIX.length), it.value, it.version);
+      for (const it of await tavern.storage.list(PLACE_PREFIX, at)) remember(it.key.slice(PLACE_PREFIX.length), it.value, it.version);
       changed();
     }
     tavern.on('change', (e) => {
-      if (e.scope === 'rooms' || !String(e.key).startsWith(PLACE_PREFIX)) return;
+      if (e.scope === 'rooms' || (e.scope || 'room') !== scope || !String(e.key).startsWith(PLACE_PREFIX)) return;
       remember(String(e.key).slice(PLACE_PREFIX.length), e.deleted ? null : e.value, e.version);
       changed();
     });
@@ -92,17 +95,18 @@
     async function save(p, version) {
       const id = p.id && p.id !== 'new' ? p.id : tavern.util.id();
       const value = placeValue({ ...p, id });
-      const saved = await tavern.storage.set(PLACE_PREFIX + id, value, version === undefined ? undefined : { version });
+      const saved = await tavern.storage.set(PLACE_PREFIX + id, value, version === undefined ? at : { ...at, version });
       const place = cleanPlace(id, value);
       items.set(id, { place, version: saved && saved.version });
-      if (place.ref) tavern.refs.setLinks(tavern.refs.make('place', id), [place.ref]).catch(() => {});
+      // Personal places are private, so nothing is linked to or from them.
+      if (place.ref && scope === 'room') tavern.refs.setLinks(tavern.refs.make('place', id), [place.ref]).catch(() => {});
       changed();
       return place;
     }
     async function remove(id) {
-      await tavern.storage.delete(PLACE_PREFIX + id, items.has(id) ? { version: items.get(id).version } : undefined);
+      await tavern.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
       items.delete(id);
-      tavern.refs.setLinks(tavern.refs.make('place', id), []).catch(() => {});
+      if (scope === 'room') tavern.refs.setLinks(tavern.refs.make('place', id), []).catch(() => {});
       changed();
     }
     // Give a place a point (or take it away with null).
