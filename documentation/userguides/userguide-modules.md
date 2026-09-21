@@ -4,7 +4,7 @@
 
 A module is a zip file that adds a feature to Tavern, such as the [Calendar](userguide-calendar.md). The **Modules** tab on the Manage page installs them. Modules that come with Tavern run in the page. A module you upload runs in a sandbox, so it can only reach Tavern through what it asks for; it never runs code on your server. Each card says "In the page" or "Sandboxed". You can switch an uploaded module to run in the page, which lets it work with drag and drop between modules, but such a module can read and change everything on the page and act as you, so do it only for a module you trust. The tab also lists recent activity, which is kept when the server restarts, and shows when a module was slowed for doing something too often (the limits are generous; only a module that loops or floods reaches them). If you are writing one, read [api-module-sdk](../api/api-module-sdk.md).
 
-Chat and Conference are listed first on the Modules tab as built-in modules. They are always on and cannot be removed; their permissions are the ones already on the Roles tab.
+Chat and Conference are listed first on the Modules tab as built-in modules; they cannot be removed, and their permissions are the ones already on the Roles tab. Chat is always on. Conference has a switch: **Disable** stops video and audio for everyone in every room (chat, presence and modules keep working), and **Approve and enable** turns it back on. It needs a LiveKit server while it is on. Turned off, nobody has the "See and join the conference" permission, whatever the Roles tab says, and the Roles tab keeps their ticks for when it is turned on again.
 
 ## Modules that come with Tavern
 

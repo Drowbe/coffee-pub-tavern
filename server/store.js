@@ -156,6 +156,9 @@ const DEFAULT_SETTINGS = {
   allowAsides: true,
   allowPrivate: true,
   allowReactions: true,
+  // The video and voice conference. Off, nobody (an admin included) has the "See and join the conference" permission, so joins carry
+  // no media and the room page shows no conference; chat, presence and the modules carry on.
+  conferenceEnabled: true,
   // Saved color themes (see /theme.css and the :root comment in style.css)
   // -- each one the same seven colors, named and kept around so an admin
   // can switch back without re-picking them. activeThemeId null means "use
@@ -577,6 +580,7 @@ class Store {
     if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);
     if (patch.allowPrivate !== undefined) s.allowPrivate = Boolean(patch.allowPrivate);
     if (patch.allowReactions !== undefined) s.allowReactions = Boolean(patch.allowReactions);
+    if (patch.conferenceEnabled !== undefined) s.conferenceEnabled = Boolean(patch.conferenceEnabled);
     // null/empty picks "Default" (style.css's own built-in palette); any
     // other value must be one of the saved themes' ids.
     if (patch.activeThemeId !== undefined) {
@@ -1089,6 +1093,12 @@ class Store {
   }
 
   roleSet(role) {
+    const set = this.roleSetRaw(role);
+    if (this.settings.conferenceEnabled === false) set.conference = false;
+    return set;
+  }
+
+  roleSetRaw(role) {
     const extras = this.extraPermissions();
     if (role === 'admin') return Object.fromEntries([...ROLE_PERMISSIONS, ...extras].map((p) => [p.key, true]));
     const defaultsFor = { moderator: 'moderator', user: 'user', guest: 'guest' }[role] || 'user';
@@ -1099,7 +1109,7 @@ class Store {
   }
 
   roles() {
-    return Object.fromEntries(['admin', ...EDITABLE_ROLES].map((r) => [r, this.roleSet(r)]));
+    return Object.fromEntries(['admin', ...EDITABLE_ROLES].map((r) => [r, this.roleSetRaw(r)]));
   }
 
   setRolePermissions(role, patch) {

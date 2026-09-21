@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- The conference can be switched off (optional conference, stage 1). A server setting `conferenceEnabled` (on by default, accepted by `PATCH /api/settings`, listed on the Conference card of `GET /api/modules` as `enabled` with its wording): off, the "See and join the conference" permission reads false for everyone, so joins carry no media (no publishing, not in the call) and the room page shows no conference, tiles or camera and microphone buttons, while chat, presence, asides data and the modules keep working over LiveKit. The Roles tab keeps the stored ticks. LiveKit is still required at startup; making it optional is a later stage. Verified against a running server (the token with and without media, the setting, the card, the Roles tab unchanged). Not verified: the room page with the conference off in a real call, the OBS pages and the guest link.
+
 ### Changed
 - The AI service is chosen by company: **OpenAI** and **Anthropic** need only a key (Tavern knows their addresses, and any address sent for them is ignored); **Other OpenAI-compatible** takes an address and may have no key. A setting saved earlier as an OpenAI-compatible address is read as Other. New admin route `POST /api/ai/models` lists a service's own models for the admin to pick from (OpenAI: chat models only, newest first; Anthropic; another service's `/v1/models`), using the key just typed or the saved one, with plain errors (no key, refused, unreachable). Saving needs a key and a model for OpenAI and Anthropic, and an address and a model for Other. Requests to OpenAI use `max_completion_tokens`. Verified against a stand-in service (the lists and their filters, the typed key winning, errors, the migration, both new providers' requests). Not verified: the real OpenAI or Anthropic lists.
 
