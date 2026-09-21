@@ -14,7 +14,7 @@ win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
 
-const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/places/src/places-lib.js', import.meta.url), 'utf8')}\nreturn { cleanPlace, placeValue, placeFromRequest, createPlaces, searchResults, searchUrl, readEntry, searchSetup, PLACE_PREFIX, CATEGORIES };`)(geo);
+const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/places/src/places-lib.js', import.meta.url), 'utf8')}\nreturn { cleanPlace, placeValue, placeFromRequest, createPlaces, searchOn, readEntry, PLACE_PREFIX, CATEGORIES };`)(geo);
 
 // An in-memory SDK: the store (with versions and 409s), events, ids, pointers and the actions a page provides.
 function fakeTavern() {
@@ -155,17 +155,7 @@ await test('editing keeps versions: a stale save is refused, remove forgets the 
   assert.ok(links.some(([id, count]) => id === p.id && count === 0));
 });
 
-await test('finding a place: results, the address to ask, and what a bar entry means', () => {
-  const r = lib.searchResults({ features: [
-    { geometry: { type: 'Point', coordinates: [-9.13, 38.7] }, properties: { name: 'Praca', city: 'Lisboa', country: 'Portugal' } },
-    { geometry: { type: 'Point', coordinates: [500, 38.7] }, properties: { name: 'Off the map' } },
-    { geometry: { type: 'Polygon', coordinates: [] }, properties: { name: 'Area' } },
-    { geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} },
-  ] });
-  assert.deepEqual(r, [{ title: 'Praca', sub: 'Lisboa, Portugal', lat: 38.7, lng: -9.13 }]);
-  assert.deepEqual(lib.searchResults(null), []);
-  assert.equal(lib.searchUrl('https://s.example/api', 'colosseo', { lat: 41.9, lon: 12.5 }), 'https://s.example/api?q=colosseo&limit=6&lat=41.9&lon=12.5');
-  assert.equal(lib.searchUrl('https://s.example/api?x=1', 'a b', null), 'https://s.example/api?x=1&q=a+b&limit=6');
+await test('what a bar entry means', () => {
   assert.deepEqual(lib.readEntry('38.7075, -9.1364'), { title: '', point: { lat: 38.7075, lng: -9.1364 }, find: false });
   assert.deepEqual(lib.readEntry('Bar do Peixe 38.71, -9.14'), { title: 'Bar do Peixe', point: { lat: 38.71, lng: -9.14 }, find: false });
   assert.deepEqual(lib.readEntry('Pier https://maps.example.org/@38.7,-9.1,15z'), { title: 'Pier', point: { lat: 38.7, lng: -9.1 }, find: false });
@@ -173,14 +163,13 @@ await test('finding a place: results, the address to ask, and what a bar entry m
   assert.equal(lib.readEntry('x').find, false);
 });
 
-await test('which search is in use', () => {
-  assert.deepEqual(lib.searchSetup({ searchProvider: 'none', search: 'https://x' }), { address: '', credit: '' });
-  assert.equal(lib.searchSetup({ searchProvider: 'photon' }).address, 'https://photon.komoot.io/api');
-  assert.match(lib.searchSetup({ searchProvider: 'photon' }).credit, /OpenStreetMap/);
-  assert.deepEqual(lib.searchSetup({ searchProvider: 'custom', search: 'https://s.example/api' }), { address: 'https://s.example/api', credit: '' });
-  assert.equal(lib.searchSetup({ searchProvider: 'custom', search: '' }).address, '');
-  assert.equal(lib.searchSetup({ searchProvider: 'custom', search: 'javascript:1' }).address, '');
-  assert.equal(lib.searchSetup(null).address, '');
+await test('whether a search is set up', () => {
+  assert.equal(lib.searchOn({ searchProvider: 'none', search: 'https://x' }), false);
+  assert.equal(lib.searchOn({ searchProvider: 'photon' }), true);
+  assert.equal(lib.searchOn({ searchProvider: 'custom', search: 'https://s.example/api' }), true);
+  assert.equal(lib.searchOn({ searchProvider: 'custom', search: '' }), false);
+  assert.equal(lib.searchOn({ searchProvider: 'custom', search: 'javascript:1' }), false);
+  assert.equal(lib.searchOn(null), false);
 });
 
 console.log(`check-places: OK (${n} checks)`);

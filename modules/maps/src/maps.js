@@ -253,7 +253,7 @@
     if (state.map) state.map.easeTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 14), duration: 500 });
     const before = state.items.length;
     const a = o || {};
-    tavern.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
+    tavern.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.origin ? { origin: a.origin } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
     waitForCard(before).then(() => { if (state.draft && state.draft.lat === lat && state.draft.lng === lng) { state.draft = null; drawDraft(); render(); } });
   }
   async function waitForCard(before) {
@@ -308,7 +308,7 @@
         state.searchMessage = out.result && /not set up|not configured/.test(out.result.error || '') ? NO_SEARCH : 'Search is not available right now';
       } else {
         const list = out.result.data && Array.isArray(out.result.data.results) ? out.result.data.results : [];
-        hits = list.filter((h) => h && geo.inRange(Number(h.lat), Number(h.lng)) && typeof h.title === 'string').slice(0, 6).map((h) => ({ title: oneLine(h.title, 120), sub: oneLine(h.sub, 160), lat: Number(h.lat), lng: Number(h.lng) }));
+        hits = list.filter((h) => h && geo.inRange(Number(h.lat), Number(h.lng)) && typeof h.title === 'string').slice(0, 6).map((h) => ({ title: oneLine(h.title, 120), sub: oneLine(h.sub, 160), lat: Number(h.lat), lng: Number(h.lng), key: oneLine(h.key, 60) }));
         state.searchMessage = hits.length ? '' : 'No results';
       }
     } catch (err) {
@@ -325,7 +325,7 @@
     hits = [];
     state.searchMessage = '';
     drawResults();
-    if (state.adder) draftAt(h.lat, h.lng, { title: h.title, address: h.sub });
+    if (state.adder) draftAt(h.lat, h.lng, { title: h.title, address: h.sub, origin: h.key });
     else if (state.map) state.map.easeTo({ center: [h.lng, h.lat], zoom: 15 });
   }
   $('results').addEventListener('click', (e) => {

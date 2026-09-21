@@ -14,6 +14,7 @@ const { ModuleBus } = require('./module-bus');
 const { ChatHistory } = require('./chat-history');
 const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
+const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -1920,6 +1921,73 @@ app.get('/api/modules/widgets', (req, res) => {
 // a room's own page (the room's) and the profile page (a person's own). Who may change what: the server's, an admin; a
 // room's, an admin or one of that room's moderators; a person's own, that person.
 const moduleSettings = new ModuleSettings(modules.dir);
+
+// --- place search, from the server -----------------------------------------------------------------------------------------
+// A module that declares `geocoder` in its manifest has its searches for places answered here: from the saved places first, then
+// (when there are too few) from the service its settings name, keeping what comes back if the admin allows it. See geocode.js.
+const geocodeCache = new GeocodeCache(modules.dir);
+process.on('exit', () => geocodeCache.flush());
+function geocodeAccess(req, res, need) {
+  const ctx = moduleAccess(req, res, need);
+  if (!ctx) return null;
+  if (!ctx.manifest.geocoder) { res.status(404).json({ error: 'this module has no place search' }); return null; }
+  return ctx;
+}
+// Where this module's search goes now: { name, address, credit } or null when none is chosen.
+function geocodeSetup(manifest) {
+  const g = manifest.geocoder;
+  const values = moduleSettings.values(manifest, 'server', {});
+  const chosen = values[g.provider];
+  const known = g.providers[chosen];
+  if (known) return { name: known.name, address: known.address, credit: known.credit, save: g.save ? values[g.save] !== false : false };
+  if (chosen === g.custom && typeof values[g.address] === 'string' && /^https?:\/\//i.test(values[g.address])) return { name: 'the search service', address: values[g.address], credit: '', save: g.save ? values[g.save] !== false : false };
+  return null;
+}
+app.get('/api/modules/:id/geocode', async (req, res) => {
+  const ctx = geocodeAccess(req, res, 'read');
+  if (!ctx) return;
+  const q = String(req.query.q || '').trim().slice(0, 200);
+  if (q.length < 2) return res.json({ results: [], configured: true });
+  const setup = geocodeSetup(ctx.manifest);
+  if (!setup) return res.json({ results: [], configured: false });
+  if (overLimit(ctx.manifest.id, ctx.who.user?.key, 'search')) return res.status(429).json({ error: limitMessage });
+  const near = req.query.lat !== undefined ? { lat: Number(req.query.lat), lon: Number(req.query.lon) } : null;
+  const id = ctx.manifest.id;
+  const pick = (r, source, from) => ({ key: r.key, title: r.name, sub: r.address, lat: r.lat, lng: r.lng, source, from });
+  // Saved places first: enough of them and the outside service is not asked.
+  const saved = setup.save ? geocodeCache.search(id, q, near, 10).map((r) => pick(r, 'server', 'Saved on this server')) : [];
+  if (saved.length >= ENOUGH) return res.json({ results: saved.slice(0, 8), configured: true, credit: setup.credit });
+  try {
+    const found = await askService(setup.address, q, near);
+    const kept = setup.save ? geocodeCache.remember(id, found) : found.map((p) => ({ ...p, key: keyOfPlace(p) }));
+    const fromService = kept.map((r) => pick(r, 'service', `From ${setup.name}`));
+    const seen = new Set(saved.map((r) => r.key));
+    res.json({ results: [...saved, ...fromService.filter((r) => !seen.has(r.key))].slice(0, 8), configured: true, credit: setup.credit });
+  } catch (err) {
+    if (saved.length) return res.json({ results: saved, configured: true, credit: setup.credit });
+    res.status(502).json({ error: 'search is not available right now' });
+  }
+});
+// Someone picked a result (or saved it as a place): mark it used, which protects it from being purged.
+app.post('/api/modules/:id/geocode/use', (req, res) => {
+  const ctx = geocodeAccess(req, res, 'write');
+  if (!ctx) return;
+  res.json({ ok: geocodeCache.markUsed(ctx.manifest.id, String(req.body?.key || '')) });
+});
+// For the admin: how many places are saved, and removing them by their mark.
+app.get('/api/modules/:id/geocode/stats', requireAdmin, (req, res) => {
+  const found = modules.enabled(req.params.id);
+  if (!found || !found.manifest.geocoder) return res.status(404).json({ error: 'no such place search' });
+  res.json(geocodeCache.stats(found.manifest.id));
+});
+app.post('/api/modules/:id/geocode/purge', requireAdmin, (req, res) => {
+  const found = modules.enabled(req.params.id);
+  if (!found || !found.manifest.geocoder) return res.status(404).json({ error: 'no such place search' });
+  const what = req.body?.what === 'all' ? 'all' : req.body?.what === 'unused' ? 'unused' : null;
+  if (!what) return res.status(400).json({ error: 'say what to remove: unused or all' });
+  const days = Number(req.body?.olderThanDays);
+  res.json({ removed: geocodeCache.purge(found.manifest.id, what, Number.isFinite(days) && days > 0 ? days : 0), ...geocodeCache.stats(found.manifest.id) });
+});
 moduleSettings.on('change', (c) => {
   if (c.scope === 'person') return;
   const where = c.scope === 'room' ? ` for ${store.roomById(c.roomId)?.name || 'a room'}` : '';

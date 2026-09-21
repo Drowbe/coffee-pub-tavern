@@ -415,6 +415,13 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'settings.get'() {
       return (await api('GET', url('/settings/values', scopeOf()))).values;
     },
+    // Place search answered by the server (a module that declares `geocoder`): saved places first, then the chosen service.
+    async 'geocode.search'({ q, lat, lon }) {
+      return api('GET', url('/geocode', scopeOf(), { q: String(q ?? '').slice(0, 200), lat, lon }));
+    },
+    async 'geocode.used'({ key }) {
+      return api('POST', url('/geocode/use', scopeOf()), { key: String(key ?? '') });
+    },
     async people() {
       if (scope !== 'room' || !roomId) return [];
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';

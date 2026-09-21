@@ -220,6 +220,21 @@ function cleanBus(rawEvents, rawActions, id) {
 // The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
 const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
+// A module's place search, asked from the server (see geocode.js): which settings say where to search, and the providers it knows.
+// { provider: <a choice setting>, address: <a url setting for a custom address>, save: <a boolean setting: keep what comes back>,
+//   custom: <the provider value that means the address>, providers: { <provider value>: { address, credit } } }, or null.
+function cleanGeocoder(raw, settings) {
+  if (!raw || typeof raw !== 'object') return null;
+  const known = (k, type) => typeof k === 'string' && settings.some((d) => d.key === k && (!type || d.type === type));
+  if (!known(raw.provider, 'choice') || !known(raw.address, 'url')) throw new ModuleError('module.json: geocoder needs a `provider` choice setting and an `address` url setting');
+  const out = { provider: raw.provider, address: raw.address, save: known(raw.save, 'boolean') ? raw.save : '', custom: typeof raw.custom === 'string' ? raw.custom.slice(0, 40) : 'custom', providers: {} };
+  for (const [k, v] of Object.entries(raw.providers && typeof raw.providers === 'object' ? raw.providers : {}).slice(0, 5)) {
+    if (!/^[a-z][a-z0-9-]{0,23}$/.test(k) || !v || typeof v.address !== 'string' || !/^https:\/\/[^\s]{1,300}$/.test(v.address)) throw new ModuleError(`module.json: geocoder provider "${k}" needs an https address`);
+    out.providers[k] = { address: v.address, credit: text(v.credit, 100), name: text(v.name, 30) || k };
+  }
+  return out;
+}
+
 function cleanSettings(raw) {
   const out = [];
   for (const r of Array.isArray(raw) ? raw.slice(0, 20) : []) {
@@ -235,6 +250,7 @@ function cleanSettings(raw) {
     if (r.showWhen && typeof r.showWhen === 'object') {
       const k = typeof r.showWhen.key === 'string' ? r.showWhen.key : '';
       if (/^[a-z][a-zA-Z0-9]{0,23}$/.test(k) && typeof r.showWhen.value === 'string') def.showWhen = { key: k, value: r.showWhen.value.slice(0, 40) };
+      else if (/^[a-z][a-zA-Z0-9]{0,23}$/.test(k) && typeof r.showWhen.not === 'string') def.showWhen = { key: k, not: r.showWhen.not.slice(0, 40) }; // shown unless it has this value
     }
     // Longer help that keeps its line breaks, for an option that needs to say more (what it sends, and where).
     const longText = (s, n) => String(s ?? '').replace(/(?!\n)\p{Cc}/gu, ' ').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
@@ -353,6 +369,7 @@ function cleanManifest(raw, files) {
   }
 
   const settings = cleanSettings(raw.settings);
+  const geocoder = cleanGeocoder(raw.geocoder, settings);
 
   // The modules this one cannot work without: the one place a manifest names another module (at run time every module still
   // reaches another only through the generic conduits). It cannot be turned on until they are on.
@@ -362,7 +379,7 @@ function cleanManifest(raw, files) {
     if (!requires.includes(r)) requires.push(r);
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -429,6 +446,7 @@ class ModuleManager {
       } catch {
         manifest.settings = [];
       }
+      try { manifest.geocoder = cleanGeocoder(manifest.geocoder, manifest.settings); } catch { manifest.geocoder = null; }
       this.manifests.set(cacheKey, manifest);
     }
     return manifest;

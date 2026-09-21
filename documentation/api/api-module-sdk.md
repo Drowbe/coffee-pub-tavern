@@ -207,6 +207,18 @@ A `file` setting (with `"folder": "map-tiles"`, lowercase letters, digits and da
 
 Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Tavern's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
 
+### Place search
+
+A module whose manifest declares `geocoder` (see [api-modules](api-modules.md)) asks the server to search for places by name, so the page never contacts an outside service:
+
+```js
+const { results, configured, credit } = await tavern.geocode.search('colosseo', { lat: 41.9, lon: 12.5 }); // near is optional
+// results: [{ key, title, sub, lat, lng, from }]  `from` says where it came from (saved on the server, or the service)
+await tavern.geocode.used(results[0].key);     // the person picked it: the server keeps it when it is cleaned out
+```
+
+The server looks in the places it has saved first, and asks the service the admin chose only when fewer than five match; the answers are saved if the admin allows it. Searches count against the module's rate limit.
+
 ### Shared tools
 
 Anything more than one module needs belongs in the SDK, not copied into each module. Use these rather than writing your own; they follow the theme and work the same in a frame and in the page.

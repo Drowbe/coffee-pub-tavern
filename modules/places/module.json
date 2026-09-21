@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -87,6 +87,7 @@
         "label": "Save a place here",
         "local": true,
         "input": {
+          "origin": "string?",
           "title": "string?",
           "lat": "number?",
           "lng": "number?",
@@ -118,6 +119,19 @@
     "consumes": [
       "*"
     ]
+  },
+  "geocoder": {
+    "provider": "searchProvider",
+    "address": "search",
+    "save": "saveResults",
+    "custom": "custom",
+    "providers": {
+      "photon": {
+        "name": "Photon",
+        "address": "https://photon.komoot.io/api",
+        "credit": "Search by Photon · © OpenStreetMap contributors"
+      }
+    }
   },
   "settings": [
     {
@@ -158,7 +172,19 @@
         "key": "searchProvider",
         "value": "custom"
       },
-      "help": "A Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). It must allow requests from this server's pages (its CORS setting)."
+      "help": "A Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api)."
+    },
+    {
+      "key": "saveResults",
+      "label": "Save places to the server",
+      "type": "boolean",
+      "scope": "server",
+      "default": true,
+      "showWhen": {
+        "key": "searchProvider",
+        "not": "none"
+      },
+      "help": "Keep the places a search returns on this server, so the next search asks the outside service less. What is kept is the place (name, address, position, category), never what was searched for or by whom."
     }
   ]
 }

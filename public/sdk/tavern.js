@@ -354,6 +354,13 @@
       onChange: (fn) => tavern.on('settings', () => call('settings.get').then(fn).catch(() => {})),
     },
 
+    // Place search, asked of the server (for a module whose manifest declares `geocoder`). `search(q, near)` answers
+    // { results: [{ key, title, sub, lat, lng, from }], configured, credit }; `used(key)` marks a result as picked.
+    geocode: {
+      search: (q, near) => call('geocode.search', { q, lat: near && near.lat, lon: near && near.lon }),
+      used: (key) => call('geocode.used', { key }),
+    },
+
     // The people of the room this panel is in: [{ key, name }] (empty outside a room panel). For choosing a person
     // ("whose is it"): store their `key`, never the name.
     people: () => call('people'),

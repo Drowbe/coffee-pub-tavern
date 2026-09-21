@@ -59,10 +59,10 @@
     cat: '',
     loaded: false,
     links: new Map(), // place id -> cards of what other modules point at it
-    editing: null, // { id | null, version, point: {lat, lng} | null, pointOk, conflict }
+    editing: null, // { id | null, version, point: {lat, lng} | null, pointOk, conflict, origin (the search result it came from) }
     menuFor: null,
     armed: null,
-    search: '', // the address of the search in use, if any
+    search: false, // whether a place search is set up
     searchCredit: '', // what to say about it under the results
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || '';
@@ -285,7 +285,7 @@
   function openEditor(id, seed) {
     const p = id ? places.get(id) : null;
     if (id && !p) return;
-    state.editing = { id: id || null, version: p ? places.versionOf(id) : undefined, point: p ? p.point : (seed && seed.point) || null, pointOk: true, conflict: null };
+    state.editing = { id: id || null, version: p ? places.versionOf(id) : undefined, point: p ? p.point : (seed && seed.point) || null, pointOk: true, conflict: null, origin: (seed && seed.origin) || '' };
     dropConflict();
     for (const n of $('form').querySelectorAll('.readonly')) n.remove();
     const view = p || { title: (seed && seed.title) || '', category: 'other', address: (seed && seed.address) || '', point: (seed && seed.point) || null, notes: (seed && seed.notes) || '', owners: [], by: '', ref: null };
@@ -384,6 +384,7 @@
     $('f-save').disabled = true;
     try {
       await places.save(place, e.id ? e.version : undefined);
+      if (e.origin) markUsed(e.origin);
       closeEditor();
     } catch (err) {
       if (err && err.status === 409) {
@@ -478,12 +479,13 @@
 
   let searchToken = 0;
   let hits = [];
-  // Ask the search for places by name: [{ title, sub, lat, lng }], or an Error.
+  // Ask the server to search for places by name: [{ key, title, sub, lat, lng, from }], or an Error. The server looks in the
+  // places it has saved first and asks the outside service only for what is missing.
   async function searchFor(q, near) {
     if (!state.search) throw new Error('search is not configured');
-    const res = await fetch(searchUrl(state.search, q, near || null), { headers: { Accept: 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer' });
-    if (!res.ok) throw new Error('search answered ' + res.status);
-    return searchResults(await res.json(), 6);
+    const out = await tavern.geocode.search(q, near || null);
+    if (out.credit) state.searchCredit = out.credit;
+    return (out.results || []).slice(0, 6);
   }
   const closeFound = () => { searchToken += 1; hits = []; hide($('found'), true); $('found').replaceChildren(); };
   function foundHead(label, query, closable) {
@@ -520,7 +522,7 @@
     found.forEach((h, i) => {
       const r = clone('tpl-found-row');
       r.dataset.i = String(i);
-      fill(r, { title: h.title, address: h.sub });
+      fill(r, { title: h.title, address: h.sub, source: h.from || '' });
       hide(r.querySelector('[data-action="save-found"]'), !canEdit);
       rows.append(r);
     });
@@ -529,12 +531,15 @@
     box.replaceChildren(...parts);
     hydrate(box);
   }
+  // A picked result is marked used on the server, which keeps it from being purged. Nothing depends on it, so a failure is ignored.
+  const markUsed = (key) => { if (key && tavern.geocode) tavern.geocode.used(key).catch(() => {}); };
   // A result saved as a place: its name, address and position (the category is left for the person to set).
   async function saveFound(i) {
     const h = hits[i];
     if (!h || !canEdit) return;
     try {
       await places.save({ id: '', title: h.title, category: 'other', address: h.sub, point: { lat: h.lat, lng: h.lng }, notes: '', owners: [info.user.key], by: info.user.key, ref: null });
+      markUsed(h.key);
       closeFound();
     } catch (err) {
       say('It could not be saved: ' + ((err && err.message) || err));
@@ -584,7 +589,7 @@
         const has = (x) => x !== undefined && x !== null && x !== '';
         const point = has(i.lat) && has(i.lng) && geo.inRange(Number(i.lat), Number(i.lng)) ? { lat: geo.round6(Number(i.lat)), lng: geo.round6(Number(i.lng)) } : null;
         closeFound();
-        openEditor(null, { title: geo.oneLine(i.title, 120), point, address: geo.oneLine(i.address, 200), notes: String(i.notes || '').slice(0, 1000) });
+        openEditor(null, { title: geo.oneLine(i.title, 120), point, address: geo.oneLine(i.address, 200), notes: String(i.notes || '').slice(0, 1000), origin: geo.oneLine(i.origin, 60) });
         return {};
       },
     });
@@ -635,7 +640,7 @@
   try {
     await ensureLoaded(view);
     state.people = await tavern.people().catch(() => []);
-    const useSearch = (v) => { const s = searchSetup(v); state.search = s.address; state.searchCredit = s.credit; if (!state.search) closeFound(); };
+    const useSearch = (v) => { state.search = searchOn(v); state.searchCredit = ''; if (!state.search) closeFound(); };
     try { useSearch(await tavern.settings.get()); } catch (err) { useSearch(null); }
     tavern.settings.onChange((v) => useSearch(v));
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(CAT_ICON), ['layer-group', 'link']))].filter(Boolean).map(wantIcon));
