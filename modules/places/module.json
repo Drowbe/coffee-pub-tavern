@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -179,7 +179,7 @@
       "label": "Save places to the server",
       "type": "boolean",
       "scope": "server",
-      "default": true,
+      "default": false,
       "showWhen": {
         "key": "searchProvider",
         "not": "none"

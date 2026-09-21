@@ -11,7 +11,7 @@ When a place search goes to an outside service (Photon, or an address the admin 
 ## Decisions (author)
 
 - **Keep every result the service returns**, not only the one a person picks. The goal is a database that saves calls, so more is better. Each saved place carries a **used** mark: set when someone saves it as one of their places or picks it from a search, clear otherwise. Later the admin can **purge** by that mark (for instance, everything unused older than N days).
-- **A checkbox, on by default:** "Save places to the server", shown only when an outside address is chosen (Photon or my own address). It sits with the search choice on the Places Module Configuration page, with a short notice.
+- **A checkbox, off by default (the author's later decision, until Photon's terms and the licence question are settled):** "Save places to the server", shown only when an outside address is chosen (Photon or my own address). It sits with the search choice on the Places Module Configuration page, with a short notice.
 - **Local first, outside second.** A search reads the saved places; if they answer well (at least a handful), the outside service is not asked. Each result says where it came from ("Saved on this server" or "From Photon").
 
 ## What is stored, and what is not
@@ -24,7 +24,7 @@ When a place search goes to an outside service (Photon, or an address the admin 
 
 "When search goes to an outside service, the places it returns are saved on this server and shared by every room, so later searches use them first and the outside service is asked less. A saved place is a place, not who looked for it. You can purge them later."
 
-## Licence and terms (to settle before this is on by default)
+## Licence and terms (to settle before this can be on by default; for now it is off and the admin turns it on)
 
 - The data is OpenStreetMap's, under the ODbL. Keeping a private copy is fine. If Tavern (or a hosted edition) serves the saved collection to other people, the ODbL requires the collection to remain open under the same licence and to credit OpenStreetMap. The credit "© OpenStreetMap contributors" stays wherever results are shown.
 - Photon's public service asks for reasonable use and says nothing about storing results; read their terms before turning this on by default. A hosted edition should not be built on a public demo service.
