@@ -22,6 +22,25 @@ The proposal read: MapLibre GL JS for the map, Martin serving locally stored til
 | PostgreSQL | **No.** Places live on the items in the module store, with its versions and live changes. |
 | Hosted shared infrastructure | Out of scope for this repository. If a hosted edition ever exists, it sets the same three settings below to its own services. |
 
+## Licences: free for commercial use, like LiveKit
+
+Everything Tavern ships or depends on must be free for commercial use and redistribution under a permissive licence (MIT, BSD, Apache 2.0, ISC, CC0, CC BY, SIL OFL), as LiveKit (Apache 2.0) and Font Awesome Free already are. Checked against the proposal:
+
+| Piece | Licence | Verdict |
+|---|---|---|
+| MapLibre GL JS | BSD 3-clause | Ship. |
+| PMTiles reader and the `pmtiles` tool | BSD 3-clause | Ship the reader; the operator runs the tool. |
+| Protomaps basemap styles and build code | BSD 3-clause (the map design itself is CC0) | Use as the base of Tavern's own themed style. If Tavern distributes a modified fork of the styles or tiles it must not be named "Protomaps". |
+| Map data (OpenStreetMap) and the tiles built from it | ODbL | Free for commercial use. Visible attribution "© OpenStreetMap contributors" is required on every map. Share-alike applies to a *database* made by adding to OpenStreetMap data and distributing it; a map drawn from it is a produced work and only needs the attribution. Tavern adds no data to it. |
+| Glyph fonts (Noto Sans) | SIL Open Font License | Free to redistribute and use commercially; confirm the exact files when the style is chosen. |
+| Photon (search) | Apache 2.0 | An optional endpoint the operator runs; permissive. |
+| Valhalla (directions) | MIT | Same. OSRM (BSD 2-clause) is an equal alternative. |
+| Nominatim (search) | GPL 2 and later | **Not shipped and not linked.** Tavern may speak its query format to an endpoint the operator runs, which is a protocol, not code. |
+
+**Ruled out** because they are not free for commercial use or not free at all: Mapbox GL JS from version 2 (proprietary; MapLibre is its open fork), Google, Apple and other proprietary map, geocoding or routing services, hosted tile services with paid or per-request terms, satellite and aerial imagery (proprietary), and the public OpenStreetMap tile servers as an application default (their usage policy forbids it). The operator may point Tavern at any service they hold the right to use; Tavern ships none of them.
+
+The About page lists every one of these under "Built on", with its licence, as it does for LiveKit.
+
 ## Design
 
 - **A generic conduit, not a Travel feature.** A map is a shared tool, so it belongs in the core SDK: a map surface any module can use to show places and to let a person pick one, and a place on a card as an optional field (`place: { lat, lng, name }`) next to `when`, so any module's items can appear on it. Tavern names no module: the map shows every item whose card has a place.
@@ -56,6 +75,7 @@ The proposal read: MapLibre GL JS for the map, Martin serving locally stored til
 - A worldwide PMTiles basemap is about 107 GB; a bounding-box extract can be a couple of MB; readers use HTTP range requests, so no tile server is needed ([Protomaps docs](https://docs.protomaps.com/pmtiles/), [PMTiles guide](https://guide.cloudnativegeo.org/pmtiles/intro.html)).
 - Photon planet: about 95 GB disk, 64 GB RAM recommended ([Photon README](https://github.com/komoot/photon/blob/master/README.md), [self-hosting notes](https://chibigeo.com/docs/photon/self-hosting-photon/)).
 - Valhalla planet: 70 to 140 GB of tiles, at least 32 GB RAM for the planet and about 16 GB for Europe ([discussion](https://github.com/valhalla/valhalla/discussions/5919), [tile packs](https://www.interline.io/valhalla/tilepacks/)).
+- Licences: Photon is Apache 2.0 ([Photon licence](https://github.com/komoot/photon/blob/master/LICENSE)), Valhalla is MIT ([licence](https://github.com/valhalla/valhalla/blob/master/LICENSE.md)), Nominatim is GPL ([copying](https://github.com/osm-search/Nominatim/blob/master/COPYING)), OSRM is BSD 2-clause; the Protomaps basemap software is BSD 3-clause and its design CC0, with the tiles a produced work of OpenStreetMap needing attribution ([data licence note](https://github.com/protomaps/basemaps/blob/main/LICENSE_DATA.md)).
 - OpenStreetMap data is under the ODbL and needs attribution; a tile service built from it is a produced work ([licence FAQ](https://osmfoundation.org/wiki/Licence/Licence_and_Legal_FAQ), [attribution guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines)); the public tile servers may not be the default of an application ([tile usage policy](https://operations.osmfoundation.org/policies/tiles/)).
 
 ## Questions
