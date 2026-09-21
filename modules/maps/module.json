@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -51,14 +51,6 @@
       "scope": "server",
       "default": "",
       "help": "A PMTiles map file (a region or the world) in the map-tiles folder inside the Maps module folder (modules/maps/map-tiles/ in the data folder). Nothing shows until one is chosen."
-    },
-    {
-      "key": "search",
-      "label": "Search address",
-      "type": "url",
-      "scope": "server",
-      "default": "",
-      "help": "Optional. The address of a Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). Leave it empty for a map without search."
     }
   ],
   "access": {

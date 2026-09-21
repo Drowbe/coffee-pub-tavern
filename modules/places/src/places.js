@@ -53,6 +53,7 @@
     editing: null, // { id | null, version, point: {lat, lng} | null, pointOk, conflict }
     menuFor: null,
     armed: null,
+    search: '', // the admin's search address, if any
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || '';
   const initial = (key) => (nameOf(key)[0] || '?').toUpperCase();
@@ -271,7 +272,7 @@
     state.editing = { id: id || null, version: p ? places.versionOf(id) : undefined, point: p ? p.point : (seed && seed.point) || null, pointOk: true, conflict: null };
     dropConflict();
     for (const n of $('form').querySelectorAll('.readonly')) n.remove();
-    const view = p || { title: (seed && seed.title) || '', category: 'other', address: '', point: (seed && seed.point) || null, notes: '', owners: [], by: '', ref: null };
+    const view = p || { title: (seed && seed.title) || '', category: 'other', address: (seed && seed.address) || '', point: (seed && seed.point) || null, notes: (seed && seed.notes) || '', owners: [], by: '', ref: null };
     const editable = canEdit;
     $('editor-title').textContent = id ? (editable ? 'Change this place' : view.title) : 'Add a place';
     for (const w of FIELD_WRAPPERS()) w.hidden = !editable;
@@ -431,7 +432,7 @@
   });
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor();
+      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor(); else if (!$('found').hidden) closeFound();
     } else if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('place-row')) {
       ev.target.click();
     }
@@ -439,29 +440,117 @@
 
   // --- adding: the bottom bar, and what other modules and pointers ask ----------------------------------------------
 
-  // What was typed: a name, with coordinates or a map link anywhere in it setting the position.
-  function readQuickAdd(text) {
-    const t = String(text || '').trim();
-    const whole = geo.parsePoint(t);
-    if (whole) return { title: '', point: whole };
-    const link = t.match(/(?:https?:\/\/|geo:)\S+/i);
-    if (link) {
-      const pt = geo.parsePoint(link[0]);
-      if (pt) return { title: geo.oneLine(t.replace(link[0], ' '), 120), point: pt };
-    }
-    const tail = t.match(/(-?\d{1,3}\.\d+)[,;\s]+(-?\d{1,3}\.\d+)\s*$/);
-    if (tail) {
-      const pt = geo.parsePoint(`${tail[1]}, ${tail[2]}`);
-      if (pt) return { title: geo.oneLine(t.slice(0, tail.index), 120), point: pt };
-    }
-    return { title: geo.oneLine(t, 120), point: null };
+  // --- find a place (only when the admin set a search address) -----------------------------------------------------
+
+  let searchToken = 0;
+  let hits = [];
+  // Ask the search for places by name: [{ title, sub, lat, lng }], or an Error.
+  async function searchFor(q, near) {
+    if (!state.search) throw new Error('search is not set up');
+    const res = await fetch(searchUrl(state.search, q, near || null), { headers: { Accept: 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error('search answered ' + res.status);
+    return searchResults(await res.json(), 6);
   }
+  const closeFound = () => { searchToken += 1; hits = []; hide($('found'), true); $('found').replaceChildren(); };
+  function foundHead(label, query, closable) {
+    const h = clone('tpl-found-head');
+    fill(h, { label, query: '\u201c' + query + '\u201d' });
+    hide(h.querySelector('.found-close'), !closable);
+    return h;
+  }
+  async function find(query) {
+    const mine = ++searchToken;
+    const box = $('found');
+    box.replaceChildren(foundHead('Searching for', query, false), clone('tpl-found-searching'));
+    hide(box, false);
+    let found;
+    try {
+      found = await searchFor(query);
+    } catch (err) {
+      if (mine !== searchToken) return;
+      const st = clone('tpl-found-state');
+      fill(st, { text: 'Search is not available right now.' });
+      box.replaceChildren(foundHead('Results for', query, true), st);
+      return;
+    }
+    if (mine !== searchToken) return;
+    hits = found;
+    if (!found.length) {
+      const st = clone('tpl-found-state');
+      fill(st, { text: 'Nothing found. Try a fuller name, or paste coordinates or a map link.' });
+      box.replaceChildren(foundHead('Results for', query, true), st);
+      return;
+    }
+    const rows = document.createElement('div');
+    rows.className = 'found-rows';
+    found.forEach((h, i) => {
+      const r = clone('tpl-found-row');
+      r.dataset.i = String(i);
+      fill(r, { title: h.title, address: h.sub });
+      hide(r.querySelector('[data-action="save-found"]'), !canEdit);
+      rows.append(r);
+    });
+    box.replaceChildren(foundHead('Results for', query, true), rows);
+    hydrate(box);
+  }
+  // A result saved as a place: its name, address and position (the category is left for the person to set).
+  async function saveFound(i) {
+    const h = hits[i];
+    if (!h || !canEdit) return;
+    try {
+      await places.save({ id: '', title: h.title, category: 'other', address: h.sub, point: { lat: h.lat, lng: h.lng }, notes: '', owners: [info.user.key], by: info.user.key, ref: null });
+      closeFound();
+    } catch (err) {
+      say('It could not be saved: ' + ((err && err.message) || err));
+    }
+  }
+  $('found').addEventListener('click', (ev) => {
+    const row = ev.target.closest('.found-row');
+    if (ev.target.closest('[data-action="close-found"]')) return closeFound();
+    if (row) saveFound(Number(row.dataset.i));
+  });
+  $('found').addEventListener('keydown', (ev) => {
+    const row = ev.target.closest && ev.target.closest('.found-row');
+    if (!row) return;
+    if (ev.key === 'Enter') { ev.preventDefault(); saveFound(Number(row.dataset.i)); }
+    else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      const next = ev.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+      if (next) next.focus();
+    }
+  });
+
   if (tavern.bar) {
     tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Add a place: name, or paste coordinates or a map link' }] : []).catch(() => {});
     tavern.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
       if (!e.value) return openEditor(null);
-      openEditor(null, readQuickAdd(e.value));
+      const entry = readEntry(e.value);
+      // A name, with a search address set, looks for the place; anything with coordinates or a link (or no search) opens the dialog.
+      if (entry.find && state.search) return void find(entry.title);
+      closeFound();
+      openEditor(null, entry);
+    });
+  }
+
+  // What other modules may ask of this page, for the person who asked (a view, so only their own page does it): look for a
+  // place by name, and open the dialog for a new one where a map was clicked.
+  if (tavern.actions && tavern.actions.provide) {
+    tavern.actions.provide({
+      searchPlaces: async (input) => {
+        const q = geo.oneLine(input && input.q, 200);
+        if (q.length < 2) throw new Error('nothing to look for');
+        return { data: { results: await searchFor(q, input && input.lat !== undefined ? { lat: input.lat, lon: input.lon } : null) } };
+      },
+      newPlace: async (input) => {
+        if (!canEdit) throw new Error('you may not add places here');
+        const i = input || {};
+        const has = (x) => x !== undefined && x !== null && x !== '';
+        const point = has(i.lat) && has(i.lng) && geo.inRange(Number(i.lat), Number(i.lng)) ? { lat: geo.round6(Number(i.lat)), lng: geo.round6(Number(i.lng)) } : null;
+        closeFound();
+        openEditor(null, { title: geo.oneLine(i.title, 120), point, address: geo.oneLine(i.address, 200), notes: String(i.notes || '').slice(0, 1000) });
+        return {};
+      },
     });
   }
 
@@ -482,6 +571,8 @@
   try {
     await places.load();
     state.people = await tavern.people().catch(() => []);
+    try { state.search = ((await tavern.settings.get()) || {}).search || ''; } catch (err) { state.search = ''; }
+    tavern.settings.onChange((v) => { state.search = (v && v.search) || ''; if (!state.search) closeFound(); });
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(CAT_ICON), ['layer-group', 'link']))].filter(Boolean).map(wantIcon));
     findShowAction();
     state.loaded = true;

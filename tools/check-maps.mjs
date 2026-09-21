@@ -13,24 +13,11 @@ const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
-const names = ['searchResults', 'clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle'];
+const names = ['clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle'];
 const lib = new Function('geo', `${read('maps-lib-c-geo.js')}\n${read('maps-lib-d-style.js')}\nreturn { ${names.join(', ')} };`)(geo);
 
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
-
-test('search results from a Photon-compatible endpoint', () => {
-  const r = lib.searchResults({ features: [
-    { geometry: { type: 'Point', coordinates: [-9.13, 38.7] }, properties: { name: 'Praca', city: 'Lisboa', country: 'Portugal' } },
-    { geometry: { type: 'Point', coordinates: [500, 38.7] }, properties: { name: 'Off the map' } },
-    { geometry: { type: 'Polygon', coordinates: [] }, properties: { name: 'Area' } },
-    { geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} },
-  ] });
-  assert.equal(r.length, 1);
-  assert.deepEqual(r[0], { title: 'Praca', sub: 'Lisboa, Portugal', lat: 38.7, lng: -9.13 });
-  assert.deepEqual(lib.searchResults(null), []);
-  assert.deepEqual(lib.searchResults({ features: 'no' }), []);
-});
 
 test('points that would overlap are grouped', () => {
   const project = (lat, lng) => ({ x: lng * 10, y: lat * 10 });

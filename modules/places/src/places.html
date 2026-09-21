@@ -25,6 +25,8 @@
   <div class="chips" id="chips" role="group" aria-label="Category"></div>
   <p class="error" id="note" hidden></p>
   <main id="body" class="body"></main>
+  <!-- the results of a search, over the foot of the pane while there are some (the script fills it from the tpl-found-* templates) -->
+  <div id="found" class="found" role="listbox" aria-label="Search results" hidden></div>
 
   <!-- the item menu: a popover the script positions under the button that opened it -->
   <div id="item-menu" class="menu" role="menu" hidden>
@@ -88,6 +90,11 @@
     <button class="item-menu" type="button" data-action="menu" aria-label="Place menu"><span class="ic" data-icon="ellipsis"></span></button>
   </article>
 </template>
+<!-- find a place: the heading ("Results for", the text) and the rows; a row is a result with a Save button -->
+<template id="tpl-found-head"><div class="found-head"><span data-slot="label">Results for</span><b data-slot="query"></b><span class="grow"></span><button class="found-close" type="button" data-action="close-found" aria-label="Close results"><span class="ic" data-icon="xmark"></span></button></div></template>
+<template id="tpl-found-row"><div class="found-row" role="option" tabindex="0"><span class="mark"><span class="ic" data-icon="location-dot"></span></span><div><h3 class="title" data-slot="title"></h3><p class="sub" data-slot="address"></p></div><button class="btn btn-primary" type="button" data-action="save-found">Save</button></div></template>
+<template id="tpl-found-searching"><div class="found-rows"><div class="skeleton" aria-busy="true"><div class="skel"></div><div class="skel"></div></div></div></template>
+<template id="tpl-found-state"><p class="found-state" data-slot="text"></p></template>
 <template id="tpl-owner"><span class="owner"></span></template>
 <template id="tpl-link"><span class="link"><span class="ic" data-icon=""></span> <b data-slot="kind"></b> <span data-slot="title"></span></span></template>
 <template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>

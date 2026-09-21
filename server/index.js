@@ -1801,6 +1801,13 @@ app.post('/api/bus/actions/complete', busRoute((who, req) => {
   if (done && done.local) { if (done.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), room, 'write');
   const clean = { ok: Boolean(result?.ok) };
   if (typeof result?.error === 'string') clean.error = result.error.slice(0, 200);
+  // A small piece of plain data may come back with the result (up to about 8 KB of JSON), for a view that asks a question.
+  if (result?.data !== undefined) {
+    try {
+      const text = JSON.stringify(result.data);
+      if (text && text.length <= 8000) clean.data = JSON.parse(text);
+    } catch (err) { /* not plain data: left out */ }
+  }
   if (refShape(result?.ref) && result.ref.module === id) clean.ref = { module: result.ref.module, kind: result.ref.kind, id: String(result.ref.id), scope: result.ref.scope, ...(result.ref.scope === 'room' ? { room: result.ref.room } : {}) };
   return { ok: Boolean(moduleBus.complete(Number(requestId), id, at.scopeKey, clean)) };
 }));

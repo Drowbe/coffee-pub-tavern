@@ -660,7 +660,7 @@
           let result;
           try {
             const out = await fn(claim.action.input, { from: claim.action.from, by: claim.action.by });
-            result = { ok: true, ref: out && out.ref };
+            result = { ok: true, ref: out && out.ref, ...(out && out.data !== undefined ? { data: out.data } : {}) };
           } catch (err) {
             result = { ok: false, error: String((err && err.message) || err) };
           }

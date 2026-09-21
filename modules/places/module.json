@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -69,6 +69,28 @@
           "lat": "number",
           "lng": "number"
         }
+      },
+      {
+        "name": "searchPlaces",
+        "label": "Search for a place",
+        "local": true,
+        "input": {
+          "q": "string",
+          "lat": "number?",
+          "lon": "number?"
+        }
+      },
+      {
+        "name": "newPlace",
+        "label": "Save a place here",
+        "local": true,
+        "input": {
+          "title": "string?",
+          "lat": "number?",
+          "lng": "number?",
+          "address": "string?",
+          "notes": "text?"
+        }
       }
     ],
     "uses": [
@@ -94,5 +116,15 @@
     "consumes": [
       "*"
     ]
-  }
+  },
+  "settings": [
+    {
+      "key": "search",
+      "label": "Search address",
+      "type": "url",
+      "scope": "server",
+      "default": "",
+      "help": "Optional. The address of a Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). Leave it empty for no search."
+    }
+  ]
 }

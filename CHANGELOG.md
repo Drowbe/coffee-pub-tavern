@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Search moved from Maps to Places. Places 0.3.0 owns the Search address setting and finds places by name from its bottom bar (results over the foot of the pane, **Save** keeps one), and offers two view actions: `searchPlaces` (answers with a few results) and `newPlace` (opens its own dialog for a new place at a spot). Maps 0.4.0 has no Search address or place dialog of its own: its search box shows what Places finds as dashed candidate pins, and a click on a pin, a result, or the map (in add mode) asks Places to open its dialog with the spot filled in. An action's result can now carry a small `data` (up to 8 KB of plain data). Maps also no longer treats a missing glyph range as the map failing to load. Verified in two browser tabs: a name in Places' bar searching and saving a result, Maps' search returning Places' results as candidate pins, and a click on one opening Places' dialog with the name, address and position filled in. Not verified: the light theme, the phone layout, the new found-list styling (the design's CSS was not exercised by Maps' candidate pins yet).
+
 ### Added
 - Modules can declare `requires` (other modules by id). A module cannot be enabled until what it requires is installed and on, the Modules tab says what is missing and disables the button, and turning off (or uninstalling) a module that others need asks first and turns them off with it. Maps 0.3.1 requires Places. Verified against a running server: enabling Maps first is refused, enabling Places then Maps works, disabling Places without `force` is refused and with it turns Maps off.
 

@@ -39,7 +39,9 @@
 
   const state = {
     items: [], // the cards in this room that carry a place
-    settings: { map: '', search: '' },
+    settings: { map: '' },
+    candidates: [], // search results drawn as pins to pick from
+    searcher: null, // the action that searches for a place, if some module provides one
     selected: null, // the id of the card that is open
     panelOpen: true,
     adding: false,
@@ -116,16 +118,21 @@
       state.items = [];
     }
   }
-  // Which module (if any) will save a place for us: one that provides an `addPlace` action taking a position.
+  // What the module that keeps places offers: a dialog for a new place at a position (`newPlace`) and a search by name
+  // (`searchPlaces`, which answers with a few results). Found by what they offer, never by name.
   async function findAdder() {
     state.adder = null;
-    if (!canEdit || !tavern.actions || !tavern.actions.list) return;
+    state.searcher = null;
+    if (!tavern.actions || !tavern.actions.list) return;
     try {
       const list = await tavern.actions.list();
-      state.adder = list.find((a) => a.name === 'addPlace' && a.input && a.input.lat && a.input.lng && a.input.title) || null;
+      if (canEdit) state.adder = list.find((a) => a.name === 'newPlace' && a.input && a.input.lat && a.input.lng) || null;
+      state.searcher = list.find((a) => a.name === 'searchPlaces' && a.input && a.input.q) || null;
     } catch (err) {
       state.adder = null;
+      state.searcher = null;
     }
+    hide($('search'), !state.searcher);
   }
 
   // --- drawing the list and the place -------------------------------------------------------------------------------
@@ -261,6 +268,15 @@
         markers.push(new maplibregl.Marker({ element: c, anchor: 'center' }).setLngLat([g.lng, g.lat]).addTo(map));
       }
     }
+    for (const c of state.candidates) {
+      const pin = clone('tpl-pin');
+      pin.dataset.kind = 'place';
+      pin.classList.add('candidate');
+      setIcon(pin.querySelector('[data-icon]'), 'location-dot');
+      fill(pin, { label: c.title });
+      pin.addEventListener('click', (e) => { e.stopPropagation(); draftAt(c.lat, c.lng, { title: c.title, address: c.sub }); });
+      markers.push(new maplibregl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([c.lng, c.lat]).addTo(map));
+    }
     for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}, x.cat), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
     hydrate(root);
   }
@@ -286,72 +302,28 @@
     root.querySelector('[data-action="add-place"]').classList.toggle('on', state.adding);
   }
 
-  const editorError = (text) => { $('f-error').textContent = text; $('f-error').hidden = !text; };
-  function openEditor(o) {
-    $('f-title').value = o.title || '';
-    $('f-notes').value = o.notes || '';
-    $('f-where').textContent = coordsText(state.draft.lat, state.draft.lng);
-    editorError('');
-    hide($('editor'), false);
-    setAdding(false);
-    $('f-title').focus();
-  }
-  function closeEditor() {
-    hide($('editor'), true);
-    if (!state.saving) { state.draft = null; drawDraft(); }
-  }
-  $('f-cancel').addEventListener('click', closeEditor);
-  $('editor').addEventListener('pointerdown', (e) => { if (e.target === $('editor')) closeEditor(); });
-
-  // A pin where a place would go, and the dialog for it.
+  // A pin where a place would go, and Places' own dialog for it: the map asks the module that keeps places to open its dialog
+  // with this spot filled in (its pane opens if it is not open). The pin stays until the new place arrives, or a minute passes.
   function draftAt(lat, lng, o) {
     if (!state.adder) return;
     state.draft = { lat, lng };
     drawDraft();
+    setAdding(false);
+    state.candidates = [];
     if (state.map) state.map.easeTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 14), duration: 500 });
-    openEditor(o || {});
+    const before = state.items.length;
+    const a = o || {};
+    tavern.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
+    waitForCard(before).then(() => { if (state.draft && state.draft.lat === lat && state.draft.lng === lng) { state.draft = null; drawDraft(); render(); } });
   }
-
-  // The module that carries the action saves it from its own page (Tavern opens that pane if it is not open), so look for the
-  // new card for a little while.
   async function waitForCard(before) {
-    for (let i = 0; i < 12; i += 1) {
-      await new Promise((r) => setTimeout(r, i ? 2000 : 800));
+    for (let i = 0; i < 30; i += 1) {
+      await new Promise((r) => setTimeout(r, 2000));
       await loadItems();
       if (state.items.length > before) return true;
     }
     return false;
   }
-  $('form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!state.draft || !state.adder || state.saving) return;
-    const title = oneLine($('f-title').value, 120);
-    if (!title) return editorError('Give the place a name.');
-    state.saving = true;
-    $('f-save').disabled = true;
-    const before = state.items.length;
-    try {
-      const out = await tavern.actions.request(state.adder.action, { title, lat: state.draft.lat, lng: state.draft.lng, notes: $('f-notes').value.slice(0, 1000) }, { wait: true });
-      if (out.status === 'done' && out.result && !out.result.ok) { editorError(out.result.error || 'It could not be saved.'); return; }
-      hide($('editor'), true);
-      const ref = out.status === 'done' && out.result && out.result.ref;
-      if (!ref) {
-        say('Saving. The place appears when it is saved.');
-        await waitForCard(before);
-        say('');
-      } else await loadItems();
-      state.draft = null;
-      drawDraft();
-      render();
-      const saved = ref ? state.items.find((c) => cardId(c) === tavern.util.refKey(ref)) : null;
-      if (saved) select(cardId(saved));
-    } catch (err) {
-      editorError('It could not be saved: ' + ((err && err.message) || err));
-    } finally {
-      state.saving = false;
-      $('f-save').disabled = false;
-    }
-  });
 
   // --- search (only when the admin set an address) ------------------------------------------------------------------
 
@@ -384,22 +356,25 @@
     hits = [];
     hit = -1;
     state.searchMessage = '';
-    if (!state.settings.search || q.length < 2) { drawResults(); return; }
+    state.candidates = [];
+    if (!state.searcher || q.length < 2) { drawResults(); return; }
     try {
-      const u = new URL(state.settings.search);
-      u.searchParams.set('q', q);
-      u.searchParams.set('limit', '6');
-      if (state.map) { const c = state.map.getCenter(); u.searchParams.set('lat', String(round6(c.lat))); u.searchParams.set('lon', String(round6(c.lng))); }
-      const res = await fetch(u.href, { headers: { Accept: 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer' });
-      if (!res.ok) throw new Error(String(res.status));
-      const found = searchResults(await res.json(), 6);
+      const near = state.map ? state.map.getCenter() : null;
+      const out = await tavern.actions.request(state.searcher.action, { q, ...(near ? { lat: round6(near.lat), lon: round6(near.lng) } : {}) }, { wait: true });
       if (mine !== searchToken) return;
-      hits = found;
-      state.searchMessage = found.length ? '' : 'No results';
+      if (out.status !== 'done' || !out.result || !out.result.ok) {
+        state.searchMessage = out.result && /not set up/.test(out.result.error || '') ? 'Search is not set up' : 'Search is not available right now';
+      } else {
+        const list = out.result.data && Array.isArray(out.result.data.results) ? out.result.data.results : [];
+        hits = list.filter((h) => h && geo.inRange(Number(h.lat), Number(h.lng)) && typeof h.title === 'string').slice(0, 6).map((h) => ({ title: oneLine(h.title, 120), sub: oneLine(h.sub, 160), lat: Number(h.lat), lng: Number(h.lng) }));
+        state.searchMessage = hits.length ? '' : 'No results';
+      }
     } catch (err) {
       if (mine !== searchToken) return;
       state.searchMessage = 'Search is not available right now';
     }
+    state.candidates = hits;
+    drawPins();
     drawResults();
   }
   function pickHit(i) {
@@ -409,7 +384,7 @@
     hits = [];
     state.searchMessage = '';
     drawResults();
-    if (state.adder) draftAt(h.lat, h.lng, { title: h.title, notes: h.sub });
+    if (state.adder) draftAt(h.lat, h.lng, { title: h.title, address: h.sub });
     else if (state.map) state.map.easeTo({ center: [h.lng, h.lat], zoom: 15 });
   }
   let searchTimer = null;
@@ -548,6 +523,8 @@
     let failed = false;
     map.on('error', (e) => {
       if (state.mapReady || failed) return;
+      // A missing glyph range (a script the labels do not cover) is not the map failing.
+      if (/maps-glyphs\//.test((e && e.error && e.error.url) || '')) return;
       const status = e && e.error && e.error.status;
       if (status === 404 || status === 401 || status === 403) { failed = true; showError(); }
     });
@@ -607,7 +584,7 @@
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (!$('editor').hidden) closeEditor(); else if (state.adding) setAdding(false);
+    if (state.adding) setAdding(false);
   });
 
   // An item dropped on the map: one that already has a place is shown; another gets a position through its own module's
@@ -651,7 +628,7 @@
       if (!text) return setAdding(true);
       const p = parsePoint(text);
       if (p) return draftAt(p.lat, p.lng);
-      if (state.settings.search) { $('search-input').value = text; search(text); $('search-input').focus(); return; }
+      if (state.searcher) { $('search-input').value = text; search(text); $('search-input').focus(); return; }
       say('Search is not set up. Paste coordinates or a map link, or click the map.');
     });
   }
@@ -690,8 +667,7 @@
 
   function applySettings(next) {
     const mapChanged = next.map !== state.settings.map;
-    state.settings = { map: next.map || '', search: next.search || '' };
-    hide($('search'), !state.settings.search);
+    state.settings = { map: next.map || '' };
     if (mapChanged && state.started) startMap();
   }
   tavern.settings.onChange((s) => applySettings(s || {}));

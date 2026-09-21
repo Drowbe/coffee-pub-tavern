@@ -22,15 +22,15 @@ The Maps module shows a map of every place your room has: the places saved in [P
 3. On the Modules tab, choose **Install** beside Maps under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items and to ask other modules to do things.
 4. Tick **Available in every room**, or tick it per room.
 5. Under Maps' settings, pick the **Map file**. Until you do, Maps says so and shows only the list of places.
-6. **Search (optional).** Set the **Search address** to a Photon-compatible place search that you run or may use, over https. The address must allow requests from this server's pages (its CORS setting). Leave it empty for a map without search: places are added by clicking, or by pasting coordinates or a map link.
+6. **Search (optional).** The search belongs to Places: set its **Search address** in Places' settings (see [Places](userguide-places.md)). With one set, the map has a search box that shows what Places finds. Without it there is no search box: places are added by clicking, or by pasting coordinates or a map link.
 7. Install and enable [Places](userguide-places.md) as well if people should save places from the map. Without it the map shows what other modules share, and the list says "Install Places to save places".
 8. On the Roles tab, under **Module: Maps**, choose who can **See the map** and who can **Save places from the map**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
-Nothing is sent to any service you did not choose: the map comes from your file, and the only outside request is to the search address, if you set one. The credit "© OpenStreetMap contributors" is always on the map.
+Nothing is sent to any service you did not choose: the map comes from your file, and the only outside request is Places' search address, if you set one. The credit "© OpenStreetMap contributors" is always on the map.
 
 ## Use the map
 
-- **Save a place.** Choose **Add place**, then click the map; or paste coordinates ("38.7075, -9.1364") or a map link into the field at the bottom; or search, and pick a result. Give it a name and notes, and **Save to Places**. The place is saved by the Places module, so its pane opens if it was not (it does the saving), and the new place appears on the map.
+- **Save a place.** Choose **Add place**, then click the map; or paste coordinates ("38.7075, -9.1364") or a map link into the field at the bottom; or search: results show as dashed pins, and clicking one starts a place there. Places opens its own dialog (its pane opens if it was not) with the spot filled in, and you finish and save it there; the new place then appears on the map.
 - **Look at a place.** Click a pin or a row in the list, which groups places by where they come from: your saved places first, then "From" each other module. **Open in my maps app** hands the place to the maps app on your device, which is where directions come from. **Copy coordinates** copies its position. **Open** takes you to the place or item in its own module, where you change it; the map itself changes nothing.
 - **Put an item on the map.** Drop an item from another module on the map: if it already has a position it is shown, and if its module can give it one (Places can, for a place with only an address) it is placed where you dropped it.
 - **Many places close together** show as one pin with a count; click it to zoom in.

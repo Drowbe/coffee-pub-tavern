@@ -8,11 +8,13 @@ The Places module keeps the places your room cares about: where you are staying,
 
 1. On the Modules tab, choose **Install** beside Places under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items.
 2. Tick **Available in every room**, or tick it per room on the room's own page.
-3. On the Roles tab, under **Module: Places**, choose who can **See places** and who can **Add, change and remove places**. By default everyone can see them, users and moderators can edit, and guests can see but not edit.
+3. **Search (optional).** Set the **Search address** in Places' settings to a Photon-compatible place search that you run or may use, over https; it must allow requests from this server's pages (its CORS setting). Leave it empty for no search.
+4. On the Roles tab, under **Module: Places**, choose who can **See places** and who can **Add, change and remove places**. By default everyone can see them, users and moderators can edit, and guests can see but not edit.
 
 ## Add a place
 
 - Type in the field at the bottom of the pane and press Enter or the plus button. A name opens the dialog with that name filled in. Coordinates ("38.7075, -9.1364") or a map link in what you type also fill in the position, so "Bar do Peixe 38.71, -9.14" gives a named place with a position.
+- With a search address set, a name you type looks for the place: results appear over the foot of the pane, and **Save** (or Enter on a row) saves one with its name, address and position. Coordinates or a map link in what you type still open the dialog instead.
 - Press the plus with nothing typed, or **Add a place** on an empty page, for the blank dialog.
 - In the dialog, give the place a name and choose its category (things to do, food, stay, travel or other). Add an address if you have one. **Position** takes coordinates or a map link (a `geo:` link, or one with `?ll=`, `@lat,lng` or `#map=zoom/lat/lng`); it says "Coordinates found." when it could read them, and an empty field means no position. Tick the people it belongs to under **Whose is it**.
 

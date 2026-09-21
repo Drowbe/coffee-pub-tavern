@@ -1,26 +1,5 @@
-  // What Maps needs beyond the SDK's `tavern.util.geo` (defined by the page ahead of this code): a search endpoint's results,
-  // pins that would overlap, and the bounds of some points. No page in it, so the checks can run it.
-
-  // The results of a Photon-compatible search (GeoJSON features), as { title, sub, lat, lng }.
-  function searchResults(json, max) {
-    const feats = json && Array.isArray(json.features) ? json.features : [];
-    const out = [];
-    for (const f of feats) {
-      const c = f && f.geometry && f.geometry.type === 'Point' && Array.isArray(f.geometry.coordinates) ? f.geometry.coordinates : null;
-      const pr = (f && f.properties) || {};
-      if (!c) continue;
-      const lng = Number(c[0]);
-      const lat = Number(c[1]);
-      if (!geo.inRange(lat, lng)) continue;
-      const street = [pr.street, pr.housenumber].filter(Boolean).join(' ');
-      const title = geo.oneLine(pr.name || street || pr.city || pr.country || '', 120);
-      if (!title) continue;
-      const sub = geo.oneLine([street && street !== title ? street : '', pr.district, pr.city && pr.city !== title ? pr.city : '', pr.state, pr.country].filter(Boolean).join(', '), 160);
-      out.push({ title, sub, lat: geo.round6(lat), lng: geo.round6(lng) });
-      if (out.length >= (max || 6)) break;
-    }
-    return out;
-  }
+  // What Maps needs beyond the SDK's `tavern.util.geo` (defined by the page ahead of this code): pins that would overlap, and
+  // the bounds of some points. No page in it, so the checks can run it.
 
   // Group points that would overlap on screen. `project(lat, lng)` gives { x, y } in pixels; a point joins the first
   // group whose first point is within `radius` pixels. Returns [{ points, lat, lng }] (the centre of a group is the mean).

@@ -132,3 +132,51 @@
 
     return { load, list, get, versionOf, save, remove, setPoint, provide, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); } };
   }
+
+  // --- finding a place ----------------------------------------------------------------------------------------------
+  // The results of a Photon-compatible search (GeoJSON features), as { title, sub, lat, lng }.
+  function searchResults(json, max) {
+    const feats = json && Array.isArray(json.features) ? json.features : [];
+    const out = [];
+    for (const f of feats) {
+      const c = f && f.geometry && f.geometry.type === 'Point' && Array.isArray(f.geometry.coordinates) ? f.geometry.coordinates : null;
+      const pr = (f && f.properties) || {};
+      if (!c) continue;
+      const lng = Number(c[0]);
+      const lat = Number(c[1]);
+      if (!geo.inRange(lat, lng)) continue;
+      const street = [pr.street, pr.housenumber].filter(Boolean).join(' ');
+      const title = geo.oneLine(pr.name || street || pr.city || pr.country || '', 120);
+      if (!title) continue;
+      const sub = geo.oneLine([street && street !== title ? street : '', pr.district, pr.city && pr.city !== title ? pr.city : '', pr.state, pr.country].filter(Boolean).join(', '), 160);
+      out.push({ title, sub, lat: geo.round6(lat), lng: geo.round6(lng) });
+      if (out.length >= (max || 6)) break;
+    }
+    return out;
+  }
+  // The address to ask for a search: the admin's address with the text (and, if known, where to look near) added.
+  function searchUrl(base, q, near) {
+    const u = new URL(base);
+    u.searchParams.set('q', String(q).slice(0, 200));
+    u.searchParams.set('limit', '6');
+    if (near && geo.inRange(Number(near.lat), Number(near.lon))) { u.searchParams.set('lat', String(geo.round6(Number(near.lat)))); u.searchParams.set('lon', String(geo.round6(Number(near.lon)))); }
+    return u.href;
+  }
+  // What a bar entry means: a name, with coordinates or a map link anywhere in it setting the position. `find` is true when
+  // it is only a name, which is what a search should look for.
+  function readEntry(text) {
+    const t = String(text || '').trim();
+    const link = t.match(/(?:https?:\/\/|geo:)\S+/i);
+    if (link) {
+      const pt = geo.parsePoint(link[0]);
+      if (pt) return { title: geo.oneLine(t.replace(link[0], ' '), 120), point: pt, find: false };
+    }
+    const whole = geo.parsePoint(t);
+    if (whole) return { title: '', point: whole, find: false };
+    const tail = t.match(/(-?\d{1,3}\.\d+)[,;\s]+(-?\d{1,3}\.\d+)\s*$/);
+    if (tail) {
+      const pt = geo.parsePoint(`${tail[1]}, ${tail[2]}`);
+      if (pt) return { title: geo.oneLine(t.slice(0, tail.index), 120), point: pt, find: false };
+    }
+    return { title: geo.oneLine(t, 120), point: null, find: t.length >= 2 };
+  }
