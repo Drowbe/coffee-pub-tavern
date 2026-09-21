@@ -109,6 +109,7 @@ Maps becomes a view of places and a gesture to choose a point. What stays: the p
 - **`#search`** keeps its place on the map, but its results come from Places (an action that returns a few results), so they are the same as the ones Places shows when its bar searches. A result is drawn as a **candidate pin** (`.pin.candidate`: dashed outline, surface fill, no count); picking one (`data-action=save-found` in its callout) asks Places to save it.
 - **Saving** is Places' dialog: after a click on the map the map asks Places to add a place at that point (the `addPlace` action with the position) and Places opens its own dialog. The map's `#editor` goes away, with `f-title`, `f-notes` and `#f-where`; the draft pin stays until Places has saved or the person cancels.
 - **No list panel.** Maps requires Places, so Places is the list (decided by the author). `#panel`, its rows, groups and the phone sheet go away; the map shows pins, and an item from another module opens in its own module. Selecting a pin shows its callout on the map.
+- **A pin from mine** (the person scope) has `data-scope="person"`, which draws the small person mark on it.
 - **Views** (mine, this room, everyone): Maps draws whichever view Places has selected, and a pin from mine wears a small person mark so it is not mistaken for a shared one.
 
 ## Not decided yet

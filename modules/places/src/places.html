@@ -21,7 +21,14 @@
     <h1>Places</h1>
     <span class="count" data-slot="count"></span>
     <div class="filter"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Filter places" aria-label="Filter places" autocomplete="off"></div>
+    <!-- whose places: hidden until the script knows which views the person has (mine needs a signed-in person; everyone needs the server scope) -->
+    <div class="views" id="views" role="group" aria-label="Whose places" hidden>
+      <button class="view" type="button" data-view="my" aria-pressed="false"><span class="ic" data-icon="user"></span>Mine</button>
+      <button class="view" type="button" data-view="room" aria-pressed="true"><span class="ic" data-icon="users"></span>This room</button>
+      <button class="view" type="button" data-view="global" aria-pressed="false" hidden><span class="ic" data-icon="globe"></span>Everyone</button>
+    </div>
   </header>
+  <p class="view-note" data-slot="view-note" hidden><span class="ic" data-icon="circle-info"></span><span data-slot="text"></span></p>
   <div class="chips" id="chips" role="group" aria-label="Category"></div>
   <p class="error" id="note" hidden></p>
   <main id="body" class="body"></main>
@@ -31,6 +38,7 @@
   <!-- the item menu: a popover the script positions under the button that opened it -->
   <div id="item-menu" class="menu" role="menu" hidden>
     <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> <span data-slot="edit-label">Edit</span></button>
+    <button type="button" role="menuitem" data-action="share" hidden><span class="ic" data-icon="share-nodes"></span> <span data-slot="share-label">Share to this room</span></button>
     <a role="menuitem" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
     <button type="button" role="menuitem" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
     <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
