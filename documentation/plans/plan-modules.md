@@ -25,7 +25,7 @@
 
 **Status:** built, and documented in [api-module-sdk](../api/api-module-sdk.md) and [architecture-modules](../architecture/architecture-modules.md): refs (pointers resolved into cards), opening an item in the module that owns it, links and backlinks, events, and actions, all declared in `module.json`, approved by an admin where a module reaches for another's, and carried by Tavern without any module named in Tavern's code. The Calendar, Polls and To-do use them (a poll closing ticks a task that follows it; a finished poll offers "Add a task" from whatever module provides it). What is left:
 
-- **Audit and limits.** Cross-module calls (a request, an event, a link) are attributed to the person and the module, but not yet rate limited or listed anywhere; show them on a module's card on the Modules tab, and cap how fast one module may publish or ask.
+- **Audit and limits.** Built: the activity list is kept across restarts and the API is rate limited per module and person. Left: show a module's own recent activity on its card on the Modules tab.
 - **More of the same, to prove it.** The Calendar could provide a `createEvent` action and take part in the To-do's due dates; each new provider should appear in other modules' buttons with no change to them, which is the test.
 - **Shared shapes.** Modules choose their own field names, so an action that fills "a title" relies on a field named `title`. If that proves too loose, the core could publish a few standard field names (title, when, notes, ref) for modules to agree on.
 - **Verify in a real browser** with two people: an event reaching a module that is open in another person's browser, and two people with the same module open both seeing an action (only one should carry it out).

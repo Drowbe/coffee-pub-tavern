@@ -12,6 +12,7 @@ const { buildModule, bundledModules } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { ModuleBus } = require('./module-bus');
 const { ChatHistory } = require('./chat-history');
+const { ModuleLimits } = require('./module-limits');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -1644,6 +1645,7 @@ const publicAction = (a) => ({ id: a.id, at: a.at, from: a.from, name: a.action,
 app.post('/api/bus/publish', busRoute((who, req) => {
   const { module: id, name, ref, data, scope, room } = req.body || {};
   const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  if (overLimit(at.found.manifest.id, who.user?.key, 'event')) throw refError(429, limitMessage);
   if (!at.found.manifest.events.publishes.some((p) => p.name === name)) throw refError(400, 'that module does not publish that event');
   let pointer = null;
   if (ref !== undefined && ref !== null) {
@@ -1751,6 +1753,7 @@ app.post('/api/bus/actions/request', busRoute((who, req) => {
   const [providerId, name] = String(action || '').split(':');
   const sc = busScope(scope);
   const asker = busPlace(who, String(from || ''), sc, room, 'read');
+  if (overLimit(asker.found.manifest.id, who.user?.key, 'action')) throw refError(429, limitMessage);
   const provider = busPlace(who, String(providerId || ''), sc, room, 'write');
   const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
   if (!def) throw refError(404, 'that module does not offer that action');
@@ -1791,11 +1794,45 @@ app.get('/api/bus/actions/status', busRoute((who, req) => {
 // The last things modules did through Tavern (data they saved, events they published, actions they asked
 // for), so an admin can see, above all for a module running in the page, what it has been up to. Only
 // what passes through Tavern is seen: a module in the page can also do things Tavern never hears of.
-const moduleActivity = [];
+// Kept across a restart (DATA_DIR/modules/activity.json, written a few seconds after a change and on exit).
+const activityFile = path.join(modules.dir, 'activity.json');
+const moduleActivity = (() => {
+  try {
+    const raw = JSON.parse(fs.readFileSync(activityFile, 'utf8'));
+    return Array.isArray(raw) ? raw.slice(-300) : [];
+  } catch {
+    return [];
+  }
+})();
+let activityTimer = null;
+function saveActivity() {
+  if (activityTimer) clearTimeout(activityTimer);
+  activityTimer = null;
+  try {
+    fs.mkdirSync(path.dirname(activityFile), { recursive: true });
+    fs.writeFileSync(`${activityFile}.tmp`, JSON.stringify(moduleActivity));
+    fs.renameSync(`${activityFile}.tmp`, activityFile);
+  } catch {
+    // the log is a convenience
+  }
+}
+process.on('exit', saveActivity);
 function noteActivity(module, what, by, scopeKey) {
   moduleActivity.push({ at: Date.now(), module, what, by: by || null, scope: scopeKey || null });
   if (moduleActivity.length > 300) moduleActivity.shift();
+  if (!activityTimer) { activityTimer = setTimeout(saveActivity, 5000); if (activityTimer.unref) activityTimer.unref(); }
 }
+
+// How often a module may do things through Tavern (see server/module-limits.js). Over the limit is a 429 and, the
+// first time in a while, a line in the activity list so an admin can see which module is being slowed.
+const moduleLimits = new ModuleLimits();
+function overLimit(moduleId, by, kind) {
+  const r = moduleLimits.take(moduleId, by || 'guest', kind);
+  if (r.ok) return null;
+  if (r.first) noteActivity(moduleId, `was slowed: too many ${kind === 'write' ? 'saves' : kind + 's'} in a minute`, by, null);
+  return r;
+}
+const limitMessage = 'this module is doing that too often; try again in a moment';
 moduleData.on('change', (c) => noteActivity(c.module, `${c.deleted ? 'deleted' : 'saved'} ${c.key}`, c.by, c.scopeKey));
 moduleBus.on('event', (e) => noteActivity(e.module, `published the event ${e.name}`, e.by, e.scopeKey));
 moduleBus.on('action', (a) => noteActivity(a.from, `asked ${a.provider} to ${a.action}`, a.by, a.scopeKey));
@@ -1931,6 +1968,8 @@ function sendModuleConflict(err, res) {
 app.put('/api/modules/:id/data/:key', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
+  const slow = overLimit(ctx.manifest.id, ctx.by, 'write');
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
     res.json({ item: moduleData.put(ctx.manifest.id, ctx.scopeKey, req.params.key, req.body?.value, { expected: Number.isInteger(req.body?.version) ? req.body.version : null, by: ctx.by }) });
   } catch (err) {
@@ -1940,6 +1979,8 @@ app.put('/api/modules/:id/data/:key', (req, res) => {
 app.delete('/api/modules/:id/data/:key', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
+  const slow = overLimit(ctx.manifest.id, ctx.by, 'write');
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
     const expected = req.query.version !== undefined ? Number(req.query.version) : null;
     res.json(moduleData.remove(ctx.manifest.id, ctx.scopeKey, req.params.key, { expected: Number.isInteger(expected) ? expected : null, by: ctx.by }));
@@ -1964,6 +2005,8 @@ function sendHookError(err, res) {
 app.post('/api/modules/:id/schedule', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx || !requireHook(ctx, res, 'schedule')) return;
+  const slow = overLimit(ctx.manifest.id, ctx.by, 'schedule');
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
     res.json(moduleHooks.schedule(ctx, req.body || {}));
   } catch (err) {
@@ -1978,6 +2021,8 @@ app.delete('/api/modules/:id/schedule/:key', (req, res) => {
 app.post('/api/modules/:id/notify', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx || !requireHook(ctx, res, 'notify')) return;
+  const slow = overLimit(ctx.manifest.id, ctx.by, 'notify');
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
     const to = typeof req.body?.to === 'string' ? req.body.to : ctx.scope === 'room' ? 'room' : 'server';
     res.json({ delivered: moduleHooks.deliver({ module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId }, { ...req.body, to }, { by: ctx.by }) });

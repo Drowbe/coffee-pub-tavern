@@ -115,4 +115,4 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `POST /api/notifications/read` | `{ module }` or `{ id }` marks them read |
 | `GET /api/notifications/stream` | Server-sent events: `notification` |
 
-Limits: a value is at most about 60 KB, a module's data 5 MB, a schedule payload 4 KB, 500 schedules per module and 50 notifications per person.
+Limits: a value is at most about 60 KB, a module's data 5 MB, a schedule payload 4 KB, 500 schedules per module and 50 notifications per person. Rate limits, per module and per person over a minute: 240 saves or deletes, 60 events, 60 asked actions, 60 schedules and 20 notifications. Over a limit a call gets 429 with a `Retry-After` header and the module is told to slow down; the first time in a while it also puts a line in the admin's activity list (`GET /api/modules/activity`, admin only), which is kept across a restart.

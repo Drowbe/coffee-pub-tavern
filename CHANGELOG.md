@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Oversight for modules. The recent-activity list on the Modules tab is kept across restarts, and what a module does through Tavern is rate limited per module and person: 240 saves, 60 events, 60 asked actions, 60 schedules and 20 notifications a minute. Over a limit a call gets 429 (with `Retry-After`) and the activity list notes that the module was slowed. Verified against a running server: 240 saves went through and the next 20 were refused with 429, the activity list showed one "was slowed" line, and the list was intact after a restart. The limits cover only what passes through Tavern, so they do not bind a module running in the page.
+
 ### Fixed
 - Travel 0.1.2: an item from another module (a Calendar event) sorts by that item's own time, not first in its day; two travellers whose names start with the same letter show two letters as their initial ("Ch", "Cl"). The phone header, the time column, "any" for untimed items, the owner checkboxes and the empty-trip wording are refined in `travel.css` and `travel.html`. A check covers the sort.
 
