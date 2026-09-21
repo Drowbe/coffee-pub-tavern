@@ -138,6 +138,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 
 /* the add row at the foot of a day */
 .add-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--bg-section) 92%, var(--text)); }
+/* with the host's bottom bar in use (the same quick-add the To-do, Polls and Calendar have), the days do not need their own */
+.add-row.hosted { display: none; }
 .add-row input { flex: 1; min-width: 0; padding: 7px 9px; }
 .add-row .btn { flex: none; padding-inline: 10px; }
 
