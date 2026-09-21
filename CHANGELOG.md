@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Maps 0.5.0 has no list of places any more: Places is the list (Maps requires it), so the panel, its rows and groups, the phone sheet, the list button and the list-only fallback are gone. The map fills the pane; a selected pin shows a callout over it (name, where, where it comes from, open in my maps app, copy coordinates, and Open in the owning module), and a device without WebGL is told so. Verified in a browser: the full-width map with a categorised pin and its callout.
+
+### Changed
 - Travel is now called **Planner**, since it will hold more than trips. Only the name changes (the module's id, its stored data and its pointers stay as they were): the Modules tab, the pane and page titles, its messages and the user guide (now userguide-planner). Planner 0.6.1.
 
 ### Changed

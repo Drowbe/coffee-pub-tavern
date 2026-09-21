@@ -43,7 +43,6 @@
     candidates: [], // search results drawn as pins to pick from
     searcher: null, // the action that searches for a place, if some module provides one
     selected: null, // the id of the card that is open
-    panelOpen: true,
     adding: false,
     draft: null, // { lat, lng }: where a new place would go
     adder: null, // the action that saves a place, if some module provides one
@@ -95,20 +94,6 @@
   const kindOf = (c) => (c.kind === 'place' ? 'place' : 'item');
   const moduleName = (c) => (c.module && c.module.name) || 'Other';
   const current = () => (state.selected ? state.items.find((c) => cardId(c) === state.selected) || null : null);
-  // The cards by module: the module that keeps places first, then the others by name.
-  function groups() {
-    const by = new Map();
-    for (const c of state.items) {
-      const k = (c.module && c.module.id) || '';
-      if (!by.has(k)) by.set(k, { name: moduleName(c), places: false, cards: [] });
-      const g = by.get(k);
-      g.places = g.places || c.kind === 'place';
-      g.cards.push(c);
-    }
-    for (const g of by.values()) g.cards.sort((a, b) => a.title.localeCompare(b.title));
-    return [...by.values()].sort((a, b) => (a.places === b.places ? a.name.localeCompare(b.name) : a.places ? -1 : 1));
-  }
-
   async function loadItems() {
     if (!tavern.refs || !tavern.refs.search) return;
     try {
@@ -135,76 +120,35 @@
     hide($('search'), !state.searcher);
   }
 
-  // --- drawing the list and the place -------------------------------------------------------------------------------
+  // --- the callout of the selected place, and drawing --------------------------------------------------------------
 
-  function renderList(body) {
-    const notes = [];
-    const note = (text) => { const n = clone('tpl-notice'); fill(n, { text }); notes.push(n); };
-    if (state.listonly && state.noWebgl) note('This device cannot draw the map, so the places are listed here. Each one opens in your own maps app.');
-    if (canEdit && !state.adder && state.started) note('Install Places to save places.');
-    if (state.searchNote) note(state.searchNote);
-    body.replaceChildren(...notes);
-    if (!state.items.length) {
-      const e = clone('tpl-empty');
-      fill(e, { text: state.adder ? 'No places yet. Choose Add place, then click the map, or paste coordinates or a map link in the bar below.' : 'No places yet.' });
-      body.appendChild(e);
-      return;
-    }
-    for (const g of groups()) {
-      const t = clone('tpl-group-title');
-      fill(t, { text: g.places ? g.name : `From ${g.name}` });
-      body.appendChild(t);
-      for (const c of g.cards) {
-        const r = clone('tpl-row');
-        r.dataset.kind = kindOf(c);
-        r.dataset.id = cardId(c);
-        if (c.category) r.dataset.cat = c.category;
-        setIcon(r.querySelector('[data-icon]'), (c.module && c.module.icon) || 'location-dot');
-        fill(r, { title: c.title, sub: c.subtitle || whenText(c.when) });
-        if (state.selected === cardId(c)) r.classList.add('selected');
-        body.appendChild(r);
-      }
-    }
-  }
-
-  function renderPlace(body, c) {
-    const el = clone('tpl-place');
+  // A selected pin shows its callout over the map: what it is, where, and what can be done (open it in the person's own maps
+  // app, copy its position, or open it in the module that owns it). Places is the list; Maps only shows.
+  function renderCallout() {
+    const box = $('callout');
+    const c = current();
+    if (!c) { box.replaceChildren(); hide(box, true); return; }
+    const el = clone('tpl-callout');
     el.dataset.kind = kindOf(c);
-    el.dataset.id = cardId(c);
-    fill(el, { title: c.title, where: c.subtitle || '', coords: coordsText(c.place.lat, c.place.lng), notes: '' });
-    const src = slot(el, 'source');
-    setIcon(src.querySelector('[data-icon]'), (c.module && c.module.icon) || 'link');
-    fill(src, { from: `from ${moduleName(c)}${c.when ? ' · ' + whenText(c.when) : ''}` });
-    src.hidden = false;
-    hide(slot(el, 'owners').parentElement, true);
+    if (c.category) el.dataset.cat = c.category;
+    fill(el, { title: c.title, where: c.subtitle || '', coords: coordsText(c.place.lat, c.place.lng), from: `from ${moduleName(c)}${c.when ? ' \u00b7 ' + whenText(c.when) : ''}` });
+    setIcon(el.querySelector('.callout-source [data-icon]'), (c.module && c.module.icon) || 'link');
     el.querySelector('[data-action="open-in-maps"]').href = mapsLink(c.place.lat, c.place.lng, c.title, apple);
-    body.replaceChildren(el);
+    box.replaceChildren(el);
+    hide(box, false);
+    hydrate(box);
   }
 
   function render() {
-    const sel = current();
-    if (state.selected && !sel) state.selected = null;
-    const body = $('panel-body');
-    if (sel) renderPlace(body, sel); else renderList(body);
-    const total = state.items.length;
-    for (const c of root.querySelectorAll('[data-slot="count"]')) if (!c.closest('template')) c.textContent = total && !(sel && c.closest('.panel-head')) ? String(total) : ''; // the header's count is for the list, not for one place
-    $('panel').querySelector('[data-slot="heading"]').textContent = sel ? 'Place' : 'Places';
-    hide($('panel').querySelector('[data-action="back"]'), !sel);
+    if (state.selected && !current()) state.selected = null;
+    renderCallout();
     hide(root.querySelector('[data-action="add-place"]'), !state.adder || !state.map);
-    syncPanel();
     hydrate(root);
     drawPins();
   }
 
-  function syncPanel() {
-    const panel = $('panel');
-    if (state.listonly) { panel.hidden = false; panel.dataset.state = 'open'; return; }
-    if (isNarrow()) { panel.hidden = false; panel.dataset.state = state.panelOpen ? 'open' : 'peek'; } else { panel.dataset.state = 'open'; panel.hidden = !state.panelOpen; }
-    const tool = root.querySelector('[data-action="toggle-panel"]');
-    if (tool) tool.classList.toggle('on', state.panelOpen);
-  }
-  // Follow the pane's width. A frame can report none while it is still being laid out, so wait for a real one. Crossing the
-  // line resets the panel: a peeking sheet on a narrow pane, open beside the map on a wide one.
+  // Follow the pane's width (the stylesheet keys its narrow layout on `.app.narrow`). A frame can report none while it is still
+  // being laid out, so wait for a real one.
   const fit = () => {
     const w = tavern.rootElement.clientWidth;
     if (!w) return;
@@ -212,21 +156,16 @@
     if (now === isNarrow() && state.fitted) { state.map && state.map.resize(); return; }
     state.fitted = true;
     $('app').classList.toggle('narrow', now);
-    state.panelOpen = !now;
-    if (state.started) { syncPanel(); state.map && state.map.resize(); }
+    if (state.started) state.map && state.map.resize();
   };
   fit();
   new ResizeObserver(fit).observe(tavern.rootElement);
 
   function select(id, o) {
     state.selected = id || null;
-    if (id) state.panelOpen = true;
     render();
     const c = current();
-    if (c && state.map && !(o && o.still)) {
-      const pad = isNarrow() ? { bottom: 260 } : { right: 0 };
-      state.map.easeTo({ center: [c.place.lng, c.place.lat], zoom: Math.max(state.map.getZoom(), 13), padding: pad, duration: 500 });
-    }
+    if (c && state.map && !(o && o.still)) state.map.easeTo({ center: [c.place.lng, c.place.lat], zoom: Math.max(state.map.getZoom(), 13), duration: 500 });
   }
 
   // --- the pins -----------------------------------------------------------------------------------------------------
@@ -462,21 +401,15 @@
     if (state.map) { state.map.remove(); state.map = null; state.mapReady = false; clearPins(); }
     const wantFile = state.settings.map;
     const app = $('app');
-    app.classList.remove('listonly');
-    state.listonly = false;
     if (!wantFile) {
       showState(isAdmin ? 'tpl-state-nomap-admin' : 'tpl-state-nomap-member');
-      if (!isAdmin) { app.classList.add('listonly'); state.listonly = true; }
       const link = $('state').querySelector('[data-action="open-settings"]');
       if (link) link.href = '/admin.html#modules';
       render();
       return;
     }
     if (!webgl()) {
-      state.noWebgl = true;
-      app.classList.add('listonly');
-      state.listonly = true;
-      showState(null);
+      showState('tpl-state-nowebgl');
       render();
       return;
     }
@@ -524,7 +457,7 @@
     map.on('error', (e) => {
       if (state.mapReady || failed) return;
       // A missing glyph range (a script the labels do not cover) is not the map failing.
-      if (/maps-glyphs\//.test((e && e.error && e.error.url) || '')) return;
+      if (/maps-glyphs\//.test(String((e && e.error && (e.error.url || e.error.message)) || ''))) return;
       const status = e && e.error && e.error.status;
       if (status === 404 || status === 401 || status === 403) { failed = true; showError(); }
     });
@@ -567,15 +500,11 @@
   // --- events on the page -------------------------------------------------------------------------------------------
 
   root.addEventListener('click', async (e) => {
-    const t = e.target.closest('[data-action], .place-row');
+    const t = e.target.closest('[data-action]');
     if (!t || t.closest('template')) return;
-    if (t.classList.contains('place-row')) return select(t.dataset.id);
     const a = t.dataset.action;
     const c = current();
-    if (a === 'back') select(null);
-    else if (a === 'close-panel') { if (state.selected) select(null); else { state.panelOpen = false; syncPanel(); } }
-    else if (a === 'toggle-panel') { state.panelOpen = !state.panelOpen; syncPanel(); if (state.map) setTimeout(() => state.map.resize(), 0); }
-    else if (a === 'toggle-sheet') { state.panelOpen = !state.panelOpen; syncPanel(); }
+    if (a === 'close-callout') select(null);
     else if (a === 'add-place') setAdding(!state.adding);
     else if (a === 'cancel') setAdding(false);
     else if (a === 'copy-coords' && c) {
@@ -584,7 +513,7 @@
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (state.adding) setAdding(false);
+    if (state.adding) setAdding(false); else if (state.selected) select(null);
   });
 
   // An item dropped on the map: one that already has a place is shown; another gets a position through its own module's
@@ -644,7 +573,7 @@
         const id = tavern.util.refKey(input.ref);
         if (!state.items.some((c) => cardId(c) === id)) { await loadItems(); render(); }
         if (!state.items.some((c) => cardId(c) === id)) throw new Error('that place is not on the map');
-        if (state.mapReady || state.listonly) select(id); else state.openWanted = id;
+        if (state.mapReady) select(id); else state.openWanted = id;
         return {};
       },
     });
@@ -654,7 +583,7 @@
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       const id = tavern.util.refKey(ref);
-      if (state.mapReady || state.listonly) select(state.items.some((c) => cardId(c) === id) ? id : null); else state.openWanted = id;
+      if (state.mapReady) select(state.items.some((c) => cardId(c) === id) ? id : null); else state.openWanted = id;
     });
   }
 

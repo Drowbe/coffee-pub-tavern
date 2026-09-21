@@ -28,24 +28,14 @@
       </div>
       <div class="tools">
         <button class="tool" type="button" data-action="add-place" hidden><span class="ic" data-icon="plus"></span> Add place</button>
-        <button class="tool" type="button" data-action="toggle-panel" aria-label="Show or hide the list"><span class="ic" data-icon="list"></span> <span class="count" data-slot="count"></span></button>
       </div>
     </div>
     <div class="maplibregl-ctrl-top-right" id="ctrl-zoom"></div>
     <div class="maplibregl-ctrl-bottom-right"><div class="attribution" data-slot="attribution">&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors</div></div>
     <div class="banner" id="banner" hidden><span class="ic" data-icon="crosshairs"></span> <span data-slot="text">Click the map to place a pin</span><button class="btn" type="button" data-action="cancel">Cancel</button></div>
+    <div id="callout" class="callout-box" hidden></div>
     <div id="state" class="state" hidden></div>
   </div>
-  <aside class="panel" id="panel" data-state="peek">
-    <button class="sheet-handle" type="button" data-action="toggle-sheet" aria-label="Show or hide the list"></button>
-    <header class="panel-head">
-      <button class="icon-btn" type="button" data-action="back" aria-label="Back to the list" hidden><span class="ic" data-icon="chevron-left"></span></button>
-      <h2 data-slot="heading">Places</h2>
-      <span class="hint" data-slot="count"></span>
-      <button class="icon-btn" type="button" data-action="close-panel" aria-label="Close"><span class="ic" data-icon="xmark"></span></button>
-    </header>
-    <div class="panel-body" id="panel-body"></div>
-  </aside>
   <p class="error" id="note" hidden></p>
 
 </div>
@@ -59,26 +49,8 @@
 <template id="tpl-pin-cluster"><button class="pin cluster" type="button" data-kind="cluster"><span class="pin-body" data-slot="count"></span></button></template>
 
 <!-- a row of the list -->
-<template id="tpl-row"><button class="place-row" type="button"><span class="ic" data-icon=""></span><span class="main"><span class="title" data-slot="title"></span><span class="sub" data-slot="sub"></span></span></button></template>
-<template id="tpl-group-title"><div class="group-title" data-slot="text"></div></template>
-<template id="tpl-empty"><p class="hint" data-slot="text"></p></template>
-<template id="tpl-notice"><p class="notice" data-slot="text"></p></template>
-
-<!-- the place being looked at. data-kind is place or item. -->
-<template id="tpl-place">
-  <article class="place">
-    <h3 data-slot="title"></h3>
-    <p class="place-where"><span data-slot="where"></span> <span class="coords" data-slot="coords"></span></p>
-    <p class="place-notes" data-slot="notes"></p>
-    <div class="place-source" data-slot="source"><span class="ic" data-icon=""></span> <span data-slot="from"></span><button class="btn" type="button" data-action="open">Open</button></div>
-    <div class="place-meta"><span class="owners" data-slot="owners"></span></div>
-    <div class="place-actions">
-      <a class="btn primary" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
-      <button class="btn" type="button" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
-    </div>
-  </article>
-</template>
-<template id="tpl-owner"><span class="owner"></span></template>
+<!-- the callout of the selected place: over the map, with what can be done. The script sets data-kind and data-cat. -->
+<template id="tpl-callout"><div class="callout"><button class="icon-btn callout-close" type="button" data-action="close-callout" aria-label="Close"><span class="ic" data-icon="xmark"></span></button><h3 data-slot="title"></h3><p class="callout-where"><span data-slot="where"></span> <span class="coords" data-slot="coords"></span></p><p class="callout-source"><span class="ic" data-icon=""></span> <span data-slot="from"></span><button class="btn" type="button" data-action="open">Open</button></p><div class="callout-actions"><a class="btn primary" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a><button class="btn" type="button" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button></div></div></template>
 
 <!-- a search result -->
 <template id="tpl-result"><li><button class="result" type="button"><span class="ic" data-icon="location-dot"></span><span><span data-slot="title"></span><small data-slot="sub"></small></span></button></li></template>
@@ -87,6 +59,7 @@
 <template id="tpl-state-loading"><div class="skel"></div></template>
 <template id="tpl-state-nomap-admin"><span class="ic" data-icon="map"></span><h2>No map yet</h2><p>Maps needs a map file on this server. Put a PMTiles file in the data folder, then pick it in Manage &gt; Modules &gt; Maps &gt; Settings.</p><p><a class="btn btn-primary" data-action="open-settings" href="#">Open the Maps settings</a></p></template>
 <template id="tpl-state-nomap-member"><span class="ic" data-icon="map"></span><h2>Maps is not set up</h2><p>An admin needs to add a map file to this server first. Your places are still listed below.</p></template>
+<template id="tpl-state-nowebgl"><span class="ic" data-icon="map"></span><h2>This device cannot draw the map</h2><p>Your places are in the Places module, and each opens in your own maps app from there.</p></template>
 <template id="tpl-state-error"><span class="ic" data-icon="triangle-exclamation"></span><h2>The map could not load</h2><p>The map file did not answer. Try again, or ask an admin to check it.</p><p><button class="btn" type="button" data-action="retry">Try again</button></p></template>
 
 <script>
