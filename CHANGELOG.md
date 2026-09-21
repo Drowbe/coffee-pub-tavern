@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- A card may carry an optional `category` (a short lower-case label). Places 0.1.2 gives its cards its category, and Maps 0.2.1 puts it on pins and rows (`data-cat`) so they can take the place's colour. Travel 0.5.3 draws a stay's check-out day with its own card and drops an unused template.
+
+### Changed
 - Travel 0.5.0: the itinerary is drawn as a family of cards. Each kind of thing has its own silhouette, icon, label and colour (a boarding pass for a flight, a ticket for a train, a key band for a stay, a reservation for a meal, a stub for a show, a sticky note, a saved place), joined by a rail with the time beside each, and the way between two stops (walk, drive, transit, bike or taxi, and how long) drawn as a line between them. The day's heading shows its first and last time, the number of stops and the time spent getting around. The editor is rebuilt around a picker of what it is, showing only the fields that kind needs, including the new details (airline and number, airport codes, terminal, gate, seat, class, platform, coach, party size, reservation name, tickets, room, guests, and how you get to it). Items made before keep working and take the card their type or category suggests; a reorder drag now starts from the rail beside the card. Verified in a browser with every card kind on wide and phone widths, editing a flight and saving its new fields, the trip editor, adding from the bar, and a saved place drawn as a place card. Not verified: dragging to reorder, dropping another module's item, the light theme.
 
 ### Changed

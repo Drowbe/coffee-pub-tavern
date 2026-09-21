@@ -133,7 +133,7 @@ A module that lets others point at its items lists them in `module.json`. Each e
 
 `consumes` lists the kinds this module wants to point at: named, as `"module:kind"`, or `"*"` for whatever other modules share. `"*"` is what lets a module link to items of modules that did not exist when it was written. The admin approves the list when enabling.
 
-The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done` and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
+The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done`, `category` (a short label) and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
 
 A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
 

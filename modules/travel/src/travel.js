@@ -132,7 +132,7 @@
   function buildCard(entry, kind, card) {
     const { item, span } = entry;
     const c = cardOf(item, card);
-    const el = clone(`tpl-card-${span === 'middle' || span === 'end' ? 'hotel-mid' : c.card}`);
+    const el = clone(`tpl-card-${span === 'middle' ? 'hotel-mid' : span === 'end' ? 'hotel-out' : c.card}`);
     const arrive = item.time && item.minutes ? hm(minutesOfDay(item.time) + item.minutes) : '';
     const duration = lengthText(item.minutes);
     const where = item.place || item.address;
@@ -150,8 +150,10 @@
     } else if (c.card === 'hotel') {
       const nights = stayNights(item);
       put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), item.time].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
-    } else if (c.card === 'hotel-mid') {
-      put(el, { title: span === 'end' ? item.title : `Staying at ${item.title}` });
+    } else if (span === 'end') {
+      put(el, { title: item.title, address: where, nights: words(stayNights(item), 'night', 'nights') });
+    } else if (span === 'middle') {
+      put(el, { title: `Staying at ${item.title}` });
     } else if (c.card === 'meal') {
       setIcon(el.querySelector('.badge [data-icon]'), c.badge);
       put(el, { kicker: c.kicker, title: item.title, address: where, partySize: item.partySize ? `Table for ${item.partySize}` : '', reservationName: item.reservationName ? `under ${item.reservationName}` : '', time: item.time, minutes: duration });

@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -23,7 +23,7 @@
   },
   "refs": {
     "produces": [
-      { "kind": "place", "name": "Place", "open": true, "backlinks": true, "key": "place:{id}", "card": { "title": "title", "subtitle": "address", "place": "point" } }
+      { "kind": "place", "name": "Place", "open": true, "backlinks": true, "key": "place:{id}", "card": { "title": "title", "subtitle": "address", "place": "point", "category": "category" } }
     ],
     "consumes": ["*"]
   }

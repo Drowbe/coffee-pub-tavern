@@ -1432,6 +1432,9 @@ function refCard({ manifest, produce, ref }, id, value) {
     if (v !== undefined && v !== '') card[name] = v;
   }
   for (const name of ['allDay', 'done']) if (typeof field(name) === 'boolean') card[name] = field(name);
+  // A short label a module may give its items to group or colour them ("eat", "stay"): lower case letters, digits and dashes.
+  const category = text(field('category'));
+  if (typeof category === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(category)) card.category = category.toLowerCase();
   // A place on the map, if the item has one: { lat, lng, name? }, checked; anything else is left out.
   const place = field('place');
   if (place && typeof place === 'object' && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {

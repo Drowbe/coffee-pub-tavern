@@ -151,6 +151,7 @@
         const r = clone('tpl-row');
         r.dataset.kind = kindOf(c);
         r.dataset.id = cardId(c);
+        if (c.category) r.dataset.cat = c.category;
         setIcon(r.querySelector('[data-icon]'), (c.module && c.module.icon) || 'location-dot');
         fill(r, { title: c.title, sub: c.subtitle || whenText(c.when) });
         if (state.selected === cardId(c)) r.classList.add('selected');
@@ -227,10 +228,11 @@
   let draftMarker = null;
   function clearPins() { while (markers.length) markers.pop().remove(); }
 
-  function makePin(kind, id, icon, label, on) {
+  function makePin(kind, id, icon, label, on, cat) {
     const pin = clone('tpl-pin');
     pin.dataset.kind = kind;
     pin.dataset.id = id;
+    if (cat) pin.dataset.cat = cat;
     setIcon(pin.querySelector('[data-icon]'), icon);
     if (label && state.map.getZoom() >= 11) fill(pin, { label }); else pin.querySelector('.pin-label').remove();
     if (state.selected === id) pin.classList.add('selected');
@@ -242,13 +244,13 @@
     if (!state.map || !state.mapReady) return;
     clearPins();
     const map = state.map;
-    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, icon: (c.module && c.module.icon) || 'location-dot' }));
+    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, cat: c.category || '', icon: (c.module && c.module.icon) || 'location-dot' }));
     const picked = all.filter((x) => x.id === state.selected);
     const rest = all.filter((x) => !picked.includes(x));
     for (const g of clusterPoints(rest, (lat, lng) => map.project([lng, lat]), 36)) {
       if (g.points.length === 1) {
         const x = g.points[0];
-        markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => select(x.id)), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
+        markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => select(x.id), x.cat), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
       } else {
         const c = clone('tpl-pin-cluster');
         fill(c, { count: g.points.length });
@@ -259,7 +261,7 @@
         markers.push(new maplibregl.Marker({ element: c, anchor: 'center' }).setLngLat([g.lng, g.lat]).addTo(map));
       }
     }
-    for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
+    for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}, x.cat), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
     hydrate(root);
   }
 
