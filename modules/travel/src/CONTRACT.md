@@ -210,6 +210,10 @@ Reference rendering: `design/markers.html` (`?state=normal|edge|hidden|blocks`, 
 
 **Time blocks** are the other use of the pill: things that happen inside a day and have no place. They are items a person adds (`li.row.entry[data-kind=block]`, `article.card.block.markerpill[data-type]`, `tpl-card-block`) with a time, an optional length (`[data-slot=minutes]`), a one-line note (`[data-slot=body]`) and a menu button; they are edited, moved and removed like any item and take part in the day's time order. In the editor they are a group "Time" in `#f-types` with a tile for each type (its icon and colour), and show only the type, an optional label, the time, the length (not for a meet-up or leave-by) and a note.
 
+**On the line.** The icon cell of a marker (plan-wide, or a time block in a day) sits on the line: its centre is the rail's (`margin-left` on the pill pulls it left over the rail column, and the rail's dot is hidden). The date or time stays to its left (above it on a narrow pane, where the icon cell is a little smaller).
+
+**A time block's menu** is the item menu (`#item-menu`, from its `⋯` button, `data-action=move-menu`) with the entries that make sense for it: **Change type** (`label[data-block-only]` with `select#menu-type`, the marker types of the settings; hidden for any other item), **Earlier**, **Later**, **Move to** (a day) and **Remove** (`[data-slot=delete-label]` reads "Remove" for a block, "Delete" for other items). Edit stays. The automatic plan-wide markers have no menu: they are not items.
+
 ### The line, and the days-between badge
 
 **The line.** `.days` draws one vertical line behind everything (`.days::before`, at `--spine-x`, aligned with the timelines' rails), so it is seen in the gaps and joins each day block, marker, badge and the day edges. The plan-wide markers' dots sit on it.

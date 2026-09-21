@@ -302,3 +302,15 @@
 .card.block.markerpill { display: flex; align-items: stretch; gap: 0; min-height: 38px; padding: 0 34px 0 0; border: 1.5px solid var(--marker); border-radius: 10px; background: color-mix(in srgb, var(--marker) 18%, var(--bg-card)); box-shadow: none; overflow: hidden; }
 .card.block.markerpill .mk-icon { align-self: stretch; }
 .mk-label b, .mk-label .mk-len { flex: none; white-space: nowrap; }
+
+/* The icon cell of a marker sits ON the line: its centre is the rail's centre (the day's own rail, or the plan's line between the days). The date stays to the left of it. */
+.row.marker .rail .dot, .row[data-kind="block"] .rail .dot { display: none; }
+.row.marker .when, .row[data-kind="block"] .when { padding-right: 8px; }
+.row.marker .markerpill, .row[data-kind="block"] .markerpill { margin-left: -39px; }
+.row.marker .mk-icon, .row[data-kind="block"] .mk-icon { width: 40px; }
+.row.marker .rail, .row[data-kind="block"] .rail { z-index: 0; }
+.row.marker .slot, .row[data-kind="block"] .slot { position: relative; z-index: 1; }
+.app.narrow .row.marker .markerpill, .app.narrow .row[data-kind="block"] .markerpill { margin-left: -28px; }
+.app.narrow .row.marker .mk-icon, .app.narrow .row[data-kind="block"] .mk-icon { width: 26px; font-size: 13px; }
+/* the menu button of a block: on the label cell's right edge, over the hatch */
+.card.block.markerpill .menu-btn { top: 50%; right: 4px; margin-top: -14px; }

@@ -54,9 +54,11 @@
     <button type="button" role="menuitem" data-action="earlier"><span class="ic" data-icon="arrow-up"></span> Earlier</button>
     <button type="button" role="menuitem" data-action="later"><span class="ic" data-icon="arrow-down"></span> Later</button>
     <label role="menuitem"><span class="ic" data-icon="calendar-days"></span> Move to <select id="menu-day" aria-label="Move to day"></select></label>
+    <!-- for a time block only: the marker types of the settings (the script fills the list and hides this for anything else) -->
+    <label role="menuitem" data-block-only hidden><span class="ic" data-icon="tag"></span> Change type <select id="menu-type" aria-label="Change type"></select></label>
     <button type="button" role="menuitem" data-action="to-ideas"><span class="ic" data-icon="lightbulb"></span> Back to ideas</button>
     <button type="button" role="menuitem" data-action="follow" hidden><span class="ic" data-icon="bell"></span> <span data-slot="follow-label">Follow its result</span></button>
-    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
+    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> <span data-slot="delete-label">Delete</span></button>
   </div>
 </div>
 <p id="msg" class="hint msg">Loading...</p>
