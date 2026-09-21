@@ -138,7 +138,7 @@ body { margin: 0; overflow: hidden; }
 
 .app.narrow .stage { position: absolute; inset: 0; }
 
-.app.narrow .panel { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
+.app.narrow .panel { padding-bottom: 24px; position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; width: 100%; max-height: 72%; border-left: 0; border-top: 1px solid var(--border); border-radius: 14px 14px 0 0; box-shadow: 0 -6px 20px color-mix(in srgb, black 30%, transparent); }
 
 .app.narrow .panel[data-state="peek"] .panel-body { display: none; }
 
@@ -157,7 +157,7 @@ body { margin: 0; overflow: hidden; }
 .app.narrow .maplibregl-ctrl-top-right { top: 104px; }
 
 /* the credit stays above the sheet's peek */
-.app.narrow .maplibregl-ctrl-bottom-right { bottom: 70px; }
+.app.narrow .maplibregl-ctrl-bottom-right { bottom: 4px; right: 8px; z-index: 6; }
 
 .app.narrow .banner { bottom: 80px; }
 
@@ -178,3 +178,6 @@ body { margin: 0; overflow: hidden; }
 .state p + p { margin-top: 12px; }
 .state a.btn { text-decoration: none; }
 .app.listonly .sheet-handle, .app.listonly [data-action="close-panel"] { display: none; }
+
+/* the loading skeleton fills the map, with no padding around it */
+.state:has(> .skel) { padding: 0; }
