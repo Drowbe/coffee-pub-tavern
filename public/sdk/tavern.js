@@ -345,6 +345,22 @@
       url: (name) => call('files.url', { name }),
     },
 
+    // Pictures people add (a module declares `uploads` in module.json). The server checks each from its own bytes and takes out
+    // what rides along (text, thumbnails, maker notes); a photo's position is dropped unless `keepPosition` is true. Make the
+    // picture the size you want first (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page.
+    //   put(blob, { name, keepPosition, scope })  -> { id, name, type, size, by, at, taken, camera, hasPosition, position, hasThumb }
+    //   thumb(id, blob, { scope })                the thumbnail for a file you put
+    //   list({ scope }), remove(id, { scope }), url(id, { thumb, scope })  (the address to use as an <img> source)
+    // `hasPosition` says the photo carried one, so you can offer to keep it (put it again with keepPosition). Remove a file when
+    // you remove the item that shows it.
+    uploads: {
+      put: (file, o) => call('uploads.put', { file, name: o && o.name, keepPosition: !!(o && o.keepPosition), scope: o && o.scope }),
+      thumb: (id, file, o) => call('uploads.thumb', { id, file, scope: o && o.scope }),
+      list: (o) => call('uploads.list', { scope: o && o.scope }),
+      remove: (id, o) => call('uploads.remove', { id, scope: o && o.scope }),
+      url: (id, o) => call('uploads.url', { id, thumb: !!(o && o.thumb), scope: o && o.scope }),
+    },
+
     // The module's settings, as chosen for this viewer here: { key: value }, with the module's own default for what
     // nobody has chosen. Declared in module.json (`settings`); Tavern draws the forms (an admin's for the server, a
     // room's moderators' for a room, each person's own) and keeps the values. `onChange(fn)` calls fn(values) when any of

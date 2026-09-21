@@ -219,6 +219,20 @@ await tavern.geocode.used(results[0].key);     // the person picked it: the serv
 
 The server looks in the places it has saved first, and asks the service the admin chose only when fewer than five match; the answers are saved if the admin allows it. Searches count against the module's rate limit.
 
+### Uploaded pictures
+
+A module whose manifest declares `uploads` (see [api-modules](api-modules.md)) keeps the pictures its people add:
+
+```js
+const f = await tavern.uploads.put(blob, { name: 'harbour.jpg', keepPosition: false, scope: 'room' });
+// f: { id, name, type, size, by, at, taken, camera, hasPosition, position, hasThumb }
+await tavern.uploads.thumb(f.id, thumbBlob, { scope: 'room' });
+img.src = await tavern.uploads.url(f.id, { thumb: true, scope: 'room' });
+await tavern.uploads.remove(f.id, { scope: 'room' }); // when the item that shows it is removed
+```
+
+Make the picture the size you want (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page before sending: the server does not decode pictures, it checks and cleans them. A photo's position is dropped unless `keepPosition` is true; `hasPosition` says it had one, so the page can offer to keep it (put the file again with `keepPosition`, then remove the first copy). Only the person who added a file, or an administrator, can remove it. Uploads count against a per-person rate limit.
+
 ### Shared tools
 
 Anything more than one module needs belongs in the SDK, not copied into each module. Use these rather than writing your own; they follow the theme and work the same in a frame and in the page.

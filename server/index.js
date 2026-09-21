@@ -15,6 +15,7 @@ const { ChatHistory } = require('./chat-history');
 const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
 const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
+const { ModuleUploads } = require('./module-uploads');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -1922,6 +1923,61 @@ app.get('/api/modules/widgets', (req, res) => {
 // room's, an admin or one of that room's moderators; a person's own, that person.
 const moduleSettings = new ModuleSettings(modules.dir);
 
+// --- files a module's people upload ---------------------------------------------------------------------------------------
+// A module that declares `uploads` keeps pictures per scope (server, room, person), with the same read and write permissions as
+// its data. The server checks what arrives from the bytes themselves and takes out what rides along (see image-clean.js).
+const moduleUploads = new ModuleUploads(modules.dir);
+const rawUpload = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: 10 * 1024 * 1024 + 1024 });
+function uploadAccess(req, res, need) {
+  const ctx = moduleAccess(req, res, need);
+  if (!ctx) return null;
+  if (!ctx.manifest.uploads) { res.status(404).json({ error: 'this module keeps no uploaded files' }); return null; }
+  return ctx;
+}
+const uploadView = (f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, by: f.by, at: f.at, taken: f.taken, camera: f.camera, hasPosition: f.hasPosition, position: f.position, hasThumb: !!f.thumb });
+app.get('/api/modules/:id/uploads', (req, res) => {
+  const ctx = uploadAccess(req, res, 'read');
+  if (!ctx) return;
+  res.json({ files: moduleUploads.list(ctx.manifest.id, ctx.scopeKey).map(uploadView) });
+});
+app.post('/api/modules/:id/uploads', rawUpload, (req, res) => {
+  const ctx = uploadAccess(req, res, 'write');
+  if (!ctx) return;
+  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage });
+  if (!Buffer.isBuffer(req.body)) return res.status(415).json({ error: 'send the picture itself, as a JPEG, PNG or WebP' });
+  const file = moduleUploads.put(ctx.manifest.id, ctx.scopeKey, ctx.manifest.uploads, { bytes: req.body, name: req.query.name, by: ctx.by, keepPosition: req.query.keepPosition === '1' });
+  res.status(201).json({ file: uploadView(file) });
+});
+app.put('/api/modules/:id/uploads/:fid/thumb', rawUpload, (req, res) => {
+  const ctx = uploadAccess(req, res, 'write');
+  if (!ctx) return;
+  const meta = moduleUploads.meta(ctx.manifest.id, ctx.scopeKey, req.params.fid);
+  if (!meta) return res.status(404).json({ error: 'no such file' });
+  if (meta.by !== ctx.by && ctx.who.user?.role !== 'admin') return res.status(403).json({ error: 'only the person who added it can do that' });
+  if (!Buffer.isBuffer(req.body)) return res.status(415).json({ error: 'send the thumbnail itself, as a JPEG, PNG or WebP' });
+  res.json({ file: uploadView(moduleUploads.putThumb(ctx.manifest.id, ctx.scopeKey, ctx.manifest.uploads, req.params.fid, req.body)) });
+});
+function sendUpload(req, res, thumb) {
+  const ctx = uploadAccess(req, res, 'read');
+  if (!ctx) return;
+  const f = moduleUploads.read(ctx.manifest.id, ctx.scopeKey, req.params.fid, thumb);
+  if (!f) return res.status(404).json({ error: 'no such file' });
+  // A picture and nothing else, whatever it claims to be, and never run as a page; kept private to the person and their browser.
+  res.set({ 'Content-Type': f.type, 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'", 'Cache-Control': 'private, max-age=3600' }).send(f.bytes);
+}
+app.get('/api/modules/:id/uploads/:fid', (req, res) => sendUpload(req, res, false));
+app.get('/api/modules/:id/uploads/:fid/thumb', (req, res) => sendUpload(req, res, true));
+app.delete('/api/modules/:id/uploads/:fid', (req, res) => {
+  const ctx = uploadAccess(req, res, 'write');
+  if (!ctx) return;
+  const meta = moduleUploads.meta(ctx.manifest.id, ctx.scopeKey, req.params.fid);
+  if (!meta) return res.status(404).json({ error: 'no such file' });
+  // The person who added a file, or an administrator, removes it. (A module decides who may remove its items; this is the guard on the bytes.)
+  if (meta.by !== ctx.by && ctx.who.user?.role !== 'admin') return res.status(403).json({ error: 'only the person who added it can remove it' });
+  moduleUploads.remove(ctx.manifest.id, ctx.scopeKey, req.params.fid);
+  res.json({ ok: true });
+});
+
 // --- place search, from the server -----------------------------------------------------------------------------------------
 // A module that declares `geocoder` in its manifest has its searches for places answered here: from the saved places first, then
 // (when there are too few) from the service its settings name, keeping what comes back if the admin allows it. See geocode.js.
@@ -2490,6 +2546,7 @@ app.get('/healthz', (_req, res) => res.json({ ok: true }));
 app.use((err, _req, res, _next) => {
   if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
   if (err.type === 'entity.too.large') {
+    if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });
     const limit = _req.path.startsWith('/api/modules') ? MODULE_LIMITS.zipBytes : MAX_IMAGE_BYTES;
     return res.status(413).json({ error: `${_req.path.startsWith('/api/modules') ? 'the zip' : 'image'} is larger than ${limit / (1024 * 1024)} MB` });
   }

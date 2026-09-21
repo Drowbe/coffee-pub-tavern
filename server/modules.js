@@ -223,6 +223,17 @@ const SETTING_SCOPES = ['server', 'room', 'person'];
 // A module's place search, asked from the server (see geocode.js): which settings say where to search, and the providers it knows.
 // { provider: <a choice setting>, address: <a url setting for a custom address>, save: <a boolean setting: keep what comes back>,
 //   custom: <the provider value that means the address>, providers: { <provider value>: { address, credit } } }, or null.
+// A module's `uploads`: the files its people may add ({ types, maxBytes, maxFiles }), or null for none. Only pictures for now.
+function cleanUploads(raw) {
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json: uploads must be an object');
+  const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+  const types = Array.isArray(raw.types) ? [...new Set(raw.types.filter((t) => allowed.includes(t)))] : allowed;
+  if (!types.length) throw new ModuleError('module.json: uploads.types can be image/jpeg, image/png and image/webp');
+  const num = (v, max, def) => (Number.isInteger(v) && v >= 1 ? Math.min(v, max) : def);
+  return { types, maxBytes: num(raw.maxBytes, 10 * 1024 * 1024, 10 * 1024 * 1024), maxFiles: num(raw.maxFiles, 5000, 500) };
+}
+
 function cleanGeocoder(raw, settings) {
   if (!raw || typeof raw !== 'object') return null;
   const known = (k, type) => typeof k === 'string' && settings.some((d) => d.key === k && (!type || d.type === type));
@@ -370,6 +381,7 @@ function cleanManifest(raw, files) {
 
   const settings = cleanSettings(raw.settings);
   const geocoder = cleanGeocoder(raw.geocoder, settings);
+  const uploads = cleanUploads(raw.uploads);
 
   // The modules this one cannot work without: the one place a manifest names another module (at run time every module still
   // reaches another only through the generic conduits). It cannot be turned on until they are on.
@@ -379,7 +391,7 @@ function cleanManifest(raw, files) {
     if (!requires.includes(r)) requires.push(r);
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -447,6 +459,7 @@ class ModuleManager {
         manifest.settings = [];
       }
       try { manifest.geocoder = cleanGeocoder(manifest.geocoder, manifest.settings); } catch { manifest.geocoder = null; }
+      try { manifest.uploads = cleanUploads(manifest.uploads); } catch { manifest.uploads = null; }
       this.manifests.set(cacheKey, manifest);
     }
     return manifest;
