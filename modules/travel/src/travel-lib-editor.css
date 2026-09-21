@@ -1,0 +1,39 @@
+/*
+ * The Travel item editor for the card family: a type picker (a grid of tiles, one per kind of thing, each in its own colour
+ * family) and the fields that kind needs, in groups. Same dialog as before (#editor > form#form.editor-card). It moves into
+ * src/ (travel-lib-editor.css) when the script uses it. Colours are the theme's; the tiles derive theirs from the accent as the
+ * cards do (--turn), so an editor tile and its card match. Narrow means .app.narrow.
+ */
+.tile { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
+@supports (color: oklch(from red l c h)) { .tile { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+.tile[data-type="flight"] { --turn: 195; } .tile[data-type="train"] { --turn: 150; } .tile[data-type="ferry"] { --turn: 120; }
+.tile[data-type="bus"] { --turn: 100; } .tile[data-type="car"] { --turn: 45; } .tile[data-type="hotel"] { --turn: 255; }
+.tile[data-type="restaurant"] { --turn: 0; } .tile[data-type="cafe"] { --turn: 345; } .tile[data-type="bar"] { --turn: 320; }
+.tile[data-type="sight"] { --turn: 95; } .tile[data-type="museum"] { --turn: 285; } .tile[data-type="tour"] { --turn: 65; }
+.tile[data-type="show"] { --turn: 305; } .tile[data-type="note"] { --turn: 25; } .tile[data-type="place"] { --turn: 130; }
+
+.typeset { display: flex; flex-direction: column; gap: 6px; }
+.typegroup-title { color: var(--text-dim); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 7px; border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--tone) 8%, var(--bg-card)); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease; }
+.tile .ic { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: color-mix(in srgb, var(--tone) 25%, var(--bg-card)); color: var(--tone); font-size: 14px; }
+.tile:hover { transform: translateY(-1px); border-color: var(--tone); }
+.tile.on { border-color: var(--tone); background: color-mix(in srgb, var(--tone) 22%, var(--bg-card)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 40%, transparent); }
+.tile.on .ic { background: var(--tone); color: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .tile { transition: none; } .tile:hover { transform: none; } }
+
+/* the fields for the chosen type: a field shows only for the types in its data-types */
+.fieldgroup { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.fieldgroup-title { color: var(--text-dim); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+[data-types]:not(.on-type) { display: none; }
+.pairing { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 8px; }
+.pairing .arrow { padding-bottom: 8px; color: var(--text-dim); }
+.codebox input { text-transform: uppercase; letter-spacing: 0.1em; font-family: ui-monospace, Menlo, monospace; text-align: center; }
+
+/* how you get there: the way to this stop from the one before */
+.modes { display: flex; gap: 4px; }
+.mode { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-dim); font: inherit; cursor: pointer; }
+.mode.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.gettingthere { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.gettingthere .minutes { flex: 1; min-width: 140px; }
+.gettingthere .minutes input { max-width: 120px; }

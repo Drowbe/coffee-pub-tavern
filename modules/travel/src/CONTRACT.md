@@ -184,3 +184,25 @@ Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few
 **Narrow** (`.app.narrow`): the time moves above its card so the card has the whole width, the boarding pass and the show ticket stack their stub under the main part, and legs stay between cards.
 
 **What the mock does not cover yet:** an editor for the new fields (the modules side), the small editor for a leg, drag on the new rows (same `data-drop` and `.dragging` states, styled in `travel-lib-cards.css`), and a print or share view.
+
+## The editor (for the card family)
+
+The same dialog (`#editor > form#form.editor-card`), rebuilt around **what kind of thing it is**. `tpl-editor2` in `travel.html` is the new form; the script fills `#editor` from it when it opens (the old form goes when the switch is done). `design/editor.html` is the reference (a harness for each type, dark and light, phone to wide).
+
+**The type picker** (`#f-types`): one `button.tile[data-type]` per kind of thing, in groups (Getting there: flight, train, ferry, bus, car; Stay: hotel; Eat and drink: restaurant, cafe, bar; See and do: sight, museum, tour, show; Other: note). A tile is the family's colour and icon, the same as its card; `.on` marks the chosen one. Choosing a tile changes the type of the item (and with it `kind`, `mode` or `type` in the data), keeps the fields they share and shows the fields that type needs. The script builds the tiles' icons with `tavern.ui.icon` from `data-icon`.
+
+**Fields appear by type.** Every field wrapper carries `data-types="flight train ..."`; the script adds `.on-type` to those whose list includes the chosen type, and the stylesheet hides the rest (`[data-types]:not(.on-type)`). Groups (`.fieldgroup`) hold a title and their fields and use the same attribute, so a group with nothing to show disappears. All inputs have ids `f-<name>` and the data model's field names as `name`:
+
+| Group | Fields (type) |
+|---|---|
+| Top | `f-title`, `f-date`, `f-time` (all but hotel), `f-minutes` (length or duration; not for hotel, note), `f-checkout` (hotel) |
+| Journey | `f-operator`, `f-number`, `f-fromCode`, `f-toCode` (flight), `f-from`, `f-to`, `f-pickup`, `f-dropoff` (car), `f-terminal`, `f-gate` (flight), `f-platform`, `f-carriage` (train), `f-seat` (flight, train), `f-travelClass` (flight) |
+| Stay | `f-address`, `f-roomType`, `f-guests` (hotel) |
+| Where and who | `f-address-stop`, `f-partySize`, `f-reservationName` (meals), `f-admissionCount` (sight, museum, tour, show), `f-gate-show` (show's entry, saved as `gate`) |
+| Booking | `f-confirm`, `f-cost`, `f-paidBy` (all but note) |
+| Everything | `f-notes` (all), `#f-owners` (a `label.check` per traveller) |
+| Getting to this stop | `#f-travelMode` (`button.mode[data-mode=walk|drive|transit|bike|taxi]`, `.on` on the chosen one, none chosen means no leg) and `f-travelMinutes` |
+
+`#f-by`, `#f-error`, `#f-save`, `#f-cancel` and `#f-delete` are as before. A codebox (`.codebox`) is monospaced and upper-case for airport codes. Each type has a placeholder for the title (for example "Flight to Lisbon", "Dinner at Cervejaria Ramiro") set by the script.
+
+**Narrow:** the dialog fills the pane, the tiles reflow to the width, and inputs are 16 px so a phone does not zoom.
