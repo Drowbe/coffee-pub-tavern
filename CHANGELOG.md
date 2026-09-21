@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Planner 0.6.7: the plan-wide markers (Planning starts and ends, Trip starts and ends) now sit on the main timeline between the day blocks instead of inside a day: the plan's start and the trip's start above their days, the trip's end and the plan's end below theirs. The days the trip itself covers (first to last booked item) are marked `.in-trip`, so their badges can be coloured differently from the planning days around them. Checked in a browser: the order of edges, markers and day blocks and the marked days.
+
 ### Added
 - Planner 0.6.6: automatic markers (Planning starts and ends on the first and last day; Trip starts and ends at the first and last booked item, which is a journey, a stay or anything with a booking reference, else the first and last timed item), buttons to add 1 to 30 days before the first or after the last day (up to 60 days in all, said in the page's note), a toggle that hides empty days (remembered per person, off by default, never hiding everything), and dragging a card by its body to move it within the plan: an untimed item reorders, a timed item keeps its time on another day and, dropped between two items on the same day, takes the end of the one before it. Verified in a browser: the markers in place, the empty-day toggle and its note and storage, adding days after (the trip's dates saved), the 60-day limit note, and moving items with synthetic drag events (a timed item to 15:00 after a 14:00 one, to another day keeping its time). Not verified: the pointer drag itself on a real page (it shares the move logic), the light theme and the phone layout.
 

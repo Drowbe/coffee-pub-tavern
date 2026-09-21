@@ -259,6 +259,28 @@
     fill(row, { time, title: MARKERS[kind][1], sub });
     return row;
   }
+  // The markers of the whole plan, on the main timeline between the day blocks (not inside a day): the plan's ends above the first day
+  // and below the last, and the trip's start above the day it begins and its end below the day it ends.
+  function timelineMarkers(day, position, days, by) {
+    const bounds = state.bounds;
+    const rows = [];
+    const dateText = (d) => parseYmd(d).toLocaleDateString([], { weekday: 'short', day: 'numeric' });
+    const itemOf = (id) => plan.list().find((i) => i.id === id);
+    if (position === 'before') {
+      if (day === days[0]) rows.push(buildMarker('planning-start', dateText(day), 'the plan begins'));
+      if (bounds && bounds.start.day === day) rows.push(buildMarker('trip-start', bounds.start.time, describe(itemOf(bounds.start.id) || {})));
+    } else {
+      if (bounds && bounds.end.day === day) rows.push(buildMarker('trip-end', bounds.end.time, describe(itemOf(bounds.end.id) || {})));
+      if (day === days[days.length - 1]) rows.push(buildMarker('planning-end', dateText(day), 'the plan ends'));
+    }
+    if (!rows.length) return null;
+    const list = document.createElement('ol');
+    list.className = 'timeline ends';
+    list.dataset.ends = position;
+    list.append(...rows);
+    return list;
+  }
+
   // A short name for an item, for a marker's line.
   const describe = (item) => (item.kind === 'journey' && [item.operator, item.number].filter(Boolean).join(' ')) || item.title;
 
@@ -285,21 +307,16 @@
     }
     // The plan's own ends, and where the trip itself starts and ends (the first and last booked item). Markers are drawn, never stored:
     // they have no id, no menu and no handle, and are not counted as something planned.
-    const bounds = state.bounds;
-    const days2 = plan.days();
-    if (!ideas && day === days2[0]) list.append(buildMarker('planning-start', parseYmd(day).toLocaleDateString([], { weekday: 'short', day: 'numeric' }), 'the plan begins'));
     entries.forEach((entry, i) => {
       const prev = entries[i - 1];
       const covers = (e) => e && (e.span === 'middle' || e.span === 'end');
-      const mine = !ideas && !covers(entry);
-      if (mine && bounds && bounds.start.day === day && bounds.start.id === entry.item.id) list.append(buildMarker('trip-start', bounds.start.time, describe(entry.item)));
       if (i && !covers(entry) && !covers(prev)) { const leg = buildLeg(entry.item); if (leg) list.append(leg); }
       list.append(buildEntry(entry));
-      const closes = !ideas && bounds && bounds.end.day === day && bounds.end.id === entry.item.id && (entry.item.kind !== 'stay' || !entry.item.checkOut || entry.span === 'end');
-      if (closes) list.append(buildMarker('trip-end', bounds.end.time, describe(entry.item)));
     });
-    if (!ideas && day === days2[days2.length - 1]) list.append(buildMarker('planning-end', parseYmd(day).toLocaleDateString([], { weekday: 'short', day: 'numeric' }), 'the plan ends'));
     if (!ideas && !entries.length) el.classList.add('is-empty');
+    // The days the trip itself covers (from the first booked item to the last) are marked, for their badge.
+    const b = state.bounds;
+    if (!ideas && b && day >= b.start.day && day <= b.end.day) el.classList.add('in-trip');
     const add = el.querySelector('.add-row');
     add.dataset.day = ideas ? '' : day;
     add.setAttribute('aria-label', `Add to ${ideas ? 'ideas' : dayShort(day)}`);
@@ -359,7 +376,13 @@
     $('app').classList.toggle('hide-empty', hiding);
     if (hiding) { const n = clone('tpl-emptynote'); fill(n, { text: `${empties.size} empty day${empties.size === 1 ? '' : 's'} hidden` }); wrap.append(n); }
     if (canEdit) wrap.append(buildEdge('before'));
-    days.forEach((day, i) => wrap.append(buildDay(day, i, days, by)));
+    days.forEach((day, i) => {
+      const above = timelineMarkers(day, 'before', days, by);
+      if (above) wrap.append(above);
+      wrap.append(buildDay(day, i, days, by));
+      const below = timelineMarkers(day, 'after', days, by);
+      if (below) wrap.append(below);
+    });
     if (canEdit) wrap.append(buildEdge('after'));
     if ((by.get(null) || []).length) wrap.append(buildDay(null, days.length, days, by));
     $('body').replaceChildren(wrap);
