@@ -9,15 +9,15 @@ The Maps module shows a map of the places a room cares about: places added in Ma
 **What you need:** the current Tavern (Maps and its map library ship inside it, so update the server the way you always do), and one map file. Nothing else is installed: no tile server, no database, no extra container, no account and no key.
 
 
-1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world about 107 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
+1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world well over 100 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
 
-   **Where to get one.** The world is published as a daily file (about 120 GB, zoom 0 to 15) at [maps.protomaps.com/builds](https://maps.protomaps.com/builds). You do not download all of it. Install the `pmtiles` tool ([releases](https://github.com/protomaps/go-pmtiles/releases); there is also a `protomaps/go-pmtiles` Docker image) and cut out your area, straight from the web address of the newest file on that page:
+   **Where to get one.** The world is published as a daily file (about 138 GB when I last checked, zoom 0 to 15) at [maps.protomaps.com/builds](https://maps.protomaps.com/builds). You do not download all of it. Install the `pmtiles` tool ([releases](https://github.com/protomaps/go-pmtiles/releases); there is also a `protomaps/go-pmtiles` Docker image) and cut out your area, straight from the web address of the newest file on that page:
 
    ```
    pmtiles extract <address of the newest planet file> lisbon.pmtiles --bbox=-9.30,38.68,-9.05,38.82 --maxzoom=15
    ```
 
-   `--bbox` is the area as west, south, east, north (longitude and latitude, in degrees); the example is Lisbon. Each extra zoom level roughly doubles the size, so a lower `--maxzoom` (13 or 14) makes a much smaller file. The map data is © OpenStreetMap contributors (the Open Database Licence), which Tavern credits on every map.
+   `--bbox` is the area as west, south, east, north (longitude and latitude, in degrees); the example is Lisbon. Each extra zoom level roughly doubles the size, so a lower `--maxzoom` (13 or 14) makes a much smaller file. As a guide, all of Italy (`--bbox=6.6,35.4,18.8,47.1`) at `--maxzoom=13` was 1.2 GB and took about two minutes to cut. The map data is © OpenStreetMap contributors (the Open Database Licence), which Tavern credits on every map.
 2. **Put it on the server.** Copy the file into the server's data folder, in `module-files/maps/`. Create the folder if it is not there. On a Docker or QNAP install the data folder is the volume mounted at `/app/data` in the container; in the sample `docker-compose.yml` that is `/share/appdata/tavern` on the NAS, so the file goes in `/share/appdata/tavern/module-files/maps/`.
 3. On the Modules tab, choose **Install** beside Maps under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items and to ask other modules to do things.
 4. Tick **Available in every room**, or tick it per room.
