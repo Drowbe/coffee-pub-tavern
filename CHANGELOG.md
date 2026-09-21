@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- Travel 0.5.5: the check-out day's card and the nights between now fill their own card (the stay branch ran first, so the check-out card's time and the middle nights' titles came from the wrong fields).
+
 ### Added
 - Travel 0.5.4: a stay can have a check-out time (`checkOutTime`), set beside the Check out day; it shows on the check-out day's card and beside the row.
 

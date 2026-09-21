@@ -147,7 +147,7 @@
       put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: item.time, to, confirm: item.confirm });
       const go = el.querySelector('.go');
       if (go && !item.time && !to && !item.confirm) go.hidden = true;
-    } else if (c.card === 'hotel') {
+    } else if (c.card === 'hotel' && span !== 'end' && span !== 'middle') {
       const nights = stayNights(item);
       put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), item.time].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
     } else if (span === 'end') {
