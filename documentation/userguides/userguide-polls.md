@@ -55,4 +55,4 @@ In a room, three icons in the Polls' titlebar, before the pane's own buttons and
 
 ## Where it shows
 
-Choose **Polls** in the header for the server's polls. Under the toolbar it also shows, read-only, the polls of every room you belong to that has Polls on, each headed by its room's icon, with a row of your rooms to show or hide each. To vote in a room's poll, open that room's Polls from a call: choose the Modules button in the header, then **Polls**. It opens as a column beside the conference and the chat, as a floating panel, or in a window of its own.
+On the rooms page, click the **Need your vote** card's heading for the server's polls. Under the toolbar it also shows, read-only, the polls of every room you belong to that has Polls on, each headed by its room's icon, with a row of your rooms to show or hide each. To vote in a room's poll, open that room's Polls from a call: choose the Modules button in the header, then **Polls**. It opens as a column beside the conference and the chat, as a floating panel, or in a window of its own.

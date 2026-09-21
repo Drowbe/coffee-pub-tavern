@@ -124,8 +124,13 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   // The panes open now, in column order.
+  // A join that was asked to open one item (from the dashboard) opens just that module, once, and does not
+  // become the room's remembered layout: nothing is saved until the person opens or closes a pane themselves.
+  let openRequest = null;
+  let keepLayout = false;
+  let restoring = false;
   function snapshot() {
-    if (suspended || !roomId) return;
+    if (suspended || !roomId || keepLayout) return;
     saved.__open = [...panes.values()].sort((a, b) => a.order - b.order).map((p) => p.id);
     persist();
   }
@@ -486,6 +491,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   function closeNative(id, opts = {}) {
     const pane = panes.get(id);
     if (!pane) return;
+    if (!restoring) keepLayout = false;
     const def = pane.def;
     panes.delete(id);
     if (pane.floatEl) pane.floatEl.remove();
@@ -537,6 +543,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   function openModule(m, mode) {
+    if (!restoring) keepLayout = false;
     const p = { id: m.id, modes: m.panel.mode, kind: 'module' };
     if (panes.has(m.id)) {
       const pane = panes.get(m.id);
@@ -567,6 +574,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   function closePane(id) {
     const pane = panes.get(id);
     if (!pane) return;
+    if (!restoring) keepLayout = false;
     if (pane.kind === 'native') return closeNative(id);
     pane.mount.destroy();
     pane.el.remove();
@@ -649,7 +657,12 @@ export function createRoomModules({ guestToken = null } = {}) {
   // conference for a room not used before.
   function restore() {
     suspended = true;
-    const want = Array.isArray(saved.__open) ? saved.__open : ['conference'];
+    restoring = true;
+    // A pending request to open one item wins, when the module is on for this room and the request is fresh.
+    const request = openRequest && Date.now() - openRequest.at < 20000 && available.some((x) => x.id === openRequest.module) ? openRequest : null;
+    openRequest = null;
+    keepLayout = Boolean(request);
+    const want = request ? [request.module] : Array.isArray(saved.__open) ? saved.__open : ['conference'];
     for (const id of want) {
       if (natives.has(id)) api_openNative(id);
       else {
@@ -659,10 +672,12 @@ export function createRoomModules({ guestToken = null } = {}) {
     }
     // On a phone the call is the view to start on, whatever was opened last.
     if (isNarrow() && panes.has('conference')) view = 'conference';
+    restoring = false;
     suspended = false;
     syncDock();
     update();
     snapshot();
+    if (request) openRef(request.ref);
   }
 
   // --- the toolbar button and its menu --------------------------------------
@@ -810,6 +825,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const def = natives.get(id);
     if (!def) return false;
     if (panes.has(id)) return true;
+    if (!restoring) keepLayout = false;
     if (isNarrow()) view = id;
     const want = saved[id]?.mode === 'float' && (!def.modes || def.modes.includes('float')) ? 'float' : 'dock';
     return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
@@ -818,6 +834,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   return {
     refresh,
     restore,
+    // Ask the next restore to open just this module, on this item (a pointer), instead of the remembered panes.
+    requestOpen: (module, ref) => { openRequest = { module, ref, at: Date.now() }; },
     suspend: () => { suspended = true; },
     setNativeUnread(id, n) {
       nativeUnread[id] = n;

@@ -4,14 +4,42 @@
 import { api, escapeHtml } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
+// What each module has unread (Tavern's notification counts): shown on its card's heading, since the header no
+// longer has an item for a module with a widget. brand.js announces the counts; this keeps the latest.
+let unread = {};
+document.addEventListener('tavern:unread', (event) => {
+  unread = event.detail || {};
+  paintUnread();
+});
+function paintUnread() {
+  for (const el of document.querySelectorAll('#dashboard [data-widget]')) {
+    const n = unread[el.dataset.widget] || 0;
+    let badge = el.querySelector('.dashboard-badge');
+    if (!n) { badge?.remove(); continue; }
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'dashboard-badge';
+      el.querySelector('.dashboard-widget-title').after(badge);
+    }
+    badge.textContent = n > 9 ? '9+' : String(n);
+    badge.title = `${n} unread`;
+  }
+}
+
 let started = false;
 let whoBody = null;
 
 const section = () => document.getElementById('dashboard');
 
-// Showing an item where its module keeps it: that module's page, given the pointer in the address (the page
-// hands it on), in the room the item is in.
+// Showing an item where its module keeps it. An item in a room takes the person into that room with the module's
+// pane open on it (the page supplies how, since it owns joining); anything else goes to the module's own page,
+// given the pointer in the address (the page hands it on).
+let openInRoom = null;
 function openRef(ref) {
+  if (ref.scope === 'room' && ref.room && openInRoom) {
+    openInRoom(ref.room, ref.module, ref);
+    return true;
+  }
   const q = new URLSearchParams();
   if (ref.scope === 'room') q.set('moduleRoom', ref.room);
   location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}#ref=${encodeURIComponent(JSON.stringify(ref))}`;
@@ -73,9 +101,10 @@ function renderWho(table) {
 }
 
 // Called each time the room list is drawn: the widgets are mounted once, who is around every time.
-export async function initDashboard(table) {
+export async function initDashboard(table, hooks = {}) {
   const root = section();
   if (!root) return;
+  if (hooks.openInRoom) openInRoom = hooks.openInRoom;
   if (!started) {
     started = true;
     const who = card({ id: '_who', title: "Who's around", icon: 'user-group', size: 'small' });
@@ -88,6 +117,7 @@ export async function initDashboard(table) {
       // no widgets is fine: just who is around
     }
     for (const w of widgets) mountWidget(w);
+    paintUnread();
   }
   renderWho(table);
   root.hidden = false;

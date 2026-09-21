@@ -129,7 +129,7 @@ async function loadTable() {
       updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
-    if (!guestToken) initDashboard({ users, rooms: tableRooms });
+    if (!guestToken) initDashboard({ users, rooms: tableRooms }, { openInRoom });
     reconcileGhostTiles();
     renderGuestLink();
     renderRoomLink();
@@ -1928,6 +1928,19 @@ async function fillDevices() {
 // Disconnect (if connected) and join a different room. Used for the admin's
 // own "pull aside" click, for the pulled player's push notification, and
 // for "Back to the table".
+// From the dashboard: go into a room with one module's pane open on one item, and nothing else changed. In the
+// room already, that is just showing the stage and opening the pane.
+async function openInRoom(roomId, moduleId, ref) {
+  if (room.state === 'connected' && currentRoom?.id === roomId) {
+    returnToStage();
+    roomModules.open(moduleId);
+    roomModules.openRef(ref);
+    return;
+  }
+  roomModules.requestOpen(moduleId, ref);
+  if (room.state === 'connected') await reconnectTo(roomId);
+  else await join(roomId);
+}
 async function reconnectTo(roomId, statusText) {
   if (statusText) setStatus(statusText);
   await room.disconnect().catch(() => {});

@@ -12,7 +12,7 @@ The To-do module keeps a shared task list. There is one for the whole server and
 
 ## The server list
 
-Choose **To-do** in the header. Type a task in the box at the top and press Enter to add it, or choose **Add task** to add notes and a due date as well.
+On the rooms page, click the **Due soon** card's heading to open the full list. Type a task in the box at the top and press Enter to add it, or choose **Add task** to add notes and a due date as well.
 
 - Tick the box to mark a task done. **Open**, **Done** and **All** choose what the list shows. Open tasks are ordered by due date, with undated ones after, and done tasks are listed newest first.
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.

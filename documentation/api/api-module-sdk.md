@@ -10,7 +10,7 @@ A module is a zip of static files that runs in the browser, inside a sandboxed f
 
 A module has one or two **surfaces**:
 
-- **page**: a full-width page of its own, with an item in the header (server scope).
+- **page**: a full-width page of its own (server scope), with an item in the header unless the module has a widget, in which case the widget card's heading opens it.
 - **panel**: a pane a room can open from the call's Modules button (room scope). A panel can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
 
 The same HTML file can serve all of them. The SDK tells the module which scope it is in, and the page should adapt to its width: a docked pane is narrow.
@@ -110,7 +110,7 @@ tavern.on('schedule', ({ key, payload }) => {});   // when one fires, if the mod
 ```
 
 - A schedule can be at most a year away, and a time already more than five minutes past is refused. If the server is off when a schedule is due, it fires on the next start unless it is more than six hours late.
-- A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
+- A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's dashboard card or header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
 - `repeat` makes Tavern schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
 - `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
 

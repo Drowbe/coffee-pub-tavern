@@ -1760,7 +1760,7 @@ app.get('/api/modules/nav', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget) })),
   });
 });
 

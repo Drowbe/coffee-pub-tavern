@@ -4371,3 +4371,21 @@ body.at-table .module-nav {
 #dashboard .dashboard-person-call {
   color: var(--accent);
 }
+
+#dashboard .dashboard-badge {
+  min-width: 16px;
+  margin-left: 8px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+#dashboard .dashboard-widget > header {
+  display: flex;
+  align-items: center;
+}

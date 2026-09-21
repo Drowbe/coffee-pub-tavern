@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the rooms page and the modules system, and the author deciding what comes next.
 
-**Status:** Phases 1 and 2 built except opening an item straight into a room's pane: the contract, the dashboard on the rooms page, Who is around, and the Calendar, To-do and Polls widgets. An item opens that module's page in its room for now. The decisions below were made with the author.
+**Status:** Built: the contract, the dashboard on the rooms page, Who is around, the Calendar, To-do and Polls widgets, opening an item in its room's pane, and retiring the header items for modules that have a widget. What is left is the open questions and customising the layout. The decisions below were made with the author.
 
 ## What it is
 

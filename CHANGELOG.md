@@ -4,6 +4,11 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Opening an item from a dashboard widget takes you into its room with just that module's pane open on it, instead of onto the module's page: an item in a room joins that room (or returns to it) with the module docked and showing the item. That layout is not remembered as the room's until you open or close a pane yourself.
+- The header no longer has an item for a module that has a dashboard widget (Calendar, To-do and Polls): the widget card's heading opens the module's page, and the module's unread count shows on the card. A module with a page and no widget keeps its header item, so nothing becomes unreachable.
+- Verified in a browser: after asking for an open on an event, only the Calendar opened with the event's editor showing, the room's remembered panes were unchanged until the chat was opened by hand, the header had no module items, and the To-do card showed an unread count. Not verified: the full click-through with a real join (it needs a LiveKit connection, which the test server does not have).
+
 ### Added
 - Two more dashboard widgets. To-do 1.10.0 provides **Due soon**: tasks not done that are due within a week or overdue (overdue in red), soonest first, across all your rooms and the server's list. Polls 1.10.0 provides **Need your vote**: open polls you have not voted in, soonest closing first. Each item shows its room's icon and opens in its room. Verified in a browser with seeded data: overdue, tomorrow and later tasks listed, and done, far-off, undated, voted and closed items left out; clicking a poll opened it in the room's Polls. Not verified: two people, and a poll in a room where the viewer cannot vote (the widget lists polls the viewer can read).
 
