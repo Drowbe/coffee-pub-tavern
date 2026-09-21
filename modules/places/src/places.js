@@ -62,7 +62,8 @@
     editing: null, // { id | null, version, point: {lat, lng} | null, pointOk, conflict }
     menuFor: null,
     armed: null,
-    search: '', // the admin's search address, if any
+    search: '', // the address of the search in use, if any
+    searchCredit: '', // what to say about it under the results
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || '';
   const initial = (key) => (nameOf(key)[0] || '?').toUpperCase();
@@ -469,7 +470,7 @@
   let hits = [];
   // Ask the search for places by name: [{ title, sub, lat, lng }], or an Error.
   async function searchFor(q, near) {
-    if (!state.search) throw new Error('search is not set up');
+    if (!state.search) throw new Error('search is not configured');
     const res = await fetch(searchUrl(state.search, q, near || null), { headers: { Accept: 'application/json' }, credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!res.ok) throw new Error('search answered ' + res.status);
     return searchResults(await res.json(), 6);
@@ -513,7 +514,9 @@
       hide(r.querySelector('[data-action="save-found"]'), !canEdit);
       rows.append(r);
     });
-    box.replaceChildren(foundHead('Results for', query, true), rows);
+    const parts = [foundHead('Results for', query, true), rows];
+    if (state.searchCredit) { const c = document.createElement('p'); c.className = 'found-credit'; c.textContent = state.searchCredit; parts.push(c); }
+    box.replaceChildren(...parts);
     hydrate(box);
   }
   // A result saved as a place: its name, address and position (the category is left for the person to set).
@@ -622,8 +625,9 @@
   try {
     await ensureLoaded(view);
     state.people = await tavern.people().catch(() => []);
-    try { state.search = ((await tavern.settings.get()) || {}).search || ''; } catch (err) { state.search = ''; }
-    tavern.settings.onChange((v) => { state.search = (v && v.search) || ''; if (!state.search) closeFound(); });
+    const useSearch = (v) => { const s = searchSetup(v); state.search = s.address; state.searchCredit = s.credit; if (!state.search) closeFound(); };
+    try { useSearch(await tavern.settings.get()); } catch (err) { useSearch(null); }
+    tavern.settings.onChange((v) => useSearch(v));
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(CAT_ICON), ['layer-group', 'link']))].filter(Boolean).map(wantIcon));
     findShowAction();
     state.loaded = true;

@@ -8,13 +8,16 @@ The Places module keeps the places your room cares about: where you are staying,
 
 1. On the Modules tab, choose **Install** beside Places under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items.
 2. Tick **Available in every room**, or tick it per room on the room's own page.
-3. **Search (optional).** Set the **Search address** in Places' settings to a Photon-compatible place search that you run or may use, over https; it must allow requests from this server's pages (its CORS setting). Leave it empty for no search.
+3. **Search (optional).** Under Places' settings (**Module Configuration** on its card), **Place search** chooses where a search for a place by name is asked, and Tavern sends nothing out unless you choose one:
+   - **None** (the default): no search.
+   - **Photon, the public service**: every search is sent to the public Photon service at photon.komoot.io. Its terms are "reasonable limits": extensive use may be throttled or banned, and there is no availability guarantee. Results come from OpenStreetMap data, so "© OpenStreetMap contributors" applies (Tavern already shows that credit on the map, and the results say "Search by Photon").
+   - **My own address**: a Photon-compatible service you run or may use, over https, whose address you enter; it must allow requests from this server's pages (its CORS setting). A server that already had a search address before this choice existed keeps working, as "My own address".
 4. On the Roles tab, under **Module: Places**, choose who can **See places** and who can **Add, change and remove places**. By default everyone can see them, users and moderators can edit, and guests can see but not edit.
 
 ## Add a place
 
 - Type in the field at the bottom of the pane and press Enter or the plus button. A name opens the dialog with that name filled in. Coordinates ("38.7075, -9.1364") or a map link in what you type also fill in the position, so "Bar do Peixe 38.71, -9.14" gives a named place with a position.
-- With a search address set, a name you type looks for the place: results appear over the foot of the pane, and **Save** (or Enter on a row) saves one with its name, address and position. Coordinates or a map link in what you type still open the dialog instead.
+- With a search chosen, a name you type looks for the place: results appear over the foot of the pane, and **Save** (or Enter on a row) saves one with its name, address and position. Coordinates or a map link in what you type still open the dialog instead.
 - Press the plus with nothing typed, or **Add a place** on an empty page, for the blank dialog.
 - In the dialog, give the place a name and choose its category (things to do, food, stay, travel or other). Add an address if you have one. **Position** takes coordinates or a map link (a `geo:` link, or one with `?ll=`, `@lat,lng` or `#map=zoom/lat/lng`); it says "Coordinates found." when it could read them, and an empty field means no position. Tick the people it belongs to under **Whose is it**.
 

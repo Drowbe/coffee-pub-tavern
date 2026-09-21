@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Places 0.7.0: the search setting is a **Place search** choice: None (the default), Photon, the public service (searches go to photon.komoot.io; its help says what is sent, its terms and the OpenStreetMap credit, and the results say "Search by Photon · © OpenStreetMap contributors"), or My own address (the old Search address, shown only for that choice). A server that already had a search address and never chose keeps it working as My own address. With None, a search answers that it is not configured. New generic manifest options: `showWhen` on a setting, `help` on a choice option, and `defaultIfSet` on a choice. Verified against a running server (the migration, an explicit None, Photon) and in a browser (the settings page and a Photon search with the request stubbed, showing the credit).
+
+### Changed
 - Maps 0.6.1: the map file setting is now a table of the files in the map folder, each with its size and a tick (a new `files` setting type: a list of names, up to 20, each checked to exist). Maps draws every ticked file together, layer by layer, so regions that sit side by side make one map; a single file chosen before still works. Verified: a bad name refused, both files saved and untick then re-tick saved through the settings page, and the map drawing with two files ticked; the style check covers several sources. Overlapping files of different builds are not reconciled.
 
 ### Changed

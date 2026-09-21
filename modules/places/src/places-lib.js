@@ -184,3 +184,17 @@
     }
     return { title: geo.oneLine(t, 120), point: null, find: t.length >= 2 };
   }
+
+  // Where a search is asked. A provider is a name in the module's "Place search" setting; adding one (a hosted service, say) is
+  // an entry here and an option in module.json. `custom` uses the admin's own address; `none` (or anything unknown) is no search.
+  const SEARCH_PROVIDERS = {
+    photon: { address: 'https://photon.komoot.io/api', credit: 'Search by Photon · © OpenStreetMap contributors' },
+  };
+  // From the module's settings ({ searchProvider, search }): { address, credit } for the search in use, or address '' for none.
+  function searchSetup(values) {
+    const v = values || {};
+    const p = SEARCH_PROVIDERS[v.searchProvider];
+    if (p) return { address: p.address, credit: p.credit };
+    if (v.searchProvider === 'custom' && typeof v.search === 'string' && /^https?:\/\//i.test(v.search)) return { address: v.search, credit: '' };
+    return { address: '', credit: '' };
+  }

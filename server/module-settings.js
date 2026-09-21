@@ -95,6 +95,11 @@ class ModuleSettings extends EventEmitter {
     const stored = this.bucket(manifest.id, scope, ctx);
     const out = {};
     for (const def of manifest.settings || []) if (def.scope === scope) out[def.key] = def.key in stored ? stored[def.key] : def.default;
+    for (const def of manifest.settings || []) {
+      // A choice that grew out of another setting starts as the option that keeps what was already set.
+      const dif = def.scope === scope && def.type === 'choice' && def.defaultIfSet;
+      if (dif && !(def.key in stored) && typeof stored[dif.key] === 'string' && stored[dif.key]) out[def.key] = dif.value;
+    }
     for (const def of manifest.settings || []) if (def.scope === scope && def.type === 'files' && typeof out[def.key] === 'string') out[def.key] = out[def.key] ? [out[def.key]] : []; // from when it was one file
     return out;
   }

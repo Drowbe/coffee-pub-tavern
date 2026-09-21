@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -121,12 +121,44 @@
   },
   "settings": [
     {
+      "key": "searchProvider",
+      "label": "Place search",
+      "type": "choice",
+      "scope": "server",
+      "default": "none",
+      "defaultIfSet": {
+        "key": "search",
+        "value": "custom"
+      },
+      "help": "Where a search for a place by name is asked. Tavern sends nothing out unless you choose one.",
+      "options": [
+        {
+          "value": "none",
+          "label": "None"
+        },
+        {
+          "value": "photon",
+          "label": "Photon, the public service",
+          "help": "Every search is sent to the public Photon service at photon.komoot.io, and Tavern otherwise sends nothing out.\nTheir terms are \"reasonable limits\": extensive use may be throttled or banned, and there is no availability guarantee (https://github.com/komoot/photon).\nResults come from OpenStreetMap data, so \"© OpenStreetMap contributors\" applies (Tavern already shows that credit on the map)."
+        },
+        {
+          "value": "custom",
+          "label": "My own address",
+          "help": "Searches go to the address you give below: a Photon-compatible service you run or may use."
+        }
+      ]
+    },
+    {
       "key": "search",
       "label": "Search address",
       "type": "url",
       "scope": "server",
       "default": "",
-      "help": "Optional. The address of a Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). Leave it empty for no search."
+      "showWhen": {
+        "key": "searchProvider",
+        "value": "custom"
+      },
+      "help": "A Photon-compatible place search that you run or may use, over https (for example https://search.example.org/api). It must allow requests from this server's pages (its CORS setting)."
     }
   ]
 }

@@ -14,7 +14,7 @@ win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
 
-const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/places/src/places-lib.js', import.meta.url), 'utf8')}\nreturn { cleanPlace, placeValue, placeFromRequest, createPlaces, searchResults, searchUrl, readEntry, PLACE_PREFIX, CATEGORIES };`)(geo);
+const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/places/src/places-lib.js', import.meta.url), 'utf8')}\nreturn { cleanPlace, placeValue, placeFromRequest, createPlaces, searchResults, searchUrl, readEntry, searchSetup, PLACE_PREFIX, CATEGORIES };`)(geo);
 
 // An in-memory SDK: the store (with versions and 409s), events, ids, pointers and the actions a page provides.
 function fakeTavern() {
@@ -171,6 +171,16 @@ await test('finding a place: results, the address to ask, and what a bar entry m
   assert.deepEqual(lib.readEntry('Pier https://maps.example.org/@38.7,-9.1,15z'), { title: 'Pier', point: { lat: 38.7, lng: -9.1 }, find: false });
   assert.deepEqual(lib.readEntry('colosseo'), { title: 'colosseo', point: null, find: true });
   assert.equal(lib.readEntry('x').find, false);
+});
+
+await test('which search is in use', () => {
+  assert.deepEqual(lib.searchSetup({ searchProvider: 'none', search: 'https://x' }), { address: '', credit: '' });
+  assert.equal(lib.searchSetup({ searchProvider: 'photon' }).address, 'https://photon.komoot.io/api');
+  assert.match(lib.searchSetup({ searchProvider: 'photon' }).credit, /OpenStreetMap/);
+  assert.deepEqual(lib.searchSetup({ searchProvider: 'custom', search: 'https://s.example/api' }), { address: 'https://s.example/api', credit: '' });
+  assert.equal(lib.searchSetup({ searchProvider: 'custom', search: '' }).address, '');
+  assert.equal(lib.searchSetup({ searchProvider: 'custom', search: 'javascript:1' }).address, '');
+  assert.equal(lib.searchSetup(null).address, '');
 });
 
 console.log(`check-places: OK (${n} checks)`);

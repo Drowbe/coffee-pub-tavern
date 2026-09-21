@@ -229,10 +229,20 @@ function cleanSettings(raw) {
     if (!type) throw new ModuleError(`module.json: setting "${key}" needs a type: ${SETTING_TYPES.join(', ')}`);
     const scope = SETTING_SCOPES.includes(r.scope) ? r.scope : 'server';
     const def = { key, label: text(r.label, 60) || key, help: text(r.help, 200), type, scope };
+    // A setting may be shown only while another one has a given value (`showWhen`), and a choice may start as one of its options
+    // when another setting already holds a value and it has none of its own (`defaultIfSet`: for a setting that grew into a choice).
+    if (r.showWhen && typeof r.showWhen === 'object') {
+      const k = typeof r.showWhen.key === 'string' ? r.showWhen.key : '';
+      if (/^[a-z][a-zA-Z0-9]{0,23}$/.test(k) && typeof r.showWhen.value === 'string') def.showWhen = { key: k, value: r.showWhen.value.slice(0, 40) };
+    }
+    // Longer help that keeps its line breaks, for an option that needs to say more (what it sends, and where).
+    const longText = (s, n) => String(s ?? '').replace(/(?!\n)\p{Cc}/gu, ' ').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
     if (type === 'choice') {
-      def.options = (Array.isArray(r.options) ? r.options.slice(0, 12) : []).map((o) => ({ value: typeof o?.value === 'string' ? o.value.trim().slice(0, 40) : '', label: text(o?.label, 40) })).filter((o) => o.value).map((o) => ({ value: o.value, label: o.label || o.value }));
+      def.options = (Array.isArray(r.options) ? r.options.slice(0, 12) : []).map((o) => ({ value: typeof o?.value === 'string' ? o.value.trim().slice(0, 40) : '', label: text(o?.label, 40), help: longText(o?.help, 600) })).filter((o) => o.value).map((o) => ({ value: o.value, label: o.label || o.value, ...(o.help ? { help: o.help } : {}) }));
       if (def.options.length < 2) throw new ModuleError(`module.json: setting "${key}" needs at least two options`);
       def.default = def.options.some((o) => o.value === r.default) ? r.default : def.options[0].value;
+      const dif = r.defaultIfSet;
+      if (dif && typeof dif.key === 'string' && /^[a-z][a-zA-Z0-9]{0,23}$/.test(dif.key) && def.options.some((o) => o.value === dif.value)) def.defaultIfSet = { key: dif.key, value: dif.value };
     } else if (type === 'number') {
       if (Number.isFinite(r.min)) def.min = r.min;
       if (Number.isFinite(r.max)) def.max = r.max;

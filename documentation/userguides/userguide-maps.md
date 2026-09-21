@@ -22,10 +22,10 @@ The Maps module shows a map of every place your room has: the places saved in [P
 3. On the Modules tab, choose **Install** beside Maps under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items and to ask other modules to do things.
 4. Tick **Available in every room**, or tick it per room.
 5. Under Maps' settings (**Module Configuration** on its card), the **Map files** table lists every file in that folder with its size and a tick. Tick the ones to use: Maps draws all the ticked files together, so two regions that sit side by side (Italy and Portugal, say) become one map. Untick a file to stop using it. Until one is ticked, Maps says so.
-6. **Search (optional).** The search belongs to Places: set its **Search address** in Places' settings (see [Places](userguide-places.md)). With one set, the field at the bottom of the map searches: type a place and press Enter, and what Places finds is listed over the map and shown as pins. Without one the field still takes pasted coordinates or a map link.
+6. **Search (optional).** The search belongs to Places: choose its **Place search** in Places' settings (see [Places](userguide-places.md)). With a search chosen, the field at the bottom of the map searches: type a place and press Enter, and what Places finds is listed over the map and shown as pins. Without one (the default) the field says search is not configured, and still takes pasted coordinates or a map link.
 7. On the Roles tab, under **Module: Maps**, choose who can **See the map** and who can **Save places from the map**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 
-Nothing is sent to any service you did not choose: the map comes from your file, and the only outside request is Places' search address, if you set one. The credit "© OpenStreetMap contributors" is always on the map.
+Nothing is sent to any service you did not choose: the map comes from your file, and the only outside request is Places' search, if you choose one. The credit "© OpenStreetMap contributors" is always on the map.
 
 ## Use the map
 
