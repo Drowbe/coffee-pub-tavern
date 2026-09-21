@@ -151,4 +151,4 @@ A dialog over the page for an item and for the trip. The script shows the fields
 
 ## Not decided yet
 
-The Bookings view and the map are designed when their phase starts.
+The map is designed when its phase starts.
