@@ -12,6 +12,7 @@ const { buildModule, bundledModules } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { ModuleBus } = require('./module-bus');
 const { ChatHistory } = require('./chat-history');
+const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
@@ -758,6 +759,45 @@ app.patch('/api/users/:key/call-prefs', requireAdmin, (req, res) => {
 // Everyone at the table: names, talking colours and Player options for the
 // tiles and view pages, who is at the table right now and in which room,
 // and the rooms themselves (with the ones the caller may join marked).
+// Who is on the site right now, in a room or not: a page tells the server it is open every half minute
+// (POST /api/presence), and a person counts as present for a little longer than that. Held in memory, so it
+// starts empty when the server does and fills within half a minute.
+const PRESENT_MS = 75 * 1000;
+const presence = new Map(); // user key -> last time a page said it was open
+const isPresent = (key) => Date.now() - (presence.get(key) || 0) < PRESENT_MS;
+app.post('/api/presence', requireUser, (req, res) => {
+  presence.set(currentUser(req).key, Date.now());
+  res.json({ ok: true });
+});
+
+// An invitation to a conversation of two: a private room (off the record, like an aside) for the inviter and the
+// person invited, who is told wherever they have Tavern open (the notification stream) and can join or decline.
+// It lives a couple of minutes; the room is swept away when nobody is in it, as any aside is.
+const INVITE_MS = 2 * 60 * 1000;
+const invites = new Map(); // id -> { id, from, to, roomId, at }
+const inviteEvents = new EventEmitter();
+inviteEvents.setMaxListeners(0);
+app.post('/api/table/invite', requireUser, (req, res) => {
+  const me = currentUser(req);
+  const to = store.userByKey(String(req.body?.to || ''));
+  if (!to || to.key === me.key) return res.status(400).json({ error: 'pick someone else to invite' });
+  if (store.settings.allowPrivate === false) return res.status(403).json({ error: 'private conversations are turned off' });
+  if (!store.roomPermissions(me.key, null).privateCall) return res.status(403).json({ error: "you can't start a private conversation" });
+  if (!isPresent(to.key)) return res.status(409).json({ error: `${to.displayName} is not online right now` });
+  const room = store.addAsideRoom([me.key, to.key], null, true);
+  const invite = { id: randomToken(), from: me.key, to: to.key, roomId: room.id, at: Date.now() };
+  invites.set(invite.id, invite);
+  for (const [id, i] of invites) if (Date.now() - i.at > INVITE_MS) invites.delete(id);
+  inviteEvents.emit('invite', { ...invite, fromName: me.displayName });
+  res.json({ room, invite: { id: invite.id } });
+});
+// Declining just ends the invitation; the inviter is not told anything unfriendly, the room simply stays empty.
+app.post('/api/table/invite/:id/decline', requireUser, (req, res) => {
+  const invite = invites.get(req.params.id);
+  if (invite && invite.to === currentUser(req).key) invites.delete(invite.id);
+  res.json({ ok: true });
+});
+
 app.get('/api/table', async (req, res) => {
   const user = currentUser(req);
   if (!user && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(401).json({ error: 'sign in first' });
@@ -766,7 +806,7 @@ app.get('/api/table', async (req, res) => {
   store.pruneAsideRooms(byKey);
   res.json({
     ...branding(),
-    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
+    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
     rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
@@ -1257,6 +1297,19 @@ function iconSvg(id) {
   roomIconSvgs.set(id, svg);
   return svg;
 }
+
+// A Font Awesome icon as inline SVG, by style and name, for a module's widget in a sandboxed frame (which cannot
+// load the icon font). Anyone signed in may ask; only the free set's own files are ever read.
+app.get('/api/icons/:style/:name', requireUser, (req, res) => {
+  const { style, name } = req.params;
+  if (!['solid', 'regular', 'brands'].includes(style) || !/^[a-z0-9-]{1,40}$/.test(name)) return res.status(400).json({ error: 'no such icon' });
+  try {
+    const svg = fs.readFileSync(path.join(faDir, 'svgs', style, `${name}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    res.type('image/svg+xml').set('Cache-Control', 'private, max-age=86400').send(svg);
+  } catch {
+    res.status(404).json({ error: 'no such icon' });
+  }
+});
 
 // The viewer's rooms for this module, or null after sending the error.
 function moduleRoomsFor(req, res) {
@@ -1956,10 +2009,16 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
     res.write(`event: notification\ndata: ${JSON.stringify({ ...notification, moduleName: manifest.name, icon: manifest.icon })}\n\n`);
   };
   moduleHooks.on('notification', onNote);
+  const onInvite = (invite) => {
+    if (invite.to !== key || Date.now() - invite.at > INVITE_MS) return;
+    res.write(`event: invite\ndata: ${JSON.stringify({ id: invite.id, roomId: invite.roomId, fromName: invite.fromName })}\n\n`);
+  };
+  inviteEvents.on('invite', onInvite);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
     clearInterval(beat);
     moduleHooks.off('notification', onNote);
+    inviteEvents.off('invite', onInvite);
   });
 });
 

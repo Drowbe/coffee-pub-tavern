@@ -4,6 +4,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Who's around shows who is online, not only who is in a room: every page tells the server it is open (`POST /api/presence`, every half minute while visible), and `/api/table` reports `present`. Each person shows their room or "online".
+- Invite someone to talk: a people-arrows button beside each online person makes a private room for the two of you and takes you into it (`POST /api/table/invite`); they get a toast with Join and Decline on whatever page they have open, over the existing notification stream. Off the record like a pull-aside; needs the private-conversation permission and setting; an invitation lasts two minutes.
+- Widget items show their room's icon on the left and a circle-right arrow on the right (Calendar 1.14.0, To-do 1.11.0, Polls 1.11.0). New `tavern.ui.icon(name, style)` gives a module any Font Awesome icon as inline SVG (`/api/icons/:style/:name`), for a sandboxed frame.
+- Verified: against a running server with two accounts (offline invite refused, presence, the invite, the invitee's live event, self-invite and bad icon names refused) and in a browser (the strip with the invite button, the ad hoc room created, the invitee's toast, and Join reaching the join step, which fails only because the test server has no media server). Not verified: an actual conversation with two people in a call, and the toast on a phone.
+
 ### Changed
 - The rooms page has a new layout: the dashboard is a sidebar on the left (sticky under the header), and the right has a Who's around strip over the room cards in two columns. One column on a phone, rooms first. The Calendar's Coming up is now a small month with a dot on each day that has something, over the next few events; clicking a day opens the full calendar on that month with the day marked. To make that possible a module can ask for its own page at a place in it: `tavern.page.open(hash)` from a widget, and `tavern.page.onHash(fn)` on the page. Widget size `tall` added. Calendar 1.13.0. Verified in a browser at desktop and 375px wide, and the day click opening the calendar on the right month. Not verified in a light theme, or on a real iPhone.
 

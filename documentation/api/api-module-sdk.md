@@ -196,6 +196,7 @@ Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, w
 Anything more than one module needs belongs in the SDK, not copied into each module. Use these rather than writing your own; they follow the theme and work the same in a frame and in the page.
 
 - `tavern.ui.datePicker(input, { range, clearable })` adds a calendar button to a date field (`<input type="date">` or `type="datetime-local"`). It opens a small month with the weekdays across the top, shows the weekday of what the field holds under it, closes on Escape or a click elsewhere, and leaves typing working. `range` is a function returning `[from, to]` to shade a span of days, and `clearable` adds a **Clear** button. A `datetime-local` field keeps its time (12:00 if it had none). It returns `{ close, refresh, destroy }`: call `refresh()` after you set the field's value from code, so the weekday shown is current.
+- `tavern.ui.icon(name, style)` returns a Font Awesome icon ("circle-right", style "solid", "regular" or "brands") as inline SVG text, coloured by the text colour, for a module that cannot load the icon font (a sandboxed frame). It rejects if there is no such icon.
 - `tavern.actions.pick(items, point)` is the small menu described under Actions.
 - `tavern.util` holds `esc` (text made safe for HTML), `id()` (a new id for something you store), `refKey(ref)` (a pointer as one string, for comparing), and `ymd(date)` / `parseYmd(text)` (a local day as `"2026-09-24"`, and back).
 

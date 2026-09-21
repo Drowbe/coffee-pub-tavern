@@ -111,6 +111,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   wireInstall();
   loadModuleNav();
   loadUpdateBadge();
+  startPresence();
   startNotifications();
 }
 
@@ -201,6 +202,14 @@ async function startNotifications() {
     return;
   }
   const source = new EventSource('/api/notifications/stream');
+  // Someone asked you into a private conversation: join, or decline.
+  source.addEventListener('invite', (ev) => {
+    try {
+      showInvite(JSON.parse(ev.data));
+    } catch {
+      // ignore a malformed event
+    }
+  });
   source.addEventListener('notification', (ev) => {
     try {
       const n = JSON.parse(ev.data);
@@ -211,6 +220,49 @@ async function startNotifications() {
       // ignore a malformed event
     }
   });
+}
+
+// Tell the server this page is open (every half minute, and when it comes back into view), so the dashboard's
+// Who's around can show who is online, not only who is in a room. Not in an overlay over a call: that page's
+// own page is already doing it.
+function startPresence() {
+  if (new URLSearchParams(window.location.search).get('from') === 'room') return;
+  const beat = () => {
+    if (document.visibilityState === 'visible') fetch('/api/presence', { method: 'POST' }).catch(() => {});
+  };
+  beat();
+  setInterval(beat, 30000);
+  document.addEventListener('visibilitychange', beat);
+}
+
+// The toast for an invitation: who asked, and Join or Decline. The page can take it (the room page joins in place);
+// any other page goes to the rooms page, which joins.
+function showInvite(invite) {
+  let layer = document.getElementById('toast-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'toast-layer';
+    layer.className = 'toast-layer';
+    document.body.appendChild(layer);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-invite';
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `<i class="fa-solid fa-people-arrows fa-fw toast-icon" aria-hidden="true"></i><span class="toast-text"><strong>${escapeHtml(invite.fromName || 'Someone')} invites you to talk</strong><span class="toast-body">A private conversation, off the record.</span><span class="toast-actions"><button type="button" class="btn btn-primary btn-small" data-invite="join">Join</button><button type="button" class="btn btn-small" data-invite="decline">Decline</button></span></span>`;
+  const dismiss = () => toast.remove();
+  toast.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-invite]');
+    if (!b) return;
+    if (b.dataset.invite === 'join') {
+      const taken = !document.dispatchEvent(new CustomEvent('tavern:invite-accept', { detail: invite, cancelable: true }));
+      if (!taken) window.location.href = `/#join=${encodeURIComponent(invite.roomId)}`;
+    } else {
+      fetch(`/api/table/invite/${encodeURIComponent(invite.id)}/decline`, { method: 'POST' }).catch(() => {});
+    }
+    dismiss();
+  });
+  layer.appendChild(toast);
+  setTimeout(dismiss, 60000);
 }
 
 // A count on the settings gear when modules that ship with this Tavern have a newer version than the one

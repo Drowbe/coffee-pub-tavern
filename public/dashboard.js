@@ -88,26 +88,49 @@ function mountWidget(w) {
   });
 }
 
-// Who is around: a strip above the room cards of the people online now, and where.
+// Who is around: a strip above the room cards of everyone online (signed in with Tavern open, in a room or not),
+// with where they are, and a button to ask them into a private conversation of two.
+let joinRoom = null;
+let whoNote = '';
 function renderWho(table) {
   const el = document.getElementById('whos-around');
   if (!el) return;
   const rooms = new Map((table.rooms || []).map((r) => [r.id, r]));
-  const online = (table.users || []).filter((u) => u.online);
-  el.innerHTML = `<span class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around</span>` + (online.length
-    ? online.map((u) => {
-      const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
-      return `<span class="dashboard-person"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-name">${escapeHtml(u.displayName || u.login || 'Someone')}</span>${where ? `<span class="dashboard-person-where">${escapeHtml(where)}</span>` : ''}${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}</span>`;
-    }).join('')
-    : '<span class="dashboard-empty">Nobody is around right now.</span>');
+  const here = (table.users || []).filter((u) => u.present || u.online);
+  const people = here.map((u) => {
+    const mine = u.key === table.me;
+    const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
+    const label = escapeHtml(u.displayName || u.login || 'Someone');
+    return `<span class="dashboard-person${where ? ' in-room' : ''}"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-name">${label}${mine ? ' (you)' : ''}</span>${where ? `<span class="dashboard-person-where">in ${escapeHtml(where)}</span>` : '<span class="dashboard-person-where">online</span>'}${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinRoom ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}</span>`;
+  });
+  el.innerHTML = `<span class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around</span>` + (people.length ? people.join('') : '<span class="dashboard-empty">Nobody is around right now.</span>') + (whoNote ? `<span class="whos-around-note">${escapeHtml(whoNote)}</span>` : '');
   el.hidden = false;
 }
+
+async function invite(key) {
+  try {
+    const { room } = await api('POST', '/api/table/invite', { to: key });
+    whoNote = '';
+    await joinRoom(room.id);
+  } catch (err) {
+    whoNote = err.message;
+    renderWho(lastTable);
+    setTimeout(() => { whoNote = ''; renderWho(lastTable); }, 6000);
+  }
+}
+let lastTable = {};
+document.addEventListener('click', (event) => {
+  const b = event.target.closest('#whos-around [data-invite]');
+  if (b) invite(b.dataset.invite);
+});
 
 // Called each time the room list is drawn: the widgets are mounted once, who is around every time.
 export async function initDashboard(table, hooks = {}) {
   const root = section();
   if (!root) return;
   if (hooks.openInRoom) openInRoom = hooks.openInRoom;
+  if (hooks.joinRoom) joinRoom = hooks.joinRoom;
+  lastTable = table;
   if (!started) {
     started = true;
     let widgets = [];

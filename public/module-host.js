@@ -327,6 +327,15 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
       return Boolean(await onOpenRef({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }));
     },
+    // A Font Awesome icon as inline SVG, for a module in a sandboxed frame that cannot load the icon font.
+    async 'icons.svg'({ name, style }) {
+      const n = String(name ?? '');
+      const st = ['solid', 'regular', 'brands'].includes(style) ? style : 'solid';
+      if (!/^[a-z0-9-]{1,40}$/.test(n)) throw Object.assign(new Error('no such icon'), { status: 400 });
+      const res = await fetch(`/api/icons/${st}/${n}`);
+      if (!res.ok) throw Object.assign(new Error('no such icon'), { status: res.status });
+      return res.text();
+    },
     // Open this module's own page, at a place in it (a short hash such as day=2026-09-24). Only a host that has
     // somewhere to take it (the dashboard) answers; the page then hands the hash to the module (pagehash).
     async 'page.open'({ hash }) {

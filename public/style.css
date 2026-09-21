@@ -4480,3 +4480,38 @@ body.at-table .module-nav {
   display: flex;
   align-items: center;
 }
+
+/* The invitation toast (public/brand.js): Join and Decline under the text. */
+.toast-invite {
+  cursor: default;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.whos-around .dashboard-invite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.whos-around .dashboard-invite:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.whos-around .whos-around-note {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 12px;
+}

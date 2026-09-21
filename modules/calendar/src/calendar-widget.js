@@ -19,6 +19,10 @@
 
   /*__LIB__*/
 
+  // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
+  let goIcon = '';
+  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 5;
   const events = new Map(); // "<place>:<id>" -> { id, roomId, ev }
@@ -89,7 +93,7 @@
       ${list.map(({ x, start, end }) => {
         const r = x.roomId ? rooms.get(x.roomId) : null;
         return `<button type="button" class="item" data-event="${esc(x.roomId || '')}|${esc(x.id)}" title="${esc(x.ev.title)}${r ? ' - ' + esc(r.name) : ''}">
-          <span class="when">${esc(whenText(x.ev, start, end))}</span><span class="what">${esc(x.ev.title)}</span>${r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : ''}</button>`;
+          <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="when">${esc(whenText(x.ev, start, end))}</span><span class="what">${esc(x.ev.title)}</span><span class="go">${goIcon}</span></button>`;
       }).join('')}</section>`).join('');
     fit();
   }

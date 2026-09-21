@@ -16,6 +16,10 @@
     return;
   }
 
+  // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
+  let goIcon = '';
+  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 8;
   const tasks = new Map(); // "<place>:<key>" -> { id, roomId, t }
@@ -55,7 +59,7 @@
       const r = x.roomId ? rooms.get(x.roomId) : null;
       const w = whenOf(x.t.due);
       return `<button type="button" class="item" data-task="${esc(x.roomId || '')}|${esc(x.id)}" title="${esc(x.t.title)}${r ? ' - ' + esc(r.name) : ''}">
-        <span class="what">${esc(x.t.title)}</span><span class="when ${w.cls}">${esc(w.text)}</span>${r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : ''}</button>`;
+        <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="what">${esc(x.t.title)}</span><span class="when ${w.cls}">${esc(w.text)}</span><span class="go">${goIcon}</span></button>`;
     }).join('');
     fit();
   }

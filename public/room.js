@@ -130,7 +130,7 @@ async function loadTable() {
       updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
-    if (!guestToken) initDashboard({ users, rooms: tableRooms }, { openInRoom });
+    if (!guestToken) initDashboard({ users, rooms: tableRooms, me: me?.key }, { openInRoom, joinRoom: joinInvitedRoom });
     reconcileGhostTiles();
     renderGuestLink();
     renderRoomLink();
@@ -1931,6 +1931,18 @@ async function fillDevices() {
 // for "Back to the table".
 // From the dashboard: go into a room with one module's pane open on one item, and nothing else changed. In the
 // room already, that is just showing the stage and opening the pane.
+// Into a room I was invited to (or started): the one I am in is left for it.
+async function joinInvitedRoom(roomId) {
+  if (room.state === 'connected' && currentRoom?.id === roomId) return returnToStage();
+  if (room.state === 'connected') return reconnectTo(roomId);
+  return join(roomId);
+}
+// An invitation accepted on this page (the toast in brand.js asks; a page that handles it says so).
+document.addEventListener('tavern:invite-accept', (event) => {
+  event.preventDefault();
+  joinInvitedRoom(event.detail.roomId);
+});
+
 async function openInRoom(roomId, moduleId, ref) {
   if (room.state === 'connected' && currentRoom?.id === roomId) {
     returnToStage();
@@ -3268,6 +3280,13 @@ async function init() {
     await loadTable(); // the join screen's member grid
   } catch (err) {
     location.href = '/login';
+    return;
+  }
+  // Following an invitation from another page: "/#join=<room>" goes straight into that room.
+  const invited = /^#join=([a-z0-9]{4,16})$/.exec(location.hash);
+  if (invited) {
+    history.replaceState(null, '', location.pathname + location.search);
+    joinInvitedRoom(invited[1]);
   }
 }
 init();

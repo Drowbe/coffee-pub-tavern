@@ -32,6 +32,11 @@ A dashboard on the rooms page, in a sidebar on the left with the room cards in t
 3. **Retire the header items.** The header stops listing module pages; each module's full view stays reachable from its widget.
 4. **Later.** Customising the layout, and a widget for the Travel planner or any module that wants one.
 
+## Later additions
+
+- Who is around shows everyone who is online, in a room or not, from a presence signal every page sends, and offers an invitation to a private conversation of two.
+- Each widget item shows its room's icon on the left and an arrow on the right.
+
 ## Open
 
 - What the Calendar widget lists and how far ahead (a first guess: the next seven days, each with its room's icon, newest first).

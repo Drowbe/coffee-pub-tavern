@@ -162,6 +162,9 @@
 
     // Interface the modules share, drawn the same everywhere and following the theme.
     ui: {
+      // A Font Awesome icon ("circle-right", style "solid", "regular" or "brands") as inline SVG text, coloured by
+      // the text colour, for a module that cannot load the icon font. Resolves to the SVG, or rejects if there is no such icon.
+      icon: (name, style) => call('icons.svg', { name, style: style || 'solid' }),
       // A date picker for a date field: a small month grid under it, weekdays across the top, so the day a date
       // falls on is visible while choosing. The typed field keeps working; a button opens the grid and the
       // weekday of what is in the field shows under it. Works on <input type="date"> and

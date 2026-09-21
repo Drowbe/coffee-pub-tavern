@@ -18,6 +18,10 @@
   }
   const me = info.user.key;
 
+  // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
+  let goIcon = '';
+  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+
   const MAX_ITEMS = 8;
   const polls = new Map(); // "<place>:<id>" -> { id, roomId, p }
   const mine = new Set(); // the same keys, for polls the viewer has voted in
@@ -65,7 +69,7 @@
       const r = x.roomId ? rooms.get(x.roomId) : null;
       const closes = closesText(x.p);
       return `<button type="button" class="item" data-poll="${esc(x.roomId || '')}|${esc(x.id)}" title="${esc(x.p.question)}${r ? ' - ' + esc(r.name) : ''}">
-        <span class="what">${esc(x.p.question)}</span>${closes ? `<span class="when soon">${esc(closes)}</span>` : ''}${r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : ''}</button>`;
+        <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="what">${esc(x.p.question)}</span>${closes ? `<span class="when soon">${esc(closes)}</span>` : ''}<span class="go">${goIcon}</span></button>`;
     }).join('');
     fit();
   }
