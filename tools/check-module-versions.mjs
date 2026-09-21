@@ -19,10 +19,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILE = path.join(ROOT, 'tools', 'module-versions.json');
 const dir = path.join(ROOT, 'modules');
 
+// Documentation in src/ (CONTRACT.md) is not part of what ships, so editing it needs no new version.
 const fingerprint = (id) => {
   const h = crypto.createHash('sha256');
   const base = path.join(dir, id);
-  const files = ['module.json', ...fs.readdirSync(path.join(base, 'src')).sort().map((f) => `src/${f}`)];
+  const files = ['module.json', ...fs.readdirSync(path.join(base, 'src')).filter((f) => !f.endsWith('.md')).sort().map((f) => `src/${f}`)];
   for (const f of files) h.update(f).update('\0').update(fs.readFileSync(path.join(base, f)));
   return h.digest('hex').slice(0, 16);
 };

@@ -2,6 +2,8 @@
 
 **Audience:** whoever writes `maps.js` (the modules side) and whoever styles it (`maps.html`, `maps.css`, the map style; the interface side). This is the agreement between them, in the same form as the Travel module's.
 
+**What Maps is.** A map of every place the room has: a view with **no data of its own**. It draws every card in the room that carries a `place` (the Places module's places, and any other module's items that have one), grouped by the module they come from. Saving a new place from the map hands it to the Places module through the `addPlace` action; if nothing provides that action, the add tools are hidden and the sheet says "Install Places to save places".
+
 **Canonical markup.** The elements a script clones are the `<template>` elements in `maps.html` (`tpl-pin`, `tpl-pin-cluster`, `tpl-row`, `tpl-group-title`, `tpl-empty`, `tpl-notice`, `tpl-place`, `tpl-owner`, `tpl-result`, and the `tpl-state-*` blocks). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `tavern.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win; tell the interface side. `design/map.html` is the reference rendering: open it in a browser to see every state, dark and light, at phone, pane and wide sizes. The map itself is a drawn stand-in there; the real one is MapLibre.
 
 **How it works.** `maps.css` styles the elements by their classes and attributes. The script builds these elements and toggles states; it never sets a style. The one exception is a pin's position, which the map library sets on its marker element.
@@ -39,18 +41,18 @@
 
 `<button class="pin" data-kind="place|item|cluster" data-id="…">` with `.pin-body` (an icon, or a count for a cluster) and `.pin-label`.
 - `place`: a place added in Maps (accent fill, a location icon). `item`: another module's item with a `place` on its card (card fill, that module's icon). Clusters replace pins that would overlap; a cluster is `.pin.cluster` and clicking it zooms in.
-- State: `.selected` on the pin whose card is open (drawn larger, with a ring, and above the others); `.dragging` while one of the admin's own places is being moved; `.draft` on the pin of the place being added (dashed).
+- State: `.selected` on the pin whose card is open (drawn larger, with a ring, and above the others); `.draft` on the pin of the place being added (dashed).
 - The label is hidden below a zoom level the script chooses (a CSS class on the pin is not needed: it omits `.pin-label`).
 
 ## The panel
 
 The header holds `[data-slot=heading]` ("Places" or "Place"), `[data-slot=count]`, a back button (`data-action="back"`, shown only while a place is open) and `data-action="close-panel"`.
 
-**The list** (`#panel-body`): an optional `.notice`, then `.group-title` "Added here" and one `.place-row` per place added in Maps, then `.group-title` "From other modules" and one `.place-row` per item with a place. A row: an icon, `.title`, `.sub` (the address for a place; "Module · when" for an item). `.selected` on the row of the open place (also the pin's). With nothing at all: one `tpl-empty` paragraph.
+**The list** (`#panel-body`): an optional `.notice`, then one `.group-title` per module that has places ("Places", "Travel", "Calendar", by the module's name; Places first) and one `.place-row` per card with a `place`. A row: the module's icon, `.title`, `.sub` (the address or subtitle from the card). `.selected` on the row of the open place (also the pin's). With nothing at all: one `tpl-empty` paragraph.
 
-**A place** (`article.place[data-id][data-kind=place|item]`): `[data-slot=title]`, `.place-where` (`[data-slot=where]`, `[data-slot=coords]` in monospace), `[data-slot=notes]`, for an item `[data-slot=source]` (its module's icon, "from Travel · Day 3" in `[data-slot=from]`, and `[data-action=open]`), `[data-slot=owners]` (`.owner`, one initial each), and `.place-actions`:
+**A place** (`article.place[data-id][data-kind=place|item]`; `place` is a Places place, `item` another module's item with a position): `[data-slot=title]`, `.place-where` (`[data-slot=where]`, `[data-slot=coords]` in monospace), `[data-slot=notes]`, for an item `[data-slot=source]` (its module's icon, "from Travel · Day 3" in `[data-slot=from]`, and `[data-action=open]`), `[data-slot=owners]` (`.owner`, one initial each), and `.place-actions`:
 - `a[data-action=open-in-maps]`: the primary action. Its `href` is a `geo:lat,lng?q=lat,lng(name)` link where that works, and the platform's own maps link on iOS; the script chooses.
-- `button[data-action=copy-coords]`, and, for a `place` only, `edit` and `delete`. An `item` is read-only here; changing it happens in the module that owns it (`open`).
+- `button[data-action=copy-coords]`. Every place is read-only here; changing it happens in the module that owns it (`open`, which brings you to the place in Places or to the item in its own module).
 
 ## Search (only when the admin set a search address)
 
@@ -63,7 +65,7 @@ Three ways, all ending at the editor with the coordinates filled in:
 2. **The host's bottom bar** (the same quick-add the other modules have; `tavern.bar.set` with a `quickadd` item, placeholder "Paste a place, coordinates or a map link"). The script reads the text: a coordinate pair ("38.7075, -9.1364"), a map link (`geo:`, `?ll=`, `@lat,lng`, `#map=zoom/lat/lng`) puts a draft pin there; anything else goes to search if a search address is set, else `#note` says "Search is not set up. Paste coordinates or a map link, or click the map."
 3. **A search result** (above).
 
-**The editor** (`#editor > form#form`): `f-title`, `f-lat`, `f-lng` (both validated as numbers in range; the pin moves as they are edited), `f-notes`, `#f-by` (who last changed it), `#f-error`, `#f-save`, `#f-cancel`, `#f-delete` (only when editing). A place added in Maps can also be dragged: `.dragging`, and its coordinates are saved on drop.
+**The dialog** (`#editor > form#form`, "Save this place"): `f-title`, `f-notes`, `#f-where` (the coordinates and address it will save, read-only), `#f-error`, `#f-save` ("Save to Places") and `#f-cancel`. Saving calls the `addPlace` action with the name, notes and position; when it is done the draft pin becomes the saved place's pin (the Places module's card arrives through the cards conduit). Nothing here edits or deletes a place, and pins are not draggable.
 
 ## States
 
@@ -97,9 +99,9 @@ No sprite or icon font is needed. Labels use one Latin glyph set at first (see t
 
 ## Where a place comes from
 
-- **Added in Maps:** `{ id, title, lat, lng, notes, owners, by }` in the module's own store, one stored value per place (`place:<id>`), with the store's versions so two people editing different places never collide.
-- **Another module's item:** a card with a `place` (`{ lat, lng, name? }`) next to `when`. Maps names no module: it takes every card in the room that has one, through the cards conduit, and draws the module's icon from the card.
-- **Giving an item a place:** dropping an item on the map, and the action "Put this on the map", each add a place in Maps that links back to it.
+- **Every card in the room with a `place`** (`{ lat, lng, name? }`), through the cards conduit. Places produces them (a place with a position); Travel, the Calendar and others may too. Maps names no module: it draws the module's icon from the card and groups the list "From <module>".
+- **A new place** is created by the module that provides `addPlace` (Places today), never stored by Maps. If nothing provides it, Maps is view-only.
+- **Giving another module's item a place** stays with that module.
 
 ## Not decided yet
 

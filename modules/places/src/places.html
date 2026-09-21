@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Places</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<!--
+  The page and every piece of markup the script clones. The script fills a clone by hooks only:
+    [data-slot=name]   set its textContent (or hide it when there is no value)
+    [data-icon=name]   replace its content with tavern.ui.icon(name)
+  and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no style
+  (one exception: the item menu is placed under the button that opened it). The reference rendering is design/places.html.
+-->
+<div id="app" class="app" hidden>
+  <header class="head">
+    <h1>Places</h1>
+    <span class="count" data-slot="count"></span>
+    <div class="filter"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Filter places" aria-label="Filter places" autocomplete="off"></div>
+  </header>
+  <div class="chips" id="chips" role="group" aria-label="Category"></div>
+  <p class="error" id="note" hidden></p>
+  <main id="body" class="body"></main>
+
+  <!-- the item menu: a popover the script positions under the button that opened it -->
+  <div id="item-menu" class="menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> <span data-slot="edit-label">Edit</span></button>
+    <a role="menuitem" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
+    <button type="button" role="menuitem" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
+    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
+  </div>
+
+  <!-- a place, in a dialog: a form for someone who may edit, read-only for anyone else (the script fills #f-* and shows .readonly instead) -->
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3 id="editor-title">Add a place</h3>
+      <label>Name<input id="f-title" name="title" type="text" maxlength="120" required></label>
+      <div class="editor-row">
+        <label>Category<select id="f-category" name="category"><option value="do">Things to do</option><option value="eat">Food</option><option value="stay">Stay</option><option value="travel">Travel</option><option value="other">Other</option></select></label>
+        <label>Address<input id="f-address" name="address" type="text" maxlength="200" autocomplete="off"></label>
+      </div>
+      <label>Position<input id="f-point" name="point" type="text" maxlength="200" placeholder="Paste coordinates or a map link (optional)" inputmode="decimal" autocomplete="off"><span class="hint" id="f-point-note"></span></label>
+      <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="1000"></textarea></label>
+      <div>
+        <div class="hint">Whose is it</div>
+        <div class="editor-people" id="f-owners"></div>
+      </div>
+      <div class="editor-links" id="f-links-out">
+        <a class="btn" id="f-open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
+      </div>
+      <div class="used-by" id="f-used-by" hidden><div class="used-by-title">Used by</div><div class="links" id="f-used-by-links"></div></div>
+      <p class="hint" id="f-by"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="editor-buttons">
+        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Close</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+
+<!-- ============================ templates ============================ -->
+
+<template id="tpl-chip"><button class="chip" type="button"><span class="ic" data-icon=""></span><span data-slot="label"></span> <span class="count" data-slot="count"></span></button></template>
+<template id="tpl-group"><section class="group"><h2 class="group-title"><span class="ic" data-icon=""></span><span data-slot="title"></span></h2><div class="rows"></div></section></template>
+
+<!-- a place. The element gets data-id and data-cat (do, eat, stay, travel, other). -->
+<template id="tpl-place">
+  <article class="place-row" tabindex="0">
+    <span class="mark"><span class="ic" data-icon=""></span></span>
+    <div class="main">
+      <h3 class="title" data-slot="title"></h3>
+      <p class="sub" data-slot="address"></p>
+      <div class="meta">
+        <span class="pinned" data-slot="pinned"><span class="ic" data-icon="location-dot"></span> On the map</span>
+        <span class="nopos" data-slot="nopos">No position yet</span>
+        <span class="owners" data-slot="owners"></span>
+        <span class="links" data-slot="links"></span>
+      </div>
+    </div>
+    <button class="item-menu" type="button" data-action="menu" aria-label="Place menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </article>
+</template>
+<template id="tpl-owner"><span class="owner"></span></template>
+<template id="tpl-link"><span class="link"><span class="ic" data-icon=""></span> <b data-slot="kind"></b> <span data-slot="title"></span></span></template>
+<template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
+<template id="tpl-readonly"><div class="readonly"><dl><dt>Category</dt><dd data-slot="category"></dd><dt>Address</dt><dd data-slot="address"></dd><dt>Position</dt><dd data-slot="point"></dd><dt>Whose</dt><dd data-slot="owners"></dd></dl><p data-slot="notes"></p></div></template>
+
+<template id="tpl-state-loading"><div class="skeleton" aria-busy="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></template>
+<template id="tpl-state-empty"><div class="state" id="state-empty"><span class="ic" data-icon="location-dot"></span><h2>No places yet</h2><p>Save the places your group cares about: where you are staying, where to eat, what to see. Each can be found on the map and linked from a trip, an event or a task.</p><p><button class="btn btn-primary" type="button" data-action="add-place">Add a place</button></p></div></template>
+<template id="tpl-state-noresults"><div class="state" id="state-noresults"><h2>Nothing matches</h2><p>No place matches your filter.</p><p><button class="btn" type="button" data-action="clear-filter">Show everything</button></p></div></template>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>
