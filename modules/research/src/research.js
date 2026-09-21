@@ -642,7 +642,7 @@
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
-    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); return openAsk(visible().filter((it) => it.kind !== 'photo').slice(0, 12)); }
+    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); const asked = visible().filter((it) => it.kind !== 'photo').slice(0, 12); if (!asked.length) return say('Add a note or a link first, then ask about it.', 5000); return openAsk(asked); }
     if (t && t.dataset.action === 'close-ask') return closeAsk();
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });

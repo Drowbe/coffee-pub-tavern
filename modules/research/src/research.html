@@ -20,6 +20,8 @@
   <header class="rs-head">
     <h1>Research</h1>
     <span class="count" data-slot="count"></span>
+    <!-- Ask lives in the header so it is there even when there is nothing yet (the search and filters are hidden then); dimmed, with the reason, when AI cannot be used here -->
+    <button class="ai-btn" id="ask-btn" type="button" data-action="ask" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Ask</button>
     <!-- whose research: Mine needs a signed-in person, so a guest has only This room (the script hides what does not apply) -->
     <div class="views" id="views" role="group" aria-label="Whose research" hidden>
       <button class="view" type="button" data-view="my" aria-pressed="false"><span class="ic" data-icon="user"></span>Mine</button>
@@ -28,7 +30,6 @@
   </header>
   <div class="rs-tools">
     <div class="rs-search"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Search research" aria-label="Search research" autocomplete="off"></div>
-    <button class="ai-btn" id="ask-btn" type="button" data-action="ask" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Ask</button>
   </div>
   <div class="rs-chips" id="kinds" role="group" aria-label="Kind">
     <button class="rs-chip on" type="button" data-kind="">All</button>

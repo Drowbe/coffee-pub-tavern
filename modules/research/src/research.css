@@ -56,6 +56,8 @@ body { margin: 0; overflow: hidden; }
 .rs-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px 6px; }
 .rs-head h1 { margin: 0; font-size: 18px; }
 .rs-head .count { color: var(--text-dim); font-size: 12px; }
+.rs-head .ai-btn { margin-left: auto; }
+.rs-head .ai-btn + .views { margin-left: 0; }
 .rs .views { margin-left: auto; display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); }
 .rs .view { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; }
 .rs .view[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
@@ -63,9 +65,9 @@ body { margin: 0; overflow: hidden; }
 .rs-search { position: relative; flex: 1; min-width: 180px; max-width: 360px; }
 .rs-search input { width: 100%; padding: 6px 10px 6px 30px; }
 .rs-search > .ic { position: absolute; left: 10px; top: 9px; color: var(--text-dim); }
-.rs-tools .ai-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); color: var(--text); font: inherit; cursor: pointer; }
-.rs-tools .ai-btn.unavailable { opacity: 0.55; border-style: dashed; }
-.rs-tools .ai-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ai-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); color: var(--text); font: inherit; cursor: pointer; }
+.ai-btn.unavailable { opacity: 0.55; border-style: dashed; }
+.ai-btn:hover { border-color: var(--accent); color: var(--accent); }
 .rs-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
 .rs-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; }
 .rs-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
