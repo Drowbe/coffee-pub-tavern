@@ -829,10 +829,11 @@ async function loadAi() {
   try {
     const { ai, usage } = await api('GET', '/api/ai');
     const provider = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : ai.provider;
-    const on = provider !== 'none';
-    $('ai-state').textContent = on ? 'On' : 'Off';
+    const saved = provider !== 'none';
+    const on = saved && ai.enabled !== false;
+    $('ai-state').textContent = on ? 'On' : saved ? 'Not enabled' : 'Off';
     $('ai-state').classList.toggle('on', on);
-    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Not set up.';
+    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up but not enabled: open AI Configuration to enable it.'}` : 'Not set up.';
   } catch {
     $('ai-panel').hidden = true;
   }

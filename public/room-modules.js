@@ -620,7 +620,8 @@ export function createRoomModules({ guestToken = null } = {}) {
   function syncView() {
     const narrow = isNarrow();
     const shown = [...panes.values()].filter((p) => p.mode === 'dock').map((p) => p.id);
-    if (narrow && !shown.includes(view)) view = shown.includes('conference') ? 'conference' : shown[shown.length - 1] || null;
+    // With no conference (the admin turned it off), the chat is the view to start on.
+    if (narrow && !shown.includes(view)) view = shown.includes('conference') ? 'conference' : shown.includes('chat') ? 'chat' : shown[shown.length - 1] || null;
     for (const p of panes.values()) {
       if (p.mode !== 'dock') continue;
       const hide = narrow && p.id !== view;
@@ -760,7 +761,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     const request = openRequest && Date.now() - openRequest.at < 20000 && available.some((x) => x.id === openRequest.module) ? openRequest : null;
     openRequest = null;
     keepLayout = Boolean(request);
-    const want = request ? [request.module] : Array.isArray(saved.__open) ? saved.__open : ['conference'];
+    // A room not used before opens on the conference, or on the chat when the conference is off on this server.
+    const noConference = natives.has('conference') && natives.get('conference').allowed && !natives.get('conference').allowed();
+    const want = request ? [request.module] : Array.isArray(saved.__open) ? saved.__open : [noConference ? 'chat' : 'conference'];
     for (const id of want) {
       if (natives.has(id)) api_openNative(id);
       else {

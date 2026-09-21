@@ -4792,3 +4792,8 @@ body.at-table .module-nav {
 .ai-model-row select, .ai-model-row input { flex: 1; min-width: 0; }
 .ai-model-row .btn { flex: none; }
 .linklike { align-self: flex-start; margin-top: 2px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+
+/* the AI enable step, at the top of its configuration page */
+.ai-enable { display: flex; align-items: center; gap: 12px; margin: 12px 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 7%, var(--bg-card)); }
+.ai-enable .grow { flex: 1; min-width: 0; }
+.ai-enable p { margin: 2px 0 0; }
