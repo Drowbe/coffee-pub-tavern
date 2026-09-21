@@ -19,6 +19,8 @@ anything for anyone. Everyone else can change only what their role allows: by de
 profile photo and call background, and nothing else. An admin widens that on the **Roles** tab, under
 **Images**, one picture at a time.
 
+The call background can be a picture you upload or one of the pre-made backgrounds that ship with Tavern: choose **Choose from the library** under it, filter by theme and style, and pick one. It is saved as your own picture, so you can replace or remove it like an upload.
+
 ## Participant
 
 The Participant box is the person. It shows their camera when it is on, and the **Online** picture

@@ -4755,3 +4755,30 @@ body.at-table .module-nav {
 .ai-meter { height: 8px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; }
 .ai-meter span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width 0.3s ease; }
 .ai-meter.warn span { background: var(--danger); }
+
+/* the pre-made background picker (public/background-picker.js) */
+.bgpick { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, black 60%, transparent); }
+.bgpick-card { display: flex; flex-direction: column; width: min(880px, 100%); max-height: min(720px, 100%); background: var(--bg-section); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 20px 60px color-mix(in srgb, black 50%, transparent); overflow: hidden; }
+.bgpick-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 8px; }
+.bgpick-head h2 { margin: 0; font-size: 18px; flex: 1; }
+.bgpick-close { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--text-dim); cursor: pointer; }
+.bgpick-close:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.bgpick-filters { display: flex; flex-direction: column; gap: 6px; padding: 0 16px 8px; }
+.bgpick-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bgpick-chip { height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; }
+.bgpick-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.bgpick-body { flex: 1; min-height: 160px; overflow: auto; padding: 4px 16px 12px; }
+.bgpick-msg { padding: 24px 0; text-align: center; }
+.bgpick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.bgpick-tile { display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 2px solid transparent; border-radius: 12px; background: var(--bg-card); color: var(--text); font: inherit; font-size: 12px; text-align: left; cursor: pointer; transition: border-color 0.12s ease, transform 0.12s ease; }
+.bgpick-tile img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; background: color-mix(in srgb, var(--accent) 12%, var(--bg-card)); }
+.bgpick-tile span { padding: 0 2px; color: var(--text-dim); }
+.bgpick-tile:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-1px); }
+.bgpick-tile[aria-pressed="true"] { border-color: var(--accent); }
+.bgpick-tile[aria-pressed="true"] span { color: var(--text); font-weight: 600; }
+.bgpick-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+.bgpick-foot .grow { flex: 1; }
+.bgpick-picked { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .bgpick-tile { transition: none; } .bgpick-tile:hover { transform: none; } }
+@media (max-width: 640px) { .bgpick { padding: 0; align-items: flex-end; } .bgpick-card { width: 100%; max-height: 92%; border-radius: 14px 14px 0 0; } .bgpick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.slot-library { margin-top: 6px; }

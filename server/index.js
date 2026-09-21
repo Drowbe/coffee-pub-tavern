@@ -10,6 +10,7 @@ const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-ser
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
 const { buildModule, bundledModules } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
+const { Backgrounds } = require('./backgrounds');
 const { ModuleBus } = require('./module-bus');
 const { ChatHistory } = require('./chat-history');
 const { ModuleLimits } = require('./module-limits');
@@ -1894,6 +1895,13 @@ app.get('/api/modules/activity', requireAdmin, (_req, res) => {
 });
 
 // Modules with a page of their own that this viewer can open: the header nav.
+// The pre-made backgrounds that ship with Tavern (see server/backgrounds.js), for the picker beside an image slot.
+const backgrounds = new Backgrounds(path.join(publicDir, 'assets', 'images', 'backgrounds'));
+app.get('/api/backgrounds', (req, res) => {
+  if (!currentUser(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({ backgrounds: backgrounds.all() });
+});
+
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);
   if (!who?.user) return res.json({ modules: [] });

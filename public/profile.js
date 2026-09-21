@@ -3,6 +3,7 @@
 // for that person instead -- the one place any of a user's settings are
 // changed, rather than a flat table of everyone on the Manage page.
 import { renderModuleSettings } from '/module-settings.js';
+import { pickBackground } from '/background-picker.js';
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 
@@ -344,9 +345,8 @@ $('portrait-clear').addEventListener('click', async () => {
   }
 });
 
-$('background-file').addEventListener('change', async () => {
-  const file = $('background-file').files[0];
-  if (!file) return;
+// A background from a file the person chose or a pre-made one from the library.
+async function saveBackground(file) {
   try {
     say('uploading...');
     if (editingKey) user = (await api('PUT', `/api/users/${user.key}/images/background`, file, file.type)).user;
@@ -357,7 +357,16 @@ $('background-file').addEventListener('change', async () => {
   } catch (err) {
     say(err.message, true);
   }
+}
+$('background-file').addEventListener('change', async () => {
+  const file = $('background-file').files[0];
+  if (!file) return;
+  await saveBackground(file);
   $('background-file').value = '';
+});
+$('background-library').addEventListener('click', async () => {
+  const file = await pickBackground({ title: editingKey ? 'Choose their background' : 'Choose your background' });
+  if (file) await saveBackground(file);
 });
 
 $('background-clear').addEventListener('click', async () => {

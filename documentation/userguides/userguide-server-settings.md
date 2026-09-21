@@ -14,7 +14,7 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
   choose from the Font Awesome list on the Theme tab.
 - **Call features.** Turns screen sharing, asides, private conversations and reactions on or off for
   everyone, and sets the highest video quality anyone can pick.
-- **Sign-in page.** A background picture behind the sign-in box, and the text under the password field.
+- **Sign-in page.** A background picture behind the sign-in box, and the text under the password field. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Tavern (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
 - **Sign-up.** Self-service `/register` on or off, and invite links into specific rooms. See
   [Accounts, roles and permissions](userguide-accounts.md).
 - **Participant video defaults.** The talking border, its color and width; the name plate, with its

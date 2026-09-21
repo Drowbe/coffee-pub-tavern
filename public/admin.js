@@ -1,4 +1,5 @@
 import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge } from '/brand.js';
+import { pickBackground } from '/background-picker.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -1133,12 +1134,8 @@ function renderSiteImages(b) {
   }
 }
 
-$('tab-server').addEventListener('change', async (event) => {
-  const input = event.target;
-  if (input.type !== 'file' || !input.closest('[data-site]')) return;
-  const name = input.closest('[data-site]').dataset.site;
-  const file = input.files[0];
-  if (!file) return;
+// A site image (the icon, the sign-in background) from a file the person chose or a pre-made one from the library.
+async function saveSiteImage(name, file) {
   try {
     await api('PUT', `/api/settings/${name}`, file, file.type);
     renderSiteImages(await loadBranding());
@@ -1146,7 +1143,20 @@ $('tab-server').addEventListener('change', async (event) => {
   } catch (err) {
     say($('settings-status'), err.message, true);
   }
+}
+$('tab-server').addEventListener('change', async (event) => {
+  const input = event.target;
+  if (input.type !== 'file' || !input.closest('[data-site]')) return;
+  const file = input.files[0];
+  if (!file) return;
+  await saveSiteImage(input.closest('[data-site]').dataset.site, file);
   input.value = '';
+});
+$('tab-server').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action="site-library"]');
+  if (!button) return;
+  const file = await pickBackground({ title: 'Choose the sign-in background' });
+  if (file) await saveSiteImage(button.closest('[data-site]').dataset.site, file);
 });
 
 $('tab-server').addEventListener('click', async (event) => {
