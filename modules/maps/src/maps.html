@@ -48,23 +48,17 @@
   </aside>
   <p class="error" id="note" hidden></p>
 
-  <!-- the editor for a place (a dialog over the module) -->
+  <!-- the dialog for saving a new place: it hands the place to the module that provides the addPlace action -->
   <div id="editor" class="editor" hidden>
     <form id="form" class="editor-card">
-      <h3 id="editor-title">Add a place</h3>
+      <h3 id="editor-title">Save this place</h3>
       <label>Name<input id="f-title" name="title" type="text" maxlength="120" required></label>
-      <div class="editor-row">
-        <label>Latitude<input id="f-lat" name="lat" type="text" inputmode="decimal" maxlength="24"></label>
-        <label>Longitude<input id="f-lng" name="lng" type="text" inputmode="decimal" maxlength="24"></label>
-      </div>
       <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="1000"></textarea></label>
-      <p class="hint" id="f-by"></p>
+      <p class="hint" id="f-where"></p>
       <p class="error" id="f-error" hidden></p>
       <div class="editor-buttons">
-        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn btn-primary" type="submit" id="f-save">Save to Places</button>
         <button class="btn" type="button" id="f-cancel">Cancel</button>
-        <span class="grow"></span>
-        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
       </div>
     </form>
   </div>
@@ -95,8 +89,6 @@
     <div class="place-actions">
       <a class="btn primary" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
       <button class="btn" type="button" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
-      <button class="btn" type="button" data-action="edit"><span class="ic" data-icon="pen"></span> Edit</button>
-      <button class="btn btn-danger" type="button" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
     </div>
   </article>
 </template>

@@ -7,60 +7,17 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const read = (name) => fs.readFileSync(new URL(`../modules/maps/src/${name}`, import.meta.url), 'utf8');
-const names = ['cleanPlace', 'placeValue', 'coord', 'parsePoint', 'coordsText', 'mapsLink', 'searchResults', 'clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle', 'PLACE_PREFIX'];
-const lib = new Function(`${read('maps-lib-c-geo.js')}\n${read('maps-lib-d-style.js')}\nreturn { ${names.join(', ')} };`)();
+// The SDK's geo helpers, which the page hands to the library.
+const sdk = fs.readFileSync(new URL('../public/sdk/tavern.js', import.meta.url), 'utf8');
+const win = { addEventListener() {}, location: { search: '' } };
+win.parent = win;
+new Function('window', 'document', sdk)(win, {});
+const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
+const names = ['searchResults', 'clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle'];
+const lib = new Function('geo', `${read('maps-lib-c-geo.js')}\n${read('maps-lib-d-style.js')}\nreturn { ${names.join(', ')} };`)(geo);
 
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
-
-test('a place needs a name and a point in range', () => {
-  assert.equal(lib.cleanPlace('a', { title: '', point: { lat: 1, lng: 2 } }), null);
-  assert.equal(lib.cleanPlace('a', { title: 'x', point: { lat: 91, lng: 2 } }), null);
-  assert.equal(lib.cleanPlace('a', { title: 'x', point: { lat: 'no', lng: 2 } }), null);
-  assert.equal(lib.cleanPlace('a', { title: 'x' }), null);
-  const p = lib.cleanPlace('a', { title: ' Pier \n 9 ', notes: 'n', point: { lat: 38.7075123456, lng: -9.1364 }, owners: ['u1', 'u1', 5], by: 'u1', ref: { module: 'm', kind: 'k', id: '7', scope: 'room', room: 'r' } });
-  assert.equal(p.title, 'Pier 9');
-  assert.deepEqual(p.point, { lat: 38.707512, lng: -9.1364, name: 'Pier 9' });
-  assert.deepEqual(p.owners, ['u1']);
-  assert.deepEqual(p.ref, { module: 'm', kind: 'k', id: '7', scope: 'room', room: 'r' });
-  assert.equal(lib.cleanPlace('a', { title: 'x', point: { lat: 1, lng: 2 }, ref: { module: 'm' } }).ref, null);
-});
-
-test('what is stored keeps the point in a field a card can name', () => {
-  const v = lib.placeValue(lib.cleanPlace('a', { title: 'x', point: { lat: 1, lng: 2 } }));
-  assert.deepEqual(Object.keys(v).sort(), ['by', 'notes', 'owners', 'point', 'title']);
-  assert.equal(v.point.lat, 1);
-});
-
-test('coordinates typed in a field', () => {
-  assert.equal(lib.coord('38.7', 90), 38.7);
-  assert.equal(lib.coord(' -9,13 ', 180), -9.13);
-  assert.equal(lib.coord('91', 90), null);
-  assert.equal(lib.coord('abc', 90), null);
-  assert.equal(lib.coord('', 90), null);
-});
-
-test('pasted text: a pair, or a map link', () => {
-  const want = { lat: 38.7075, lng: -9.1364 };
-  assert.deepEqual(lib.parsePoint('38.7075, -9.1364'), want);
-  assert.deepEqual(lib.parsePoint('38.7075 -9.1364'), want);
-  assert.deepEqual(lib.parsePoint('geo:38.7075,-9.1364?q=38.7075,-9.1364(Pier)'), want);
-  assert.deepEqual(lib.parsePoint('https://maps.example.org/?ll=38.7075,-9.1364&z=12'), want);
-  assert.deepEqual(lib.parsePoint('https://maps.example.org/place/x/@38.7075,-9.1364,15z/data'), want);
-  assert.deepEqual(lib.parsePoint('https://maps.example.org/?mlat=38.7075&mlon=-9.1364#map=15/38.7/-9.1'), want);
-  assert.deepEqual(lib.parsePoint('https://maps.example.org/#map=15/38.7075/-9.1364'), want);
-  assert.deepEqual(lib.parsePoint('https://maps.example.org/data=!3d38.7075!4d-9.1364'), want);
-  assert.equal(lib.parsePoint('lunch at the pier'), null);
-  assert.equal(lib.parsePoint('95, 10'), null);
-  assert.equal(lib.parsePoint('12'), null);
-  assert.equal(lib.parsePoint(''), null);
-});
-
-test('the link to the person\'s own maps app', () => {
-  const p = lib.cleanPlace('a', { title: 'Old (pier)', point: { lat: 1.5, lng: 2.5 } });
-  assert.equal(lib.mapsLink(p, false), 'geo:1.5,2.5?q=1.5,2.5(Old%20%20pier%20)');
-  assert.match(lib.mapsLink(p, true), /^https:\/\/maps\.apple\.com\/\?ll=1\.5,2\.5&q=/);
-});
 
 test('search results from a Photon-compatible endpoint', () => {
   const r = lib.searchResults({ features: [

@@ -227,7 +227,7 @@ function ptrDrop(x, y) {
 //
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null, onOpenPage = null }) {
+export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null, onOpenPage = null, onOpenModule = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -372,7 +372,11 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id, ...extra })}`)).actions;
     },
     async 'actions.request'({ action, input }) {
-      return api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
+      const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
+      // The module that carries an action does it from its own page, so a request waits until that page is open: ask the host to
+      // open it here (a room's pane) when it is not.
+      if (onOpenModule) { try { onOpenModule(String(action).split(':')[0]); } catch (err) { /* it cannot be opened here */ } }
+      return queued;
     },
     async 'actions.pending'() {
       return (await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions;

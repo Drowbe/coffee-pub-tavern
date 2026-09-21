@@ -1,77 +1,5 @@
-  // Places and coordinates: no page in it, so the page and the checks can both use it. A place added in Maps is one
-  // stored value (`place:<id>`): { title, notes, point: { lat, lng }, owners, by, ref? }. `point` is a field of its own so
-  // the module's card can name it (a card's `place`, see module.json).
-  const PLACE_PREFIX = 'place:';
-  const inRange = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
-  const round6 = (n) => Math.round(n * 1e6) / 1e6;
-  const oneLine = (s, max) => String(s == null ? '' : s).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-
-  // A stored value as a place, or null when it is not one.
-  function cleanPlace(id, v) {
-    if (!v || typeof v !== 'object' || !v.point) return null;
-    const lat = Number(v.point.lat);
-    const lng = Number(v.point.lng);
-    const title = oneLine(v.title, 120);
-    if (!inRange(lat, lng) || !title) return null;
-    const ref = v.ref && typeof v.ref === 'object' && typeof v.ref.module === 'string' && typeof v.ref.kind === 'string' && typeof v.ref.id === 'string'
-      ? { module: v.ref.module, kind: v.ref.kind, id: v.ref.id, ...(typeof v.ref.scope === 'string' ? { scope: v.ref.scope } : {}), ...(typeof v.ref.room === 'string' ? { room: v.ref.room } : {}) }
-      : null;
-    return {
-      id: String(id),
-      title,
-      notes: String(v.notes == null ? '' : v.notes).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').slice(0, 1000),
-      point: { lat: round6(lat), lng: round6(lng), name: oneLine(v.point.name || title, 120) },
-      owners: Array.isArray(v.owners) ? [...new Set(v.owners.filter((k) => typeof k === 'string' && k.length <= 64))].slice(0, 20) : [],
-      by: typeof v.by === 'string' ? v.by.slice(0, 64) : '',
-      ref,
-    };
-  }
-  // What is stored for a place.
-  const placeValue = (p) => ({ title: p.title, notes: p.notes, point: { lat: p.point.lat, lng: p.point.lng, name: p.point.name || p.title }, owners: p.owners, by: p.by, ...(p.ref ? { ref: p.ref } : {}) });
-
-  // A coordinate typed in a field: a number in range, or null.
-  const coord = (text, max) => {
-    const t = String(text == null ? '' : text).trim().replace(',', '.');
-    if (!/^[-+]?\d{1,3}(\.\d+)?$/.test(t)) return null;
-    const n = Number(t);
-    return Math.abs(n) <= max ? n : null;
-  };
-
-  // What was typed or pasted: a pair of coordinates ("38.7075, -9.1364"), or a map link that carries them (a geo: link,
-  // ?ll= or ?q= or ?mlat=&mlon=, /@lat,lng, #map=zoom/lat/lng, !3dLAT!4dLNG). { lat, lng } or null.
-  function parsePoint(text) {
-    const t = String(text == null ? '' : text).trim();
-    if (!t) return null;
-    const NUM = '(-?\\d{1,3}(?:\\.\\d+)?)';
-    const pair = (re) => {
-      const m = t.match(re);
-      if (!m) return null;
-      const lat = Number(m[1]);
-      const lng = Number(m[2]);
-      return inRange(lat, lng) ? { lat: round6(lat), lng: round6(lng) } : null;
-    };
-    if (/^[-+]?\d/.test(t) && !/[a-z]/i.test(t)) return pair(new RegExp(`^${NUM}\\s*[,;\\s]\\s*${NUM}$`));
-    return (
-      pair(new RegExp(`^geo:${NUM},${NUM}`, 'i')) ||
-      pair(new RegExp(`[?&](?:ll|q|query|center|sll)=${NUM}(?:,|%2C)\\s*${NUM}`, 'i')) ||
-      pair(new RegExp(`[?&]mlat=${NUM}&(?:amp;)?mlon=${NUM}`, 'i')) ||
-      pair(new RegExp(`!3d${NUM}!4d${NUM}`)) ||
-      pair(new RegExp(`/@${NUM},${NUM}`)) ||
-      pair(new RegExp(`#map=\\d{1,2}(?:\\.\\d+)?/${NUM}/${NUM}`))
-    );
-  }
-
-  const fmtCoord = (n) => (Math.round(n * 1e5) / 1e5).toFixed(5);
-  const coordsText = (lat, lng) => `${fmtCoord(lat)}, ${fmtCoord(lng)}`;
-
-  // The link that opens a place in the person's own maps app: geo: where that is handled (Android and most desktops), the
-  // platform's own link on Apple devices. Directions are that app's business.
-  function mapsLink(p, apple) {
-    const { lat, lng } = p.point;
-    const name = oneLine(p.title, 80).replace(/[()]/g, ' ');
-    if (apple) return `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(name || 'Place')}`;
-    return `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name || 'Place')})`;
-  }
+  // What Maps needs beyond the SDK's `tavern.util.geo` (defined by the page ahead of this code): a search endpoint's results,
+  // pins that would overlap, and the bounds of some points. No page in it, so the checks can run it.
 
   // The results of a Photon-compatible search (GeoJSON features), as { title, sub, lat, lng }.
   function searchResults(json, max) {
@@ -83,12 +11,12 @@
       if (!c) continue;
       const lng = Number(c[0]);
       const lat = Number(c[1]);
-      if (!inRange(lat, lng)) continue;
+      if (!geo.inRange(lat, lng)) continue;
       const street = [pr.street, pr.housenumber].filter(Boolean).join(' ');
-      const title = oneLine(pr.name || street || pr.city || pr.country || '', 120);
+      const title = geo.oneLine(pr.name || street || pr.city || pr.country || '', 120);
       if (!title) continue;
-      const sub = oneLine([street && street !== title ? street : '', pr.district, pr.city && pr.city !== title ? pr.city : '', pr.state, pr.country].filter(Boolean).join(', '), 160);
-      out.push({ title, sub, lat: round6(lat), lng: round6(lng) });
+      const sub = geo.oneLine([street && street !== title ? street : '', pr.district, pr.city && pr.city !== title ? pr.city : '', pr.state, pr.country].filter(Boolean).join(', '), 160);
+      out.push({ title, sub, lat: geo.round6(lat), lng: geo.round6(lng) });
       if (out.length >= (max || 6)) break;
     }
     return out;

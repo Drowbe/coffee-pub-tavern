@@ -1,9 +1,9 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "icon": "map-location-dot",
-  "description": "A map of the places your room cares about: add places by clicking, pasting coordinates or a map link, and see the places other modules' items carry.",
+  "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
   "scope": [
     "room"
@@ -34,7 +34,7 @@
     },
     {
       "key": "edit",
-      "label": "Add, change and remove places",
+      "label": "Save places from the map and put items on it",
       "default": {
         "user": true,
         "guest": false,
@@ -66,38 +66,11 @@
     "write": "edit"
   },
   "actions": {
-    "provides": [
-      {
-        "name": "addPlace",
-        "label": "Put it on the map",
-        "input": {
-          "title": "string",
-          "lat": "number",
-          "lng": "number",
-          "notes": "text?",
-          "ref": "ref?"
-        }
-      }
-    ],
     "uses": [
       "*"
     ]
   },
   "refs": {
-    "produces": [
-      {
-        "kind": "place",
-        "name": "Place",
-        "open": true,
-        "backlinks": true,
-        "key": "place:{id}",
-        "card": {
-          "title": "title",
-          "subtitle": "notes",
-          "place": "point"
-        }
-      }
-    ],
     "consumes": [
       "*"
     ]

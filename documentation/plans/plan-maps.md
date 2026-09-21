@@ -2,7 +2,7 @@
 
 **Audience:** the author deciding whether and how Tavern gets maps, and whoever builds it afterwards.
 
-**Status:** Places (a module that owns the places) now exists beside Maps, and Maps is to become a view of every card that has a `place`. Earlier status: Direction agreed by the author (see Decisions). Phases 1 to 5 are built (Maps 0.1.0): the core pieces, the module, places on other modules' items, and search. Phase 6 (a helper to cut a region) is not built. Glyphs: Noto Sans Regular and Medium, Latin, Latin Extended and general punctuation, from the Protomaps assets repository (SIL OFL 1.1, licence file shipped beside them), served from `public/maps-glyphs/`.
+**Status:** Places (a module that owns the places) now exists beside Maps, and Maps 0.2.0 is a view of every card that has a `place` that saves new places through the `addPlace` action. Earlier status: Direction agreed by the author (see Decisions). Phases 1 to 5 are built (Maps 0.1.0): the core pieces, the module, places on other modules' items, and search. Phase 6 (a helper to cut a region) is not built. Glyphs: Noto Sans Regular and Medium, Latin, Latin Extended and general punctuation, from the Protomaps assets repository (SIL OFL 1.1, licence file shipped beside them), served from `public/maps-glyphs/`.
 
 ## What it is for
 

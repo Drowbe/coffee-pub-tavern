@@ -284,6 +284,8 @@ export function createRoomModules({ guestToken = null } = {}) {
       bar,
       header: pane.el.querySelector('[data-header-custom]'),
       onOpenRef: openRef,
+      // A request for an action waits for the page of the module that carries it: open that pane if it is on here.
+      onOpenModule: (id) => { const target = available.find((x) => x.id === id); if (target && !panes.has(id)) openModule(target); },
       scope: 'room',
       roomId,
       guestToken,

@@ -1,9 +1,9 @@
-// The Maps module's page: a map of the places a room cares about, from the admin's map file. Places added here live in the
-// module's store (`place:<id>`, see maps-lib-c-geo.js); places other modules' items carry come in through the cards
-// conduit (a card's `place`), drawn with that module's own icon. This page draws into the markup in maps.html by cloning its
-// templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes and data attributes CONTRACT.md
-// lists. It builds no markup from strings and sets no style (the map library positions the pins). Nothing here names another
-// module, and no request leaves the server unless the admin set a search address.
+// The Maps module's page: a map of every place the room has, from the admin's map file. Maps keeps no data of its own: it draws
+// every card in the room that carries a `place` (through the cards conduit), each with its own module's icon and grouped by
+// module, and it saves a new place by asking whichever module provides the `addPlace` action. This page draws into the markup
+// in maps.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes
+// and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (the map library positions the
+// pins). Nothing here names another module, and no request leaves the server unless the admin set a search address.
 (async () => {
   'use strict';
 
@@ -24,6 +24,8 @@
     return;
   }
 
+  const geo = tavern.util.geo;
+  const { round6, oneLine, parsePoint, coordsText, mapsLink } = geo;
   /*__LIB__*/
 
   const canEdit = tavern.can('edit');
@@ -36,21 +38,19 @@
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
 
   const state = {
-    places: new Map(), // id -> { place, version }
-    items: [], // cards of other modules' items that carry a place
-    people: [],
+    items: [], // the cards in this room that carry a place
     settings: { map: '', search: '' },
-    selected: null, // { kind: 'place' | 'item', id }
+    selected: null, // the id of the card that is open
     panelOpen: true,
     adding: false,
     draft: null, // { lat, lng }: where a new place would go
-    editing: null, // { id | null, version, ref }
+    adder: null, // the action that saves a place, if some module provides one
     map: null,
     mapReady: false,
-    armed: null,
-    linked: new Map(), // place id -> card of the item it points at
+    fitted: false,
+    started: false,
+    saving: false,
   };
-  const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || '';
 
   // --- small helpers ------------------------------------------------------------------------------------------------
 
@@ -61,7 +61,7 @@
   function fill(el, values) {
     for (const [name, value] of Object.entries(values)) {
       const s = slot(el, name);
-      if (s) { s.textContent = value == null ? '' : String(value); if (value === '' || value == null) s.hidden = true; else s.hidden = false; }
+      if (s) { s.textContent = value == null ? '' : String(value); s.hidden = value === '' || value == null; }
     }
   }
   const iconSvg = new Map();
@@ -85,164 +85,104 @@
     const d = typeof w === 'number' ? new Date(w) : /^\d{4}-\d{2}-\d{2}/.test(String(w)) ? new Date(String(w).length === 10 ? String(w) + 'T00:00:00' : String(w)) : null;
     return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : String(w).slice(0, 40);
   };
-  const placeRef = (id) => tavern.refs.make('place', id);
-  const newId = () => (tavern.util.id ? tavern.util.id() : Math.random().toString(36).slice(2, 10));
 
-  // --- the places ---------------------------------------------------------------------------------------------------
+  // --- the places (cards) -------------------------------------------------------------------------------------------
 
-  const own = () => [...state.places.values()].map((x) => x.place).sort((a, b) => a.title.localeCompare(b.title));
-  // The other modules' items that carry a place and that no place here already points at.
-  const shownItems = () => {
-    const pointed = new Set(own().filter((p) => p.ref).map((p) => tavern.util.refKey(p.ref)));
-    return state.items.filter((c) => !c.ref || !pointed.has(tavern.util.refKey(c.ref)));
-  };
-  const itemId = (c) => tavern.util.refKey(c.ref);
-  const findSelected = () => {
-    const s = state.selected;
-    if (!s) return null;
-    if (s.kind === 'place') { const x = state.places.get(s.id); return x ? { kind: 'place', place: x.place } : null; }
-    const card = shownItems().find((c) => itemId(c) === s.id);
-    return card ? { kind: 'item', card } : null;
-  };
-  const cardPlace = (c) => ({ id: itemId(c), title: c.title, point: { lat: c.place.lat, lng: c.place.lng, name: c.place.name || c.title } });
-
-  async function loadPlaces() {
-    state.places.clear();
-    for (const it of await tavern.storage.list(PLACE_PREFIX)) {
-      const p = cleanPlace(it.key.slice(PLACE_PREFIX.length), it.value);
-      if (p) state.places.set(p.id, { place: p, version: it.version });
+  const cardId = (c) => tavern.util.refKey(c.ref);
+  // A place kept by the module that owns places is drawn as a place; anything else with a position is an item.
+  const kindOf = (c) => (c.kind === 'place' ? 'place' : 'item');
+  const moduleName = (c) => (c.module && c.module.name) || 'Other';
+  const current = () => (state.selected ? state.items.find((c) => cardId(c) === state.selected) || null : null);
+  // The cards by module: the module that keeps places first, then the others by name.
+  function groups() {
+    const by = new Map();
+    for (const c of state.items) {
+      const k = (c.module && c.module.id) || '';
+      if (!by.has(k)) by.set(k, { name: moduleName(c), places: false, cards: [] });
+      const g = by.get(k);
+      g.places = g.places || c.kind === 'place';
+      g.cards.push(c);
     }
+    for (const g of by.values()) g.cards.sort((a, b) => a.title.localeCompare(b.title));
+    return [...by.values()].sort((a, b) => (a.places === b.places ? a.name.localeCompare(b.name) : a.places ? -1 : 1));
   }
+
   async function loadItems() {
     if (!tavern.refs || !tavern.refs.search) return;
     try {
       const found = await tavern.refs.search('');
-      state.items = found.filter((c) => c && c.ref && c.place && Number.isFinite(c.place.lat) && Number.isFinite(c.place.lng) && c.title);
+      state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
       state.items = [];
     }
   }
-  async function loadLinked() {
-    const want = own().filter((p) => p.ref && !state.linked.has(p.id));
-    if (!want.length) return;
-    let got;
-    try { got = await tavern.refs.resolve(want.map((p) => p.ref)); } catch (err) { got = want.map(() => ({ error: 'unavailable' })); }
-    want.forEach((p, i) => state.linked.set(p.id, got[i] || { error: 'unavailable' }));
-    render();
-  }
-
-  tavern.on('change', (e) => {
-    if (e.scope === 'rooms' || !String(e.key).startsWith(PLACE_PREFIX)) return;
-    const id = String(e.key).slice(PLACE_PREFIX.length);
-    const p = e.deleted ? null : cleanPlace(id, e.value);
-    if (p) { state.places.set(id, { place: p, version: e.version }); state.linked.delete(id); } else state.places.delete(id);
-    if (state.selected && state.selected.kind === 'place' && state.selected.id === id && !p) state.selected = null;
-    render();
-    loadLinked().catch(() => {});
-  });
-
-  // Save a place (a new one when `id` is empty). Resolves with the place, or rejects with the store's error.
-  async function savePlace(p, version) {
-    const id = p.id || newId();
-    const value = placeValue({ ...p, id });
-    const saved = await tavern.storage.set(PLACE_PREFIX + id, value, version === undefined ? undefined : { version });
-    const place = cleanPlace(id, value);
-    state.places.set(id, { place, version: saved && saved.version });
-    state.linked.delete(id);
-    if (place.ref) tavern.refs.setLinks(placeRef(id), [place.ref]).catch(() => {});
-    render();
-    loadLinked().catch(() => {});
-    return place;
-  }
-  async function removePlace(id) {
-    const x = state.places.get(id);
-    await tavern.storage.delete(PLACE_PREFIX + id, x ? { version: x.version } : undefined);
-    state.places.delete(id);
-    tavern.refs.setLinks(placeRef(id), []).catch(() => {});
-    if (state.selected && state.selected.id === id) state.selected = null;
-    render();
+  // Which module (if any) will save a place for us: one that provides an `addPlace` action taking a position.
+  async function findAdder() {
+    state.adder = null;
+    if (!canEdit || !tavern.actions || !tavern.actions.list) return;
+    try {
+      const list = await tavern.actions.list();
+      state.adder = list.find((a) => a.name === 'addPlace' && a.input && a.input.lat && a.input.lng && a.input.title) || null;
+    } catch (err) {
+      state.adder = null;
+    }
   }
 
   // --- drawing the list and the place -------------------------------------------------------------------------------
 
   function renderList(body) {
     const notes = [];
-    if (state.listonly && state.noWebgl) {
-      const n = clone('tpl-notice');
-      fill(n, { text: 'This device cannot draw the map, so the places are listed here. Each one opens in your own maps app.' });
-      notes.push(n);
-    }
-    if (state.searchNote) {
-      const n = clone('tpl-notice');
-      fill(n, { text: state.searchNote });
-      notes.push(n);
-    }
+    const note = (text) => { const n = clone('tpl-notice'); fill(n, { text }); notes.push(n); };
+    if (state.listonly && state.noWebgl) note('This device cannot draw the map, so the places are listed here. Each one opens in your own maps app.');
+    if (canEdit && !state.adder && state.started) note('Install Places to save places.');
+    if (state.searchNote) note(state.searchNote);
     body.replaceChildren(...notes);
-    const mine = own();
-    const theirs = shownItems();
-    if (!mine.length && !theirs.length) {
+    if (!state.items.length) {
       const e = clone('tpl-empty');
-      fill(e, { text: canEdit ? 'No places yet. Choose Add place, then click the map, or paste coordinates or a map link in the bar below.' : 'No places yet.' });
+      fill(e, { text: state.adder ? 'No places yet. Choose Add place, then click the map, or paste coordinates or a map link in the bar below.' : 'No places yet.' });
       body.appendChild(e);
       return;
     }
-    const row = (kind, id, icon, title, sub) => {
-      const r = clone('tpl-row');
-      r.dataset.kind = kind;
-      r.dataset.id = id;
-      setIcon(r.querySelector('[data-icon]'), icon);
-      fill(r, { title, sub });
-      if (state.selected && state.selected.kind === kind && state.selected.id === id) r.classList.add('selected');
-      return r;
-    };
-    if (mine.length) {
+    for (const g of groups()) {
       const t = clone('tpl-group-title');
-      fill(t, { text: 'Added here' });
+      fill(t, { text: g.places ? g.name : `From ${g.name}` });
       body.appendChild(t);
-      for (const p of mine) body.appendChild(row('place', p.id, 'location-dot', p.title, p.notes.split('\n')[0].slice(0, 80)));
-    }
-    if (theirs.length) {
-      const t = clone('tpl-group-title');
-      fill(t, { text: 'From other modules' });
-      body.appendChild(t);
-      for (const c of theirs) body.appendChild(row('item', itemId(c), (c.module && c.module.icon) || 'location-dot', c.title, [c.module && c.module.name, whenText(c.when)].filter(Boolean).join(' · ')));
+      for (const c of g.cards) {
+        const r = clone('tpl-row');
+        r.dataset.kind = kindOf(c);
+        r.dataset.id = cardId(c);
+        setIcon(r.querySelector('[data-icon]'), (c.module && c.module.icon) || 'location-dot');
+        fill(r, { title: c.title, sub: c.subtitle || whenText(c.when) });
+        if (state.selected === cardId(c)) r.classList.add('selected');
+        body.appendChild(r);
+      }
     }
   }
 
-  function renderPlace(body, sel) {
+  function renderPlace(body, c) {
     const el = clone('tpl-place');
-    const isPlace = sel.kind === 'place';
-    const p = isPlace ? sel.place : cardPlace(sel.card);
-    el.dataset.kind = sel.kind;
-    el.dataset.id = p.id;
-    fill(el, { title: p.title, where: '', coords: coordsText(p.point.lat, p.point.lng), notes: isPlace ? p.notes : sel.card.subtitle || '' });
+    el.dataset.kind = kindOf(c);
+    el.dataset.id = cardId(c);
+    fill(el, { title: c.title, where: c.subtitle || '', coords: coordsText(c.place.lat, c.place.lng), notes: '' });
     const src = slot(el, 'source');
-    const ref = isPlace ? p.ref : sel.card.ref;
-    const card = isPlace ? state.linked.get(p.id) : sel.card;
-    if (ref && card && !card.error) {
-      setIcon(src.querySelector('[data-icon]'), (card.module && card.module.icon) || 'link');
-      fill(src, { from: `from ${(card.module && card.module.name) || 'another module'} · ${card.title}${card.when ? ' · ' + whenText(card.when) : ''}` });
-      src.hidden = false;
-      src.querySelector('[data-action="open"]').dataset.ref = tavern.util.refKey(ref);
-    } else src.hidden = true;
-    const owners = slot(el, 'owners');
-    owners.replaceChildren(...(isPlace ? p.owners : []).map((k) => { const o = clone('tpl-owner'); o.textContent = (nameOf(k)[0] || '?').toUpperCase(); o.title = nameOf(k); return o; }));
-    owners.parentElement.hidden = !owners.children.length;
-    const open = el.querySelector('[data-action="open-in-maps"]');
-    open.href = mapsLink(p, apple);
-    for (const a of ['edit', 'delete']) hide(el.querySelector(`[data-action="${a}"]`), !isPlace || !canEdit);
+    setIcon(src.querySelector('[data-icon]'), (c.module && c.module.icon) || 'link');
+    fill(src, { from: `from ${moduleName(c)}${c.when ? ' · ' + whenText(c.when) : ''}` });
+    src.hidden = false;
+    hide(slot(el, 'owners').parentElement, true);
+    el.querySelector('[data-action="open-in-maps"]').href = mapsLink(c.place.lat, c.place.lng, c.title, apple);
     body.replaceChildren(el);
   }
 
   function render() {
-    const sel = findSelected();
+    const sel = current();
     if (state.selected && !sel) state.selected = null;
     const body = $('panel-body');
     if (sel) renderPlace(body, sel); else renderList(body);
-    const total = own().length + shownItems().length;
+    const total = state.items.length;
     for (const c of root.querySelectorAll('[data-slot="count"]')) if (!c.closest('template')) c.textContent = total && !(sel && c.closest('.panel-head')) ? String(total) : ''; // the header's count is for the list, not for one place
     $('panel').querySelector('[data-slot="heading"]').textContent = sel ? 'Place' : 'Places';
     hide($('panel').querySelector('[data-action="back"]'), !sel);
+    hide(root.querySelector('[data-action="add-place"]'), !state.adder || !state.map);
     syncPanel();
     hydrate(root);
     drawPins();
@@ -270,15 +210,14 @@
   fit();
   new ResizeObserver(fit).observe(tavern.rootElement);
 
-  function select(kind, id, o) {
-    state.selected = kind ? { kind, id } : null;
-    if (kind) state.panelOpen = true;
+  function select(id, o) {
+    state.selected = id || null;
+    if (id) state.panelOpen = true;
     render();
-    const sel = findSelected();
-    if (sel && state.map && !(o && o.still)) {
-      const pt = sel.kind === 'place' ? sel.place.point : cardPlace(sel.card).point;
+    const c = current();
+    if (c && state.map && !(o && o.still)) {
       const pad = isNarrow() ? { bottom: 260 } : { right: 0 };
-      state.map.easeTo({ center: [pt.lng, pt.lat], zoom: Math.max(state.map.getZoom(), 13), padding: pad, duration: 500 });
+      state.map.easeTo({ center: [c.place.lng, c.place.lat], zoom: Math.max(state.map.getZoom(), 13), padding: pad, duration: 500 });
     }
   }
 
@@ -294,7 +233,7 @@
     pin.dataset.id = id;
     setIcon(pin.querySelector('[data-icon]'), icon);
     if (label && state.map.getZoom() >= 11) fill(pin, { label }); else pin.querySelector('.pin-label').remove();
-    if (state.selected && state.selected.kind === kind && state.selected.id === id) pin.classList.add('selected');
+    if (state.selected === id) pin.classList.add('selected');
     pin.addEventListener('click', (e) => { e.stopPropagation(); if (!state.adding) on(); });
     return pin;
   }
@@ -303,54 +242,24 @@
     if (!state.map || !state.mapReady) return;
     clearPins();
     const map = state.map;
-    const sel = state.selected;
-    const all = [
-      ...own().map((p) => ({ kind: 'place', id: p.id, lat: p.point.lat, lng: p.point.lng, title: p.title, icon: 'location-dot' })),
-      ...shownItems().map((c) => ({ kind: 'item', id: itemId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, icon: (c.module && c.module.icon) || 'location-dot' })),
-    ];
-    const picked = sel ? all.filter((x) => x.kind === sel.kind && x.id === sel.id) : [];
+    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, icon: (c.module && c.module.icon) || 'location-dot' }));
+    const picked = all.filter((x) => x.id === state.selected);
     const rest = all.filter((x) => !picked.includes(x));
-    const groups = clusterPoints(rest, (lat, lng) => map.project([lng, lat]), 36);
-    const add = (el, lng, lat, opts) => {
-      const m = new maplibregl.Marker({ element: el, anchor: 'bottom', ...(opts || {}) }).setLngLat([lng, lat]).addTo(map);
-      markers.push(m);
-      return m;
-    };
-    for (const g of groups) {
+    for (const g of clusterPoints(rest, (lat, lng) => map.project([lng, lat]), 36)) {
       if (g.points.length === 1) {
         const x = g.points[0];
-        add(makePin(x.kind, x.id, x.icon, x.title, () => select(x.kind, x.id)), x.lng, x.lat);
+        markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => select(x.id)), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
       } else {
         const c = clone('tpl-pin-cluster');
         fill(c, { count: g.points.length });
         c.addEventListener('click', (e) => {
           e.stopPropagation();
-          const b = boundsOf(g.points);
-          map.fitBounds(b, { padding: 60, maxZoom: 17, duration: 500 });
+          map.fitBounds(boundsOf(g.points), { padding: 60, maxZoom: 17, duration: 500 });
         });
         markers.push(new maplibregl.Marker({ element: c, anchor: 'center' }).setLngLat([g.lng, g.lat]).addTo(map));
       }
     }
-    for (const x of picked) {
-      const editable = x.kind === 'place' && canEdit;
-      const pin = makePin(x.kind, x.id, x.icon, x.title, () => {});
-      const m = add(pin, x.lng, x.lat, { draggable: editable });
-      if (editable) {
-        m.on('dragstart', () => pin.classList.add('dragging'));
-        m.on('dragend', async () => {
-          pin.classList.remove('dragging');
-          const at = m.getLngLat();
-          const cur = state.places.get(x.id);
-          if (!cur) return;
-          try {
-            await savePlace({ ...cur.place, point: { ...cur.place.point, lat: round6(Math.max(-90, Math.min(90, at.lat))), lng: round6(Math.max(-180, Math.min(180, at.lng))) } }, cur.version);
-          } catch (err) {
-            say(err && err.status === 409 ? 'Someone else moved that place first.' : 'The place could not be moved: ' + (err.message || err));
-            render();
-          }
-        });
-      }
-    }
+    for (const x of picked) markers.push(new maplibregl.Marker({ element: makePin(x.kind, x.id, x.icon, x.title, () => {}), anchor: 'bottom' }).setLngLat([x.lng, x.lat]).addTo(map));
     hydrate(root);
   }
 
@@ -366,104 +275,81 @@
     hydrate(root);
   }
 
-  // --- adding and changing a place ----------------------------------------------------------------------------------
+  // --- saving a new place -------------------------------------------------------------------------------------------
 
   function setAdding(on) {
-    state.adding = Boolean(on) && canEdit && Boolean(state.map);
+    state.adding = Boolean(on) && Boolean(state.adder) && Boolean(state.map);
     $('map').classList.toggle('adding', state.adding);
     hide($('banner'), !state.adding);
     root.querySelector('[data-action="add-place"]').classList.toggle('on', state.adding);
   }
 
+  const editorError = (text) => { $('f-error').textContent = text; $('f-error').hidden = !text; };
   function openEditor(o) {
-    // o: { id?, title?, lat, lng, notes?, ref? }
-    const x = o.id ? state.places.get(o.id) : null;
-    state.editing = { id: o.id || null, version: x ? x.version : undefined, ref: x ? x.place.ref : o.ref || null, owners: x ? x.place.owners : [] };
-    $('editor-title').textContent = o.id ? 'Change this place' : 'Add a place';
     $('f-title').value = o.title || '';
-    $('f-lat').value = o.lat == null ? '' : String(round6(o.lat));
-    $('f-lng').value = o.lng == null ? '' : String(round6(o.lng));
     $('f-notes').value = o.notes || '';
-    $('f-by').textContent = x && x.place.by ? `Last changed by ${nameOf(x.place.by) || 'someone'}` : '';
-    $('f-error').hidden = true;
-    hide($('f-delete'), !o.id);
-    $('f-delete').textContent = 'Delete';
+    $('f-where').textContent = coordsText(state.draft.lat, state.draft.lng);
+    editorError('');
     hide($('editor'), false);
     setAdding(false);
     $('f-title').focus();
   }
   function closeEditor() {
     hide($('editor'), true);
-    state.editing = null;
-    state.draft = null;
-    drawDraft();
+    if (!state.saving) { state.draft = null; drawDraft(); }
   }
-  const editorError = (text) => { $('f-error').textContent = text; $('f-error').hidden = !text; };
-
-  // The pin follows the coordinates as they are typed.
-  function syncDraftFromFields() {
-    const lat = coord($('f-lat').value, 90);
-    const lng = coord($('f-lng').value, 180);
-    if (lat === null || lng === null || !state.editing) return;
-    if (state.editing.id) return;
-    state.draft = { lat, lng };
-    drawDraft();
-  }
-  $('f-lat').addEventListener('input', syncDraftFromFields);
-  $('f-lng').addEventListener('input', syncDraftFromFields);
-
-  $('form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!state.editing) return;
-    const title = oneLine($('f-title').value, 120);
-    const lat = coord($('f-lat').value, 90);
-    const lng = coord($('f-lng').value, 180);
-    if (!title) return editorError('Give the place a name.');
-    if (lat === null || lng === null) return editorError('Latitude is a number from -90 to 90 and longitude from -180 to 180.');
-    const cur = state.editing;
-    const base = cur.id && state.places.get(cur.id) ? state.places.get(cur.id).place : null;
-    const place = {
-      id: cur.id || '',
-      title,
-      notes: $('f-notes').value,
-      point: { lat, lng, name: title },
-      owners: base ? base.owners : cur.owners.length ? cur.owners : [info.user.key],
-      by: info.user.key,
-      ref: base ? base.ref : cur.ref,
-    };
-    $('f-save').disabled = true;
-    try {
-      const saved = await savePlace(place, cur.id ? cur.version : undefined);
-      closeEditor();
-      select('place', saved.id);
-    } catch (err) {
-      if (err && err.status === 409) {
-        const now = state.places.get(cur.id);
-        if (now) cur.version = now.version;
-        else if (err.current && err.current.version) cur.version = err.current.version;
-        editorError('Someone changed this place while you were editing. Save again to keep your changes.');
-      } else editorError('It could not be saved: ' + ((err && err.message) || err));
-    } finally {
-      $('f-save').disabled = false;
-    }
-  });
   $('f-cancel').addEventListener('click', closeEditor);
-  $('f-delete').addEventListener('click', async () => {
-    if (!state.editing || !state.editing.id) return;
-    if (state.armed !== 'editor') { state.armed = 'editor'; $('f-delete').textContent = 'Delete it?'; return; }
-    state.armed = null;
-    try { await removePlace(state.editing.id); closeEditor(); } catch (err) { editorError('It could not be deleted: ' + ((err && err.message) || err)); }
-  });
   $('editor').addEventListener('pointerdown', (e) => { if (e.target === $('editor')) closeEditor(); });
 
-  // A pin where a place would go, and the editor for it.
+  // A pin where a place would go, and the dialog for it.
   function draftAt(lat, lng, o) {
-    if (!canEdit) return;
+    if (!state.adder) return;
     state.draft = { lat, lng };
     drawDraft();
     if (state.map) state.map.easeTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 14), duration: 500 });
-    openEditor({ lat, lng, ...(o || {}) });
+    openEditor(o || {});
   }
+
+  // The module that carries the action saves it from its own page (Tavern opens that pane if it is not open), so look for the
+  // new card for a little while.
+  async function waitForCard(before) {
+    for (let i = 0; i < 12; i += 1) {
+      await new Promise((r) => setTimeout(r, i ? 2000 : 800));
+      await loadItems();
+      if (state.items.length > before) return true;
+    }
+    return false;
+  }
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!state.draft || !state.adder || state.saving) return;
+    const title = oneLine($('f-title').value, 120);
+    if (!title) return editorError('Give the place a name.');
+    state.saving = true;
+    $('f-save').disabled = true;
+    const before = state.items.length;
+    try {
+      const out = await tavern.actions.request(state.adder.action, { title, lat: state.draft.lat, lng: state.draft.lng, notes: $('f-notes').value.slice(0, 1000) }, { wait: true });
+      if (out.status === 'done' && out.result && !out.result.ok) { editorError(out.result.error || 'It could not be saved.'); return; }
+      hide($('editor'), true);
+      const ref = out.status === 'done' && out.result && out.result.ref;
+      if (!ref) {
+        say('Saving. The place appears when it is saved.');
+        await waitForCard(before);
+        say('');
+      } else await loadItems();
+      state.draft = null;
+      drawDraft();
+      render();
+      const saved = ref ? state.items.find((c) => cardId(c) === tavern.util.refKey(ref)) : null;
+      if (saved) select(cardId(saved));
+    } catch (err) {
+      editorError('It could not be saved: ' + ((err && err.message) || err));
+    } finally {
+      state.saving = false;
+      $('f-save').disabled = false;
+    }
+  });
 
   // --- search (only when the admin set an address) ------------------------------------------------------------------
 
@@ -521,7 +407,7 @@
     hits = [];
     state.searchMessage = '';
     drawResults();
-    if (canEdit) draftAt(h.lat, h.lng, { title: h.title, notes: h.sub });
+    if (state.adder) draftAt(h.lat, h.lng, { title: h.title, notes: h.sub });
     else if (state.map) state.map.easeTo({ center: [h.lng, h.lat], zoom: 15 });
   }
   let searchTimer = null;
@@ -589,6 +475,11 @@
     s.hidden = false;
     hydrate(s);
   }
+  const showError = () => {
+    showState('tpl-state-error');
+    const retry = $('state').querySelector('[data-action="retry"]');
+    if (retry) retry.addEventListener('click', () => startMap());
+  };
 
   async function startMap() {
     if (state.map) { state.map.remove(); state.map = null; state.mapReady = false; clearPins(); }
@@ -599,7 +490,6 @@
     if (!wantFile) {
       showState(isAdmin ? 'tpl-state-nomap-admin' : 'tpl-state-nomap-member');
       if (!isAdmin) { app.classList.add('listonly'); state.listonly = true; }
-      hide(root.querySelector('[data-action="add-place"]'), true);
       const link = $('state').querySelector('[data-action="open-settings"]');
       if (link) link.href = '/admin.html#modules';
       render();
@@ -625,9 +515,7 @@
       header = await archive.getHeader();
       metadata = await archive.getMetadata().catch(() => null);
     } catch (err) {
-      showState('tpl-state-error');
-      const retry = $('state').querySelector('[data-action="retry"]');
-      if (retry) retry.addEventListener('click', () => startMap());
+      showError();
       render();
       return;
     }
@@ -638,7 +526,6 @@
     state.map = map;
     map.getCanvas().setAttribute('aria-label', 'Map');
     credit(metadata);
-    hide(root.querySelector('[data-action="add-place"]'), !canEdit);
     map.on('click', (e) => {
       if (state.adding) { draftAt(round6(e.lngLat.lat), round6(e.lngLat.lng)); return; }
       if (state.selected) select(null);
@@ -647,23 +534,21 @@
     map.once('load', () => {
       state.mapReady = true;
       showState(null);
-      const pts = [...own().map((p) => p.point), ...shownItems().map((c) => c.place)];
-      const b = boundsOf(pts);
+      const b = boundsOf(state.items.map((c) => c.place));
       if (b && (b[0][0] !== b[1][0] || b[0][1] !== b[1][1])) map.fitBounds(b, { padding: 70, maxZoom: 14, animate: false });
       else if (b) map.jumpTo({ center: b[0], zoom: 13 });
       else map.fitBounds([[header.minLon, header.minLat], [header.maxLon, header.maxLat]], { padding: 20, animate: false });
       render();
       const want = state.openWanted;
       state.openWanted = null;
-      if (want) select(want.kind, want.id);
+      if (want) select(want);
     });
     let failed = false;
     map.on('error', (e) => {
       if (state.mapReady || failed) return;
       const status = e && e.error && e.error.status;
-      if (status === 404 || status === 401 || status === 403) { failed = true; showState('tpl-state-error'); const retry = $('state').querySelector('[data-action="retry"]'); if (retry) retry.addEventListener('click', () => startMap()); }
+      if (status === 404 || status === 401 || status === 403) { failed = true; showError(); }
     });
-    map.on('styleimagemissing', () => {});
   }
 
   function webgl() {
@@ -705,84 +590,75 @@
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('[data-action], .place-row');
     if (!t || t.closest('template')) return;
-    if (t.classList.contains('place-row')) return select(t.dataset.kind, t.dataset.id);
+    if (t.classList.contains('place-row')) return select(t.dataset.id);
     const a = t.dataset.action;
-    const sel = findSelected();
+    const c = current();
     if (a === 'back') select(null);
     else if (a === 'close-panel') { if (state.selected) select(null); else { state.panelOpen = false; syncPanel(); } }
     else if (a === 'toggle-panel') { state.panelOpen = !state.panelOpen; syncPanel(); if (state.map) setTimeout(() => state.map.resize(), 0); }
     else if (a === 'toggle-sheet') { state.panelOpen = !state.panelOpen; syncPanel(); }
     else if (a === 'add-place') setAdding(!state.adding);
     else if (a === 'cancel') setAdding(false);
-    else if (a === 'copy-coords' && sel) {
-      const p = sel.kind === 'place' ? sel.place : cardPlace(sel.card);
-      try { await navigator.clipboard.writeText(coordsText(p.point.lat, p.point.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + coordsText(p.point.lat, p.point.lng)); }
-    } else if (a === 'edit' && sel && sel.kind === 'place') openEditor({ id: sel.place.id, title: sel.place.title, lat: sel.place.point.lat, lng: sel.place.point.lng, notes: sel.place.notes });
-    else if (a === 'delete' && sel && sel.kind === 'place') {
-      if (state.armed !== 'panel') { state.armed = 'panel'; t.lastChild.textContent = ' Delete it?'; return; }
-      state.armed = null;
-      try { await removePlace(sel.place.id); } catch (err) { say('It could not be deleted: ' + ((err && err.message) || err)); }
-    } else if (a === 'open') {
-      const ref = sel && (sel.kind === 'place' ? sel.place.ref : sel.card.ref);
-      if (ref) tavern.refs.open(ref).catch(() => say('That item could not be opened.'));
-    }
+    else if (a === 'copy-coords' && c) {
+      try { await navigator.clipboard.writeText(coordsText(c.place.lat, c.place.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + coordsText(c.place.lat, c.place.lng)); }
+    } else if (a === 'open' && c) tavern.refs.open(c.ref).catch(() => say('That item could not be opened.'));
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!$('editor').hidden) closeEditor(); else if (state.adding) setAdding(false);
   });
 
-  // An item dropped on the map: a place at that spot, with the item as its source (the editor opens first).
+  // An item dropped on the map: one that already has a place is shown; another gets a position through its own module's
+  // `setPlacePoint` action, when it offers one for that kind of item. Nothing else is done to it.
   if (tavern.refs && tavern.refs.dropTarget) {
     tavern.refs.dropTarget({
       over: () => {},
       leave: () => {},
       drop: async (ref, pt) => {
         if (!ref || !canEdit || !state.map || !state.mapReady) return;
-        const host = tavern.rootElement;
-        const hr = host.getBoundingClientRect();
+        const hr = tavern.rootElement.getBoundingClientRect();
         const mr = $('map').getBoundingClientRect();
         const at = state.map.unproject([pt.x + hr.left - mr.left, pt.y + hr.top - mr.top]);
-        let card = null;
-        try { card = await tavern.refs.resolve(ref); } catch (err) { card = null; }
-        if (!card || card.error) return say('That item could not be read.');
-        if (card.place) return select('item', tavern.util.refKey(ref));
-        draftAt(round6(at.lat), round6(at.lng), { title: card.title, notes: card.subtitle || '', ref });
+        const known = state.items.find((c) => cardId(c) === tavern.util.refKey(ref));
+        if (known) return select(cardId(known));
+        let offers = [];
+        try { offers = await tavern.actions.list({ accepts: `${ref.module}:${ref.kind}` }); } catch (err) { offers = []; }
+        const set = offers.find((a) => a.name === 'setPlacePoint' && a.input && a.input.lat && a.input.lng);
+        if (!set) return say('That item cannot be put on the map from here.');
+        try {
+          const out = await tavern.actions.request(set.action, { place: ref, lat: round6(at.lat), lng: round6(at.lng) }, { wait: true });
+          if (out.status === 'done' && out.result && !out.result.ok) return say(out.result.error || 'It could not be placed.');
+          await loadItems();
+          render();
+        } catch (err) {
+          say('It could not be placed: ' + ((err && err.message) || err));
+        }
       },
     });
   }
 
-  // What other modules may ask of this one.
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
-      addPlace: async (input) => {
-        const lat = Number(input.lat);
-        const lng = Number(input.lng);
-        const title = oneLine(input.title, 120);
-        if (!title || !inRange(lat, lng)) throw new Error('a place needs a name and coordinates in range');
-        const place = await savePlace({ id: '', title, notes: input.notes || '', point: { lat, lng, name: title }, owners: [], by: info.user.key, ref: input.ref || null });
-        return { ref: placeRef(place.id) };
-      },
-    });
+  // The bottom bar: paste coordinates or a map link, or type something to search for. Only where a place can be saved.
+  function setBar() {
+    if (!tavern.bar) return;
+    tavern.bar.set(state.adder ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Paste a place, coordinates or a map link' }] : []).catch(() => {});
   }
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
-      if (ref.module !== info.module.id || ref.kind !== 'place') return;
-      if (state.mapReady || state.listonly) select('place', ref.id); else state.openWanted = { kind: 'place', id: ref.id };
-    });
-  }
-
-  // The bottom bar: paste coordinates or a map link, or type something to search for.
   if (tavern.bar) {
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Paste a place, coordinates or a map link' }] : []).catch(() => {});
     tavern.on('bar', (e) => {
-      if (e.id !== 'add' || !canEdit) return;
+      if (e.id !== 'add' || !state.adder) return;
       const text = String(e.value || '').trim();
       if (!text) return setAdding(true);
       const p = parsePoint(text);
       if (p) return draftAt(p.lat, p.lng);
       if (state.settings.search) { $('search-input').value = text; search(text); $('search-input').focus(); return; }
       say('Search is not set up. Paste coordinates or a map link, or click the map.');
+    });
+  }
+
+  // Asked to show an item on the map (the map shows what has a place): select it when it is there.
+  if (tavern.refs && tavern.refs.onOpen) {
+    tavern.refs.onOpen((ref) => {
+      const id = tavern.util.refKey(ref);
+      if (state.mapReady || state.listonly) select(state.items.some((c) => cardId(c) === id) ? id : null); else state.openWanted = id;
     });
   }
 
@@ -802,7 +678,7 @@
   tavern.settings.onChange((s) => applySettings(s || {}));
 
   // Other modules' items change without telling this page: look again now and then, and when the page comes back.
-  const refresh = async () => { await loadItems(); if (state.started) render(); };
+  const refresh = async () => { await Promise.all([loadItems(), findAdder()]); setBar(); if (state.started) render(); };
   const timer = setInterval(() => { if (!tavern.rootElement.isConnected) clearInterval(timer); else refresh(); }, 90000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 
@@ -811,14 +687,13 @@
   try {
     for (const name of new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(['location-dot', 'map-location-dot', 'link']))) if (name) wantIcon(name);
     applySettings((await tavern.settings.get()) || {});
-    state.people = await tavern.people().catch(() => []);
-    await Promise.all([loadPlaces(), loadItems()]);
+    await Promise.all([loadItems(), findAdder()]);
+    setBar();
     $('msg').hidden = true;
     $('app').hidden = false;
     state.started = true;
     render();
     await startMap();
-    loadLinked().catch(() => {});
   } catch (err) {
     $('app').hidden = true;
     $('msg').hidden = false;
