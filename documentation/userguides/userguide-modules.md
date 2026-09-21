@@ -32,7 +32,7 @@ A module with a room panel is off in every room until you turn it on. Either tic
 
 ## Settings
 
-A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an admin on the Modules tab, under the module cards. **Room** settings, for one room, are chosen by an admin (on the **Modules** tab of the room's own page, under the module list) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
+A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an admin on the module's own page: choose **Module Configuration** on its card on the Modules tab. A module with no server settings shows the button greyed out, with "No settings" beside it. **Room** settings, for one room, are chosen by an admin (on the **Modules** tab of the room's own page, under the module list) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
 
 ## Who can use it
 

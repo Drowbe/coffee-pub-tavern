@@ -1,4 +1,3 @@
-import { renderModuleSettings } from '/module-settings.js';
 import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
@@ -762,6 +761,7 @@ function moduleCard(m) {
     </div>
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
     <div class="row">
+      ${(m.settings || []).some((d) => d.scope === 'server') ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does on this server"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
       <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && m.missing?.length ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
       ${!m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map((r) => escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r)).join(' and ')} installed and turned on first.</span>` : ''}
       ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
@@ -803,12 +803,6 @@ function renderModules() {
     list.appendChild(none);
   }
   for (const m of installedModules) list.appendChild(moduleCard(m));
-  const settings = document.createElement('div');
-  settings.className = 'panel';
-  settings.hidden = true;
-  settings.innerHTML = '';
-  list.appendChild(settings);
-  renderModuleSettings(settings, { scope: 'server' }).then(() => { if (!settings.hidden) settings.insertAdjacentHTML('afterbegin', '<h2>Module settings</h2><p class="hint">What each module does for everyone on this server.</p>'); });
   const log = document.createElement('div');
   log.className = 'panel';
   log.innerHTML = '<h2>Recent activity</h2><p class="hint">What modules have done lately.</p><ul class="module-activity" id="module-activity"><li class="hint">Loading...</li></ul>';

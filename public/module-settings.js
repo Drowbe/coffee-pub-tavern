@@ -27,7 +27,7 @@ function fileHint(def) {
   return `${where}, which is empty. Copy the file in.`;
 }
 
-export async function renderModuleSettings(container, { scope, room = null }) {
+export async function renderModuleSettings(container, { scope, room = null, only = '', heading = true }) {
   container.hidden = true;
   let modules;
   try {
@@ -36,11 +36,12 @@ export async function renderModuleSettings(container, { scope, room = null }) {
   } catch {
     return; // not something this person may set here
   }
+  if (only) modules = modules.filter((m) => m.id === only);
   if (!modules.length) return;
   container.hidden = false;
   container.innerHTML = modules.map((m) => `
     <div class="module-settings-card" data-module="${escapeHtml(m.id)}">
-      <h3><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}</h3>
+      ${heading ? `<h3><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}</h3>` : ''}
       <div class="module-settings-fields">${m.settings.map((d) => `<div class="module-setting">${control(d)}${d.help ? `<p class="hint">${escapeHtml(d.help)}</p>` : ''}</div>`).join('')}</div>
       <div class="row"><button class="btn btn-primary btn-small" data-save type="button">Save</button><span class="status" data-status></span></div>
     </div>`).join('');

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1410">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
+  <title>Coffee Pub Tavern - Module configuration</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css">
+</head>
+<body>
+  <header class="topbar"></header>
+  <main class="admin">
+    <a class="module-config-back" href="/admin#modules"><i class="fa-solid fa-arrow-left fa-fw" aria-hidden="true"></i> Modules</a>
+    <section class="panel module-config" id="config" hidden>
+      <div class="module-head">
+        <i class="module-icon fa-solid fa-fw" id="cfg-icon" aria-hidden="true"></i>
+        <div class="grow"><h1 id="cfg-name">Module</h1><div class="hint" id="cfg-version"></div></div>
+        <span class="pill" id="cfg-state"></span>
+      </div>
+      <p id="cfg-desc"></p>
+      <p class="hint" id="cfg-off" hidden></p>
+      <p class="hint" id="cfg-none" hidden>This module has no settings.</p>
+      <div id="settings"></div>
+      <p class="hint" id="cfg-other" hidden></p>
+    </section>
+    <p class="hint" id="cfg-missing" hidden>No such module is installed.</p>
+  </main>
+  <script type="module" src="/module-config.js"></script>
+</body>
+</html>

@@ -4586,3 +4586,10 @@ body.at-table .module-nav {
 .module-setting .hint {
   margin: 2px 0 0;
 }
+
+/* ---- a module's own configuration page (Manage > Modules > Module Configuration) ---- */
+.module-config-back { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; color: var(--text-dim); text-decoration: none; font-size: 13px; }
+.module-config-back:hover { color: var(--accent); }
+.module-config h1 { margin: 0; font-size: 20px; }
+.module-config .module-head { margin-bottom: 8px; }
+.module-config .module-settings-card { border: 0; padding: 0; margin-top: 12px; }
