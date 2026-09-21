@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "icon": "map-location-dot",
   "description": "A map of the places your room cares about: add places by clicking, pasting coordinates or a map link, and see the places other modules' items carry.",
   "author": "Coffee Pub",
