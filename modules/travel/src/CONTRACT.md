@@ -185,6 +185,19 @@ Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few
 
 **What the mock does not cover yet:** an editor for the new fields (the modules side), the small editor for a leg, drag on the new rows (same `data-drop` and `.dragging` states, styled in `travel-lib-cards.css`), and a print or share view.
 
+### Markers, days at the ends and empty days
+
+Reference rendering: `design/markers.html` (`?state=normal|edge|hidden`, `?theme=light`, `?w=390`).
+
+**Automatic markers** (`li.row.marker[data-marker=planning-start|planning-end|trip-start|trip-end]`, `tpl-row-marker`). They are not items: no id, no menu, no handle, not editable, draggable or removable, and never counted as something planned. The script writes them; a person cannot.
+- `planning-start` is the first thing on the plan's first day and `planning-end` the last thing on its last day. Icon `flag` and `flag-checkered`; title "Planning starts" and "Planning ends"; `[data-slot=time]` is the date ("Sat 3"); `[data-slot=sub]` a short line ("the plan begins").
+- `trip-start` sits just before the first booked item and `trip-end` just after the last, in their day, in time order. "Booked" is a journey, a stay, or any item with a confirmation; if nothing is booked, the first and last timed item; with no items there are no trip markers. Icon `plane-departure` and `plane-arrival`; title "Trip starts" and "Trip ends"; `[data-slot=time]` is that item's start (for the end, its arrival or check-out) and the sub names the item ("TAP Air Portugal TP 214 · Denver").
+- Planning markers are quiet (dashed outline); trip markers are filled in the accent. Each row keeps the same three columns as an item, so the rail is unbroken.
+
+**Days at the ends** (`div.dayedge[data-edge=before|after]`, `tpl-dayedge`): a dashed button "Add days before" above the first day and "Add days after" below the last. Choosing it hides the button and shows `form.edge-form` ("Add [3] days", Add, Cancel; the count is 1 to 30, or fewer when the plan would pass its longest length, said in `#note`). Adding moves the plan's start date back (before) or its end date forward (after) by that many days, so the new days are empty days on the trip, and the planning markers move with them; items and trip markers stay where they were.
+
+**Empty days.** A toggle in the toolbar (`button.tool-empty[data-action=toggle-empty][aria-pressed]`, icon `eye-slash`, tooltip "Hide empty days" or "Show empty days") sits in `.actions` beside the pencil. A day with no items (markers do not count) gets `.is-empty`, and so does its chip in the strip. While the toggle is on, `.app.hide-empty` hides both, and `p.emptynote` (`tpl-emptynote`: "2 empty days hidden" and a Show button) sits above the first day. If every day is empty nothing is hidden. The choice is remembered for the person, and the default is off.
+
 ### A link whose item is gone or hidden
 
 The link card (`tpl-card-link`, `article.card.linkcard`) has two more states, set from what `refs.resolve` says (see plan-linked-items.md):

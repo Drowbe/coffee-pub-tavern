@@ -36,6 +36,28 @@
 .dnum span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.9; }
 .dmeta h2 { margin: 0; font-size: 16px; }
 .dmeta p { margin: 2px 0 0; color: var(--text-dim); font-size: 12px; }
+/* ---- automatic markers, days added at the ends, empty days ---- */
+.row.marker { align-items: center; }
+.row.marker .when { padding-top: 0; }
+.row.marker .when b { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+.row.marker .rail .dot { top: 50%; margin-top: -6px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 3px; transform: rotate(45deg); background: var(--bg-section); border: 2px solid var(--text-dim); box-shadow: none; }
+.markercard { display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 14px; border: 1px dashed color-mix(in srgb, var(--text-dim) 55%, var(--border)); border-radius: 999px; background: transparent; color: var(--text-dim); font-size: 12px; }
+.markercard b { color: var(--text); font-weight: 600; letter-spacing: 0.02em; }
+.markercard .sub { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.markercard .ic { font-size: 13px; color: var(--text-dim); }
+/* the trip itself starts and ends where things are booked: filled, in the accent */
+.row.marker[data-marker^="trip"] .markercard { border-style: solid; border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 20%, var(--bg-card)), color-mix(in srgb, var(--accent) 6%, var(--bg-card))); color: var(--text); }
+.row.marker[data-marker^="trip"] .markercard .ic { color: var(--accent); }
+.row.marker[data-marker^="trip"] .rail .dot { background: var(--accent); border-color: var(--accent); }
+.dayedge { display: flex; justify-content: center; margin: 0 0 14px; }
+.dayedge .btn { display: inline-flex; align-items: center; gap: 6px; border-style: dashed; color: var(--text-dim); background: transparent; }
+.dayedge .btn:hover { color: var(--accent); border-color: var(--accent); }
+.edge-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border: 1px dashed var(--accent); border-radius: 12px; background: var(--bg-card); }
+.edge-form label { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+.edge-form input { width: 64px; text-align: center; }
+.emptynote { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 8px 12px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-dim); font-size: 12px; }
+.emptynote .btn { margin-left: auto; padding: 2px 10px; font-size: 12px; }
+.app.hide-empty .day2.is-empty, .app.hide-empty .daychip.is-empty { display: none; }
 .timeline { list-style: none; margin: 0; padding: 12px 14px 8px 8px; }
 
 /* a row: the time, the rail with its dot, the card */

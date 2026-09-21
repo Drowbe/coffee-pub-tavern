@@ -30,7 +30,10 @@
         <button class="btn tool" type="button" data-view="bookings" title="Bookings" aria-label="Bookings"><span class="ic" data-icon="ticket"></span></button>
         <button class="btn tool" type="button" data-view="money" title="Money" aria-label="Money"><span class="ic" data-icon="coins"></span></button>
       </div>
-      <button class="btn tool tool-edit" type="button" data-action="edit-trip" title="Edit trip" aria-label="Edit trip" hidden><span class="ic" data-icon="pen"></span></button>
+      <div class="actions" role="group" aria-label="Plan">
+        <button class="btn tool tool-empty" type="button" data-action="toggle-empty" title="Hide empty days" aria-label="Hide empty days" aria-pressed="false"><span class="ic" data-icon="eye-slash"></span></button>
+        <button class="btn tool tool-edit" type="button" data-action="edit-trip" title="Edit trip" aria-label="Edit trip" hidden><span class="ic" data-icon="pen"></span></button>
+      </div>
     </div>
     <div class="trip-facts" data-slot="summary"></div>
   </header>
@@ -84,6 +87,13 @@
 <!-- the day for the card family: the script puts a tpl-day-head clone first, then rows into ol.timeline. Same suggestions and add row as before. -->
 <template id="tpl-day2"><section class="day2"><ol class="timeline"></ol><div class="suggestions" hidden><div class="suggestions-title">Other modules have</div><div class="suggestions-list"></div></div><form class="add-row"><input name="title" type="text" maxlength="200" placeholder="Add a stop, a stay or a note"><button class="btn btn-primary" type="submit" data-action="add-item" aria-label="Add"><span class="ic" data-icon="plus"></span></button></form></section></template>
 <template id="tpl-day-head"><header class="day-head2"><div class="dnum"><b data-slot="daynum"></b><span data-slot="daymonth"></span></div><div class="dmeta"><h2 data-slot="position"></h2><p data-slot="summary"></p></div></header></template>
+<!-- an automatic marker: the plan's first and last day (planning-start, planning-end) and its first and last booked item (trip-start, trip-end).
+     Not an item: it has no id, cannot be edited, dragged or removed, and has no menu. The script sets data-marker and fills the slots. -->
+<template id="tpl-row-marker"><li class="row marker"><div class="when"><b data-slot="time"></b></div><div class="rail"><span class="dot"></span></div><div class="slot"><div class="markercard"><span class="ic" data-icon=""></span><b data-slot="title"></b><span class="sub" data-slot="sub"></span></div></div></li></template>
+<!-- adding days at either end of the plan (data-edge is before or after); the script opens the form, and the plan's start or end date moves -->
+<template id="tpl-dayedge"><div class="dayedge"><button class="btn" type="button" data-action="edge-open"><span class="ic" data-icon="plus"></span> <span data-slot="label"></span></button><form class="edge-form" hidden><label>Add <input type="number" name="count" min="1" max="30" value="1" inputmode="numeric" aria-label="How many days"> <span data-slot="unit">days</span></label><button class="btn btn-primary" type="submit">Add</button><button class="btn" type="button" data-action="edge-cancel">Cancel</button></form></div></template>
+<!-- shown where empty days are hidden: says how many, and shows them again -->
+<template id="tpl-emptynote"><p class="emptynote"><span class="ic" data-icon="eye-slash"></span> <span data-slot="text"></span> <button class="btn" type="button" data-action="toggle-empty">Show</button></p></template>
 <template id="tpl-row"><li class="row entry"><div class="when"><b data-slot="time"></b><small data-slot="sub"></small></div><div class="rail"><span class="dot"></span></div><div class="slot"></div></li></template>
 <template id="tpl-leg-row"><li class="row leg-row"><div class="when"></div><div class="rail"></div><div class="slot"><button class="leg" type="button" data-action="edit-leg"><span class="ic" data-icon=""></span><span data-slot="minutes"></span><span class="dist" data-slot="dist"></span></button></div></li></template>
 
