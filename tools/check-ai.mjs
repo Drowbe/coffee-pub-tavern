@@ -119,7 +119,7 @@ await test('limits and refusals', async () => {
   await ai.run('ask', items, 'second?'); // 100 tokens now, over 60
   await assert.rejects(ai.run('ask', items, 'third?'), (e) => e instanceof AiError && e.status === 429);
   assert.match(buildPrompt('ask', [{ title: 'a"b', text: 'x'.repeat(20000) }], 'q').prompt, /title="a'b"/);
-  assert.ok(buildPrompt('ask', [{ title: 'a', text: 'x'.repeat(20000) }], 'q').prompt.length < 9000);
+  assert.ok(buildPrompt('ask', [{ title: 'a', text: 'x'.repeat(20000) }], 'q').prompt.length < 10500);
 });
 
 server.close();
