@@ -943,6 +943,15 @@
     });
   }
 
+  // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window. The
+  // stylesheet keys its narrow layout on `.app.narrow`. A frame can report no width while it is laid out, so wait for one.
+  const fit = () => {
+    const w = tavern.rootElement.clientWidth;
+    if (w) $('app').classList.toggle('narrow', w < 720);
+  };
+  fit();
+  new ResizeObserver(fit).observe(tavern.rootElement);
+
   plan.provide();
   plan.subscribe(() => { if (state.loaded) redraw(); });
   render();

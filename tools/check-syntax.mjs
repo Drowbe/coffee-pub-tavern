@@ -23,8 +23,17 @@ const FILES = [
   ...list('server'), ...list('public'), ...list('public/sdk'),
   ...(fs.existsSync(path.join(ROOT, 'modules')) ? fs.readdirSync(path.join(ROOT, 'modules')).flatMap((m) => list(`modules/${m}/src`)) : []),
 ];
+// A raw control byte inside a module's source (a NUL in a regular expression, say) survives a plain syntax check but is turned
+// into U+FFFD when the build inlines the script into the page, and the page dies. Write such characters as escapes.
+const RAW = /[\x00-\x08\x0b\x0c\x0e-\x1f]/;
+let rawBytes = 0;
+for (const dir of fs.existsSync(path.join(ROOT, 'modules')) ? fs.readdirSync(path.join(ROOT, 'modules')) : []) {
+  for (const f of list(`modules/${dir}/src`, /\.(js|css|html)$/)) {
+    if (RAW.test(fs.readFileSync(path.join(ROOT, f), 'utf8'))) { rawBytes += 1; console.error(`${f}: has a raw control character; write it as an escape (\\x00)`); }
+  }
+}
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tavern-check-'));
-let failed = 0;
+let failed = rawBytes;
 for (const rel of FILES) {
   const file = path.join(ROOT, rel);
   const source = fs.readFileSync(file, 'utf8');

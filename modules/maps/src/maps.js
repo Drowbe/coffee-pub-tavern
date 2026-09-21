@@ -29,7 +29,10 @@
   const canEdit = tavern.can('edit');
   const isAdmin = info.user && info.user.role === 'admin';
   const maplibregl = window.maplibregl;
-  const narrow = window.matchMedia('(max-width: 719px)');
+  // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window. The
+  // stylesheet keys its narrow layout on `.app.narrow`.
+  const NARROW = 720;
+  const isNarrow = () => $('app').classList.contains('narrow');
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
 
   const state = {
@@ -38,7 +41,7 @@
     people: [],
     settings: { map: '', search: '' },
     selected: null, // { kind: 'place' | 'item', id }
-    panelOpen: !window.matchMedia('(max-width: 719px)').matches, // a sheet starts as a peek on a phone
+    panelOpen: true,
     adding: false,
     draft: null, // { lat, lng }: where a new place would go
     editing: null, // { id | null, version, ref }
@@ -248,11 +251,24 @@
   function syncPanel() {
     const panel = $('panel');
     if (state.listonly) { panel.hidden = false; panel.dataset.state = 'open'; return; }
-    if (narrow.matches) { panel.hidden = false; panel.dataset.state = state.panelOpen ? 'open' : 'peek'; } else { panel.dataset.state = 'open'; panel.hidden = !state.panelOpen; }
+    if (isNarrow()) { panel.hidden = false; panel.dataset.state = state.panelOpen ? 'open' : 'peek'; } else { panel.dataset.state = 'open'; panel.hidden = !state.panelOpen; }
     const tool = root.querySelector('[data-action="toggle-panel"]');
     if (tool) tool.classList.toggle('on', state.panelOpen);
   }
-  narrow.addEventListener('change', () => { state.panelOpen = !narrow.matches; syncPanel(); state.map && state.map.resize(); });
+  // Follow the pane's width. A frame can report none while it is still being laid out, so wait for a real one. Crossing the
+  // line resets the panel: a peeking sheet on a narrow pane, open beside the map on a wide one.
+  const fit = () => {
+    const w = tavern.rootElement.clientWidth;
+    if (!w) return;
+    const now = w < NARROW;
+    if (now === isNarrow() && state.fitted) { state.map && state.map.resize(); return; }
+    state.fitted = true;
+    $('app').classList.toggle('narrow', now);
+    state.panelOpen = !now;
+    if (state.started) { syncPanel(); state.map && state.map.resize(); }
+  };
+  fit();
+  new ResizeObserver(fit).observe(tavern.rootElement);
 
   function select(kind, id, o) {
     state.selected = kind ? { kind, id } : null;
@@ -261,7 +277,7 @@
     const sel = findSelected();
     if (sel && state.map && !(o && o.still)) {
       const pt = sel.kind === 'place' ? sel.place.point : cardPlace(sel.card).point;
-      const pad = narrow.matches ? { bottom: 260 } : { right: 0 };
+      const pad = isNarrow() ? { bottom: 260 } : { right: 0 };
       state.map.easeTo({ center: [pt.lng, pt.lat], zoom: Math.max(state.map.getZoom(), 13), padding: pad, duration: 500 });
     }
   }
