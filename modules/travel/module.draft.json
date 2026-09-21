@@ -25,6 +25,7 @@
   },
   "refs": {
     "produces": [
+      { "kind": "trip", "name": "Trip", "open": true, "key": "trip:{id}", "card": { "title": "title", "subtitle": "destination", "when": "start", "end": "end" } },
       { "kind": "plan", "name": "Trip item", "open": true, "backlinks": true, "key": "item:{id}", "card": { "title": "title", "subtitle": "place", "when": "date", "done": "done" } }
     ],
     "consumes": ["*"]

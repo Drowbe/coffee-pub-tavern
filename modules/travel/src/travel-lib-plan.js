@@ -14,7 +14,7 @@
     const changed = () => { for (const fn of listeners) fn(); };
 
     const remember = (key, value, version) => {
-      if (key === 'trip') {
+      if (key === TRIP_KEY) {
         trip = value ? cleanTrip(value) : null;
         tripVersion = value ? version : null;
       } else if (key.startsWith('item:')) {
@@ -25,8 +25,8 @@
     };
 
     async function load() {
-      const t = await tavern.storage.get('trip');
-      remember('trip', t ? t.value : null, t ? t.version : null);
+      const t = await tavern.storage.get(TRIP_KEY);
+      remember(TRIP_KEY, t ? t.value : null, t ? t.version : null);
       items.clear();
       for (const it of await tavern.storage.list('item:')) remember(it.key, it.value, it.version);
       changed();
@@ -35,7 +35,7 @@
 
     tavern.on('change', (e) => {
       if (e.scope === 'rooms') return;
-      if (e.key !== 'trip' && !String(e.key).startsWith('item:')) return;
+      if (e.key !== TRIP_KEY && !String(e.key).startsWith('item:')) return;
       remember(e.key, e.deleted ? null : e.value, e.version);
       changed();
       if (String(e.key).startsWith('item:')) resolveCards().catch(() => {});
@@ -74,8 +74,8 @@
 
     async function saveTrip(patch) {
       const next = cleanTrip({ ...(trip || {}), ...patch, by: tavern.user.name });
-      const saved = await tavern.storage.set('trip', next, tripVersion === null ? {} : { version: tripVersion });
-      remember('trip', next, saved.version);
+      const saved = await tavern.storage.set(TRIP_KEY, next, tripVersion === null ? {} : { version: tripVersion });
+      remember(TRIP_KEY, next, saved.version);
       changed();
       return trip;
     }

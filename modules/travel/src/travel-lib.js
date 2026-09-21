@@ -2,6 +2,8 @@
   // between items. Shared by the module's page and its dashboard widget (inlined into both by the build), and run
   // on its own by tools/check-travel.mjs. It expects `ymd` and `parseYmd` (from tavern.util) in scope.
 
+  // The trip is one stored value per room (its key is a pointer's id, so the trip can be pointed at and opened).
+  const TRIP_KEY = 'trip:main';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
   const KINDS = ['stop', 'stay', 'journey', 'note', 'link'];
   const MAX_DAYS = 60;
