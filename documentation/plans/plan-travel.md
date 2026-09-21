@@ -55,7 +55,19 @@ A Trips widget: the next trip with days to go, and today's items while a trip is
 - **The module's data, actions, refs and links, its manifest, the store, the widget and the docs:** the modules side.
 - **The itinerary view's look and interaction** (the day columns and cards, drag handles, the phone layout, the visual language of a stop, a stay and a journey): the interface side. The module's page is one HTML file built from `src/travel.html`, `.css` and `.js`; the interface side owns the markup and the styles, the modules side owns the script and the data, and the two agree the element structure first (a short contract in the module's source folder).
 
+## Interaction and layout (agreed between the two sides)
+
+- **The contract fixes the drag state as well as the markup.** The handle element, the drop zones (a day, and the gap between two items), and the state the script sets while dragging: `.dragging` on the card, `data-drop="before|after|into"` on the target and `.drop-target` on the day. The interface side styles them; the script only toggles them and never sets inline styles.
+- **Drag is the desktop path, not the only one.** Long-press drag is unreliable in a scrolling list on a phone, so every item has an item menu (`data-action="move-menu"`) with "Move to day..." and "Earlier" / "Later".
+- **Phone layout is one scrolling list** with sticky day headers (date, weekday and "day 3 of 7") and a strip of days at the top to jump to one, today marked. In a room on a phone the module fills the pane above the tab bar, so nothing has a fixed height: it scrolls inside its frame and uses all of the pane.
+- **Category marks are an icon and a label,** never colour alone, and colours come only from theme tokens (a small set mixed from the accent and text colours), so every theme works, light ones included.
+- **An item that points at another module's item looks different from the module's own kinds:** the same frame with a small source line ("from Calendar") and that module's icon, a read-only body, and an open action. The card has slots for the source, the links and the owners.
+- **Gaps between timed items** show as a thin connector row ("45 min"), worked out by the script and styled by the interface side. Optional in phase 1.
+- **Every state is designed:** an empty trip, an empty day, loading, an item changed by someone else while it is being edited (the version conflict), and a day with twenty items.
+
 ## Questions
+
+Both sides' suggested answers are marked; the author has not answered yet.
 
 - **Map:** show one, and from where? A map needs a tile source, which means an external service, an API key or a self-hosted set. It could wait for a later phase, with addresses as links to the person's own maps app until then.
 - **Money:** budget and cost splitting are where the other tools charge or fall short. In or out of the first version? This plan leaves them for later.
