@@ -151,7 +151,7 @@
       const nights = stayNights(item);
       put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), item.time].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
     } else if (span === 'end') {
-      put(el, { title: item.title, address: where, nights: words(stayNights(item), 'night', 'nights') });
+      put(el, { title: item.title, address: where, time: item.checkOutTime || '', nights: words(stayNights(item), 'night', 'nights') });
     } else if (span === 'middle') {
       put(el, { title: `Staying at ${item.title}` });
     } else if (c.card === 'meal') {
@@ -190,7 +190,7 @@
     let time = item.time || '';
     let sub = '';
     if (item.kind === 'link') { time = timeOf(card); sub = ''; }
-    else if (item.kind === 'stay') { time = span === 'end' || span === 'middle' ? '' : item.time || ''; sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
+    else if (item.kind === 'stay') { time = span === 'end' ? item.checkOutTime || '' : span === 'middle' ? '' : item.time || ''; sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
     else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${hm(minutesOfDay(item.time) + item.minutes)}` : '';
     else sub = lengthText(item.minutes);
     fill(row, { time, sub });
@@ -827,6 +827,7 @@
       dayOptions($('f-checkout'), { ideas: true, after: item ? item.date : day });
       const v = item || {};
       setVal('f-checkout', v.checkOut);
+      setVal('f-checkOutTime', v.checkOutTime);
       $('f-time').value = v.time || '';
       $('f-minutes').value = v.minutes || '';
       $('f-title').value = item ? item.title : '';
@@ -894,6 +895,7 @@
           fields.confirm = get('f-confirm');
         } else if (t.kind === 'stay') {
           fields.checkOut = $('f-checkout').value || null;
+          fields.checkOutTime = get('f-checkOutTime') || null;
           fields.address = get('f-address');
           fields.roomType = get('f-roomType');
           fields.guests = num('f-guests');

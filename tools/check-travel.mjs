@@ -281,6 +281,8 @@ test('details for the cards: a journey has a mode, a stop and a stay a type, any
   const stay = lib.cleanItem({ id: 'h', kind: 'stay', title: 'Hotel', type: 'hotel', roomType: 'double', guests: 2 });
   assert.equal(stay.type, 'hotel');
   assert.equal(stay.guests, 2);
+  assert.equal(lib.cleanItem({ id: 'h', kind: 'stay', title: 'x', checkOutTime: '11:00' }).checkOutTime, '11:00');
+  assert.equal(lib.cleanItem({ id: 'h', kind: 'stay', title: 'x', checkOutTime: '25:00' }).checkOutTime, null);
   assert.equal(lib.cleanItem({ id: 'h', kind: 'stay', title: 'x', type: 'igloo' }).type, null);
   const leg = lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'walk', travelMinutes: 12.4 });
   assert.equal(leg.travelMode, 'walk');

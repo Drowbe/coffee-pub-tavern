@@ -70,11 +70,12 @@
       item.admissionCount = count(raw.admissionCount, 999);
       item.gate = clip(raw.gate, 30);
     }
-    // A stay: what kind, the room, and how many guests.
+    // A stay: what kind, the room, how many guests, and a check-out time.
     if (kind === 'stay') {
       item.type = STAY_TYPES.includes(raw.type) ? raw.type : null;
       item.roomType = clip(raw.roomType, 60);
       item.guests = count(raw.guests, 99);
+      item.checkOutTime = isTime(raw.checkOutTime) ? raw.checkOutTime : null;
     }
     // A journey: how, and what a ticket for it says (a flight's airline and number, a train's operator and platform...).
     if (kind === 'journey') {

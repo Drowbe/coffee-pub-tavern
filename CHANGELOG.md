@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Travel 0.5.4: a stay can have a check-out time (`checkOutTime`), set beside the Check out day; it shows on the check-out day's card and beside the row.
+
 ### Changed
 - A card may carry an optional `category` (a short lower-case label). Places 0.1.2 gives its cards its category, and Maps 0.2.1 puts it on pins and rows (`data-cat`) so they can take the place's colour. Travel 0.5.3 draws a stay's check-out day with its own card and drops an unused template.
 
