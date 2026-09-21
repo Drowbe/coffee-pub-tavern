@@ -82,5 +82,15 @@
         paint: { 'text-color': rgbText(tok.dim), 'text-halo-color': rgbText(ground), 'text-halo-width': 1.5 },
       },
     ];
-    return { version: 8, glyphs: o.glyphs, sources: { map: { type: 'vector', url: o.tiles } }, layers };
+    // One map file or several (regions that sit side by side): each is a source, and every layer is drawn for each in turn, so
+    // one file's ground never covers another's roads.
+    const urls = Array.isArray(o.tiles) ? o.tiles : [o.tiles];
+    const sources = {};
+    urls.forEach((u, i) => { sources[i ? `map${i}` : 'map'] = { type: 'vector', url: u }; });
+    const all = [];
+    for (const l of layers) {
+      if (l.type === 'background') { all.push(l); continue; }
+      urls.forEach((u, i) => all.push(i ? { ...l, id: `${l.id}-${i}`, source: `map${i}` } : l));
+    }
+    return { version: 8, glyphs: o.glyphs, sources, layers: all };
   }

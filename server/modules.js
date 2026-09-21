@@ -217,7 +217,7 @@ function cleanBus(rawEvents, rawActions, id) {
 }
 
 // The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
-const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file'];
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
 function cleanSettings(raw) {
   const out = [];
@@ -242,14 +242,14 @@ function cleanSettings(raw) {
       def.default = d;
     } else if (type === 'url') {
       def.default = '';
-    } else if (type === 'file') {
-      // A file the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
+    } else if (type === 'file' || type === 'files') {
+      // A file (or, for `files`, several: a table of what is there with a tick for each) the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
       // server can choose one.
       if (def.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "server"`);
       const folder = r.folder === undefined ? 'files' : String(r.folder);
       if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder) || folder === 'versions') throw new ModuleError(`module.json: setting "${key}" folder must be lowercase letters, digits and dashes (not "versions")`);
       def.folder = folder;
-      def.default = '';
+      def.default = type === 'files' ? [] : '';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
       def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';
@@ -650,7 +650,7 @@ class ModuleManager {
     const entry = this.registry.modules[id];
     for (const v of (entry && entry.versions) || []) {
       const m = this.manifestOf(id, v);
-      for (const d of (m && m.settings) || []) if (d.type === 'file' && d.folder) out.add(d.folder);
+      for (const d of (m && m.settings) || []) if ((d.type === 'file' || d.type === 'files') && d.folder) out.add(d.folder);
     }
     return out;
   }

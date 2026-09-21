@@ -1941,7 +1941,7 @@ const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // show up is told why. A link to a file (a NAS shortcut) counts as the file.
 function inspectModuleFiles(id, sub) {
   const folder = moduleFilesDir(id, sub);
-  const out = { folder, exists: false, files: [], skipped: [] };
+  const out = { folder, exists: false, files: [], sizes: {}, skipped: [] };
   let names;
   try {
     names = fs.readdirSync(folder);
@@ -1956,7 +1956,7 @@ function inspectModuleFiles(id, sub) {
     }
     let st = null;
     try { st = fs.statSync(path.join(folder, name)); } catch { /* a broken link */ }
-    if (st && st.isFile()) out.files.push(name);
+    if (st && st.isFile()) { out.files.push(name); out.sizes[name] = st.size; }
     else out.skipped.push({ name, reason: st ? 'not a regular file (a folder or something else)' : 'a link that leads nowhere' });
   }
   return out;
@@ -1965,7 +1965,7 @@ const listModuleFiles = (id, sub) => inspectModuleFiles(id, sub).files;
 // The path of a file a module's file settings can name, or null.
 const moduleFilePath = (manifest, name) => {
   if (!FILE_NAME_RE.test(name)) return null;
-  for (const d of manifest.settings || []) if (d.type === 'file' && listModuleFiles(manifest.id, d.folder).includes(name)) return path.join(moduleFilesDir(manifest.id, d.folder), name);
+  for (const d of manifest.settings || []) if ((d.type === 'file' || d.type === 'files') && listModuleFiles(manifest.id, d.folder).includes(name)) return path.join(moduleFilesDir(manifest.id, d.folder), name);
   return null;
 };
 // The same, in words, for the log and for the picker.
@@ -2013,7 +2013,7 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id, d.folder)) : {}) }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' || d.type === 'files' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id, d.folder)) : {}) }));
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
@@ -2034,6 +2034,7 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
   try {
     for (const [key, v] of Object.entries(req.body?.values || {})) {
       const def = found.manifest.settings.find((d) => d.key === key);
+      if (def && def.type === 'files' && Array.isArray(v)) { const have = listModuleFiles(found.manifest.id, def.folder); const gone = v.find((n) => !have.includes(n)); if (gone) throw new SettingError(`${def.label}: there is no file called ${gone} for this module`); }
       if (def && def.type === 'file' && v && !listModuleFiles(found.manifest.id, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
     }
     moduleSettings.set(found.manifest, req.params.scope, place.ctx, req.body?.values, place.user.key);
@@ -2431,6 +2432,6 @@ app.use((err, _req, res, _next) => {
 app.listen(Number(PORT), () => {
   console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
   // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
-  for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
+  for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
   if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
 });

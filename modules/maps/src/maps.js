@@ -39,7 +39,7 @@
 
   const state = {
     items: [], // the cards in this room that carry a place
-    settings: { map: '' },
+    settings: { maps: [] },
     candidates: [], // search results drawn as pins to pick from
     searcher: null, // the action that searches for a place, if some module provides one
     selected: null, // the id of the card that is open
@@ -382,9 +382,9 @@
 
   async function startMap() {
     if (state.map) { state.map.remove(); state.map = null; state.mapReady = false; clearPins(); }
-    const wantFile = state.settings.map;
+    const wanted = state.settings.maps;
     const app = $('app');
-    if (!wantFile) {
+    if (!wanted.length) {
       showState(isAdmin ? 'tpl-state-nomap-admin' : 'tpl-state-nomap-member');
       const link = $('state').querySelector('[data-action="open-settings"]');
       if (link) link.href = '/admin.html#modules';
@@ -397,23 +397,30 @@
       return;
     }
     showState('tpl-state-loading');
-    let fileUrl;
-    let header;
+    let fileUrls;
+    let headers;
     let metadata = null;
     try {
-      fileUrl = new URL(await tavern.files.url(wantFile), location.href).href;
       if (!protocol) { protocol = new pmtiles.Protocol(); maplibregl.addProtocol('pmtiles', protocol.tile); }
-      const archive = new pmtiles.PMTiles(fileUrl);
-      protocol.add(archive);
-      header = await archive.getHeader();
-      metadata = await archive.getMetadata().catch(() => null);
+      fileUrls = [];
+      headers = [];
+      for (const name of wanted) {
+        const url = new URL(await tavern.files.url(name), location.href).href;
+        const archive = new pmtiles.PMTiles(url);
+        protocol.add(archive);
+        headers.push(await archive.getHeader());
+        fileUrls.push(url);
+        if (!metadata) metadata = await archive.getMetadata().catch(() => null);
+      }
     } catch (err) {
       showError();
       render();
       return;
     }
     const glyphs = `${location.origin}/maps-glyphs/{fontstack}/{range}.pbf`;
-    const style = () => buildStyle(tokens(), { tiles: `pmtiles://${fileUrl}`, glyphs });
+    state.tileUrls = fileUrls.map((u) => `pmtiles://${u}`);
+    const header = { centerLon: headers[0].centerLon, centerLat: headers[0].centerLat, minLon: Math.min(...headers.map((h) => h.minLon)), minLat: Math.min(...headers.map((h) => h.minLat)), maxLon: Math.max(...headers.map((h) => h.maxLon)), maxLat: Math.max(...headers.map((h) => h.maxLat)) };
+    const style = () => buildStyle(tokens(), { tiles: state.tileUrls, glyphs });
     const map = new maplibregl.Map({ container: $('map'), style: style(), attributionControl: false, renderWorldCopies: false, dragRotate: false, pitchWithRotate: false, maxZoom: 19, center: [header.centerLon, header.centerLat], zoom: 2, fadeDuration: 150 });
     map.touchZoomRotate.disableRotation();
     state.map = map;
@@ -576,14 +583,15 @@
 
   tavern.on('theme', () => {
     if (!state.map || !state.mapReady) return;
-    const c = state.map.getStyle();
-    if (!c || !c.sources || !c.sources.map) return;
-    state.map.setStyle(buildStyle(tokens(), { tiles: c.sources.map.url, glyphs: `${location.origin}/maps-glyphs/{fontstack}/{range}.pbf` }));
+    if (!state.tileUrls) return;
+    state.map.setStyle(buildStyle(tokens(), { tiles: state.tileUrls, glyphs: `${location.origin}/maps-glyphs/{fontstack}/{range}.pbf` }));
   });
 
   function applySettings(next) {
-    const mapChanged = next.map !== state.settings.map;
-    state.settings = { map: next.map || '' };
+    // The map files chosen (a list; a single name from before is one file).
+    const files = (Array.isArray(next.map) ? next.map : next.map ? [next.map] : []).slice(0, 20);
+    const mapChanged = files.join('|') !== state.settings.maps.join('|');
+    state.settings = { maps: files };
     if (mapChanged && state.started) startMap();
   }
   tavern.settings.onChange((s) => applySettings(s || {}));

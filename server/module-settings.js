@@ -11,7 +11,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 
 const SCOPES = ['server', 'room', 'person'];
-const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file'];
+const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files'];
 
 class SettingError extends Error {
   constructor(message, status = 400) {
@@ -43,6 +43,11 @@ function cleanValue(def, raw) {
     try { u = new URL(t); } catch { throw new SettingError(`${def.label} must be a web address`); }
     if (!/^https?:$/.test(u.protocol) || t.length > 500) throw new SettingError(`${def.label} must be an http or https address`);
     return t;
+  }
+  if (def.type === 'files') {
+    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+    if (list.length > 20 || list.some((n) => typeof n !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(n))) throw new SettingError(`${def.label} must be a list of file names`);
+    return [...new Set(list)];
   }
   if (def.type === 'file') {
     if (typeof raw !== 'string' || (raw !== '' && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(raw))) throw new SettingError(`${def.label} must be the name of a file`);
@@ -90,6 +95,7 @@ class ModuleSettings extends EventEmitter {
     const stored = this.bucket(manifest.id, scope, ctx);
     const out = {};
     for (const def of manifest.settings || []) if (def.scope === scope) out[def.key] = def.key in stored ? stored[def.key] : def.default;
+    for (const def of manifest.settings || []) if (def.scope === scope && def.type === 'files' && typeof out[def.key] === 'string') out[def.key] = out[def.key] ? [out[def.key]] : []; // from when it was one file
     return out;
   }
 

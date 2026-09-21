@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -45,12 +45,12 @@
   "settings": [
     {
       "key": "map",
-      "label": "Map file",
-      "type": "file",
+      "label": "Map files",
+      "type": "files",
       "folder": "map-tiles",
       "scope": "server",
-      "default": "",
-      "help": "A PMTiles map file (a region or the world) in the map-tiles folder inside the Maps module folder (modules/maps/map-tiles/ in the data folder). Nothing shows until one is chosen."
+      "default": [],
+      "help": "PMTiles map files in modules/maps/map-tiles/ in the data folder. Tick the ones to use; several regions are drawn together."
     }
   ],
   "access": {

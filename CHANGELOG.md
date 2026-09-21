@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Maps 0.6.1: the map file setting is now a table of the files in the map folder, each with its size and a tick (a new `files` setting type: a list of names, up to 20, each checked to exist). Maps draws every ticked file together, layer by layer, so regions that sit side by side make one map; a single file chosen before still works. Verified: a bad name refused, both files saved and untick then re-tick saved through the settings page, and the map drawing with two files ticked; the style check covers several sources. Overlapping files of different builds are not reconciled.
+
+### Changed
 - Reloading the page keeps you in your room instead of sending you back to the rooms screen: the room is remembered for that browser tab and rejoined when the page starts again. It is forgotten when you leave, are removed, or the room cannot be joined; an aside or private word is not remembered (it is gone once it ends), and a guest link already stays in its room. Verified that a reload with a remembered room asks to join it; the live call itself could not be tested here.
 
 ### Added

@@ -49,4 +49,18 @@ test('colours from the theme, and the style built from them', () => {
   assert.ok(!JSON.stringify(dark).includes('NaN'));
 });
 
+test('several map files are drawn together, layer by layer', () => {
+  const one = lib.buildStyle({}, { tiles: 'pmtiles://a', glyphs: 'g' });
+  const two = lib.buildStyle({}, { tiles: ['pmtiles://a', 'pmtiles://b'], glyphs: 'g' });
+  assert.deepEqual(Object.keys(two.sources), ['map', 'map1']);
+  assert.equal(two.sources.map1.url, 'pmtiles://b');
+  assert.equal(two.layers.length, 1 + (one.layers.length - 1) * 2);
+  const ids = two.layers.map((l) => l.id);
+  assert.equal(new Set(ids).size, ids.length, 'layer ids stay unique');
+  const at = (id) => ids.indexOf(id);
+  assert.ok(at('roads-major-1') > at('earth-1') && at('earth-1') === at('earth') + 1, 'a file\'s ground never covers the next one\'s roads');
+  assert.equal(two.layers.find((l) => l.id === 'earth-1').source, 'map1');
+  assert.equal(one.layers.filter((l) => l.source === 'map').length, one.layers.length - 1);
+});
+
 console.log(`check-maps: OK (${n} checks)`);
