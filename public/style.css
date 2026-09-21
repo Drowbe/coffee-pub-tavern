@@ -4646,3 +4646,17 @@ body.at-table .module-nav {
 .stage.reordering, .stage.reordering * { cursor: grabbing !important; user-select: none; }
 .stage.reordering iframe { pointer-events: none; }
 .pane-lifted { position: relative; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 12px 32px color-mix(in srgb, black 40%, transparent); }
+
+/* a list setting (Planner's marker types): a row each with a colour, an icon, a label and tools */
+.list-rows { list-style: none; margin: 6px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.list-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.list-row input[type="color"] { flex: none; width: 34px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; cursor: pointer; }
+.list-row [data-f="label"] { flex: 1; min-width: 0; }
+.list-tools { display: flex; align-items: center; gap: 4px; flex: none; }
+.icon-pick { position: relative; flex: none; }
+.icon-pick summary { display: flex; align-items: center; justify-content: center; width: 34px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input, var(--bg-card)); cursor: pointer; list-style: none; }
+.icon-pick summary::-webkit-details-marker { display: none; }
+.icon-grid { position: absolute; z-index: 20; top: 36px; left: 0; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-section); box-shadow: 0 10px 28px color-mix(in srgb, black 35%, transparent); }
+.icon-grid button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
+.icon-grid button:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+@media (max-width: 640px) { .list-row { flex-wrap: wrap; } .icon-grid { grid-template-columns: repeat(6, 36px); } }

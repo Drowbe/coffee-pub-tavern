@@ -4,7 +4,54 @@
 // server decides who may change what; this only draws what it is given.
 import { api, escapeHtml } from '/brand.js';
 
+// A list of things with a label, an icon and a colour each (Planner's marker types): rows to change, reorder, remove and add. The rows the
+// module says are fixed (def.fixed: ids) are always there; their label, icon and colour can change but they cannot be removed.
+// Icons are picked from a small set of Font Awesome names that suit a plan; the colour is a hex value.
+const ICONS = ['flag', 'flag-checkered', 'plane-departure', 'plane-arrival', 'plane', 'train', 'car', 'ship', 'bus', 'bed', 'utensils', 'mug-hot', 'martini-glass', 'camera', 'mountain', 'umbrella-beach', 'person-walking', 'person-hiking', 'ticket', 'bell', 'clock', 'hourglass-half', 'moon', 'sun', 'face-smile', 'heart', 'star', 'users', 'shopping-bag', 'landmark', 'music', 'circle-exclamation', 'triangle-exclamation', 'location-dot', 'suitcase', 'gift', 'wine-glass', 'spa', 'bolt'];
+const HEX = /^#[0-9a-f]{6}$/i;
+function listRow(def, r) {
+  const fixed = (def.fixed || []).includes(r.id);
+  const color = HEX.test(r.color || '') ? r.color : '#888888';
+  const icon = ICONS.includes(r.icon) ? r.icon : ICONS[0];
+  return `<li class="list-row" data-id="${escapeHtml(r.id || '')}" data-icon="${escapeHtml(icon)}">
+    <input type="color" data-f="color" value="${escapeHtml(color)}" aria-label="Colour">
+    <details class="icon-pick"><summary aria-label="Icon" title="Icon"><i class="fa-solid fa-${escapeHtml(icon)} fa-fw" aria-hidden="true"></i></summary><div class="icon-grid">${ICONS.map((n) => `<button type="button" data-icon-choice="${n}" title="${n.replace(/-/g, ' ')}"><i class="fa-solid fa-${n} fa-fw" aria-hidden="true"></i></button>`).join('')}</div></details>
+    <input type="text" data-f="label" value="${escapeHtml(r.label || '')}" maxlength="${def.maxLength || 30}" placeholder="Label" aria-label="Label">
+    <span class="list-tools"><button type="button" class="btn btn-small" data-list="up" title="Move up" aria-label="Move up"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button><button type="button" class="btn btn-small" data-list="down" title="Move down" aria-label="Move down"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button>${fixed ? '<span class="pill">Built in</span>' : '<button type="button" class="btn btn-small btn-danger" data-list="remove" title="Remove" aria-label="Remove"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>'}</span>
+  </li>`;
+}
+function listControl(def) {
+  const rows = Array.isArray(def.value) ? def.value : [];
+  return `<div class="list-setting" data-key="${escapeHtml(def.key)}" data-list-setting><div class="hint">${escapeHtml(def.label)}</div><ul class="list-rows">${rows.map((r) => listRow(def, r)).join('')}</ul><button type="button" class="btn btn-small" data-list="add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add</button></div>`;
+}
+// What the rows say now: [{ id, label, icon, color }] (a new row has no id: the server makes one from its label).
+function readList(el) {
+  return [...el.querySelectorAll('.list-row')].map((li) => ({ id: li.dataset.id || '', label: li.querySelector('[data-f="label"]').value.trim(), icon: li.dataset.icon, color: li.querySelector('[data-f="color"]').value }));
+}
+function wireList(el, def) {
+  el.addEventListener('click', (event) => {
+    const choice = event.target.closest('[data-icon-choice]');
+    const li = event.target.closest('.list-row');
+    if (choice && li) {
+      li.dataset.icon = choice.dataset.iconChoice;
+      li.querySelector('summary i').className = `fa-solid fa-${choice.dataset.iconChoice} fa-fw`;
+      li.querySelector('details').open = false;
+      return;
+    }
+    const b = event.target.closest('[data-list]');
+    if (!b) return;
+    const list = el.querySelector('.list-rows');
+    if (b.dataset.list === 'add') {
+      list.insertAdjacentHTML('beforeend', listRow(def, { id: '', label: '', icon: 'flag', color: '#4f8fdd' }));
+      list.lastElementChild.querySelector('[data-f="label"]').focus();
+    } else if (li && b.dataset.list === 'remove') li.remove();
+    else if (li && b.dataset.list === 'up' && li.previousElementSibling) li.previousElementSibling.before(li);
+    else if (li && b.dataset.list === 'down' && li.nextElementSibling) li.nextElementSibling.after(li);
+  });
+}
+
 function control(def) {
+  if (def.type === 'list') return listControl(def);
   const id = `ms-${def.key}`;
   if (def.type === 'boolean') return `<label class="check"><input type="checkbox" data-key="${escapeHtml(def.key)}" ${def.value ? 'checked' : ''}> ${escapeHtml(def.label)}</label>`;
   const head = `<label>${escapeHtml(def.label)}`;
@@ -64,6 +111,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
     }
     for (const row of card.querySelectorAll('[data-when-key]')) row.hidden = value(row.dataset.whenKey) !== row.dataset.whenValue;
   };
+  for (const box of container.querySelectorAll('[data-list-setting]')) wireList(box, modules.find((m) => m.id === box.closest('.module-settings-card').dataset.module).settings.find((d) => d.key === box.dataset.key));
   for (const card of container.querySelectorAll('.module-settings-card')) {
     refresh(card);
     card.addEventListener('change', () => refresh(card));
@@ -77,7 +125,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
     const values = {};
     for (const el of card.querySelectorAll('[data-key]')) {
       const def = module.settings.find((d) => d.key === el.dataset.key);
-      values[def.key] = def.type === 'files' ? [...el.querySelectorAll('input:checked')].map((i) => i.value) : def.type === 'boolean' ? el.checked : def.type === 'number' ? Number(el.value) : el.value;
+      values[def.key] = def.type === 'list' ? readList(el) : def.type === 'files' ? [...el.querySelectorAll('input:checked')].map((i) => i.value) : def.type === 'boolean' ? el.checked : def.type === 'number' ? Number(el.value) : el.value;
     }
     status.classList.remove('error');
     status.textContent = 'saving...';

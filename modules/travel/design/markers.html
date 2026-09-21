@@ -27,29 +27,37 @@ const state = q.get('state') || 'normal';
 const w = Number(q.get('w')) || 390;
 if (q.get('theme') === 'light') document.documentElement.classList.add('light');
 const ic = (n) => `<span class="ic"><i class="fa-solid fa-${n}"></i></span>`;
-const marker = (kind, icon, time, title, sub) => `<li class="row marker" data-marker="${kind}"><div class="when"><b>${time}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><div class="markercard">${ic(icon)}<b>${title}</b><span class="sub">${sub}</span></div></div></li>`;
+// a marker: a two-part pill (icon cell, label cell) on the line; `color` stands for a colour chosen in the settings (--marker)
+const pill = (cls, attrs, icon, inner, color) => `<div class="${cls} markerpill" ${attrs}${color ? ` style="--marker:${color}"` : ''}><span class="mk-icon">${ic(icon)}</span><span class="mk-label">${inner}</span></div>`;
+const marker = (kind, icon, time, title, sub) => `<li class="row marker" data-marker="${kind}"><div class="when"><b>${time}</b></div><div class="rail"><span class="dot"></span></div><div class="slot">${pill('markercard', '', icon, `<b>${title}</b><span class="sub">${sub}</span>`)}</div></li>`;
+const ends = (side, rows) => `<ol class="timeline ends" data-ends="${side}">${rows}</ol>`;
 const stop = (t, title, sub) => `<li class="row entry" data-kind="stop" data-type="restaurant"><div class="when"><b>${t}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><article class="card meal"><span class="badge">${ic('utensils')}</span><div class="main"><span class="kicker">Restaurant</span><h3>${title}</h3><p>${sub}</p></div><div class="side"><b>${t}</b></div></article></div></li>`;
 const day = (n, month, head, sub, rows, cls = '') => `<section class="day2${cls}"><header class="day-head2"><div class="dnum"><b>${n}</b><span>${month}</span></div><div class="dmeta"><h2>${head}</h2><p>${sub}</p></div></header><ol class="timeline">${rows}</ol></section>`;
 const edge = (side, open) => `<div class="dayedge" data-edge="${side}">${open ? '' : `<button class="btn" type="button" data-action="edge-open">${ic('plus')} <span>Add days ${side}</span></button>`}<form class="edge-form"${open ? '' : ' hidden'}><label>Add <input type="number" name="count" min="1" max="30" value="3"> <span>days</span></label><button class="btn btn-primary" type="submit">Add</button><button class="btn" type="button">Cancel</button></form></div>`;
+const gap = (n) => `<div class="gap"><span class="gapcount" title="${n} days between">${n}</span><button class="gapadd" type="button" aria-label="Add something between these days">${ic('plus')}</button></div>`;
 const emptyDay = (n, month, head) => day(n, month, head, 'Nothing planned', '<li class="day-empty">Nothing here yet</li>', ' is-empty');
-const block = (type, icon, title, t, mins, note) => `<li class="row entry" data-kind="block"><div class="when"><b>${t}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><article class="card block" data-type="${type}"><span class="badge">${ic(icon)}</span><b class="blocktitle">${title}</b><span class="blocklen">${mins}</span><span class="blocknote">${note}</span></article></div></li>`;
-const days = state === 'blocks' ? [day(2, 'SUN · OCT', 'Day 2 of 5', 'Free time, rest, a meet-up', block('leave-by', 'bell', 'Leave by', '09:15', '', 'for the airport transfer') + stop('10:05', 'A Brasileira', 'R. Garrett 120') + block('buffer', 'hourglass-half', 'Buffer', '11:00', '30 min', 'in case the queue is long') + block('free-time', 'face-smile', 'Free time', '11:30', '2 h', 'wander Chiado') + block('meet-up', 'users', 'Meet up', '14:00', '', 'everyone at the tram stop') + block('rest', 'moon', 'Rest', '15:00', '1 h 30', 'back at the hotel'))] : [
-  day(1, 'SAT · OCT', 'Day 1 of 5', '2 stops', marker('planning-start', 'flag', 'Sat 3', 'Planning starts', 'the plan begins') + marker('trip-start', 'plane-departure', '17:40', 'Trip starts', 'TAP Air Portugal TP 214 · Denver') + stop('20:30', 'Cervejaria Ramiro', 'Av. Almirante Reis 1')),
+// a time block: an item in a day, the same pill, with a time on its row
+const block = (t, icon, title, mins, note, color) => `<li class="row entry" data-kind="block"><div class="when"><b>${t}</b></div><div class="rail"><span class="dot"></span></div><div class="slot"><article class="card block markerpill" data-type="custom"${color ? ` style="--marker:${color}"` : ''}><span class="mk-icon">${ic(icon)}</span><span class="mk-label"><b>${title}</b><span class="mk-len">${mins}</span><span class="mk-note">${note}</span></span></article></div></li>`;
+const days = state === 'blocks' ? [day(2, 'SUN · OCT', 'Day 2 of 5', 'Free time, rest, a meet-up', block('09:15', 'bell', 'Leave by', '', 'for the airport transfer', '#d4574c') + stop('10:05', 'A Brasileira', 'R. Garrett 120') + block('11:00', 'hourglass-half', 'Buffer', '30 min', 'in case the queue is long', '#c9a227') + block('11:30', 'face-smile', 'Free time', '2 h', 'wander Chiado', '#2fa88a') + block('14:00', 'users', 'Meet up', '', 'everyone at the tram stop', '#c65f9a') + block('15:00', 'moon', 'Rest', '1 h 30', 'back at the hotel', '#7a6fd0'))] : [
+  day(1, 'SAT · OCT', 'Day 1 of 5', '2 stops', stop('20:30', 'Cervejaria Ramiro', 'Av. Almirante Reis 1'), ' in-trip'),
   emptyDay(2, 'SUN · OCT', 'Day 2 of 5'),
-  day(3, 'MON · OCT', 'Day 3 of 5', '1 stop', stop('13:00', 'Time Out Market', 'Av. 24 de Julho')),
+  day(3, 'MON · OCT', 'Day 3 of 5', '1 stop', stop('13:00', 'Time Out Market', 'Av. 24 de Julho'), ' in-trip'),
   emptyDay(4, 'TUE · OCT', 'Day 4 of 5'),
-  day(5, 'WED · OCT', 'Day 5 of 5', '1 stop', stop('09:00', 'Pastéis de Belém', 'R. de Belém 84') + marker('trip-end', 'plane-arrival', '14:20', 'Trip ends', 'TAP Air Portugal TP 215 · Lisbon') + marker('planning-end', 'flag-checkered', 'Wed 7', 'Planning ends', 'the plan ends')),
+  day(5, 'WED · OCT', 'Day 5 of 5', '1 stop', stop('09:00', 'Pastéis de Belém', 'R. de Belém 84'), ' in-trip'),
 ];
+const before = ends('before', marker('planning-start', 'flag', 'Sat 3', 'Planning starts', 'the plan begins') + marker('trip-start', 'plane-departure', '17:40', 'Trip starts', 'TAP Air Portugal TP 214 · Denver'));
+const after = ends('after', marker('trip-end', 'plane-arrival', '14:20', 'Trip ends', 'TAP Air Portugal TP 215 · Lisbon') + marker('planning-end', 'flag-checkered', 'Wed 7', 'Planning ends', 'the plan ends'));
 const hidden = state === 'hidden';
-const shown = hidden ? days.filter((d) => !d.includes('is-empty')) : days;
-const chips = ['Sat 3', 'Sun 4', 'Mon 5', 'Tue 6', 'Wed 7'].map((c, i) => `<button class="daychip${i === 0 ? ' current' : ''}${[1, 3].includes(i) ? ' is-empty' : ''}" type="button">${c.split(' ')[0]}<b>${c.split(' ')[1]}</b></button>`).filter((c, i) => !(hidden && [1, 3].includes(i))).join('');
+// with empty days hidden, each run of them is one badge on the line
+const body = state === 'blocks' ? days.join('') : hidden ? days[0] + gap(1) + days[2] + gap(1) + days[4] : days.join('');
+const chips = ['Sat 3', 'Sun 4', 'Mon 5', 'Tue 6', 'Wed 7'].map((c, i) => `<button class="daychip${i === 0 ? ' current' : ''}${[0, 2, 4].includes(i) ? ' in-trip' : ''}${[1, 3].includes(i) ? ' is-empty' : ''}" type="button">${c.split(' ')[0]}<b>${c.split(' ')[1]}</b></button>`).filter((c, i) => !(hidden && [1, 3].includes(i))).join('');
 document.getElementById('stage').style.width = w + 'px';
 document.getElementById('stage').innerHTML = `<div class="app${w < 720 ? ' narrow' : ''}${hidden ? ' hide-empty' : ''}" id="app" style="height:auto;display:block">
 <header class="trip"><div><h1 class="trip-title">Lisbon</h1><div class="trip-when">Sat 3 – Wed 7 Oct 2026</div></div>
 <div class="tools"><div class="views"><button class="btn tool on" type="button">${ic('calendar-days')}</button><button class="btn tool" type="button">${ic('scale-balanced')}</button><button class="btn tool" type="button">${ic('ticket')}</button><button class="btn tool" type="button">${ic('coins')}</button></div>
 <div class="actions"><button class="btn tool tool-empty" type="button" title="${hidden ? 'Show empty days' : 'Hide empty days'}" aria-pressed="${hidden}">${ic('eye-slash')}</button><button class="btn tool tool-edit" type="button" title="Edit trip">${ic('pen')}</button></div></div></header>
 <div class="stripbar"><nav class="daystrip">${chips}</nav></div>
-<main class="body" style="overflow:visible">${edge('before', state === 'edge')}${hidden ? `<p class="emptynote">${ic('eye-slash')} <span>2 empty days hidden</span> <button class="btn" type="button">Show</button></p>` : ''}<div class="days">${shown.join('')}</div>${edge('after', false)}</main></div>`;
+<main class="body" style="overflow:visible"><div class="days">${edge('before', state === 'edge')}${state === 'blocks' ? '' : before}${body}${state === 'blocks' ? '' : after}${edge('after', false)}</div></main></div>`;
 </script>
 </body>
 </html>
