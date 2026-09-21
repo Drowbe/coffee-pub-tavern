@@ -73,3 +73,7 @@ Both sides' suggested answers are marked; the author has not answered yet.
 - **Money:** budget and cost splitting are where the other tools charge or fall short. In or out of the first version? This plan leaves them for later.
 - **One trip per room,** or several? One is simpler and matches how a room works; a group with two trips would use two rooms.
 - **Ordering inside a day:** by time when there is one, else by hand? This plan sorts by time and lets the hand order the untimed ones.
+
+## Item details for cards (0.4.0, data only)
+
+Items carry optional details for stylized cards: a journey `mode`, `operator`, `number`, `fromCode`, `toCode`, `terminal`, `gate`, `platform`, `carriage`, `seat`, `travelClass`, `pickup`, `dropoff`; a stop `type`, `partySize`, `reservationName`, `admissionCount`, `gate`; a stay `type`, `roomType`, `guests`; any item `travelMode` and `travelMinutes` (the leg from the item before, set by hand, later by a routing service). The city names are the existing `from` and `to`, the booking reference the existing `confirm`. The editor and the cards that use them come next.

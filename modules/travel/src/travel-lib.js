@@ -6,11 +6,22 @@
   const TRIP_KEY = 'trip:main';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
   const KINDS = ['stop', 'stay', 'journey', 'note', 'link'];
+  // What an item is, for how it is drawn (the page decides how; the model only keeps a known value). A journey has a `mode`,
+  // a stop and a stay a `type`, and any item may say how you get to it (`travelMode`, `travelMinutes`: the leg from the
+  // item before), which a person sets now and a routing service could fill later.
+  const MODES = ['flight', 'train', 'bus', 'ferry', 'car', 'other'];
+  const STOP_TYPES = ['restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'hike', 'beach', 'shop', 'spa', 'other'];
+  const STAY_TYPES = ['hotel', 'rental', 'hostel', 'camp', 'other'];
+  const TRAVEL_MODES = ['walk', 'drive', 'transit', 'bike', 'taxi', 'none'];
   const MAX_DAYS = 60;
   const DAY_MS = 24 * 60 * 60 * 1000;
 
   const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(parseYmd(s).getTime()) && ymd(parseYmd(s)) === s;
   const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+  // A small whole number, 1 to max, or null.
+  const count = (n, max) => (Number.isFinite(n) && n >= 1 ? Math.min(Math.round(n), max) : null);
+  // A code such as an airport (IATA, 3 letters) or a gate: letters and digits, upper case, or ''.
+  const code = (s, n) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, n);
   const clip = (s, n) => String(s ?? '').replace(/\p{Cc}/gu, (c) => (c === '\n' ? c : ' ')).trim().slice(0, n);
 
   // One stored item, made safe and complete; null when it cannot be an item at all. `date` is null for an idea
@@ -34,6 +45,8 @@
       from: clip(raw.from, 80),
       to: clip(raw.to, 80),
       checkOut: isYmd(raw.checkOut) ? raw.checkOut : null,
+      travelMode: TRAVEL_MODES.includes(raw.travelMode) ? raw.travelMode : null,
+      travelMinutes: Number.isFinite(raw.travelMinutes) && raw.travelMinutes > 0 ? Math.min(Math.round(raw.travelMinutes), 24 * 60) : null,
       order: Number.isFinite(raw.order) ? raw.order : 0,
       owners: Array.isArray(raw.owners) ? [...new Set(raw.owners.filter((k) => typeof k === 'string').map((k) => k.slice(0, 40)))].slice(0, 20) : [],
       done: Boolean(raw.done),
@@ -48,6 +61,36 @@
       const r = raw.ref;
       if (!r || typeof r.module !== 'string' || typeof r.kind !== 'string' || typeof r.id !== 'string') return null;
       item.ref = { module: r.module, kind: r.kind, id: r.id, scope: r.scope === 'room' ? 'room' : 'server', ...(r.scope === 'room' && r.room ? { room: r.room } : {}) };
+    }
+    // Details that belong to one kind of item, all optional. A stop: what it is, and for a meal or an event who and how many.
+    if (kind === 'stop') {
+      item.type = STOP_TYPES.includes(raw.type) ? raw.type : null;
+      item.partySize = count(raw.partySize, 99);
+      item.reservationName = clip(raw.reservationName, 60);
+      item.admissionCount = count(raw.admissionCount, 999);
+      item.gate = clip(raw.gate, 30);
+    }
+    // A stay: what kind, the room, and how many guests.
+    if (kind === 'stay') {
+      item.type = STAY_TYPES.includes(raw.type) ? raw.type : null;
+      item.roomType = clip(raw.roomType, 60);
+      item.guests = count(raw.guests, 99);
+    }
+    // A journey: how, and what a ticket for it says (a flight's airline and number, a train's operator and platform...).
+    if (kind === 'journey') {
+      item.mode = MODES.includes(raw.mode) ? raw.mode : 'other';
+      item.operator = clip(raw.operator, 60); // the airline, the train company, the ferry line
+      item.number = clip(raw.number, 20); // flight or train number
+      item.fromCode = code(raw.fromCode, 5);
+      item.toCode = code(raw.toCode, 5);
+      item.terminal = clip(raw.terminal, 30);
+      item.gate = clip(raw.gate, 30);
+      item.platform = clip(raw.platform, 30);
+      item.carriage = clip(raw.carriage, 30);
+      item.seat = clip(raw.seat, 30);
+      item.travelClass = clip(raw.travelClass, 30);
+      item.pickup = clip(raw.pickup, 120); // a car: where it is collected and where it goes back
+      item.dropoff = clip(raw.dropoff, 120);
     }
     if (kind !== 'link' && !item.title) return null;
     if (kind === 'stay' && item.checkOut && item.date && item.checkOut < item.date) item.checkOut = null;

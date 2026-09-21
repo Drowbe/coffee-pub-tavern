@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Travel 0.4.0 (data only, no new screens yet): items keep the details the itinerary cards will draw, all optional and clipped. A journey has a `mode` (flight, train, bus, ferry, car, other) and `operator`, `number`, `fromCode`/`toCode` (upper-case codes), `terminal`, `gate`, `platform`, `carriage`, `seat`, `travelClass`, `pickup` and `dropoff`; a stop has a `type` (restaurant, cafe, bar, sight, museum, tour, show, hike, beach, shop, spa, other), `partySize`, `reservationName`, `admissionCount` and `gate`; a stay has a `type` (hotel, rental, hostel, camp, other), `roomType` and `guests`; any item has `travelMode` (walk, drive, transit, bike, taxi, none) and `travelMinutes` for the leg to it. Older items are unchanged. Checked in tools/check-travel.mjs (24 checks).
+
+### Added
 - `tavern.util.geo` in the SDK (coordinates checked and read from typed text or a map link, and the link that opens a spot in the person's own maps app), for the Places and Maps modules to share. The Places module's model and its `addPlace` and `setPlacePoint` actions are written and checked (`tools/check-places.mjs`); the module itself follows with its page.
 
 ### Added

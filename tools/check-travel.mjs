@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -255,5 +255,40 @@ const run = async () => {
   n += 1;
 };
 await run();
+
+test('details for the cards: a journey has a mode, a stop and a stay a type, any item a leg to it', () => {
+  const f = lib.cleanItem({ id: 'f', kind: 'journey', title: 'LIS to FAO', mode: 'flight', operator: 'TAP', number: 'tp 1234', fromCode: 'lis!', toCode: 'fao', terminal: '1', seat: '12A', travelClass: 'economy' });
+  assert.equal(f.mode, 'flight');
+  assert.equal(f.fromCode, 'LIS');
+  assert.equal(f.number, 'tp 1234');
+  assert.equal(f.seat, '12A');
+  assert.equal(lib.cleanItem({ id: 'j', kind: 'journey', title: 'x', mode: 'rocket' }).mode, 'other');
+  assert.equal(lib.cleanItem({ id: 'j', kind: 'journey', title: 'x' }).mode, 'other');
+  const t = lib.cleanItem({ id: 't', kind: 'journey', title: 'x', mode: 'train', operator: 'CP', platform: '4', carriage: '7' });
+  assert.equal(t.platform, '4');
+  assert.equal(t.carriage, '7');
+  const c = lib.cleanItem({ id: 'c', kind: 'journey', title: 'x', mode: 'car', pickup: 'Airport', dropoff: 'Lisbon' });
+  assert.equal(c.pickup, 'Airport');
+  const meal = lib.cleanItem({ id: 'm', kind: 'stop', title: 'Dinner', type: 'restaurant', partySize: 4.4, reservationName: 'Ann', admissionCount: 0 });
+  assert.equal(meal.type, 'restaurant');
+  assert.equal(meal.partySize, 4);
+  assert.equal(meal.reservationName, 'Ann');
+  assert.equal(meal.admissionCount, null);
+  assert.equal(lib.cleanItem({ id: 's', kind: 'stop', title: 'x', type: 'casino' }).type, null);
+  assert.equal(lib.cleanItem({ id: 's', kind: 'stop', title: 'x', mode: 'flight' }).mode, undefined);
+  const show = lib.cleanItem({ id: 'e', kind: 'stop', title: 'Fado', type: 'show', admissionCount: 2, gate: 'b' });
+  assert.equal(show.admissionCount, 2);
+  const stay = lib.cleanItem({ id: 'h', kind: 'stay', title: 'Hotel', type: 'hotel', roomType: 'double', guests: 2 });
+  assert.equal(stay.type, 'hotel');
+  assert.equal(stay.guests, 2);
+  assert.equal(lib.cleanItem({ id: 'h', kind: 'stay', title: 'x', type: 'igloo' }).type, null);
+  const leg = lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'walk', travelMinutes: 12.4 });
+  assert.equal(leg.travelMode, 'walk');
+  assert.equal(leg.travelMinutes, 12);
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'teleport', travelMinutes: -5 }).travelMode, null);
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'teleport', travelMinutes: -5 }).travelMinutes, null);
+  assert.equal(lib.MODES.length, 6);
+  assert.ok(lib.STOP_TYPES.includes('cafe') && lib.STAY_TYPES.includes('camp') && lib.TRAVEL_MODES.includes('none'));
+});
 
 console.log(`check-travel: OK (${n} checks)`);
