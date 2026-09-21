@@ -96,6 +96,9 @@
 <template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
 <!-- a source of an answer, and anything else that points at another item: a small pill; .gone when the item is no longer there -->
 <template id="tpl-source"><span class="link"><span data-slot="label"></span></span></template>
+<!-- where a card is used: one pill per group of linkers (all the plans that use it, all the tasks), with the linker module's icon. One linker: its kind and title; several: "2 plans". The title attribute lists them. A "+N" pill when there are more groups than fit. -->
+<template id="tpl-backlink"><button class="backlink" type="button" data-action="open-backlink"><span class="ic" data-slot="icon-holder" data-icon=""></span><span data-slot="label"></span></button></template>
+<template id="tpl-backlink-more"><span class="backlink more" data-slot="label"></span></template>
 <template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
 
 <!-- a card. data-kind is note, link, photo or answer. A photo has its picture in .thumb (the script sets src); .kicker's [data-slot=ai] is shown for an answer. -->
@@ -107,6 +110,7 @@
     <div class="site" data-slot="site-wrap"><span class="ic" data-icon="globe"></span><span data-slot="site"></span></div>
     <p class="excerpt" data-slot="excerpt"></p>
     <div class="tags" data-slot="tags"></div>
+    <div class="backlinks" data-slot="backlinks" hidden></div>
     <div class="meta">
       <span data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span>
       <span data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>

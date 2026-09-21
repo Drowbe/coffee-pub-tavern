@@ -78,3 +78,7 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 - **Suggest tags:** `button[data-action=suggest-tags]` beside the tags field (`.with-button`), hidden unless AI is available and the item is a saved note, link or answer. It puts suggested words into `#f-tags`; nothing is saved until Save.
 - **Drop onto the pane:** while something from another module is dragged over Research, `.rs.drop-target` draws a dashed accent frame round the pane and `#drop-hint` ("Drop to start a note about it") appears above the bottom bar; dropping starts a note linked to the item, with its title.
 - **A photo whose file is gone:** the script sets `.missing` on `.thumb` when the picture fails to load; it shows a quiet hatched placeholder.
+
+## Where a card is used (backlinks, 0.1.7)
+
+`.backlinks[data-slot=backlinks]` sits at the foot of a card, above the meta line, hidden when nothing links to it (room view only; Mine is never linked). It holds one `tpl-backlink` pill per **group** of linkers, grouped by the linker's kind name: the linker module's icon (`[data-slot=icon-holder]`) and a label (`[data-slot=label]`): with one linker its kind and title ("Task: book the hotel"), with several "2 plans". The pill's `title` lists the linkers, and a click opens the linker (the only one, or the first). When there are more groups than fit, a `tpl-backlink-more` pill ("+2") ends the row. Reference: `design/pane.html` (the first card).

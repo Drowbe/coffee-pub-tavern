@@ -148,6 +148,12 @@ body { margin: 0; overflow: hidden; }
 /* dragging something from another module over the pane */
 .rs.drop-target::after { content: ""; position: absolute; inset: 6px; z-index: 40; border: 2px dashed var(--accent); border-radius: 14px; background: color-mix(in srgb, var(--accent) 6%, transparent); pointer-events: none; }
 .drop-hint { position: absolute; left: 50%; bottom: 72px; z-index: 41; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 8px 22px color-mix(in srgb, black 35%, transparent); pointer-events: none; }
+/* where a card is used: small pills along the foot of the card, above a dashed rule */
+.rcard .backlinks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; padding-top: 6px; border-top: 1px dashed color-mix(in srgb, var(--tone) 35%, var(--border)); }
+.backlink { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 22px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); color: var(--text); font: inherit; font-size: 11px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.backlink .ic { color: var(--accent); font-size: 11px; }
+.backlink:hover, .backlink:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.backlink.more { cursor: default; color: var(--text-dim); background: none; border-style: dashed; }
 .asked p { margin: 2px 0 8px; overflow-wrap: anywhere; }
 .links { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font-size: 11px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

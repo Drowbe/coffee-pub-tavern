@@ -38,11 +38,12 @@ const card = (kind, title, body, tags, o = {}) => `<article class="rcard" data-k
   ${o.site ? `<div class="site">${i('globe')} ${o.site}</div>` : ''}
   ${body ? `<p class="excerpt">${body}</p>` : ''}
   <div class="tags">${(tags || []).map(tag).join('')}</div>
+  ${o.used ? `<div class="backlinks">${o.used.map(([ic, t]) => `<button class="backlink" type="button">${i(ic)}<span>${t}</span></button>`).join('')}</div>` : ''}
   <div class="meta">${o.when ? `<span>${i('calendar-days')} ${o.when}</span>` : ''}${o.place ? `<span>${i('location-dot')} ${o.place}</span>` : ''}${o.n ? `<span>${i('paperclip')} ${o.n}</span>` : ''}${by(o.by || 'Thomas')}</div>
 </article>`;
 const cards = {
   normal: [
-    card('answer', 'Three hotels near Santa Apolónia, under €140', 'Hotel Lisboa Plaza (€128, 4 min walk), Vincci Baixa (€135) and Hotel Avenida Palace (€139). The Plaza is the quietest.', ['hotels', 'lisbon', 'budget'], { place: 'Santa Apolónia', by: 'Alicia' }),
+    card('answer', 'Three hotels near Santa Apolónia, under €140', 'Hotel Lisboa Plaza (€128, 4 min walk), Vincci Baixa (€135) and Hotel Avenida Palace (€139). The Plaza is the quietest.', ['hotels', 'lisbon', 'budget'], { place: 'Santa Apolónia', by: 'Alicia', used: [['suitcase', '2 plans'], ['list-check', 'Task: book the hotel']] }),
     card('note', 'Restaurant ideas from Christy', 'Cervejaria Ramiro for seafood (book ahead), Time Out Market for a quick lunch, and a fado night in Alfama. Ask about the tasting menu at Belcanto.', ['food', 'lisbon'], { by: 'Christy' }),
     card('link', 'Lisbon in 3 days: an itinerary', 'Day 1 Alfama and the castle, day 2 Belém, day 3 Sintra. Take the early train to beat the crowds.', ['to-do', 'lisbon'], { site: 'timeout.com', by: 'Thomas' }),
     card('note', 'Things to pack', 'Comfortable shoes (the hills), a light rain jacket, a universal adapter, and the passports.', ['to-do'], { by: 'Michelle' }),
