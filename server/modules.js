@@ -247,7 +247,7 @@ function cleanManifest(raw, files) {
     surfaces.widget = {
       entry: cleanEntry(w.entry, files, 'surfaces.widget'),
       title: text(w.title, 40),
-      size: ['small', 'medium', 'wide'].includes(w.size) ? w.size : 'small',
+      size: ['small', 'medium', 'wide', 'tall'].includes(w.size) ? w.size : 'small',
       order: Number.isFinite(w.order) ? clamp(Math.round(w.order), -1000, 1000, 100) : 100,
     };
   }

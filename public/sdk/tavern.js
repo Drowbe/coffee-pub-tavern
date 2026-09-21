@@ -282,6 +282,14 @@
     // a copy of the item. resolve() asks Tavern for the item's card (title, subtitle, when, end,
     // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
     // a pointer is only ever as revealing as the viewer's own access.
+    // The module's own page. `open(hash)` asks the host to open it at a place in it ("day=2026-09-24": letters,
+    // digits and = & _ . : , - only), which a widget uses for a click that means "show me this in full";
+    // `onHash(fn)` is called on the page with that place when it is opened that way (and again if it changes).
+    page: {
+      open: (hash) => call('page.open', { hash }),
+      onHash: (fn) => tavern.on('pagehash', (e) => fn(e.hash)),
+    },
+
     refs: {
       // A pointer to one of this module's own items, for a drag or to store.
       make: (kind, id, o) => {

@@ -108,10 +108,20 @@ async function start() {
   // Opened by another module's link: hand the pointer on, and again if the address changes.
   const first = refFromHash();
   if (first) mounted.deliver('refopen', { ref: first });
+  const place = placeFromHash();
+  if (place) mounted.deliver('pagehash', { hash: place });
   window.addEventListener('hashchange', () => {
     const ref = refFromHash();
     if (ref) mounted.deliver('refopen', { ref });
+    const at = placeFromHash();
+    if (at) mounted.deliver('pagehash', { hash: at });
   });
+}
+
+// A place in the module's own page left in the address by a widget ("#day=2026-09-24"; see tavern.page.open).
+function placeFromHash() {
+  const m = /^#([A-Za-z0-9=&_.:,-]{1,80})$/.exec(location.hash);
+  return m && !m[1].startsWith('ref=') ? m[1] : null;
 }
 
 // A pointer left in the address by another module's "open this" (see tavern.refs.open).

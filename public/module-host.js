@@ -227,7 +227,7 @@ function ptrDrop(x, y) {
 //
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null }) {
+export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null, onOpenPage = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -326,6 +326,14 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
       return Boolean(await onOpenRef({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }));
+    },
+    // Open this module's own page, at a place in it (a short hash such as day=2026-09-24). Only a host that has
+    // somewhere to take it (the dashboard) answers; the page then hands the hash to the module (pagehash).
+    async 'page.open'({ hash }) {
+      const h = String(hash ?? '');
+      if (!/^[A-Za-z0-9=&_.:,-]{0,80}$/.test(h)) throw Object.assign(new Error('that is not a valid place'), { status: 400 });
+      if (!onOpenPage) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
+      return Boolean(await onOpenPage(h));
     },
     // Tell Tavern what one of this module's items points at (all of it: the list replaces the last).
     async 'refs.setLinks'({ from, to }) {

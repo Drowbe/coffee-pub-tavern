@@ -311,13 +311,53 @@ input[type="range"] {
   align-items: stretch; /* every card as tall as the tallest, Join at the bottom */
 }
 
-/* The room list's dashboard: the widgets that modules provide, in a grid of cards under the rooms, one
-   column on a phone. The widgets style themselves (.dashboard-widget). */
-.dashboard {
+/* The rooms page: a sidebar (the dashboard: the widgets that modules provide, stacked) beside the main column
+   (who is around, then the room cards in two columns). One column on a phone, the rooms first. The widgets style
+   themselves (.dashboard-widget). */
+.home {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+}
+
+.home-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.home-main .room-list {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  /* Stays in view under the sticky header while the rooms scroll. */
+  position: sticky;
+  top: calc(44px + env(safe-area-inset-top) + 12px);
+  max-height: calc(100dvh - 44px - env(safe-area-inset-top) - 24px);
+  overflow-y: auto;
+}
+
+@media (max-width: 760px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-main {
+    order: 1;
+  }
+
+  .dashboard {
+    order: 2;
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
 }
 
 .dashboard[hidden] {
@@ -4299,14 +4339,61 @@ body.at-table .module-nav {
   border-radius: 10px;
 }
 
-#dashboard .dashboard-widget[data-size="wide"] {
-  grid-column: 1 / -1;
+/* Who is around: a strip above the room cards. */
+.whos-around {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 
-@media (min-width: 720px) {
-  #dashboard .dashboard-widget[data-size="medium"] {
-    grid-column: span 2;
-  }
+.whos-around[hidden] {
+  display: none;
+}
+
+.whos-around-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.whos-around-title i {
+  color: var(--accent);
+}
+
+.whos-around .dashboard-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.whos-around .dashboard-person img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+}
+
+.whos-around .dashboard-person-where,
+.whos-around .dashboard-empty {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.whos-around .dashboard-empty {
+  margin: 0;
+}
+
+.whos-around .dashboard-person-call {
+  color: var(--accent);
 }
 
 #dashboard .dashboard-widget-title {

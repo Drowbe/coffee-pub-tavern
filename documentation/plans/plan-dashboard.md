@@ -6,7 +6,7 @@
 
 ## What it is
 
-A dashboard on the rooms page, across all of a person's rooms: what is coming up, what is due, which polls need a vote, and who is around. It replaces the dedicated module pages in the header. It is made of widgets, small views that modules provide and Tavern hosts.
+A dashboard on the rooms page, in a sidebar on the left with the room cards in two columns on the right under a Who is around strip, across all of a person's rooms: what is coming up, what is due, which polls need a vote, and who is around. It replaces the dedicated module pages in the header. It is made of widgets, small views that modules provide and Tavern hosts.
 
 ## Decisions
 
@@ -36,5 +36,5 @@ A dashboard on the rooms page, across all of a person's rooms: what is coming up
 
 - What the Calendar widget lists and how far ahead (a first guess: the next seven days, each with its room's icon, newest first).
 - Whether a module with no widget still appears anywhere once its header item is gone. A first answer: only in the room's panes.
-- The dashboard on a phone: one column, in the same order, below the room list.
+- The dashboard on a phone: one column, with who is around and the rooms first and the sidebar widgets below them (decided; built).
 - Guests have no dashboard; they are in one room.

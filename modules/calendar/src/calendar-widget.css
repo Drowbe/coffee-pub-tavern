@@ -12,3 +12,16 @@ html, body { background: transparent; } /* the dashboard card is the background 
 .what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ri { flex: none; display: inline-flex; width: 14px; height: 14px; color: var(--text-dim); }
 .ri svg { width: 100%; height: 100%; fill: currentColor; }
+
+.mini { margin-bottom: 10px; }
+.mini-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.mini-head strong { font-size: 13px; }
+.mini-head button { width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text-dim); font: inherit; font-size: 16px; cursor: pointer; }
+.mini-head button:hover { background: var(--bg-card); color: var(--text); }
+.mini-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.mini-dow { text-align: center; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.mini-day { position: relative; aspect-ratio: 1; min-height: 28px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+.mini-day:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.mini-day.other { color: var(--text-dim); opacity: 0.5; }
+.mini-day.today { border-color: var(--accent); font-weight: 700; }
+.mini-day.has::after { content: ''; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--accent); }

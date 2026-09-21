@@ -19,9 +19,15 @@
   <header class="topbar" id="topbar"></header>
 
   <div class="join" id="join">
-    <div class="room-list" id="rooms"></div>
-    <!-- The dashboard: cards that modules provide (public/dashboard.js fills it). Empty and hidden until it has any. -->
-    <section class="dashboard" id="dashboard" hidden></section>
+    <!-- The rooms page: a sidebar of widget cards that modules provide (the dashboard, filled by
+         public/dashboard.js; empty and hidden until it has any) beside who is around and the room cards. -->
+    <div class="home">
+      <aside class="dashboard" id="dashboard" hidden></aside>
+      <div class="home-main">
+        <section class="whos-around" id="whos-around" hidden></section>
+        <div class="room-list" id="rooms"></div>
+      </div>
+    </div>
     <p class="status error" id="join-error" hidden></p>
     <p class="hint join-note">Your browser will ask for your microphone the first time. You join with your camera off; turn it on whenever you're ready, and your browser will ask for it then. <span id="install-hint" hidden></span></p>
   </div>

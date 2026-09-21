@@ -27,7 +27,6 @@ function paintUnread() {
 }
 
 let started = false;
-let whoBody = null;
 
 const section = () => document.getElementById('dashboard');
 
@@ -82,22 +81,26 @@ function mountWidget(w) {
     scope: 'server',
     entry: w.entry,
     onOpenRef: openRef,
+    // A click in the widget that means "show me this in full": the module's own page, at that place.
+    onOpenPage: (hash) => { location.href = `/modules/${encodeURIComponent(w.id)}${hash ? '#' + hash : ''}`; return true; },
     // A widget in a frame says how tall it is.
     onResize: ({ height }) => { if (!inPage && Number.isFinite(height)) holder.style.height = `${Math.min(Math.max(Math.ceil(height), 40), 600)}px`; },
   });
 }
 
-// Who is around: the people online now, and where.
+// Who is around: a strip above the room cards of the people online now, and where.
 function renderWho(table) {
-  if (!whoBody) return;
+  const el = document.getElementById('whos-around');
+  if (!el) return;
   const rooms = new Map((table.rooms || []).map((r) => [r.id, r]));
   const online = (table.users || []).filter((u) => u.online);
-  whoBody.innerHTML = online.length
+  el.innerHTML = `<span class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around</span>` + (online.length
     ? online.map((u) => {
       const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
-      return `<div class="dashboard-person"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-name">${escapeHtml(u.displayName || u.login || 'Someone')}</span>${where ? `<span class="dashboard-person-where">${escapeHtml(where)}</span>` : ''}${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}</div>`;
+      return `<span class="dashboard-person"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-name">${escapeHtml(u.displayName || u.login || 'Someone')}</span>${where ? `<span class="dashboard-person-where">${escapeHtml(where)}</span>` : ''}${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}</span>`;
     }).join('')
-    : '<p class="dashboard-empty">Nobody is around right now.</p>';
+    : '<span class="dashboard-empty">Nobody is around right now.</span>');
+  el.hidden = false;
 }
 
 // Called each time the room list is drawn: the widgets are mounted once, who is around every time.
@@ -107,9 +110,6 @@ export async function initDashboard(table, hooks = {}) {
   if (hooks.openInRoom) openInRoom = hooks.openInRoom;
   if (!started) {
     started = true;
-    const who = card({ id: '_who', title: "Who's around", icon: 'user-group', size: 'small' });
-    whoBody = who.body;
-    root.appendChild(who.el);
     let widgets = [];
     try {
       widgets = (await api('GET', '/api/modules/widgets')).widgets;
@@ -120,5 +120,5 @@ export async function initDashboard(table, hooks = {}) {
     paintUnread();
   }
   renderWho(table);
-  root.hidden = false;
+  root.hidden = root.children.length === 0;
 }

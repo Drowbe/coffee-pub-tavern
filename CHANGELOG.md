@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- The rooms page has a new layout: the dashboard is a sidebar on the left (sticky under the header), and the right has a Who's around strip over the room cards in two columns. One column on a phone, rooms first. The Calendar's Coming up is now a small month with a dot on each day that has something, over the next few events; clicking a day opens the full calendar on that month with the day marked. To make that possible a module can ask for its own page at a place in it: `tavern.page.open(hash)` from a widget, and `tavern.page.onHash(fn)` on the page. Widget size `tall` added. Calendar 1.13.0. Verified in a browser at desktop and 375px wide, and the day click opening the calendar on the right month. Not verified in a light theme, or on a real iPhone.
+
+### Changed
 - Opening an item from a dashboard widget takes you into its room with just that module's pane open on it, instead of onto the module's page: an item in a room joins that room (or returns to it) with the module docked and showing the item. That layout is not remembered as the room's until you open or close a pane yourself.
 - The header no longer has an item for a module that has a dashboard widget (Calendar, To-do and Polls): the widget card's heading opens the module's page, and the module's unread count shows on the card. A module with a page and no widget keeps its header item, so nothing becomes unreachable.
 - Verified in a browser: after asking for an open on an event, only the Calendar opened with the event's editor showing, the room's remembered panes were unchanged until the chat was opened by hand, the header had no module items, and the To-do card showed an unread count. Not verified: the full click-through with a real join (it needs a LiveKit connection, which the test server does not have).

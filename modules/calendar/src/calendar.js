@@ -257,6 +257,24 @@
     const b = e.target.closest('[data-ref]');
     if (b && tavern.refs) tavern.refs.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
   });
+  // Opened at a place in the page (from the dashboard's month: "day=2026-09-24"): show that month with that day marked.
+  if (tavern.page && tavern.page.onHash) {
+    tavern.page.onHash((hash) => {
+      const m = /(?:^|&)day=(\d{4}-\d{2}-\d{2})(?:&|$)/.exec(hash);
+      if (!m) return;
+      const d = parseYmd(m[1]);
+      if (Number.isNaN(d.getTime())) return;
+      cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+      view = 'month';
+      render();
+      const cell = root.querySelector(`.day[data-day="${m[1]}"]`);
+      if (cell) {
+        cell.classList.add('pick');
+        cell.scrollIntoView({ block: 'center' });
+        setTimeout(() => cell.classList.remove('pick'), 2500);
+      }
+    });
+  }
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       const x = events.get(keyOf('room', ref.id)) || events.get(keyOf('server', ref.id)) || events.get(keyOf('rooms', ref.id, ref.room));

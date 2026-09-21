@@ -20,7 +20,7 @@
   /*__LIB__*/
 
   const DAYS_AHEAD = 7;
-  const MAX_ITEMS = 8;
+  const MAX_ITEMS = 5;
   const events = new Map(); // "<place>:<id>" -> { id, roomId, ev }
   const rooms = new Map(); // room id -> { id, name, icon, svg }
 
@@ -49,10 +49,32 @@
     return out.sort((a, b) => a.start - b.start).slice(0, MAX_ITEMS);
   }
 
+  // A small month, with a dot on each day that has something, and a click on a day opens that day in the full calendar.
+  let shown = startOfDay(new Date());
+  shown = new Date(shown.getFullYear(), shown.getMonth(), 1);
+  function renderMonth() {
+    const first = shown;
+    const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+    const gridEnd = addDays(gridStart, 42);
+    const busy = new Set();
+    for (const x of events.values()) for (const start of occurrences(x.ev, gridStart, gridEnd)) busy.add(ymd(start));
+    const today = ymd(new Date());
+    let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<span class="mini-dow">${d}</span>`).join('');
+    for (let i = 0; i < 42; i += 1) {
+      const d = addDays(gridStart, i);
+      const k = ymd(d);
+      cells += `<button type="button" class="mini-day${d.getMonth() !== first.getMonth() ? ' other' : ''}${k === today ? ' today' : ''}${busy.has(k) ? ' has' : ''}" data-day="${k}" aria-label="${esc(dayHeading(d))}">${d.getDate()}</button>`;
+    }
+    $('month').hidden = false;
+    $('month').innerHTML = `<div class="mini-head"><button type="button" data-step="-1" aria-label="Previous month">&lsaquo;</button><strong>${esc(first.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</strong><button type="button" data-step="1" aria-label="Next month">&rsaquo;</button></div><div class="mini-grid">${cells}</div>`;
+  }
+
   function render() {
+    renderMonth();
     const items = upcoming();
     $('msg').hidden = items.length > 0;
     $('msg').textContent = 'Nothing in the next week.';
+    $('msg').hidden = items.length > 0;
     $('list').hidden = items.length === 0;
     const today = ymd(new Date());
     const tomorrow = ymd(addDays(new Date(), 1));
@@ -82,6 +104,13 @@
   }
 
   root.addEventListener('click', (e) => {
+    const step = e.target.closest('[data-step]');
+    if (step) {
+      shown = new Date(shown.getFullYear(), shown.getMonth() + Number(step.dataset.step), 1);
+      return render();
+    }
+    const day = e.target.closest('[data-day]');
+    if (day) return void tavern.page.open('day=' + day.dataset.day).catch(() => {});
     const b = e.target.closest('[data-event]');
     if (!b) return;
     const [room, id] = b.dataset.event.split('|');

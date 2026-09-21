@@ -14,7 +14,7 @@ its icon button sits there too. A room you are still connected to offers **Rejoi
 
 ## The dashboard
 
-Under the room cards is a dashboard across all of your rooms: who is around, and a card for each module that offers one. The Calendar's **Coming up** lists the next week, the To-do's **Due soon** the tasks due within a week or overdue, and Polls' **Need your vote** the open polls you have not voted in; each draws from every room you are in and the server's own data, with each item's room icon. Click an item to go to it in its room, or click a card's heading to open that module in full. The cards are laid out by Tavern, the same for everyone. Guests do not see it.
+The rooms page has the room cards in two columns on the right, under a **Who's around** strip, and the dashboard down the left: a card for each module that offers one, across all of your rooms. The left column stays in view while the rooms scroll. On a phone it is one column, with who is around and the rooms first and the dashboard below. The Calendar's **Coming up** is a small month with a dot on each day that has something (click a day to open it in the full calendar), over the next few events; the To-do's **Due soon** the tasks due within a week or overdue, and Polls' **Need your vote** the open polls you have not voted in; each draws from every room you are in and the server's own data, with each item's room icon. Click an item to go to it in its room, or click a card's heading to open that module in full. The cards are laid out by Tavern, the same for everyone. Guests do not see it.
 
 ## Join with
 
