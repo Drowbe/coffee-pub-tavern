@@ -1948,6 +1948,13 @@ function sendAiError(err, res) {
   throw err;
 }
 app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView() }));
+app.post('/api/ai/models', requireAdmin, async (req, res) => {
+  try {
+    res.json({ models: await ai.listModels({ provider: String(req.body?.provider || ''), address: req.body?.address, key: req.body?.key }) });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
 app.put('/api/ai', requireAdmin, (req, res) => {
   try {
     const before = ai.view();

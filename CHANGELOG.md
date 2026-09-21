@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- The AI service is chosen by company: **OpenAI** and **Anthropic** need only a key (Tavern knows their addresses, and any address sent for them is ignored); **Other OpenAI-compatible** takes an address and may have no key. A setting saved earlier as an OpenAI-compatible address is read as Other. New admin route `POST /api/ai/models` lists a service's own models for the admin to pick from (OpenAI: chat models only, newest first; Anthropic; another service's `/v1/models`), using the key just typed or the saved one, with plain errors (no key, refused, unreachable). Saving needs a key and a model for OpenAI and Anthropic, and an address and a model for Other. Requests to OpenAI use `max_completion_tokens`. Verified against a stand-in service (the lists and their filters, the typed key winning, errors, the migration, both new providers' requests). Not verified: the real OpenAI or Anthropic lists.
+
 ### Added
 - Research 0.1.8: backlink pills on a card (room view): one pill per kind of item that points at it, "Task: book the hotel" or "2 plans", with the linking module's icon; a click opens the first. Asked once per item and refreshed when links change. Not verified in a browser.
 

@@ -11,7 +11,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const PROVIDERS = ['none', 'openai', 'anthropic'];
+// none; openai and anthropic are those companies (Tavern knows their addresses, so nobody types them); compatible is any other
+// service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
+const PROVIDERS = ['none', 'openai', 'anthropic', 'compatible'];
+const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
 const TASKS = ['summarise', 'ask', 'tags'];
 const MAX_ITEMS = 12;
 const MAX_ITEM_CHARS = 8000;
@@ -20,7 +23,6 @@ const MAX_QUESTION = 1000;
 const MAX_ANSWER_TOKENS = 1200;
 const FETCH_MS = 90000;
 const MAX_BODY = 1024 * 1024;
-const ANTHROPIC_ADDRESS = 'https://api.anthropic.com';
 // The icons a card may name (Font Awesome names, as the rest of Tavern uses); the first is the fallback.
 const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins'];
 
@@ -35,7 +37,8 @@ class AiError extends Error {
 }
 
 class Ai {
-  constructor(dataDir, env = process.env) {
+  constructor(dataDir, env = process.env, hosts = HOSTS) {
+    this.hosts = { ...HOSTS, ...hosts };
     this.file = path.join(dataDir, 'ai.json');
     this.usageFile = path.join(dataDir, 'ai-usage.json');
     this.env = env;
@@ -44,6 +47,12 @@ class Ai {
     try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); } catch { /* not set up */ }
     try { const u = JSON.parse(fs.readFileSync(this.usageFile, 'utf8')); if (u && u.month === month()) this.usage = { ...this.usage, ...u }; } catch { /* nothing used yet */ }
     if (!PROVIDERS.includes(this.config.provider)) this.config.provider = 'none';
+    // Before there were companies to choose, `openai` meant any OpenAI-compatible address: one that is not OpenAI's own is `compatible`.
+    if (this.config.provider === 'openai') {
+      if (this.config.address && !/^https:\/\/api\.openai\.com(\/|$)/.test(this.config.address)) this.config.provider = 'compatible';
+      else this.config.address = '';
+    }
+    if (this.config.provider === 'anthropic') this.config.address = '';
     this.timer = null;
   }
 
@@ -84,7 +93,9 @@ class Ai {
     }
     if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
     if (p.clearKey === true) next.key = '';
-    if (next.provider === 'openai' && !next.address) throw new AiError('an OpenAI-compatible service needs its address');
+    if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, known to Tavern
+    if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
+    if ((next.provider === 'openai' || next.provider === 'anthropic') && !(this.env.TAVERN_AI_KEY || next.key)) throw new AiError('this service needs a key');
     if (next.provider !== 'none' && !next.model) throw new AiError('say which model to use');
     this.config = next;
     this.saveConfig();
@@ -105,8 +116,8 @@ class Ai {
   ready() {
     const c = this.config;
     if (c.provider === 'none') return false;
-    if (c.provider === 'anthropic') return !!this.key();
-    return true; // an OpenAI-compatible address may need no key (a local model)
+    if (c.provider === 'anthropic' || c.provider === 'openai') return !!this.key();
+    return true; // another service may need no key (a local model)
   }
 
   usageView() {
@@ -156,17 +167,52 @@ class Ai {
     return { text, cards, tokens: out.tokens, used: citedItems(out.text, list.length) };
   }
 
+  // The models a service offers, from its own list, for the admin's choice: [{ id, name }]. Uses the typed key when given, otherwise the
+  // saved one. Plain errors: no key, unreachable, refused.
+  async listModels({ provider, address, key }) {
+    if (!['openai', 'anthropic', 'compatible'].includes(provider)) throw new AiError('choose a service first');
+    const useKey = (typeof key === 'string' && key.trim()) || this.key();
+    let base = this.hosts[provider];
+    if (provider === 'compatible') {
+      const a = String(address || this.config.address || '').trim();
+      let u;
+      try { u = new URL(a); } catch { throw new AiError('give the service\'s address first'); }
+      if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
+      base = u.href.replace(/\/$/, '');
+    } else if (!useKey) throw new AiError('enter the key first');
+    const headers = { Accept: 'application/json' };
+    if (provider === 'anthropic') { headers['x-api-key'] = useKey; headers['anthropic-version'] = '2023-06-01'; } else if (useKey) headers.Authorization = `Bearer ${useKey}`;
+    const root = base.replace(/\/chat\/completions$/, '');
+    const url = provider === 'anthropic' ? `${base}/v1/models?limit=100` : `${root}${/\/v1$/.test(root) ? '' : '/v1'}/models`;
+    let res;
+    try {
+      res = await fetch(url, { headers, signal: AbortSignal.timeout(15000), redirect: 'error' });
+    } catch {
+      throw new AiError(provider === 'compatible' ? 'that address could not be reached' : 'the service could not be reached', 502);
+    }
+    const raw = await res.text();
+    if (!res.ok) throw new AiError(res.status === 401 || res.status === 403 ? 'the service refused the key' : provider === 'compatible' && res.status === 404 ? 'that address did not list its models (check the address, or type the model name)' : 'the service could not list its models', 502);
+    if (raw.length > MAX_BODY) throw new AiError('the service answered too much', 502);
+    let json;
+    try { json = JSON.parse(raw); } catch { throw new AiError('the service answered something unreadable', 502); }
+    const rows = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
+    let list = rows.filter((m) => m && typeof m.id === 'string').map((m) => ({ id: m.id.slice(0, 120), name: oneLine(m.display_name || m.id, 120), created: Number(m.created) || 0 }));
+    if (provider === 'openai') list = list.filter((m) => /^(gpt-|chatgpt-|o1|o3|o4)/.test(m.id) && !/(embed|tts|whisper|dall-e|moderation|transcribe|realtime|audio|image)/.test(m.id)).sort((a, b) => b.created - a.created);
+    else if (provider === 'compatible') list.sort((a, b) => a.id.localeCompare(b.id));
+    return list.slice(0, 200).map(({ id, name }) => ({ id, name }));
+  }
+
   async complete(system, prompt) {
     const c = this.config;
     const isAnthropic = c.provider === 'anthropic';
-    const base = isAnthropic ? c.address || ANTHROPIC_ADDRESS : c.address;
+    const base = c.provider === 'compatible' ? c.address : this.hosts[c.provider];
     const url = isAnthropic ? `${base}/v1/messages` : `${base}${/\/v1$|\/chat\/completions$/.test(base) ? (base.endsWith('/completions') ? '' : '/chat/completions') : '/v1/chat/completions'}`;
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
     if (isAnthropic) { headers['x-api-key'] = this.key(); headers['anthropic-version'] = '2023-06-01'; }
     else if (this.key()) headers.Authorization = `Bearer ${this.key()}`;
     const body = isAnthropic
       ? { model: c.model, max_tokens: MAX_ANSWER_TOKENS, system, messages: [{ role: 'user', content: prompt }] }
-      : { model: c.model, max_tokens: MAX_ANSWER_TOKENS, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
+      : { model: c.model, [c.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: MAX_ANSWER_TOKENS, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
     let res;
     try {
       res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(FETCH_MS), redirect: 'error' });
