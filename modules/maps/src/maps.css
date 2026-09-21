@@ -61,6 +61,19 @@ body { margin: 0; overflow: hidden; }
 .pin-body .ic { transform: rotate(45deg); font-size: 14px; }
 .pin[data-kind="item"] { --pin: var(--bg-card); --pin-text: var(--text); }
 .pin[data-kind="item"] .pin-body { border-color: var(--accent); }
+
+/* a card's category (do, eat, stay, travel, other) gives its pin and row the same colour family as the Travel cards and the Places cards,
+   turned from the accent; a card with no category keeps the module-based look above. */
+.pin[data-cat], .place-row[data-cat] { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
+@supports (color: oklch(from red l c h)) { .pin[data-cat], .place-row[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+.pin[data-cat="do"], .place-row[data-cat="do"] { --turn: 95; }
+.pin[data-cat="eat"], .place-row[data-cat="eat"] { --turn: 0; }
+.pin[data-cat="stay"], .place-row[data-cat="stay"] { --turn: 255; }
+.pin[data-cat="travel"], .place-row[data-cat="travel"] { --turn: 195; }
+.pin[data-cat="other"], .place-row[data-cat="other"] { --turn: 25; }
+.pin[data-cat]:not(.selected) { --pin: var(--tone); --pin-text: var(--bg); }
+.pin[data-cat]:not(.selected) .pin-body { border-color: var(--bg-section); }
+.pin.selected[data-cat] .pin-body { border-color: var(--tone); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 40%, transparent), 0 2px 6px color-mix(in srgb, black 40%, transparent); }
 .pin.selected { z-index: 2; }
 .pin.selected .pin-body { --pin: var(--text); border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 40%, transparent), 0 2px 6px color-mix(in srgb, black 40%, transparent); }
 .pin.selected { --pin-text: var(--bg); }
@@ -88,6 +101,9 @@ body { margin: 0; overflow: hidden; }
 .place-row.selected { background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); }
 .place-row .ic { margin-top: 2px; color: var(--accent); }
 .place-row[data-kind="item"] .ic { color: var(--text-dim); }
+.place-row[data-cat] { border-color: color-mix(in srgb, var(--tone) 38%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 10%, var(--bg-card)), color-mix(in srgb, var(--tone) 4%, var(--bg-card))); }
+.place-row[data-cat] .ic { color: var(--tone); }
+.place-row[data-cat]:hover, .place-row[data-cat].selected { border-color: var(--tone); }
 .place-row .main { flex: 1; min-width: 0; }
 .place-row .title, .place-row .sub { display: block; }
 .place-row .title { font-weight: 600; overflow-wrap: anywhere; }
