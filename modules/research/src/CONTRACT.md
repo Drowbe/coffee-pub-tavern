@@ -59,3 +59,15 @@ See `design/ask.html` and the plan. `button.ai-btn` opens the Ask panel over the
 ## Not decided yet
 
 Sorting (newest first is the default), a compact list instead of the grid, several photos sharing one card, and comments on a card.
+
+## Templates and hooks (as built in `research.html`)
+
+The script clones these and fills them by hook only: `[data-slot=x]` (its text, or hidden when empty; `[data-slot=x-wrap]` hides when the slot inside it is empty), `[data-icon=name]` (an icon).
+
+- `tpl-card` (`article.rcard`, the script sets `data-kind`, `data-id`): slots `thumb` (an `img`, its `src`), `kind`, `ai` (shown for an answer), `title`, `site`, `excerpt`, `tags` (holds `tpl-tag` clones, each with `--tag`), `when`, `place`, `by`; `button[data-action=menu]`.
+- `tpl-chip-tag` (a tag chip in `#tag-chips`, `--tag`, `.on`), `tpl-tag`.
+- `tpl-upload` (`.upload`: `name`, `progress`, `step`, `[data-action=retry-upload]`), `tpl-pos-ask` (`text`, `[data-action=keep-position]`, `[data-action=drop-position]`).
+- The dialog is one form, `#form.editor-card[data-kind=note|link|photo|answer]`; each row lists the kinds that show it in `data-kinds`, and the stylesheet hides the rest. Fields: `f-title`, `f-caption` (a photo), `f-url`, `f-body`, `f-excerpt`, `f-tags` (with `#tag-list`), `f-point` and `f-date`, `f-keep` (a photo, shown only when the file had a position), `#f-asked` (an answer: `asked`, `sources`), `f-by`, `f-error`, `f-save`, `f-cancel`, `f-delete`.
+- `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` (hidden unless AI is available), `delete`.
+- Ask: `#ask.ask-panel > .ask` with `#thread`, `#ask-form`, `#ask-input`, `#ask-send`, `[data-action=close-ask]`; clones `tpl-msg-you`, `tpl-msg-ai` (`who`, and `.parts` for `tpl-msg-text`, `tpl-aicard` and `tpl-writing` in order), `tpl-aicard` (`title`, `content`, `tags`, `place`, `when`, `sources`; `[data-action=keep-card]`, `[data-action=copy-card]`; the icon badge holds the card's icon).
+- States: `tpl-state-loading`, `tpl-state-empty` (`[data-action=new-note]`, `[data-action=add-photo]`), `tpl-state-noresults` (`[data-action=clear-filter]`).

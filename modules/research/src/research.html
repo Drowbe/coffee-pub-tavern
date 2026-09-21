@@ -9,8 +9,134 @@
 </style>
 </head>
 <body>
-<div id="app" class="rs" hidden></div>
+<!--
+  The page and every piece of markup the script clones. The script fills a clone by hooks only:
+    [data-slot=name]        set its textContent, or hide it when there is no value; a [data-slot=name-wrap] is hidden when [data-slot=name] inside it is empty
+    [data-icon=name]        replace its content with tavern.ui.icon(name)
+  and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no style (exceptions:
+  a tag's colour, --tag; the item menu placed under its button). The reference renderings are design/pane.html and design/ask.html.
+-->
+<div id="app" class="rs" hidden>
+  <header class="rs-head">
+    <h1>Research</h1>
+    <span class="count" data-slot="count"></span>
+    <!-- whose research: Mine needs a signed-in person, so a guest has only This room (the script hides what does not apply) -->
+    <div class="views" id="views" role="group" aria-label="Whose research" hidden>
+      <button class="view" type="button" data-view="my" aria-pressed="false"><span class="ic" data-icon="user"></span>Mine</button>
+      <button class="view" type="button" data-view="room" aria-pressed="true"><span class="ic" data-icon="users"></span>This room</button>
+    </div>
+  </header>
+  <div class="rs-tools">
+    <div class="rs-search"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Search research" aria-label="Search research" autocomplete="off"></div>
+    <button class="ai-btn" id="ask-btn" type="button" data-action="ask" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Ask</button>
+  </div>
+  <div class="rs-chips" id="kinds" role="group" aria-label="Kind">
+    <button class="rs-chip on" type="button" data-kind="">All</button>
+    <button class="rs-chip" type="button" data-kind="note"><span class="ic" data-icon="note-sticky"></span>Notes</button>
+    <button class="rs-chip" type="button" data-kind="link"><span class="ic" data-icon="link"></span>Links</button>
+    <button class="rs-chip" type="button" data-kind="photo"><span class="ic" data-icon="camera"></span>Photos</button>
+    <button class="rs-chip" type="button" data-kind="answer"><span class="ic" data-icon="wand-magic-sparkles"></span>Answers</button>
+  </div>
+  <div class="rs-chips" id="tag-chips" role="group" aria-label="Tag"></div>
+  <p class="error" id="note" hidden></p>
+  <main id="body" class="rs-body"></main>
+
+  <!-- the item menu: a popover the script places under the button that opened it -->
+  <div id="item-menu" class="menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> <span data-slot="edit-label">Edit</span></button>
+    <button type="button" role="menuitem" data-action="copy-to"><span class="ic" data-icon="share-nodes"></span> <span data-slot="copy-label">Copy to This room</span></button>
+    <button type="button" role="menuitem" data-action="ask-about" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Ask about this</button>
+    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> <span data-slot="delete-label">Remove</span></button>
+  </div>
+
+  <!-- an item, in a dialog. One form for all four kinds: the script sets data-kind on .editor-card and the CSS shows the rows that kind uses. -->
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card" data-kind="note">
+      <h3 id="editor-title">Note</h3>
+      <label data-kinds="note link answer">Title<input id="f-title" name="title" type="text" maxlength="120"></label>
+      <label data-kinds="photo">Caption<input id="f-caption" name="caption" type="text" maxlength="200"></label>
+      <label data-kinds="link">Address<input id="f-url" name="url" type="url" maxlength="500" placeholder="https://" autocomplete="off"></label>
+      <label data-kinds="note answer"><span data-slot="body-label">Note</span><textarea id="f-body" name="body" rows="6" maxlength="8000"></textarea></label>
+      <label data-kinds="link">What to remember from it<textarea id="f-excerpt" name="excerpt" rows="4" maxlength="2000"></textarea></label>
+      <label data-kinds="note link photo answer">Tags<input id="f-tags" name="tags" type="text" maxlength="200" placeholder="words, separated by commas" list="tag-list" autocomplete="off"></label>
+      <datalist id="tag-list"></datalist>
+      <div class="editor-row" data-kinds="note link">
+        <label>Place<input id="f-point" name="point" type="text" maxlength="200" placeholder="Paste coordinates or a map link (optional)" inputmode="decimal" autocomplete="off"><span class="hint" id="f-point-note"></span></label>
+        <label>Date<input id="f-date" name="date" type="date"></label>
+      </div>
+      <label class="check" data-kinds="photo" id="f-keep-row"><input id="f-keep" name="keep" type="checkbox"> Keep the position this photo was taken at</label>
+      <div class="asked" data-kinds="answer" id="f-asked" hidden><div class="hint">Asked</div><p data-slot="asked"></p><div class="hint">From</div><div class="links" data-slot="sources"></div></div>
+      <p class="hint" id="f-by"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="editor-buttons">
+        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Close</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Remove</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Ask: the conversation over the selected items. A panel over the pane; the conversation is not saved, only the cards the model writes. -->
+  <div id="ask" class="ask-panel" hidden>
+    <div class="ask">
+      <header class="ask-head"><span class="ic" data-icon="wand-magic-sparkles"></span><h1>Ask</h1><span class="scope" data-slot="scope"></span><button class="icon-btn" type="button" data-action="close-ask" aria-label="Close"><span class="ic" data-icon="xmark"></span></button></header>
+      <div class="thread" id="thread" role="log" aria-live="polite"></div>
+      <form class="composer" id="ask-form"><textarea id="ask-input" rows="1" maxlength="1000" placeholder="Ask about the selected items" aria-label="Ask"></textarea><button class="btn btn-primary" type="submit" id="ask-send" aria-label="Send"><span class="ic" data-icon="paper-plane"></span></button></form>
+    </div>
+  </div>
+</div>
 <p id="msg" class="hint msg">Loading...</p>
+
+<!-- ============================ templates ============================ -->
+
+<template id="tpl-chip-tag"><button class="rs-chip tag" type="button"><span data-slot="label"></span></button></template>
+<template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
+
+<!-- a card. data-kind is note, link, photo or answer. A photo has its picture in .thumb (the script sets src); .kicker's [data-slot=ai] is shown for an answer. -->
+<template id="tpl-card">
+  <article class="rcard" tabindex="0" draggable="true">
+    <img class="thumb" data-slot="thumb" alt="" hidden>
+    <div class="top"><span class="kind"><span class="ic" data-icon=""></span></span><span class="kicker"><span data-slot="kind"></span><span class="ai-mark" data-slot="ai" hidden>AI</span></span><button class="menu" type="button" data-action="menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button></div>
+    <h3 data-slot="title"></h3>
+    <div class="site" data-slot="site-wrap"><span class="ic" data-icon="globe"></span><span data-slot="site"></span></div>
+    <p class="excerpt" data-slot="excerpt"></p>
+    <div class="tags" data-slot="tags"></div>
+    <div class="meta">
+      <span data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span>
+      <span data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>
+      <span class="by" data-slot="by-wrap" title=""><span data-slot="by"></span></span>
+    </div>
+  </article>
+</template>
+
+<!-- photo upload: one row per file. The script sets [data-slot=step] ("Preparing…", "Uploading…", an error) and the width of the bar through the value of progress. -->
+<template id="tpl-upload"><div class="upload"><span class="ic" data-icon="image"></span><span class="name" data-slot="name"></span><progress max="100" value="0"></progress><span class="step" data-slot="step"></span><button class="btn" type="button" data-action="retry-upload" hidden>Try again</button></div></template>
+<!-- asked after an upload whose file had a position -->
+<template id="tpl-pos-ask"><div class="pos-ask"><span class="ic" data-icon="location-crosshairs"></span><span class="grow" data-slot="text"></span><button class="btn" type="button" data-action="keep-position">Keep it</button><button class="btn" type="button" data-action="drop-position">Leave it out</button></div></template>
+
+<!-- Ask: your question, the model's reply (text pieces and cards in order), a card, and the placeholder while a card is being written -->
+<template id="tpl-msg-you"><div class="msg-you" data-slot="text"></div></template>
+<template id="tpl-msg-ai"><div class="msg-ai"><div class="who"><span class="ic" data-icon="wand-magic-sparkles"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
+<template id="tpl-msg-text"><p data-slot="text"></p></template>
+<template id="tpl-writing"><div class="thinking">Writing the card…</div></template>
+<template id="tpl-aicard">
+  <article class="aicard" draggable="true">
+    <span class="badge"><span class="ic" data-icon=""></span></span>
+    <div><div class="kicker">Answer <span class="ai-mark"><span class="ic" data-icon="wand-magic-sparkles"></span> AI</span></div><h3 data-slot="title"></h3><p class="content" data-slot="content"></p>
+    <div class="tags" data-slot="tags"></div>
+    <span class="place" data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>
+    <span class="when" data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span></div>
+    <div class="actions"><button class="keep" type="button" data-action="keep-card" title="Keep in Research" aria-label="Keep in Research"><span class="ic" data-icon="bookmark"></span></button><button type="button" data-action="copy-card" title="Copy the text" aria-label="Copy the text"><span class="ic" data-icon="copy"></span></button></div>
+    <div class="sources" data-slot="sources-wrap"><span class="ic" data-icon="link"></span> From: <span class="links" data-slot="sources"></span></div>
+  </article>
+</template>
+
+<!-- states -->
+<template id="tpl-state-loading"><div class="skeleton" aria-busy="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></template>
+<template id="tpl-state-empty"><div class="rs-empty" id="state-empty"><span class="ic" data-icon="book-open"></span><h2>Nothing here yet</h2><p>Keep what you find: a note, a link with the part that mattered, a photo. Tag it so you can find it again, and drag it onto a plan.</p><p><button class="btn btn-primary" type="button" data-action="new-note">Write a note</button> <button class="btn" type="button" data-action="add-photo"><span class="ic" data-icon="camera"></span> Add a photo</button></p></div></template>
+<template id="tpl-state-noresults"><div class="rs-empty" id="state-noresults"><h2>Nothing matches</h2><p>No research matches your search and filters.</p><p><button class="btn" type="button" data-action="clear-filter">Show everything</button></p></div></template>
+
 <script>
 /*__JS__*/
 </script>
