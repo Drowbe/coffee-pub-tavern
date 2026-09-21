@@ -64,6 +64,7 @@ body { margin: 0; overflow: hidden; }
 .rs-search input { width: 100%; padding: 6px 10px 6px 30px; }
 .rs-search > .ic { position: absolute; left: 10px; top: 9px; color: var(--text-dim); }
 .rs-tools .ai-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); color: var(--text); font: inherit; cursor: pointer; }
+.rs-tools .ai-btn.unavailable { opacity: 0.55; border-style: dashed; }
 .rs-tools .ai-btn:hover { border-color: var(--accent); color: var(--accent); }
 .rs-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
 .rs-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; }

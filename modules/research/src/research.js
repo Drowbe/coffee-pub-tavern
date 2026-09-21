@@ -575,8 +575,15 @@
   });
   $('ask-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('ask-form').requestSubmit(); } });
   async function checkAi() {
-    try { state.ai = Boolean((await tavern.ai.available()).available); } catch (err) { state.ai = false; }
-    hide($('ask-btn'), !state.ai || !state.loaded);
+    // The Ask button is always drawn once the pane is loaded, so a person can see it exists: dimmed, with the reason, when AI cannot be used here.
+    let why = '';
+    try { const a = await tavern.ai.available(); state.ai = Boolean(a.available); why = a.why || ''; } catch (err) { state.ai = false; why = 'this module has not been approved to use AI (turn it off and on again in Manage > Modules and approve it)'; }
+    state.aiWhy = why;
+    const btn = $('ask-btn');
+    hide(btn, !state.loaded);
+    btn.classList.toggle('unavailable', !state.ai);
+    btn.setAttribute('aria-disabled', String(!state.ai));
+    btn.title = state.ai ? '' : 'AI is not available here: ' + why;
   }
 
   // Suggest tags for the item in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
@@ -635,7 +642,7 @@
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
-    if (t && t.dataset.action === 'ask') return openAsk(visible().filter((it) => it.kind !== 'photo').slice(0, 12));
+    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); return openAsk(visible().filter((it) => it.kind !== 'photo').slice(0, 12)); }
     if (t && t.dataset.action === 'close-ask') return closeAsk();
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });
