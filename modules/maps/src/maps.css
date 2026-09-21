@@ -147,7 +147,8 @@ body { margin: 0; overflow: hidden; }
 .callout-where { margin: 0; color: var(--text-dim); font-size: 13px; overflow-wrap: anywhere; }
 .callout-where .coords { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 11px; opacity: 0.85; }
 .callout-source { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 8px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-dim); font-size: 12px; }
-.callout-source .btn { margin-left: auto; padding: 1px 8px; font-size: 12px; }
+.callout-source .open-link { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: auto; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); font-size: 13px; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }
+.callout-source .open-link:hover, .callout-source .open-link:focus-visible { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); outline: none; }
 .callout-close { position: absolute; top: 8px; right: 8px; }
 .callout-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .callout-actions .btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
