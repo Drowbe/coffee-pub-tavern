@@ -713,8 +713,20 @@ async function loadModules() {
   // Say on the tab itself when an update is waiting, so it is seen without opening it.
   const updates = bundledModules.filter((b) => b.update).length;
   setUpdateBadge(updates);
+  // The same count badge as on the header's gear (see setUpdateBadge in brand.js).
   const tab = document.querySelector('[data-tab="modules"]');
-  if (tab) tab.textContent = updates ? `Modules (${updates} update${updates === 1 ? '' : 's'})` : 'Modules';
+  if (tab) {
+    tab.textContent = 'Modules';
+    tab.title = '';
+    if (updates) {
+      const badge = document.createElement('span');
+      badge.className = 'badge update-badge';
+      badge.setAttribute('aria-hidden', 'true');
+      badge.textContent = updates > 9 ? '9+' : String(updates);
+      tab.append(badge);
+      tab.title = `${updates} module update${updates === 1 ? '' : 's'} available`;
+    }
+  }
 }
 
 function moduleCard(m) {

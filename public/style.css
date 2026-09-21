@@ -886,6 +886,23 @@ body.at-table .topbar {
   }
 }
 
+/* The same count bubble inline on a tab (Manage's Modules tab when an update is waiting). */
+.subtab .badge {
+  display: inline-block;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: 1px;
+}
+
 .icon-link .badge {
   position: absolute;
   top: 0;
