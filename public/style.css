@@ -4132,8 +4132,28 @@ body.at-table .module-nav {
 }
 
 .module-runmode { margin: 8px 0; }
-.module-activity { list-style: none; margin: 0; padding: 0; font-size: 0.9em; }
-.module-activity li { padding: 2px 0; }
+/* the filters at the top of the Modules tab */
+.module-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); color: var(--text-dim); font: inherit; font-size: 13px; cursor: pointer; }
+.filter-chip:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); color: var(--text); }
+.filter-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.filter-chip .count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, var(--text) 16%, transparent); font-size: 11px; line-height: 18px; text-align: center; }
+.filter-chip.on .count { background: color-mix(in srgb, var(--on-accent) 25%, transparent); }
+/* recent module activity: a box of rows that scrolls, newest first; the text can be selected and copied */
+.activity-head { display: flex; align-items: baseline; gap: 10px; margin: 18px 0 6px; }
+.activity-head h3 { margin: 0; font-size: 15px; }
+.activity-log-box { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input, var(--bg-card)); user-select: text; }
+.activity-log-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.activity-log { list-style: none; margin: 0; padding: 0; }
+.activity-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 12px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); font-size: 13px; line-height: 1.4; }
+.activity-row:first-child { border-top: 0; }
+.activity-time { flex: none; width: 92px; color: var(--text-dim); font-variant-numeric: tabular-nums; font-size: 12px; }
+.activity-source { flex: none; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.activity-event { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.activity-row[data-level="warn"] { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.activity-row[data-level="warn"] .activity-source, .activity-row[data-level="warn"] .fa-triangle-exclamation { color: var(--danger); }
+.activity-empty { margin: 0; padding: 14px 12px; }
+@media (max-width: 640px) { .activity-row { flex-wrap: wrap; gap: 2px 10px; } .activity-time, .activity-source { width: auto; } .activity-event { flex-basis: 100%; } }
 
 /* --- phone: the room as an app ---------------------------------------------
    Below 640px (the same width the stage calls "narrow") the table is a phone layout: a slim

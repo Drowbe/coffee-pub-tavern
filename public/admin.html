@@ -203,6 +203,16 @@
           <button class="btn btn-primary" id="module-install" type="button">Install</button>
           <span class="status" id="modules-status"></span>
         </div>
+        <div class="module-filters" id="module-filters" role="group" aria-label="Show">
+          <button class="filter-chip on" type="button" data-module-filter="all" aria-pressed="true">All <span class="count" data-count="all"></span></button>
+          <button class="filter-chip" type="button" data-module-filter="updates" aria-pressed="false">Updates available <span class="count" data-count="updates"></span></button>
+        </div>
+        <!-- what modules have done lately: newest first, in a box that scrolls -->
+        <div class="activity-head"><h3>Recent activity</h3><span class="hint">What modules have done lately</span></div>
+        <div class="activity-log-box" id="activity-box" tabindex="0" role="log" aria-label="Recent module activity">
+          <ul class="activity-log" id="module-activity"></ul>
+          <p class="hint activity-empty" id="module-activity-empty">No activity yet.</p>
+        </div>
       </div>
       <div id="modules-list" class="stack"></div>
     </section>

@@ -710,6 +710,7 @@ async function loadModules() {
   builtinModules = data.builtin || [];
   bundledModules = data.bundled || [];
   renderModules();
+  loadActivity();
   // Say on the tab itself when an update is waiting, so it is seen without opening it.
   const updates = bundledModules.filter((b) => b.update).length;
   setUpdateBadge(updates);
@@ -778,11 +779,77 @@ function moduleCard(m) {
   return el;
 }
 
+// Recent activity, in the box at the top of the tab: one row per thing a module did (when, which module, what, by whom), newest
+// first. Redrawn in place when it changes, keeping the scroll position, and refreshed while the tab is open.
+const activityWhen = (at) => {
+  const d = new Date(at);
+  const today = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === today.toDateString()) return time;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+};
+// Something Tavern refused or slowed shows as a warning (no colour alone: a small icon too).
+const activityLevel = (what) => (/slowed|too many|over the limit|refused|denied|failed|error/i.test(what || '') ? 'warn' : 'info');
+let activityKey = '';
+async function loadActivity() {
+  const list = $('module-activity');
+  if (!list) return;
+  let items = [];
+  try {
+    items = (await api('GET', '/api/modules/activity')).activity || [];
+  } catch {
+    $('module-activity-empty').textContent = 'Recent activity is unavailable.';
+    $('module-activity-empty').hidden = false;
+    return;
+  }
+  const key = items.length + ':' + (items[0] ? items[0].at : '');
+  if (key === activityKey) return;
+  activityKey = key;
+  const box = $('activity-box');
+  const top = box.scrollTop;
+  list.replaceChildren(...items.map((a) => {
+    const li = document.createElement('li');
+    li.className = 'activity-row';
+    li.dataset.level = activityLevel(a.what);
+    li.innerHTML = `<span class="activity-time" title="${escapeHtml(new Date(a.at).toLocaleString())}">${escapeHtml(activityWhen(a.at))}</span><span class="activity-source">${escapeHtml(a.moduleName)}</span><span class="activity-event">${li.dataset.level === 'warn' ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ' : ''}${escapeHtml(a.what)}${a.byName ? ` <span class="hint">by ${escapeHtml(a.byName)}</span>` : ''}</span>`;
+    return li;
+  }));
+  $('module-activity-empty').textContent = 'No activity yet.';
+  $('module-activity-empty').hidden = items.length > 0;
+  box.scrollTop = top;
+}
+setInterval(() => { if (!document.hidden && !$('tab-modules').hidden) loadActivity(); }, 15000);
+
+// Which modules the tab lists: all of them, or only those with an update waiting.
+let moduleFilter = 'all';
+const hasUpdate = (id) => bundledModules.some((b) => b.id === id && b.update);
+function syncModuleFilters() {
+  const updates = installedModules.filter((m) => hasUpdate(m.id)).length;
+  for (const b of document.querySelectorAll('[data-module-filter]')) {
+    const on = b.dataset.moduleFilter === moduleFilter;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  const all = $('module-filters').querySelector('[data-count="all"]');
+  const up = $('module-filters').querySelector('[data-count="updates"]');
+  all.textContent = String(builtinModules.length + installedModules.length);
+  up.textContent = String(updates);
+  up.hidden = !updates;
+}
+$('module-filters').addEventListener('click', (event) => {
+  const b = event.target.closest('[data-module-filter]');
+  if (!b || b.dataset.moduleFilter === moduleFilter) return;
+  moduleFilter = b.dataset.moduleFilter;
+  renderModules();
+});
+
 function renderModules() {
   const list = $('modules-list');
   list.textContent = '';
+  syncModuleFilters();
+  const updatesOnly = moduleFilter === 'updates';
   // The built-in panes first: always on, and not removable.
-  for (const b of builtinModules) {
+  for (const b of updatesOnly ? [] : builtinModules) {
     const el = document.createElement('article');
     el.className = 'panel module-card';
     el.innerHTML = `
@@ -796,23 +863,15 @@ function renderModules() {
       <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>`;
     list.appendChild(el);
   }
-  if (!installedModules.length) {
+  if (updatesOnly ? !installedModules.some((m) => hasUpdate(m.id)) : !installedModules.length) {
     const none = document.createElement('div');
     none.className = 'panel';
-    none.innerHTML = '<p class="hint">No other modules installed yet.</p>';
+    none.innerHTML = updatesOnly ? '<p class="hint">Everything is up to date.</p>' : '<p class="hint">No other modules installed yet.</p>';
     list.appendChild(none);
   }
-  for (const m of installedModules) list.appendChild(moduleCard(m));
-  const log = document.createElement('div');
-  log.className = 'panel';
-  log.innerHTML = '<h2>Recent activity</h2><p class="hint">What modules have done lately.</p><ul class="module-activity" id="module-activity"><li class="hint">Loading...</li></ul>';
-  list.appendChild(log);
-  api('GET', '/api/modules/activity').then((d) => {
-    const items = (d.activity || []).slice(0, 30);
-    $('module-activity').innerHTML = items.length ? items.map((a) => `<li><span class="hint">${escapeHtml(new Date(a.at).toLocaleTimeString())}</span> <strong>${escapeHtml(a.moduleName)}</strong> ${escapeHtml(a.what)}${a.byName ? ` <span class="hint">by ${escapeHtml(a.byName)}</span>` : ''}</li>` ).join('') : '<li class="hint">Nothing yet.</li>';
-  }).catch(() => { const e = $('module-activity'); if (e) e.innerHTML = '<li class="hint">Unavailable.</li>'; });
+  for (const m of installedModules) if (!updatesOnly || hasUpdate(m.id)) list.appendChild(moduleCard(m));
   // Modules that ship with this Tavern and are not installed yet.
-  const available = bundledModules.filter((b) => !b.installed);
+  const available = updatesOnly ? [] : bundledModules.filter((b) => !b.installed);
   if (available.length) {
     const box = document.createElement('div');
     box.className = 'panel';
