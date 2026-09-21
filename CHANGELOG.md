@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- An explicit **enable** step for the AI: `enabled` in `GET /api/ai` and `PUT /api/ai`. Nothing reaches an AI service until the admin enables it; `ready()` and a module's `available` need it. A setting saved before this step, with a service chosen, counts as enabled; choosing a different service switches it off again until enabled. Enabling needs a service and model saved. Verified with the stand-in service.
+
+### Added
 - The conference can be switched off (optional conference, stage 1). A server setting `conferenceEnabled` (on by default, accepted by `PATCH /api/settings`, listed on the Conference card of `GET /api/modules` as `enabled` with its wording): off, the "See and join the conference" permission reads false for everyone, so joins carry no media (no publishing, not in the call) and the room page shows no conference, tiles or camera and microphone buttons, while chat, presence, asides data and the modules keep working over LiveKit. The Roles tab keeps the stored ticks. LiveKit is still required at startup; making it optional is a later stage. Verified against a running server (the token with and without media, the setting, the card, the Roles tab unchanged). Not verified: the room page with the conference off in a real call, the OBS pages and the guest link.
 
 ### Changed

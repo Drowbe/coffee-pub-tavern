@@ -53,6 +53,9 @@ class Ai {
       else this.config.address = '';
     }
     if (this.config.provider === 'anthropic') this.config.address = '';
+    // A setting saved before there was an enable step, with a service chosen, counts as enabled; nothing else does.
+    if (typeof this.config.enabled !== 'boolean') this.config.enabled = this.config.provider !== 'none';
+    if (this.config.provider === 'none') this.config.enabled = false;
     this.timer = null;
   }
 
@@ -64,7 +67,7 @@ class Ai {
   // What the admin's page may see: never the key, only whether there is one.
   view() {
     const c = this.config;
-    return { provider: c.provider, address: c.address, model: c.model, monthlyTokens: c.monthlyTokens, keySet: !!this.key(), keyFromEnvironment: !!this.env.TAVERN_AI_KEY };
+    return { provider: c.provider, address: c.address, model: c.model, monthlyTokens: c.monthlyTokens, keySet: !!this.key(), keyFromEnvironment: !!this.env.TAVERN_AI_KEY, enabled: c.enabled };
   }
 
   // Change the setting. `key` is replaced only when a non-empty string is sent (a page that shows "set" sends nothing); `clearKey`
@@ -74,6 +77,8 @@ class Ai {
     const next = { ...this.config };
     if (p.provider !== undefined) {
       if (!PROVIDERS.includes(p.provider)) throw new AiError('choose none, an OpenAI-compatible service or Anthropic');
+      // A different service is a different company receiving what people select, so it starts switched off until the admin enables it.
+      if (p.provider !== next.provider) next.enabled = false;
       next.provider = p.provider;
     }
     if (p.address !== undefined) {
@@ -97,6 +102,11 @@ class Ai {
     if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
     if ((next.provider === 'openai' || next.provider === 'anthropic') && !(this.env.TAVERN_AI_KEY || next.key)) throw new AiError('this service needs a key');
     if (next.provider !== 'none' && !next.model) throw new AiError('say which model to use');
+    if (p.enabled !== undefined) {
+      if (p.enabled === true && next.provider === 'none') throw new AiError('choose a service and save it before enabling AI');
+      next.enabled = p.enabled === true;
+    }
+    if (next.provider === 'none') next.enabled = false;
     this.config = next;
     this.saveConfig();
     return this.view();
@@ -115,7 +125,7 @@ class Ai {
   // Ready to answer: a provider is chosen and, for a hosted one, it has a key.
   ready() {
     const c = this.config;
-    if (c.provider === 'none') return false;
+    if (c.provider === 'none' || !c.enabled) return false;
     if (c.provider === 'anthropic' || c.provider === 'openai') return !!this.key();
     return true; // another service may need no key (a local model)
   }
