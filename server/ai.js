@@ -22,7 +22,7 @@ const FETCH_MS = 90000;
 const MAX_BODY = 1024 * 1024;
 const ANTHROPIC_ADDRESS = 'https://api.anthropic.com';
 // The icons a card may name (Font Awesome names, as the rest of Tavern uses); the first is the fallback.
-const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar', 'link', 'star', 'bed', 'utensils', 'ticket', 'train', 'camera', 'circle-info'];
+const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins'];
 
 const oneLine = (s, n) => String(s == null ? '' : s).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 const month = () => new Date().toISOString().slice(0, 7);
