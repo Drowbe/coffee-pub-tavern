@@ -454,6 +454,16 @@
       openEditor(rowEl.dataset.id);
     }
   });
+  // A place can be dragged out to another module (onto a day of a plan, or a task that links to it): press its row and move.
+  // The pointer is the place's in the view it is shown in. A click after the drag is swallowed by the SDK.
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable(root, (target) => {
+      const row = target.closest && target.closest('.place-row');
+      if (!row || !row.dataset.id || target.closest('.item-menu, button, a')) return null;
+      const p = places.get(row.dataset.id);
+      return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : {}) } : null;
+    });
+  }
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor(); else if (!$('found').hidden) closeFound();
