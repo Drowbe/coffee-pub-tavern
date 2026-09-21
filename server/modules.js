@@ -31,7 +31,7 @@ const ALLOWED_EXT = new Set([
 const HOOKS = ['schedule', 'notify'];
 // What a card (the small summary another module may show of an item) can carry, and which of the
 // producing module's own stored fields fill it. See documentation/api/api-module-sdk.md ("Refs").
-const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done'];
+const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place'];
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['server', 'room'];
@@ -215,7 +215,7 @@ function cleanBus(rawEvents, rawActions, id) {
 }
 
 // The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
-const SETTING_TYPES = ['boolean', 'choice', 'number', 'text'];
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
 function cleanSettings(raw) {
   const out = [];
@@ -238,6 +238,12 @@ function cleanSettings(raw) {
       if (def.min !== undefined) d = Math.max(def.min, d);
       if (def.max !== undefined) d = Math.min(def.max, d);
       def.default = d;
+    } else if (type === 'url') {
+      def.default = '';
+    } else if (type === 'file') {
+      // A file the admin placed for the module (DATA_DIR/module-files/<id>/): only the server can choose one.
+      if (def.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "server"`);
+      def.default = '';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
       def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';

@@ -400,6 +400,12 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
     // Empty on a module's server page, which is not in one room.
     // What the module's settings are for this viewer here (server, this room and the person's own together).
+    // The address of a file an admin placed for this module (see the server's module files), in this module's place.
+    async 'files.url'({ name }) {
+      const n = String(name ?? '');
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(n)) throw Object.assign(new Error('no such file'), { status: 400 });
+      return url(`/files/${encodeURIComponent(n)}`, scopeOf());
+    },
     async 'settings.get'() {
       return (await api('GET', url('/settings/values', scopeOf()))).values;
     },

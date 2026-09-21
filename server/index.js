@@ -1432,6 +1432,11 @@ function refCard({ manifest, produce, ref }, id, value) {
     if (v !== undefined && v !== '') card[name] = v;
   }
   for (const name of ['allDay', 'done']) if (typeof field(name) === 'boolean') card[name] = field(name);
+  // A place on the map, if the item has one: { lat, lng, name? }, checked; anything else is left out.
+  const place = field('place');
+  if (place && typeof place === 'object' && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {
+    card.place = { lat: place.lat, lng: place.lng, ...(typeof place.name === 'string' && place.name.trim() ? { name: place.name.replace(/\p{Cc}/gu, ' ').trim().slice(0, 120) } : {}) };
+  }
   return card;
 }
 
@@ -1893,6 +1898,29 @@ function sendSettingError(err, res) {
   throw err;
 }
 
+// --- files an admin placed for a module ---------------------------------------------------------------------
+// Some modules need a large file that cannot be uploaded through a page (a map's tile archive, gigabytes): the operator
+// copies it into DATA_DIR/module-files/<module id>/, the admin picks it in the module's settings, and the module reads
+// it here, by range, like any static file. Nothing else in that folder is reachable, and only by name.
+const moduleFilesDir = (id) => path.join(DATA_DIR, 'module-files', id);
+const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+function listModuleFiles(id) {
+  try {
+    return fs.readdirSync(moduleFilesDir(id), { withFileTypes: true }).filter((e) => e.isFile() && FILE_NAME_RE.test(e.name)).map((e) => e.name).sort();
+  } catch {
+    return [];
+  }
+}
+// A file for a module page, with range requests (what a map archive is read with). Needs the same access as reading
+// the module's data in that place.
+app.get('/api/modules/:id/files/:name', (req, res) => {
+  const ctx = moduleAccess(req, res, 'read');
+  if (!ctx) return;
+  const name = req.params.name;
+  if (!FILE_NAME_RE.test(name) || !listModuleFiles(ctx.manifest.id).includes(name)) return res.status(404).json({ error: 'no such file' });
+  res.sendFile(path.join(moduleFilesDir(ctx.manifest.id), name), { acceptRanges: true, headers: { 'Cache-Control': 'private, max-age=3600', 'Content-Type': 'application/octet-stream' } });
+});
+
 // The values that apply to the viewer, for the module itself.
 app.get('/api/modules/:id/settings/values', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
@@ -1920,7 +1948,7 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key] }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? { available: listModuleFiles(manifest.id) } : {}) }));
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
@@ -1939,6 +1967,10 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found) return res.status(404).json({ error: 'no such module' });
   try {
+    for (const [key, v] of Object.entries(req.body?.values || {})) {
+      const def = found.manifest.settings.find((d) => d.key === key);
+      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest.id).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
+    }
     moduleSettings.set(found.manifest, req.params.scope, place.ctx, req.body?.values, place.user.key);
     res.json({ settings: withValues(found.manifest, req.params.scope, place.ctx) });
   } catch (err) {

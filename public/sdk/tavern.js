@@ -279,6 +279,12 @@
     // which returns each item with its `roomId`; 'change' events for those rooms carry `roomId` too.
     rooms: () => call('rooms'),
 
+    // Files an admin placed for this module (a `file` setting names one). `url(name)` is the address to read it from,
+    // range requests included, for a module running in the page (a frame cannot fetch).
+    files: {
+      url: (name) => call('files.url', { name }),
+    },
+
     // The module's settings, as chosen for this viewer here: { key: value }, with the module's own default for what
     // nobody has chosen. Declared in module.json (`settings`); Tavern draws the forms (an admin's for the server, a
     // room's moderators' for a room, each person's own) and keeps the values. `onChange(fn)` calls fn(values) when any of

@@ -133,7 +133,7 @@ A module that lets others point at its items lists them in `module.json`. Each e
 
 `consumes` lists the kinds this module wants to point at: named, as `"module:kind"`, or `"*"` for whatever other modules share. `"*"` is what lets a module link to items of modules that did not exist when it was written. The admin approves the list when enabling.
 
-The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay` and `done`. An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
+The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done` and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
 
 A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
 
@@ -145,7 +145,7 @@ const ref = tavern.refs.make('event', 'e1');           // { module: 'calendar', 
 
 // Later, ask Tavern what to show. One pointer gives a card, a list gives cards in the same order:
 const card = await tavern.refs.resolve(ref);
-// { ref, kind, module: { id, name, icon }, title, subtitle?, when?, end?, allDay?, done? }
+// { ref, kind, module: { id, name, icon }, title, subtitle?, when?, end?, allDay?, done?, place? }
 // or { ref, error, status } when the item is gone or the viewer may not see it (404, 403).
 const cards = await tavern.refs.resolve([refA, refB]);
 
@@ -199,6 +199,8 @@ A module declares settings in `module.json` (`settings`, see [api-modules](api-m
 const prefs = await tavern.settings.get();          // { defaultView: 'week', ... }: server, room and person values together
 tavern.settings.onChange((prefs) => { ... });       // called when any of them changes
 ```
+
+A `file` setting names a file the operator copied into `module-files/<module id>/` in the data folder (too large to upload through a page, such as a map archive); the admin picks it in the form, and a module running in the page reads it, range requests included, from `await tavern.files.url(name)`. A `url` setting holds an http or https address the admin chose.
 
 Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Tavern's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
 

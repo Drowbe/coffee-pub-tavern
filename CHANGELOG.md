@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Groundwork for a map module, all generic: a module can declare a `file` setting (an admin picks a file the operator placed in `module-files/<module id>/` in the data folder) and a `url` setting; that file is served to the module's page with HTTP range requests (`GET /api/modules/:id/files/:name`, `tavern.files.url(name)`); a card may carry an optional `place` (`{ lat, lng, name }`) next to `when`; and the room and module pages allow blob workers, which a map library needs. Verified against a running server: `206` with the right `Content-Range`, unknown and traversal names refused, a file setting that names no file refused, a non-http address refused, and a card's out-of-range place dropped.
+
 ### Fixed
 - Travel 0.3.1: the nights a stay covers (and its check-out day) sit at the top of each day as a banner, not at the end after the timed items; an item from another module whose card is all day, or whose time is exactly midnight (a date with no time), is treated as having no time of day instead of sorting first as 00:00 with a false gap. A check covers the midnight case.
 

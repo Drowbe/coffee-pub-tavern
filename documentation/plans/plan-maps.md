@@ -2,7 +2,7 @@
 
 **Audience:** the author deciding whether and how Tavern gets maps, and whoever builds it afterwards.
 
-**Status:** Direction agreed by the author (see Decisions). Nothing is built yet.
+**Status:** Direction agreed by the author (see Decisions). Phase 1 (core) is built: the file setting, the address setting, range-read files, blob workers in the page policy, and `place` on cards. The Maps module itself waits for the interface side's contract.
 
 ## What it is for
 
@@ -66,7 +66,7 @@ The About page lists every one of these under "Built on", with its licence, as i
 
 ## Constraints found in this repository
 
-- The module page's content security policy must allow the map's worker (`worker-src blob:`) and same-origin tile reads (`connect-src 'self'`), for this module's page only.
+- The map's worker needs `worker-src blob:`. A bundled module runs inside the page and shares its policy, so the room page and the module page allow blob workers for every module rather than for Maps alone; same-origin reads were already allowed.
 - A bundled module runs in the page and its build inlines its script and CSS into one file; MapLibre is large (several hundred kilobytes), so the Maps page is heavier than the others and loads only when Maps is opened.
 - The style's fonts (glyph files) are many small files and the largest part of what would ship; a Latin-only set keeps the image small, more scripts can be an optional add-on.
 - The style is Tavern's own and follows the theme tokens, so a light theme gets a light map.

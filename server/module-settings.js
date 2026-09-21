@@ -11,7 +11,7 @@ const path = require('path');
 const { EventEmitter } = require('events');
 
 const SCOPES = ['server', 'room', 'person'];
-const TYPES = ['boolean', 'choice', 'number', 'text'];
+const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file'];
 
 class SettingError extends Error {
   constructor(message, status = 400) {
@@ -33,6 +33,19 @@ function cleanValue(def, raw) {
   if (def.type === 'number') {
     if (typeof raw !== 'number' || !Number.isFinite(raw)) throw new SettingError(`${def.label} must be a number`);
     if ((def.min !== undefined && raw < def.min) || (def.max !== undefined && raw > def.max)) throw new SettingError(`${def.label} must be between ${def.min ?? 'any'} and ${def.max ?? 'any'}`);
+    return raw;
+  }
+  if (def.type === 'url') {
+    if (typeof raw !== 'string') throw new SettingError(`${def.label} must be an address`);
+    const t = raw.trim();
+    if (!t) return '';
+    let u;
+    try { u = new URL(t); } catch { throw new SettingError(`${def.label} must be a web address`); }
+    if (!/^https?:$/.test(u.protocol) || t.length > 500) throw new SettingError(`${def.label} must be an http or https address`);
+    return t;
+  }
+  if (def.type === 'file') {
+    if (typeof raw !== 'string' || (raw !== '' && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(raw))) throw new SettingError(`${def.label} must be the name of a file`);
     return raw;
   }
   if (typeof raw !== 'string') throw new SettingError(`${def.label} must be text`);
