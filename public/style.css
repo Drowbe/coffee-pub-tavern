@@ -1489,6 +1489,10 @@ a.btn {
    stage is the whole window with the floating pill and status instead. */
 body.at-table {
   overflow: hidden;
+  /* The base body rule's min-height: 100vh is the large viewport on a phone (777px in Chrome on an
+     iPhone where 740px is visible), and a min-height beats height: the table stayed taller than the
+     screen and its bottom bar sat under the browser's own. */
+  min-height: 0;
   height: 100vh; /* fallback for browsers without dvh */
   height: 100dvh; /* the actual visible viewport, so the toolbar at the
                       bottom isn't hidden under a phone browser's own
