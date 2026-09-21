@@ -64,7 +64,8 @@
         <label>Place<input id="f-point" name="point" type="text" maxlength="200" placeholder="Paste coordinates or a map link (optional)" inputmode="decimal" autocomplete="off"><span class="hint" id="f-point-note"></span></label>
         <label>Date<input id="f-date" name="date" type="date"></label>
       </div>
-      <label class="check" data-kinds="photo" id="f-keep-row"><input id="f-keep" name="keep" type="checkbox"> Keep the position this photo was taken at</label>
+      <!-- no longer used: a photo's position is chosen when it is added. Kept (hidden) until research.js stops looking for it. -->
+      <label class="check" data-kinds="photo" id="f-keep-row" hidden><input id="f-keep" name="keep" type="checkbox"> Keep the position</label>
       <div class="asked" data-kinds="answer" id="f-asked" hidden><div class="hint">Asked</div><p data-slot="asked"></p><div class="hint">From</div><div class="links" data-slot="sources"></div></div>
       <p class="hint" id="f-by"></p>
       <p class="error" id="f-error" hidden></p>
@@ -91,6 +92,10 @@
 <!-- ============================ templates ============================ -->
 
 <template id="tpl-chip-tag"><button class="rs-chip tag" type="button"><span data-slot="label"></span></button></template>
+<!-- someone changed the item while it is open (as in Places) -->
+<template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
+<!-- a source of an answer, and anything else that points at another item: a small pill; .gone when the item is no longer there -->
+<template id="tpl-source"><span class="link"><span data-slot="label"></span></span></template>
 <template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
 
 <!-- a card. data-kind is note, link, photo or answer. A photo has its picture in .thumb (the script sets src); .kicker's [data-slot=ai] is shown for an answer. -->

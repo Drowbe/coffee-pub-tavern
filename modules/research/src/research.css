@@ -107,7 +107,8 @@ body { margin: 0; overflow: hidden; }
 .pos-ask { display: flex; align-items: center; gap: 10px; padding: 8px 12px; margin-bottom: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 10px; font-size: 13px; }
 .pos-ask .grow { flex: 1; }
 .rs.narrow .rs-grid { grid-template-columns: minmax(0, 1fr); }
-.rs.narrow .rs-search { max-width: none; flex-basis: 100%; }
+.rs.narrow .rs-tools { flex-wrap: nowrap; }
+.rs.narrow .rs-search { max-width: none; flex: 1 1 0; min-width: 0; }
 .rs.narrow .views { flex: 1 1 100%; }
 .rs-bar { display: flex; align-items: flex-end; gap: 6px; padding: 8px 14px; border-top: 1px solid var(--border); }
 .rs-bar input { flex: 1; min-width: 0; height: 38px; }
@@ -135,6 +136,9 @@ body { margin: 0; overflow: hidden; }
 .editor-card[data-kind="link"] [data-kinds]:not([data-kinds~="link"]),
 .editor-card[data-kind="photo"] [data-kinds]:not([data-kinds~="photo"]),
 .editor-card[data-kind="answer"] [data-kinds]:not([data-kinds~="answer"]) { display: none; }
+.conflict-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; border: 1px solid var(--danger); border-radius: 6px; font-size: 12px; }
+.conflict-bar span { flex: 1 1 100%; }
+.conflict-bar .btn { padding: 2px 8px; font-size: 12px; }
 .asked p { margin: 2px 0 8px; overflow-wrap: anywhere; }
 .links { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-dim); font-size: 11px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
