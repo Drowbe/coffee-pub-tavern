@@ -442,6 +442,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         disabled: Boolean(i?.disabled),
         // An item can be a quick-add: a text field with a small + button. What is typed comes back with the click.
         input: i?.type === 'quickadd',
+        iconOnly: Boolean(i?.iconOnly),
         placeholder: String(i?.placeholder ?? '').slice(0, 60),
       })).filter((i) => i.id && (i.label || i.input));
       if (bar) {
@@ -462,7 +463,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
             go.title = item.label || 'Add';
             go.disabled = item.disabled;
             const plus = document.createElement('i');
-            plus.className = 'fa-solid fa-circle-plus fa-fw';
+            plus.className = `fa-solid fa-${item.icon || 'circle-plus'} fa-fw`;
             plus.setAttribute('aria-hidden', 'true');
             go.appendChild(plus);
             form.append(field, go);
@@ -476,15 +477,16 @@ export function mountModule({ module, frame = null, container = null, scope, roo
           }
           const b = document.createElement('button');
           b.type = 'button';
-          b.className = `btn${item.primary ? ' btn-primary' : ''}`;
+          b.className = `btn${item.primary ? ' btn-primary' : ''}${item.iconOnly && item.icon ? ' bar-icon' : ''}`;
           b.disabled = item.disabled;
+          if (item.iconOnly && item.icon) { b.title = item.label; b.setAttribute('aria-label', item.label); }
           if (item.icon) {
             const i = document.createElement('i');
             i.className = `fa-solid fa-${item.icon} fa-fw`;
             i.setAttribute('aria-hidden', 'true');
             b.append(i, ' ');
           }
-          b.append(item.label);
+          if (!(item.iconOnly && item.icon)) b.append(item.label);
           b.addEventListener('click', () => send('bar', { id: item.id }));
           bar.appendChild(b);
         }

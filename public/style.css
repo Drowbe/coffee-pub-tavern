@@ -3966,6 +3966,20 @@ body.module-popout .topbar {
   padding-right: 10px;
 }
 
+/* a quick-add with buttons beside it (a module sets more than one bar item): the field takes the room, and an icon-only button is as tall as the field is */
+.dock-bar:has(.quick-add),
+.module-panel-bar:has(.quick-add),
+.module-bar:has(.quick-add) {
+  gap: 6px;
+}
+
+.mod-bar .bar-icon {
+  flex: none;
+  width: var(--bar-control-h);
+  height: var(--bar-control-h);
+  padding: 0;
+}
+
 body.module-page .module-stage {
   flex-direction: column;
 }

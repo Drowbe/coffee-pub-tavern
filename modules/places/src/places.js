@@ -218,8 +218,7 @@
 
   function openLinkFor(p) {
     if (p.point) return geo.mapsLink(p.point.lat, p.point.lng, p.title, apple);
-    const q = encodeURIComponent(p.address || p.title);
-    return apple ? `https://maps.apple.com/?q=${q}` : `geo:0,0?q=${q}`;
+    return geo.mapsSearch(p.address || p.title, apple);
   }
   function openMenu(id, button) {
     const p = places.get(id);

@@ -119,7 +119,6 @@
       state.adder = null;
       state.searcher = null;
     }
-    hide($('search'), !state.searcher);
   }
 
   // --- the callout of the selected place, and drawing --------------------------------------------------------------
@@ -145,7 +144,6 @@
   function render() {
     if (state.selected && !current()) state.selected = null;
     renderCallout();
-    hide(root.querySelector('[data-action="add-place"]'), !state.adder || !state.map);
     hydrate(root);
     drawPins();
   }
@@ -242,7 +240,6 @@
     state.adding = Boolean(on) && Boolean(state.adder) && Boolean(state.map);
     $('map').classList.toggle('adding', state.adding);
     hide($('banner'), !state.adding);
-    root.querySelector('[data-action="add-place"]').classList.toggle('on', state.adding);
   }
 
   // A pin where a place would go, and Places' own dialog for it: the map asks the module that keeps places to open its dialog
@@ -323,30 +320,12 @@
   function pickHit(i) {
     const h = hits[i];
     if (!h) return;
-    $('search-input').value = '';
     hits = [];
     state.searchMessage = '';
     drawResults();
     if (state.adder) draftAt(h.lat, h.lng, { title: h.title, address: h.sub });
     else if (state.map) state.map.easeTo({ center: [h.lng, h.lat], zoom: 15 });
   }
-  let searchTimer = null;
-  $('search-input').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search($('search-input').value), 300); });
-  $('search-input').addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      if (!hits.length) return;
-      e.preventDefault();
-      hit = (hit + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % hits.length;
-      drawResults();
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (hit >= 0) pickHit(hit); else if (hits.length) pickHit(0); else { clearTimeout(searchTimer); search($('search-input').value); }
-    } else if (e.key === 'Escape') {
-      hits = [];
-      state.searchMessage = '';
-      drawResults();
-    }
-  });
   $('results').addEventListener('click', (e) => {
     const b = e.target.closest('.result');
     if (b) pickHit(Number(b.dataset.i));
@@ -509,7 +488,6 @@
     const a = t.dataset.action;
     const c = current();
     if (a === 'close-callout') select(null);
-    else if (a === 'add-place') setAdding(!state.adding);
     else if (a === 'cancel') setAdding(false);
     else if (a === 'copy-coords' && c) {
       try { await navigator.clipboard.writeText(coordsText(c.place.lat, c.place.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + coordsText(c.place.lat, c.place.lng)); }
@@ -517,7 +495,7 @@
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (state.adding) setAdding(false); else if (state.selected) select(null);
+    if (state.adding) setAdding(false); else if (hits.length || state.searchMessage) { hits = []; state.searchMessage = ''; state.candidates = []; drawPins(); drawResults(); } else if (state.selected) select(null);
   });
 
   // An item dropped on the map: one that already has a place is shown; another gets a position through its own module's
@@ -549,19 +527,24 @@
     });
   }
 
-  // The bottom bar: paste coordinates or a map link, or type something to search for. Only where a place can be saved.
+  // The host's bottom bar is the map's search: type a place, or paste coordinates or a map link (Enter). A second button
+  // starts adding a place by clicking the map. Only where something can be done with it.
   function setBar() {
     if (!tavern.bar) return;
-    tavern.bar.set(state.adder ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Paste a place, coordinates or a map link' }] : []).catch(() => {});
+    const items = [];
+    if (state.searcher || state.adder) items.push({ id: 'find', type: 'quickadd', icon: 'magnifying-glass', label: 'Search', placeholder: state.searcher ? 'Search, or paste coordinates or a link' : 'Paste coordinates or a link' });
+    if (state.adder) items.push({ id: 'add', icon: 'plus', iconOnly: true, label: 'Add a place: click the map' });
+    tavern.bar.set(items).catch(() => {});
   }
   if (tavern.bar) {
     tavern.on('bar', (e) => {
-      if (e.id !== 'add' || !state.adder) return;
+      if (e.id === 'add') { if (state.adder) setAdding(!state.adding); return; }
+      if (e.id !== 'find') return;
       const text = String(e.value || '').trim();
-      if (!text) return setAdding(true);
+      if (!text) return;
       const p = parsePoint(text);
-      if (p) return draftAt(p.lat, p.lng);
-      if (state.searcher) { $('search-input').value = text; search(text); $('search-input').focus(); return; }
+      if (p) { if (state.adder) draftAt(p.lat, p.lng); else if (state.map) state.map.easeTo({ center: [p.lng, p.lat], zoom: 15 }); return; }
+      if (state.searcher) { search(text); return; }
       say('Search is not set up. Paste coordinates or a map link, or click the map.');
     });
   }

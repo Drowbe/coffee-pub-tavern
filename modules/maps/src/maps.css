@@ -21,22 +21,12 @@ body { margin: 0; overflow: hidden; }
 .map.adding { cursor: crosshair; }
 .map .maplibregl-canvas { outline: none; }
 
-/* ---- what floats over the map: the search box and the tools ---- */
-.mapbar { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; display: flex; align-items: flex-start; gap: 8px; pointer-events: none; }
-.mapbar > * { pointer-events: auto; }
-.search { position: relative; flex: 1; max-width: 360px; }
-.search input { width: 100%; padding: 8px 12px 8px 34px; border-radius: 999px; background: var(--bg-section); box-shadow: 0 2px 10px color-mix(in srgb, black 25%, transparent); }
-.search > .ic { position: absolute; left: 12px; top: 10px; color: var(--text-dim); }
-.results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, black 30%, transparent); }
+/* what a search found: over the foot of the map, above the bar (the search itself is the host bar's field) */
+.results { position: absolute; z-index: 5; left: 10px; bottom: 30px; width: min(380px, calc(100% - 20px)); max-height: 55%; overflow: auto; margin: 0; padding: 6px; list-style: none; background: var(--bg-section); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px color-mix(in srgb, black 35%, transparent); }
 .result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .result:hover, .result.on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .result small { display: block; color: var(--text-dim); font-size: 12px; }
 .results .note { padding: 8px 10px; color: var(--text-dim); font-size: 12px; }
-.tools { margin-left: auto; display: flex; gap: 6px; }
-.tool { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-section); color: var(--text); font: inherit; cursor: pointer; box-shadow: 0 2px 10px color-mix(in srgb, black 25%, transparent); }
-.tool:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
-.tool.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.tool .count { min-width: 18px; padding: 0 5px; border-radius: 9px; background: color-mix(in srgb, var(--text) 14%, transparent); font-size: 11px; line-height: 18px; text-align: center; }
 
 /* the notice under the tools: adding a place, a warning */
 .banner { position: absolute; z-index: 3; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: calc(100% - 24px); display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--bg-section); box-shadow: 0 4px 16px color-mix(in srgb, black 30%, transparent); font-size: 13px; }
@@ -48,7 +38,7 @@ body { margin: 0; overflow: hidden; }
 .maplibregl-ctrl-group button + button { border-top: 1px solid var(--border); }
 .maplibregl-ctrl-group button:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
 .maplibregl-ctrl-top-right, .maplibregl-ctrl-bottom-right { position: absolute; z-index: 2; right: 10px; display: flex; flex-direction: column; gap: 6px; }
-.maplibregl-ctrl-top-right { top: 56px; }
+.maplibregl-ctrl-top-right { top: 10px; }
 .maplibregl-ctrl-bottom-right { bottom: 10px; align-items: flex-end; }
 
 /* the credit the licence requires on every map: always shown, never hidden by a setting */
@@ -115,21 +105,13 @@ body { margin: 0; overflow: hidden; }
 
 .app.narrow .icon-btn { width: 40px; height: 40px; }
 
-.app.narrow .tool { height: 40px; }
-
 .app.narrow .maplibregl-ctrl-group button { width: 40px; height: 40px; }
 
-.app.narrow .maplibregl-ctrl-top-right { top: 104px; }
+.app.narrow .maplibregl-ctrl-top-right { top: 10px; }
 
 .app.narrow .maplibregl-ctrl-bottom-right { bottom: 4px; right: 8px; z-index: 6; }
 
 .app.narrow .banner { bottom: 44px; }
-
-.app.narrow .mapbar { flex-wrap: wrap; }
-
-.app.narrow .search { flex: 1 1 100%; max-width: none; }
-
-.app.narrow .search input { font-size: 16px; }
 
 .state p + p { margin-top: 12px; }
 .state a.btn { text-decoration: none; }
@@ -174,3 +156,6 @@ body { margin: 0; overflow: hidden; }
 .app.narrow .callout-actions .btn { min-height: 40px; }
 @keyframes callout-in { from { opacity: 0; transform: translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .callout { animation: none; } }
+
+.app.narrow .results { left: 8px; right: 8px; width: auto; }
+.app.narrow .result { min-height: 44px; }

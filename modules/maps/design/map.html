@@ -28,6 +28,13 @@ body.harness { display: block; overflow: auto; padding: 12px; font-family: -appl
 .fakemap .road.minor { stroke-width: 3; stroke: var(--border); }
 .fakemap text { fill: var(--text-dim); font: 2.3px sans-serif; }
 .pinpos { position: absolute; }
+body:not(.harness) .app { flex-direction: column; }
+.hostbar { flex: none; display: flex; gap: 6px; align-items: flex-end; padding: 8px 10px; background: var(--bg); border-top: 1px solid var(--border); }
+.hostbar .quick-add { display: flex; flex: 1; gap: 6px; margin: 0; }
+.hostbar .quick-add input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input, var(--bg-section)); color: var(--text); font: inherit; height: 38px; }
+.hostbar .btn { height: 38px; }
+.hostbar .bar-icon { width: 38px; padding: 0; }
+.hostbar .bar-icon.on { background: var(--accent); color: var(--on-accent); }
 </style>
 </head>
 <body>
@@ -91,8 +98,9 @@ if (!q.has('bare')) {
     ${p.kind === 'item' ? `<p class="callout-source" data-slot="source">${ic(SRC[p.src][0])} <span data-slot="from">from ${SRC[p.src][1]} · ${p.sub}</span><button class="btn" type="button" data-action="open">Open</button></p>` : ''}
     <div class="callout-actions"><a class="btn primary" data-action="open-in-maps" href="geo:${p.lat},${p.lng}">${ic('arrow-up-right-from-square')} Open in my maps app</a><button class="btn" type="button" data-action="copy-coords">${ic('copy')} Copy coordinates</button></div></div></div>`;
 
-  const search = (open) => state === 'nosearch' ? '' : `<div class="search" id="search">${ic('magnifying-glass')}<input type="search" placeholder="Search for a place" aria-label="Search for a place" ${open ? 'value="belém"' : ''}>${open ? `<ul class="results" id="results"><li><button class="result on" type="button">${ic('location-dot')}<span>Belém Tower<small>Av. Brasília, Lisbon, Portugal</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Belém, Lisbon<small>Neighbourhood, Portugal</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Pastéis de Belém<small>R. de Belém 84–92, Lisbon</small></span></button></li></ul>` : ''}</div>`;
-  const tools = `<div class="tools"><button class="tool${state === 'adding' || state === 'editor' ? ' on' : ''}" type="button" data-action="add-place">${ic('plus')} Add place</button></div>`;
+  // what a search found, over the foot of the map (the search itself is the host's bottom bar, drawn below the map here)
+  const results = () => `<ul class="results" id="results"><li><button class="result on" type="button">${ic('location-dot')}<span>Colosseum<small>Piazza del Colosseo, Roma</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Trattoria al Colosseo<small>Via Capo d\u2019Africa 29, Roma</small></span></button></li><li><button class="result" type="button">${ic('location-dot')}<span>Colosseo (metro)<small>Piazza del Colosseo, Roma</small></span></button></li></ul>`;
+  const hostBar = `<div class="hostbar"><form class="quick-add"><input type="text" placeholder="${state === 'nosearch' ? 'Paste coordinates or a link' : 'Search, or paste coordinates or a link'}" ${state === 'search' ? 'value="colosseo"' : ''}><button type="submit" class="btn btn-primary quick-add-go" title="Search">${ic('magnifying-glass')}</button></form><button type="button" class="btn bar-icon${state === 'adding' ? ' on' : ''}" title="Add a place: click the map" aria-label="Add a place">${ic('plus')}</button></div>`;
   const zoom = `<div class="maplibregl-ctrl-top-right"><div class="maplibregl-ctrl-group"><button type="button" aria-label="Zoom in">${ic('plus')}</button><button type="button" aria-label="Zoom out">${ic('minus')}</button><button type="button" aria-label="Show my location">${ic('location-crosshairs')}</button></div></div>`;
   const attrib = `<div class="maplibregl-ctrl-bottom-right"><div class="attribution" data-slot="attribution">© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors</div></div>`;
   const stateBlock = (icn, h, p, extra = '') => `<div class="state" id="state">${ic(icn)}<h2>${h}</h2><p>${p}</p>${extra}</div>`;
@@ -107,7 +115,7 @@ if (!q.has('bare')) {
     const pins = places.map((p) => pin(p, p.id === sel)).join('') + (places.length ? cluster : '') + (state === 'candidates' ? [[30, 62, 'Colosseum'], [52, 40, 'Trattoria al Colosseo'], [70, 58, 'Colosseo (metro)']].map(([x, y, t]) => `<div class="pinpos" style="left:${x}%;top:${y}%"><button class="pin candidate" type="button" aria-label="${t}"><span class="pin-body">${ic('location-dot')}</span><span class="pin-label">${t}</span></button></div>`).join('') : '') + (state === 'adding' ? `<div class="pinpos" style="left:48%;top:46%"><button class="pin draft" type="button" aria-label="New place"><span class="pin-body">${ic('plus')}</span></button></div>` : '');
     const banner = state === 'adding' ? `<div class="banner" id="banner">${ic('crosshairs')} <span>Click the map to place a pin</span><button class="btn" type="button" data-action="cancel">Cancel</button></div>` : '';
     const open = ['selected', 'selected-item', 'normal', 'noplaces', 'search', 'nosearch'].includes(state) && (state !== 'search') ;
-    body = `<div class="app" id="app"><div class="stage"><div class="map${state === 'adding' ? ' adding' : ''}" id="map">${fake}${pins}</div><div class="mapbar">${search(state === 'search')}${tools}</div>${zoom}${attrib}${banner}${selectedP ? callout(selectedP) : ''}</div></div>`;
+    body = `<div class="app" id="app"><div class="stage"><div class="map${state === 'adding' ? ' adding' : ''}" id="map">${fake}${pins}</div>${state === 'search' ? results() : ''}${zoom}${attrib}${banner}${selectedP ? callout(selectedP) : ''}</div>${hostBar}</div>`;
   }
   document.body.insertAdjacentHTML('beforeend', body);
 }

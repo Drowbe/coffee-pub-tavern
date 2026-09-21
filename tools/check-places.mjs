@@ -67,7 +67,15 @@ await test('geo: typed coordinates and pasted links', () => {
 });
 
 await test('geo: the link to the person\'s own maps app', () => {
+  // A desktop browser has nothing registered for geo: (Windows opens a blank page), so only Android gets one.
+  const setAgent = (userAgent) => Object.defineProperty(globalThis, 'navigator', { value: { userAgent }, configurable: true });
+  setAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120');
+  assert.equal(geo.mapsLink(1.5, 2.5, 'Old (pier)', false), 'https://www.openstreetmap.org/?mlat=1.5&mlon=2.5#map=17/1.5/2.5');
+  assert.equal(geo.mapsSearch('Fontane', false), 'https://www.openstreetmap.org/search?query=Fontane');
+  setAgent('Mozilla/5.0 (Linux; Android 14) Chrome/120 Mobile');
   assert.equal(geo.mapsLink(1.5, 2.5, 'Old (pier)', false), 'geo:1.5,2.5?q=1.5,2.5(Old%20%20pier%20)');
+  assert.equal(geo.mapsSearch('Fontane', false), 'geo:0,0?q=Fontane');
+  assert.equal(geo.mapsSearch('Fontane', true), 'https://maps.apple.com/?q=Fontane');
   assert.match(geo.mapsLink(1.5, 2.5, 'Pier', true), /^https:\/\/maps\.apple\.com\/\?ll=1\.5,2\.5&q=Pier$/);
   assert.equal(geo.oneLine(' a \n\t b ', 10), 'a b');
 });

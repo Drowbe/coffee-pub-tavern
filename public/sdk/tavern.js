@@ -198,14 +198,25 @@
         const fmt = (n) => (Math.round(n * 1e5) / 1e5).toFixed(5);
         // "38.70750, -9.13640"
         const coordsText = (lat, lng) => `${fmt(lat)}, ${fmt(lng)}`;
-        // The link that opens a spot in the person's own maps app: a geo: link where that is handled (Android and most
-        // desktops), the platform's own link on Apple devices (`apple` true). Directions are that app's business.
+        // The link that opens a spot in the person's own maps app: the platform's own link on Apple devices (`apple`
+        // true), a geo: link on Android, which hands it to the maps app, and an ordinary web link everywhere else. A
+        // desktop browser has nothing registered for geo:, so it would open nothing (Windows shows a blank page).
+        // Directions are that app's business.
+        const android = () => typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
         const mapsLink = (lat, lng, name, apple) => {
           const n = oneLine(name, 80).replace(/[()]/g, ' ');
           if (apple) return `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(n || 'Place')}`;
-          return `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(n || 'Place')})`;
+          if (android()) return `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(n || 'Place')})`;
+          return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
         };
-        return { inRange, round6, oneLine, coord, parsePoint, coordsText, mapsLink };
+        // The same for a place with only a name or an address: the maps app searches for it.
+        const mapsSearch = (text, apple) => {
+          const q = encodeURIComponent(oneLine(text, 160));
+          if (apple) return `https://maps.apple.com/?q=${q}`;
+          if (android()) return `geo:0,0?q=${q}`;
+          return `https://www.openstreetmap.org/search?query=${q}`;
+        };
+        return { inRange, round6, oneLine, coord, parsePoint, coordsText, mapsLink, mapsSearch };
       })(),
     },
 
