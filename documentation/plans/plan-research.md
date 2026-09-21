@@ -21,7 +21,7 @@ A place to keep what a group finds out while it plans, and after: a note, a link
 2. **Snippet** (a link). A web address, a title, the site, and the person's own excerpt (what to remember from the page), tags. With the admin's "fetch link previews" turned on, the server reads the page's title, description and image so the person does not type them; off by default, because it is a request from the server to a site the person named.
 3. **Photo.** An image, a caption and tags. On upload the server reads the file's own facts: when it was taken, the camera, and where. **The position is dropped by default** (a shared photo must not give away a home address by accident); a per-photo choice keeps it, and a photo with a position shows on the map and one with a date shows on its day. The file is re-encoded by the server (a size limit, a maximum edge of about 2000 px, a thumbnail), which also removes anything hidden in it.
 
-All of them (and the AI answers below) are cards for the rest of Tavern: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
+All of them (and the answer cards the AI writes, below) are cards for the rest of Tavern: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
 
 ## Photos as a shared album while a trip happens
 
@@ -52,9 +52,25 @@ Each is a button a person presses on what they are looking at; nothing runs on i
 - **Extract:** read a note or snippet and propose the places, dates and prices in it as cards, which the person accepts one by one (a place goes to Places, a date to a plan).
 - **Draft** a day: from chosen research, propose stops for a day of a plan, as suggestions the person accepts.
 
-### Every answer is a card (the author's)
+### The AI writes a card inside its answer (the author's)
 
-**Whatever the AI answers is always saved as a card**, never left as text that scrolls away. An answer is a fourth kind of item, an **answer**: the question that was asked, the answer text, the items it drew on (as links, so each source opens), which task made it (summarise, ask, extract, draft), the date, and a plain "AI-generated" mark that is always shown. It is created in the place the person is working (Mine or This room), it can be edited and tagged like a note, and it is a card like the others, so it **can be dragged onto a plan's day** (or onto anything else that takes a link) with its answer as the card's text. A proposal list from Extract or Draft is an answer card too: its proposals sit on the card as items to accept. An answer made in Mine and dragged onto a shared plan is copied to the room first, as any private item is. Deleting an answer's sources does not delete the answer; its source links show as no longer available.
+A conversation with the AI is talk: the question, the reasoning, the follow-ups. **None of that is saved.** What is worth keeping the model writes as a **card** inside its answer, and the Ask panel draws that card inline, between the sentences around it (the author's sketch: some lines of text, a card, more lines). The card is the artifact: it can be **kept** in Research (Mine or This room, wherever the person is working) and **dragged** onto a plan's day or onto anything else that takes a link, like any other card. The prompt tells the model to always write at least one card holding the essence of its answer.
+
+**The card as the model writes it** (a fenced block in its reply, one per card; a reply may hold several, for instance one per place found):
+
+```json
+{ "icon": "hotel", "title": "Three hotels near Santa Apolónia, under €140",
+  "content": "Hotel Lisboa Plaza (€128, 4 min walk) …", "tags": ["hotels", "lisbon"],
+  "place": { "name": "Santa Apolónia, Lisbon", "lat": 38.714, "lng": -9.122 },
+  "date": "2026-10-04", "links": [{ "title": "Lisbon hotels", "url": "https://…" }],
+  "sources": ["<the ids of the items it drew on>"] }
+```
+
+- **Checked, never trusted.** The server (or the page, for a card it displays) validates every field: `icon` must be one of a fixed list of icon names, `title` a line of up to 80 characters, `content` plain text of up to about 2000 characters (no HTML, no script), up to 5 tags of one word, `place` a name and optionally a position in range, `date` a valid day, `links` https addresses only, `sources` only ids of items the asking person was given. Anything else is dropped. A block that does not validate is shown as ordinary text.
+- **Drawn as a card:** an icon badge, an "Answer" label with a permanent "AI" mark, the title, the content, tags, the place and date if there are any, and the sources as links. While the reply streams, an unfinished block is not drawn; a small "Writing the card…" stands in for it.
+- **Keeping it** (the bookmark on the card, or the first time it is dragged) saves it as an item of kind **answer** in the current view, with the conversation's question stored as the card's "asked" line and nothing else of the chat. A private answer dragged onto a shared plan is copied to the room first, as with any private item. The conversation itself is not stored on the server; closing the Ask panel ends it.
+- **A card for Extract and Draft** holds one proposal each (a place, a date, a stop), so a person keeps or drops each one on its own.
+- The author's mock: `modules/research/design/ask.html`.
 
 **The AI never changes anything itself.** Its answer is text or a list of proposals; a person accepts each. Text in a note or on a web page is untrusted, and a page can say "ignore your instructions", so the model is given no tools and its output is never run.
 
@@ -94,4 +110,4 @@ The author agreed the recommendations:
 4. **Who may use AI:** nobody until the admin turns it on for a role; never guests.
 5. **Photos:** about 10 MB each, re-encoded to about 2000 px on the long edge with a thumbnail. Still to settle: how many photos a room may keep before the admin is warned.
 6. **Name:** Research (id `research`).
-7. **Every AI answer is a card** that can be dragged onto a plan, as above.
+7. **The AI writes a card inside its answer** (a JSON block drawn inline), and only that card is kept or dragged; the conversation is not saved.
