@@ -28,7 +28,7 @@
 | The list of places, groups, "Open in my maps app", "Copy coordinates" | Places' row menu. Maps keeps a list of what is on the map only if it still earns its place (see below). |
 | The pins, clusters, the map file, the credit | Maps. |
 
-Maps' own list panel overlaps Places' list whenever both are open (a narrow pane on a desktop shows both). Decision needed: keep the map's list only for items other modules put on the map ("From ..."), and only in the phone layout, or drop it and rely on Places' list beside the map.
+Maps has no list panel. Maps requires Places, so Places is the list: it already groups, filters and opens a place, and clicking a place there shows it on the map. **Decided by the author.** Items other modules put on the map appear as pins, and open in their own module; they are listed where they live.
 
 ## Views: my, room, global
 
@@ -48,4 +48,10 @@ Maps' own list panel overlaps Places' list whenever both are open (a narrow pane
 1. Does a module's data in the Profile use the same store and change events as a room's, with a different owner? (Server Development.)
 2. Global places: who may edit? Proposed: moderators.
 3. Copy or move when promoting a place from my to room? Proposed: copy, with the original kept.
-4. Does Maps keep any list panel?
+4. ~~Does Maps keep any list panel?~~ Decided: no.
+
+## Decisions (author)
+
+- **My places are private to the person, including from administrators.** As Tavern grows this is the right default for privacy. The `person` scope is owner-only.
+- **No list panel in Maps.** See above.
+- **A phone on the web is not a mirror of the website.** The web version on a phone is a focused subset of what the site does, and a native app is planned once the web experience is settled. So phone layouts are designed for what people do on the move (see the day, open a booking, find a place, show it on the map), not for everything the site can do. The Maps and Places designs do not add phone-only panels to make up for missing features.

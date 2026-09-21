@@ -108,7 +108,7 @@ No sprite or icon font is needed. Labels use one Latin glyph set at first (see t
 Maps becomes a view of places and a gesture to choose a point. What stays: the pins, clusters, the map file, the credit, `add-place` (click the map to choose a point), `open-in-maps` and `copy-coords` on a selected place. What changes in the design (the scripts follow when Server Development builds the actions):
 - **`#search`** keeps its place on the map, but its results come from Places (an action that returns a few results), so they are the same as the ones Places shows when its bar searches. A result is drawn as a **candidate pin** (`.pin.candidate`: dashed outline, surface fill, no count); picking one (`data-action=save-found` in its callout) asks Places to save it.
 - **Saving** is Places' dialog: after a click on the map the map asks Places to add a place at that point (the `addPlace` action with the position) and Places opens its own dialog. The map's `#editor` goes away, with `f-title`, `f-notes` and `#f-where`; the draft pin stays until Places has saved or the person cancels.
-- **The list panel** is only for what other modules put on the map ("From Travel") and only in the narrow layout. Where the Places pane is open beside the map, or the pane is wide, the panel is not shown.
+- **No list panel.** Maps requires Places, so Places is the list (decided by the author). `#panel`, its rows, groups and the phone sheet go away; the map shows pins, and an item from another module opens in its own module. Selecting a pin shows its callout on the map.
 - **Views** (mine, this room, everyone): Maps draws whichever view Places has selected, and a pin from mine wears a small person mark so it is not mistaken for a shared one.
 
 ## Not decided yet
