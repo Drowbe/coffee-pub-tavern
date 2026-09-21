@@ -95,7 +95,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
   container.innerHTML = modules.map((m) => `
     <div class="module-settings-card" data-module="${escapeHtml(m.id)}">
       ${heading ? `<h3><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}</h3>` : ''}
-      <div class="module-settings-fields">${m.settings.map((d) => `<div class="module-setting"${d.showWhen ? ` data-when-key="${escapeHtml(d.showWhen.key)}" data-when-value="${escapeHtml(d.showWhen.value)}"` : ''}>${control(d)}${d.help ? `<p class="hint">${escapeHtml(d.help)}</p>` : ''}</div>`).join('')}</div>
+      <div class="module-settings-fields">${m.settings.map((d) => `<div class="module-setting"${d.showWhen ? ` data-when-key="${escapeHtml(d.showWhen.key)}" ${d.showWhen.not !== undefined ? `data-when-not="${escapeHtml(d.showWhen.not)}"` : `data-when-value="${escapeHtml(d.showWhen.value)}"`}` : ''}>${control(d)}${d.help ? `<p class="hint">${escapeHtml(d.help)}</p>` : ''}</div>`).join('')}</div>
       <div class="row"><button class="btn btn-primary btn-small" data-save type="button">Save</button><span class="status" data-status></span></div>
     </div>`).join('');
   // What the chosen option says (its own help, more than a line can hold), and the settings that only apply to a choice.
@@ -109,7 +109,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
       const option = def && def.options.find((o) => o.value === sel.value);
       if (box) box.innerHTML = option && option.help ? option.help.split(/\n+/).map((p) => `<p class="hint">${linkify(p)}</p>`).join('') : '';
     }
-    for (const row of card.querySelectorAll('[data-when-key]')) row.hidden = value(row.dataset.whenKey) !== row.dataset.whenValue;
+    for (const row of card.querySelectorAll('[data-when-key]')) row.hidden = row.dataset.whenNot !== undefined ? value(row.dataset.whenKey) === row.dataset.whenNot : value(row.dataset.whenKey) !== row.dataset.whenValue;
   };
   for (const box of container.querySelectorAll('[data-list-setting]')) wireList(box, modules.find((m) => m.id === box.closest('.module-settings-card').dataset.module).settings.find((d) => d.key === box.dataset.key));
   for (const card of container.querySelectorAll('.module-settings-card')) {

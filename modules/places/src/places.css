@@ -134,6 +134,9 @@ body { margin: 0; overflow: hidden; }
 .found-row .mark { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 18%, var(--bg-card)); color: var(--accent); font-size: 14px; }
 .found-row .title { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .found-row .sub { margin: 0; color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-row .source { margin: 1px 0 0; display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: 11px; opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-row .source:empty { display: none; }
+.found-row .source::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .found-row .btn { min-height: 30px; }
 .found-state { padding: 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
 .found-credit { padding: 4px 14px 8px; color: var(--text-dim); font-size: 10px; text-align: right; }

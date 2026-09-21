@@ -4732,3 +4732,14 @@ body.at-table .module-nav {
 .icon-grid button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
 .icon-grid button:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
 @media (max-width: 640px) { .list-row { flex-wrap: wrap; } .icon-grid { grid-template-columns: repeat(6, 36px); } }
+
+/* the saved search results of a module (Module Configuration): counts and purge buttons */
+.cache-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+.cache-section h3 { margin: 0; font-size: 15px; }
+.cache-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 0; }
+.cache-stats > div { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.cache-stats dt { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.cache-stats dd { margin: 2px 0 0; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cache-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cache-older { display: inline-flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.cache-older input { width: 72px; text-align: center; }

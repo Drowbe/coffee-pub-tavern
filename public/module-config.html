@@ -27,6 +27,18 @@
       <p class="hint" id="cfg-off" hidden></p>
       <p class="hint" id="cfg-none" hidden>This module has no settings.</p>
       <div id="settings"></div>
+      <!-- for a module that keeps what an outside search returns (its manifest has `geocoder`): how much is kept, and purging it -->
+      <div class="cache-section" id="cfg-cache" hidden>
+        <h3>Saved search results</h3>
+        <p class="hint">Places the outside search service has returned are kept on this server, so later searches use them first. A place is <strong>used</strong> when someone picks it or saves it as one of their places; used places are kept when you purge the unused ones.</p>
+        <dl class="cache-stats"><div><dt>Saved</dt><dd id="cache-saved">-</dd></div><div><dt>Used</dt><dd id="cache-used">-</dd></div><div><dt>Unused</dt><dd id="cache-unused">-</dd></div><div><dt>Oldest</dt><dd id="cache-oldest">-</dd></div></dl>
+        <div class="cache-actions">
+          <button class="btn" type="button" data-purge="unused">Purge unused</button>
+          <span class="cache-older"><button class="btn" type="button" data-purge="older">Purge unused older than</button> <input type="number" id="cache-days" min="1" max="3650" value="90" aria-label="Days"> days</span>
+          <button class="btn btn-danger" type="button" data-purge="all">Purge everything</button>
+          <span class="status" id="cache-status" role="status"></span>
+        </div>
+      </div>
       <p class="hint" id="cfg-other" hidden></p>
     </section>
     <p class="hint" id="cfg-missing" hidden>No such module is installed.</p>

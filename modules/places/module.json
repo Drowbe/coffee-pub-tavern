@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -184,7 +184,7 @@
         "key": "searchProvider",
         "not": "none"
       },
-      "help": "Keep the places a search returns on this server, so the next search asks the outside service less. What is kept is the place (name, address, position, category), never what was searched for or by whom."
+      "help": "Places a search returns are saved on this server and shared by every room, so later searches use them first and the outside service is asked less. Only the place is kept, never who looked for it."
     }
   ]
 }
