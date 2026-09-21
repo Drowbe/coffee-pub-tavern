@@ -60,7 +60,7 @@ if (!q.has('bare')) {
   const people = ['Thomas', 'Christy', 'Cliff', 'Alicia', 'Mark'];
   const owners = (names) => names.length ? `<span class="owners" data-slot="owners" title="${names.join(', ')}">${names.map((n) => `<span class="owner">${n[0]}</span>`).join('')}</span>` : '';
   const links = (list) => list.length ? `<span class="links" data-slot="links">${list.map((l) => `<span class="link${l.gone ? ' gone' : ''}">${ic(l.icon)} <b>${l.kind}</b> ${l.title}</span>`).join('')}</span>` : '';
-  const CATS = { things: ['landmark', 'Things to do'], food: ['utensils', 'Food'], stay: ['bed', 'Stay'], travel: ['plane', 'Travel'], other: ['note-sticky', 'Other'] };
+  const CATS = { do: ['landmark', 'Things to do'], eat: ['utensils', 'Food'], stay: ['bed', 'Stay'], travel: ['plane', 'Travel'], other: ['note-sticky', 'Other'] };
   const cat = (c) => `<span class="cat cat-${c}" data-slot="category">${ic(CATS[c][0])} ${CATS[c][1]}</span>`;
   const time = (a, b) => `<div class="item-time" data-slot="time">${a ? `<b>${a}</b>${b || ''}` : '<span title="No time">any</span>'}</div>`;
   const chrome = (id) => ({
@@ -79,34 +79,35 @@ if (!q.has('bare')) {
   const journey = (it) => wrap(it, `${time(it.at, it.arr ? `→ ${it.arr}` : '')}<div class="item-main"><h3 class="item-title" data-slot="title">${it.title}</h3><div class="route"><span data-slot="from">${it.from}</span>${ic('arrow-right')}<span data-slot="to">${it.to}</span></div><div class="item-meta">${cat('travel')}${it.code ? `<span class="code" data-slot="code">${it.code}</span>` : ''}${owners(it.owners || [])}</div></div>`);
   const note = (it) => wrap(it, `${time('', '')}<div class="item-main"><h3 class="item-title" data-slot="title">${it.title}</h3>${it.body ? `<p class="item-sub" data-slot="body">${it.body}</p>` : ''}<div class="item-meta">${cat('other')}${owners(it.owners || [])}</div></div>`);
   const ref = (it) => wrap(it, `${time(it.at, it.end)}<div class="item-main"><div class="source" data-slot="source">${ic(it.module.icon)} from ${it.module.name}<button class="open" type="button" data-action="open">Open</button></div><h3 class="item-title" data-slot="title">${it.title}</h3>${it.sub ? `<p class="item-sub" data-slot="body">${it.sub}</p>` : ''}${it.owners ? `<div class="item-meta">${owners(it.owners)}</div>` : ''}</div>`);
-  const item = (it) => ({ stop, stay, journey, note, ref })[it.kind](it);
+  const item = (it) => ({ stop, stay, journey, note, link: ref })[it.kind](it);
   const gap = (t) => `<li class="gap" data-slot="gap" aria-hidden="true">${t}</li>`;
 
   const CAL = { name: 'Calendar', icon: 'calendar-days' }, TODO = { name: 'To-do', icon: 'list-check' }, POLL = { name: 'Polls', icon: 'square-poll-vertical' };
+  const IDEAS = { date: '', label: 'Ideas', ideas: true, items: [ { id: 'i1', kind: 'stop', cat: 'do', title: 'Ride the Santa Justa lift', place: 'R. do Ouro', at: '', owners: [] }, { id: 'i2', kind: 'stop', cat: 'eat', title: 'Pastéis de Belém', at: '', owners: ['Alicia'] } ] };
   const D = [
     { date: '2026-10-03', label: 'Sat 3 Oct', items: [
       { id: 'a1', kind: 'journey', title: 'Flight to Lisbon', from: 'Denver DEN', to: 'Lisbon LIS', at: '17:40', arr: '10:05 +1', code: 'TP 214 · X7K2QP', owners: people },
       { id: 'a2', kind: 'note', title: 'Pack plug adapters', body: 'Portugal uses type F, 230 V.', owners: ['Cliff'] } ] },
     { date: '2026-10-04', label: 'Sun 4 Oct', items: [
-      { id: 'b1', kind: 'stop', cat: 'food', title: 'Lunch at Time Out Market', place: 'Av. 24 de Julho 49', at: '13:00', len: '1 h 30', owners: ['Alicia', 'Mark'] },
+      { id: 'b1', kind: 'stop', cat: 'eat', title: 'Lunch at Time Out Market', place: 'Av. 24 de Julho 49', at: '13:00', len: '1 h 30', owners: ['Alicia', 'Mark'] },
       { id: 'b2', kind: 'stay', span: 'start', title: 'Hotel Avenida Palace', place: 'Rua 1º de Dezembro 101', at: '15:00', code: 'BK-88213', owners: ['Thomas'] },
-      { id: 'b3', kind: 'ref', module: CAL, title: 'Dinner: Cervejaria Ramiro', sub: 'Table for 5', at: '20:00', end: '22:00', owners: people } ] },
+      { id: 'b3', kind: 'link', module: CAL, title: 'Dinner: Cervejaria Ramiro', sub: 'Table for 5', at: '20:00', end: '22:00', owners: people } ] },
     { date: '2026-10-05', label: 'Mon 5 Oct', today: true, items: [
       { id: 'c0', kind: 'stay', span: 'middle', title: 'Hotel Avenida Palace', at: '' },
-      { id: 'c1', kind: 'stop', cat: 'things', title: 'Belém Tower', place: 'Av. Brasília', at: '09:30', len: '1 h 30', owners: ['Thomas', 'Christy'], links: [{ icon: 'square-poll-vertical', kind: 'Poll', title: 'Tower or Monastery first?' }] },
+      { id: 'c1', kind: 'stop', cat: 'do', title: 'Belém Tower', place: 'Av. Brasília', at: '09:30', len: '1 h 30', owners: ['Thomas', 'Christy'], links: [{ icon: 'square-poll-vertical', kind: 'Poll', title: 'Tower or Monastery first?' }] },
       { id: 'c1g', gap: '45 min walk' },
-      { id: 'c2', kind: 'stop', cat: 'things', title: 'Jerónimos Monastery', place: 'Praça do Império', at: '11:30', len: '2 h', links: [{ icon: 'list-check', kind: 'Task', title: 'Book timed tickets' }] },
-      { id: 'c3', kind: 'ref', module: TODO, title: 'Buy tram 28 day passes', at: '', owners: ['Cliff'] },
-      { id: 'c4', kind: 'ref', module: POLL, title: 'Where do we eat tonight?', sub: 'Closes at 18:00 · 3 of 5 have voted', at: '18:00', owners: [] },
+      { id: 'c2', kind: 'stop', cat: 'do', title: 'Jerónimos Monastery', place: 'Praça do Império', at: '11:30', len: '2 h', links: [{ icon: 'list-check', kind: 'Task', title: 'Book timed tickets' }] },
+      { id: 'c3', kind: 'link', module: TODO, title: 'Buy tram 28 day passes', at: '', owners: ['Cliff'] },
+      { id: 'c4', kind: 'link', module: POLL, title: 'Where do we eat tonight?', sub: 'Closes at 18:00 · 3 of 5 have voted', at: '18:00', owners: [] },
       { id: 'c5', kind: 'stop', cat: 'other', title: 'Sunset at Miradouro da Senhora do Monte', at: '19:30', owners: [] } ] },
-    { date: '2026-10-06', label: 'Tue 6 Oct', items: [ { id: 'd1', kind: 'stay', span: 'middle', title: 'Hotel Avenida Palace', at: '' }, { id: 'd2', kind: 'journey', title: 'Day trip to Sintra', from: 'Rossio', to: 'Sintra', at: '09:12', arr: '09:52', code: 'CP 15102', owners: people } ] },
+    { date: '2026-10-06', label: 'Tue 6 Oct', suggest: [{ ref: 'calendar:event:9', title: 'Sintra castle tickets, 10:30', module: CAL }], items: [ { id: 'd1', kind: 'stay', span: 'middle', title: 'Hotel Avenida Palace', at: '' }, { id: 'd2', kind: 'journey', title: 'Day trip to Sintra', from: 'Rossio', to: 'Sintra', at: '09:12', arr: '09:52', code: 'CP 15102', owners: people } ] },
     { date: '2026-10-07', label: 'Wed 7 Oct', items: [] },
-    { date: '2026-10-08', label: 'Thu 8 Oct', items: [ { id: 'f1', kind: 'stay', span: 'middle', title: 'Hotel Avenida Palace', at: '' }, { id: 'f2', kind: 'stop', cat: 'food', title: 'Farewell dinner', at: '20:30', owners: people } ] },
+    { date: '2026-10-08', label: 'Thu 8 Oct', items: [ { id: 'f1', kind: 'stay', span: 'middle', title: 'Hotel Avenida Palace', at: '' }, { id: 'f2', kind: 'stop', cat: 'eat', title: 'Farewell dinner', at: '20:30', owners: people } ] },
     { date: '2026-10-09', label: 'Fri 9 Oct', items: [ { id: 'g1', kind: 'stay', span: 'end', title: 'Hotel Avenida Palace', at: '11:00' }, { id: 'g2', kind: 'journey', title: 'Flight home', from: 'Lisbon LIS', to: 'Denver DEN', at: '14:20', arr: '17:50', code: 'TP 213 · X7K2QP', owners: people } ] },
   ];
   if (state === 'busy-day') {
     const many = []; const names = ['Coffee at A Brasileira', 'Elevador de Santa Justa', 'Carmo Convent', 'Rossio Square', 'Lunch: bifana', 'LX Factory', 'Ponte 25 de Abril view', 'Pastéis de Belém', 'MAAT museum', 'Tile Museum', 'Fado at Alfama', 'Late snack'];
-    for (let i = 0; i < 20; i += 1) many.push({ id: `x${i}`, kind: 'stop', cat: ['things', 'food', 'other'][i % 3], title: `${names[i % names.length]} ${i >= names.length ? '(2)' : ''}`, at: `${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`, owners: i % 4 ? [] : ['Mark'] });
+    for (let i = 0; i < 20; i += 1) many.push({ id: `x${i}`, kind: 'stop', cat: ['do', 'eat', 'other'][i % 3], title: `${names[i % names.length]} ${i >= names.length ? '(2)' : ''}`, at: `${String(8 + Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`, owners: i % 4 ? [] : ['Mark'] });
     D[3].items = many;
   }
   if (state === 'empty-day') D[2].items = [];
@@ -114,11 +115,12 @@ if (!q.has('bare')) {
   if (state === 'dragging') { D[2].items[1].dragging = true; D[2].items[3].drop = 'before'; D[3].drop = 'into'; }
 
   const day = (d, i) => {
+    if (d.ideas) return `<section class="day ideas" id="day-ideas" data-day="" data-index="0"><header class="day-head"><span class="day-date" data-slot="date">Ideas</span><span class="day-of">no day yet</span><span class="day-count">${d.items.length || ''}</span></header><ol class="items">${d.items.map(item).join('') || '<li class="day-empty">Ideas with no day yet live here.</li>'}</ol><form class="add-row" data-day=""><input name="title" type="text" maxlength="200" placeholder="Add an idea" aria-label="Add an idea"><button class="btn btn-primary" type="submit" data-action="add-item" aria-label="Add">${ic('plus')}</button></form></section>`;
     const list = d.items.map((it) => (it.gap ? gap(it.gap) : item(it))).join('');
     return `<section class="day${d.today ? ' today' : ''}${d.drop ? ' drop-target' : ''}" id="day-${d.date}" data-day="${d.date}" data-index="${i + 1}">
       <header class="day-head"><span class="day-date" data-slot="date">${d.label}</span><span class="day-of">day ${i + 1} of ${D.length}</span><span class="day-count">${d.items.filter((x) => !x.gap).length || ''}</span></header>
       <ol class="items">${list || '<li class="day-empty">Nothing planned yet. Add something below, or drag it here.</li>'}</ol>
-      <form class="add-row" data-day="${d.date}"><input name="title" type="text" maxlength="200" placeholder="Add a stop, a stay or a note" aria-label="Add to ${d.label}"><button class="btn btn-primary" type="submit" data-action="add-item" aria-label="Add">${ic('plus')}</button></form>
+      ${d.suggest ? `<div class="suggestions"><div class="suggestions-title">Other modules have</div>${d.suggest.map((s) => `<div class="suggestion" data-ref="${s.ref}"><span class="ic" data-icon="${s.module.icon}">${ic(s.module.icon)}</span><span class="suggestion-main"><b>${s.title}</b> · ${s.module.name}</span><button class="btn" type="button" data-action="add-suggestion">Add</button></div>`).join('')}</div>` : ''}<form class="add-row" data-day="${d.date}"><input name="title" type="text" maxlength="200" placeholder="Add a stop, a stay or a note" aria-label="Add to ${d.label}"><button class="btn btn-primary" type="submit" data-action="add-item" aria-label="Add">${ic('plus')}</button></form>
     </section>`;
   };
   const strip = () => D.map((d, i) => `<button class="daychip${d.today ? ' today current' : ''}" type="button" data-action="goto-day" data-day="${d.date}">${d.label.split(' ')[0]}<b>${d.label.split(' ')[1]}</b></button>`).join('');
@@ -137,7 +139,7 @@ if (!q.has('bare')) {
   } else if (state === 'empty-trip') {
     html = `<div class="app" id="app"><div class="body"><div class="state" id="state-empty-trip"><h2>Plan a trip</h2><p>Give it a place and dates, and the days appear here. Anything with a date in Calendar, To-do or Polls joins them.</p><p><button class="btn btn-primary" type="button" data-action="create-trip">Start planning</button></p></div></div></div>`;
   } else {
-    html = `<div class="app" id="app">${header(view)}${view === 'days' ? `<nav class="daystrip" id="daystrip" aria-label="Jump to a day">${strip()}</nav>` : ''}<div class="body" id="body">${view === 'days' ? `<div class="days" id="days">${D.map(day).join('')}</div>` : decisions()}</div></div>`;
+    html = `<div class="app" id="app">${header(view)}${view === 'days' ? `<nav class="daystrip" id="daystrip" aria-label="Jump to a day">${strip()}</nav>` : ''}<div class="body" id="body">${view === 'days' ? `<div class="days" id="days">${[IDEAS, ...D].map((d, i) => day(d, i - 1)).join('')}</div>` : decisions()}</div></div>`;
   }
   document.body.insertAdjacentHTML('beforeend', html);
   // today's column/section in view (the script does this on load)
