@@ -1939,8 +1939,8 @@ function geocodeSetup(manifest) {
   const values = moduleSettings.values(manifest, 'server', {});
   const chosen = values[g.provider];
   const known = g.providers[chosen];
-  if (known) return { name: known.name, address: known.address, credit: known.credit, save: g.save ? values[g.save] !== false : false };
-  if (chosen === g.custom && typeof values[g.address] === 'string' && /^https?:\/\//i.test(values[g.address])) return { name: 'the search service', address: values[g.address], credit: '', save: g.save ? values[g.save] !== false : false };
+  if (known) return { name: known.name, address: known.address, credit: known.credit, save: g.save ? values[g.save] === true : false };
+  if (chosen === g.custom && typeof values[g.address] === 'string' && /^https?:\/\//i.test(values[g.address])) return { name: 'the search service', address: values[g.address], credit: '', save: g.save ? values[g.save] === true : false };
   return null;
 }
 app.get('/api/modules/:id/geocode', async (req, res) => {
