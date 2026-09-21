@@ -68,7 +68,11 @@ function buildModule(dir) {
   const read = (name, ext) => fs.readFileSync(path.join(dir, 'src', `${name}.${ext}`), 'utf8');
   // Code more than one of the module's pages shares can live in src/<id>-lib.js, put where the page's script has
   // `/*__LIB__*/`. Function replacements throughout, so "$&" and friends in the code are not treated as patterns.
-  const lib = fs.existsSync(path.join(dir, 'src', `${manifest.id}-lib.js`)) ? read(`${manifest.id}-lib`, 'js') : '';
+  // (or several: src/<id>-lib.js first, then src/<id>-lib-*.js in name order).
+  const libFile = `${manifest.id}-lib.js`;
+  const isLib = (f) => f === libFile || (f.startsWith(`${manifest.id}-lib-`) && f.endsWith('.js'));
+  const libNames = fs.readdirSync(path.join(dir, 'src')).filter(isLib).sort((x, y) => (x === libFile ? -1 : y === libFile ? 1 : x.localeCompare(y)));
+  const lib = libNames.map((f) => read(f.slice(0, -3), 'js')).join('\n');
   const build = (name) => read(name, 'html')
     .replace('/*__CSS__*/', () => read(name, 'css'))
     .replace('/*__JS__*/', () => read(name, 'js').replace('/*__LIB__*/', () => lib).replace(/<\/script/gi, '<\\/script'));

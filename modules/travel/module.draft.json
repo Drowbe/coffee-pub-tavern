@@ -1,0 +1,32 @@
+{
+  "id": "travel",
+  "name": "Travel",
+  "version": "0.1.0",
+  "icon": "suitcase-rolling",
+  "description": "Plan a trip together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
+  "author": "Coffee Pub",
+  "scope": ["server", "room"],
+  "surfaces": {
+    "page": { "entry": "page.html" },
+    "panel": { "entry": "panel.html", "width": 460, "height": 600, "mode": ["dock", "float"] },
+    "widget": { "entry": "widget.html", "title": "Trips", "size": "small", "order": 40 }
+  },
+  "permissions": [
+    { "key": "view", "label": "See the trip", "default": { "user": true, "guest": true, "moderator": true } },
+    { "key": "edit", "label": "Plan the trip: add, change and move items", "default": { "user": true, "guest": false, "moderator": true } }
+  ],
+  "access": { "read": "view", "write": "edit" },
+  "actions": {
+    "provides": [
+      { "name": "addStop", "label": "Add it to the trip", "input": { "title": "string", "date": "date?", "notes": "text?", "ref": "ref?" } },
+      { "name": "addToDay", "label": "Put it on the trip's itinerary", "input": { "item": "ref", "date": "date?" } }
+    ],
+    "uses": ["*"]
+  },
+  "refs": {
+    "produces": [
+      { "kind": "plan", "name": "Trip item", "open": true, "backlinks": true, "key": "item:{id}", "card": { "title": "title", "subtitle": "place", "when": "date", "done": "done" } }
+    ],
+    "consumes": ["*"]
+  }
+}
