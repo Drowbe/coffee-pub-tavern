@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Travel is now called **Planner**, since it will hold more than trips. Only the name changes (the module's id, its stored data and its pointers stay as they were): the Modules tab, the pane and page titles, its messages and the user guide (now userguide-planner). Planner 0.6.1.
+
+### Changed
 - Search moved from Maps to Places. Places 0.3.0 owns the Search address setting and finds places by name from its bottom bar (results over the foot of the pane, **Save** keeps one), and offers two view actions: `searchPlaces` (answers with a few results) and `newPlace` (opens its own dialog for a new place at a spot). Maps 0.4.0 has no Search address or place dialog of its own: its search box shows what Places finds as dashed candidate pins, and a click on a pin, a result, or the map (in add mode) asks Places to open its dialog with the spot filled in. An action's result can now carry a small `data` (up to 8 KB of plain data). Maps also no longer treats a missing glyph range as the map failing to load. Verified in two browser tabs: a name in Places' bar searching and saving a result, Maps' search returning Places' results as candidate pins, and a click on one opening Places' dialog with the name, address and position filled in. Not verified: the light theme, the phone layout, the new found-list styling (the design's CSS was not exercised by Maps' candidate pins yet).
 
 ### Added

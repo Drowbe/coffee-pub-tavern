@@ -17,11 +17,11 @@
   try {
     info = await tavern.ready();
   } catch (err) {
-    $('msg').textContent = 'Travel could not start: ' + err.message;
+    $('msg').textContent = 'Planner could not start: ' + err.message;
     return;
   }
   if (info.context.scope !== 'room') {
-    $('msg').textContent = 'A trip belongs to a room. Open the room, then Travel from its panes; the dashboard lists your trips.';
+    $('msg').textContent = 'A trip belongs to a room. Open the room, then Planner from its panes; the dashboard lists your trips.';
     return;
   }
 

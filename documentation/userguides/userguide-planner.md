@@ -1,18 +1,18 @@
-# Travel
+# Planner
 
-**Audience:** a player or game master planning a trip with the Travel module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Tavern server, and an admin setting it up.
 
-The Travel module plans one trip for a room, day by day. The room's Calendar events, to-dos and polls that fall on the trip's days join the plan, and the module adds what a trip needs on top: stops, stays, journeys and notes. Install and enable it first; see [Modules](userguide-modules.md).
+The Planner module plans one trip for a room, day by day. The room's Calendar events, to-dos and polls that fall on the trip's days join the plan, and the module adds what a trip needs on top: stops, stays, journeys and notes. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Travel under **Available with this Tavern**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
+1. On the Modules tab, choose **Install** beside Planner under **Available with this Tavern**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
 2. Tick **Available in every room** on its card, or tick it per room on the room's own page.
-3. On the Roles tab, under **Module: Travel**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, users and moderators can plan, and guests can see but not plan.
+3. On the Roles tab, under **Module: Planner**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, users and moderators can plan, and guests can see but not plan.
 
 ## Start a trip
 
-Open the Travel pane in a room. With no trip yet it offers **Start planning**: give the trip a name, where it is, and its first and last day. The days appear as one list from top to bottom, however long the trip, with a strip of days at the top to jump to one and each day's heading staying in view as you scroll. **Edit trip** changes the name or the dates.
+Open the Planner pane in a room. With no trip yet it offers **Start planning**: give the trip a name, where it is, and its first and last day. The days appear as one list from top to bottom, however long the trip, with a strip of days at the top to jump to one and each day's heading staying in view as you scroll. **Edit trip** changes the name or the dates.
 
 ## Add to a day
 
@@ -32,7 +32,7 @@ Items with no time come first in a day, in the order you put them; items with a 
 
 - Something from the Calendar, To-do or Polls that is dated on a trip day appears under that day as a suggestion, with an **Add** button that puts it on the plan. An added item shows where it comes from and has an **Open** button that takes you to it. It is read only here: change it where it lives.
 - Drag an item from another module onto a day to put it on that day.
-- Another module can ask Travel to add something: a closed poll's winner can go onto the plan as a stop.
+- Another module can ask Planner to add something: a closed poll's winner can go onto the plan as a stop.
 - Items other modules link to a stop show under it.
 
 ## Bookings
@@ -49,7 +49,7 @@ An item from another module that reports how it turned out (a poll that closes) 
 
 ## Linking a task to a stop
 
-Drag a stop, or any item, out of Travel by pressing its body (not its grip) and moving: drop it on a task in the To-do to link the task to it, and the stop shows the task under it. In the other direction, drop something from another module on an item and choose from what can be done with it, or drop it on a day to put it there.
+Drag a stop, or any item, out of Planner by pressing its body (not its grip) and moving: drop it on a task in the To-do to link the task to it, and the stop shows the task under it. In the other direction, drop something from another module on an item and choose from what can be done with it, or drop it on a day to put it there.
 
 ## Decisions
 

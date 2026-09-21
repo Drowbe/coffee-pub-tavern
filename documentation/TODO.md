@@ -33,7 +33,7 @@ Collected, none started:
 
 Decided: one way, each person connects their own account (see plans/plan-google-sync.md). Not started: it needs a Google Cloud OAuth client (client id and secret) from the admin before it can run against Google.
 
-## Travel: what is left
+## Planner (the Travel module): what is left
 
 Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: a map, reading confirmation emails, and checking it with two people in a real call (drag out and the drop menu on items have only been run as code).
 
