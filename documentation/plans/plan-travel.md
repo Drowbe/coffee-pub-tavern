@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the Travel module, and the author deciding what it does first.
 
-**Status:** Proposed. Nothing is built. The design below is for review; the questions at the end need the author's answers.
+**Status:** Phase 1 and the dashboard widget are built (the Days view, the trip and its items, moves, the editor, suggestions from other modules, the Decisions view, the actions, the Trips card). Left: dragging a trip item out to other modules, the Bookings and map views, and the later items. The questions at the end were answered as suggested: one trip per room, order by time then by hand, money and a map later.
 
 ## What it is for
 

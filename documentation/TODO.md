@@ -33,6 +33,10 @@ Collected, none started:
 
 Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
 
+## Travel: what is left
+
+Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: drag a trip item out to another module and link tasks to a stop; the Bookings view; a map; rules that follow other modules (a poll winner taking its date); budget and splitting costs; checking it with two people in a real call.
+
 ## Modules: what is left
 
 See plans/plan-modules.md: Google Calendar sync, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.

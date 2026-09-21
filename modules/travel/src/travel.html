@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<!--
+  The page and every piece of markup the script clones. The script fills a clone by hooks only:
+    [data-slot=name]   set its textContent (or hide it when there is no value)
+    [data-icon=name]   replace its content with tavern.ui.icon(name)
+  and toggles the state classes and data attributes listed in CONTRACT.md. It never builds markup with
+  strings and never sets a style. The reference rendering is design/itinerary.html.
+-->
+<div id="app" class="app" hidden>
+  <header id="trip" class="trip">
+    <div>
+      <h1 class="trip-title" data-slot="title"></h1>
+      <div class="trip-when" data-slot="dates"></div>
+    </div>
+    <div class="views" role="group" aria-label="View">
+      <button class="btn on" type="button" data-view="days">Days</button>
+      <button class="btn" type="button" data-view="decisions">Decisions<span class="count" data-slot="decisions-count" hidden></span></button>
+      <button class="btn" type="button" data-view="bookings" hidden>Bookings</button>
+    </div>
+    <div class="trip-facts" data-slot="summary"></div>
+    <button class="btn" type="button" data-action="edit-trip" hidden>Edit trip</button>
+  </header>
+  <p class="error" id="note" hidden></p>
+  <nav id="daystrip" class="daystrip" aria-label="Jump to a day"></nav>
+  <main id="body" class="body"></main>
+
+  <!-- the item and trip editor: a dialog over the page. The script shows the fields a kind needs (data-kinds lists them) -->
+  <div id="editor" class="editor" hidden>
+    <form id="form" class="editor-card">
+      <h3 id="editor-title">Add to the plan</h3>
+      <div class="kindtabs" id="f-kinds" role="group" aria-label="What is it">
+        <button class="btn on" type="button" data-kind="stop">Stop</button>
+        <button class="btn" type="button" data-kind="stay">Stay</button>
+        <button class="btn" type="button" data-kind="journey">Journey</button>
+        <button class="btn" type="button" data-kind="note">Note</button>
+      </div>
+      <label>Title<input id="f-title" name="title" type="text" maxlength="200" required></label>
+      <div class="editor-row" data-kinds="trip">
+        <label>Where<input id="f-destination" name="destination" type="text" maxlength="80"></label>
+        <label>From<input id="f-start" name="start" type="date"></label>
+        <label>To<input id="f-end" name="end" type="date"></label>
+      </div>
+      <div class="editor-row" data-kinds="stop stay journey note">
+        <label>Day<select id="f-date" name="date"></select></label>
+        <label data-kinds="stop journey stay">Time<input id="f-time" name="time" type="time"></label>
+        <label data-kinds="stop">Length (minutes)<input id="f-minutes" name="minutes" type="number" min="0" step="5"></label>
+        <label data-kinds="stay">Check out<select id="f-checkout" name="checkOut"></select></label>
+      </div>
+      <div class="editor-row" data-kinds="journey">
+        <label>From<input id="f-from" name="from" type="text" maxlength="120"></label>
+        <label>To<input id="f-to" name="to" type="text" maxlength="120"></label>
+      </div>
+      <div class="editor-row" data-kinds="stop stay">
+        <label>Category<select id="f-category" name="category"><option value="do">Things to do</option><option value="eat">Food</option><option value="stay">Stay</option><option value="travel">Travel</option><option value="other">Other</option></select></label>
+        <label>Place<input id="f-place" name="place" type="text" maxlength="200"></label>
+      </div>
+      <label data-kinds="stop stay">Address<input id="f-address" name="address" type="text" maxlength="300"></label>
+      <label data-kinds="stay journey">Booking reference<input id="f-confirm" name="confirm" type="text" maxlength="80"></label>
+      <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="2000"></textarea></label>
+      <div data-kinds="stop stay journey note">
+        <div class="hint">Whose is it</div>
+        <div class="editor-people" id="f-owners"></div>
+      </div>
+      <label class="check" data-kinds="stop stay journey note"><input id="f-done" name="done" type="checkbox"> Done</label>
+      <p class="hint" id="f-by"></p>
+      <p class="error" id="f-error" hidden></p>
+      <div class="editor-buttons">
+        <button class="btn btn-primary" type="submit" id="f-save">Save</button>
+        <button class="btn" type="button" id="f-cancel">Cancel</button>
+        <span class="grow"></span>
+        <button class="btn btn-danger" type="button" id="f-delete" hidden>Delete</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- the item menu: a popover the script positions under the button that opened it -->
+  <div id="item-menu" class="menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> Edit</button>
+    <button type="button" role="menuitem" data-action="earlier"><span class="ic" data-icon="arrow-up"></span> Earlier</button>
+    <button type="button" role="menuitem" data-action="later"><span class="ic" data-icon="arrow-down"></span> Later</button>
+    <label role="menuitem"><span class="ic" data-icon="calendar-days"></span> Move to <select id="menu-day" aria-label="Move to day"></select></label>
+    <button type="button" role="menuitem" data-action="to-ideas"><span class="ic" data-icon="lightbulb"></span> Back to ideas</button>
+    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
+  </div>
+</div>
+<p id="msg" class="hint msg">Loading...</p>
+
+<!-- ============================ templates ============================ -->
+
+<template id="tpl-daychip"><button class="daychip" type="button" data-action="goto-day"><span data-slot="weekday"></span><b data-slot="day"></b></button></template>
+
+<template id="tpl-day">
+  <section class="day">
+    <header class="day-head"><span class="day-date" data-slot="date"></span><span class="day-of" data-slot="position"></span><span class="day-count" data-slot="count"></span></header>
+    <ol class="items"></ol>
+    <div class="suggestions" hidden><div class="suggestions-title">Other modules have</div><div class="suggestions-list"></div></div>
+    <form class="add-row"><input name="title" type="text" maxlength="200" placeholder="Add a stop, a stay or a note"><button class="btn btn-primary" type="submit" data-action="add-item" aria-label="Add"><span class="ic" data-icon="plus"></span></button></form>
+  </section>
+</template>
+<template id="tpl-day-empty"><li class="day-empty" data-slot="text"></li></template>
+
+<!-- an item: the chrome is the same for every kind; the body differs. The item element gets data-id, data-kind,
+     data-cat (a stop, a stay, a note), data-span (a stay) and the classes done / conflict / dragging. -->
+<template id="tpl-item-stop">
+  <li class="item">
+    <button class="item-handle" type="button" data-action="drag" aria-label="Drag to move"><span class="ic" data-icon="grip-vertical"></span></button>
+    <div class="item-time" data-slot="time"></div>
+    <div class="item-main">
+      <h3 class="item-title" data-slot="title"></h3>
+      <p class="item-sub" data-slot="place"><span class="ic" data-icon="location-dot"></span> <span data-slot="place-text"></span></p>
+      <div class="item-meta"><span class="cat" data-slot="category"><span class="ic" data-icon=""></span> <span data-slot="category-label"></span></span><span class="owners" data-slot="owners"></span><span class="links" data-slot="links"></span></div>
+    </div>
+    <button class="item-menu" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </li>
+</template>
+<template id="tpl-item-stay">
+  <li class="item">
+    <button class="item-handle" type="button" data-action="drag" aria-label="Drag to move"><span class="ic" data-icon="grip-vertical"></span></button>
+    <div class="item-time" data-slot="time"></div>
+    <div class="item-main">
+      <h3 class="item-title" data-slot="title"></h3>
+      <p class="item-sub" data-slot="place"><span class="ic" data-icon="location-dot"></span> <span data-slot="place-text"></span></p>
+      <div class="item-meta"><span class="cat cat-stay" data-slot="category"><span class="ic" data-icon="bed"></span> Stay</span><span class="code" data-slot="code"></span><span class="owners" data-slot="owners"></span></div>
+    </div>
+    <button class="item-menu" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </li>
+</template>
+<template id="tpl-item-journey">
+  <li class="item">
+    <button class="item-handle" type="button" data-action="drag" aria-label="Drag to move"><span class="ic" data-icon="grip-vertical"></span></button>
+    <div class="item-time" data-slot="time"></div>
+    <div class="item-main">
+      <h3 class="item-title" data-slot="title"></h3>
+      <div class="route"><span data-slot="from"></span><span class="ic" data-icon="arrow-right"></span><span data-slot="to"></span></div>
+      <div class="item-meta"><span class="cat cat-travel" data-slot="category"><span class="ic" data-icon="plane"></span> Travel</span><span class="code" data-slot="code"></span><span class="owners" data-slot="owners"></span></div>
+    </div>
+    <button class="item-menu" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </li>
+</template>
+<template id="tpl-item-note">
+  <li class="item">
+    <button class="item-handle" type="button" data-action="drag" aria-label="Drag to move"><span class="ic" data-icon="grip-vertical"></span></button>
+    <div class="item-time" data-slot="time"></div>
+    <div class="item-main">
+      <h3 class="item-title" data-slot="title"></h3>
+      <p class="item-sub" data-slot="body"></p>
+      <div class="item-meta"><span class="cat cat-other" data-slot="category"><span class="ic" data-icon="note-sticky"></span> Other</span><span class="owners" data-slot="owners"></span></div>
+    </div>
+    <button class="item-menu" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </li>
+</template>
+<!-- a link item: another module's item, drawn from its card (data-kind="link") -->
+<template id="tpl-item-link">
+  <li class="item">
+    <button class="item-handle" type="button" data-action="drag" aria-label="Drag to move"><span class="ic" data-icon="grip-vertical"></span></button>
+    <div class="item-time" data-slot="time"></div>
+    <div class="item-main">
+      <div class="source" data-slot="source"><span class="ic" data-icon=""></span> <span>from <span data-slot="module"></span></span><button class="open" type="button" data-action="open">Open</button></div>
+      <h3 class="item-title" data-slot="title"></h3>
+      <p class="item-sub" data-slot="body"></p>
+      <div class="item-meta"><span class="owners" data-slot="owners"></span></div>
+    </div>
+    <button class="item-menu" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button>
+  </li>
+</template>
+
+<template id="tpl-owner"><span class="owner"></span></template>
+<template id="tpl-link"><span class="link"><span class="ic" data-icon=""></span> <b data-slot="kind"></b> <span data-slot="title"></span></span></template>
+<template id="tpl-gap"><li class="gap" data-slot="gap" aria-hidden="true"></li></template>
+<template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
+<template id="tpl-suggestion"><div class="suggestion"><span class="ic" data-icon=""></span><span class="suggestion-main"><b data-slot="title"></b> · <span data-slot="module"></span></span><button class="btn" type="button" data-action="add-suggestion">Add</button></div></template>
+
+<template id="tpl-decisions">
+  <div class="section-title" data-slot="polls-title">Polls to vote on</div><ul class="decisions" data-slot="polls"></ul>
+  <div class="section-title" data-slot="tasks-title">Tasks due before the trip</div><ul class="decisions" data-slot="tasks"></ul>
+</template>
+<template id="tpl-decision"><li class="decision"><span class="ic" data-icon=""></span><div class="decision-main"><div class="decision-title" data-slot="title"></div><div class="decision-sub" data-slot="sub"></div></div><button class="btn" type="button" data-action="open"></button></li></template>
+
+<template id="tpl-state-loading"><div class="skeleton" aria-busy="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></template>
+<template id="tpl-state-empty-trip"><div class="state" id="state-empty-trip"><h2>Plan a trip</h2><p>Give it a place and dates, and the days appear here. Anything with a date in Calendar, To-do or Polls joins them.</p><p><button class="btn btn-primary" type="button" data-action="create-trip">Start planning</button></p></div></template>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

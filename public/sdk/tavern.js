@@ -279,6 +279,10 @@
     // which returns each item with its `roomId`; 'change' events for those rooms carry `roomId` too.
     rooms: () => call('rooms'),
 
+    // The people of the room this panel is in: [{ key, name }] (empty outside a room panel). For choosing a person
+    // ("whose is it"): store their `key`, never the name.
+    people: () => call('people'),
+
     // Refs: pointing at another module's items without reaching into its data. A module lists what
     // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
     // the latter. A pointer is { module, kind, id, scope: 'room' | 'server', room? }: store it, never

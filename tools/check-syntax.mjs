@@ -16,11 +16,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Every script of ours: the server, the pages and the SDK, and each module's source (a module's scripts are
+// wrapped in a function and hold a placeholder comment where the build inlines shared code, so they parse as they are).
+const list = (dir, re = /\.js$/) => (fs.existsSync(path.join(ROOT, dir)) ? fs.readdirSync(path.join(ROOT, dir)).filter((n) => re.test(n)).map((n) => `${dir}/${n}`) : []);
 const FILES = [
-  'public/gate-worklet.js', 'server/index.js', 'server/store.js', 'server/modules.js', 'server/module-build.js', 'server/auth.js',
-  'public/room.js', 'public/view.js', 'public/admin.js', 'public/login.js', 'public/profile.js', 'public/brand.js',
-  'public/roomconfig.js', 'public/register.js', 'public/hotkeys.js', 'public/module.js', 'public/module-host.js',
-  'public/room-modules.js', 'public/sdk/tavern.js', 'server/module-data.js', 'server/module-links.js', 'server/module-bus.js', 'server/module-hooks.js',
+  ...list('server'), ...list('public'), ...list('public/sdk'),
+  ...(fs.existsSync(path.join(ROOT, 'modules')) ? fs.readdirSync(path.join(ROOT, 'modules')).flatMap((m) => list(`modules/${m}/src`)) : []),
 ];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tavern-check-'));
 let failed = 0;

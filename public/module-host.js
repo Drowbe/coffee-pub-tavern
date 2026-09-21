@@ -397,6 +397,15 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async rooms() {
       return (await api('GET', url('/rooms-data', 'rooms', { info: 1 }))).rooms;
     },
+    // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
+    // Empty on a module's server page, which is not in one room.
+    async people() {
+      if (scope !== 'room' || !roomId) return [];
+      const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
+      const { users, rooms } = await api('GET', `/api/table${q}`);
+      const members = new Set((rooms || []).find((r) => r.id === roomId)?.members || []);
+      return (users || []).filter((u) => members.has(u.key)).map((u) => ({ key: u.key, name: u.displayName }));
+    },
     async schedule(spec) {
       return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined });
     },
