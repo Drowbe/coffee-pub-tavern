@@ -880,10 +880,11 @@ function renderModules() {
         <i class="fa-solid fa-${escapeHtml(b.icon)} fa-fw module-icon" aria-hidden="true"></i>
         <div class="grow"><h2>${escapeHtml(b.name)} <span class="hint">built in</span></h2>
           <div class="hint">Room pane</div></div>
-        <span class="pill on">Always on</span>
+        <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
-      <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>`;
+      <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>
+      ${b.switchable ? `<div class="row"><button class="btn ${b.enabled ? '' : 'btn-primary'}" type="button" data-builtin-toggle="${escapeHtml(b.id)}">${b.enabled ? 'Disable' : 'Approve and enable'}</button>${b.needs ? `<span class="hint">${escapeHtml(b.needs)}</span>` : ''}</div>` : ''}`;
     list.appendChild(el);
   }
   if (updatesOnly ? !installedModules.some(moduleMatches) : !installedModules.length) {
@@ -907,6 +908,26 @@ function renderModules() {
     list.appendChild(box);
   }
 }
+
+// A built-in feature the admin may switch off (the conference): it goes through the same enable step as a module.
+$('modules-list').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-builtin-toggle]');
+  if (!button) return;
+  const b = builtinModules.find((x) => x.id === button.dataset.builtinToggle);
+  if (!b) return;
+  const enable = !b.enabled;
+  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || 'It stops working in every room until you enable it again.'}`)) return;
+  if (enable && !window.confirm(`Enable ${b.name}?\n\n${b.turnOn || b.description}`)) return;
+  button.disabled = true;
+  try {
+    await api('PATCH', '/api/settings', { [b.setting || `${b.id}Enabled`]: enable });
+    await loadModules();
+    say($('modules-status'), `${b.name} ${enable ? 'enabled' : 'disabled'}`);
+  } catch (err) {
+    button.disabled = false;
+    say($('modules-status'), err.message, true);
+  }
+});
 
 // Install or update a module that ships with this Tavern, by building it here.
 $('modules-list').addEventListener('click', async (event) => {
