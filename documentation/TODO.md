@@ -31,7 +31,7 @@ Collected, none started:
 
 ## Google Calendar sync
 
-Wanted, not started. Needs decisions first (whose Google account, which direction, and whether it is a new hook or a core feature); they are set out in plans/plan-modules.md.
+Decided: one way, each person connects their own account (see plans/plan-google-sync.md). Not started: it needs a Google Cloud OAuth client (client id and secret) from the admin before it can run against Google.
 
 ## Travel: what is left
 

@@ -32,11 +32,4 @@
 
 ## Google Calendar sync
 
-Wanted: the Calendar keeps in step with Google Calendar. This is not something a front-end-only module can do: it needs OAuth credentials the admin creates in Google Cloud, tokens kept on the server, and calls to Google's Calendar API that run when nobody has a page open. It needs a decision on shape before it is built:
-
-- **Whose Google account.** One shared account the admin connects (simple; the server calendar mirrors it), or each person connecting their own (their events into their view, needing per-person tokens).
-- **Direction.** Google into Tavern only (read-only import), Tavern out to Google, or both ways (needs conflict rules and a stable id on each side).
-- **Where the code lives.** A new declarative hook, such as `integration: "google-calendar"`, that Tavern implements (the module stays front-end only and the admin approves it), or a core Tavern feature with the Calendar as its client.
-- **Setup burden.** A self-hosted install would have to register its own Google OAuth client and add Tavern's redirect address, which is real work for an admin; document it step by step.
-
-The API is at https://developers.google.com/workspace/calendar/api/guides/overview.
+Decided and planned in [plan-google-sync](plan-google-sync.md): one way, Google into Tavern, each person connecting their own account, kept and fetched on the server. It needs a Google Cloud OAuth client from the admin before it can be built and run.
