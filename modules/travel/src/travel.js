@@ -85,7 +85,13 @@
   const dayShort = (d) => parseYmd(d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   const lengthText = (m) => (m ? (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : `${m} min`) : '');
-  const initial = (key) => (nameOf(key)[0] || '?').toUpperCase();
+  // One letter, or two when another traveller of the room starts with the same one.
+  const initial = (key) => {
+    const name = nameOf(key);
+    const first = (name[0] || '?').toUpperCase();
+    const clash = state.people.some((p) => p.key !== key && (p.name[0] || '').toUpperCase() === first);
+    return clash ? first + (name[1] || '').toLowerCase() : first;
+  };
   const timeOf = (card) => (cardWhen(card) || {}).time || '';
   const planRef = (id) => tavern.refs.make('plan', id);
   const tripRef = () => tavern.refs.make('trip', 'main');
@@ -533,7 +539,7 @@
     const date = day.dataset.day || null;
     const over = e.target.closest('.item');
     const id = dragId;
-    const dayUntimed = sortDay(plan.list().filter((i) => !i.time && plan.dayOf(i) === date && i.id !== id));
+    const dayUntimed = sortDay(plan.sortable().filter((i) => !i.time && plan.dayOf(i) === date && i.id !== id));
     let index = dayUntimed.length;
     if (over && over.dataset.id !== id) {
       const at = dayUntimed.findIndex((i) => i.id === over.dataset.id);

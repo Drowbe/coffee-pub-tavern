@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Fixed
+- Travel 0.1.2: an item from another module (a Calendar event) sorts by that item's own time, not first in its day; two travellers whose names start with the same letter show two letters as their initial ("Ch", "Cl"). The phone header, the time column, "any" for untimed items, the owner checkboxes and the empty-trip wording are refined in `travel.css` and `travel.html`. A check covers the sort.
+
+### Fixed
 - Travel 0.1.1: an item whose card gives its time in milliseconds (a poll's closing time) stopped the Decisions view drawing and was never suggested or placed on its day. A card's time may now be a day, an ISO moment or milliseconds. Verified in a browser with a linked task and poll: both suggested on their days, added as pointers, and listed under Decisions.
 
 ### Added

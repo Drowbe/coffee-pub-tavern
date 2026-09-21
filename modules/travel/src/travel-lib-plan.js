@@ -64,10 +64,19 @@
     };
 
     const list = () => [...items.values()].map((x) => x.item);
+    // An item as it is placed in a day: a pointer with no time of its own takes the time its card gives, so it sorts
+    // where that time says.
+    const timed = (item) => {
+      if (item.time || !item.ref) return item;
+      const c = cards.get(refKey(item.ref));
+      const w = c && !c.error ? cardWhen(c) : null;
+      return w && w.time ? { ...item, time: w.time } : item;
+    };
+    const sortable = () => list().map(timed);
     const days = () => tripDays(trip);
-    const byDay = () => itemsByDay(list(), days(), dayOf);
+    const byDay = () => itemsByDay(sortable(), days(), dayOf);
     const nextOrder = (date) => {
-      const same = list().filter((i) => !i.time && i.date === date);
+      const same = sortable().filter((i) => !i.time && i.date === date);
       return same.length ? Math.max(...same.map((i) => i.order)) + 1000 : 1000;
     };
 
@@ -133,15 +142,15 @@
     async function moveTo(id, date, index) {
       const cur = items.get(id);
       if (!cur) return;
-      if (cur.item.time) return void (await updateItem(id, { date }));
-      const dayUntimed = sortDay(list().filter((i) => !i.time && dayOf(i) === date));
+      if (timed(cur.item).time) return void (await updateItem(id, { date }));
+      const dayUntimed = sortDay(sortable().filter((i) => !i.time && dayOf(i) === date));
       await applyChanges(placeUntimed(dayUntimed, cur.item, date, index));
     }
     async function nudgeItem(id, direction) {
       const cur = items.get(id);
       if (!cur) return;
       const day = dayOf(cur.item);
-      const changes = nudge(sortDay(list().filter((i) => dayOf(i) === day)), cur.item, direction);
+      const changes = nudge(sortDay(sortable().filter((i) => dayOf(i) === day)), timed(cur.item), direction);
       if (changes) await applyChanges(changes);
     }
 
@@ -184,7 +193,7 @@
     }
 
     return {
-      load, list, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
+      load, list, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

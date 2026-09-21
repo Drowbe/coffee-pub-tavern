@@ -20,7 +20,7 @@ Open the Travel pane in a room. With no trip yet it offers **Start planning**: g
 - In the form, choose **Stop**, **Stay**, **Journey** or **Note**. A stop has a time, a length, a category (things to do, food, stay, travel or other), a place and an address. A stay has a check-in time, a check-out day and a booking reference, and appears on every night it covers. A journey has where from and to, a departure time and how long it takes, and a booking reference. Tick the people it belongs to under **Whose is it**.
 - **Ideas** (a column after the last day) holds things with no day yet. Choose **Back to ideas** in an item's menu, or add to it directly.
 
-Items with no time come first in a day, in the order you put them; items with a time follow, by time. Between two timed items a small line shows the gap, such as "45 min".
+Items with no time come first in a day, in the order you put them; items with a time follow, by time. An item from another module takes the time that item has (a Calendar event's start), so it sorts among the timed ones. Between two timed items a small line shows the gap, such as "45 min".
 
 ## Move things
 

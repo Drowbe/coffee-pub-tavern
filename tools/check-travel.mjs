@@ -181,6 +181,19 @@ const run = async () => {
   assert.deepEqual(plan.byDay().get('2026-10-01').map((i) => i.title), ['Dinner']);
   n += 1;
 
+  // a pointer with a card time sorts by it
+  const evc = { ref: { module: 'calendar', kind: 'event', id: 'ev9', scope: 'room', room: 'lobby' }, module: { id: 'calendar' }, title: 'Dinner', when: new Date(2026, 9, 1, 20, 0).toISOString() };
+  const h = fakeTavern({ cards: [evc] });
+  const plan3 = lib.createPlan(h.t);
+  await plan3.load();
+  await plan3.saveTrip({ start: '2026-10-01', end: '2026-10-02' });
+  await plan3.addItem({ kind: 'stop', title: 'Lunch', date: '2026-10-01', time: '13:00' });
+  await plan3.addItem({ kind: 'stop', title: 'Museum', date: '2026-10-01', time: '15:00' });
+  await plan3.addLink(evc.ref, null);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(plan3.byDay().get('2026-10-01').map((i) => i.title || 'link'), ['Lunch', 'Museum', 'link']);
+  n += 1;
+
   // two people: an edit to something changed meanwhile is refused and the newer copy is loaded
   await f.t.storage.set('item:' + a.id, { ...f.store.get('item:' + a.id).value, title: 'Long hike' }, {});
   await assert.rejects(() => plan.updateItem(a.id, { notes: 'x' }), (e) => e.conflict === true);
