@@ -18,7 +18,7 @@
 ```
 <div id="app" class="app">                         the whole page; the script un-hides it when loaded
   <header id="trip" class="trip">                  the trip header
-  <nav id="daystrip" class="daystrip">             phones and narrow panes only (CSS shows it)
+  <nav id="daystrip" class="daystrip">             shown at every width (a row of days to jump to)
   <div id="body" class="body">                     the one scroller
     <div id="days" class="days">                   Days view
     or the Decisions view (see below)
@@ -132,8 +132,9 @@ The Bookings and Money views reuse the same list markup: `.section-title` headin
 
 ## Layout the stylesheet decides
 
-- **Wide** (the frame is 720 px or more): the days are columns of `.days`, side by side, each scrolling on its own inside a scrolling `#body`; the day strip is hidden.
-- **Phone or narrow pane** (under 720 px): `.days` is a single list in `#body`, each `.day-head` sticks to the top while its day scrolls, the day strip shows, the handle is hidden and `.item-menu` is the way to move an item.
+- **Every width:** the days run top to bottom, one after another, in a single scrolling `#body`; each `.day-head` sticks to the top while its day scrolls, and the day strip is always shown. A long trip is just a longer list. On a wide pane the list keeps a readable width (centred).
+- **Phone or narrow pane** (under 720 px): the same list with touch-sized items; the handle is hidden and `.item-menu` is the way to move an item.
+- An item with no drag handle (a stay's later nights, or a viewer who cannot edit) has one column fewer.
 - On load the script scrolls today's day into view (`scrollIntoView({ inline: 'center', block: 'start' })`) and marks its chip `.current`.
 
 ## Ideas and suggestions

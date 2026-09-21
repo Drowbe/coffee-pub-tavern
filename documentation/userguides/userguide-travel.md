@@ -12,7 +12,7 @@ The Travel module plans one trip for a room, day by day. The room's Calendar eve
 
 ## Start a trip
 
-Open the Travel pane in a room. With no trip yet it offers **Start planning**: give the trip a name, where it is, and its first and last day. The days appear as columns (or as one scrolling list on a phone, with a strip of days at the top to jump to one). **Edit trip** changes the name or the dates.
+Open the Travel pane in a room. With no trip yet it offers **Start planning**: give the trip a name, where it is, and its first and last day. The days appear as one list from top to bottom, however long the trip, with a strip of days at the top to jump to one and each day's heading staying in view as you scroll. **Edit trip** changes the name or the dates.
 
 ## Add to a day
 

@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Travel 0.3.0 lays the days out top to bottom at every width instead of as columns side by side, which did not scale to a long trip: one scrolling list with each day's heading held at the top and the strip of days always shown; on a wide pane the list keeps a readable width. A stay's later nights no longer squash into a narrow column. Verified in a browser with a 22-day trip.
+
+### Changed
 - A room's own page has a **Modules** tab that holds everything about modules: which are on for the room and their settings for it. The tab only appears when there is something to set, and a module's settings for the room appear as soon as it is ticked. Verified in a browser: the tab hidden with no modules, present with modules, opening on it from the address, and the settings appearing after ticking a module.
 
 ### Added
