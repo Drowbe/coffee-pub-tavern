@@ -112,3 +112,33 @@ body { margin: 0; overflow: hidden; }
 .app.narrow .chip { height: 32px; }
 .app.narrow .editor { padding: 8px; }
 .app.narrow .editor-card input, .app.narrow .editor-card textarea, .app.narrow .editor-card select { font-size: 16px; }
+
+/* ---- views: mine, this room, everyone (the same places at three scopes) ---- */
+.views { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); }
+.view { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 26px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.view:hover { color: var(--text); }
+.view[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 45%, transparent); }
+.view-note { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; color: var(--text-dim); font-size: 12px; }
+.view-note .ic { color: var(--accent); }
+
+/* ---- find a place: results over the bar at the bottom, when a search address is set ---- */
+.found { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 15; max-height: 60%; display: flex; flex-direction: column; background: var(--bg-section); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 -8px 28px color-mix(in srgb, black 30%, transparent); overflow: hidden; }
+.found-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--border); color: var(--text-dim); font-size: 12px; }
+.found-head b { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-head .grow { flex: 1; }
+.found-close { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); cursor: pointer; }
+.found-close:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.found-rows { overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.found-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; cursor: pointer; }
+.found-row:hover, .found-row:focus-visible { background: color-mix(in srgb, var(--accent) 10%, transparent); outline: none; }
+.found-row .mark { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 18%, var(--bg-card)); color: var(--accent); font-size: 14px; }
+.found-row .title { margin: 0; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-row .sub { margin: 0; color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.found-row .btn { min-height: 30px; }
+.found-state { padding: 16px; text-align: center; color: var(--text-dim); font-size: 13px; }
+.found-credit { padding: 4px 14px 8px; color: var(--text-dim); font-size: 10px; text-align: right; }
+
+.app.narrow .views { flex: 1 1 100%; order: 2; }
+.app.narrow .view { flex: 1; height: 32px; }
+.app.narrow .found { left: 8px; right: 8px; max-height: 65%; }
+.app.narrow .found-row .btn { min-height: 36px; }

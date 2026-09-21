@@ -60,6 +60,14 @@ The host's bottom bar quick-add (`tavern.bar.set` with a `quickadd` item, placeh
 
 A place with a position gives its card a `place` (`{ lat, lng, name }`), so it appears on the Maps module's map with this module's icon; opening it there brings you here. A place with only an address is listed here and opens its address in the person's maps app, and can be given a position later. That is why "On the map" and "No position yet" are shown: they say whether the map has it.
 
+## Views: mine, this room, everyone
+
+The same places at three scopes (see plan-places-views.md). The header holds `div.views[role=group]` of three `button.view[data-view=my|room|global][aria-pressed]` (an icon and "Mine", "This room", "Everyone"; the shown one is pressed), after the filter in the wide layout and on a row of its own, full width, on a narrow pane. Under the header, `p.view-note[data-slot=view-note]` (hidden for the room view) says whose they are: "Only you see these. They follow you into every room." for mine, "Everyone on this server sees these. Moderators change them." for everyone. The list, chips, counts, menu and dialog are the same in each view; in a view the person may not change (everyone, without the right), the menu says "View", there is no Delete and the dialog is read-only, as for a viewer today. The place menu gets one more item, `data-action=share`: "Share to this room" in mine, "Save to mine" in the room view (hidden in everyone).
+
+## Find a place (only when a search address is set)
+
+The bottom bar takes a name, coordinates, a map link or, with a search address, a search. While text is typed that is not coordinates or a link, `div#found.found` opens over the bottom of the pane: `.found-head` ("Results for" with the text in a `<b>`, and `button.found-close[data-action=close-found]`), then `.found-rows` of `.found-row[role=option][tabindex=0]` (`.mark` with an icon, `.title`, `.sub` with the address, `button.btn-primary[data-action=save-found]` "Save"). Enter or a click on a row saves it; arrow keys move between rows. States: searching (a `.skeleton` in `.found-rows`), nothing found (`p.found-state`: "Nothing found. Try a fuller name, or paste coordinates or a map link.") and an error (`p.found-state`: "Search is not available right now."). Where no address is set none of this exists and the bar behaves as before. The reference rendering has the states `mine`, `everyone`, `searching`, `found` and `notfound`.
+
 ## Not decided yet
 
 Tags beyond the five categories, sorting other than by name inside a group, importing a list, and sharing a place between rooms.
