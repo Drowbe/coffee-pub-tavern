@@ -131,6 +131,12 @@
 .stay.mid .badge { width: 26px; height: 26px; font-size: 12px; }
 .stay.mid h3 { font-size: 13px; font-weight: 600; color: var(--text-dim); }
 
+/* ---- the last morning of a stay: a check-out card with the time big on the right ---- */
+.stay.out { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 40px 10px 12px; background: linear-gradient(120deg, color-mix(in srgb, var(--tone) 22%, var(--bg-card)), color-mix(in srgb, var(--tone) 6%, var(--bg-card))); }
+.stay.out .side { text-align: right; padding-right: 4px; }
+.stay.out .side b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1; }
+.stay.out .side small { color: var(--text-dim); font-size: 11px; }
+
 /* ---- a reservation: a meal, a coffee, a drink ---- */
 .meal { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; }
 .meal .badge { width: 46px; height: 46px; font-size: 20px; }
