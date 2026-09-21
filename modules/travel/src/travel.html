@@ -22,17 +22,24 @@
       <h1 class="trip-title" data-slot="title"></h1>
       <div class="trip-when" data-slot="dates"></div>
     </div>
-    <div class="views" role="group" aria-label="View">
-      <button class="btn on" type="button" data-view="days">Days</button>
-      <button class="btn" type="button" data-view="decisions">Decisions<span class="count" data-slot="decisions-count" hidden></span></button>
-      <button class="btn" type="button" data-view="bookings">Bookings</button>
-      <button class="btn" type="button" data-view="money">Money</button>
+    <!-- icons with tooltips, as everywhere in Tavern: the four views, then a divider and the trip's own actions -->
+    <div class="tools" role="toolbar" aria-label="Trip">
+      <div class="views" role="group" aria-label="View">
+        <button class="btn tool on" type="button" data-view="days" title="Days" aria-label="Days"><span class="ic" data-icon="calendar-days"></span></button>
+        <button class="btn tool" type="button" data-view="decisions" title="Decisions" aria-label="Decisions"><span class="ic" data-icon="scale-balanced"></span><span class="count" data-slot="decisions-count" hidden></span></button>
+        <button class="btn tool" type="button" data-view="bookings" title="Bookings" aria-label="Bookings"><span class="ic" data-icon="ticket"></span></button>
+        <button class="btn tool" type="button" data-view="money" title="Money" aria-label="Money"><span class="ic" data-icon="coins"></span></button>
+      </div>
+      <button class="btn tool tool-edit" type="button" data-action="edit-trip" title="Edit trip" aria-label="Edit trip" hidden><span class="ic" data-icon="pen"></span></button>
     </div>
     <div class="trip-facts" data-slot="summary"></div>
-    <button class="btn" type="button" data-action="edit-trip" hidden>Edit trip</button>
   </header>
   <p class="error" id="note" hidden></p>
-  <nav id="daystrip" class="daystrip" aria-label="Jump to a day"></nav>
+  <div id="stripbar" class="stripbar">
+    <button class="strip-arrow" type="button" data-action="strip-prev" title="Earlier days" aria-label="Earlier days"><span class="ic" data-icon="chevron-left"></span></button>
+    <nav id="daystrip" class="daystrip" aria-label="Jump to a day"></nav>
+    <button class="strip-arrow" type="button" data-action="strip-next" title="Later days" aria-label="Later days"><span class="ic" data-icon="chevron-right"></span></button>
+  </div>
   <main id="body" class="body"></main>
 
   <!-- the editor: a dialog over the page. The script puts a clone of tpl-editor2 (an item) or tpl-editor-trip (the trip) in it -->

@@ -4,8 +4,8 @@
     "hash": "1267b2ac59448c0d"
   },
   "maps": {
-    "version": "0.4.0",
-    "hash": "5a0d9d0515736df4"
+    "version": "0.4.1",
+    "hash": "d6ae7189d7a80ba2"
   },
   "places": {
     "version": "0.3.0",
@@ -20,7 +20,7 @@
     "hash": "c221a4f0518dcabf"
   },
   "travel": {
-    "version": "0.5.5",
-    "hash": "1d9498c439f04148"
+    "version": "0.6.0",
+    "hash": "e34b6b35b6f08c3f"
   }
 }

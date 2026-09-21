@@ -197,3 +197,11 @@ body { margin: 0; overflow: hidden; }
 
 /* the loading skeleton fills the map, with no padding around it */
 .state:has(> .skel) { padding: 0; }
+
+/* a search result on the map: not saved yet, so a dashed outline and a surface fill, with a soft pulse to invite a click */
+.pin.candidate { --pin: var(--bg-section); --pin-text: var(--accent); z-index: 1; }
+.pin.candidate .pin-body { border: 2px dashed var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent), 0 2px 6px color-mix(in srgb, black 35%, transparent); animation: candidate-pulse 2.2s ease-in-out infinite; }
+.pin.candidate:hover .pin-body, .pin.candidate:focus-visible .pin-body { background: var(--accent); color: var(--on-accent); }
+.pin.candidate .pin-label { border: 1px dashed var(--accent); }
+@keyframes candidate-pulse { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 6%, transparent), 0 2px 6px color-mix(in srgb, black 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .pin.candidate .pin-body { animation: none; } }

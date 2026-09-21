@@ -482,13 +482,13 @@
     $('msg').hidden = true;
     if (!state.loaded) {
       $('trip').hidden = true;
-      $('daystrip').hidden = true;
+      $('stripbar').hidden = true;
       $('body').replaceChildren(clone('tpl-state-loading'));
       return;
     }
     if (!plan.trip || !plan.days().length) {
       $('trip').hidden = true;
-      $('daystrip').hidden = true;
+      $('stripbar').hidden = true;
       const s = clone('tpl-state-empty-trip');
       if (!canEdit) s.querySelector('[data-action="create-trip"]').remove();
       $('body').replaceChildren(s);
@@ -500,16 +500,16 @@
     const top = scroller.scrollTop;
     renderHeader();
     if (state.view !== 'days') {
-      $('daystrip').hidden = true;
+      $('stripbar').hidden = true;
       ({ decisions: renderDecisions, bookings: renderBookings, money: renderMoney })[state.view]();
     } else {
-      $('daystrip').hidden = false;
+      $('stripbar').hidden = false;
       renderStrip();
       renderDays();
     }
     hydrate(root === document ? document.body : root);
     restoreInputs(kept);
-    if (scrolled) scroller.scrollTop = top;
+    if (scrolled) { scroller.scrollTop = top; if (state.view === 'days' && state.currentDay) markCurrent(state.currentDay); }
     else if (state.view === 'days') {
       scrolled = true;
       const today = $(`day-${ymd(new Date())}`) || $(`day-${plan.days()[0]}`);
@@ -524,7 +524,26 @@
   function markCurrent(day) {
     if (day) state.currentDay = day;
     for (const c of root.querySelectorAll('.daychip')) c.classList.toggle('current', c.dataset.day === day);
+    for (const d of root.querySelectorAll('.day2[data-day]')) d.classList.toggle('current', Boolean(day) && d.dataset.day === day);
+    // keep the chosen chip in view inside the strip (the strip alone scrolls, never the page)
+    const strip = $('daystrip');
+    const chip = strip && strip.querySelector('.daychip.current');
+    if (chip) {
+      const left = chip.offsetLeft - strip.offsetLeft;
+      if (left < strip.scrollLeft || left + chip.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollTo({ left: left - (strip.clientWidth - chip.offsetWidth) / 2 });
+    }
   }
+  // The arrows beside the day strip: a page of days at a time; each is disabled at its end.
+  function stripArrows() {
+    const strip = $('daystrip');
+    if (!strip) return;
+    const prev = root.querySelector('[data-action="strip-prev"]');
+    const next = root.querySelector('[data-action="strip-next"]');
+    if (prev) prev.disabled = strip.scrollLeft <= 1;
+    if (next) next.disabled = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+  }
+  $('daystrip').addEventListener('scroll', stripArrows, { passive: true });
+  new ResizeObserver(stripArrows).observe($('daystrip'));
   $('body').addEventListener('scroll', () => {
     const days = [...root.querySelectorAll('.day2[data-day]')].filter((d) => d.dataset.day);
     const top = $('body').getBoundingClientRect().top;
@@ -975,7 +994,10 @@
     }
     const action = b.dataset.action;
     const li = b.closest('.row.entry, .leg-row');
-    if (action === 'goto-day') {
+    if (action === 'strip-prev' || action === 'strip-next') {
+      const strip = $('daystrip');
+      strip.scrollBy({ left: (action === 'strip-next' ? 1 : -1) * Math.max(120, strip.clientWidth * 0.7) });
+    } else if (action === 'goto-day') {
       const target = $(`day-${b.dataset.day}`);
       if (target) { target.scrollIntoView({ inline: 'center', block: 'start' }); markCurrent(b.dataset.day); }
     } else if (action === 'move-menu' && li) {
