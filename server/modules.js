@@ -331,7 +331,15 @@ function cleanManifest(raw, files) {
 
   const settings = cleanSettings(raw.settings);
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings };
+  // The modules this one cannot work without: the one place a manifest names another module (at run time every module still
+  // reaches another only through the generic conduits). It cannot be turned on until they are on.
+  const requires = [];
+  for (const r of Array.isArray(raw.requires) ? raw.requires.slice(0, 5) : []) {
+    if (typeof r !== 'string' || !ID_RE.test(r) || r === id) throw new ModuleError('module.json: requires must list other modules by id');
+    if (!requires.includes(r)) requires.push(r);
+  }
+
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -379,6 +387,7 @@ class ModuleManager {
       manifest.hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(manifest.hooks?.[h])]));
       if (!Array.isArray(manifest.permissions)) manifest.permissions = [];
       if (!manifest.access || typeof manifest.access !== 'object') manifest.access = {};
+      manifest.requires = Array.isArray(manifest.requires) ? manifest.requires.filter((r) => typeof r === 'string' && ID_RE.test(r) && r !== id).slice(0, 5) : [];
       try {
         manifest.refs = cleanRefs(manifest.refs, id);
       } catch {
@@ -468,6 +477,9 @@ class ModuleManager {
       allRooms: Boolean(entry.allRooms),
       rooms: entry.rooms || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
+      // What this needs that is not on (module ids), and the enabled modules that need this one.
+      missing: (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled)),
+      dependents: this.dependentsOf(id),
       needsApproval: this.hasPending(pending),
       source: entry.source || 'upload',
       runMode: this.runModeOf(entry),
@@ -477,6 +489,17 @@ class ModuleManager {
       installedAt: entry.installedAt,
       updatedAt: entry.updatedAt,
     };
+  }
+
+  // The enabled modules that list `id` in their `requires`.
+  dependentsOf(id) {
+    const out = [];
+    for (const [other, e] of Object.entries(this.registry.modules)) {
+      if (other === id || !e.enabled) continue;
+      const m = this.manifestOf(other, e.version);
+      if (m && (m.requires || []).includes(id)) out.push(other);
+    }
+    return out;
   }
 
   list() {
@@ -569,6 +592,15 @@ class ModuleManager {
     const entry = this.get(id);
     const manifest = this.manifestOf(id, entry.version);
     if (patch.enabled !== undefined) {
+      if (patch.enabled) {
+        const missing = (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled));
+        if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => (this.registry.modules[r] ? this.manifestOf(r, this.registry.modules[r].version).name : r)).join(' and ')} installed and turned on first`);
+      } else {
+        // Turning off a module others need: those go off with it, but only when the caller said so (`force`).
+        const needing = this.dependentsOf(id);
+        if (needing.length && patch.force !== true) throw new ModuleError(`${needing.map((r) => this.manifestOf(r, this.registry.modules[r].version).name).join(' and ')} needs ${manifest.name}; turn ${needing.length === 1 ? 'it' : 'them'} off too?`);
+        for (const r of needing) this.registry.modules[r].enabled = false;
+      }
       entry.enabled = Boolean(patch.enabled);
       if (entry.enabled) {
         entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes], events: [...manifest.events.subscribes], actions: [...manifest.actions.uses] };
@@ -625,6 +657,7 @@ class ModuleManager {
 
   uninstall(id, { keepData = true } = {}) {
     this.get(id);
+    for (const r of this.dependentsOf(id)) this.registry.modules[r].enabled = false; // what needed it goes off with it
     const keep = this.fileFolders(id); // read while the versions are still there
     fs.rmSync(path.join(this.dir, id, 'versions'), { recursive: true, force: true });
     if (!keepData) {

@@ -8,6 +8,8 @@ Chat and Conference are listed first on the Modules tab as built-in modules. The
 
 ## Modules that come with Tavern
 
+A module can need another: Maps needs Places. Its card says what it needs and its Enable button waits until that is installed and on; turning off a module others need asks first and turns them off too, and uninstalling one turns them off as well.
+
 The Calendar, To-do, Polls, Travel, Places and Maps modules ship with the server, so there is no zip to upload. The Modules tab lists the ones you have not installed under **Available with this Tavern**, each with an **Install** button. When you update the server and a module it carries has a newer version than the one you have installed, the module's card shows **Update available** with an **Update to** button, the Modules tab itself shows the count in a small bubble, and the settings gear in the header shows the same count as a small badge on every page (admins only), so you see it without opening Manage. The badge goes away once the updates are applied. The update keeps the module's data, keeps the old version so you can switch back, and, if it asks for anything new (a permission, a hook, a link to another module), stays off until you approve it. A module you upload yourself is updated by uploading a newer zip.
 
 ## Install a module

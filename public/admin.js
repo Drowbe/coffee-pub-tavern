@@ -762,7 +762,8 @@ function moduleCard(m) {
     </div>
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
     <div class="row">
-      <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button">${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
+      <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && m.missing?.length ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
+      ${!m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map((r) => escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r)).join(' and ')} installed and turned on first.</span>` : ''}
       ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
       <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
     </div>`;
@@ -885,14 +886,20 @@ $('modules-list').addEventListener('click', async (event) => {
   const m = installedModules.find((x) => x.id === card.dataset.id);
   try {
     if (button.dataset.moduleAction === 'toggle') {
-      await api('PATCH', `/api/modules/${m.id}`, { enabled: !m.enabled });
+      let force = false;
+      if (m.enabled && m.dependents?.length) {
+        const names = m.dependents.map((r) => (installedModules.find((x) => x.id === r) || {}).name || r).join(' and ');
+        if (!window.confirm(`${names} needs ${m.name}. Turn ${m.dependents.length === 1 ? 'it' : 'them'} off too?`)) return;
+        force = true;
+      }
+      await api('PATCH', `/api/modules/${m.id}`, { enabled: !m.enabled, ...(force ? { force: true } : {}) });
     } else if (button.dataset.moduleAction === 'rollback') {
       const version = card.querySelector('[data-module-version]').value;
       if (version === m.version) return;
       if (!window.confirm(`Switch ${m.name} to version ${version}? Its data stays as it is.`)) return;
       await api('POST', `/api/modules/${m.id}/rollback`, { version });
     } else if (button.dataset.moduleAction === 'uninstall') {
-      if (!window.confirm(`Uninstall ${m.name}?`)) return;
+      if (!window.confirm(`Uninstall ${m.name}?${m.dependents?.length ? ' ' + m.dependents.map((r) => (installedModules.find((x) => x.id === r) || {}).name || r).join(' and ') + ' needs it and will be turned off.' : ''}`)) return;
       const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the module's own folder (a map file, say) are never deleted.`);
       await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
     }

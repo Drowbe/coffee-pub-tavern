@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Modules can declare `requires` (other modules by id). A module cannot be enabled until what it requires is installed and on, the Modules tab says what is missing and disables the button, and turning off (or uninstalling) a module that others need asks first and turns them off with it. Maps 0.3.1 requires Places. Verified against a running server: enabling Maps first is refused, enabling Places then Maps works, disabling Places without `force` is refused and with it turns Maps off.
+
+### Added
 - Clicking a place in Places (0.2.0) that has a position shows it on the map when a map module is installed: Maps 0.3.0 offers a `showOnMap` action, and Places finds it by what it offers, never by name. Actions can now be declared `local` in `module.json`: a view carried out only by the requesting person's own open page of the module, needing only read access, so one person's click never moves another person's map. Places asks for permission to use other modules' actions, so an update to it waits for approval (the Modules tab shows it). Verified in two browser tabs: a click in Places selected and centred the place on the Maps page.
 
 ### Fixed
