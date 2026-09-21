@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -327,6 +327,28 @@ test('what an item is: its editor tile, the fields a tile decides, and its card'
   assert.equal(lib.cardOf({ kind: 'link' }, { error: 'gone' }).card, 'link');
   assert.ok(lib.TILES.every((t) => lib.tileOf(it(lib.fromTile(t))) === t), 'every tile round-trips');
   assert.equal(lib.LEG_ICONS.walk, 'person-walking');
+});
+
+test('where the trip starts and ends: the first and last booked item', () => {
+  const it = (o) => lib.cleanItem({ id: 'x', title: 't', order: 1, ...o });
+  assert.equal(lib.tripBounds([]), null);
+  assert.equal(lib.tripBounds([it({ id: 'n', kind: 'note', date: '2026-10-03' }), it({ id: 'u', kind: 'stop', date: '2026-10-03' })]), null, 'untimed stops and notes are not booked');
+  const items = [
+    it({ id: 'dinner', kind: 'stop', date: '2026-10-03', time: '20:00' }),
+    it({ id: 'flight', kind: 'journey', mode: 'flight', date: '2026-10-03', time: '08:10', minutes: 65 }),
+    it({ id: 'hotel', kind: 'stay', date: '2026-10-03', checkOut: '2026-10-05', checkOutTime: '11:00' }),
+    it({ id: 'home', kind: 'journey', mode: 'flight', date: '2026-10-05', time: '15:00', minutes: 120 }),
+    it({ id: 'idea', kind: 'stop', date: null, time: '01:00' }),
+  ];
+  const b = lib.tripBounds(items);
+  assert.deepEqual(b.start, { id: 'flight', day: '2026-10-03', time: '08:10' });
+  assert.deepEqual(b.end, { id: 'home', day: '2026-10-05', time: '17:00' });
+  const stayLast = lib.tripBounds([items[2]]);
+  assert.deepEqual(stayLast.end, { id: 'hotel', day: '2026-10-05', time: '11:00' });
+  const fallback = lib.tripBounds([it({ id: 'a', kind: 'stop', date: '2026-10-04', time: '09:00' }), it({ id: 'b', kind: 'stop', date: '2026-10-04', time: '18:00', minutes: 30 })]);
+  assert.equal(fallback.start.id, 'a');
+  assert.deepEqual(fallback.end, { id: 'b', day: '2026-10-04', time: '18:30' });
+  assert.equal(lib.tripBounds([it({ id: 'c', kind: 'stop', date: '2026-10-04', confirm: 'XY1' })]).start.id, 'c', 'anything with a confirmation is booked');
 });
 
 console.log(`check-travel: OK (${n} checks)`);

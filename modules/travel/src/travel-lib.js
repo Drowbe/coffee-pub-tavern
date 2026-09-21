@@ -337,3 +337,26 @@
   }
   // The icon for the way to a stop.
   const LEG_ICONS = { walk: 'person-walking', drive: 'car', transit: 'bus', bike: 'bicycle', taxi: 'taxi' };
+
+  // The first and last booked items of a plan: where the trip itself starts and ends (as opposed to the days planned for it).
+  // "Booked" is a journey, a stay, or anything with a confirmation; with none of those, the first and last timed item. Only items
+  // on a day count. { start: { id, day, time }, end: { id, day, time } } (`time` is when the item starts, and for the end its
+  // arrival or check-out), or null when nothing qualifies.
+  function tripBounds(items) {
+    const dated = items.filter((i) => i.kind !== 'link' && i.kind !== 'note' && i.date);
+    let pool = dated.filter((i) => i.kind === 'journey' || i.kind === 'stay' || i.confirm);
+    if (!pool.length) pool = dated.filter((i) => i.time);
+    if (!pool.length) return null;
+    const endOf = (i) => {
+      if (i.kind === 'stay') return { day: i.checkOut || i.date, time: i.checkOutTime || '' };
+      if (i.time && i.minutes) { const m = minutesOfDay(i.time) + i.minutes; return m < 24 * 60 ? { day: i.date, time: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` } : { day: i.date, time: i.time }; }
+      return { day: i.date, time: i.time || '' };
+    };
+    // An item with no time is the least certain: it does not start the day's trip before a timed one, nor end it after one.
+    const startKey = (i) => `${i.date} ${i.time || '24:00'}`;
+    const endKey = (i) => { const e = endOf(i); return `${e.day} ${e.time || '00:00'}`; };
+    const first = [...pool].sort((a, b) => startKey(a).localeCompare(startKey(b)) || a.order - b.order)[0];
+    const last = [...pool].sort((a, b) => endKey(b).localeCompare(endKey(a)) || b.order - a.order)[0];
+    const e = endOf(last);
+    return { start: { id: first.id, day: first.date, time: first.time || '' }, end: { id: last.id, day: e.day, time: e.time } };
+  }

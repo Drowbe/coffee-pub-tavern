@@ -23,9 +23,15 @@ Open the Planner pane in a room. With no trip yet it offers **Start planning**: 
 
 Items with no time come first in a day, in the order you put them; items with a time follow, by time. An item from another module takes the time that item has (a Calendar event's start), so it sorts among the timed ones. Between two timed items a small line shows the gap, such as "45 min".
 
+## Markers, extra days and empty days
+
+- **Markers** are drawn for you, not items: **Planning starts** and **Planning ends** on the plan's first and last day, and **Trip starts** just before the first booked item and **Trip ends** just after the last one. Booked means a journey, a stay, or anything with a booking reference; with none of those, the first and last item with a time. With no items there are no trip markers. Markers cannot be edited, moved or removed, and do not count as something planned.
+- **Add days before** (above the first day) and **Add days after** (below the last) move the plan's first or last date by 1 to 30 days, the same as changing the dates under Edit trip. A plan can be at most 60 days long, and the page says so when you ask for more. Items and trip markers stay where they were; the planning markers move with the new ends.
+- The eye button in the toolbar hides days with nothing on them (a stay that covers the night counts), with a note that says how many are hidden and a Show button. It is remembered for you in this browser and is off by default. If every day is empty, nothing is hidden.
+
 ## Move things
 
-- On a computer, drag an item by the line beside its card to another place in its day or to another day.
+- On a computer, drag an item by the line beside its card, or by the card itself, to another place in its day or to another day. An item with no time goes where you drop it among the day's untimed items. An item with a time keeps it when it moves to another day, and dropped between two others on the same day it takes the end of the item before it as its time (nothing changes if that one has no time).
 - Anywhere, including a phone, open the item's menu (the three dots): **Edit**, **Earlier**, **Later** (an item with no time swaps places with its neighbour; an item with a time moves half an hour), **Move to** another day, **Back to ideas**, and **Delete**.
 
 ## What other modules bring

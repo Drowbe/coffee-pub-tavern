@@ -45,6 +45,7 @@
     currentDay: null, // the day in view (where a quick add goes)
     hosted: Boolean(tavern.bar), // the host draws the quick-add bar, so the days' own add rows step aside
     deleteArmed: null,
+    hideEmpty: (() => { try { return localStorage.getItem('planner-hide-empty') === '1'; } catch (err) { return false; } })(), // per person, off by default
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || 'Someone';
 
@@ -250,6 +251,17 @@
     return [range, words(own.length, 'stop', 'stops'), around ? `${lengthText(around)} getting around` : ''].filter(Boolean).join(' · ');
   }
 
+  const MARKERS = { 'planning-start': ['flag', 'Planning starts'], 'planning-end': ['flag-checkered', 'Planning ends'], 'trip-start': ['plane-departure', 'Trip starts'], 'trip-end': ['plane-arrival', 'Trip ends'] };
+  function buildMarker(kind, time, sub) {
+    const row = clone('tpl-row-marker');
+    row.dataset.marker = kind;
+    setIcon(row.querySelector('.markercard [data-icon]'), MARKERS[kind][0]);
+    fill(row, { time, title: MARKERS[kind][1], sub });
+    return row;
+  }
+  // A short name for an item, for a marker's line.
+  const describe = (item) => (item.kind === 'journey' && [item.operator, item.number].filter(Boolean).join(' ')) || item.title;
+
   function buildDay(day, index, days, by) {
     const el = clone('tpl-day2');
     const ideas = day === null;
@@ -271,12 +283,23 @@
       empty.textContent = ideas ? 'Ideas with no day yet wait here.' : 'Nothing planned yet. Add something below.';
       list.append(empty);
     }
+    // The plan's own ends, and where the trip itself starts and ends (the first and last booked item). Markers are drawn, never stored:
+    // they have no id, no menu and no handle, and are not counted as something planned.
+    const bounds = state.bounds;
+    const days2 = plan.days();
+    if (!ideas && day === days2[0]) list.append(buildMarker('planning-start', parseYmd(day).toLocaleDateString([], { weekday: 'short', day: 'numeric' }), 'the plan begins'));
     entries.forEach((entry, i) => {
       const prev = entries[i - 1];
       const covers = (e) => e && (e.span === 'middle' || e.span === 'end');
+      const mine = !ideas && !covers(entry);
+      if (mine && bounds && bounds.start.day === day && bounds.start.id === entry.item.id) list.append(buildMarker('trip-start', bounds.start.time, describe(entry.item)));
       if (i && !covers(entry) && !covers(prev)) { const leg = buildLeg(entry.item); if (leg) list.append(leg); }
       list.append(buildEntry(entry));
+      const closes = !ideas && bounds && bounds.end.day === day && bounds.end.id === entry.item.id && (entry.item.kind !== 'stay' || !entry.item.checkOut || entry.span === 'end');
+      if (closes) list.append(buildMarker('trip-end', bounds.end.time, describe(entry.item)));
     });
+    if (!ideas && day === days2[days2.length - 1]) list.append(buildMarker('planning-end', parseYmd(day).toLocaleDateString([], { weekday: 'short', day: 'numeric' }), 'the plan ends'));
+    if (!ideas && !entries.length) el.classList.add('is-empty');
     const add = el.querySelector('.add-row');
     add.dataset.day = ideas ? '' : day;
     add.setAttribute('aria-label', `Add to ${ideas ? 'ideas' : dayShort(day)}`);
@@ -298,13 +321,46 @@
     return el;
   }
 
+  // Days with nothing on them (a stay that covers a night counts; markers do not).
+  const emptyDays = () => { const days = plan.days(); const by = plan.byDay(); return new Set(days.filter((d) => !entriesFor(d, days, by).length)); };
+
+  // The button (and its small form) to add days before the first day or after the last.
+  function buildEdge(where) {
+    const el = clone('tpl-dayedge');
+    el.dataset.edge = where;
+    fill(el, { label: where === 'before' ? 'Add days before' : 'Add days after' });
+    const input = el.querySelector('input[name="count"]');
+    input.max = String(Math.max(1, Math.min(30, MAX_DAYS - plan.days().length)));
+    el.querySelector('.edge-form').noValidate = true; // too many is said in the page's note, not by the browser
+    return el;
+  }
+  // Moving the plan's first day back or its last day forward, through the same save as Edit trip.
+  function addDays(where, count) {
+    const trip = plan.trip;
+    const room = MAX_DAYS - plan.days().length;
+    if (!(count >= 1)) return;
+    if (count > room) { note(room > 0 ? `A plan can be at most ${MAX_DAYS} days long, so at most ${room} more can be added.` : `A plan can be at most ${MAX_DAYS} days long.`); return; }
+    const shift = (day, n) => { const d = parseYmd(day); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+    const start = where === 'before' ? shift(trip.start, -count) : trip.start;
+    const end = where === 'after' ? shift(trip.end || trip.start, count) : trip.end || trip.start;
+    attempt(async () => { await plan.saveTrip({ ...trip, start, end }); scrolled = true; });
+  }
+
   function renderDays() {
     const days = plan.days();
     const by = plan.byDay();
     const wrap = document.createElement('div');
     wrap.id = 'days';
     wrap.className = 'days';
+    state.bounds = tripBounds(plan.list());
+    const empties = emptyDays();
+    // Empty days can be hidden, unless every day is empty (then there would be nothing to show).
+    const hiding = state.hideEmpty && empties.size > 0 && empties.size < days.length;
+    $('app').classList.toggle('hide-empty', hiding);
+    if (hiding) { const n = clone('tpl-emptynote'); fill(n, { text: `${empties.size} empty day${empties.size === 1 ? '' : 's'} hidden` }); wrap.append(n); }
+    if (canEdit) wrap.append(buildEdge('before'));
     days.forEach((day, i) => wrap.append(buildDay(day, i, days, by)));
+    if (canEdit) wrap.append(buildEdge('after'));
     if ((by.get(null) || []).length) wrap.append(buildDay(null, days.length, days, by));
     $('body').replaceChildren(wrap);
   }
@@ -313,9 +369,11 @@
     const strip = $('daystrip');
     strip.replaceChildren();
     const today = ymd(new Date());
+    const empties = emptyDays();
     for (const day of plan.days()) {
       const chip = clone('tpl-daychip');
       chip.dataset.day = day;
+      chip.classList.toggle('is-empty', empties.has(day));
       chip.classList.toggle('today', day === today);
       fill(chip, { weekday: parseYmd(day).toLocaleDateString([], { weekday: 'short' }), day: parseYmd(day).getDate() });
       strip.append(chip);
@@ -465,6 +523,14 @@
     count.textContent = String(openDecisions().length);
     hide(count, !openDecisions().length);
     hide(head.querySelector('[data-action="edit-trip"]'), !canEdit);
+    const toggle = head.querySelector('[data-action="toggle-empty"]');
+    if (toggle) {
+      toggle.setAttribute('aria-pressed', String(state.hideEmpty));
+      const label = state.hideEmpty ? 'Show empty days' : 'Hide empty days';
+      toggle.title = label;
+      toggle.setAttribute('aria-label', label);
+      hide(toggle, state.view !== 'days');
+    }
     void days;
   }
 
@@ -694,18 +760,38 @@
     e.preventDefault();
     const day = e.target.closest('.day2');
     if (!day) return;
-    const date = day.dataset.day || null;
     const over = e.target.closest('.row.entry');
     const id = dragId;
+    const where = over && over.dataset.drop;
+    clearDrop();
+    attempt(() => moveOwn(id, day, over, where));
+  });
+
+  // Where an item of the plan is put when it is dropped on a day, before or after another item. An item with no time is placed in the
+  // order of the day's untimed ones; an item with a time keeps it when it goes to another day, and, dropped between two others on
+  // the same day, takes the end of the item before it as its time (nothing changes if that one has no time).
+  function moveOwn(id, dayEl, overEl, where) {
+    const item = plan.list().find((i) => i.id === id);
+    if (!item) return null;
+    const date = dayEl.dataset.day || null;
+    const sameDay = plan.dayOf(item) === date;
+    if (item.time) {
+      if (!sameDay || !overEl || overEl.dataset.id === id) return sameDay ? null : plan.moveTo(id, date, 1e6);
+      const rows = [...dayEl.querySelectorAll('.row.entry')].filter((r) => r.dataset.id !== id);
+      const prevRow = where === 'after' ? overEl : rows[rows.indexOf(overEl) - 1];
+      const prev = prevRow && plan.list().find((i) => i.id === prevRow.dataset.id);
+      if (!prev || !prev.time) return null;
+      const end = minutesOfDay(prev.time) + (prev.minutes || 30);
+      return end < 24 * 60 ? plan.updateItem(id, { time: hm(end) }) : null;
+    }
     const dayUntimed = sortDay(plan.sortable().filter((i) => !i.time && plan.dayOf(i) === date && i.id !== id));
     let index = dayUntimed.length;
-    if (over && over.dataset.id !== id) {
-      const at = dayUntimed.findIndex((i) => i.id === over.dataset.id);
-      if (at >= 0) index = at + (over.dataset.drop === 'after' ? 1 : 0);
+    if (overEl && overEl.dataset.id !== id) {
+      const at = dayUntimed.findIndex((i) => i.id === overEl.dataset.id);
+      if (at >= 0) index = at + (where === 'after' ? 1 : 0);
     }
-    clearDrop();
-    attempt(() => plan.moveTo(id, date, index));
-  });
+    return plan.moveTo(id, date, index);
+  }
 
   // A pointer a shared plan may hold: a private item is copied to the room first (title, position and address, through a module that
   // offers to save a place), and the copy's pointer is used.
@@ -724,15 +810,42 @@
   // Something from another module dropped on a day: put it on that day.
   if (tavern.refs && tavern.refs.dropTarget && canEdit) {
     const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day2') : null; };
+    // One of this plan's own items, pressed on its body and dragged (the pointer drag every module's items share).
+    const ownRef = (ref) => Boolean(ref) && ref.module === info.module.id && ref.kind === 'plan';
+    // The row under the pointer, and whether the pointer is in its top or bottom half (the pointer is in this module's own
+    // coordinates, a row's box in the page's).
+    const rowAt = (pt) => {
+      const el = tavern.refs.elementAt(pt);
+      const row = el && el.closest ? el.closest('.row.entry') : null;
+      if (!row) return { row: null, where: null };
+      const r = row.getBoundingClientRect();
+      const y = pt.y + tavern.rootElement.getBoundingClientRect().top;
+      return { row, where: y < r.top + r.height / 2 ? 'before' : 'after' };
+    };
     tavern.refs.dropTarget({
       over: (pt, ref) => {
         clearDrop();
+        if (ownRef(ref)) {
+          const day = dayAt(pt);
+          if (!day) return;
+          day.classList.add('drop-target');
+          const { row, where } = rowAt(pt);
+          if (row && row.dataset.id !== ref.id) { row.dataset.drop = where; lastTarget = row; }
+          return;
+        }
         const day = ref && ref.module !== info.module.id ? dayAt(pt) : null;
         if (day) day.classList.add('drop-target');
       },
       leave: clearDrop,
       drop: (ref, pt) => {
         clearDrop();
+        if (ownRef(ref)) {
+          const day = dayAt(pt);
+          if (!day) return;
+          const { row, where } = rowAt(pt);
+          attempt(() => moveOwn(ref.id, day, row, where));
+          return;
+        }
         const day = ref && ref.module !== info.module.id ? dayAt(pt) : null;
         if (!day) return;
         const date = day.dataset.day || null;
@@ -1041,6 +1154,19 @@
       openItemEditor(b.dataset.id);
     } else if (action === 'edit-leg' && li) {
       openItemEditor(li.dataset.id);
+    } else if (action === 'toggle-empty') {
+      state.hideEmpty = !state.hideEmpty;
+      try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }
+      redraw();
+    } else if (action === 'edge-open') {
+      const edge = b.closest('.dayedge');
+      hide(b, true);
+      hide(edge.querySelector('.edge-form'), false);
+      edge.querySelector('input[name="count"]').focus();
+    } else if (action === 'edge-cancel') {
+      const edge = b.closest('.dayedge');
+      hide(edge.querySelector('.edge-form'), true);
+      hide(edge.querySelector('[data-action="edge-open"]'), false);
     } else if (action === 'edit-trip' || action === 'create-trip') {
       openEditor('trip');
     } else if (action === 'use-theirs' && li) {
@@ -1055,6 +1181,15 @@
       const day = b.closest('.day2');
       if (s && day) attempt(async () => { await plan.addLink(JSON.parse(s.dataset.ref), day.dataset.day || null); await plan.suggest(); });
     }
+  });
+
+  // The small form on a day edge: how many days to add.
+  root.addEventListener('submit', (e) => {
+    const form = e.target.closest('.edge-form');
+    if (!form) return;
+    e.preventDefault();
+    note('');
+    addDays(form.closest('.dayedge').dataset.edge, Number(form.elements.count.value));
   });
 
   // The add row: a title (and a time, if typed: "dinner at 7pm") on that day.
