@@ -63,4 +63,4 @@ Some modules can ask an AI to summarise, answer a question, or write a card from
 - **Key:** kept on the server and never shown again. The panel says only whether one is set. **Set a key** or **Replace the key** takes a new one; **Remove the key** deletes it. If the key comes from the server's environment (`TAVERN_AI_KEY`), the panel says so and it is changed there.
 - **Monthly allowance:** a number of tokens for the month, or 0 for no limit. The panel shows how many were used this month, in how many calls and for which tasks.
 - **Who may use it:** the Roles tab has **Use AI in modules** under AI. It is off for every role until you tick it, admins always may, and guests never can (the tick is greyed out for them).
-- **Per room:** on a room's settings, **Turn AI off in this room** stops it there whatever the roles say.
+- **Per room:** on a room's settings, in its **Modules** tab under **AI**, **Turn AI off in this room** stops it there whatever the roles say.

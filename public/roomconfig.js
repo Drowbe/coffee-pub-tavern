@@ -218,7 +218,7 @@ $('e-ai-off').addEventListener('change', async (event) => {
     room = (await api('PATCH', `/api/rooms/${room.id}`, { aiOff: event.target.checked })).room;
   } catch (err) {
     event.target.checked = Boolean(room.aiOff);
-    say($('save-status'), err.message, true);
+    say($('ai-off-status'), err.message, true);
   }
 });
 
@@ -306,7 +306,7 @@ selectTab(location.hash.slice(1));
 // Show the Modules tab when either of its panels has something, and open on it when the address asks for it.
 function syncModulesTab() {
   const tab = document.querySelector('[data-tab="modules"]');
-  tab.hidden = $('section-modules').hidden && $('section-module-settings').hidden;
+  tab.hidden = $('section-modules').hidden && $('section-module-settings').hidden && $('section-ai').hidden;
   selectTab(wantedTab);
 }
 
@@ -329,6 +329,8 @@ async function init() {
     renderCrumb();
     await loadRoomModules();
     syncModulesTab();
+    // The AI switch is for a server that has an AI service set up.
+    api('GET', '/api/ai').then((d) => { $('section-ai').hidden = !d.ai || d.ai.provider === 'none'; syncModulesTab(); }).catch(() => {});
     renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; syncModulesTab(); });
   } catch (err) {
     location.href = '/admin#rooms';

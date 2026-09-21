@@ -89,7 +89,6 @@
         <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the room itself, not just here.</p>
         <div class="row">
           <label class="check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
-          <label class="check"><input type="checkbox" id="e-ai-off"> Turn AI off in this room</label>
         </div>
         <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on above to use this.</p>
         <div class="row">
@@ -109,6 +108,13 @@
         <p class="hint">Modules with a room panel. Tick one to make it available to this room's members, in the Modules button on the call toolbar. A module marked on for every room is set on the Modules tab of Manage.</p>
         <div id="room-modules"></div>
         <span class="status" id="room-modules-status"></span>
+      </div>
+      <!-- shown once an AI service is set up (Manage > Modules > AI service) -->
+      <div class="panel" id="section-ai" hidden>
+        <h2><i class="fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i> AI</h2>
+        <p class="hint">Modules in this room can use the server's AI service to summarise, answer questions and write cards from what a person selects. Turn it off here to stop that in this room, whatever the roles allow.</p>
+        <label class="check"><input type="checkbox" id="e-ai-off"> Turn AI off in this room</label>
+        <span class="status" id="ai-off-status" role="status"></span>
       </div>
       <div class="panel" id="section-module-settings" hidden>
         <h2>Module settings</h2>
