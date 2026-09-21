@@ -215,53 +215,15 @@
           <p class="hint activity-empty" id="module-activity-empty">No activity yet.</p>
         </div>
       </div>
-      <!-- The AI service for every module that asks for it (server-wide: not one module's setting). The key is write-only. -->
+      <!-- The AI service is server-wide, not one module's setting: its own configuration page, and a summary here. -->
       <div class="panel" id="ai-panel">
-        <h2><i class="fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i> AI service</h2>
-        <p class="hint">Lets modules that ask for it summarise, answer questions and write cards from what a person selects. Off until you set it up here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). Tavern ships no model and no key.</p>
-        <div class="ai-fields">
-          <label>Service
-            <select id="ai-provider">
-              <option value="none">None (AI is off)</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="compatible">Other (OpenAI-compatible)</option>
-            </select>
-          </label>
-          <div class="option-help" id="ai-notice"></div>
-          <label data-ai-for="compatible" id="ai-address-row">Address <span class="hint">Your own server's address (for example http://localhost:11434 for Ollama), or another company's service that speaks the OpenAI interface. It should be the server's root or end in /v1.</span>
-            <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
-          </label>
-          <div class="ai-key" data-ai-for="openai anthropic compatible">
-            <div class="ai-label">Key <span class="hint" id="ai-key-optional" hidden>(optional for a model on your own network)</span></div>
-            <div class="ai-key-row">
-              <span class="pill" id="ai-key-state">not set</span>
-              <input id="ai-key" type="password" maxlength="300" placeholder="paste a new key" autocomplete="new-password" hidden>
-              <button class="btn btn-small" type="button" id="ai-key-replace">Set a key</button>
-              <button class="btn btn-small btn-danger" type="button" id="ai-key-clear" hidden>Remove the key</button>
-            </div>
-            <p class="hint" id="ai-key-help">The key is kept on the server and is never shown again.</p>
-          </div>
-          <div class="ai-model" data-ai-for="openai anthropic compatible">
-            <div class="ai-label">Model</div>
-            <div class="ai-model-row">
-              <select id="ai-model-select" aria-label="Model"></select>
-              <input id="ai-model" type="text" maxlength="100" placeholder="the model's name" autocomplete="off" hidden>
-              <button class="btn btn-small" type="button" id="ai-models-refresh" title="Load the list of models again"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
-            </div>
-            <p class="hint" id="ai-models-hint"></p>
-            <button class="linklike" type="button" id="ai-model-manual" hidden>Type a model name instead</button>
-          </div>
-          <label data-ai-for="openai anthropic compatible">Monthly allowance <span class="hint">(tokens; 0 for no limit)</span>
-            <input id="ai-cap" type="number" min="0" step="1000" value="0">
-          </label>
+        <div class="module-head">
+          <i class="fa-solid fa-wand-magic-sparkles fa-fw module-icon" aria-hidden="true"></i>
+          <div class="grow"><h2>AI service</h2><div class="hint" id="ai-summary">Loading...</div></div>
+          <span class="pill" id="ai-state">Off</span>
         </div>
-        <div class="row"><button class="btn btn-primary" type="button" id="ai-save">Save</button><span class="status" id="ai-status" role="status"></span></div>
-        <div class="ai-usage" id="ai-usage" hidden>
-          <h3>Used this month</h3>
-          <div class="ai-meter" role="progressbar" aria-label="Monthly allowance used" aria-valuemin="0" aria-valuemax="100" id="ai-meter"><span id="ai-meter-fill"></span></div>
-          <p class="hint" id="ai-usage-text"></p>
-        </div>
+        <p class="hint">Lets modules that ask for it summarise, answer questions and write cards from what a person selects. Set it up on its own page, then tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can).</p>
+        <div class="row"><a class="btn" href="/ai-config.html"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> AI Configuration</a></div>
       </div>
       <div id="modules-list" class="stack"></div>
     </section>

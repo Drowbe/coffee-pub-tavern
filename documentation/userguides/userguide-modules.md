@@ -56,7 +56,7 @@ Under the filters, **Recent activity** lists what modules have done lately, newe
 
 ## The AI service
 
-Some modules can ask an AI to summarise, answer a question, or write a card from what a person selects. The **AI service** panel on the Modules tab is where you set it up, once for the whole server. Nothing works until you do, and Tavern ships no model and no key.
+Some modules can ask an AI to summarise, answer a question, or write a card from what a person selects. The **AI service** card on the Modules tab shows whether it is on, which service and model, and this month's use. Its **AI Configuration** button opens the page where you set it up, once for the whole server. Nothing works until you do, and Tavern ships no model and no key.
 
 - **Service:** None (the default), **OpenAI**, **Anthropic**, or **Other (OpenAI-compatible)**. For OpenAI and Anthropic you only choose the company: Tavern knows where to send the request. Other is for a model you run yourself (Ollama, LM Studio, llama.cpp, vLLM) or another company's service that speaks the OpenAI interface, and asks for its address. Each choice says under it what is sent and to whom: with a hosted service, the items a person selects and their question go to that company under its terms; with your own model, nothing leaves your network. Only what a person selects is sent, never another room.
 - **Model:** chosen from a list, not typed. Once the key is set (or the address, for Other), the panel asks the company which models it offers and lists them; **Refresh** asks again. If the list can't be loaded, the panel says why and offers **Type a model name instead**.
