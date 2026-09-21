@@ -185,6 +185,14 @@ Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few
 
 **What the mock does not cover yet:** an editor for the new fields (the modules side), the small editor for a leg, drag on the new rows (same `data-drop` and `.dragging` states, styled in `travel-lib-cards.css`), and a print or share view.
 
+### A link whose item is gone or hidden
+
+The link card (`tpl-card-link`, `article.card.linkcard`) has two more states, set from what `refs.resolve` says (see plan-linked-items.md):
+- `.gone`: the item was deleted. The icon is `link-slash`, the title is the last known one (struck through), `[data-slot=state]` reads "No longer available" and `[data-action=remove-link]` ("Remove from plan") is shown.
+- `.hidden`: the item exists but this person may not see it. The title reads "Not available to you" (italic), `[data-slot=state]` says so, and Remove is shown for someone who may edit.
+
+Neither state opens the editor, and a click on the card does nothing; the only actions are Remove and the item menu. The live card of an item that exists is unchanged.
+
 ## The editor (for the card family)
 
 The same dialog (`#editor > form#form.editor-card`), rebuilt around **what kind of thing it is**. `tpl-editor2` in `travel.html` is the new form; the script fills `#editor` from it when it opens (the old form goes when the switch is done). `design/editor.html` is the reference (a harness for each type, dark and light, phone to wide).

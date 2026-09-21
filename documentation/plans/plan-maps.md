@@ -93,3 +93,7 @@ The About page lists every one of these under "Built on", with its licence, as i
 ## Questions
 
 None open. Two things to confirm later, not now: the exact glyph font files and their licence when the style is chosen, and the wording of the attribution when a specific tile builder is chosen.
+
+## Addendum: a map source, local or hosted (decided by the author)
+
+The map file setting becomes a choice, as Place search did: **My own map file** (on this server; the default, private, works offline), **A map file at a web address** (an `https://` link to a PMTiles file hosted elsewhere, such as the admin's own cloud storage or content delivery network, read in pieces over the web with no tile server) and, later, Tavern's own hosted map (the hosted edition slot). The web-address choice states plainly what it costs: every viewer's browser contacts that host directly, which sees their address and roughly the area they look at; the page's security policy must allow the host; the host must allow requests from Tavern's pages and support range requests; terms and reliability are the admin's; the credit "© OpenStreetMap contributors" stays. Proprietary tile and map services (Google, Mapbox and the like) are not offered as choices, because they are not free for commercial use (see Licences); anyone who wants one can host a PMTiles copy themselves. Whether the public daily build files of the Protomaps project may be used straight from browsers is not settled and is not offered until their terms are read.
