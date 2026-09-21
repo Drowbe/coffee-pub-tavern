@@ -393,10 +393,12 @@
     strip.replaceChildren();
     const today = ymd(new Date());
     const empties = emptyDays();
+    const bounds = tripBounds(plan.list());
     for (const day of plan.days()) {
       const chip = clone('tpl-daychip');
       chip.dataset.day = day;
       chip.classList.toggle('is-empty', empties.has(day));
+      chip.classList.toggle('in-trip', Boolean(bounds) && day >= bounds.start.day && day <= bounds.end.day);
       chip.classList.toggle('today', day === today);
       fill(chip, { weekday: parseYmd(day).toLocaleDateString([], { weekday: 'short' }), day: parseYmd(day).getDate() });
       strip.append(chip);
