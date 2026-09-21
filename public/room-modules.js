@@ -234,6 +234,39 @@ export function createRoomModules({ guestToken = null } = {}) {
     docked.forEach((p, i) => { for (const el of p.parts()) el.style.gridColumn = String(1 + i); });
   }
 
+  // When the fixed columns together are wider than the stage allows, syncDock shows them squeezed in step
+  // and the conference at its minimum. A drag would then change a stored width that is not what is on
+  // screen, so the conference never moved. Called as a drag starts: each fixed pane takes the width it is
+  // showing, so the drag moves what the person sees (narrowing one gives the room to the conference).
+  function settleDock() {
+    const docked = dockedPanes();
+    if (isNarrow() || docked.length < 2) return;
+    const flex = docked.find((p) => p.def?.flex) || docked[0];
+    const fixed = docked.filter((p) => p !== flex);
+    const total = fixed.reduce((sum, p) => sum + p.width, 0);
+    const room = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
+    if (total <= room) return;
+    const ratio = room / total;
+    for (const p of fixed) p.width = Math.max(160, Math.floor(p.width * ratio));
+  }
+
+  // Widening a column when there is no room left takes the width from the other fixed columns (each down to
+  // its minimum), not by squeezing the one being dragged; the conference keeps what it has.
+  function takeRoomFromOthers(pane) {
+    const docked = dockedPanes();
+    if (isNarrow() || docked.length < 2) return;
+    const flex = docked.find((p) => p.def?.flex) || docked[0];
+    if (pane === flex) return;
+    const fixed = docked.filter((p) => p !== flex);
+    const others = fixed.filter((p) => p !== pane);
+    let excess = fixed.reduce((sum, p) => sum + p.width, 0) - Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
+    if (excess <= 0) return;
+    const spare = others.reduce((sum, p) => sum + Math.max(0, p.width - 160), 0);
+    if (spare <= 0) return;
+    const take = Math.min(excess, spare);
+    for (const p of others) p.width -= Math.round(take * (Math.max(0, p.width - 160) / spare));
+  }
+
   // `current` returns the pane the handle belongs to right now (a native pane is a new object each time it opens).
   function wireDockResize(current, handle) {
     let drag = null;
@@ -241,6 +274,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       const pane = current();
       if (!pane) return;
       event.preventDefault();
+      settleDock();
       drag = { sx: event.clientX, w: pane.width };
       handle.classList.add('dragging');
       stage.classList.add('resizing-dock'); // frames swallow the pointer while dragging
@@ -250,6 +284,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       const pane = current();
       if (!drag || !pane) return;
       pane.width = clampDock(drag.w + (drag.sx - event.clientX)); // the column is on the right: dragging left widens it
+      takeRoomFromOthers(pane);
       syncDock();
     });
     const stop = () => {

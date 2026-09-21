@@ -22,6 +22,8 @@ The stage (`#stage` in `public/room.html`) is a CSS grid. Each **module** owns a
 - **Modules.** A `.module` element has `display: contents`, so its content and bar become items of the stage grid, placed by `grid-column` and `grid-row`. Video is `.module-video`, chat is `.module-chat` (the `#chat` element).
 - **Closing a pane** hides it and removes its column, so the others take the width. With nothing open the stage shows `#stage-empty`.
 
+**When the columns do not fit.** If the fixed columns together are wider than the stage leaves them (the stage minus the conference's minimum), `syncDock()` shows them squeezed in step and the conference stays at its minimum. A drag would then change a stored width that is not what is on screen, so `settleDock()` (called as a drag starts) gives each fixed pane the width it is showing, and `takeRoomFromOthers()` takes the width for a widening column from the other fixed columns, not from the conference or from the column being dragged. Narrowing a column then gives the room to the conference.
+
 The chat's resize handle (`#chat-resize`) is its own grid item spanning both rows, on the chat column's left edge, so dragging it moves the content and the bar together.
 
 ## Docked and floating
