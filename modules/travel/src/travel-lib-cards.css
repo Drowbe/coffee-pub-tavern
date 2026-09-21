@@ -329,3 +329,17 @@
 .jointadd:hover, .jointadd:focus-visible { opacity: 1; transform: scale(1.1); border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg-section)); outline: none; }
 @media (hover: none) { .jointadd { opacity: 0.6; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .jointadd { transition: none; } }
+
+/* Dragging a marker between the days: press its icon cell or its body and move. While it moves, every joint opens into a place to drop it (.days.dragging-lane),
+   the joint under the pointer is .drop-target, and the marker itself is .dragging. Dropping on another marker of the same joint puts it before or after (data-drop). */
+@media (hover: hover) { .row.marker.lane .markerpill { cursor: grab; } .row.marker.lane .markerpill:active { cursor: grabbing; } .row.marker.lane .menu-btn { cursor: pointer; } }
+.row.marker.lane.dragging { opacity: 0.45; }
+.row.marker.lane.dragging .markerpill { box-shadow: 0 0 0 2px var(--accent), 0 10px 26px color-mix(in srgb, black 40%, transparent); }
+.row.marker.lane[data-drop="before"] { box-shadow: 0 -3px 0 var(--accent); }
+.row.marker.lane[data-drop="after"] { box-shadow: 0 3px 0 var(--accent); }
+.days.dragging-lane .joint { height: 30px; margin: -4px 0 4px; }
+.days.dragging-lane .joint::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 2px dashed color-mix(in srgb, var(--text-dim) 60%, transparent); }
+.days.dragging-lane .jointadd { top: 3px; opacity: 1; transform: none; pointer-events: none; }
+.days.dragging-lane .joint.drop-target::before { border-top-color: var(--accent); border-top-style: solid; border-top-width: 3px; }
+.days.dragging-lane .joint.drop-target .jointadd { border-color: var(--accent); color: var(--on-accent); background: var(--accent); transform: scale(1.15); }
+.days.dragging-lane .day2, .days.dragging-lane .timeline.ends { opacity: 0.6; }

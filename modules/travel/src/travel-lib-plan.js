@@ -74,7 +74,10 @@
       const w = c && !c.error ? cardWhen(c) : null;
       return w && w.time ? { ...item, time: w.time } : item;
     };
-    const sortable = () => list().map(timed);
+    // Markers between the days are on the plan's line, not in any day, so days never see them.
+    const sortable = () => list().filter((i) => i.kind !== 'lane').map(timed);
+    // The markers between the days, in the order they are on the line: by the day they follow, then by their own order.
+    const lanes = () => list().filter((i) => i.kind === 'lane').sort((a, b) => String(a.after || '').localeCompare(String(b.after || '')) || a.order - b.order || String(a.id).localeCompare(String(b.id)));
     const days = () => tripDays(trip);
     const byDay = () => itemsByDay(sortable(), days(), dayOf);
     const nextOrder = (date) => {
@@ -195,7 +198,7 @@
     }
 
     return {
-      refreshCards: () => resolveCards(true), load, list, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
+      refreshCards: () => resolveCards(true), load, list, lanes, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

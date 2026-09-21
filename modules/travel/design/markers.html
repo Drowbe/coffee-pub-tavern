@@ -6,7 +6,7 @@
 <title>Planner: markers, days at the ends, empty days (design mock)</title>
 <!--
   A static mock of what the Planner adds around its days (see ../src/CONTRACT.md, "Markers, days at the ends and empty days").
-  Open it in a browser. Parameters: ?state=normal | edge | hidden | blocks | lanes, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
+  Open it in a browser. Parameters: ?state=normal | edge | hidden | blocks | lanes | dragging, ?theme=light, ?w=390 (the width of the plan; narrow under 720).
   Icons come from the Font Awesome Free package in the repository (CC BY 4.0), as classes; the module itself uses data-icon.
 -->
 <link rel="stylesheet" href="../../../node_modules/@fortawesome/fontawesome-free/css/all.min.css">
@@ -51,7 +51,7 @@ const before = ends('before', marker('planning-start', 'flag', 'Sat 3', 'Plannin
 const after = ends('after', marker('trip-end', 'plane-arrival', '14:20', 'Trip ends', 'TAP Air Portugal TP 215 · Lisbon') + marker('planning-end', 'flag-checkered', 'Wed 7', 'Planning ends', 'the plan ends'));
 const hidden = state === 'hidden';
 // with empty days hidden, each run of them is one badge on the line
-const body = state === 'lanes' ? days[0] + lane('moon', 'Rest days', 'nothing planned until Thursday', '#7a6fd0') + joint() + days[2] + joint() + days[4] : state === 'blocks' ? days.join('') : hidden ? days[0] + gap(1) + days[2] + gap(1) + days[4] : days.join('');
+const body = state === 'dragging' ? days[0] + '<div class="joint"><button class="jointadd" type="button">' + ic('plus') + '</button></div>' + days[2] + '<div class="joint drop-target"><button class="jointadd" type="button">' + ic('plus') + '</button></div>' + days[4] : state === 'lanes' ? days[0] + lane('moon', 'Rest days', 'nothing planned until Thursday', '#7a6fd0') + joint() + days[2] + joint() + days[4] : state === 'blocks' ? days.join('') : hidden ? days[0] + gap(1) + days[2] + gap(1) + days[4] : days.join('');
 const chips = ['Sat 3', 'Sun 4', 'Mon 5', 'Tue 6', 'Wed 7'].map((c, i) => `<button class="daychip${i === 0 ? ' current' : ''}${[0, 2, 4].includes(i) ? ' in-trip' : ''}${[1, 3].includes(i) ? ' is-empty' : ''}" type="button">${c.split(' ')[0]}<b>${c.split(' ')[1]}</b></button>`).filter((c, i) => !(hidden && [1, 3].includes(i))).join('');
 document.getElementById('stage').style.width = w + 'px';
 document.getElementById('stage').innerHTML = `<div class="app${w < 720 ? ' narrow' : ''}${hidden ? ' hide-empty' : ''}" id="app" style="height:auto;display:block">
@@ -59,7 +59,7 @@ document.getElementById('stage').innerHTML = `<div class="app${w < 720 ? ' narro
 <div class="tools"><div class="views"><button class="btn tool on" type="button">${ic('calendar-days')}</button><button class="btn tool" type="button">${ic('scale-balanced')}</button><button class="btn tool" type="button">${ic('ticket')}</button><button class="btn tool" type="button">${ic('coins')}</button></div>
 <div class="actions"><button class="btn tool tool-empty" type="button" title="${hidden ? 'Show empty days' : 'Hide empty days'}" aria-pressed="${hidden}">${ic('eye-slash')}</button><button class="btn tool tool-edit" type="button" title="Edit trip">${ic('pen')}</button></div></div></header>
 <div class="stripbar"><nav class="daystrip">${chips}</nav></div>
-<main class="body" style="overflow:visible"><div class="days">${edge('before', state === 'edge')}${state === 'blocks' ? '' : before}${body}${state === 'blocks' ? '' : after}${edge('after', false)}</div></main></div>`;
+<main class="body" style="overflow:visible"><div class="days${state === 'dragging' ? ' dragging-lane' : ''}">${edge('before', state === 'edge')}${state === 'blocks' ? '' : before}${body}${state === 'blocks' ? '' : after}${edge('after', false)}</div></main></div>`;
 </script>
 </body>
 </html>

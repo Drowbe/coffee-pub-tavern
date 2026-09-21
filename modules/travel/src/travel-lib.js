@@ -5,7 +5,7 @@
   // The trip is one stored value per room (its key is a pointer's id, so the trip can be pointed at and opened).
   const TRIP_KEY = 'trip:main';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
-  const KINDS = ['stop', 'stay', 'journey', 'note', 'link', 'block'];
+  const KINDS = ['stop', 'stay', 'journey', 'note', 'link', 'block', 'lane'];
   // What an item is, for how it is drawn (the page decides how; the model only keeps a known value). A journey has a `mode`,
   // a stop and a stay a `type`, and any item may say how you get to it (`travelMode`, `travelMinutes`: the leg from the
   // item before), which a person sets now and a routing service could fill later.
@@ -64,6 +64,14 @@
     }
     // A time block (free time, rest, a meet-up...): something that happens inside a day and has no place. Its `type` names one of the
     // module's marker types (a setting); the label is optional and falls back to the type's.
+    // A marker between the days (a `lane`): on the plan's line, not in a day. `after` is the day it follows (none: before the first day).
+    if (kind === 'lane') {
+      item.type = typeof raw.type === 'string' && /^[a-z][a-z0-9-]{0,29}$/.test(raw.type) ? raw.type : '';
+      item.after = isYmd(raw.after) ? raw.after : null;
+      item.date = null;
+      item.time = null;
+      item.minutes = null;
+    }
     if (kind === 'block') item.type = typeof raw.type === 'string' && /^[a-z][a-z0-9-]{0,29}$/.test(raw.type) ? raw.type : '';
     // Details that belong to one kind of item, all optional. A stop: what it is, and for a meal or an event who and how many.
     if (kind === 'stop') {
@@ -96,8 +104,8 @@
       item.pickup = clip(raw.pickup, 120); // a car: where it is collected and where it goes back
       item.dropoff = clip(raw.dropoff, 120);
     }
-    if (kind === 'block' && !item.type) return null;
-    if (kind !== 'link' && kind !== 'block' && !item.title) return null;
+    if ((kind === 'block' || kind === 'lane') && !item.type) return null;
+    if (kind !== 'link' && kind !== 'block' && kind !== 'lane' && !item.title) return null;
     if (kind === 'stay' && item.checkOut && item.date && item.checkOut < item.date) item.checkOut = null;
     return item;
   }
@@ -307,6 +315,7 @@
     if (item.kind === 'stay') return 'hotel';
     if (item.kind === 'note') return 'note';
     if (item.kind === 'block') return `block:${item.type}`;
+    if (item.kind === 'lane') return `lane:${item.type}`;
     if (item.kind === 'link') return null;
     if (STOP_TILES.includes(item.type)) return item.type;
     if (item.type === 'hike') return 'tour';
@@ -316,6 +325,7 @@
   // The fields a chosen tile decides: `kind`, `mode` or `type`, and `category`. An item that keeps its tile keeps its finer type
   // (a hike stays a hike under the Tour tile; a rental stays a rental under Stay).
   function fromTile(tile, item) {
+    if (typeof tile === 'string' && tile.startsWith('lane:')) return { kind: 'lane', type: tile.slice(5), category: 'other' };
     if (typeof tile === 'string' && tile.startsWith('block:')) return { kind: 'block', type: tile.slice(6), category: 'other' };
     const keep = item && tileOf(item) === tile;
     if (JOURNEY_TILES.includes(tile)) return { kind: 'journey', mode: keep && item.mode ? item.mode : tile, category: 'travel' };
@@ -331,6 +341,7 @@
     if (item.kind === 'link') return { card: card && !card.error && card.kind === 'place' ? 'place' : 'link', family: card && !card.error && card.kind === 'place' ? 'place' : 'link', kicker: '', badge: '' };
     if (item.kind === 'note') return { card: 'note', family: 'note', kicker: 'Note', badge: '' };
     if (item.kind === 'block') return { card: 'block', family: 'block', kicker: '', badge: '' };
+    if (item.kind === 'lane') return { card: 'lane', family: 'lane', kicker: '', badge: '' };
     if (item.kind === 'stay') return { card: 'hotel', family: 'hotel', kicker: STAY_KICKERS[item.type] || 'Hotel', badge: 'bed' };
     if (item.kind === 'journey') {
       const mode = JOURNEY_TILES.includes(item.mode) ? item.mode : 'bus';
@@ -350,7 +361,7 @@
   // on a day count. { start: { id, day, time }, end: { id, day, time } } (`time` is when the item starts, and for the end its
   // arrival or check-out), or null when nothing qualifies.
   function tripBounds(items) {
-    const dated = items.filter((i) => i.kind !== 'link' && i.kind !== 'note' && i.kind !== 'block' && i.date);
+    const dated = items.filter((i) => i.kind !== 'link' && i.kind !== 'note' && i.kind !== 'block' && i.kind !== 'lane' && i.date);
     let pool = dated.filter((i) => i.kind === 'journey' || i.kind === 'stay' || i.confirm);
     if (!pool.length) pool = dated.filter((i) => i.time);
     if (!pool.length) return null;

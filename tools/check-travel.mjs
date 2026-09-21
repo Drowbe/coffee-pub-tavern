@@ -365,4 +365,18 @@ test('a time block is an item with a marker type and no place', () => {
   assert.equal(lib.tripBounds([b, lib.cleanItem({ id: 'j', kind: 'journey', title: 'x', date: '2026-10-04', time: '09:00' })]).start.id, 'j', 'a block is never the start of the trip');
 });
 
+test('a marker between the days follows a day and has no time', () => {
+  const l = lib.cleanItem({ id: 'l', kind: 'lane', type: 'free-time', title: '', after: '2026-10-04', date: '2026-10-09', time: '10:00', minutes: 30, notes: 'n' });
+  assert.equal(l.kind, 'lane');
+  assert.equal(l.after, '2026-10-04');
+  assert.equal(l.date, null);
+  assert.equal(l.time, null);
+  assert.equal(l.minutes, null);
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', type: 'rest', after: 'nope' }).after, null, 'before the first day');
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', title: 'x' }), null, 'a marker needs a type');
+  assert.equal(lib.tileOf(l), 'lane:free-time');
+  assert.deepEqual(lib.fromTile('lane:rest'), { kind: 'lane', type: 'rest', category: 'other' });
+  assert.equal(lib.cardOf(l).card, 'lane');
+});
+
 console.log(`check-travel: OK (${n} checks)`);

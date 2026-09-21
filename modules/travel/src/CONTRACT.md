@@ -223,6 +223,8 @@ A person can add a marker that sits on the plan's line **between** two day block
 - **The joint** (`div.joint`, `tpl-joint`): a small + on the line where two days meet (and before the first and after the last), quiet until the pointer is over the days (always faint on a touch screen). It opens `#gap-menu` with one entry per marker type, and the marker is added there. The badge for hidden days does the same for its own place.
 - Reference: `design/markers.html?state=lanes`.
 
+**Dragging a between-days marker** (the author: "dragging is key"; everything stays possible without it, through the menu and the joint +). Press its pill (icon cell or body, not the `⋯`) and move. While it moves: `.days.dragging-lane` is set (every joint opens into a dashed line with a + on it, the day blocks dim), the joint under the pointer is `.joint.drop-target` (a solid accent line, a filled +), the marker is `li.dragging`, and on another marker in the same joint `data-drop=before|after` draws an insertion line. Letting go moves it to that joint (`after` becomes the day before the joint). Reference: `design/markers.html?state=dragging`. A time block inside a day is dragged like any other item of the day, by the same handles as before.
+
 ### The line, and the days-between badge
 
 **The line.** `.days` draws one vertical line behind everything (`.days::before`, at `--spine-x`, aligned with the timelines' rails), so it is seen in the gaps and joins each day block, marker, badge and the day edges. The plan-wide markers' dots sit on it.

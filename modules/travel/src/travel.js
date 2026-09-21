@@ -372,6 +372,37 @@
   // Days with nothing on them (a stay that covers a night counts; markers do not).
   const emptyDays = () => { const days = plan.days(); const by = plan.byDay(); return new Set(days.filter((d) => !entriesFor(d, days, by).length)); };
 
+  // A marker between the days (a `lane`), on the plan's line.
+  function buildLane(item) {
+    const type = markerType(item.type);
+    const row = clone('tpl-row-lane');
+    row.dataset.id = item.id;
+    row.dataset.type = item.type;
+    setIcon(row.querySelector('.mk-icon [data-icon]'), type.icon);
+    fill(row, { title: item.title || type.label, body: item.notes });
+    colourPill(row.querySelector('.markerpill'), type);
+    if (!canEdit) row.querySelector('.menu-btn')?.remove();
+    return row;
+  }
+  // The markers between two days (`after` is the day before them; none is before the first day), and the + where a new one goes.
+  function buildBetween(after) {
+    const mine = plan.lanes().filter((l) => (l.after || null) === after);
+    const out = [];
+    if (mine.length) {
+      const list = document.createElement('ol');
+      list.className = 'timeline between';
+      list.dataset.after = after || '';
+      list.append(...mine.map(buildLane));
+      out.push(list);
+    }
+    if (canEdit) {
+      const joint = clone('tpl-joint');
+      joint.dataset.after = after || '';
+      out.push(joint);
+    }
+    return out;
+  }
+
   // The badge for a run of hidden days: how many, and a + for what can be added there.
   function buildGap(run) {
     const el = clone('tpl-gap');
@@ -385,7 +416,12 @@
   }
   // The menu on a gap's +: a time block of each type on the first hidden day, or show the days.
   function openGapMenu(button) {
+    // Where a marker would go: after this day (none: before the first day). A joint says so; a badge for hidden days is at the joint
+    // before its first hidden day.
     const gap = button.closest('.gap');
+    const joint = button.closest('.joint');
+    const allDays = plan.days();
+    const after = joint ? joint.dataset.after || null : allDays[allDays.indexOf(gap.dataset.from) - 1] || null;
     const menu = $('gap-menu');
     menu.replaceChildren();
     const entry = (label, icon, color, on) => {
@@ -400,8 +436,8 @@
       b.addEventListener('click', () => { hide(menu, true); on(); });
       menu.append(b);
     };
-    for (const t of blockTypes()) entry(`Add ${t.label.toLowerCase()}`, t.icon, t.color, () => attempt(() => plan.addItem({ kind: 'block', type: t.id, title: '', date: gap.dataset.from })));
-    entry('Show these days', 'eye', '', () => { state.hideEmpty = false; try { localStorage.setItem('planner-hide-empty', '0'); } catch (err) { /* not remembered */ } redraw(); });
+    for (const t of blockTypes()) entry(`Add ${t.label.toLowerCase()}`, t.icon, t.color, () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: '', after })));
+    if (gap) entry('Show these days', 'eye', '', () => { state.hideEmpty = false; try { localStorage.setItem('planner-hide-empty', '0'); } catch (err) { /* not remembered */ } redraw(); });
     hydrate(menu);
     menu.hidden = false;
     const box = tavern.rootElement.getBoundingClientRect();
@@ -456,7 +492,9 @@
       const above = timelineMarkers(day, 'before', days, by);
       if (above) wrap.append(above);
       if (runs.has(day)) wrap.append(buildGap(runs.get(day)));
+      if (i === 0) wrap.append(...buildBetween(null));
       wrap.append(buildDay(day, i, days, by));
+      wrap.append(...buildBetween(day));
       const below = timelineMarkers(day, 'after', days, by);
       if (below) wrap.append(below);
     });
@@ -755,6 +793,10 @@
   function menuDays() {
     return [...plan.days().map((d) => [d, dayShort(d)]), ['', 'Ideas (no day yet)']];
   }
+  // The joints on the line where a marker between days can be: before the first day, and after each day.
+  function menuJoints() {
+    return [['start', 'Before the first day'], ...plan.days().map((d, i) => [d, `After Day ${i + 1} (${dayShort(d)})`])];
+  }
   function openMenu(id, button) {
     const menu = $('item-menu');
     state.menuFor = id;
@@ -762,15 +804,19 @@
     if (!item) return;
     const select = $('menu-day');
     select.replaceChildren(...menuDays().map(([value, label]) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; }));
-    select.value = plan.dayOf(item) || '';
-    hide(menu.querySelector('[data-action="to-ideas"]'), !plan.dayOf(item));
+    if (item.kind === 'lane') {
+      select.replaceChildren(...menuJoints().map(([value, label]) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; }));
+      select.value = item.after || 'start';
+    } else select.value = plan.dayOf(item) || '';
     const follow = menu.querySelector('[data-action="follow"]');
     hide(follow, item.kind !== 'link');
     // A link that cannot be read has nothing to edit.
     hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(tavern.util.refKey(item.ref)))));
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     // A time block can change its type; it is removed rather than deleted.
-    const isBlock = item.kind === 'block';
+    const isBlock = item.kind === 'block' || item.kind === 'lane';
+    const isLane = item.kind === 'lane';
+    hide(menu.querySelector('[data-action="to-ideas"]'), isLane || !plan.dayOf(item));
     const typeLabel = menu.querySelector('[data-block-only]');
     hide(typeLabel, !isBlock);
     if (isBlock) {
@@ -805,7 +851,18 @@
     if (!b || !id) return;
     const action = b.dataset.action;
     if (action === 'edit') { closeMenu(); return openItemEditor(id); }
-    if (action === 'earlier' || action === 'later') { closeMenu(); return void attempt(() => plan.nudgeItem(id, action === 'earlier' ? -1 : 1)); }
+    if (action === 'earlier' || action === 'later') {
+      closeMenu();
+      const item = plan.list().find((i) => i.id === id);
+      if (item && item.kind === 'lane') {
+        // A marker between days moves to the joint before or after.
+        const joints = [null, ...plan.days()];
+        const at = joints.indexOf(item.after || null) + (action === 'earlier' ? -1 : 1);
+        if (at < 0 || at >= joints.length) return;
+        return void attempt(() => plan.updateItem(id, { after: joints[at] }));
+      }
+      return void attempt(() => plan.nudgeItem(id, action === 'earlier' ? -1 : 1));
+    }
     if (action === 'follow') {
       const item = plan.list().find((i) => i.id === id);
       closeMenu();
@@ -813,7 +870,7 @@
     }
     if (action === 'to-ideas') { closeMenu(); return void attempt(() => plan.moveTo(id, null, 1e6)); }
     if (action === 'delete') {
-      if (state.deleteArmed !== id) { const block = (plan.list().find((i) => i.id === id) || {}).kind === 'block'; state.deleteArmed = id; fill(b, { 'delete-label': block ? 'Really remove?' : 'Really delete?' }); return; }
+      if (state.deleteArmed !== id) { const block = ['block', 'lane'].includes((plan.list().find((i) => i.id === id) || {}).kind); state.deleteArmed = id; fill(b, { 'delete-label': block ? 'Really remove?' : 'Really delete?' }); return; }
       closeMenu();
       return void attempt(() => plan.removeItem(id));
     }
@@ -827,7 +884,9 @@
   $('menu-day').addEventListener('change', (e) => {
     const id = state.menuFor;
     const date = e.target.value || null;
+    const moving = plan.list().find((i) => i.id === id);
     closeMenu();
+    if (moving && moving.kind === 'lane') return void attempt(() => plan.updateItem(id, { after: e.target.value === 'start' ? null : date }));
     if (id) attempt(() => plan.moveTo(id, date, 1e6));
   });
   root.addEventListener('click', (e) => { if (!$('gap-menu').hidden && !e.target.closest('#gap-menu, [data-action="gap-add"]')) hide($('gap-menu'), true); });
@@ -891,7 +950,7 @@
   // the same day, takes the end of the item before it as its time (nothing changes if that one has no time).
   function moveOwn(id, dayEl, overEl, where) {
     const item = plan.list().find((i) => i.id === id);
-    if (!item) return null;
+    if (!item || item.kind === 'lane') return null; // a marker between days moves from its menu
     const date = dayEl.dataset.day || null;
     const sameDay = plan.dayOf(item) === date;
     if (item.time) {
@@ -1074,17 +1133,23 @@
     const ed = state.editing;
     if (!ed) return;
     ed.tile = tile;
-    const key = tile.startsWith('block:') ? 'block' : tile; // every time block shows the same fields
+    const key = tile.startsWith('block:') ? 'block' : tile.startsWith('lane:') ? 'lane' : tile; // every marker shows the same fields
     for (const el of $('form').querySelectorAll('[data-types]')) el.classList.toggle('on-type', el.dataset.types.split(/\s+/).includes(key));
-    $('f-title').required = key !== 'block'; // a time block's label is optional: the type names it
+    $('f-title').required = key !== 'block' && key !== 'lane'; // a marker's label is optional: the type names it
+    const dateRow = $('f-date').closest('.editor-row');
+    if (dateRow) dateRow.hidden = key === 'lane'; // a marker between days has no day of its own
     const noLength = ['block:meet-up', 'block:leave-by'].includes(tile); // a moment, not a stretch of time
     const lengthLabel = $('f-minutes').closest('label');
     if (lengthLabel) lengthLabel.hidden = noLength;
     for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
-    $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : TITLES[tile] || '';
+    $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : key === 'lane' ? markerType(tile.slice(5)).label : TITLES[tile] || '';
   }
-  // The time blocks' tiles, one for each type that is not automatic, in a group of their own after the others.
+  // The marker tiles, one for each type that is not automatic: 'Time' ones inside a day, and 'Between days' ones on the line.
   function addBlockTiles() {
+    addTileGroup('Time', 'block');
+    addTileGroup('Between days', 'lane');
+  }
+  function addTileGroup(name, prefix) {
     const types = blockTypes();
     const box = $('f-types');
     if (!box || !types.length) return;
@@ -1092,14 +1157,14 @@
     group.className = 'typegroup';
     const title = document.createElement('div');
     title.className = 'typegroup-title';
-    title.textContent = 'Time';
+    title.textContent = name;
     const tiles = document.createElement('div');
     tiles.className = 'tiles';
     for (const t of types) {
       const b = document.createElement('button');
       b.className = 'tile';
       b.type = 'button';
-      b.dataset.type = `block:${t.id}`;
+      b.dataset.type = `${prefix}:${t.id}`;
       const ic = document.createElement('span');
       ic.className = 'ic';
       ic.dataset.icon = t.icon;
@@ -1184,7 +1249,7 @@
         return closeEditor();
       }
       const item = ed.id ? plan.list().find((i) => i.id === ed.id) : null;
-      if (!ed.isLink && !ed.tile.startsWith('block:') && !$('f-title').value.trim()) return fail('Give it a title.');
+      if (!ed.isLink && !ed.tile.startsWith('block:') && !ed.tile.startsWith('lane:') && !$('f-title').value.trim()) return fail('Give it a title.');
       const common = {
         title: $('f-title').value.trim(),
         date: $('f-date').value || null,
@@ -1200,7 +1265,8 @@
         fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: num('f-minutes') };
       } else {
         const t = fromTile(ed.tile, item);
-        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) ? null : num('f-minutes') };
+        if (t.kind === 'lane') { common.date = null; common.travelMode = null; common.travelMinutes = null; common.owners = []; common.cost = null; common.paidBy = ''; }
+        fields = { ...common, ...t, ...(t.kind === 'lane' ? { after: item && item.kind === 'lane' ? item.after : null } : {}), time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : num('f-minutes') };
         if (t.kind === 'journey') {
           for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);
           fields.fromCode = get('f-fromCode');
