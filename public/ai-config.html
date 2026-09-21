@@ -24,11 +24,7 @@
         <span class="pill" id="ai-state">Off</span>
       </div>
       <p class="hint">Lets modules summarise, answer questions and write cards from what a person selects. It stays off until you set it up here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). Tavern ships no model and no key.</p>
-        <!-- The enable step: the AI stays off, whatever is set up below, until the admin approves it here. -->
-        <div class="ai-enable" id="ai-enable">
-          <div class="grow"><strong id="ai-enable-title">AI is off</strong><p class="hint" id="ai-enable-hint">Set up a service below, save it, then enable it.</p></div>
-          <button class="btn btn-primary" type="button" id="ai-enable-btn" disabled>Approve and enable</button>
-        </div>
+        <p class="hint" id="ai-enable-note">Setting a service up does not turn the AI on. Enable or disable it on its card on the Modules tab.</p>
         <div class="ai-fields">
           <label>Service
             <select id="ai-provider">

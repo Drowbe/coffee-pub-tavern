@@ -105,33 +105,13 @@ function showAi({ ai, usage }) {
   const tasks = Object.entries(usage.byTask || {}).map(([k, v]) => k + ' ' + Number(v).toLocaleString()).join(', ');
   $('ai-usage-text').textContent = Number(usage.tokens || 0).toLocaleString() + ' tokens in ' + Number(usage.calls || 0).toLocaleString() + ' calls' + (cap ? ', ' + pct + '% of the ' + cap.toLocaleString() + ' allowance' : ', no limit set') + (tasks ? '. By task: ' + tasks + '.' : '.');
 }
-// The enable step. AI is on only when a service is saved AND the admin has approved it; `enabled` comes from the server (a server that
-// does not send it counts as enabled when a service is set, as before).
-const AI_LABELS = { openai: 'OpenAI', anthropic: 'Anthropic', compatible: 'the service at the address you gave' };
+// The state pill only: enabling is on the card of the Modules tab. `enabled` comes from the server.
 function syncAiEnable() {
   const saved = aiState.provider !== 'none' && aiState.model;
   const on = Boolean(saved && (aiState.enabled === undefined ? true : aiState.enabled));
-  $('ai-state').textContent = on ? 'On' : saved ? 'Set up, not enabled' : 'Off';
+  $('ai-state').textContent = on ? 'Enabled' : saved ? 'Disabled' : 'Off';
   $('ai-state').classList.toggle('on', on);
-  $('ai-enable-title').textContent = on ? 'AI is enabled' : saved ? 'AI is set up but not enabled' : 'AI is off';
-  $('ai-enable-hint').textContent = on ? 'Modules that use AI send what a person selects to ' + (AI_LABELS[aiState.provider] || 'the service') + '. Disable it to stop that everywhere.' : saved ? 'Enabling lets modules send what a person selects to ' + (AI_LABELS[aiState.provider] || 'the service') + '. Nothing is sent until you do.' : 'Set up a service below and save it, then enable it here.';
-  $('ai-enable-btn').textContent = on ? 'Disable' : 'Approve and enable';
-  $('ai-enable-btn').classList.toggle('btn-primary', !on);
-  $('ai-enable-btn').disabled = !saved;
 }
-$('ai-enable-btn').addEventListener('click', async () => {
-  const on = $('ai-enable-btn').textContent === 'Disable';
-  const msg = on ? 'Disable AI for everyone?\n\nModules that use it are told AI is not available. Your setup is kept.' : 'Enable AI?\n\nModules that use it can send what a person selects, and their question, to ' + (AI_LABELS[aiState.provider] || 'the service') + ' under your account. Only people whose role allows it (Roles tab) can use it.';
-  if (!window.confirm(msg)) return;
-  say($('ai-status'), 'saving...');
-  try {
-    await api('PUT', '/api/ai', { enabled: !on });
-    await loadAi();
-    say($('ai-status'), on ? 'AI disabled' : 'AI enabled');
-  } catch (err) {
-    say($('ai-status'), err.message, true);
-  }
-});
 async function loadAi() {
   try { showAi(await api('GET', '/api/ai')); } catch { $('ai-panel').hidden = true; }
 }

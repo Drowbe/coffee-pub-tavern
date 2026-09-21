@@ -824,6 +824,22 @@ async function loadActivity() {
 setInterval(() => { if (!document.hidden && !$('tab-modules').hidden) loadActivity(); }, 15000);
 
 // The AI service: a summary card here (which service and model, and this month's use); the setup is its own page, /ai-config.html.
+let aiCard = { saved: false, on: false };
+// Enabling and disabling is here, on the card, like every module's; the setup is on its own page.
+$('ai-toggle').addEventListener('click', async () => {
+  const name = AI_NAMES[aiCard.provider] || 'the service';
+  const msg = aiCard.on ? 'Disable AI for everyone?\n\nModules that use it are told AI is not available. Your setup is kept.' : `Enable AI?\n\nModules that use it can send what a person selects, and their question, to ${name} under your account. Only people whose role allows it (Roles tab) can use it.`;
+  if (!window.confirm(msg)) return;
+  $('ai-toggle').disabled = true;
+  try {
+    await api('PUT', '/api/ai', { enabled: !aiCard.on });
+    await loadAi();
+    say($('modules-status'), aiCard.on ? 'AI enabled' : 'AI disabled');
+  } catch (err) {
+    $('ai-toggle').disabled = false;
+    say($('modules-status'), err.message, true);
+  }
+});
 const AI_NAMES = { openai: 'OpenAI', anthropic: 'Anthropic', compatible: 'Other (OpenAI-compatible)' };
 async function loadAi() {
   try {
@@ -831,9 +847,14 @@ async function loadAi() {
     const provider = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : ai.provider;
     const saved = provider !== 'none';
     const on = saved && ai.enabled !== false;
-    $('ai-state').textContent = on ? 'On' : saved ? 'Not enabled' : 'Off';
+    aiCard = { saved, on, provider, model: ai.model };
+    $('ai-state').textContent = on ? 'Enabled' : saved ? 'Disabled' : 'Off';
     $('ai-state').classList.toggle('on', on);
-    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up but not enabled: open AI Configuration to enable it.'}` : 'Not set up.';
+    $('ai-toggle').textContent = on ? 'Disable' : 'Approve and enable';
+    $('ai-toggle').classList.toggle('btn-primary', !on && saved);
+    $('ai-toggle').disabled = !saved;
+    $('ai-toggle-hint').textContent = saved ? '' : 'Set up a service first (AI Configuration).';
+    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up, and switched off.'}` : 'Not set up.';
   } catch {
     $('ai-panel').hidden = true;
   }
