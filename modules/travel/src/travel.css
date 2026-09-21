@@ -150,6 +150,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .decision-main { flex: 1; min-width: 0; }
 .decision-title { font-weight: 600; overflow-wrap: anywhere; }
 .decision-sub { color: var(--text-dim); font-size: 12px; }
+.decision .code { display: inline-block; margin-top: 4px; }
+.code:empty { display: none; }
 .decision .btn { flex: none; padding: 2px 10px; font-size: 12px; }
 .section-title { margin: 12px 0 6px; color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
 

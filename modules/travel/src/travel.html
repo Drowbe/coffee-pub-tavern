@@ -191,7 +191,7 @@
   <div class="section-title" data-slot="polls-title">Polls to vote on</div><ul class="decisions" data-slot="polls"></ul>
   <div class="section-title" data-slot="tasks-title">Tasks due before the trip</div><ul class="decisions" data-slot="tasks"></ul>
 </template>
-<template id="tpl-decision"><li class="decision"><span class="ic" data-icon=""></span><div class="decision-main"><div class="decision-title" data-slot="title"></div><div class="decision-sub" data-slot="sub"></div></div><button class="btn" type="button" data-action="open"></button></li></template>
+<template id="tpl-decision"><li class="decision"><span class="ic" data-icon=""></span><div class="decision-main"><div class="decision-title" data-slot="title"></div><div class="decision-sub" data-slot="sub"></div><span class="code" data-slot="code"></span></div><button class="btn" type="button" data-action="open"></button></li></template>
 
 <template id="tpl-state-loading"><div class="skeleton" aria-busy="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></template>
 <template id="tpl-state-empty-trip"><div class="state" id="state-empty-trip"><h2>Plan a trip</h2><p>Give it a place and dates, and the days appear here. Anything with a date that this room's other modules hold on those days can join them.</p><p><button class="btn btn-primary" type="button" data-action="create-trip">Start planning</button></p></div></template>
