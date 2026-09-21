@@ -128,6 +128,10 @@
     }
   }
 
+  // Why a linked item cannot be drawn from its card: 'gone' (deleted), 'hidden' (this viewer may not see it), 'unavailable'
+  // (it could not be read just now), or '' when it can.
+  const linkState = (card) => (card && card.error ? card.state || 'unavailable' : '');
+
   // The card for an item, by its type (see cardOf in the model), filled by slot name.
   function buildCard(entry, kind, card) {
     const { item, span } = entry;
@@ -165,12 +169,18 @@
     } else if (c.card === 'note') {
       put(el, { title: item.title, body: item.notes });
     } else if (c.card === 'place') {
-      put(el, { title: item.title || card.title, address: card.subtitle });
+      put(el, { title: card.title || item.title, address: card.subtitle });
     } else {
-      const gone = !card || card.error;
-      setIcon(el.querySelector('.src [data-icon]'), gone ? 'link-slash' : (card.module && card.module.icon) || 'link');
-      put(el, { module: gone ? 'another module' : (card.module && card.module.name) || 'another module', title: item.title || (gone ? 'No longer available' : card.title), sub: item.result ? `Result: ${item.result}` : gone ? '' : card.subtitle });
-      hide(el.querySelector('[data-action="open"]'), gone || !card.open);
+      // What the linked item says now (never a copy kept here), or, when it cannot be read, why: it is gone, or this viewer may not
+      // see it. Either way nothing opens an editor for it, and it can be removed from the plan.
+      const stateOf = linkState(card);
+      const broken = Boolean(stateOf);
+      setIcon(el.querySelector('.src [data-icon]'), broken ? 'link-slash' : (card && card.module && card.module.icon) || 'link');
+      const shown = stateOf === 'hidden' ? 'An item you cannot see' : stateOf ? item.title || 'An item' : (card && card.title) || item.title;
+      put(el, { module: broken || !card ? 'another module' : (card.module && card.module.name) || 'another module', title: shown, sub: broken ? '' : item.result ? `Result: ${item.result}` : card ? card.subtitle : '', state: stateOf === 'hidden' ? 'Not available to you' : stateOf === 'gone' ? 'No longer available' : stateOf === 'unavailable' ? 'Could not be read right now' : '' });
+      if (broken) el.classList.add(stateOf === 'hidden' ? 'hidden' : 'gone');
+      hide(el.querySelector('[data-action="open"]'), broken || !card || !card.open);
+      hide(el.querySelector('[data-action="remove-link"]'), !broken || !canEdit);
     }
     ownersInto(el, item);
     if (!canEdit) el.querySelector('.menu-btn')?.remove();
@@ -588,6 +598,8 @@
     hide(menu.querySelector('[data-action="to-ideas"]'), !plan.dayOf(item));
     const follow = menu.querySelector('[data-action="follow"]');
     hide(follow, item.kind !== 'link');
+    // A link that cannot be read has nothing to edit.
+    hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(tavern.util.refKey(item.ref)))));
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     const del = menu.querySelector('[data-action="delete"]');
     del.lastChild.textContent = ' Delete';
@@ -1018,6 +1030,9 @@
       if (target) { target.scrollIntoView({ inline: 'center', block: 'start' }); markCurrent(b.dataset.day); }
     } else if (action === 'move-menu' && li) {
       openMenu(li.dataset.id, b);
+    } else if (action === 'remove-link' && li) {
+      const id = li.dataset.id;
+      attempt(() => plan.removeItem(id));
     } else if (action === 'open') {
       const item = li ? plan.list().find((i) => i.id === li.dataset.id) : null;
       const ref = item && item.ref ? item.ref : b.dataset.ref ? JSON.parse(b.dataset.ref) : null;
@@ -1087,6 +1102,11 @@
 
   plan.provide();
   plan.subscribe(() => { if (state.loaded) redraw(); });
+  // What the plan points at can change or go where it lives without telling this page, so look again now and then and when the
+  // page comes back into view (until the server announces it).
+  const look = () => { if (state.loaded) plan.refreshCards().catch(() => {}); };
+  const lookTimer = setInterval(() => { if (!tavern.rootElement.isConnected) clearInterval(lookTimer); else look(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) look(); });
   render();
   try {
     await plan.load();

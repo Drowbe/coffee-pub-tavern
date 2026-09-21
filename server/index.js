@@ -1481,7 +1481,8 @@ const refAnswer = (fn) => {
     return fn();
   } catch (err) {
     if (!err.status) throw err;
-    return { error: err.message, status: err.status };
+    // `state` says what to draw: the item is gone, or it exists but this viewer may not see it (never more than they may know).
+    return { error: err.message, status: err.status, ...(err.status === 404 ? { state: 'gone' } : err.status === 403 ? { state: 'hidden' } : {}) };
   }
 };
 

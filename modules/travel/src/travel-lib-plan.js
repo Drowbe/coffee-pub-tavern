@@ -42,13 +42,15 @@
     });
 
     // The cards of the items other modules hold that this plan points at.
-    async function resolveCards() {
-      const want = [...items.values()].map((x) => x.item).filter((i) => i.ref && !cards.has(refKey(i.ref))).map((i) => i.ref);
+    // `all` asks again for every one (an item may have been changed or deleted where it lives), not just the new ones.
+    async function resolveCards(all) {
+      const want = [...items.values()].map((x) => x.item).filter((i) => i.ref && (all || !cards.has(refKey(i.ref)))).map((i) => i.ref);
       if (!want.length) return;
       let got;
       try {
         got = await tavern.refs.resolve(want);
       } catch (err) {
+        if (all) return; // asking again failed: what was shown stays as it was
         got = want.map(() => ({ error: 'unavailable' }));
       }
       want.forEach((r, i) => cards.set(refKey(r), got[i] || { error: 'unavailable' }));
@@ -193,7 +195,7 @@
     }
 
     return {
-      load, list, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
+      refreshCards: () => resolveCards(true), load, list, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

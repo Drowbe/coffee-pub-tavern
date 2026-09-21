@@ -146,7 +146,10 @@ const ref = tavern.refs.make('event', 'e1');           // { module: 'calendar', 
 // Later, ask Tavern what to show. One pointer gives a card, a list gives cards in the same order:
 const card = await tavern.refs.resolve(ref);
 // { ref, kind, module: { id, name, icon }, title, subtitle?, when?, end?, allDay?, done?, place? }
-// or { ref, error, status } when the item is gone or the viewer may not see it (404, 403).
+// or { ref, error, status, state } when the item is gone or the viewer may not see it (404, 403): `state` is 'gone' or 'hidden'.
+// Draw what it says now, never a title you stored: a gone item is a muted "No longer available" with a way to remove your link,
+// a hidden one "Not available to you" (show nothing else about it), and neither opens an editor. Ask again now and then, since an
+// item can change or go where it lives without telling you.
 const cards = await tavern.refs.resolve([refA, refB]);
 
 // Find items to link to, in this place (or from a room, { scope: 'server' }): every kind this module consumes.

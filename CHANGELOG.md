@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Fixed
+- Planner 0.6.4: a linked item that has been deleted (a poll, an event, a place) no longer shows as if it were still there. Answers about a pointer now say what to draw (`state`: `gone` or `hidden`), and Planner draws a muted "No longer available" (or "Not available to you", without revealing anything else) with a **Remove from plan** button, never opens an editor for it, hides Open and Edit, and shows a linked item's current title instead of one it stored. It looks again every 20 seconds and when the page comes back into view. Verified in a browser: a poll linked to a day, deleted, then drawn as gone, its Edit hidden and Remove taking it off the plan. Not yet: the server announcing a deletion at once, cleaning up when no page is open, and date sync (the linked-items plan, steps 2 to 5).
+
 ### Changed
 - Planner 0.6.2: dragging one of your own private places (Mine in Places) onto a day now copies it to the room first, through the module that saves places, and the plan points at the copy, since a pointer to a private item would show as gone to everyone but you. Without such a module, or if the copy fails, it says so instead. Places 0.7.1 (the UI's) can now be dragged out to other modules. Not verified by dragging on a real page.
 
