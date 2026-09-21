@@ -17,6 +17,7 @@ const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || sta
 // built here, not left static in room.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
 renderTopbar();
+if (new URLSearchParams(location.search).has('layout')) import('/layout-debug.js'); // a live geometry readout, see there
 // The room's own bar, a second row of the header (so it moves with the header when the app is
 // popped out): the panes to open on the left (chat, the room's modules; room-modules.js fills
 // #modules-menu), and the controls for the whole app on the right, full screen and pop out,
