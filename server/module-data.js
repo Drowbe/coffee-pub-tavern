@@ -14,6 +14,7 @@ const { StoreError } = require('./store');
 
 const KEY_RE = /^[A-Za-z0-9_.:/-]{1,128}$/;
 const ROOM_RE = /^[a-z0-9]{4,16}$/;
+const PERSON_RE = /^[a-z0-9]{4,40}$/; // a person's key
 const LIMITS = {
   valueBytes: 60 * 1024, // one key's value, serialized
   moduleBytes: 5 * 1024 * 1024, // everything one module has stored
@@ -33,6 +34,8 @@ class ModuleData extends EventEmitter {
     if (scopeKey === 'server') return path.join(base, 'server.json');
     const m = /^room:(.+)$/.exec(scopeKey);
     if (m && ROOM_RE.test(m[1])) return path.join(base, `room-${m[1]}.json`);
+    const p = /^person:(.+)$/.exec(scopeKey);
+    if (p && PERSON_RE.test(p[1])) return path.join(base, `person-${p[1]}.json`);
     throw new StoreError('bad scope');
   }
 

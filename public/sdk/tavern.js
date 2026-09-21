@@ -25,7 +25,7 @@
   function cleanRef(ref) {
     const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string'
       && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id)
-      && (ref.scope === 'server' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
+      && (ref.scope === 'server' || ref.scope === 'person' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
   }
 
@@ -367,9 +367,10 @@
         const ctx = (info && info.context) || {};
         // { room } names another room's item (a module's server page showing the rooms it belongs to).
         const otherRoom = o && o.room;
-        const server = !otherRoom && ((o && o.scope === 'server') || ctx.scope !== 'room');
-        const ref = { module: info && info.module && info.module.id, kind, id: String(id), scope: server ? 'server' : 'room' };
-        if (!server) ref.room = otherRoom || ctx.roomId;
+        const personal = o && o.scope === 'person';
+        const server = !personal && !otherRoom && ((o && o.scope === 'server') || ctx.scope !== 'room');
+        const ref = { module: info && info.module && info.module.id, kind, id: String(id), scope: personal ? 'person' : server ? 'server' : 'room' };
+        if (!server && !personal) ref.room = otherRoom || ctx.roomId;
         return ref;
       },
       // One pointer, or a list, to cards. A list keeps its order.

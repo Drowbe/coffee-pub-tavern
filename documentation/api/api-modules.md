@@ -38,7 +38,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 
 - `id` is 2 to 32 lowercase letters, digits or dashes, starting with a letter. `name` is required, up
   to 40 characters. `version` is `x.y.z`.
-- `scope` includes `server`, `room` or both. A `server` module needs `surfaces.page`, and a `room`
+- `scope` includes `server`, `room`, `person` or several. `person` is the signed-in person's own private data, kept for them alone and reachable from any page of theirs (`?scope=person` on the data routes); not even an administrator can read it, because the place it is kept is named by who is asking, and a guest has none. It needs no surface of its own. A `server` module needs `surfaces.page`, and a `room`
   module needs `surfaces.panel`. Each `entry` must be an `.html` file that exists in the zip.
 - `permissions` holds up to 20 entries with unique lowercase keys. `default` says which roles have the
   permission before an admin changes it.

@@ -1218,10 +1218,14 @@ function moduleAccess(req, res, need) {
   const { manifest, entry } = found;
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
-  const scope = req.query.scope === 'room' ? 'room' : 'server';
+  const scope = req.query.scope === 'room' ? 'room' : req.query.scope === 'person' ? 'person' : 'server';
   if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this module has no ${scope} scope` });
   let roomId = null;
-  if (scope === 'room') {
+  if (scope === 'person') {
+    // A person's own data (their profile's): only they can reach it, not even an administrator, because the place it is kept
+    // is named by who is asking.
+    if (!who.user) return void res.status(403).json({ error: 'guests have no personal data' });
+  } else if (scope === 'room') {
     const room = store.roomById(String(req.query.room || ''));
     if (!room) return void res.status(404).json({ error: 'no such room' });
     if (!moduleRoomAccess(entry, who, room)) return void res.status(403).json({ error: 'this module is not available in that room for you' });
@@ -1231,7 +1235,7 @@ function moduleAccess(req, res, need) {
   }
   const perms = modulePerms(who, roomId);
   if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
-  return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : 'server', who, perms, by: who.user?.key || 'guest' };
+  return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : scope === 'person' ? `person:${who.user.key}` : 'server', who, perms, by: who.user?.key || 'guest' };
 }
 
 // --- chat history --------------------------------------------------------------------------------
@@ -1365,7 +1369,7 @@ const moduleLinks = new ModuleLinks(modules.dir);
 
 const refScopeKey = (ref) => (ref.scope === 'room' ? `room:${ref.room}` : 'server');
 const refShape = (r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && REF_ID_RE.test(String(r.id ?? ''))
-  && (r.scope === 'server' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+  && (r.scope === 'server' || r.scope === 'person' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
 
 // Whether the consumer's manifest declares, and the admin approved, linking to provider:kind.
 function consumerMayLink(consumer, provider, kind) {
@@ -1402,6 +1406,13 @@ function refScope(who, { provider, kind, scope, room, from, skipConsumer = false
     if (consumer && (!moduleRoomAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, 'the linking module is not available in that room for you');
     perms = modulePerms(who, r.id);
     scopeKey = `room:${r.id}`;
+  } else if (scope === 'person') {
+    // The viewer's own items, kept for them alone; a pointer to someone else's simply finds nothing here.
+    if (!who.user) throw refError(403, 'guests have no personal data');
+    if (!manifest.scope.includes('person')) throw refError(400, 'that module has no personal scope');
+    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
+    perms = modulePerms(who, null);
+    scopeKey = `person:${who.user.key}`;
   } else {
     if (!who.user) throw refError(403, 'guests can only use room modules');
     if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
@@ -1410,7 +1421,7 @@ function refScope(who, { provider, kind, scope, room, from, skipConsumer = false
     scopeKey = 'server';
   }
   if (!moduleCan(manifest, perms, 'read')) throw refError(403, 'your role can\'t see that module');
-  return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'room' ? 'room' : 'server', ...(scope === 'room' ? { room: String(room) } : {}) } };
+  return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'room' ? 'room' : scope === 'person' ? 'person' : 'server', ...(scope === 'room' ? { room: String(room) } : {}) } };
 }
 
 // The card for one stored item: only the fields the producer named, trimmed and typed.
@@ -1495,7 +1506,7 @@ app.get('/api/refs/search', (req, res) => {
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.query.from || '');
   if (!modules.enabled(from)) return res.status(404).json({ error: 'no such module' });
-  const scope = req.query.scope === 'room' ? 'room' : 'server';
+  const scope = req.query.scope === 'room' ? 'room' : req.query.scope === 'person' ? 'person' : 'server';
   const q = String(req.query.q || '').trim().toLowerCase();
   const cards = [];
   for (const k of consumableKinds(from)) {
@@ -1538,6 +1549,7 @@ app.post('/api/refs/links', (req, res) => {
   const found = modules.enabled(asker);
   if (!found) return res.status(404).json({ error: 'no such module' });
   if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: 'a module can only say what its own items point at' });
+  if (from.scope === 'person') return res.status(400).json({ error: 'personal items are private, so they are not linked' });
   if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: 'that module does not share that kind of item' });
   // The viewer must be allowed to change the asking module's data in that scope.
   let perms;
@@ -1552,6 +1564,7 @@ app.post('/api/refs/links', (req, res) => {
   if (!moduleCan(found.manifest, perms, 'write')) return res.status(403).json({ error: 'your role can\'t do that in this module' });
   const tos = [];
   for (const to of (Array.isArray(req.body?.to) ? req.body.to : []).slice(0, 20)) {
+    if (to && to.scope === 'person') continue; // a shared link never points into someone's private data
     try {
       resolveRef(who, to, asker);
       tos.push(to);
@@ -2249,6 +2262,10 @@ app.get('/api/modules/stream', (req, res) => {
     const { manifest, entry } = found;
     if (scopeKey === 'server') {
       return who.user && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'server', roomId: null } : null;
+    }
+    if (scopeKey.startsWith('person:')) {
+      // Someone's own data: told only to that person, on whatever page of theirs shows the module.
+      return who.user && scopeKey === `person:${who.user.key}` && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'person', roomId: null } : null;
     }
     if (!scopeKey.startsWith('room:')) return null;
     const r = store.roomById(scopeKey.slice(5));

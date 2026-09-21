@@ -34,7 +34,7 @@ const HOOKS = ['schedule', 'notify'];
 const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category'];
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
-const SCOPES = ['server', 'room'];
+const SCOPES = ['server', 'room', 'person'];
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 

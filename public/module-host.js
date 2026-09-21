@@ -71,7 +71,7 @@ let activeDrag = null; // { source, ref, layers, timer }
 
 const REF_SHAPE = (r) => r && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string'
   && /^[a-z][a-z0-9-]{1,31}$/.test(r.module) && /^[a-z][a-z0-9-]{0,23}$/.test(r.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(r.id)
-  && (r.scope === 'server' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+  && (r.scope === 'server' || r.scope === 'person' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
 
 function endDrag() {
   if (!activeDrag) return;
@@ -233,14 +233,16 @@ export function mountModule({ module, frame = null, container = null, scope, roo
 
   const q = (sc) => {
     const p = new URLSearchParams();
-    if (sc === 'room') { p.set('scope', 'room'); p.set('room', roomId); } else if (sc === 'rooms') p.set('scope', 'rooms'); else { p.set('scope', 'server'); }
+    if (sc === 'room') { p.set('scope', 'room'); p.set('room', roomId); } else if (sc === 'rooms') p.set('scope', 'rooms'); else if (sc === 'person') p.set('scope', 'person'); else { p.set('scope', 'server'); }
     if (guestToken) p.set('guest', guestToken);
     return p;
   };
   // 'context' means wherever this frame is showing; a room panel may also ask for 'server'.
   const scopeOf = (requested) => {
     if (!requested || requested === 'context') return scope;
-    if (requested === 'server' || requested === 'room' || requested === 'rooms') {
+    if (requested === 'server' || requested === 'room' || requested === 'rooms' || requested === 'person') {
+      // 'person' is the viewer's own data (their profile's), from a page anywhere; the module must have declared the scope.
+      if (requested === 'person' && !module.scope?.includes('person')) throw Object.assign(new Error('this module has no personal scope'), { status: 400 });
       if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a room'), { status: 400 });
       // 'rooms' is the server page reading every room the viewer belongs to (read-only)
       if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('room'))) throw Object.assign(new Error('only a module\'s server page can read across rooms'), { status: 400 });
@@ -391,7 +393,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
     },
     async 'refs.search'({ q, scope: s }) {
-      const sc = scopeOf(s);
+      const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private items of a kind they may link to
       if (sc === 'rooms') throw Object.assign(new Error('search one place at a time'), { status: 400 });
       const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: sc });
       if (sc === 'room') p.set('room', roomId);

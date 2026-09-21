@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- A `person` scope for module data: a module that declares it keeps data for the signed-in person alone, from any page of theirs (`scope: 'person'` in the SDK), with the same store, versions and live changes as a room's. Nobody else can read it, not even an administrator; guests have none. Pointers to personal items resolve only for their owner and are never linked. Places 0.4.0 declares it (the my-places view is next). Verified against a running server: an admin's personal data invisible to another user, refused for guests and for a module without the scope, card search and resolve returning only the owner's, and links refused. Not verified: live changes to a personal store over the stream in a browser.
+
 ### Changed
 - Maps 0.5.0 has no list of places any more: Places is the list (Maps requires it), so the panel, its rows and groups, the phone sheet, the list button and the list-only fallback are gone. The map fills the pane; a selected pin shows a callout over it (name, where, where it comes from, open in my maps app, copy coordinates, and Open in the owning module), and a device without WebGL is told so. Verified in a browser: the full-width map with a categorised pin and its callout.
 
