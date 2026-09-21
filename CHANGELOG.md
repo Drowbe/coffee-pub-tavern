@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Places 0.6.0: the **Everyone** view, the places for the whole server (the module's server scope). Anyone who holds Places' edit right may add, change and delete there, the same right as in a room; nobody is singled out, and guests, who are tied to one room, do not see it. Places also has a page of its own outside any room, with Mine and Everyone. Maps 0.5.4 draws everyone's places too. Verified: another ordinary user reads and edits the server's places, guests are refused, and in a browser the three views in a room and the two on the page, adding a place to Everyone. Not verified: the light theme, the phone layout.
+
+### Added
 - Places 0.5.0: a **Mine** and **This room** switch. Mine is the person's own places, kept in their private store (the same in every room, invisible to everyone else including administrators); This room is the room's, as before. A place's menu copies it between them (**Share to this room**, **Save to mine**). Personal places are not linked to other modules' items. Maps 0.5.3 draws the viewer's own places too, with `data-scope="person"` on their pins and callout. The Everyone view is not built yet (who may change it is undecided). Verified in a browser: the switch and its note, the two lists, a copy from Mine to the room, and Maps drawing a personal place with its category and scope marks.
 
 ### Added

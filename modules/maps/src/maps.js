@@ -97,9 +97,9 @@
   async function loadItems() {
     if (!tavern.refs || !tavern.refs.search) return;
     try {
-      // This room's, and the person's own (private to them: a guest has none, so that answers with nothing).
-      const [room, mine] = await Promise.all([tavern.refs.search(''), tavern.refs.search('', { scope: 'person' }).catch(() => [])]);
-      const found = [...room, ...mine];
+      // This room's, the person's own (private to them) and everyone's on this server (a guest has neither of the last, so those answer with nothing).
+      const [room, mine, everyone] = await Promise.all([tavern.refs.search(''), tavern.refs.search('', { scope: 'person' }).catch(() => []), tavern.refs.search('', { scope: 'server' }).catch(() => [])]);
+      const found = [...room, ...mine, ...everyone];
       state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
       state.items = [];

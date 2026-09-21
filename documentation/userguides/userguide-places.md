@@ -20,9 +20,9 @@ The Places module keeps the places your room cares about: where you are staying,
 
 Another module can also add a place for you: a trip's stop can offer to save itself as a place.
 
-## Mine and this room
+## Mine, this room and everyone
 
-At the top, **Mine** and **This room** switch between two lists. **This room** is what the room shares. **Mine** is your own places: only you can see them, not even an administrator, and they follow you into every room you are in. Guests have only the room's. A place's menu has **Share to this room** (in Mine) or **Save to mine** (in This room), which copies it to the other list and leaves the original where it is. Places you keep in Mine are not linked to trips, events or tasks, so their "used by" pills do not apply.
+At the top, **Mine**, **This room** and **Everyone** switch between three lists. **Everyone** is the places for the whole server (an office, a regular haunt): everyone on the server sees them, and anyone who may edit places can add, change and delete there, the same right as in a room. Guests see only the room's. **This room** is what the room shares. **Mine** is your own places: only you can see them, not even an administrator, and they follow you into every room you are in. Guests have only the room's. A place's menu has **Share to this room** (in Mine) or **Save to mine** (in This room), which copies it to the other list and leaves the original where it is. Places you keep in Mine are not linked to trips, events or tasks, so their "used by" pills do not apply. Places also has a page of its own (from the header) that shows Mine and Everyone outside any room.
 
 ## Find and open a place
 

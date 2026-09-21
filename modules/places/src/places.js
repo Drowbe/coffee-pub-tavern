@@ -19,8 +19,10 @@
     $('msg').textContent = 'Places could not start: ' + err.message;
     return;
   }
-  if (info.context.scope !== 'room') {
-    $('msg').textContent = 'Places belong to a room. Open the room, then Places from its panes.';
+  // In a room (a pane) or on the module's own page: a room has its own list; the page has only mine and everyone's.
+  const inRoom = info.context.scope === 'room';
+  if (!inRoom && info.context.scope !== 'server') {
+    $('msg').textContent = 'Places could not open here.';
     return;
   }
 
@@ -36,8 +38,10 @@
 
   // Two stores of the same kind of thing: this room's, and the person's own (private, in their profile, the same in every room).
   // `places` is whichever the person is looking at.
-  const stores = { room: createPlaces(tavern, { scope: 'room' }), my: createPlaces(tavern, { scope: 'person' }) };
-  let view = 'room';
+  const stores = { room: createPlaces(tavern, { scope: 'room' }), my: createPlaces(tavern, { scope: 'person' }), global: createPlaces(tavern, { scope: 'server' }) };
+  const loadedStores = new Set();
+  const ensureLoaded = (v) => { if (loadedStores.has(v)) return Promise.resolve(); loadedStores.add(v); return stores[v].load().catch((err) => { loadedStores.delete(v); throw err; }); };
+  let view = inRoom ? 'room' : 'my';
   const places = new Proxy({}, { get: (_, key) => stores[view][key] });
   // A module that can show a place on a map, if one is installed: found by what it offers, never by name.
   let showAction = null;
@@ -93,7 +97,7 @@
   }
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
   const say = (text) => { const n = $('note'); n.textContent = text || ''; n.hidden = !text; };
-  const placeRef = (id) => tavern.refs.make('place', id, view === 'my' ? { scope: 'person' } : undefined);
+  const placeRef = (id) => tavern.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : undefined);
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
@@ -114,7 +118,7 @@
   // What other modules point at each place (asked once per place; the 'links' event clears it).
   const asked = new Set();
   async function loadLinks() {
-    if (view !== 'room' || !tavern.refs || !tavern.refs.linksTo) return; // personal places are not linked
+    if (view === 'my' || !tavern.refs || !tavern.refs.linksTo) return; // personal places are not linked
     let changed = false;
     for (const p of places.list().slice(0, 100)) {
       if (asked.has(p.id)) continue;
@@ -228,7 +232,7 @@
     hide(menu.querySelector('[data-action="delete"]'), !canEdit);
     // Copy between mine and this room: the original stays where it is.
     const share = menu.querySelector('[data-action="share"]');
-    hide(share, !canEdit || !personal || (view !== 'my' && view !== 'room'));
+    hide(share, !canEdit || !personal || !inRoom || (view !== 'my' && view !== 'room'));
     fill(share, { 'share-label': view === 'my' ? 'Share to this room' : 'Save to mine' });
     menu.querySelector('[data-action="delete"]').lastChild.textContent = ' Delete';
     state.armed = null;
@@ -574,7 +578,7 @@
     });
   }
 
-  stores.room.provide(info.user.key);
+  if (inRoom) stores.room.provide(info.user.key); // other modules' requests to add a place go to the room's list
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
@@ -585,10 +589,11 @@
 
   // --- start --------------------------------------------------------------------------------------------------------
 
-  // Whose places: the person's own need a signed-in person (a guest has no profile).
-  const VIEW_NOTES = { my: 'Only you see these. They follow you into every room.', global: 'Everyone on this server sees these. Moderators change them.' };
+  // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (a server-wide store).
+  const VIEW_NOTES = { my: 'Only you see these. They follow you into every room.', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
+  const allowed = { my: personal, room: inRoom, global: personal };
   function showView(next) {
-    if (next === 'my' && !personal) next = 'room';
+    if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;
     try { localStorage.setItem('places-view', view); } catch (err) { /* not remembered */ }
     for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
@@ -601,19 +606,22 @@
     closeFound();
     closeEditor();
     render();
-    loadLinks().catch(() => {});
+    ensureLoaded(view).then(() => { if (view === next) { render(); loadLinks().catch(() => {}); } }).catch((err) => say('These places could not load: ' + err.message));
   }
   $('views').addEventListener('click', (ev) => { const b = ev.target.closest('.view'); if (b && !b.hidden) showView(b.dataset.view); });
-  hide($('views'), !personal);
-  hide($('views').querySelector('[data-view="global"]'), true);
-  try { const last = localStorage.getItem('places-view'); if (personal && last === 'my') view = 'my'; } catch (err) { /* room */ }
-  if (view === 'my') { for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === 'my')); fill(root.querySelector('[data-slot="view-note"]'), { text: VIEW_NOTES.my }); hide(root.querySelector('[data-slot="view-note"]'), false); }
+  for (const b of $('views').querySelectorAll('.view')) hide(b, !allowed[b.dataset.view]);
+  hide($('views'), [...$('views').querySelectorAll('.view')].filter((b) => !b.hidden).length < 2);
+  try { const last = localStorage.getItem('places-view'); if (allowed[last] && (last !== 'room' || inRoom)) view = last; } catch (err) { /* the default */ }
+  if (view !== 'room' || !inRoom) {
+    for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    fill(root.querySelector('[data-slot="view-note"]'), { text: VIEW_NOTES[view] || '' });
+    hide(root.querySelector('[data-slot="view-note"]'), !VIEW_NOTES[view]);
+  }
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
   try {
-    await stores.room.load();
-    if (personal) stores.my.load().catch(() => {});
+    await ensureLoaded(view);
     state.people = await tavern.people().catch(() => []);
     try { state.search = ((await tavern.settings.get()) || {}).search || ''; } catch (err) { state.search = ''; }
     tavern.settings.onChange((v) => { state.search = (v && v.search) || ''; if (!state.search) closeFound(); });

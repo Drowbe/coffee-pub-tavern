@@ -4,12 +4,12 @@
     "hash": "1267b2ac59448c0d"
   },
   "maps": {
-    "version": "0.5.3",
-    "hash": "4e042c22119698f4"
+    "version": "0.5.4",
+    "hash": "48b91389ba7eea16"
   },
   "places": {
-    "version": "0.5.0",
-    "hash": "4ab3e8a5569843bf"
+    "version": "0.6.0",
+    "hash": "5a6012dedffbc0ff"
   },
   "polls": {
     "version": "1.12.0",

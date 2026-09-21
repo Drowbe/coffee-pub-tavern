@@ -99,14 +99,14 @@
       const place = cleanPlace(id, value);
       items.set(id, { place, version: saved && saved.version });
       // Personal places are private, so nothing is linked to or from them.
-      if (place.ref && scope === 'room') tavern.refs.setLinks(tavern.refs.make('place', id), [place.ref]).catch(() => {});
+      if (place.ref && scope !== 'person') tavern.refs.setLinks(tavern.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), [place.ref]).catch(() => {});
       changed();
       return place;
     }
     async function remove(id) {
       await tavern.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
       items.delete(id);
-      if (scope === 'room') tavern.refs.setLinks(tavern.refs.make('place', id), []).catch(() => {});
+      if (scope !== 'person') tavern.refs.setLinks(tavern.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), []).catch(() => {});
       changed();
     }
     // Give a place a point (or take it away with null).
