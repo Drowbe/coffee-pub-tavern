@@ -158,6 +158,55 @@
         return out;
       },
       parseYmd: (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); },
+      // Places on the earth, for the modules that have them (a place, a map): coordinates checked and read, and the link
+      // that opens a spot in the person's own maps app. Pure, so a check can run it without a browser.
+      geo: (() => {
+        const inRange = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        const round6 = (n) => Math.round(n * 1e6) / 1e6;
+        // Text on one line, without control characters, at most `max` long.
+        const oneLine = (s, max) => String(s == null ? '' : s).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+        // A latitude or longitude typed in a field (`max` is 90 or 180): a number in range, or null.
+        const coord = (text, max) => {
+          const t = String(text == null ? '' : text).trim().replace(',', '.');
+          if (!/^[-+]?\d{1,3}(\.\d+)?$/.test(t)) return null;
+          const n = Number(t);
+          return Math.abs(n) <= max ? n : null;
+        };
+        // What was typed or pasted: a pair of coordinates ("38.7075, -9.1364"), or a map link that carries them (a geo: link,
+        // ?ll= or ?q= or ?mlat=&mlon=, /@lat,lng, #map=zoom/lat/lng, !3dLAT!4dLNG). { lat, lng } or null.
+        const parsePoint = (text) => {
+          const t = String(text == null ? '' : text).trim();
+          if (!t) return null;
+          const NUM = '(-?\\d{1,3}(?:\\.\\d+)?)';
+          const pair = (re) => {
+            const m = t.match(re);
+            if (!m) return null;
+            const lat = Number(m[1]);
+            const lng = Number(m[2]);
+            return inRange(lat, lng) ? { lat: round6(lat), lng: round6(lng) } : null;
+          };
+          if (/^[-+]?\d/.test(t) && !/[a-z]/i.test(t)) return pair(new RegExp(`^${NUM}\\s*[,;\\s]\\s*${NUM}$`));
+          return (
+            pair(new RegExp(`^geo:${NUM},${NUM}`, 'i')) ||
+            pair(new RegExp(`[?&](?:ll|q|query|center|sll)=${NUM}(?:,|%2C)\\s*${NUM}`, 'i')) ||
+            pair(new RegExp(`[?&]mlat=${NUM}&(?:amp;)?mlon=${NUM}`, 'i')) ||
+            pair(new RegExp(`!3d${NUM}!4d${NUM}`)) ||
+            pair(new RegExp(`/@${NUM},${NUM}`)) ||
+            pair(new RegExp(`#map=\\d{1,2}(?:\\.\\d+)?/${NUM}/${NUM}`))
+          );
+        };
+        const fmt = (n) => (Math.round(n * 1e5) / 1e5).toFixed(5);
+        // "38.70750, -9.13640"
+        const coordsText = (lat, lng) => `${fmt(lat)}, ${fmt(lng)}`;
+        // The link that opens a spot in the person's own maps app: a geo: link where that is handled (Android and most
+        // desktops), the platform's own link on Apple devices (`apple` true). Directions are that app's business.
+        const mapsLink = (lat, lng, name, apple) => {
+          const n = oneLine(name, 80).replace(/[()]/g, ' ');
+          if (apple) return `https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(n || 'Place')}`;
+          return `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(n || 'Place')})`;
+        };
+        return { inRange, round6, oneLine, coord, parsePoint, coordsText, mapsLink };
+      })(),
     },
 
     // Interface the modules share, drawn the same everywhere and following the theme.

@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- `tavern.util.geo` in the SDK (coordinates checked and read from typed text or a map link, and the link that opens a spot in the person's own maps app), for the Places and Maps modules to share. The Places module's model and its `addPlace` and `setPlacePoint` actions are written and checked (`tools/check-places.mjs`); the module itself follows with its page.
+
+### Added
 - `tools/check-module-versions.mjs` (part of `npm run check`) fails when a bundled module's `module.json` or `src/` changed and its version did not, because an installed copy only updates when the bundled version is newer (Maps' new `folder` setting missed that once). After bumping a version, `node tools/check-module-versions.mjs --update` records it.
 
 ### Changed
