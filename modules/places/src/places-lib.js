@@ -118,7 +118,7 @@
       if (!tavern.actions || !tavern.actions.provide) return;
       tavern.actions.provide({
         addPlace: async (input, ctx) => {
-          const place = await save(placeFromRequest(input, (ctx && ctx.by) || me || ''));
+          const place = await save(placeFromRequest(input, me || (ctx && ctx.by) || ''));
           return { ref: tavern.refs.make('place', place.id) };
         },
         setPlacePoint: async (input) => {

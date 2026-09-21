@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Places 0.1.0, a bundled module: the room's saved places (a name, a category, an address, an optional position, notes, owners), listed by category with a filter, added from the bottom bar (a name, with coordinates or a map link in it setting the position) or a dialog, opened in the person's own maps app. It needs no map file. Other modules can point at a place, and a place with a position gives its card a `place`, so the Maps module can draw it. Other modules can ask it, through the actions conduit, to save a place (`addPlace`: a title, optional coordinates, address, category, notes and a pointer to an item) or to give a place a position (`setPlacePoint`). Verified in a browser: the list, the dialog, pasting a map link, the bar with a name and coordinates, the menu, and the cards other modules see; `addPlace` through the conduit created a place. Not verified: the conflict bar, the read-only view, the phone layout, dark against light.
+
+### Added
 - Travel 0.4.0 (data only, no new screens yet): items keep the details the itinerary cards will draw, all optional and clipped. A journey has a `mode` (flight, train, bus, ferry, car, other) and `operator`, `number`, `fromCode`/`toCode` (upper-case codes), `terminal`, `gate`, `platform`, `carriage`, `seat`, `travelClass`, `pickup` and `dropoff`; a stop has a `type` (restaurant, cafe, bar, sight, museum, tour, show, hike, beach, shop, spa, other), `partySize`, `reservationName`, `admissionCount` and `gate`; a stay has a `type` (hotel, rental, hostel, camp, other), `roomType` and `guests`; any item has `travelMode` (walk, drive, transit, bike, taxi, none) and `travelMinutes` for the leg to it. Older items are unchanged. Checked in tools/check-travel.mjs (24 checks).
 
 ### Added

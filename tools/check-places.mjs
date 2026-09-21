@@ -120,7 +120,7 @@ await test('the actions a page provides: addPlace and setPlacePoint', async () =
   const key = `place:${out.ref.id}`;
   assert.ok(data.has(key));
   assert.ok(!('point' in data.get(key).value));
-  assert.equal(data.get(key).value.by, 'u9');
+  assert.equal(data.get(key).value.by, 'me');
   await assert.rejects(handlers.addPlace({ title: '' }, {}), /name/);
   const moved = await handlers.setPlacePoint({ place: out.ref, lat: 38.7, lng: -9.1 });
   assert.equal(moved.ref.id, out.ref.id);

@@ -7,6 +7,10 @@
     "version": "0.1.1",
     "hash": "bb937f08fbf42aca"
   },
+  "places": {
+    "version": "0.1.0",
+    "hash": "9a0d4e29a3d8f306"
+  },
   "polls": {
     "version": "1.12.0",
     "hash": "6fc97aa323097a27"
