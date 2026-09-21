@@ -695,6 +695,20 @@
     attempt(() => plan.moveTo(id, date, index));
   });
 
+  // A pointer a shared plan may hold: a private item is copied to the room first (title, position and address, through a module that
+  // offers to save a place), and the copy's pointer is used.
+  async function sharedRef(ref) {
+    if (ref.scope !== 'person') return ref;
+    const card = await tavern.refs.resolve(ref);
+    if (!card || card.error) throw new Error('That private item could not be read.');
+    let add = null;
+    try { add = (await tavern.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
+    if (!add) throw new Error('That item is private to you. Share it to the room first, then use the shared copy.');
+    const out = await tavern.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
+    if (out.status === 'done' && out.result && out.result.ok && out.result.ref) return out.result.ref;
+    throw new Error('It could not be shared to the room.');
+  }
+
   // Something from another module dropped on a day: put it on that day.
   if (tavern.refs && tavern.refs.dropTarget && canEdit) {
     const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day2') : null; };
@@ -716,10 +730,12 @@
         attempt(async () => {
           // What can be done with it here: put it on the day, and (dropped on an item) whatever other modules offer to
           // do with an item of that kind and this one, filled from what is under the drop (the day, the item).
-          const offers = [{ id: 'add', label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas', run: () => plan.addLink(ref, date) }];
+          // A private item (someone's own, in their profile) cannot be pointed at from a shared plan: only they could open it. So it
+          // is shared first, as a copy in the room, by whichever module offers to save a place, and the plan points at the copy.
+          const offers = [{ id: 'add', label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas', run: async () => plan.addLink(await sharedRef(ref), date) }];
           let actions = [];
           try { actions = await tavern.actions.list({ accepts: ref.module + ':' + ref.kind }); } catch (err) { actions = []; }
-          for (const a of actions) {
+          for (const a of ref.scope === 'person' ? [] : actions) {
             const input = {};
             let ok = true;
             let dropped = false;

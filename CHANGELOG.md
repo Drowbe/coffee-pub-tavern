@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- Planner 0.6.2: dragging one of your own private places (Mine in Places) onto a day now copies it to the room first, through the module that saves places, and the plan points at the copy, since a pointer to a private item would show as gone to everyone but you. Without such a module, or if the copy fails, it says so instead. Places 0.7.1 (the UI's) can now be dragged out to other modules. Not verified by dragging on a real page.
+
+### Changed
 - Places 0.7.0: the search setting is a **Place search** choice: None (the default), Photon, the public service (searches go to photon.komoot.io; its help says what is sent, its terms and the OpenStreetMap credit, and the results say "Search by Photon · © OpenStreetMap contributors"), or My own address (the old Search address, shown only for that choice). A server that already had a search address and never chose keeps it working as My own address. With None, a search answers that it is not configured. New generic manifest options: `showWhen` on a setting, `help` on a choice option, and `defaultIfSet` on a choice. Verified against a running server (the migration, an explicit None, Photon) and in a browser (the settings page and a Photon search with the request stubbed, showing the credit).
 
 ### Changed
