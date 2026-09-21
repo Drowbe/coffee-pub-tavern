@@ -169,14 +169,15 @@
   function render() {
     const compact = isCompact();
     $('view-toggle').hidden = compact;
-    const showMonth = compact || view === 'month';
+    const showMonth = compact || view === 'month' || view === 'both';
     $('prev').hidden = $('next').hidden = !showMonth;
     $('view-month').classList.toggle('on', view === 'month');
+    $('view-both').classList.toggle('on', view === 'both');
     $('view-list').classList.toggle('on', view === 'list');
     renderFilters();
     $('title').textContent = showMonth ? cursor.toLocaleDateString([], { month: 'long', year: 'numeric' }) : 'Next 90 days';
-    if (compact) {
-      // A narrow pane shows the month on top and that month's events beneath.
+    if (compact || view === 'both') {
+      // A narrow pane, or the Month + list view, shows the month on top and that month's events beneath.
       $('body').innerHTML = `<div class="stack">${monthGrid()}<div><h3 class="list-title">This month</h3>${monthList()}</div></div>`;
     } else {
       $('body').innerHTML = view === 'month' ? monthGrid() : upcomingList();
@@ -457,6 +458,7 @@
   $('next').addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); render(); });
   $('today').addEventListener('click', () => { const n = new Date(); cursor = new Date(n.getFullYear(), n.getMonth(), 1); render(); });
   $('view-month').addEventListener('click', () => { view = 'month'; render(); });
+  $('view-both').addEventListener('click', () => { view = 'both'; render(); });
   $('view-list').addEventListener('click', () => { view = 'list'; render(); });
   $('add').addEventListener('click', () => openEditor(null));
   // The host draws the Add button in the module's action bar (in the room's bottom row when

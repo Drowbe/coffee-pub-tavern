@@ -694,10 +694,12 @@
   });
   $('add').addEventListener('click', () => openEditor(null));
   // The host draws Add task in the module's action bar (in the room's bottom row when docked);
-  // the button in the header stays only for a host without one.
+  // the button and the quick-add field at the top stay only for a host without one.
   if (tavern.bar) {
+    // Then the quick-add field at the top is not needed either: there is one place to add a task, the bar.
     $('add').classList.add('hosted');
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => $('add').classList.remove('hosted'));
+    $('quick-form').classList.add('hosted');
+    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => { $('add').classList.remove('hosted'); $('quick-form').classList.remove('hosted'); });
     tavern.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
       openEditor(null, e.value ? tavern.util.parseWhen(e.value) : null);
