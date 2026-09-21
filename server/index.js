@@ -1902,14 +1902,39 @@ function sendSettingError(err, res) {
 // Some modules need a large file that cannot be uploaded through a page (a map's tile archive, gigabytes): the operator
 // copies it into DATA_DIR/module-files/<module id>/, the admin picks it in the module's settings, and the module reads
 // it here, by range, like any static file. Nothing else in that folder is reachable, and only by name.
-const moduleFilesDir = (id) => path.join(DATA_DIR, 'module-files', id);
+const moduleFilesDir = (id) => path.resolve(DATA_DIR, 'module-files', id);
 const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-function listModuleFiles(id) {
+// What is in a module's folder: the usable files, and each thing skipped with the reason, so an admin whose file does not
+// show up is told why. A link to a file (a NAS shortcut) counts as the file.
+function inspectModuleFiles(id) {
+  const folder = moduleFilesDir(id);
+  const out = { folder, exists: false, files: [], skipped: [] };
+  let names;
   try {
-    return fs.readdirSync(moduleFilesDir(id), { withFileTypes: true }).filter((e) => e.isFile() && FILE_NAME_RE.test(e.name)).map((e) => e.name).sort();
+    names = fs.readdirSync(folder);
+    out.exists = true;
   } catch {
-    return [];
+    return out;
   }
+  for (const name of names.sort()) {
+    if (!FILE_NAME_RE.test(name)) {
+      out.skipped.push({ name: name.slice(0, 100), reason: 'a name may use letters, digits, dot, dash and underscore, and must start with a letter or digit, up to 100 characters' });
+      continue;
+    }
+    let st = null;
+    try { st = fs.statSync(path.join(folder, name)); } catch { /* a broken link */ }
+    if (st && st.isFile()) out.files.push(name);
+    else out.skipped.push({ name, reason: st ? 'not a regular file (a folder or something else)' : 'a link that leads nowhere' });
+  }
+  return out;
+}
+const listModuleFiles = (id) => inspectModuleFiles(id).files;
+// The same, in words, for the log and for the picker.
+function describeModuleFiles(id) {
+  const f = inspectModuleFiles(id);
+  if (!f.exists) return `${f.folder} does not exist yet`;
+  const skipped = f.skipped.map((s) => `${s.name} (${s.reason})`).join('; ');
+  return `${f.folder} has ${f.files.length} usable file${f.files.length === 1 ? '' : 's'}${f.files.length ? ': ' + f.files.join(', ') : ''}${f.skipped.length ? `; Tavern ignored ${f.skipped.length}: ${skipped}` : ''}`;
 }
 // A file for a module page, with range requests (what a map archive is read with). Needs the same access as reading
 // the module's data in that place.
@@ -1948,7 +1973,7 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? { available: listModuleFiles(manifest.id) } : {}) }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id)) : {}) }));
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
@@ -2360,4 +2385,6 @@ app.use((err, _req, res, _next) => {
 
 app.listen(Number(PORT), () => {
   console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
+  // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
+  for (const m of modules.list()) if ((m.settings || []).some((d) => d.type === 'file')) console.log(`${m.name}: looks for its files in ${describeModuleFiles(m.id)}`);
 });

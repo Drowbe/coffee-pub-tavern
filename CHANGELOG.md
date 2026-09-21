@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- A `file` setting (Maps' map file) now says why it is empty: the picker names the folder Tavern looked in, whether it exists, and lists each entry it ignored with the reason (a name with spaces or other characters outside letters, digits, dot, dash and underscore; a folder; a link that leads nowhere), and the server logs the same at startup. A link to a file (a NAS shortcut) is now accepted as the file. Verified against a running server with a good file, a link, a broken link, a folder and a name with spaces.
+
 ### Fixed
 - Maps and Travel now set `narrow` on their `.app` from the pane's width (under 720 px, followed as the pane is resized) instead of relying on the window's width, which a module running in the page cannot tell apart from its pane's; Maps' sheet starts as a peek on a narrow pane and open on a wide one. The syntax check now fails on a raw control character in a module's source, which the build turned into a broken script (a NUL inside a pattern in Maps' geo library).
 
