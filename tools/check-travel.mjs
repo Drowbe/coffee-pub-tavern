@@ -351,4 +351,18 @@ test('where the trip starts and ends: the first and last booked item', () => {
   assert.equal(lib.tripBounds([it({ id: 'c', kind: 'stop', date: '2026-10-04', confirm: 'XY1' })]).start.id, 'c', 'anything with a confirmation is booked');
 });
 
+test('a time block is an item with a marker type and no place', () => {
+  const b = lib.cleanItem({ id: 'b', kind: 'block', type: 'free-time', title: ' ', date: '2026-10-03', time: '14:00', minutes: 90 });
+  assert.equal(b.kind, 'block');
+  assert.equal(b.type, 'free-time');
+  assert.equal(b.title, '');
+  assert.equal(b.minutes, 90);
+  assert.equal(lib.cleanItem({ id: 'b', kind: 'block', title: 'x' }), null, 'a block needs a type');
+  assert.equal(lib.cleanItem({ id: 'b', kind: 'block', type: 'Bad Type' }), null);
+  assert.equal(lib.tileOf(b), 'block:free-time');
+  assert.deepEqual(lib.fromTile('block:rest'), { kind: 'block', type: 'rest', category: 'other' });
+  assert.equal(lib.cardOf(b).card, 'block');
+  assert.equal(lib.tripBounds([b, lib.cleanItem({ id: 'j', kind: 'journey', title: 'x', date: '2026-10-04', time: '09:00' })]).start.id, 'j', 'a block is never the start of the trip');
+});
+
 console.log(`check-travel: OK (${n} checks)`);

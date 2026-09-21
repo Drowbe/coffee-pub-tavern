@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
   "author": "Coffee Pub",
@@ -115,5 +115,77 @@
     "consumes": [
       "*"
     ]
-  }
+  },
+  "settings": [
+    {
+      "key": "markers",
+      "label": "Markers",
+      "type": "list",
+      "scope": "server",
+      "maxLength": 30,
+      "fixed": [
+        "planning-start",
+        "planning-end",
+        "trip-start",
+        "trip-end"
+      ],
+      "help": "The markers a plan draws: the four automatic ones (their label, icon and colour can change) and the time blocks people add to a day, such as free time.",
+      "default": [
+        {
+          "id": "planning-start",
+          "label": "Planning starts",
+          "icon": "flag",
+          "color": "#3b82f6"
+        },
+        {
+          "id": "planning-end",
+          "label": "Planning ends",
+          "icon": "flag-checkered",
+          "color": "#8b5cf6"
+        },
+        {
+          "id": "trip-start",
+          "label": "Trip starts",
+          "icon": "plane-departure",
+          "color": "#22c55e"
+        },
+        {
+          "id": "trip-end",
+          "label": "Trip ends",
+          "icon": "plane-arrival",
+          "color": "#f97316"
+        },
+        {
+          "id": "free-time",
+          "label": "Free time",
+          "icon": "face-smile",
+          "color": "#14b8a6"
+        },
+        {
+          "id": "rest",
+          "label": "Rest",
+          "icon": "moon",
+          "color": "#6366f1"
+        },
+        {
+          "id": "buffer",
+          "label": "Buffer",
+          "icon": "hourglass-half",
+          "color": "#a3a3a3"
+        },
+        {
+          "id": "meet-up",
+          "label": "Meet-up",
+          "icon": "users",
+          "color": "#ec4899"
+        },
+        {
+          "id": "leave-by",
+          "label": "Leave by",
+          "icon": "clock",
+          "color": "#eab308"
+        }
+      ]
+    }
+  ]
 }

@@ -36,6 +36,7 @@ const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['server', 'room', 'person'];
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
+const { cleanRows } = require('./setting-list');
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 
 class ModuleError extends StoreError {}
@@ -217,7 +218,7 @@ function cleanBus(rawEvents, rawActions, id) {
 }
 
 // The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
-const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files'];
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
 function cleanSettings(raw) {
   const out = [];
@@ -250,6 +251,15 @@ function cleanSettings(raw) {
       if (def.min !== undefined) d = Math.max(def.min, d);
       if (def.max !== undefined) d = Math.min(def.max, d);
       def.default = d;
+    } else if (type === 'list') {
+      // Rows with a label, an icon and a colour (see setting-list.js); `fixed` names rows that cannot be removed.
+      def.fixed = (Array.isArray(r.fixed) ? r.fixed : []).filter((x) => typeof x === 'string' && /^[a-z][a-z0-9-]{0,29}$/.test(x)).slice(0, 20);
+      def.maxLength = clamp(r.maxLength, 1, 30, 30);
+      try {
+        def.default = cleanRows(Array.isArray(r.default) ? r.default : [], def);
+      } catch (err) {
+        throw new ModuleError(`module.json: setting "${key}" default ${err.message}`);
+      }
     } else if (type === 'url') {
       def.default = '';
       // Optional limits on an address: https only, and the path must end so (".pmtiles"). Credentials in an address are always refused.

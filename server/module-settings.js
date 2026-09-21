@@ -11,7 +11,8 @@ const path = require('path');
 const { EventEmitter } = require('events');
 
 const SCOPES = ['server', 'room', 'person'];
-const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files'];
+const { cleanRows } = require('./setting-list');
+const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list'];
 
 class SettingError extends Error {
   constructor(message, status = 400) {
@@ -46,6 +47,13 @@ function cleanValue(def, raw) {
     if (def.httpsOnly && u.protocol !== 'https:') throw new SettingError(`${def.label} must be an https address`);
     if (def.pathEnds && !u.pathname.toLowerCase().endsWith(def.pathEnds.toLowerCase())) throw new SettingError(`${def.label} must be the address of a ${def.pathEnds} file`);
     return t;
+  }
+  if (def.type === 'list') {
+    try {
+      return cleanRows(raw, def);
+    } catch (err) {
+      throw new SettingError(`${def.label} ${err.message}`);
+    }
   }
   if (def.type === 'files') {
     const list = Array.isArray(raw) ? raw : raw ? [raw] : [];

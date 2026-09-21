@@ -45,6 +45,7 @@
     currentDay: null, // the day in view (where a quick add goes)
     hosted: Boolean(tavern.bar), // the host draws the quick-add bar, so the days' own add rows step aside
     deleteArmed: null,
+    markerTypes: [],
     hideEmpty: (() => { try { return localStorage.getItem('planner-hide-empty') === '1'; } catch (err) { return false; } })(), // per person, off by default
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || 'Someone';
@@ -167,6 +168,12 @@
       put(el, { kicker: c.kicker, title: item.title, address: where, minutes: duration, admissionCount: words(item.admissionCount, 'ticket', 'tickets'), confirm: item.confirm });
     } else if (c.card === 'show') {
       put(el, { kicker: c.kicker, title: item.title, address: where, gate: item.gate ? `Gate ${item.gate}` : '', confirm: item.confirm, admissionCount: item.admissionCount ? String(item.admissionCount) : '', time: item.time });
+    } else if (c.card === 'block') {
+      const type = markerType(item.type);
+      el.dataset.type = item.type;
+      setIcon(el.querySelector('.mk-icon [data-icon]'), type.icon);
+      colourPill(el, type);
+      put(el, { title: item.title || type.label, minutes: duration, body: item.notes });
     } else if (c.card === 'note') {
       put(el, { title: item.title, body: item.notes });
     } else if (c.card === 'place') {
@@ -244,19 +251,43 @@
 
   // "10:05 – 23:30 · 6 stops · 1 h 24 min getting around": the first and last time, how many stops, and the time spent getting between them.
   function daySummary(entries) {
-    const own = entries.filter((e) => !e.span || e.span === 'start');
+    const own = entries.filter((e) => (!e.span || e.span === 'start') && e.item.kind !== 'block');
     const times = own.map((e) => e.item.time).filter(Boolean).sort();
     const range = times.length ? (times.length > 1 && times[0] !== times[times.length - 1] ? `${times[0]} – ${times[times.length - 1]}` : times[0]) : '';
     const around = own.reduce((sum, e) => sum + (e.item.travelMode && e.item.travelMode !== 'none' && e.item.travelMinutes ? e.item.travelMinutes : 0), 0);
     return [range, words(own.length, 'stop', 'stops'), around ? `${lengthText(around)} getting around` : ''].filter(Boolean).join(' · ');
   }
 
-  const MARKERS = { 'planning-start': ['flag', 'Planning starts'], 'planning-end': ['flag-checkered', 'Planning ends'], 'trip-start': ['plane-departure', 'Trip starts'], 'trip-end': ['plane-arrival', 'Trip ends'] };
+  // The marker types (a setting an admin edits): the four automatic ones and the time blocks people add. Until it is read, or if it
+  // cannot be, these stand.
+  const AUTOMATIC = ['planning-start', 'planning-end', 'trip-start', 'trip-end'];
+  const DEFAULT_MARKER_TYPES = [
+    { id: 'planning-start', label: 'Planning starts', icon: 'flag', color: '#3b82f6' },
+    { id: 'planning-end', label: 'Planning ends', icon: 'flag-checkered', color: '#8b5cf6' },
+    { id: 'trip-start', label: 'Trip starts', icon: 'plane-departure', color: '#22c55e' },
+    { id: 'trip-end', label: 'Trip ends', icon: 'plane-arrival', color: '#f97316' },
+    { id: 'free-time', label: 'Free time', icon: 'face-smile', color: '#14b8a6' },
+    { id: 'rest', label: 'Rest', icon: 'moon', color: '#6366f1' },
+    { id: 'buffer', label: 'Buffer', icon: 'hourglass-half', color: '#a3a3a3' },
+    { id: 'meet-up', label: 'Meet-up', icon: 'users', color: '#ec4899' },
+    { id: 'leave-by', label: 'Leave by', icon: 'clock', color: '#eab308' },
+  ];
+  const markerType = (id) => state.markerTypes.find((t) => t.id === id) || DEFAULT_MARKER_TYPES.find((t) => t.id === id) || { id, label: id, icon: 'clock', color: '#888888' };
+  const blockTypes = () => state.markerTypes.filter((t) => !AUTOMATIC.includes(t.id));
+  function useMarkerTypes(values) {
+    const list = values && Array.isArray(values.markers) && values.markers.length ? values.markers : DEFAULT_MARKER_TYPES;
+    state.markerTypes = list.filter((t) => t && typeof t.id === 'string' && /^#[0-9a-f]{6}$/i.test(t.color || ''));
+    if (!state.markerTypes.length) state.markerTypes = DEFAULT_MARKER_TYPES;
+  }
+  // A marker's one colour: on the pill as a custom property, which gives the border and both cells.
+  const colourPill = (el, type) => { if (el) el.style.setProperty('--marker', type.color); };
   function buildMarker(kind, time, sub) {
+    const type = markerType(kind);
     const row = clone('tpl-row-marker');
     row.dataset.marker = kind;
-    setIcon(row.querySelector('.markercard [data-icon]'), MARKERS[kind][0]);
-    fill(row, { time, title: MARKERS[kind][1], sub });
+    setIcon(row.querySelector('.markercard [data-icon]'), type.icon);
+    fill(row, { time, title: type.label, sub });
+    colourPill(row.querySelector('.markerpill'), type);
     return row;
   }
   // The markers of the whole plan, on the main timeline between the day blocks (not inside a day): the plan's ends above the first day
@@ -341,6 +372,44 @@
   // Days with nothing on them (a stay that covers a night counts; markers do not).
   const emptyDays = () => { const days = plan.days(); const by = plan.byDay(); return new Set(days.filter((d) => !entriesFor(d, days, by).length)); };
 
+  // The badge for a run of hidden days: how many, and a + for what can be added there.
+  function buildGap(run) {
+    const el = clone('tpl-gap');
+    el.dataset.from = run[0];
+    el.dataset.to = run[run.length - 1];
+    fill(el, { count: String(run.length) });
+    const count = slot(el, 'count');
+    if (count) count.title = `${run.length} day${run.length === 1 ? '' : 's'} between`;
+    if (!canEdit) hide(el.querySelector('[data-action="gap-add"]'), true);
+    return el;
+  }
+  // The menu on a gap's +: a time block of each type on the first hidden day, or show the days.
+  function openGapMenu(button) {
+    const gap = button.closest('.gap');
+    const menu = $('gap-menu');
+    menu.replaceChildren();
+    const entry = (label, icon, color, on) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('role', 'menuitem');
+      const ic = document.createElement('span');
+      ic.className = 'ic';
+      ic.dataset.icon = icon;
+      if (color) ic.style.color = color;
+      b.append(ic, document.createTextNode(' ' + label));
+      b.addEventListener('click', () => { hide(menu, true); on(); });
+      menu.append(b);
+    };
+    for (const t of blockTypes()) entry(`Add ${t.label.toLowerCase()}`, t.icon, t.color, () => attempt(() => plan.addItem({ kind: 'block', type: t.id, title: '', date: gap.dataset.from })));
+    entry('Show these days', 'eye', '', () => { state.hideEmpty = false; try { localStorage.setItem('planner-hide-empty', '0'); } catch (err) { /* not remembered */ } redraw(); });
+    hydrate(menu);
+    menu.hidden = false;
+    const box = tavern.rootElement.getBoundingClientRect();
+    const r = button.getBoundingClientRect();
+    menu.style.top = `${Math.max(4, r.bottom - box.top + 4)}px`;
+    menu.style.left = `${Math.max(4, Math.min(r.left - box.left, box.width - 220))}px`;
+  }
+
   // The button (and its small form) to add days before the first day or after the last.
   function buildEdge(where) {
     const el = clone('tpl-dayedge');
@@ -374,11 +443,19 @@
     // Empty days can be hidden, unless every day is empty (then there would be nothing to show).
     const hiding = state.hideEmpty && empties.size > 0 && empties.size < days.length;
     $('app').classList.toggle('hide-empty', hiding);
-    if (hiding) { const n = clone('tpl-emptynote'); fill(n, { text: `${empties.size} empty day${empties.size === 1 ? '' : 's'} hidden` }); wrap.append(n); }
     if (canEdit) wrap.append(buildEdge('before'));
+    // One badge for each run of hidden days, standing in for them on the line.
+    const runs = new Map(); // first hidden day of a run -> the days in it
+    if (hiding) {
+      let run = null;
+      for (const d of days) {
+        if (empties.has(d)) { if (!run) { run = []; runs.set(d, run); } run.push(d); } else run = null;
+      }
+    }
     days.forEach((day, i) => {
       const above = timelineMarkers(day, 'before', days, by);
       if (above) wrap.append(above);
+      if (runs.has(day)) wrap.append(buildGap(runs.get(day)));
       wrap.append(buildDay(day, i, days, by));
       const below = timelineMarkers(day, 'after', days, by);
       if (below) wrap.append(below);
@@ -737,6 +814,7 @@
     closeMenu();
     if (id) attempt(() => plan.moveTo(id, date, 1e6));
   });
+  root.addEventListener('click', (e) => { if (!$('gap-menu').hidden && !e.target.closest('#gap-menu, [data-action="gap-add"]')) hide($('gap-menu'), true); });
   root.addEventListener('click', (e) => { if (!$('item-menu').hidden && !e.target.closest('#item-menu, [data-action="move-menu"]')) closeMenu(); });
 
   // --- dragging (desktop) --------------------------------------------------------------------------------------
@@ -980,9 +1058,43 @@
     const ed = state.editing;
     if (!ed) return;
     ed.tile = tile;
-    for (const el of $('form').querySelectorAll('[data-types]')) el.classList.toggle('on-type', el.dataset.types.split(/\s+/).includes(tile));
+    const key = tile.startsWith('block:') ? 'block' : tile; // every time block shows the same fields
+    for (const el of $('form').querySelectorAll('[data-types]')) el.classList.toggle('on-type', el.dataset.types.split(/\s+/).includes(key));
+    $('f-title').required = key !== 'block'; // a time block's label is optional: the type names it
+    const noLength = ['block:meet-up', 'block:leave-by'].includes(tile); // a moment, not a stretch of time
+    const lengthLabel = $('f-minutes').closest('label');
+    if (lengthLabel) lengthLabel.hidden = noLength;
     for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
-    $('f-title').placeholder = TITLES[tile] || '';
+    $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : TITLES[tile] || '';
+  }
+  // The time blocks' tiles, one for each type that is not automatic, in a group of their own after the others.
+  function addBlockTiles() {
+    const types = blockTypes();
+    const box = $('f-types');
+    if (!box || !types.length) return;
+    const group = document.createElement('div');
+    group.className = 'typegroup';
+    const title = document.createElement('div');
+    title.className = 'typegroup-title';
+    title.textContent = 'Time';
+    const tiles = document.createElement('div');
+    tiles.className = 'tiles';
+    for (const t of types) {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.type = 'button';
+      b.dataset.type = `block:${t.id}`;
+      const ic = document.createElement('span');
+      ic.className = 'ic';
+      ic.dataset.icon = t.icon;
+      const label = document.createElement('span');
+      label.textContent = t.label;
+      b.append(ic, label);
+      b.style.setProperty('--marker', t.color);
+      tiles.append(b);
+    }
+    group.append(title, tiles);
+    box.append(group);
   }
   const chosenMode = () => { const on = $('f-travelMode') && $('f-travelMode').querySelector('.mode.on'); return on ? on.dataset.mode : null; };
 
@@ -1003,6 +1115,7 @@
       $('f-notes').value = t.notes || '';
       $('f-by').textContent = '';
     } else {
+      addBlockTiles();
       $('editor-title').textContent = item ? 'Edit' : 'Add to the plan';
       hide($('f-types'), Boolean(item) && isLink);
       hide($('f-delete'), !item);
@@ -1055,7 +1168,7 @@
         return closeEditor();
       }
       const item = ed.id ? plan.list().find((i) => i.id === ed.id) : null;
-      if (!ed.isLink && !$('f-title').value.trim()) return fail('Give it a title.');
+      if (!ed.isLink && !ed.tile.startsWith('block:') && !$('f-title').value.trim()) return fail('Give it a title.');
       const common = {
         title: $('f-title').value.trim(),
         date: $('f-date').value || null,
@@ -1071,7 +1184,7 @@
         fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: num('f-minutes') };
       } else {
         const t = fromTile(ed.tile, item);
-        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: num('f-minutes') };
+        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) ? null : num('f-minutes') };
         if (t.kind === 'journey') {
           for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);
           fields.fromCode = get('f-fromCode');
@@ -1179,6 +1292,8 @@
       openItemEditor(b.dataset.id);
     } else if (action === 'edit-leg' && li) {
       openItemEditor(li.dataset.id);
+    } else if (action === 'gap-add') {
+      if (!$('gap-menu').hidden) hide($('gap-menu'), true); else openGapMenu(b);
     } else if (action === 'toggle-empty') {
       state.hideEmpty = !state.hideEmpty;
       try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }
@@ -1271,6 +1386,8 @@
   try {
     await plan.load();
     state.people = await tavern.people().catch(() => []);
+    try { useMarkerTypes(await tavern.settings.get()); } catch (err) { useMarkerTypes(null); }
+    tavern.settings.onChange((v) => { useMarkerTypes(v); if (state.loaded) redraw(); });
     state.loaded = true;
     // Warm the icons the page draws, so the first draw is not empty.
     await Promise.all([...new Set([...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)).concat(Object.values(CAT_ICON), Object.values(BADGES), Object.values(LEG_ICONS), ['link-slash'], [...root.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)))].filter(Boolean).map(wantIcon));

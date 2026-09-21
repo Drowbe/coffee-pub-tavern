@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Added
+- Planner 0.7.1: markers as one two-part pill in a colour of their own, from a **Markers** list in Module Configuration (a new `list` setting type: rows with a label, an icon and a colour, some fixed; the four automatic markers can be changed but not removed, and others can be added, reordered and removed). Time blocks, a new kind of item for what happens inside a day and has no place (free time, rest, buffer, meet-up, leave-by to start with), with a **Time** group in the editor. A badge on the line stands in for each run of hidden empty days, its + adding a time block on the first hidden day or showing the days again, replacing the "N empty days hidden" note. Verified against a running server (a fixed row cannot be removed, a bad colour is refused, a new row's id is made from its label) and in a browser (the marker colours from the list, a time block, the gaps and their menu adding a block, the editor's Time tiles). Not verified: the settings page's list control, the light theme, the phone layout.
+
 ### Changed
 - Planner 0.6.7: the plan-wide markers (Planning starts and ends, Trip starts and ends) now sit on the main timeline between the day blocks instead of inside a day: the plan's start and the trip's start above their days, the trip's end and the plan's end below theirs. The days the trip itself covers (first to last booked item) are marked `.in-trip`, so their badges can be coloured differently from the planning days around them. Checked in a browser: the order of edges, markers and day blocks and the marked days.
 
