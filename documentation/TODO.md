@@ -35,7 +35,7 @@ Wanted, not started. Needs decisions first (whose Google account, which directio
 
 ## Travel: what is left
 
-Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: drag a trip item out to another module and link tasks to a stop; the Bookings view; a map; rules that follow other modules (a poll winner taking its date); budget and splitting costs; checking it with two people in a real call.
+Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: a map, reading confirmation emails, and checking it with two people in a real call (drag out and the drop menu on items have only been run as code).
 
 ## Modules: what is left
 

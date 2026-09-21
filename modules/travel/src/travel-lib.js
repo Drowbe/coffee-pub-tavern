@@ -38,6 +38,11 @@
       owners: Array.isArray(raw.owners) ? [...new Set(raw.owners.filter((k) => typeof k === 'string').map((k) => k.slice(0, 40)))].slice(0, 20) : [],
       done: Boolean(raw.done),
       by: clip(raw.by, 40),
+      cost: Number.isFinite(raw.cost) && raw.cost > 0 ? Math.min(Math.round(raw.cost * 100) / 100, 1e9) : null,
+      paidBy: typeof raw.paidBy === 'string' ? raw.paidBy.slice(0, 40) : '',
+      follow: Boolean(raw.follow),
+      result: clip(raw.result, 200),
+      fired: Number.isFinite(raw.fired) ? raw.fired : 0,
     };
     if (kind === 'link') {
       const r = raw.ref;
@@ -175,7 +180,8 @@
     const r = raw && typeof raw === 'object' ? raw : {};
     const start = isYmd(r.start) ? r.start : null;
     const end = isYmd(r.end) && start && r.end >= start ? r.end : start;
-    return { title: clip(r.title, 80), destination: clip(r.destination, 80), start, end, notes: clip(r.notes, 2000), by: clip(r.by, 40) };
+    const currency = typeof r.currency === 'string' && /^[A-Za-z]{3}$/.test(r.currency.trim()) ? r.currency.trim().toUpperCase() : '';
+    return { title: clip(r.title, 80), destination: clip(r.destination, 80), start, end, notes: clip(r.notes, 2000), currency, by: clip(r.by, 40) };
   }
 
   // When a card says something is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
@@ -188,4 +194,51 @@
     if (w.length <= 10) return isYmd(w) ? { day: w, time: '' } : null;
     const d = new Date(w);
     return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: hhmm(d) };
+  }
+
+  // The bookings: stays and journeys, in date and time order.
+  function bookings(items) {
+    return items.filter((i) => i.kind === 'stay' || i.kind === 'journey')
+      .sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999')) || String(a.time || '').localeCompare(String(b.time || '')) || String(a.id).localeCompare(String(b.id)));
+  }
+
+  // Who owes what. An item with a cost was paid by one person and is shared by the people it belongs to (all the
+  // travellers when it belongs to nobody). Returns each person's paid, share and net (positive: owed money), the total,
+  // and the fewest payments that settle it. Amounts are in the trip's one currency, rounded to cents.
+  const cents = (n) => Math.round(n * 100);
+  function balances(items, travellers) {
+    const keys = travellers.slice();
+    const paid = {};
+    const share = {};
+    let total = 0;
+    for (const item of items) {
+      if (!item.cost || !item.paidBy) continue;
+      const among = (item.owners.length ? item.owners : keys).filter(Boolean);
+      if (!among.length) continue;
+      const amount = cents(item.cost);
+      total += amount;
+      paid[item.paidBy] = (paid[item.paidBy] || 0) + amount;
+      const each = Math.floor(amount / among.length);
+      let rest = amount - each * among.length;
+      for (const k of among) { share[k] = (share[k] || 0) + each + (rest > 0 ? 1 : 0); if (rest > 0) rest -= 1; }
+    }
+    const people = [...new Set([...keys, ...Object.keys(paid), ...Object.keys(share)])];
+    const net = {};
+    for (const k of people) net[k] = (paid[k] || 0) - (share[k] || 0);
+    const owed = people.filter((k) => net[k] > 0).map((k) => [k, net[k]]).sort((a, b) => b[1] - a[1]);
+    const owing = people.filter((k) => net[k] < 0).map((k) => [k, -net[k]]).sort((a, b) => b[1] - a[1]);
+    const payments = [];
+    let i = 0;
+    let j = 0;
+    while (i < owing.length && j < owed.length) {
+      const amount = Math.min(owing[i][1], owed[j][1]);
+      if (amount > 0) payments.push({ from: owing[i][0], to: owed[j][0], amount: amount / 100 });
+      owing[i][1] -= amount;
+      owed[j][1] -= amount;
+      if (owing[i][1] === 0) i += 1;
+      if (owed[j][1] === 0) j += 1;
+    }
+    const out = { total: total / 100, paid: {}, share: {}, net: {}, payments };
+    for (const k of people) { out.paid[k] = (paid[k] || 0) / 100; out.share[k] = (share[k] || 0) / 100; out.net[k] = net[k] / 100; }
+    return out;
   }

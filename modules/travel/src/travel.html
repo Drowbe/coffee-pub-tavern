@@ -25,7 +25,8 @@
     <div class="views" role="group" aria-label="View">
       <button class="btn on" type="button" data-view="days">Days</button>
       <button class="btn" type="button" data-view="decisions">Decisions<span class="count" data-slot="decisions-count" hidden></span></button>
-      <button class="btn" type="button" data-view="bookings" hidden>Bookings</button>
+      <button class="btn" type="button" data-view="bookings">Bookings</button>
+      <button class="btn" type="button" data-view="money">Money</button>
     </div>
     <div class="trip-facts" data-slot="summary"></div>
     <button class="btn" type="button" data-action="edit-trip" hidden>Edit trip</button>
@@ -49,6 +50,7 @@
         <label>Where<input id="f-destination" name="destination" type="text" maxlength="80"></label>
         <label>From<input id="f-start" name="start" type="date"></label>
         <label>To<input id="f-end" name="end" type="date"></label>
+        <label>Currency<input id="f-currency" name="currency" type="text" maxlength="3" placeholder="EUR" autocapitalize="characters"></label>
       </div>
       <div class="editor-row" data-kinds="stop stay journey note">
         <label>Day<select id="f-date" name="date"></select></label>
@@ -65,10 +67,14 @@
         <label>Place<input id="f-place" name="place" type="text" maxlength="200"></label>
       </div>
       <label data-kinds="stop stay">Address<input id="f-address" name="address" type="text" maxlength="300"></label>
+      <div class="editor-row" data-kinds="stop stay journey">
+        <label>Cost<input id="f-cost" name="cost" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label>Paid by<select id="f-paidby" name="paidBy"></select></label>
+      </div>
       <label data-kinds="stay journey">Booking reference<input id="f-confirm" name="confirm" type="text" maxlength="80"></label>
       <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="2000"></textarea></label>
       <div data-kinds="stop stay journey note">
-        <div class="hint">Whose is it</div>
+        <div class="hint">Whose is it (they share its cost; everyone does when nobody is ticked)</div>
         <div class="editor-people" id="f-owners"></div>
       </div>
       <label class="check" data-kinds="stop stay journey note"><input id="f-done" name="done" type="checkbox"> Done</label>
@@ -90,6 +96,7 @@
     <button type="button" role="menuitem" data-action="later"><span class="ic" data-icon="arrow-down"></span> Later</button>
     <label role="menuitem"><span class="ic" data-icon="calendar-days"></span> Move to <select id="menu-day" aria-label="Move to day"></select></label>
     <button type="button" role="menuitem" data-action="to-ideas"><span class="ic" data-icon="lightbulb"></span> Back to ideas</button>
+    <button type="button" role="menuitem" data-action="follow" hidden><span class="ic" data-icon="bell"></span> <span data-slot="follow-label">Follow its result</span></button>
     <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
   </div>
 </div>

@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Travel",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "icon": "suitcase-rolling",
   "description": "Plan a trip together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
   "author": "Coffee Pub",
@@ -16,6 +16,7 @@
     { "key": "edit", "label": "Plan the trip: add, change and move items", "default": { "user": true, "guest": false, "moderator": true } }
   ],
   "access": { "read": "view", "write": "edit" },
+  "events": { "subscribes": ["*"] },
   "actions": {
     "provides": [
       { "name": "addStop", "label": "Add it to the trip", "input": { "title": "string", "date": "date?", "notes": "text?", "ref": "ref?" } },

@@ -5,6 +5,12 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Travel 0.2.0: a **Bookings** view (stays and journeys with reference codes), a **Money** view (costs with who paid and who shares them, each person's balance, and the fewest payments that settle it; a trip currency), following a poll's result (an item can follow the item it points at: when it reports a result the item keeps it and a stop appears on the day it names), dragging a trip item out to link a task, and dropping items from other modules onto items with the same drop menu the Calendar uses. Travel now asks to hear events (an admin approves it on update). Verified in a browser with seeded data: Bookings and Money with the right balances and settlement, and a followed poll closing once (the result on the item and exactly one stop added); the sums are also checked without a page (`tools/check-travel.mjs`, 23 checks). Not verified: dragging out and the drop-on-item menu in a real browser, and two people.
+
+### Changed
+- Calendar 1.15.0 has a third view, **Month + list**: the month grid with that month's events listed under it. To-do 1.11.1 draws only one place to add a task: when the host draws the bottom bar, the field at the top is hidden.
+
+### Added
 - Oversight for modules. The recent-activity list on the Modules tab is kept across restarts, and what a module does through Tavern is rate limited per module and person: 240 saves, 60 events, 60 asked actions, 60 schedules and 20 notifications a minute. Over a limit a call gets 429 (with `Retry-After`) and the activity list notes that the module was slowed. Verified against a running server: 240 saves went through and the next 20 were refused with 429, the activity list showed one "was slowed" line, and the list was intact after a restart. The limits cover only what passes through Tavern, so they do not bind a module running in the page.
 
 ### Fixed

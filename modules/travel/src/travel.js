@@ -143,7 +143,7 @@
     if (item.kind === 'link') {
       const gone = !card || card.error;
       setIcon(slot(el, 'source').querySelector('[data-icon]'), gone ? 'link-slash' : card.module.icon);
-      fill(el, { module: gone ? 'another module' : card.module.name, title: item.title || (gone ? 'No longer available' : card.title), body: gone ? '' : card.subtitle });
+      fill(el, { module: gone ? 'another module' : card.module.name, title: item.title || (gone ? 'No longer available' : card.title), body: item.result ? `Result: ${item.result}` : gone ? '' : card.subtitle });
       setTime(time, timeOf(card), '');
       const open = el.querySelector('[data-action="open"]');
       hide(open, gone || !card.open);
@@ -302,6 +302,71 @@
     }
   }
 
+  // A list row in the style of the Decisions rows: an icon, a title and a line under it, and optionally a button.
+  function row(list, { icon, title, sub, button, id }) {
+    const r = clone('tpl-decision');
+    setIcon(r.querySelector('[data-icon]'), icon);
+    fill(r, { title, sub });
+    const btn = r.querySelector('[data-action="open"]');
+    if (button) { btn.textContent = button; btn.dataset.action = 'edit-item'; btn.dataset.id = id; } else btn.remove();
+    list.append(r);
+  }
+  function section(body, title) {
+    const [t, ul] = parts('tpl-decisions');
+    t.textContent = title;
+    ul.replaceChildren();
+    body.append(t, ul);
+    return ul;
+  }
+  const nothing = (body, text) => { const ul = document.createElement('ul'); ul.className = 'decisions'; const e = clone('tpl-day-empty'); e.textContent = text; ul.append(e); body.append(ul); };
+  const dayTime = (i) => [i.date ? parseYmd(i.date).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : 'no day yet', i.time].filter(Boolean).join(' ');
+
+  // Bookings: the stays and journeys with their reference codes, in date order.
+  function renderBookings() {
+    const body = $('body');
+    body.replaceChildren();
+    const list = bookings(plan.list());
+    if (!list.length) return nothing(body, 'No stays or journeys yet. Add one to a day and it is listed here with its booking reference.');
+    for (const [kind, title] of [['stay', 'Stays'], ['journey', 'Journeys']]) {
+      const mine = list.filter((i) => i.kind === kind);
+      if (!mine.length) continue;
+      const ul = section(body, title);
+      for (const i of mine) {
+        const nights = stayNights(i);
+        const line = kind === 'stay'
+          ? [dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address, i.confirm && `ref ${i.confirm}`].filter(Boolean).join(' · ')
+          : [dayTime(i), [i.from, i.to].filter(Boolean).join(' → '), i.confirm && `ref ${i.confirm}`].filter(Boolean).join(' · ');
+        row(ul, { icon: kind === 'stay' ? 'bed' : 'plane', title: i.title, sub: line, button: 'Open', id: i.id });
+      }
+    }
+  }
+
+  // Money: what was spent, who is owed what, and the fewest payments that settle it.
+  const money = (n) => {
+    const c = (plan.trip || {}).currency;
+    try { return c ? new Intl.NumberFormat([], { style: 'currency', currency: c }).format(n) : n.toFixed(2); } catch (err) { return `${n.toFixed(2)} ${c}`; }
+  };
+  function renderMoney() {
+    const body = $('body');
+    body.replaceChildren();
+    const costs = plan.list().filter((i) => i.cost);
+    if (!costs.length) return nothing(body, 'Nothing has a cost yet. Give a stop, stay or journey a cost and who paid, and it is shared out here.');
+    const keys = state.people.map((p) => p.key);
+    const b = balances(costs, keys);
+    const totals = section(body, `Total ${money(b.total)}`);
+    for (const k of Object.keys(b.net)) {
+      const n = b.net[k];
+      row(totals, { icon: 'user', title: nameOf(k), sub: `paid ${money(b.paid[k])} · share ${money(b.share[k])} · ${n > 0 ? `is owed ${money(n)}` : n < 0 ? `owes ${money(-n)}` : 'all square'}` });
+    }
+    const settle = section(body, 'Settle up');
+    if (!b.payments.length) row(settle, { icon: 'check', title: 'Everyone is square', sub: '' });
+    for (const p of b.payments) row(settle, { icon: 'right-left', title: `${nameOf(p.from)} pays ${nameOf(p.to)}`, sub: money(p.amount) });
+    const list = section(body, 'Costs');
+    for (const i of costs.sort((x, y) => String(x.date).localeCompare(String(y.date)))) {
+      row(list, { icon: 'receipt', title: i.title, sub: `${dayTime(i)} · paid by ${i.paidBy ? nameOf(i.paidBy) : 'nobody yet'}${i.owners.length ? ' · shared by ' + i.owners.map(nameOf).join(', ') : ' · shared by everyone'}`, button: money(i.cost), id: i.id });
+    }
+  }
+
   // --- the page ----------------------------------------------------------------------------------------------
 
   const facts = (trip) => {
@@ -381,9 +446,9 @@
     const scroller = $('body');
     const top = scroller.scrollTop;
     renderHeader();
-    if (state.view === 'decisions') {
+    if (state.view !== 'days') {
       $('daystrip').hidden = true;
-      renderDecisions();
+      ({ decisions: renderDecisions, bookings: renderBookings, money: renderMoney })[state.view]();
     } else {
       $('daystrip').hidden = false;
       renderStrip();
@@ -448,6 +513,9 @@
     select.replaceChildren(...menuDays().map(([value, label]) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; }));
     select.value = plan.dayOf(item) || '';
     hide(menu.querySelector('[data-action="to-ideas"]'), !plan.dayOf(item));
+    const follow = menu.querySelector('[data-action="follow"]');
+    hide(follow, item.kind !== 'link');
+    fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     const del = menu.querySelector('[data-action="delete"]');
     del.lastChild.textContent = ' Delete';
     state.deleteArmed = null;
@@ -475,6 +543,11 @@
     const action = b.dataset.action;
     if (action === 'edit') { closeMenu(); return openItemEditor(id); }
     if (action === 'earlier' || action === 'later') { closeMenu(); return void attempt(() => plan.nudgeItem(id, action === 'earlier' ? -1 : 1)); }
+    if (action === 'follow') {
+      const item = plan.list().find((i) => i.id === id);
+      closeMenu();
+      return void attempt(() => plan.updateItem(id, { follow: !(item && item.follow) }));
+    }
     if (action === 'to-ideas') { closeMenu(); return void attempt(() => plan.moveTo(id, null, 1e6)); }
     if (action === 'delete') {
       if (state.deleteArmed !== id) { state.deleteArmed = id; b.lastChild.textContent = ' Really delete?'; return; }
@@ -564,11 +637,62 @@
         const day = ref && ref.module !== info.module.id ? dayAt(pt) : null;
         if (!day) return;
         const date = day.dataset.day || null;
+        const over = tavern.refs.elementAt(pt);
+        const li = over && over.closest ? over.closest('.item') : null;
+        const target = li && li.dataset.id ? planRef(li.dataset.id) : null;
         attempt(async () => {
-          await plan.addLink(ref, date);
+          // What can be done with it here: put it on the day, and (dropped on an item) whatever other modules offer to
+          // do with an item of that kind and this one, filled from what is under the drop (the day, the item).
+          const offers = [{ id: 'add', label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas', run: () => plan.addLink(ref, date) }];
+          let actions = [];
+          try { actions = await tavern.actions.list({ accepts: ref.module + ':' + ref.kind }); } catch (err) { actions = []; }
+          for (const a of actions) {
+            const input = {};
+            let ok = true;
+            let dropped = false;
+            for (const [field, type] of Object.entries(a.input)) {
+              const optional = type.endsWith('?');
+              const base = optional ? type.slice(0, -1) : type;
+              if (base === 'ref:' + ref.module + ':' + ref.kind) { input[field] = ref; dropped = true; } else if (base === 'ref' && target) input[field] = target; else if (base === 'date' && date) input[field] = date; else if (!optional) ok = false;
+            }
+            if (ok && dropped && target) offers.push({ id: a.action, label: a.label, hint: a.moduleName, run: () => tavern.actions.request(a.action, input) });
+          }
+          const chosen = await tavern.actions.pick(offers, pt, { remember: `${ref.module}:${ref.kind}:${target ? 'item' : 'day'}` });
+          if (chosen) await chosen.run();
           note('');
         });
       },
+    });
+  }
+
+  // An item of the trip can be dragged out to another module (a task links to it): pressing its body and moving. The
+  // handle is the other drag (reordering), so a press there is left alone.
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable(root, (target) => {
+      const li = target.closest && target.closest('.item');
+      if (!li || !li.dataset.id || target.closest('.item-handle, .item-menu, button, input, select, textarea, a')) return null;
+      const item = plan.list().find((i) => i.id === li.dataset.id);
+      return item ? { kind: 'plan', id: item.id, label: item.title || 'Trip item' } : null;
+    });
+  }
+
+  // An item that follows another module's item (a poll): when that item reports how it turned out, keep the result on
+  // the item and, when it says which day, put a stop there. Whichever page records it first does it, once.
+  if (tavern.events && tavern.events.subscribe) {
+    tavern.events.subscribe(async (e) => {
+      const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
+      if (!e.ref || !summary) return;
+      const k = tavern.util.refKey(e.ref);
+      for (const item of plan.list().filter((i) => i.kind === 'link' && i.follow && i.ref && tavern.util.refKey(i.ref) === k)) {
+        const fired = Number(e.id) || Date.now();
+        if (item.fired === fired) continue;
+        try { await plan.updateItem(item.id, { result: summary, fired }); } catch (err) { continue; }
+        const date = e.data.date && /^\d{4}-\d{2}-\d{2}$/.test(String(e.data.date)) ? String(e.data.date) : null;
+        try {
+          if (e.data.pick && e.data.pick.module) await plan.addLink(e.data.pick, date);
+          else if (date) await plan.addItem({ kind: 'stop', title: summary, date, notes: `From ${item.title || 'a linked item'}` });
+        } catch (err) { /* the result is kept either way */ }
+      }
     });
   }
 
@@ -605,6 +729,11 @@
       box.append(label);
     }
   }
+  function paidByOptions(selected) {
+    const select = $('f-paidby');
+    select.replaceChildren(...[{ key: '', name: 'Nobody yet' }, ...state.people].map((p) => { const o = document.createElement('option'); o.value = p.key; o.textContent = p.name; return o; }));
+    select.value = selected || '';
+  }
   const val = (id) => $(id).value.trim();
   function openEditor(mode, item, day) {
     if (!canEdit) return;
@@ -620,6 +749,7 @@
       $('f-destination').value = t.destination || '';
       $('f-start').value = t.start || '';
       $('f-end').value = t.end || '';
+      $('f-currency').value = t.currency || '';
       $('f-notes').value = t.notes || '';
       $('f-by').textContent = '';
     } else {
@@ -641,6 +771,8 @@
       $('f-address').value = item ? item.address : '';
       $('f-confirm').value = item ? item.confirm : '';
       $('f-notes').value = item ? item.notes : '';
+      $('f-cost').value = item && item.cost ? item.cost : '';
+      paidByOptions(item ? item.paidBy : info.user.key);
       $('f-done').checked = item ? item.done : false;
       ownerBoxes(item ? item.owners : []);
       $('f-by').textContent = item && item.by ? `Added by ${item.by}` : '';
@@ -665,7 +797,7 @@
       if (ed.mode === 'trip') {
         if (!$('f-start').value) return fail('Give the trip a first day.');
         if ($('f-end').value && $('f-end').value < $('f-start').value) return fail('The last day is before the first.');
-        await plan.saveTrip({ title: val('f-title'), destination: val('f-destination'), start: $('f-start').value, end: $('f-end').value || $('f-start').value, notes: $('f-notes').value.trim() });
+        await plan.saveTrip({ title: val('f-title'), destination: val('f-destination'), start: $('f-start').value, end: $('f-end').value || $('f-start').value, currency: val('f-currency'), notes: $('f-notes').value.trim() });
         scrolled = false;
         plan.suggest().catch(() => {});
         return closeEditor();
@@ -688,6 +820,8 @@
         to: val('f-to'),
         notes: $('f-notes').value.trim(),
         done: $('f-done').checked,
+        cost: $('f-cost').value ? Number($('f-cost').value) : null,
+        paidBy: $('f-cost').value ? $('f-paidby').value : '',
         owners: [...$('f-owners').querySelectorAll('input:checked')].map((i) => i.value),
       };
       if (item) {
@@ -736,7 +870,7 @@
     if (!b) return;
     if (b.dataset.view) {
       state.view = b.dataset.view;
-      scrolled = state.view === 'decisions';
+      scrolled = state.view !== 'days';
       return redraw();
     }
     const action = b.dataset.action;
@@ -750,6 +884,8 @@
       const item = li ? plan.list().find((i) => i.id === li.dataset.id) : null;
       const ref = item && item.ref ? item.ref : b.dataset.ref ? JSON.parse(b.dataset.ref) : null;
       if (ref) tavern.refs.open(ref).catch((err) => note(err.message));
+    } else if (action === 'edit-item') {
+      openItemEditor(b.dataset.id);
     } else if (action === 'edit-trip' || action === 'create-trip') {
       openEditor('trip');
     } else if (action === 'use-theirs' && li) {

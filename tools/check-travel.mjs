@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -124,6 +124,32 @@ test('a card says when in a day, a moment or milliseconds', () => {
   assert.deepEqual(lib.cardWhen({ when: d.getTime() }), { day: '2026-10-03', time: '18:30' });
   assert.equal(lib.cardWhen({}), null);
   assert.equal(lib.cardWhen({ when: 'soon' }), null);
+});
+
+test('bookings are stays and journeys by date and time', () => {
+  const list = [it('a', { kind: 'stop', date: '2026-10-01' }), it('s', { kind: 'stay', date: '2026-10-02' }), it('j2', { kind: 'journey', date: '2026-10-01', time: '18:00' }), it('j1', { kind: 'journey', date: '2026-10-01', time: '08:00' })];
+  assert.deepEqual(lib.bookings(list).map((i) => i.id), ['j1', 'j2', 's']);
+});
+
+test('balances share a cost among its owners (or everyone) and settle in the fewest payments', () => {
+  const people = ['a', 'b', 'c'];
+  const dinner = it('d', { cost: 90, paidBy: 'a' }); // shared by all three: 30 each
+  const taxi = it('t', { cost: 20, paidBy: 'b', owners: ['b', 'c'] }); // 10 each
+  const r = lib.balances([dinner, taxi, it('free')], people);
+  assert.equal(r.total, 110);
+  assert.deepEqual(r.net, { a: 60, b: -20, c: -40 });
+  assert.deepEqual(r.payments.map((p) => [p.from, p.to, p.amount]), [['c', 'a', 40], ['b', 'a', 20]]);
+  // odd cents are handed out, not lost
+  const odd = lib.balances([it('o', { cost: 10, paidBy: 'a' })], people);
+  assert.equal(Math.round((odd.share.a + odd.share.b + odd.share.c) * 100), 1000);
+  assert.equal(lib.balances([it('x', { cost: 5 })], people).total, 0); // no payer: not counted
+});
+
+test('a trip has an optional three-letter currency, an item an optional cost', () => {
+  assert.equal(lib.cleanTrip({ start: '2026-10-01', currency: 'eur' }).currency, 'EUR');
+  assert.equal(lib.cleanTrip({ start: '2026-10-01', currency: 'euros' }).currency, '');
+  assert.equal(it('c', { cost: 12.345 }).cost, 12.35);
+  assert.equal(it('c', { cost: -3 }).cost, null);
 });
 
 // --- the plan, against a small stand-in for the SDK -------------------------------------------------------------

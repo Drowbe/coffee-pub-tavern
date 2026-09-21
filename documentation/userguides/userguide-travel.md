@@ -34,6 +34,22 @@ Items with no time come first in a day, in the order you put them; items with a 
 - Another module can ask Travel to add something: a closed poll's winner can go onto the plan as a stop.
 - Items other modules link to a stop show under it.
 
+## Bookings
+
+The **Bookings** view lists the stays and journeys in date order, each with its dates, where, how many nights and its booking reference, and an **Open** button to edit it: everything you need at the front desk or the airport, in one place.
+
+## Money
+
+Give a stop, stay or journey a **Cost** and who **Paid by**. The people ticked under **Whose is it** share it; when nobody is ticked, everyone in the room does. Set the trip's **Currency** (three letters, such as EUR) when you edit the trip. The **Money** view shows the total, what each person paid and their share, who is owed and who owes, and the fewest payments that settle everything ("Bob pays Ann 175.00"), then the list of costs. Odd cents are handed out, so nothing is lost.
+
+## Following a poll
+
+An item from another module that reports how it turned out (a poll that closes) can be followed: in its menu choose **Follow its result**. When it closes, the result appears on the item, and if the result has a day (a poll whose options are dates) a stop with the result is added on that day; if it has an item it chose, that item joins the plan.
+
+## Linking a task to a stop
+
+Drag a stop, or any item, out of Travel by pressing its body (not its grip) and moving: drop it on a task in the To-do to link the task to it, and the stop shows the task under it. In the other direction, drop something from another module on an item and choose from what can be done with it, or drop it on a day to put it there.
+
 ## Decisions
 
 The **Decisions** view lists what is linked to the trip and still open, grouped by the kind of thing it is, each with an **Open** button.
