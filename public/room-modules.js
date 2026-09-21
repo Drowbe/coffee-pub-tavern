@@ -267,6 +267,65 @@ export function createRoomModules({ guestToken = null } = {}) {
     for (const p of others) p.width -= Math.round(take * (Math.max(0, p.width - 160) / spare));
   }
 
+  // Reordering the columns: drag a docked pane by its titlebar. The pane's column follows the pointer as the others make way, so the
+  // order is what the person sees; it is remembered with the layout. Buttons in the bar are left alone, and a press that does not move
+  // is a click as before.
+  function wireReorder(head, current) {
+    if (!head || wired.has(head)) return;
+    wired.add(head);
+    head.classList.add('reorderable');
+    let drag = null;
+    head.addEventListener('pointerdown', (event) => {
+      const pane = current();
+      if (!pane || pane.mode !== 'dock' || isNarrow() || event.button !== 0 || event.target.closest('button, a, input, select, textarea, [data-close]')) return;
+      drag = { id: event.pointerId, x: event.clientX, started: false };
+    });
+    head.addEventListener('pointermove', (event) => {
+      const pane = current();
+      if (!drag || event.pointerId !== drag.id || !pane) return;
+      if (!drag.started) {
+        if (Math.abs(event.clientX - drag.x) < 6) return;
+        drag.started = true;
+        head.setPointerCapture?.(event.pointerId);
+        stage.classList.add('reordering');
+        for (const el of pane.parts()) el.classList.add('pane-lifted');
+      }
+      const docked = dockedPanes();
+      const at = docked.indexOf(pane);
+      const cols = getComputedStyle(stage).gridTemplateColumns.split(' ').map(parseFloat);
+      if (at < 0 || cols.length !== docked.length || cols.some((w) => !Number.isFinite(w))) return;
+      // Where the pointer is among the other columns, as they would sit without this one: each other column's midpoint in that row.
+      const others = docked.map((p, i) => ({ p, w: cols[i] })).filter((c) => c.p !== pane);
+      let x = stage.getBoundingClientRect().left;
+      let target = 0;
+      for (const c of others) {
+        if (event.clientX > x + c.w / 2) target += 1;
+        x += c.w;
+      }
+      if (target === at) return;
+      const values = docked.map((p) => p.order).sort((a, b) => a - b);
+      const next = others.map((c) => c.p);
+      next.splice(target, 0, pane);
+      next.forEach((p, i) => { p.order = values[i]; });
+      syncDock();
+      update();
+    });
+    const stop = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const moved = drag.started;
+      drag = null;
+      if (!moved) return;
+      stage.classList.remove('reordering');
+      for (const p of panes.values()) for (const el of p.parts()) el.classList.remove('pane-lifted');
+      // The release would otherwise count as a click on something in the bar.
+      const swallow = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+      head.addEventListener('click', swallow, { capture: true, once: true });
+      setTimeout(() => head.removeEventListener('click', swallow, { capture: true }), 100);
+    };
+    head.addEventListener('pointerup', stop);
+    head.addEventListener('pointercancel', stop);
+  }
+
   // `current` returns the pane the handle belongs to right now (a native pane is a new object each time it opens).
   function wireDockResize(current, handle) {
     let drag = null;
@@ -390,6 +449,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     syncDock();
     wireDockResize(() => pane, section.querySelector('.dock-resize'));
     wireHeader(section, pane);
+    wireReorder(section.querySelector('.mod-header'), () => panes.get(m.id));
   }
 
   // --- native panes (the chat) ------------------------------------------------
@@ -421,6 +481,7 @@ export function createRoomModules({ guestToken = null } = {}) {
         wired.add(handle);
         wireDockResize(() => panes.get(def.id), handle);
       }
+      wireReorder(el.querySelector('header'), () => panes.get(def.id));
     } else {
       const panel = doc.createElement('section');
       panel.className = `module-panel native-panel ${def.id}-panel`;
@@ -705,6 +766,15 @@ export function createRoomModules({ guestToken = null } = {}) {
       else {
         const m = available.find((x) => x.id === id);
         if (m) openModule(m);
+      }
+    }
+    // The remembered order is the column order, for the built-in panes as well as the modules.
+    if (!request) {
+      const docked = dockedPanes();
+      const sequence = want.map((id) => panes.get(id)).filter((p) => p && p.mode === 'dock');
+      if (sequence.length === docked.length) {
+        const values = docked.map((p) => p.order).sort((a, b) => a - b);
+        sequence.forEach((p, i) => { p.order = values[i]; });
       }
     }
     // On a phone the call is the view to start on, whatever was opened last.

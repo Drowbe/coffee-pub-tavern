@@ -24,6 +24,8 @@ The stage (`#stage` in `public/room.html`) is a CSS grid. Each **module** owns a
 
 **When the columns do not fit.** If the fixed columns together are wider than the stage leaves them (the stage minus the conference's minimum), `syncDock()` shows them squeezed in step and the conference stays at its minimum. A drag would then change a stored width that is not what is on screen, so `settleDock()` (called as a drag starts) gives each fixed pane the width it is showing, and `takeRoomFromOthers()` takes the width for a widening column from the other fixed columns, not from the conference or from the column being dragged. Narrowing a column then gives the room to the conference.
 
+**Reordering.** A docked pane is dragged by its titlebar (`wireReorder()` in `public/room-modules.js`; buttons in the bar still click, and a press that does not move is a click). While it moves, `.stage.reordering` is set and the pane's parts wear `.pane-lifted`; the pointer's place among the other columns (their widths read from the stage's computed `grid-template-columns`) gives the new index, the docked panes' `order` values are reassigned in that sequence, and `syncDock()` moves the columns live. The order is remembered with the layout (`__open`), and `restore()` applies it to every pane, the conference and the chat included. It does nothing on a narrow stage, where the panes are tabs.
+
 The chat's resize handle (`#chat-resize`) is its own grid item spanning both rows, on the chat column's left edge, so dragging it moves the content and the bar together.
 
 ## Docked and floating

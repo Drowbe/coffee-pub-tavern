@@ -4639,3 +4639,10 @@ body.at-table .module-nav {
 .option-help { padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; background: color-mix(in srgb, var(--accent) 7%, var(--bg-card)); }
 .option-help p { margin: 4px 0; }
 .option-help a { color: var(--accent); }
+
+/* Reordering the columns of the stage: a docked pane is dragged by its titlebar (buttons in it still click). */
+.mod-header.reorderable, .chat-head.reorderable, .conference-head.reorderable, header.reorderable { cursor: grab; }
+.reorderable button, .reorderable a, .reorderable input { cursor: pointer; }
+.stage.reordering, .stage.reordering * { cursor: grabbing !important; user-select: none; }
+.stage.reordering iframe { pointer-events: none; }
+.pane-lifted { position: relative; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 12px 32px color-mix(in srgb, black 40%, transparent); }
