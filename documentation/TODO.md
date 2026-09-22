@@ -33,6 +33,17 @@ Collected, none started:
 
 Decided: one way, each person connects their own account (see plans/plan-google-sync.md). Not started: it needs a Google Cloud OAuth client (client id and secret) from the admin before it can run against Google.
 
+## Font Awesome Pro package
+
+Built: an admin's own Pro package at `DATA_DIR/fontawesome-pro/` is served and looked up ahead
+of the bundled Free set, falling back to Free for anything it lacks (see
+userguide-server-settings.md). Not started: actually getting the package onto the server.
+Sign in to the Font Awesome account, download the Pro "Web" package (`css/`, `webfonts/`,
+`svgs/`), and copy that folder to the server's `DATA_DIR/fontawesome-pro/`, then restart.
+Untested against a real download: the code was verified against a stand-in folder of the
+same shape, not an actual Pro package, so the first attempt may need a small fix if the real
+download's layout differs.
+
 ## Planner (the Travel module): what is left
 
 Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: a map, reading confirmation emails, and checking it with two people in a real call (drag out and the drop menu on items have only been run as code).
