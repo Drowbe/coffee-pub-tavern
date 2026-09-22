@@ -140,6 +140,10 @@ await test('cards are checked field by field', () => {
   assert.deepEqual(k.sources, [1, 2]);
   assert.equal(c.text, 'intro\n\n{{card:0}}\n\noutro');
   // Not a card: it stays as text. An unfinished block is never a card.
+  assert.equal(parseCards('```card\n{"title":"T","content":"c"}\n```', 0).cards[0].basis, 'general'); // no material: general
+  assert.equal(parseCards('```card\n{"title":"T","content":"c"}\n```', 2).cards[0].basis, 'items');
+  assert.equal(parseCards('```card\n{"title":"T","content":"c","basis":"both"}\n```', 2).cards[0].basis, 'both');
+  assert.equal(parseCards('```card\n{"title":"T","content":"c","basis":"nonsense"}\n```', 2).cards[0].basis, 'items');
   assert.equal(parseCards('```card\nnot json\n```', 1).cards.length, 0);
   assert.equal(parseCards('```card\n{"title":"","content":"x"}\n```', 1).cards.length, 0);
   assert.equal(parseCards('```card\n{"title":"T","content":"still writing', 1).cards.length, 0);
@@ -162,7 +166,14 @@ await test('limits and refusals', async () => {
   const ai = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {});
   await assert.rejects(ai.run('ask', items, 'why?'), /not set up/);
   ai.set({ enabled: true, provider: 'compatible', address, model: 'local', monthlyTokens: 60 });
-  await assert.rejects(ai.run('ask', [], 'why?'), /choose something/);
+  await assert.rejects(ai.run('summarise', []), /choose something/);
+  reply = 'Rome is a city.';
+  const g = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {});
+  g.set({ enabled: true, provider: 'compatible', address, model: 'local' });
+  const free = await g.run('ask', [], 'tell me about rome'); // a question needs no material
+  assert.match(sent.at(-1).body.messages[0].content, /general knowledge/);
+  assert.ok(!/<item/.test(sent.at(-1).body.messages[1].content));
+  assert.equal(free.text, 'Rome is a city.');
   await assert.rejects(ai.run('ask', items, ''), /ask a question/);
   await assert.rejects(ai.run('draft', items, 'x'), /not offered/);
   reply = 'ok';

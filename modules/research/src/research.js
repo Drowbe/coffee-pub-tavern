@@ -496,21 +496,60 @@
   // --- Ask ----------------------------------------------------------------------------------------------------------
 
   const ask = { items: [], label: '' };
+  // Ask starts with no context (an assistant answering from what it knows); the person may add research items as context.
+  const MAX_CONTEXT = 12;
+  function drawContext() {
+    fill($('ask'), { scope: ask.items.length === 1 ? ask.items[0].title : ask.items.length ? `${ask.items.length} items` : '' });
+    $('ask-chips').replaceChildren(...ask.items.map((it) => {
+      const c = clone('tpl-ask-chip');
+      c.dataset.id = it.id;
+      setIcon(c.querySelector('.ic[data-icon]'), KIND_ICON[it.kind]);
+      fill(c, { label: it.title });
+      return c;
+    }));
+    hydrate($('ask-context'));
+  }
+  function drawPicker() {
+    const rows = research.list().filter((it) => it.kind !== 'photo').sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    $('ask-picker-list').replaceChildren(...rows.map((it) => {
+      const r = clone('tpl-pick-row');
+      r.dataset.id = it.id;
+      const box = r.querySelector('input');
+      box.checked = ask.items.some((x) => x.id === it.id);
+      box.disabled = !box.checked && ask.items.length >= MAX_CONTEXT;
+      setIcon(r.querySelector('.ic[data-icon]'), KIND_ICON[it.kind]);
+      fill(r, { title: it.title, kind: KIND_LABEL[it.kind] });
+      return r;
+    }));
+    fill($('ask-picker'), { 'picker-count': `${ask.items.length} of ${MAX_CONTEXT} chosen` });
+    hydrate($('ask-picker'));
+  }
   function openAsk(items) {
-    ask.items = items.slice(0, 12);
-    fill($('ask'), { scope: ask.items.length === 1 ? ask.items[0].title : `${ask.items.length} items` });
+    ask.items = (items || []).slice(0, MAX_CONTEXT);
+    hide($('ask-picker'), true);
+    drawContext();
     hide($('ask'), false);
     hydrate($('ask'));
     $('ask-input').focus();
   }
+  $('ask-picker').addEventListener('change', (ev) => {
+    const row = ev.target.closest('.pick-row');
+    const it = row && research.get(row.dataset.id);
+    if (!it) return;
+    ask.items = ev.target.checked ? [...ask.items.filter((x) => x.id !== it.id), it].slice(0, MAX_CONTEXT) : ask.items.filter((x) => x.id !== it.id);
+    drawContext();
+    drawPicker();
+  });
   const closeAsk = () => hide($('ask'), true);
   const thread = () => $('thread');
   const scrollDown = () => { thread().scrollTop = thread().scrollHeight; };
 
+  const BASIS_TEXT = { general: 'From general knowledge: check it before you rely on it', items: 'From your notes', both: 'From your notes and general knowledge' };
   function aiCard(c, question) {
     const el = clone('tpl-aicard');
     setIcon(el.querySelector('.badge [data-icon]'), c.icon || 'note');
-    fill(el, { title: c.title, content: c.content, place: placeText(c.place), when: c.date ? dayText(c.date) : '' });
+    fill(el, { title: c.title, content: c.content, place: placeText(c.place), when: c.date ? dayText(c.date) : '', basis: BASIS_TEXT[c.basis] || '' });
+    el.dataset.basis = BASIS_TEXT[c.basis] ? c.basis : '';
     const tags = slot(el, 'tags');
     tags.replaceChildren(...(c.tags || []).map((t) => tagNode(t, 'tpl-tag')));
     tags.hidden = !(c.tags || []).length;
@@ -642,7 +681,10 @@
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
-    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); const asked = visible().filter((it) => it.kind !== 'photo').slice(0, 12); if (!asked.length) return say('Add a note or a link first, then ask about it.', 5000); return openAsk(asked); }
+    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); return openAsk([]); }
+    if (t && t.dataset.action === 'add-context') { drawPicker(); return hide($('ask-picker'), !$('ask-picker').hidden); }
+    if (t && t.dataset.action === 'picker-done') return hide($('ask-picker'), true);
+    if (t && t.dataset.action === 'remove-context') { const c = t.closest('.ask-chip'); ask.items = ask.items.filter((x) => !c || x.id !== c.dataset.id); drawContext(); if (!$('ask-picker').hidden) drawPicker(); return; }
     if (t && t.dataset.action === 'close-ask') return closeAsk();
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });

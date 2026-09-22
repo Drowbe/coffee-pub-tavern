@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Ask answers like an assistant (Research 0.1.12). `tavern.ai.ask({ task: 'ask' })` works with no items: the model may use its own knowledge, uses any items as context and says which parts came from them, and is told to be honest about uncertainty and how recent its knowledge is (places, prices and opening times may be out of date). Cards carry a validated `basis` (general, items or both; general when no items were given). Summarise and tags still use only the material. In Research, Ask opens with no context; items are added from a picker as chips, and the card says where its content came from. Verified against a stand-in service and in a browser (an answer with no context, its basis note, the picker adding a chip). Not verified: a real model's answers.
+
 ### Added
 - An explicit **enable** step for the AI: `enabled` in `GET /api/ai` and `PUT /api/ai`. Nothing reaches an AI service until the admin enables it; `ready()` and a module's `available` need it. A setting saved before this step, with a service chosen, counts as enabled; choosing a different service switches it off again until enabled. Enabling needs a service and model saved. Verified with the stand-in service.
 
