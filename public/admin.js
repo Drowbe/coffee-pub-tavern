@@ -825,6 +825,12 @@ setInterval(() => { if (!document.hidden && !$('tab-modules').hidden) loadActivi
 
 // The AI service: a summary card here (which service and model, and this month's use); the setup is its own page, /ai-config.html.
 let aiCard = { saved: false, on: false };
+// Whether the AI service card has anything to show at all (false only when its API call fails, e.g. not an admin);
+// separate from moduleFilter, which decides whether it is worth showing under the current filter.
+let aiAvailable = true;
+function syncAiVisibility() {
+  $('ai-panel').hidden = !aiAvailable || moduleFilter === 'updates';
+}
 // Enabling and disabling is here, on the card, like every module's; the setup is on its own page.
 $('ai-toggle').addEventListener('click', async () => {
   const name = AI_NAMES[aiCard.provider] || 'the service';
@@ -855,9 +861,11 @@ async function loadAi() {
     $('ai-toggle').disabled = !saved;
     $('ai-toggle-hint').textContent = saved ? '' : 'Set up a service first (AI Configuration).';
     $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up, and switched off.'}` : 'Not set up.';
+    aiAvailable = true;
   } catch {
-    $('ai-panel').hidden = true;
+    aiAvailable = false;
   }
+  syncAiVisibility();
 }
 
 // Which modules the tab lists: all of them, or only those with an update waiting.
@@ -892,6 +900,9 @@ function renderModules() {
   const list = $('modules-list');
   list.textContent = '';
   syncModuleFilters();
+  // The AI service card is not a versioned module, so it has no update to offer; it does have its own
+  // configuration page, so it stays visible under Configurable.
+  syncAiVisibility();
   const updatesOnly = moduleFilter !== 'all';
   // The built-in panes first: always on, and not removable.
   for (const b of updatesOnly ? [] : builtinModules) {
