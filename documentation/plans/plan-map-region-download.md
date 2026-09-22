@@ -39,5 +39,15 @@ This runs into the choice the server was built around: every dependency is pure 
 ## Decided
 
 The author said yes to the Go binary (2026-09-22): vendor the `pmtiles` CLI into the Docker image, one binary per
-architecture, cross-compiled (no emulation). Server Development has not yet built the Docker change or the rest of
-this plan; it is the next piece of work, in the order above.
+architecture, cross-compiled (no emulation).
+
+## Progress
+
+**Step 1 of "Order of work" is in progress: the binary is in the Dockerfile.** It downloads the official
+[protomaps/go-pmtiles](https://github.com/protomaps/go-pmtiles) release (a static Go binary, no compiling), one
+per target platform, checked against a sha256 pinned in the Dockerfile itself (the release carries no checksums
+file, so it was computed once from the downloaded asset). Verifying it actually builds for both `linux/amd64` and
+`linux/arm64` is done by pushing to `main` and watching the real `Publish container image` GitHub Action run (no
+local Docker available or needed). Nothing calls the binary yet: steps 2-4 (the background job and its SSE
+progress, the name-to-box lookup through Places' search setting, and the Module Configuration UI) are still to
+build.
