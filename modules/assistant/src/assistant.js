@@ -181,21 +181,34 @@
       keepBtn.title = 'Nothing here can save a kept card yet.';
       el.append(clone('tpl-state-nowhere-to-save'));
     }
+    // Keep this one card: used by its own button, and by Send all's per-card loop. Returns true once it is kept (already
+    // kept counts too), false when nothing can place it or it failed.
+    async function keepOne() {
+      if (keepBtn.classList.contains('kept')) return true;
+      if (!placer || keepBtn.disabled) return false;
+      keepBtn.disabled = true;
+      try {
+        const out = await tavern.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
+        if (out.status !== 'done' || !out.result || !out.result.ok) throw new Error((out.result && out.result.error) || 'it could not be saved');
+        keepBtn.classList.add('kept');
+        return true;
+      } catch (err) {
+        keepBtn.disabled = false;
+        say('It could not be kept: ' + message(err), 4000);
+        return false;
+      }
+    }
     el.addEventListener('click', async (ev) => {
       const b = ev.target.closest('[data-action]');
       if (!b) return;
       if (b.dataset.action === 'copy-card') {
         try { await navigator.clipboard.writeText(`${c.title}\n${c.content}`); say('Copied.', 2000); } catch (err) { say('Select the text and copy it.', 3000); }
-      } else if (b.dataset.action === 'keep-card' && placer && !keepBtn.disabled) {
-        keepBtn.disabled = true;
-        try {
-          const out = await tavern.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
-          if (out.status !== 'done' || !out.result || !out.result.ok) throw new Error((out.result && out.result.error) || 'it could not be saved');
-          keepBtn.classList.add('kept');
-          say('Kept.', 2500);
-        } catch (err) { keepBtn.disabled = false; say('It could not be kept: ' + message(err), 4000); }
+      } else if (b.dataset.action === 'keep-card') {
+        if (await keepOne()) say('Kept.', 2500);
       }
     });
+    el.keepCard = c; // the card this element is for, and how to keep it: read by Send all
+    el.keepOne = keepOne;
     return el;
   }
   // What to send a chosen placing action, from a card and the question that produced it: the suggestion shape (kind, place as
@@ -210,15 +223,47 @@
     await Promise.all(sources.map(async (r) => { try { const card = await tavern.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
     return keepInput(c, question, (r) => named.get(r) || '');
   }
+  // How to call a card's kind in one line, plural or not: "3 hotels", "1 sight", "2 notes" (anything without a kind, or
+  // with one nothing here recognises, is a plain note).
+  const KIND_PLURAL = { flight: 'flights', train: 'trains', bus: 'buses', ferry: 'ferries', car: 'cars', hotel: 'hotels', restaurant: 'restaurants', cafe: 'cafes', bar: 'bars', sight: 'sights', museum: 'museums', tour: 'tours', show: 'shows', note: 'notes' };
   function showReply(question, reply) {
     const msg = clone('tpl-msg-ai');
     fill(msg, { who: 'AI' });
     const parts = msg.querySelector('.parts');
+    const cardEls = [];
     for (const p of answerParts(reply.text, (reply.cards || []).length)) {
-      if (p.card !== undefined) parts.append(aiCard(reply.cards[p.card], question));
+      if (p.card !== undefined) { const el = aiCard(reply.cards[p.card], question); cardEls.push(el); parts.append(el); }
       else { const t = clone('tpl-msg-text'); t.innerHTML = tavern.util.markdown(p.text); parts.append(t); }
     }
+    if (cardEls.length > 1 && (state.saveAction || state.suggestAction)) parts.append(sendAllNode(cardEls));
     return msg;
+  }
+  // "Send all to plan": once per card, in order, whichever keeping that card's own button would do; skips one already kept.
+  // One confirm first, naming what is about to go out.
+  function sendAllNode(cardEls) {
+    const el = clone('tpl-send-all');
+    const btn = el.querySelector('[data-action="send-all"]');
+    const notKept = () => cardEls.filter((c) => !c.querySelector('[data-action="keep-card"]').classList.contains('kept'));
+    const refresh = () => {
+      fill(el, { count: `${cardEls.length} items` });
+      hide(el, !notKept().length);
+    };
+    refresh();
+    btn.addEventListener('click', async () => {
+      const left = notKept();
+      if (!left.length) return;
+      const counts = new Map();
+      for (const c of left) { const k = c.keepCard.kind && state.suggestAction ? c.keepCard.kind : 'note'; counts.set(k, (counts.get(k) || 0) + 1); }
+      const summary = [...counts].map(([k, n]) => `${n} ${n === 1 ? k : KIND_PLURAL[k]}`).join(', ');
+      if (!window.confirm(`Send ${summary} to your plan?`)) return;
+      btn.disabled = true;
+      let ok = 0;
+      for (const c of left) if (await c.keepOne()) ok += 1;
+      btn.disabled = false;
+      refresh();
+      say(ok === left.length ? `Sent ${ok}.` : `Sent ${ok} of ${left.length}; the rest could not be kept.`, 3000);
+    });
+    return el;
   }
   async function ask(q) {
     if (q.length < 3 || state.asking || !state.ai) return;

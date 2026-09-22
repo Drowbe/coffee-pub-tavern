@@ -39,7 +39,7 @@ Keeping a card asks whichever module offers a matching action, found by name and
 
 ## Send all to plan (see `plan-smart-cards.md`)
 
-The markup is ready; the sending itself is not yet wired. `tpl-send-all` (`div.send-all`, `button[data-action=send-all]`, `[data-slot=count]`) goes under a reply's `.parts`, shown only when that reply has more than one card, with a count ("4 items"). Clicking it should call, once per card, whichever action that card's own **keep** would call (the same lookup `aiCard()` already does per card), after one confirm listing what is about to be sent; a card already kept is skipped. `.send-all button[disabled]` is styled for while it runs.
+`tpl-send-all` (`div.send-all`, `button[data-action=send-all]`, `[data-slot=count]`) sits under a reply's `.parts` when it has more than one card and something could keep at least one of them, with a count ("3 items"). Clicking it confirms once, naming what is about to go out grouped by kind ("2 hotels, 1 sight, 1 note": a card with a `kind` nothing here recognises, or no `kind` at all, counts as a note), then keeps each not-already-`.kept` card in order, the same way that card's own **keep** button would (a card already kept, from a person clicking it by hand first, is skipped). `.send-all button[disabled]` is styled for while it runs. The button stays after every card is kept (clicking it again is a harmless no-op); it is not removed live as individual cards are kept by hand.
 
 ## Conduits
 

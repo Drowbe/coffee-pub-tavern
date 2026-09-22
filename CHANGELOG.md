@@ -5,6 +5,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Send all to plan (Assistant 0.1.7): under a reply with more than one card, **Send all to plan** keeps every card not already kept, in order, each the way its own keep button would (a card with a recognised `kind` through the suggestion-shaped action, any other through the note-shaped one), after one confirm naming what is about to go out grouped by kind ("2 hotels, 1 sight, 1 note"). Verified against a running server with a stand-in AI (three cards: a hotel, a sight, a plain note): the button showed the right count, the confirm named the right groups, and all three requests queued with the right shape and action per card (two `acceptSuggestion` to Planner, one `saveNote` to Research); Research's own page claimed and saved its note live. Planner's two, and a wider multi-tab run, were confirmed by the same queued-request shape rather than a second live claim (the test browser exhausted its connections to the origin with five tabs open against long-lived SSE streams).
+
+### Added
 - An admin's own Font Awesome Pro package, if they have a licence, dropped at `DATA_DIR/fontawesome-pro/` (the "Web" download's `css/`, `webfonts/` and `svgs/`, the same shape as the bundled Free set): served and looked up ahead of the bundled Free icons, falling back to Free for any style or icon it does not have. Never built into the shared image, never a token in this repository; every other self-hoster stays Free-only. Verified against a running server with a stand-in Pro folder: a Pro-only icon served, a Free-only icon still falling back, and both the CSS and webfont routes preferring the Pro file when present.
 
 ### Added
