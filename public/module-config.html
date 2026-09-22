@@ -27,6 +27,36 @@
       <p class="hint" id="cfg-off" hidden></p>
       <p class="hint" id="cfg-none" hidden>This module has no settings.</p>
       <div id="settings"></div>
+      <!-- for a module that can cut a region from a world file (its manifest has `regionSource`): find a place, confirm the size, cut it in -->
+      <div class="region-section" id="cfg-region" hidden>
+        <h3>Add a region</h3>
+        <p class="hint">Type a place — a country, a city, a region — and Tavern will find it, show roughly how large the cut would be, and add it to the file list above once you confirm. Nothing downloads until you say so.</p>
+        <form class="row" id="region-find-form">
+          <input type="text" id="region-q" placeholder="Mexico, Lisbon, the Algarve..." maxlength="200" autocomplete="off">
+          <button class="btn btn-primary btn-small" type="submit" id="region-find-btn">Find it</button>
+          <span class="status" id="region-find-status" role="status"></span>
+        </form>
+        <div class="region-confirm" id="region-confirm" hidden>
+          <p id="region-confirm-name"></p>
+          <div class="row">
+            <label>Maximum zoom <input type="number" id="region-zoom" min="0" max="15" value="10" step="1"></label>
+            <label>File name <input type="text" id="region-filename" maxlength="100"></label>
+          </div>
+          <div class="row">
+            <button class="btn btn-small" type="button" id="region-estimate-btn">Check size</button>
+            <span class="status" id="region-estimate-status" role="status"></span>
+          </div>
+          <div class="row">
+            <button class="btn btn-primary btn-small" type="button" id="region-cut-btn" disabled>Cut and add</button>
+            <button class="btn btn-small" type="button" id="region-cancel-btn">Cancel</button>
+          </div>
+        </div>
+        <div class="region-progress" id="region-progress" hidden>
+          <p id="region-progress-name"></p>
+          <progress max="100" value="0" id="region-progress-bar"></progress>
+          <p class="hint" id="region-progress-message"></p>
+        </div>
+      </div>
       <!-- for a module that keeps what an outside search returns (its manifest has `geocoder`): how much is kept, and purging it -->
       <div class="cache-section" id="cfg-cache" hidden>
         <h3>Saved search results</h3>
