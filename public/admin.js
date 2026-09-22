@@ -824,7 +824,7 @@ async function loadActivity() {
 setInterval(() => { if (!document.hidden && !$('tab-modules').hidden) loadActivity(); }, 15000);
 
 // The AI service: a summary card here (which service and model, and this month's use); the setup is its own page, /ai-config.html.
-let aiCard = { saved: false, on: false };
+let aiCard = { saved: false, on: false, dependents: [] };
 // Whether the AI service card has anything to show at all (false only when its API call fails, e.g. not an admin);
 // separate from moduleFilter, which decides whether it is worth showing under the current filter.
 let aiAvailable = true;
@@ -834,13 +834,22 @@ function syncAiVisibility() {
 // Enabling and disabling is here, on the card, like every module's; the setup is on its own page.
 $('ai-toggle').addEventListener('click', async () => {
   const name = AI_NAMES[aiCard.provider] || 'the service';
-  const msg = aiCard.on ? 'Disable AI for everyone?\n\nModules that use it are told AI is not available. Your setup is kept.' : `Enable AI?\n\nModules that use it can send what a person selects, and their question, to ${name} under your account. Only people whose role allows it (Roles tab) can use it.`;
-  if (!window.confirm(msg)) return;
+  let force = false;
+  if (aiCard.on) {
+    let msg = 'Disable AI for everyone?\n\nModules that use it are told AI is not available. Your setup is kept.';
+    if (aiCard.dependents?.length) {
+      const names = aiCard.dependents.map((d) => d.name).join(' and ');
+      msg = `${names} need${aiCard.dependents.length === 1 ? 's' : ''} the AI service. Turn ${aiCard.dependents.length === 1 ? 'it' : 'them'} off too?`;
+      force = true;
+    }
+    if (!window.confirm(msg)) return;
+  } else if (!window.confirm(`Enable AI?\n\nModules that use it can send what a person selects, and their question, to ${name} under your account. Only people whose role allows it (Roles tab) can use it.`)) return;
   $('ai-toggle').disabled = true;
   try {
-    await api('PUT', '/api/ai', { enabled: !aiCard.on });
-    await loadAi();
-    say($('modules-status'), aiCard.on ? 'AI enabled' : 'AI disabled');
+    const wasOn = aiCard.on;
+    await api('PUT', '/api/ai', { enabled: !wasOn, ...(force ? { force: true } : {}) });
+    await loadModules(); // refreshes both the module list (a forced cascade may have disabled some) and the AI card
+    say($('modules-status'), wasOn ? 'AI disabled' : 'AI enabled');
   } catch (err) {
     $('ai-toggle').disabled = false;
     say($('modules-status'), err.message, true);
@@ -849,11 +858,11 @@ $('ai-toggle').addEventListener('click', async () => {
 const AI_NAMES = { openai: 'OpenAI', anthropic: 'Anthropic', compatible: 'Other (OpenAI-compatible)' };
 async function loadAi() {
   try {
-    const { ai, usage } = await api('GET', '/api/ai');
+    const { ai, usage, dependents } = await api('GET', '/api/ai');
     const provider = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : ai.provider;
     const saved = provider !== 'none';
     const on = saved && ai.enabled !== false;
-    aiCard = { saved, on, provider, model: ai.model };
+    aiCard = { saved, on, provider, model: ai.model, dependents: dependents || [] };
     $('ai-state').textContent = on ? 'Enabled' : saved ? 'Disabled' : 'Off';
     $('ai-state').classList.toggle('on', on);
     $('ai-toggle').textContent = on ? 'Disable' : 'Approve and enable';
