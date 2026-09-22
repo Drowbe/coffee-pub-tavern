@@ -84,3 +84,31 @@ estimate (11 tiles, 1.3 MB), ran the real cut, and watched the file land on disk
 size; also checked a no-match search and Cancel.
 
 All four steps are done.
+
+## Follow-up: layering a basic world file under detailed regional cuts
+
+The author asked for basic coverage everywhere plus street-level detail for specific places -- already possible
+once several map files are ticked together (each source's own bounds and zoom range come from its own PMTiles
+header), but two real gaps stood in the way of doing it through the UI, plus a real bug the two-cuts-in-one-session
+workflow surfaced:
+
+- **"Add a region" only found a named place.** No way to type "the whole world" -- Photon does not resolve that to
+  a box. Added a **cover the whole world** shortcut next to Find it: a fixed global box (Web Mercator's own
+  latitude limit, ±85°) at a low default zoom (5), skipping search entirely.
+- **No minimum zoom.** A regional cut always included every zoom from 0 up to its maximum, so a detailed cut
+  duplicated the low-zoom tiles a wide base layer already had. Added a **Minimum zoom** field (server side already
+  supported it); `estimate` now takes it too, so the size preview reflects the trimmed range before anything
+  downloads.
+- **How detailed a file actually is wasn't visible.** Map files only showed a name and a size. `server/pmtiles-header.js`
+  reads a PMTiles file's own 127-byte header (the same shape `maps-lib-b-pmtiles.js` reads in the browser) for its
+  real zoom range, shown as a new **Zoom** column -- for any `.pmtiles` file there, cut through this flow or
+  dropped in by hand, since it is read from the file itself, not recorded separately.
+- **A real bug this surfaced:** after a successful cut, `reset()` left Check size permanently disabled for the rest
+  of the page's life (`estimateBtn.disabled` was set before the request and never put back on success, and `reset()`
+  never touched it) -- invisible with one cut per page load, but every second cut in the same session (exactly this
+  basic-then-detailed pattern) silently could not be checked or cut at all. Fixed.
+
+Verified live end-to-end: cut `world.pmtiles` (whole world, zoom 0-5, ~15 MB), then, in the same page, cut
+`lisbon.pmtiles` at minimum zoom 11 (7 tiles, 42 kB) versus the same box at minimum zoom 0 (18 tiles, 563 kB) --
+trimming saved about 92% of the size, as intended; both files landed ticked with their real zoom ranges shown
+(0-5 and 11-14).

@@ -30,7 +30,7 @@
       <!-- for a module that can cut a region from a world file (its manifest has `regionSource`): find a place, confirm the size, cut it in -->
       <div class="region-section" id="cfg-region" hidden>
         <h3>Add a region</h3>
-        <p class="hint">Type a place — a country, a city, a region — and Tavern will find it, show roughly how large the cut would be, and add it to the file list above once you confirm. Nothing downloads until you say so.</p>
+        <p class="hint">Type a place — a country, a city, a region — and Tavern will find it, show roughly how large the cut would be, and add it to the file list above once you confirm. Nothing downloads until you say so. For basic coverage everywhere, skip the search and <button type="button" class="linklike" id="region-world-btn">cover the whole world</button> instead, at a low zoom — meant to sit underneath detailed regional cuts, not replace them.</p>
         <form class="row" id="region-find-form">
           <input type="text" id="region-q" placeholder="Mexico, Lisbon, the Algarve..." maxlength="200" autocomplete="off">
           <button class="btn btn-primary btn-small" type="submit" id="region-find-btn">Find it</button>
@@ -39,10 +39,11 @@
         <div class="region-confirm" id="region-confirm" hidden>
           <p id="region-confirm-name"></p>
           <div class="row">
+            <label>Minimum zoom <input type="number" id="region-min-zoom" min="0" max="15" value="0" step="1"></label>
             <label>Maximum zoom <input type="number" id="region-zoom" min="0" max="15" value="14" step="1"></label>
             <label>File name <input type="text" id="region-filename" maxlength="100"></label>
           </div>
-          <p class="hint">How much detail the cut keeps, not how far it covers. 10 or below shows towns and the roads between them, not individual streets; 14, the default, shows streets and buildings; 15 is the most detail this can offer. Higher means a far bigger file for the same area — Check size shows the real cost for the box and zoom you've chosen before anything downloads.</p>
+          <p class="hint">Maximum zoom is how much detail the cut keeps, not how far it covers. 10 or below shows towns and the roads between them, not individual streets; 14, the default, shows streets and buildings; 15 is the most detail this can offer. Higher means a far bigger file for the same area. Minimum zoom trims the shallow end: leave it at 0 for a file meant to stand alone, or raise it when a wider, lower-zoom file (like "cover the whole world", above) already covers those zooms, so the two do not both carry the same low-zoom tiles. Check size shows the real cost for the box and zoom range you've chosen before anything downloads.</p>
           <div class="row">
             <button class="btn btn-small" type="button" id="region-estimate-btn">Check size</button>
             <span class="status" id="region-estimate-status" role="status"></span>

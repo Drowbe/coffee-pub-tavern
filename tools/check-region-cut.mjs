@@ -49,6 +49,7 @@ const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'region-cut-stub-'));
 const stubBin = path.join(stubDir, 'pmtiles');
 fs.writeFileSync(stubBin, `#!/usr/bin/env node
 const args = process.argv.slice(2);
+require('fs').appendFileSync(require('path').join(__dirname, 'calls.log'), JSON.stringify(args) + '\\n'); // so a test can see exactly what it was asked to run
 const [cmd, input, output] = args;
 const dry = args.includes('--dry-run');
 if (input.includes('unreachable')) { process.stdout.write('dial tcp: lookup unreachable.example: no such host\\n'); process.exit(1); }
@@ -68,6 +69,7 @@ function fakeJobs() {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'region-cut-data-'));
   return { dataDir, jobs: new RegionCutJobs(dataDir, stubBin) };
 }
+const lastCall = () => JSON.parse(fs.readFileSync(path.join(stubDir, 'calls.log'), 'utf8').trim().split('\n').pop());
 
 await test('estimate: the real shape from a dry run, refusing what will not fit', async () => {
   const { jobs } = fakeJobs();
@@ -77,6 +79,14 @@ await test('estimate: the real shape from a dry run, refusing what will not fit'
   await assert.rejects(jobs.estimate({ source: 'https://x/unreachable.pmtiles', box, maxZoom: 10 }), /could not be reached/);
   await assert.rejects(jobs.estimate({ source: 'https://x/huge.pmtiles', box, maxZoom: 10 }), (e) => e instanceof RegionCutError && e.message.includes('too large') && MAX_BYTES > 0);
   await assert.rejects(jobs.estimate({ source: 'https://x/y.pmtiles', box, maxZoom: 99 }), /zoom must be/);
+  // A minimum zoom, when given, is passed to the dry run too, so the estimate reflects the range actually cut --
+  // trimming the shallow end (a wide, low-zoom base layer already covers) makes for a smaller, more accurate number.
+  await jobs.estimate({ source: 'https://build.protomaps.com/x.pmtiles', box, maxZoom: 10, minZoom: 3 });
+  assert.ok(lastCall().includes('--minzoom=3'));
+  await jobs.estimate({ source: 'https://build.protomaps.com/x.pmtiles', box, maxZoom: 10 });
+  assert.ok(!lastCall().some((a) => a.startsWith('--minzoom')), 'no --minzoom at all when none was given');
+  await assert.rejects(jobs.estimate({ source: 'https://build.protomaps.com/x.pmtiles', box, maxZoom: 10, minZoom: 11 }), /minimum zoom/);
+  await assert.rejects(jobs.estimate({ source: 'https://build.protomaps.com/x.pmtiles', box, maxZoom: 10, minZoom: -1 }), /minimum zoom/);
 });
 
 await test('a real cut: progress as it streams in, the file lands where it should', async () => {

@@ -17,6 +17,7 @@ const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
 const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
 const { RegionCutJobs, RegionCutError } = require('./region-cut');
+const { pmtilesZoomRange } = require('./pmtiles-header');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
 const { Ai, AiError } = require('./ai');
@@ -2222,7 +2223,7 @@ app.post('/api/modules/:id/region-cut/estimate', requireAdmin, async (req, res) 
   const ctx = regionCutSetup(req, res);
   if (!ctx) return;
   try {
-    res.json(await regionCutJobs.estimate({ source: ctx.setup.address, box: boxFromBody(req.body), maxZoom: Number(req.body?.maxZoom) }));
+    res.json(await regionCutJobs.estimate({ source: ctx.setup.address, box: boxFromBody(req.body), maxZoom: Number(req.body?.maxZoom), minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined }));
   } catch (err) {
     sendRegionCutError(err, res);
   }
@@ -2295,7 +2296,7 @@ const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // show up is told why. A link to a file (a NAS shortcut) counts as the file.
 function inspectModuleFiles(id, sub) {
   const folder = moduleFilesDir(id, sub);
-  const out = { folder, exists: false, files: [], sizes: {}, skipped: [] };
+  const out = { folder, exists: false, files: [], sizes: {}, zooms: {}, skipped: [] };
   let names;
   try {
     names = fs.readdirSync(folder);
@@ -2310,8 +2311,16 @@ function inspectModuleFiles(id, sub) {
     }
     let st = null;
     try { st = fs.statSync(path.join(folder, name)); } catch { /* a broken link */ }
-    if (st && st.isFile()) { out.files.push(name); out.sizes[name] = st.size; }
-    else out.skipped.push({ name, reason: st ? 'not a regular file (a folder or something else)' : 'a link that leads nowhere' });
+    if (st && st.isFile()) {
+      out.files.push(name);
+      out.sizes[name] = st.size;
+      // How detailed a map file is (street-level or not), read from its own header -- the file's own truth, so this
+      // works whether it was cut with "Add a region" or dropped in by hand.
+      if (/\.pmtiles$/i.test(name)) {
+        const z = pmtilesZoomRange(path.join(folder, name));
+        if (z) out.zooms[name] = z;
+      }
+    } else out.skipped.push({ name, reason: st ? 'not a regular file (a folder or something else)' : 'a link that leads nowhere' });
   }
   return out;
 }

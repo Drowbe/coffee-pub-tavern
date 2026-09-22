@@ -59,8 +59,11 @@ function control(def) {
   if (def.type === 'files') {
     const chosen = new Set(Array.isArray(def.value) ? def.value : def.value ? [def.value] : []);
     const size = (n) => { const b = (def.sizes || {})[n]; return b === undefined ? '' : b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`; };
-    const rows = (def.available || []).map((n) => `<tr><td><input type="checkbox" value="${escapeHtml(n)}" ${chosen.has(n) ? 'checked' : ''} aria-label="Use ${escapeHtml(n)}"></td><td>${escapeHtml(n)}</td><td class="hint">${size(n)}</td></tr>`).join('');
-    return `<div data-key="${escapeHtml(def.key)}" data-files><div class="hint">${escapeHtml(def.label)}</div>${rows ? `<table class="files-table"><thead><tr><th>Use</th><th>File</th><th>Size</th></tr></thead><tbody>${rows}</tbody></table>` : ''}${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}</div>`;
+    // How detailed a map file is (street-level or not), read from its own PMTiles header -- blank for anything else.
+    const zoom = (n) => { const z = (def.zooms || {})[n]; return z ? (z.minZoom === z.maxZoom ? `${z.maxZoom}` : `${z.minZoom}–${z.maxZoom}`) : ''; };
+    const hasZooms = Object.keys(def.zooms || {}).length > 0;
+    const rows = (def.available || []).map((n) => `<tr><td><input type="checkbox" value="${escapeHtml(n)}" ${chosen.has(n) ? 'checked' : ''} aria-label="Use ${escapeHtml(n)}"></td><td>${escapeHtml(n)}</td>${hasZooms ? `<td class="hint">${zoom(n)}</td>` : ''}<td class="hint">${size(n)}</td></tr>`).join('');
+    return `<div data-key="${escapeHtml(def.key)}" data-files><div class="hint">${escapeHtml(def.label)}</div>${rows ? `<table class="files-table"><thead><tr><th>Use</th><th>File</th>${hasZooms ? '<th>Zoom</th>' : ''}<th>Size</th></tr></thead><tbody>${rows}</tbody></table>` : ''}${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}</div>`;
   }
   if (def.type === 'file') return `${head}<select data-key="${escapeHtml(def.key)}"><option value="">None</option>${(def.available || []).map((n) => `<option value="${escapeHtml(n)}" ${n === def.value ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}`;
   if (def.type === 'url') return `${head}<input id="${id}" type="url" data-key="${escapeHtml(def.key)}" value="${escapeHtml(def.value)}" maxlength="500" placeholder="https://"></label>`;

@@ -103,8 +103,10 @@ function wireRegionCut(m, showSettings) {
   const q = $('region-q');
   const findBtn = $('region-find-btn');
   const findStatus = $('region-find-status');
+  const worldBtn = $('region-world-btn');
   const confirmBox = $('region-confirm');
   const confirmName = $('region-confirm-name');
+  const minZoomEl = $('region-min-zoom');
   const zoomEl = $('region-zoom');
   const nameEl = $('region-filename');
   const estimateBtn = $('region-estimate-btn');
@@ -118,6 +120,10 @@ function wireRegionCut(m, showSettings) {
 
   let found = null; // { name, box }
   let source = null; // the open EventSource, while a cut is running
+  // A basic, low-zoom layer for the whole map (within Web Mercator's own latitude limit -- the projection every
+  // PMTiles file uses), meant to sit under detailed regional cuts, not replace them.
+  const WORLD_BOX = { minLon: -180, minLat: -85, maxLon: 180, maxLat: 85 };
+  const WORLD_ZOOM = 5;
 
   const slug = (text) => (text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'region';
@@ -138,6 +144,20 @@ function wireRegionCut(m, showSettings) {
     found = null;
     setEstimateStatus('', false);
     cutBtn.disabled = true;
+    estimateBtn.disabled = false; // a finished cut leaves it disabled (see the cut handler below); the next region needs it back
+  };
+
+  // What to confirm before anything downloads, shared by a named-place find and the whole-world shortcut.
+  const showConfirm = (name, box, defaultZoom) => {
+    found = { name, box };
+    findStatus.textContent = '';
+    confirmName.textContent = name;
+    nameEl.value = `${slug(name)}.pmtiles`;
+    minZoomEl.value = '0';
+    zoomEl.value = String(defaultZoom);
+    setEstimateStatus('', false);
+    cutBtn.disabled = true;
+    confirmBox.hidden = false;
   };
 
   form.addEventListener('submit', async (event) => {
@@ -150,17 +170,8 @@ function wireRegionCut(m, showSettings) {
     findStatus.textContent = 'Looking…';
     try {
       const res = await api('GET', `${base}/find?q=${encodeURIComponent(text)}`);
-      if (!res.found) {
-        findStatus.textContent = `No place called "${text}" was found.`;
-      } else {
-        found = { name: res.name, box: res.box };
-        findStatus.textContent = '';
-        confirmName.textContent = res.name;
-        nameEl.value = `${slug(res.name)}.pmtiles`;
-        setEstimateStatus('', false);
-        cutBtn.disabled = true;
-        confirmBox.hidden = false;
-      }
+      if (!res.found) findStatus.textContent = `No place called "${text}" was found.`;
+      else showConfirm(res.name, res.box, 14);
     } catch (err) {
       findStatus.textContent = err.message;
       findStatus.classList.add('error');
@@ -169,17 +180,35 @@ function wireRegionCut(m, showSettings) {
     findBtn.disabled = false;
   });
 
-  // A changed zoom (or a fresh find) needs a fresh estimate before Cut and add is trusted again.
+  // No search needed: a fixed box for the whole map, defaulting to a low zoom (a country-sized file at street-level
+  // zoom would be enormous) -- the admin can still raise it, Check size shows the real cost either way.
+  worldBtn.addEventListener('click', () => {
+    findStatus.textContent = '';
+    findStatus.classList.remove('error');
+    showConfirm('the whole world', WORLD_BOX, WORLD_ZOOM);
+    nameEl.value = 'world.pmtiles';
+  });
+
+  // A changed zoom (min or max), or a fresh find, needs a fresh estimate before Cut and add is trusted again.
+  minZoomEl.addEventListener('input', () => { cutBtn.disabled = true; setEstimateStatus('', false); });
   zoomEl.addEventListener('input', () => { cutBtn.disabled = true; setEstimateStatus('', false); });
+
+  // Both fields, clamped and read together: minimum never above maximum.
+  function readZoomRange() {
+    const maxZoom = Math.max(0, Math.min(15, Math.round(Number(zoomEl.value) || 0)));
+    zoomEl.value = String(maxZoom);
+    const minZoom = Math.max(0, Math.min(maxZoom, Math.round(Number(minZoomEl.value) || 0)));
+    minZoomEl.value = String(minZoom);
+    return { minZoom, maxZoom };
+  }
 
   estimateBtn.addEventListener('click', async () => {
     if (!found) return;
     estimateBtn.disabled = true;
     setEstimateStatus('Checking size…', false);
     try {
-      const zoom = Math.max(0, Math.min(15, Math.round(Number(zoomEl.value) || 0)));
-      zoomEl.value = String(zoom);
-      const est = await api('POST', `${base}/estimate`, { ...found.box, maxZoom: zoom });
+      const { minZoom, maxZoom } = readZoomRange();
+      const est = await api('POST', `${base}/estimate`, { ...found.box, minZoom, maxZoom });
       const size = est.bytes >= 1e9 ? `${(est.bytes / 1e9).toFixed(1)} GB` : est.bytes >= 1e6 ? `${(est.bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(est.bytes / 1e3))} kB`;
       setEstimateStatus(`About ${est.tiles} tile${est.tiles === 1 ? '' : 's'}, ${size}.`, false);
       cutBtn.disabled = false;
@@ -201,9 +230,9 @@ function wireRegionCut(m, showSettings) {
     }
     cutBtn.disabled = true;
     estimateBtn.disabled = true;
-    const zoom = Math.max(0, Math.min(15, Math.round(Number(zoomEl.value) || 0)));
+    const { minZoom, maxZoom } = readZoomRange();
     try {
-      const out = await api('POST', base, { ...found.box, maxZoom: zoom, name });
+      const out = await api('POST', base, { ...found.box, minZoom, maxZoom, name });
       confirmBox.hidden = true;
       progress.hidden = false;
       progressName.textContent = `Cutting ${name}…`;

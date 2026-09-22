@@ -137,12 +137,15 @@ class RegionCutJobs extends EventEmitter {
 
   // How big a cut would be, without downloading it: a dry run against the real source. Throws for a bad box, an
   // unreachable source, or one that plainly would not fit under the size ceiling.
-  async estimate({ source, box, maxZoom }) {
+  async estimate({ source, box, maxZoom, minZoom }) {
     if (!validSource(source)) throw new RegionCutError("the world file address is not set up right; an admin needs to fix it in Module Configuration");
     if (!validBox(box)) throw new RegionCutError('that is not a sensible area');
     if (!Number.isInteger(maxZoom) || maxZoom < 0 || maxZoom > MAX_ZOOM) throw new RegionCutError(`the zoom must be 0 to ${MAX_ZOOM}`);
+    if (minZoom !== undefined && (!Number.isInteger(minZoom) || minZoom < 0 || minZoom > maxZoom)) throw new RegionCutError('the minimum zoom must be 0 or more, and no higher than the maximum');
     const tmp = path.join(os.tmpdir(), `tavern-region-estimate-${crypto.randomBytes(6).toString('hex')}.pmtiles`);
-    const { code, output } = await this.run(['extract', source, tmp, bboxArg(box), `--maxzoom=${maxZoom}`, '--dry-run'], { timeoutMs: ESTIMATE_TIMEOUT_MS });
+    const args = ['extract', source, tmp, bboxArg(box), `--maxzoom=${maxZoom}`, '--dry-run'];
+    if (Number.isInteger(minZoom)) args.push(`--minzoom=${minZoom}`);
+    const { code, output } = await this.run(args, { timeoutMs: ESTIMATE_TIMEOUT_MS });
     fs.rmSync(tmp, { force: true });
     if (code !== 0) throw new RegionCutError(reason(output));
     const est = parseSize(output);
