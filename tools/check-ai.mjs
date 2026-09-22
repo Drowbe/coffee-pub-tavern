@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const { Ai, AiError, buildPrompt, parseCards, parseTags, citedItems, ICONS } = createRequire(import.meta.url)('../server/ai.js');
+
 let n = 0;
 const test = async (name, fn) => { await fn(); n += 1; };
 
@@ -104,6 +105,18 @@ await test('companies, migration and the model lists', async () => {
   fs.writeFileSync(path.join(d, 'ai.json'), JSON.stringify({ provider: 'openai', address: 'https://api.openai.com/v1', model: 'gpt-4o', key: 'k' }));
   const m = new Ai(d, {}).view();
   assert.deepEqual([m.provider, m.address], ['openai', '']);
+});
+
+await test('previewing whether a patch leaves AI enabled (used before turning it off while a module depends on it)', () => {
+  const ai = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {});
+  ai.set({ provider: 'compatible', address, model: 'm', enabled: true });
+  assert.equal(ai.previewEnabled({}), true); // an unrelated change leaves it as it was
+  assert.equal(ai.previewEnabled({ model: 'm2' }), true);
+  assert.equal(ai.previewEnabled({ enabled: false }), false);
+  assert.equal(ai.previewEnabled({ provider: 'openai' }), false); // a different service starts switched off
+  assert.equal(ai.previewEnabled({ provider: 'compatible' }), true); // the same service again is not a change
+  assert.equal(ai.previewEnabled({ provider: 'none' }), false);
+  assert.equal(ai.view().enabled, true); // previewing never applies anything
 });
 
 await test('the enable step', () => {

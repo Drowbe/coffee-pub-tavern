@@ -123,6 +123,21 @@ class Ai {
     }
   }
 
+  // Whether a patch, if applied, would leave AI enabled: for a caller (a module's enable check, the cascade when the admin turns
+  // AI off) that needs to know before committing to it. Mirrors set()'s own enabled rules without changing anything.
+  previewEnabled(patch) {
+    const p = patch || {};
+    let enabled = this.config.enabled;
+    let provider = this.config.provider;
+    if (p.provider !== undefined) {
+      if (p.provider !== provider) enabled = false;
+      provider = p.provider;
+    }
+    if (p.enabled !== undefined) enabled = p.enabled === true;
+    if (provider === 'none') enabled = false;
+    return enabled;
+  }
+
   // Ready to answer: a provider is chosen and, for a hosted one, it has a key.
   ready() {
     const c = this.config;

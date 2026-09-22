@@ -1942,12 +1942,13 @@ const moduleSettings = new ModuleSettings(modules.dir);
 // returns text with any cards the model wrote (each checked). Nothing is kept: no question, no answer, no item text. The activity
 // list gets who, which module and task, and how many tokens.
 const ai = new Ai(DATA_DIR);
+modules.aiReady = () => ai.ready(); // a module declaring hooks.ai depends on the AI service the way one module depends on another
 process.on('exit', () => ai.flush());
 function sendAiError(err, res) {
   if (err instanceof AiError) return res.status(err.status).json({ error: err.message });
   throw err;
 }
-app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView() }));
+app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView(), dependents: modules.aiDependents() }));
 app.post('/api/ai/models', requireAdmin, async (req, res) => {
   try {
     res.json({ models: await ai.listModels({ provider: String(req.body?.provider || ''), address: req.body?.address, key: req.body?.key }) });
@@ -1958,9 +1959,16 @@ app.post('/api/ai/models', requireAdmin, async (req, res) => {
 app.put('/api/ai', requireAdmin, (req, res) => {
   try {
     const before = ai.view();
+    // Turning AI off (however the patch does it) while a module depends on it: the admin's page should have asked first (as it
+    // does for a module others `requires`); a caller that skipped that, or forces past it, is handled the same way.
+    if (before.enabled && !ai.previewEnabled(req.body || {}) && req.body?.force !== true) {
+      const dependents = modules.aiDependents();
+      if (dependents.length) throw new AiError(`${dependents.map((m) => m.name).join(' and ')} needs the AI service; turn ${dependents.length === 1 ? 'it' : 'them'} off too?`);
+    }
     const after = ai.set(req.body || {});
+    if (before.enabled && !after.enabled) for (const m of modules.aiDependents()) modules.update(m.id, { enabled: false, force: true });
     noteActivity('tavern', `changed the AI setting (${after.provider}${after.keySet && !before.keySet ? ', key set' : ''})`, currentUser(req)?.key, null);
-    res.json({ ai: after, usage: ai.usageView() });
+    res.json({ ai: after, usage: ai.usageView(), dependents: modules.aiDependents() });
   } catch (err) {
     sendAiError(err, res);
   }

@@ -36,6 +36,9 @@ const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['server', 'room', 'person'];
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
+// Ids no module may take: 'ai' names the server-wide AI service (not a module) in `missing`/`aiDependents`, the same way a
+// module id would, so it must never also be a real one.
+const RESERVED_IDS = ['ai'];
 const { cleanRows } = require('./setting-list');
 const VERSION_RE = /^\d{1,4}\.\d{1,4}\.\d{1,4}$/;
 
@@ -315,6 +318,7 @@ function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!ID_RE.test(id)) throw new ModuleError('module.json: "id" must be 2-32 lowercase letters, digits or dashes, starting with a letter');
+  if (RESERVED_IDS.includes(id)) throw new ModuleError(`module.json: "${id}" is a reserved id and cannot be used`);
   const name = text(raw.name, 40);
   if (!name) throw new ModuleError('module.json: "name" is required');
   const version = typeof raw.version === 'string' ? raw.version.trim() : '';
@@ -402,6 +406,10 @@ class ModuleManager {
     this.file = path.join(this.dir, 'registry.json');
     this.registry = { modules: {} };
     this.manifests = new Map(); // "id@version" -> manifest, so permission checks do not hit the disk
+    // Whether the server-wide AI service is set up and switched on: a module that declares hooks.ai depends on it the way
+    // one module can depend on another (see cleanGeocoder... no, see 'ai' in missing/aiDependents below). Set once, after
+    // both this and the Ai instance exist (index.js), since the AI service is not a module Modules otherwise knows about.
+    this.aiReady = () => false;
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       if (raw && typeof raw.modules === 'object') this.registry = raw;
@@ -531,8 +539,8 @@ class ModuleManager {
       allRooms: Boolean(entry.allRooms),
       rooms: entry.rooms || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
-      // What this needs that is not on (module ids), and the enabled modules that need this one.
-      missing: (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled)),
+      // What this needs that is not on (module ids, and 'ai' for the AI service), and the enabled modules that need this one.
+      missing: this.missingFor(manifest),
       dependents: this.dependentsOf(id),
       needsApproval: this.hasPending(pending),
       source: entry.source || 'upload',
@@ -554,6 +562,26 @@ class ModuleManager {
       if (m && (m.requires || []).includes(id)) out.push(other);
     }
     return out;
+  }
+
+  // What a manifest needs that is not there: other modules from `requires`, plus `'ai'` when it declares the `ai` hook and
+  // the AI service is not enabled. The AI service is not a module (Modules knows nothing else about it), so it is named by
+  // this one reserved id rather than added to the registry.
+  missingFor(manifest) {
+    const missing = (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled));
+    if (manifest.hooks.ai && !this.aiReady()) missing.push('ai');
+    return missing;
+  }
+
+  // The enabled modules that declare the `ai` hook: what depends on the AI service, the way `dependentsOf` says what depends
+  // on a module. For the AI service's own admin page, and to cascade turning it off.
+  aiDependents() {
+    return this.enabledAll().filter(({ manifest }) => manifest.hooks.ai).map(({ manifest }) => ({ id: manifest.id, name: manifest.name }));
+  }
+
+  // A missing id's name for a message: another module's, or "the AI service".
+  missingName(r) {
+    return r === 'ai' ? 'the AI service' : (this.registry.modules[r] ? this.manifestOf(r, this.registry.modules[r].version).name : r);
   }
 
   list() {
@@ -647,8 +675,8 @@ class ModuleManager {
     const manifest = this.manifestOf(id, entry.version);
     if (patch.enabled !== undefined) {
       if (patch.enabled) {
-        const missing = (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled));
-        if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => (this.registry.modules[r] ? this.manifestOf(r, this.registry.modules[r].version).name : r)).join(' and ')} installed and turned on first`);
+        const missing = this.missingFor(manifest);
+        if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => this.missingName(r)).join(' and ')} installed and turned on first`);
       } else {
         // Turning off a module others need: those go off with it, but only when the caller said so (`force`).
         const needing = this.dependentsOf(id);
