@@ -340,7 +340,9 @@ function cleanManifest(raw, files) {
   const icon = typeof raw.icon === 'string' && /^[a-z0-9-]{1,40}$/.test(raw.icon) ? raw.icon : 'puzzle-piece';
 
   const surfaces = {};
-  if (raw.surfaces?.page) surfaces.page = { entry: cleanEntry(raw.surfaces.page.entry, files, 'surfaces.page') };
+  // `nav: false` (default true) leaves a module's page out of the main nav's icon row -- for one better
+  // reached another way (a room's own pane, a link from what it's about), so the row is not clutter.
+  if (raw.surfaces?.page) surfaces.page = { entry: cleanEntry(raw.surfaces.page.entry, files, 'surfaces.page'), nav: raw.surfaces.page.nav !== false };
   if (raw.surfaces?.panel) {
     surfaces.panel = {
       entry: cleanEntry(raw.surfaces.panel.entry, files, 'surfaces.panel'),
