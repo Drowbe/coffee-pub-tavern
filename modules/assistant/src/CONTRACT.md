@@ -56,6 +56,10 @@ Keeping a card asks whichever module offers a matching action, found by name and
 | AI not available here (not enabled, the role may not, or the room turned it off) | `tpl-state-unavailable`, `[data-slot=why]` the server's reason; no composer |
 | Nothing can save a kept card | `tpl-state-nowhere-to-save`, keep disabled |
 
+## Surviving a mode change
+
+Switching between docked and floating (the pane's own buttons, not popping into a window) does not touch the page: Tavern moves the frame in place rather than tearing it down and starting the module over, so the conversation, its context chips and anything mid-flight survive exactly as if nothing happened. Popping into its own window is a real new page, so that still starts the module over, the same as closing the pane or **New conversation** — a conversation is not carried into a window, and a history of past conversations is not kept, by design.
+
 ## Not decided yet
 
-Whether a conversation may be handed off between dock, float and popout without losing it (today it does not survive a mode change, the same as it would not survive closing); a history of past conversations (none is kept, by design).
+Whether a conversation could be handed off into a popped-out window too (it would mean serialising and replaying it there, not just moving a frame).

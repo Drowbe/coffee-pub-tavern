@@ -370,6 +370,10 @@ export function createRoomModules({ guestToken = null } = {}) {
     ? `<div class="module-root ${cls}" data-module-root="${escapeHtml(m.id)}"></div>`
     : `<iframe class="${cls}" title="${escapeHtml(m.name)}"></iframe>`);
 
+  // onBar and onResize are wired the same way regardless of which mode a module opened in, and read
+  // the pane's *current* element and mode rather than the one it was mounted with (`pane.el`, `pane.mode`):
+  // that is what lets moveModulePane, below, hand a mount that started in one mode on to the other without
+  // remounting it. has-bar only styles the docked layout; onResize only remembers a size while floating.
   function mountFor(pane, frame, bar, extra = {}) {
     const m = pane.m;
     return mountModule({
@@ -385,18 +389,30 @@ export function createRoomModules({ guestToken = null } = {}) {
       guestToken,
       entry: m.panel.entry,
       onTitle: (title) => { pane.el.querySelector('[data-title]').textContent = title || m.name; },
+      onBar: (has) => pane.el.classList.toggle('has-bar', has),
+      onResize: ({ width, height } = {}) => {
+        if (pane.mode !== 'float') return;
+        const b = currentBox(pane.el);
+        if (Number.isFinite(width)) b.w = width;
+        if (Number.isFinite(height)) b.h = height + HEAD_H;
+        remember(m.id, { box: place(pane.el, b) });
+      },
       ...extra,
     });
   }
 
-  function openModuleFloating(m) {
+  // `reuse` (from moveModulePane) carries a frame/container, bar and header-buttons span already mounted
+  // in the other mode's chrome: they are moved into the new chrome instead of built fresh, so the module
+  // inside keeps running and keeps whatever it was holding (a conversation, a draft, ...) rather than being
+  // torn down and started over. Only the class that lays each one out changes.
+  function openModuleFloating(m, reuse) {
     const doc = stageDoc();
     const panel = doc.createElement('section');
     panel.className = 'module-panel';
     panel.dataset.module = m.id;
     panel.innerHTML = `
       <header class="mod-header module-panel-head">${moduleHeader(m, 'float', supports({ modes: m.panel.mode }, 'dock') && !isNarrow(), true)}</header>
-      ${holder(m, 'module-panel-frame')}
+      ${reuse ? '<div class="reuse-slot frame-slot"></div>' : holder(m, 'module-panel-frame')}
       <div class="module-panel-bar" hidden></div>
       <span class="module-panel-grip" title="Drag to resize"></span>`;
     layerFor(doc).appendChild(panel);
@@ -410,20 +426,22 @@ export function createRoomModules({ guestToken = null } = {}) {
     });
     front(panel);
     const pane = { id: m.id, kind: 'module', mode: 'float', m, el: panel, modes: m.panel.mode, order: ++order, parts: () => [] };
-    pane.mount = mountFor(pane, panel.querySelector('iframe, .module-root'), panel.querySelector('.module-panel-bar'), {
-      onResize: ({ width, height }) => {
-        const b = currentBox(panel);
-        if (Number.isFinite(width)) b.w = width;
-        if (Number.isFinite(height)) b.h = height + HEAD_H;
-        remember(m.id, { box: place(panel, b) });
-      },
-    });
+    if (reuse) {
+      reuse.frame.className = reuse.frame.classList.contains('module-root') ? 'module-root module-panel-frame' : 'module-panel-frame';
+      panel.querySelector('.frame-slot').replaceWith(reuse.frame);
+      reuse.bar.className = 'module-panel-bar';
+      panel.querySelector('.module-panel-bar').replaceWith(reuse.bar);
+      panel.querySelector('[data-header-custom]').replaceWith(reuse.headerCustom);
+      pane.mount = reuse.mount;
+    } else {
+      pane.mount = mountFor(pane, panel.querySelector('iframe, .module-root'), panel.querySelector('.module-panel-bar'));
+    }
     panes.set(m.id, pane);
     wireFloating(m.id, panel, panel.querySelector('.module-panel-head'), panel.querySelector('.module-panel-grip'));
     wireHeader(panel, pane);
   }
 
-  function openModuleDocked(m) {
+  function openModuleDocked(m, reuse) {
     const doc = stageDoc();
     const section = doc.createElement('section');
     section.className = 'module module-docked';
@@ -432,7 +450,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       <div class="dock-resize" title="Drag to resize"></div>
       <div class="mod-content dock-content">
         <header class="mod-header">${moduleHeader(m, 'dock', false, true)}</header>
-        ${holder(m, 'dock-frame')}
+        ${reuse ? '<div class="reuse-slot frame-slot"></div>' : holder(m, 'dock-frame')}
       </div>
       <div class="mod-bar dock-bar" hidden></div>`;
     stage.appendChild(section);
@@ -441,15 +459,45 @@ export function createRoomModules({ guestToken = null } = {}) {
       width: clampDock(saved[m.id]?.dockW || m.panel.width),
       parts: () => [...section.children],
     };
-    // With a bar the module's content stops above the shared bottom row; without one it fills the column.
-    pane.mount = mountFor(pane, section.querySelector('iframe, .module-root'), section.querySelector('.dock-bar'), {
-      onBar: (has) => section.classList.toggle('has-bar', has),
-    });
+    if (reuse) {
+      reuse.frame.className = reuse.frame.classList.contains('module-root') ? 'module-root dock-frame' : 'dock-frame';
+      section.querySelector('.frame-slot').replaceWith(reuse.frame);
+      reuse.bar.className = 'mod-bar dock-bar';
+      section.querySelector('.dock-bar').replaceWith(reuse.bar);
+      section.querySelector('[data-header-custom]').replaceWith(reuse.headerCustom);
+      pane.mount = reuse.mount;
+      // The bar's own onBar callback only fires on the next change; a bar already showing needs this now.
+      section.classList.toggle('has-bar', !reuse.bar.hidden);
+    } else {
+      // With a bar the module's content stops above the shared bottom row; without one it fills the column.
+      pane.mount = mountFor(pane, section.querySelector('iframe, .module-root'), section.querySelector('.dock-bar'));
+    }
     panes.set(m.id, pane);
     syncDock();
     wireDockResize(() => pane, section.querySelector('.dock-resize'));
     wireHeader(section, pane);
     wireReorder(section.querySelector('.mod-header'), () => panes.get(m.id));
+  }
+
+  // Switch a module pane between docked and floating without the module inside noticing: pull its frame
+  // (or in-page container), its action bar and its header buttons out of the old chrome and into the new
+  // one, then drop the emptied-out old chrome. Leaving for a window is a real new page, so that keeps
+  // going through closePane + popOut instead (see setMode).
+  function moveModulePane(id, mode) {
+    const pane = panes.get(id);
+    const m = pane.m;
+    const reuse = {
+      frame: pane.el.querySelector('iframe, .module-root'),
+      bar: pane.el.querySelector('.dock-bar, .module-panel-bar'),
+      headerCustom: pane.el.querySelector('[data-header-custom]'),
+      mount: pane.mount,
+    };
+    const titleText = pane.el.querySelector('[data-title]')?.textContent || '';
+    const old = pane.el;
+    panes.delete(id);
+    if (mode === 'dock') openModuleDocked(m, reuse); else openModuleFloating(m, reuse);
+    old.remove();
+    if (titleText) panes.get(id).el.querySelector('[data-title]').textContent = titleText;
   }
 
   // --- native panes (the chat) ------------------------------------------------
@@ -701,10 +749,11 @@ export function createRoomModules({ guestToken = null } = {}) {
     }
     if (mode !== 'window' && !supports(pane, mode)) return;
     const m = pane.m;
-    closePane(id);
-    if (mode === 'window') return popOut(m.id);
+    if (mode === 'window') { closePane(id); return popOut(m.id); }
     remember(id, { mode });
-    openModule(m, mode);
+    moveModulePane(id, mode);
+    markModuleRead(m.id);
+    update();
   }
 
   // A module's own window: the same page a server page uses, in this room's scope.
