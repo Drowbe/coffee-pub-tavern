@@ -271,6 +271,27 @@ tavern.on('header', (e) => { /* e.id is the button clicked */ });
 
 Up to six buttons; `icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true.
 
+### An action menu
+
+A menu of things to do — a row's "..." button, a right-click, the + on a joint between two days — is `tavern.menu.show({ id, items, at, anchor })`. This is different from `tavern.actions.pick` (below): `pick` asks one question and resolves once ("what should this dropped item become?"); `menu.show` draws a reusable menu of independent actions, each with its own handler, that stays around across many opens.
+
+```js
+tavern.menu.show({
+  id: `row-${item.id}`, // showing the same id again while it is open closes it instead of reopening it
+  anchor: button, // or `at: { x, y }` for a point instead (a drop's own coordinates)
+  items: [
+    { id: 'edit', label: 'Edit', icon: 'pen', onClick: () => openEditor(item.id) },
+    { separator: true },
+    { id: 'delete', label: 'Delete', icon: 'trash', danger: true, onClick: (_, b) => {
+      if (!armed) { armed = true; b.querySelector('.tv-menu-label').textContent = 'Really delete?'; return false; } // false: stays open
+      remove(item.id); // anything else closes the menu
+    } },
+  ],
+});
+```
+
+Each item is `{ id?, label, icon?, regular?, hint?, disabled?, danger?, separator?, onClick? }`; `separator: true` draws a divider and ignores every other field. Position with `at` (a point) or `anchor` (an element to open under, flipped above it when there is no room below) — give one, not both. `onClick(item, button)` runs on a click and the menu closes afterward, unless it returns exactly `false` (or a promise that resolves to `false`), which leaves it open for an item that needs to arm itself first, as `delete` does above — mutate the clicked button's own `.tv-menu-label` to change what it says. Only one of these is ever open at once per module; showing a new one closes whatever was open, and showing the same `id` again toggles it closed rather than reopening it, so a "..." button behaves the way it looks like it should.
+
 ### Events and actions: reacting to and asking things of other modules
 
 The other two conduits between modules, and like refs they name no module. Declare them in `module.json` and an admin approves what your module hears and asks for.

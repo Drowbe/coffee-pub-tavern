@@ -109,6 +109,17 @@
 .tv-dp-day.today { border-color: var(--accent); }
 .tv-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 .tv-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+.tv-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
+.tv-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tv-menu-item:hover, .tv-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
+.tv-menu-item:disabled { color: var(--text-dim); cursor: default; }
+.tv-menu-item.danger { color: var(--danger); }
+.tv-menu-item.danger:hover, .tv-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.tv-menu-icon { flex: none; display: inline-flex; width: 1em; }
+.tv-menu-icon svg { width: 1em; height: 1em; fill: currentColor; }
+.tv-menu-label { flex: 1; min-width: 0; }
+.tv-menu-hint { flex-basis: 100%; margin-top: 1px; color: var(--text-dim); font-size: 12px; }
+.tv-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 `;
 
   // env: { call(method, params) -> Promise, root, rootElement, elementAt({x, y}), localPoint(clientX, clientY),
@@ -152,6 +163,117 @@
     const s = document.createElement('style');
     s.textContent = UI_CSS;
     (env.root === document ? document.head : env.root).appendChild(s);
+  }
+
+  // A menu's own icons, cached per module instance the same way a module drawing its own would (see
+  // assistant.js and others): a menu opened often should not re-fetch the same SVG every time.
+  const menuIconSvg = new Map();
+  const menuIconWait = new Map();
+  function menuIcon(name, style) {
+    const key = `${style || 'solid'}:${name}`;
+    if (menuIconSvg.has(key)) return Promise.resolve(menuIconSvg.get(key));
+    if (!menuIconWait.has(key)) menuIconWait.set(key, call('icons.svg', { name, style: style || 'solid' }).then((svg) => { menuIconSvg.set(key, svg); return svg; }).catch(() => { menuIconSvg.set(key, ''); return ''; }));
+    return menuIconWait.get(key);
+  }
+
+  // Only one tavern.menu is ever open at once (per module): { id, cleanup }.
+  let openMenu = null;
+  function closeMenu() {
+    if (!openMenu) return;
+    const { cleanup } = openMenu;
+    openMenu = null;
+    cleanup();
+  }
+  function showMenu({ id, items, at, anchor, className, maxWidth } = {}) {
+    const reopening = openMenu && openMenu.id === id;
+    closeMenu();
+    if (reopening) return { close: closeMenu }; // the same trigger clicked again: toggle off, do not reopen
+    const list = (items || []).filter(Boolean);
+    if (!list.length) return { close: closeMenu };
+    ensureUiStyles();
+    const menu = document.createElement('div');
+    menu.className = `tv-menu${className ? ` ${className}` : ''}`;
+    menu.setAttribute('role', 'menu');
+    if (maxWidth) menu.style.maxWidth = `${maxWidth}px`;
+    const rows = [];
+    for (const item of list) {
+      if (item.separator) {
+        const sep = document.createElement('div');
+        sep.className = 'tv-menu-sep';
+        sep.setAttribute('role', 'separator');
+        menu.appendChild(sep);
+        continue;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `tv-menu-item${item.danger ? ' danger' : ''}`;
+      b.setAttribute('role', 'menuitem');
+      if (item.disabled) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+      if (item.icon) {
+        const ic = document.createElement('span');
+        ic.className = 'tv-menu-icon';
+        b.appendChild(ic);
+        menuIcon(item.icon, item.regular ? 'regular' : 'solid').then((svg) => { if (svg) ic.innerHTML = svg; });
+      }
+      const label = document.createElement('span');
+      label.className = 'tv-menu-label';
+      label.textContent = item.label;
+      b.appendChild(label);
+      if (item.hint) {
+        const h = document.createElement('div');
+        h.className = 'tv-menu-hint';
+        h.textContent = item.hint;
+        b.appendChild(h);
+      }
+      if (!item.disabled && item.onClick) {
+        b.addEventListener('click', async () => {
+          let result;
+          try {
+            result = await item.onClick(item, b);
+          } catch (err) {
+            console.error(err);
+          }
+          if (result !== false) closeMenu(); // exactly `false` means the item armed itself and changed its own row; anything else closes
+        });
+      }
+      menu.appendChild(b);
+      rows.push(b);
+    }
+    (env.root === document ? document.body : env.root).appendChild(menu);
+    // Positioned like tavern.actions.pick's own menu and the date picker's popover: clamped inside the
+    // module's own root, by a point (a drop's own coordinates) or under an element (a "..." button),
+    // flipped above it when there is no room below.
+    const box = env.rootElement.getBoundingClientRect();
+    const w = env.rootElement.clientWidth || 400;
+    const h = env.rootElement.clientHeight || 400;
+    let x = (at && at.x) || 0;
+    let y = (at && at.y) || 0;
+    if (anchor && anchor.getBoundingClientRect) {
+      const r = anchor.getBoundingClientRect();
+      x = r.left - box.left;
+      y = r.bottom - box.top + 4;
+      if (y + menu.offsetHeight > h) y = r.top - box.top - menu.offsetHeight - 4;
+    }
+    x = Math.max(4, Math.min(x, w - menu.offsetWidth - 4));
+    y = Math.max(4, Math.min(y, h - menu.offsetHeight - 4));
+    menu.style.left = `${box.left + x}px`;
+    menu.style.top = `${box.top + y}px`;
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeMenu(); } };
+    const onOutside = (e) => { if (!menu.contains(e.target) && e.target !== anchor) closeMenu(); };
+    document.addEventListener('keydown', onKey, true);
+    env.root.addEventListener('pointerdown', onOutside, true);
+    openMenu = {
+      id,
+      cleanup: () => {
+        menu.remove();
+        document.removeEventListener('keydown', onKey, true);
+        env.root.removeEventListener('pointerdown', onOutside, true);
+        if (anchor && anchor.focus) { try { anchor.focus(); } catch (err) { /* not focusable */ } }
+      },
+    };
+    const first = rows.find((b) => !b.disabled);
+    if (first) first.focus();
+    return { close: closeMenu };
   }
 
   const tavern = {
@@ -815,6 +937,28 @@
     // to draw in (a module's server page), in which case keep the controls in the page.
     header: {
       set: (items) => call('header.set', { items }),
+    },
+
+    // A menu of actions -- the shared shape for a row's "..." button, a right-click, a joint's +, anything
+    // that is "here are some things you could do, pick one." Not for a single yes/no drop decision with
+    // nothing more to say afterward (see tavern.actions.pick for that).
+    //
+    // show({ id, items, at, anchor, className, maxWidth }): items are [{ id?, label, icon?, regular?, hint?,
+    // disabled?, danger?, separator?, onClick? }] (separator: true ignores every other field and draws a
+    // divider). Position with `at: { x, y }` (a drop's own coordinates) or `anchor` (an element to open
+    // under, like the button that opened it) -- give one, not both. `onClick(item)` runs on a click; unless
+    // it returns exactly `false`, or a promise that resolves to exactly `false`, the menu closes afterward --
+    // an item that needs to arm itself first ("Really delete?") returns false and changes its own label by
+    // calling show() again with the same id.
+    //
+    // Only one of these is ever open at a time (per module): showing one closes whatever else was open
+    // first. Showing the same id again while it is already open closes it instead of reopening it, so a
+    // "..." button toggles rather than always opening a fresh copy. Returns { close }.
+    menu: {
+      show({ id, items, at, anchor, className, maxWidth } = {}) {
+        return showMenu({ id, items, at, anchor, className, maxWidth });
+      },
+      close: () => closeMenu(),
     },
 
     // Layout: ask the host for a size, and set the title shown above the module.
