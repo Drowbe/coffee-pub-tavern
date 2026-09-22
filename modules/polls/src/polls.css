@@ -68,9 +68,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 #f-options { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-/* With the filter buttons in the titlebar (tavern.header), this row has nothing left to show. */
-.hosted-header .bar { display: none; }
-
 .tag.ref { cursor: pointer; }
 .tag.ref:hover { color: var(--text); border-color: var(--accent); }
 .tag b { color: var(--accent); font-weight: 600; }

@@ -7,17 +7,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .nav h2 { margin: 0 0 0 6px; font-size: 17px; }
-.seg { display: inline-flex; }
-.seg .btn:not(:first-child) { border-radius: 0; margin-left: -1px; }
-.seg .btn:first-child { border-radius: 6px 0 0 6px; }
-.seg .btn:last-child { border-radius: 0 6px 6px 0; }
-.ic { display: inline-flex; align-items: center; }
-.ic svg { width: 1em; height: 1em; fill: currentColor; }
-.seg .btn { padding-inline: 10px; }
-.seg .btn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-/* The view switcher moves into the pane's own titlebar once the host draws it there (see syncHeader); the
-   navigation beside it (Today, the month's name) has nowhere else to go, so it stays in the page either way. */
-.hosted-header #view-toggle { display: none; }
 .body { flex: 1; min-height: 0; overflow: auto; }
 
 /* month */

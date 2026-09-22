@@ -247,26 +247,58 @@
   // --- the item menu ------------------------------------------------------------------------------------------------
 
   const mayRemove = (it) => canEdit && (view === 'my' || it.kind !== 'photo' || it.by === me || isAdmin);
+  // Remove armed by id, cleared a few seconds after arming so a stray later click cannot remove unarmed.
+  const armedRemove = new Set();
   function openMenu(id, button) {
     const it = research.get(id);
     if (!it) return;
-    const menu = $('item-menu');
-    state.menuFor = id;
-    fill(menu, { 'edit-label': canEdit ? 'Edit' : 'View', 'copy-label': view === 'my' ? 'Copy to This room' : 'Copy to Mine' });
-    hide(menu.querySelector('[data-action="copy-to"]'), !canEdit || !personal || !inRoom || it.kind === 'photo');
-    hide(menu.querySelector('[data-action="ask-about"]'), !state.askAssistant || it.kind === 'photo');
-    hide(menu.querySelector('[data-action="delete"]'), !mayRemove(it));
-    menu.querySelector('[data-action="delete"] [data-slot="delete-label"]').textContent = 'Remove';
-    state.armed = null;
-    menu.hidden = false;
-    hydrate(menu);
-    const box = tavern.rootElement.getBoundingClientRect();
-    const b = button.getBoundingClientRect();
-    const left = Math.max(4, Math.min(b.right - box.left - menu.offsetWidth, box.width - menu.offsetWidth - 4));
-    menu.style.top = `${Math.max(4, b.bottom - box.top + 4)}px`;
-    menu.style.left = `${left}px`;
+    const items = [
+      { id: 'edit', label: canEdit ? 'Edit' : 'View', icon: 'pen', onClick: () => openEditor(id) },
+    ];
+    if (canEdit && personal && inRoom && it.kind !== 'photo') {
+      items.push({
+        id: 'copy-to',
+        label: view === 'my' ? 'Copy to This room' : 'Copy to Mine',
+        icon: 'share-nodes',
+        onClick: async () => {
+          const target = view === 'my' ? stores.room : stores.my;
+          try {
+            await ensureLoaded(view === 'my' ? 'room' : 'my');
+            await target.save({ ...it, id: '', by: me, at: new Date().toISOString(), ai: it.ai ? { ...it.ai, sources: [] } : null });
+            say(view === 'my' ? 'Copied to this room.' : 'Copied to Mine.', 2500);
+          } catch (err) { say('It could not be copied: ' + message(err)); }
+        },
+      });
+    }
+    if (state.askAssistant && it.kind !== 'photo') {
+      items.push({
+        id: 'ask-about',
+        label: 'Research this',
+        icon: 'wand-magic-sparkles',
+        onClick: () => { tavern.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000)); },
+      });
+    }
+    if (mayRemove(it)) {
+      items.push({
+        id: 'delete',
+        label: 'Remove',
+        icon: 'trash',
+        danger: true,
+        onClick: (item, b) => {
+          if (!armedRemove.has(id)) {
+            armedRemove.add(id);
+            const label = b.querySelector('.tv-menu-label');
+            if (label) label.textContent = 'Remove it?';
+            setTimeout(() => armedRemove.delete(id), 4000);
+            return false;
+          }
+          armedRemove.delete(id);
+          research.remove(id).catch((err) => say('It could not be removed: ' + message(err)));
+        },
+      });
+    }
+    tavern.menu.show({ id: `research-${id}`, anchor: button, items });
   }
-  const closeMenu = () => { hide($('item-menu'), true); state.menuFor = null; };
 
   // --- the dialog for one item --------------------------------------------------------------------------------------
 
@@ -525,40 +557,11 @@
   // --- clicks on the page -------------------------------------------------------------------------------------------
 
   root.addEventListener('click', async (ev) => {
-    const menu = $('item-menu');
-    if (!menu.hidden && !ev.target.closest('#item-menu') && !ev.target.closest('[data-action="menu"]')) closeMenu();
     const t = ev.target.closest('[data-action]');
     const cardEl = ev.target.closest('.rcard');
     if (t && t.dataset.action === 'menu' && cardEl) {
       ev.stopPropagation();
-      if (!menu.hidden && state.menuFor === cardEl.dataset.id) return closeMenu();
       return openMenu(cardEl.dataset.id, t);
-    }
-    if (t && menu.contains(t)) {
-      const id = state.menuFor;
-      const it = id && research.get(id);
-      const a = t.dataset.action;
-      if (!it) return closeMenu();
-      if (a === 'edit') { closeMenu(); openEditor(id); }
-      else if (a === 'ask-about' && state.askAssistant) {
-        closeMenu();
-        tavern.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000));
-      }
-      else if (a === 'copy-to') {
-        closeMenu();
-        const target = view === 'my' ? stores.room : stores.my;
-        try {
-          await ensureLoaded(view === 'my' ? 'room' : 'my');
-          await target.save({ ...it, id: '', by: me, at: new Date().toISOString(), ai: it.ai ? { ...it.ai, sources: [] } : null });
-          say(view === 'my' ? 'Copied to this room.' : 'Copied to Mine.', 2500);
-        } catch (err) { say('It could not be copied: ' + message(err)); }
-      } else if (a === 'delete' && mayRemove(it)) {
-        if (state.armed !== 'menu') { state.armed = 'menu'; t.querySelector('[data-slot="delete-label"]').textContent = 'Remove it?'; return; }
-        state.armed = null;
-        closeMenu();
-        try { await research.remove(id); } catch (err) { say('It could not be removed: ' + message(err)); }
-      }
-      return;
     }
     if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) tavern.refs.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
     if (t && t.dataset.action === 'suggest-tags') return suggestTags();
@@ -578,7 +581,7 @@
   }
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor();
+      if (!$('editor').hidden) closeEditor();
     } else if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('rcard')) {
       ev.target.click();
     }
@@ -641,7 +644,7 @@
     for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
     state.filter = ''; state.kind = ''; state.tags = [];
     $('filter').value = '';
-    closeMenu();
+    tavern.menu.close();
     closeEditor();
     state.uploads = [];
     links.clear();

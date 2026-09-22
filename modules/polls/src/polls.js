@@ -287,41 +287,25 @@
     return `<section class="group">${label ? `<h4>${label}</h4>` : ''}${shown.map(pollHtml).join('')}</section>`;
   }
 
-  // Open / Closed / All are icons in the titlebar when the host has one (a pane, or a module's own
-  // window); on the server page there is none, and the buttons stay in the page.
+  // Open / Closed / All is the toolbar's view switch: tavern.ui.viewSwitch draws it, tracks the current
+  // choice and only redraws when the value or a label (the open count) actually changes.
   const FILTERS = [
-    { id: 'open', icon: 'lock-open', title: 'Open' },
-    { id: 'closed', icon: 'lock', title: 'Closed' },
-    { id: 'all', icon: 'list', title: 'All' },
+    { id: 'open', label: 'Open' },
+    { id: 'closed', label: 'Closed' },
+    { id: 'all', label: 'All' },
   ];
-  let headerSig = '';
-  async function syncHeader(openCount) {
-    if (!tavern.header) return;
-    const sig = show + '|' + openCount;
-    if (sig === headerSig) return;
-    headerSig = sig;
-    let hosted = false;
-    try {
-      hosted = await tavern.header.set(FILTERS.map((f) => ({ ...f, on: f.id === show, title: f.id === 'open' && openCount ? `Open (${openCount})` : f.title })));
-    } catch (err) {
-      hosted = false;
-    }
-    $('app').classList.toggle('hosted-header', Boolean(hosted));
-  }
-  if (tavern.header) {
-    tavern.on('header', (e) => {
-      if (!FILTERS.some((f) => f.id === e.id)) return;
-      show = e.id;
-      render();
-    });
-  }
+  const filterSwitch = tavern.ui.viewSwitch({
+    id: 'filter',
+    options: FILTERS,
+    value: show,
+    onChange: (id) => { show = id; render(); },
+  });
 
   function render() {
-    for (const b of $('filter').querySelectorAll('[data-show]')) b.classList.toggle('on', b.dataset.show === show);
     const own = [...polls.values()].filter((x) => x.scope === 'own');
     const open = own.filter((x) => !isClosed(x.p)).length;
     $('count').textContent = open ? `${open} open` : '';
-    syncHeader(open);
+    filterSwitch.set(show, FILTERS.map((f) => (f.id === 'open' && open ? { ...f, label: `Open (${open})` } : f)));
 
     $('rooms').hidden = roomInfo.size === 0;
     if (roomInfo.size) {
@@ -638,12 +622,6 @@
 
   // --- wiring ---------------------------------------------------------------
 
-  $('filter').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-show]');
-    if (!b) return;
-    show = b.dataset.show;
-    render();
-  });
   $('rooms').addEventListener('click', (e) => {
     const b = e.target.closest('[data-room]');
     if (!b) return;

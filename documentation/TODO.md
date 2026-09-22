@@ -15,6 +15,22 @@ Built and only checked in a browser with the LiveKit connection unavailable, and
 
 Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions, progress and the four stages are in plans/plan-canvas.md. All four stages are built and need real calls and real windows to verify: close and rejoin the conference; the other person's tile leaving and returning; chat with no conference; a role without the conference; an aside with someone out of the conference; the conference floating and in its own window (tiles and audio after the move, hotkeys, popovers); the whole app popped out (the header and pane icons, idle sliding, full screen, header links); a module window's dock and float buttons; and Join with and the remembered layout across a reload, a dropped connection and a real leave. Then delete the plan.
 
+## Stage: a snap-to-grid layout
+
+Right now the stage is a series of docked columns plus float/window escape hatches -- a 1D
+layout, each pane just `{mode, order}`. The idea (not started): drag a pane and have it
+snap into a 2D grid cell, giving the same flexibility as today's dock/float but with real
+tiling -- more than one row, a pane spanning several cells, resizing to grid-cell
+boundaries. The same drag-to-snap mechanism would lay out the rooms (dashboard) page too,
+though a room card there is a static tile, not a live pane, so keep the generic snap
+mechanism separate from each page's own content rather than assuming identical reuse.
+
+Two things it must not break: a pane's DOM/media identity across a re-tile (the same
+guarantee the dock/float fix now gives every module), and today's "one flexible column
+never leaves a gap" rule needs a 2D-grid equivalent. Persistence would move from
+`{mode, order}` to `{row, col, rowSpan, colSpan}`. Comes after the module window framework
+work (titlebar/toolbar/content/action bar, see the SDK docs).
+
 ## Ideas and open questions
 
 Collected, none started:

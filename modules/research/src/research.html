@@ -42,13 +42,6 @@
   <div class="drop-hint" id="drop-hint" hidden><span class="ic" data-icon="note-sticky"></span> Drop to start a note about it</div>
   <main id="body" class="rs-body"></main>
 
-  <!-- the item menu: a popover the script places under the button that opened it -->
-  <div id="item-menu" class="menu" role="menu" hidden>
-    <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> <span data-slot="edit-label">Edit</span></button>
-    <button type="button" role="menuitem" data-action="copy-to"><span class="ic" data-icon="share-nodes"></span> <span data-slot="copy-label">Copy to This room</span></button>
-    <button type="button" role="menuitem" data-action="ask-about" hidden><span class="ic" data-icon="wand-magic-sparkles"></span> Research this</button>
-    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> <span data-slot="delete-label">Remove</span></button>
-  </div>
 
   <!-- an item, in a dialog. One form for all four kinds: the script sets data-kind on .editor-card and the CSS shows the rows that kind uses. -->
   <div id="editor" class="editor" hidden>

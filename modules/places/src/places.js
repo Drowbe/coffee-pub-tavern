@@ -221,31 +221,62 @@
     if (p.point) return geo.mapsLink(p.point.lat, p.point.lng, p.title, apple);
     return geo.mapsSearch(p.address || p.title, apple);
   }
+  // Delete armed by id, cleared a few seconds after arming so a stray later click cannot delete unarmed.
+  const armedDelete = new Set();
   function openMenu(id, button) {
     const p = places.get(id);
     if (!p) return;
-    const menu = $('item-menu');
-    state.menuFor = id;
-    fill(menu, { 'edit-label': canEdit ? 'Edit' : 'View' });
-    menu.querySelector('[data-action="open-in-maps"]').href = openLinkFor(p);
-    hide(menu.querySelector('[data-action="copy-coords"]'), !p.point);
-    hide(menu.querySelector('[data-action="delete"]'), !canEdit);
-    // Copy between mine and this room: the original stays where it is.
-    const share = menu.querySelector('[data-action="share"]');
-    hide(share, !canEdit || !personal || !inRoom || (view !== 'my' && view !== 'room'));
-    fill(share, { 'share-label': view === 'my' ? 'Share to this room' : 'Save to mine' });
-    menu.querySelector('[data-action="delete"]').lastChild.textContent = ' Delete';
-    state.armed = null;
-    menu.hidden = false;
-    hydrate(menu);
-    // Under the button, inside the module's own box.
-    const box = tavern.rootElement.getBoundingClientRect();
-    const b = button.getBoundingClientRect();
-    const left = Math.max(4, Math.min(b.right - box.left - menu.offsetWidth, box.width - menu.offsetWidth - 4));
-    menu.style.top = `${Math.max(4, b.bottom - box.top + 4)}px`;
-    menu.style.left = `${left}px`;
+    const canShare = canEdit && personal && inRoom && (view === 'my' || view === 'room'); // copy between mine and this room: the original stays where it is
+    const items = [
+      { id: 'edit', label: canEdit ? 'Edit' : 'View', icon: 'pen', onClick: () => openEditor(id) },
+    ];
+    if (canShare) {
+      items.push({
+        id: 'share',
+        label: view === 'my' ? 'Share to this room' : 'Save to mine',
+        icon: 'share-nodes',
+        onClick: async () => {
+          const target = view === 'my' ? stores.room : stores.my;
+          try {
+            await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: [info.user.key] });
+            say(view === 'my' ? 'Shared to this room.' : 'Saved to your places.');
+            setTimeout(() => say(''), 2500);
+          } catch (err) { say('It could not be copied: ' + ((err && err.message) || err)); }
+        },
+      });
+    }
+    items.push({ id: 'open-in-maps', label: 'Open in my maps app', icon: 'arrow-up-right-from-square', href: openLinkFor(p) });
+    if (p.point) {
+      items.push({
+        id: 'copy-coords',
+        label: 'Copy coordinates',
+        icon: 'copy',
+        onClick: async () => {
+          try { await navigator.clipboard.writeText(geo.coordsText(p.point.lat, p.point.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + geo.coordsText(p.point.lat, p.point.lng)); }
+        },
+      });
+    }
+    if (canEdit) {
+      items.push({
+        id: 'delete',
+        label: 'Delete',
+        icon: 'trash',
+        danger: true,
+        onClick: (item, b) => {
+          if (!armedDelete.has(id)) {
+            armedDelete.add(id);
+            const label = b.querySelector('.tv-menu-label');
+            if (label) label.textContent = 'Delete it?';
+            setTimeout(() => armedDelete.delete(id), 4000);
+            return false;
+          }
+          armedDelete.delete(id);
+          places.remove(id).catch((err) => say('It could not be deleted: ' + ((err && err.message) || err)));
+        },
+      });
+    }
+    tavern.menu.show({ id: `place-${id}`, anchor: button, items });
   }
-  const closeMenu = () => { hide($('item-menu'), true); state.menuFor = null; };
 
   // --- the dialog for one place -------------------------------------------------------------------------------------
 
@@ -409,40 +440,11 @@
   // --- clicks on the page -------------------------------------------------------------------------------------------
 
   root.addEventListener('click', async (ev) => {
-    const menu = $('item-menu');
-    if (!menu.hidden && !ev.target.closest('#item-menu') && !ev.target.closest('[data-action="menu"]')) closeMenu();
     const t = ev.target.closest('[data-action]');
     const rowEl = ev.target.closest('.place-row');
     if (t && t.dataset.action === 'menu' && rowEl) {
       ev.stopPropagation();
-      if (!menu.hidden && state.menuFor === rowEl.dataset.id) return closeMenu();
       return openMenu(rowEl.dataset.id, t);
-    }
-    if (t && menu.contains(t)) {
-      const id = state.menuFor;
-      const p = id && places.get(id);
-      const a = t.dataset.action;
-      if (!p) return closeMenu();
-      if (a === 'share') {
-        closeMenu();
-        const target = view === 'my' ? stores.room : stores.my;
-        try {
-          await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: view === 'my' ? [info.user.key] : [info.user.key] });
-          say(view === 'my' ? 'Shared to this room.' : 'Saved to your places.');
-          setTimeout(() => say(''), 2500);
-        } catch (err) { say('It could not be copied: ' + ((err && err.message) || err)); }
-      } else if (a === 'edit') { closeMenu(); openEditor(id); }
-      else if (a === 'open-in-maps') closeMenu();
-      else if (a === 'copy-coords' && p.point) {
-        closeMenu();
-        try { await navigator.clipboard.writeText(geo.coordsText(p.point.lat, p.point.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + geo.coordsText(p.point.lat, p.point.lng)); }
-      } else if (a === 'delete' && canEdit) {
-        if (state.armed !== 'menu') { state.armed = 'menu'; t.lastChild.textContent = ' Delete it?'; return; }
-        state.armed = null;
-        closeMenu();
-        try { await places.remove(id); } catch (err) { say('It could not be deleted: ' + ((err && err.message) || err)); }
-      }
-      return;
     }
     if (t && t.dataset.action === 'add-place') return openEditor(null);
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.cat = ''; $('filter').value = ''; return render(); }
@@ -467,7 +469,7 @@
   }
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor(); else if (!$('found').hidden) closeFound();
+      if (!$('editor').hidden) closeEditor(); else if (!$('found').hidden) closeFound();
     } else if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('place-row')) {
       ev.target.click();
     }
@@ -619,7 +621,7 @@
     hide(note, !VIEW_NOTES[view]);
     state.links = new Map();
     asked.clear();
-    closeMenu();
+    tavern.menu.close();
     closeFound();
     closeEditor();
     render();

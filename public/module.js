@@ -95,6 +95,7 @@ async function start() {
     ...(inPage ? { container: frame } : { frame }),
     bar: $('module-bar'),
     header: popout ? $('module-titlebar-custom') : null,
+    toolbar: $('module-toolbar'),
     scope,
     roomId,
     guestToken,

@@ -31,8 +31,9 @@ Other states replace the header and body: see "States".
 |---|---|
 | `[data-slot=title]` | the destination or trip name |
 | `[data-slot=dates]` | "Sat 3 – Fri 9 Oct 2026", already formatted |
-| `.views` with `button[data-view=days\|decisions\|bookings]` | the views; the shown one has `.on`. `.count` inside a button is a small number (open decisions) |
 | `[data-slot=summary]` | `.trip-facts` spans: days, travellers, open decisions; a `<b>` is the number |
+
+The four views (Days/Decisions/Bookings/Money) are the toolbar's view switch (`tavern.ui.viewSwitch`), not markup in `#trip` -- see `architecture-module-window.md`. `state.view` still drives which of the four bodies below renders.
 
 ## The day strip (`#daystrip`)
 

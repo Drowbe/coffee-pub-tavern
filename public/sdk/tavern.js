@@ -110,7 +110,7 @@
 .tv-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 .tv-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
 .tv-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
-.tv-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tv-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; box-sizing: border-box; }
 .tv-menu-item:hover, .tv-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
 .tv-menu-item:disabled { color: var(--text-dim); cursor: default; }
 .tv-menu-item.danger { color: var(--danger); }
@@ -204,14 +204,24 @@
         menu.appendChild(sep);
         continue;
       }
-      const b = document.createElement('button');
-      b.type = 'button';
+      // A real link (item.href) is an <a>, not a button: a menu item that just goes somewhere keeps the
+      // browser's own affordances (hover preview, middle-click a new tab, copy link address) rather than
+      // faking navigation from a click handler.
+      const b = item.href ? document.createElement('a') : document.createElement('button');
       b.className = `tv-menu-item${item.danger ? ' danger' : ''}`;
       b.setAttribute('role', 'menuitem');
+      if (item.href) {
+        b.href = item.href;
+        b.target = item.target || '_blank';
+        b.rel = 'noopener';
+      } else {
+        b.type = 'button';
+      }
       if (item.disabled) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
       if (item.icon) {
         const ic = document.createElement('span');
         ic.className = 'tv-menu-icon';
+        if (item.iconColor) ic.style.color = item.iconColor;
         b.appendChild(ic);
         menuIcon(item.icon, item.regular ? 'regular' : 'solid').then((svg) => { if (svg) ic.innerHTML = svg; });
       }
@@ -225,15 +235,17 @@
         h.textContent = item.hint;
         b.appendChild(h);
       }
-      if (!item.disabled && item.onClick) {
+      if (!item.disabled && (item.onClick || item.href)) {
         b.addEventListener('click', async () => {
           let result;
-          try {
-            result = await item.onClick(item, b);
-          } catch (err) {
-            console.error(err);
+          if (item.onClick) {
+            try {
+              result = await item.onClick(item, b);
+            } catch (err) {
+              console.error(err);
+            }
           }
-          if (result !== false) closeMenu(); // exactly `false` means the item armed itself and changed its own row; anything else closes
+          if (result !== false) closeMenu(); // exactly `false` means the item armed itself and changed its own row; anything else closes (a plain href item just closes, letting the click through to the link)
         });
       }
       menu.appendChild(b);
@@ -495,6 +507,36 @@
         };
         btn.addEventListener('click', open);
         return { close, refresh: () => { close(); showDow(); }, destroy: () => { close(); hint.remove(); wrap.parentNode.insertBefore(input, wrap); wrap.remove(); } };
+      },
+      // A labelled view or filter switch, drawn in the toolbar (see tavern.toolbar.set) -- its most common
+      // tool, so this is the one built for every module rather than each writing its own diffing and event
+      // wiring. { id, options: [{ id, label }], value, onChange }: draws once, then only redraws when the
+      // value or the options actually change (call set() every render; it no-ops when nothing did).
+      // Returns { set(value, options?), destroy() }.
+      viewSwitch: ({ id, options, value, onChange }) => {
+        let sig = '';
+        let current = value;
+        let opts = options;
+        const off = tavern.on('toolbar', (e) => {
+          if (e.id !== id) return;
+          current = e.value;
+          onChange(e.value);
+        });
+        const draw = () => {
+          const s = `${current}|${JSON.stringify(opts)}`;
+          if (s === sig) return;
+          sig = s;
+          tavern.toolbar.set([{ type: 'tabs', id, value: current, options: opts }]).catch(() => {});
+        };
+        draw();
+        return {
+          set(newValue, newOptions) {
+            current = newValue;
+            if (newOptions) opts = newOptions;
+            draw();
+          },
+          destroy: off,
+        };
       },
     },
 
@@ -922,30 +964,60 @@
 
     // The module's action bar: buttons the host draws along the bottom of the
     // module (in the room's bottom row when docked, lined up with the video
-    // toolbar and the chat box). set([{ id, label, icon, primary, disabled }]);
-    // a click arrives as the 'bar' event with the button's id.
+    // toolbar and the chat box). set([{ id, label, icon, primary, disabled, overflow }]);
+    // a click arrives as the 'bar' event with the button's id. More than 5 items (or any
+    // item marked `overflow: true`) collapse into a host-drawn "..." at the end.
     bar: {
       // An item { id, type: 'quickadd', placeholder, label } is a text field with a small + button instead; the
-      // 'bar' event then carries { id, value }, the text typed (empty if none).
+      // 'bar' event then carries { id, value }, the text typed (empty if none). A quickadd item is never
+      // pushed into the "..." -- it is exempt from the overflow count.
       set: (items) => call('bar.set', { items }),
     },
 
     // Icon buttons in the module's titlebar, ahead of the pane's own buttons and set off by a pipe:
-    // set([{ id, icon, title, on, regular, disabled }]), where `icon` is a Font Awesome name (solid, or
+    // set([{ id, icon, title, on, regular, disabled, overflow }]), where `icon` is a Font Awesome name (solid, or
     // regular with `regular: true`) and `on` marks the current choice. A click arrives as the 'header'
     // event with the button's id. Resolves true when the host drew them, false when it has no titlebar
-    // to draw in (a module's server page), in which case keep the controls in the page.
+    // to draw in (a module's server page), in which case keep the controls in the page. More than 5 items
+    // (or any item marked `overflow: true`, e.g. a destructive one you always want tucked away) collapse
+    // into a host-drawn "..." at the end -- the same idea as tavern.menu.show, but for the host's own chrome.
     header: {
       set: (items) => call('header.set', { items }),
+    },
+
+    // An optional row under the titlebar, above the content: a small kit of reusable tools about the
+    // module's current state -- a view switch, a filter, a progress bar, a slider -- not window-level
+    // actions (those are the titlebar) and not the module's primary inputs (those are the action bar).
+    // It is not a second row of titlebar icons: reach for 'tabs' (text, not icons) for a view switch, and
+    // use 'button' sparingly, for the one action that goes with the toolbar's own state, not a place to
+    // relocate the titlebar's row. set([item, ...]) where item is one of:
+    //   { type: 'text', text }                                             -- plain dim label
+    //   { type: 'tabs', id, options: [{ id, label }], value }              -- a segmented switch (labels,
+    //       not icons); a click arrives as the 'toolbar' event { id, value: optionId }
+    //   { type: 'progress', value, label? }                               -- a read-only bar, value 0-100
+    //   { type: 'slider', id, value, min?, max?, step?, label?, disabled? } -- a range input; moving it
+    //       arrives as the 'toolbar' event { id, value } (min 0, max 100, step 1 unless given)
+    //   { type: 'button', id, label?, icon?, on?, primary?, disabled?, overflow? } (the default type) --
+    //       a click arrives as the 'toolbar' event { id }
+    //   { separator: true }                                                -- a vertical divider
+    // Only 'button' items count toward the 5-item cap and collapse into a host-drawn "..."; text, tabs,
+    // progress and slider items always show. Resolves true when the host drew it, false when it has
+    // nowhere to (a module's server page), same as header.set.
+    toolbar: {
+      set: (items) => call('toolbar.set', { items }),
     },
 
     // A menu of actions -- the shared shape for a row's "..." button, a right-click, a joint's +, anything
     // that is "here are some things you could do, pick one." Not for a single yes/no drop decision with
     // nothing more to say afterward (see tavern.actions.pick for that).
     //
-    // show({ id, items, at, anchor, className, maxWidth }): items are [{ id?, label, icon?, regular?, hint?,
-    // disabled?, danger?, separator?, onClick? }] (separator: true ignores every other field and draws a
-    // divider). Position with `at: { x, y }` (a drop's own coordinates) or `anchor` (an element to open
+    // show({ id, items, at, anchor, className, maxWidth }): items are [{ id?, label, icon?, iconColor?,
+    // regular?, hint?, disabled?, danger?, separator?, href?, target?, onClick? }] (separator: true
+    // ignores every other field and draws a divider; iconColor is a CSS color for that item's own icon,
+    // for a fixed set of kinds people tell apart by color elsewhere in the module -- most menus don't need
+    // it). An item that just goes somewhere gives `href` instead of `onClick` -- a real link (target
+    // "_blank" unless given), not a click handler faking navigation, so hovering, copying and opening in a
+    // new tab all still work. Position with `at: { x, y }` (a drop's own coordinates) or `anchor` (an element to open
     // under, like the button that opened it) -- give one, not both. `onClick(item)` runs on a click; unless
     // it returns exactly `false`, or a promise that resolves to exactly `false`, the menu closes afterward --
     // an item that needs to arm itself first ("Really delete?") returns false and changes its own label by
@@ -965,9 +1037,9 @@
     resize: (size) => call('resize', size),
     setTitle: (title) => call('setTitle', { title }),
 
-    // Events: 'bar' ({ id }) when an action bar button is clicked, 'change' ({ key, value, version, deleted, scope, by }) whenever
-    // stored data changes, 'schedule' ({ key, payload }) when a schedule fires,
-    // 'theme' (the new theme).
+    // Events: 'bar' ({ id }) when an action bar button is clicked, 'header' ({ id }) for a titlebar icon,
+    // 'toolbar' ({ id, value? }) for a toolbar item, 'change' ({ key, value, version, deleted, scope, by })
+    // whenever stored data changes, 'schedule' ({ key, payload }) when a schedule fires, 'theme' (the new theme).
     on(event, fn) {
       if (!listeners.has(event)) listeners.set(event, new Set());
       listeners.get(event).add(fn);

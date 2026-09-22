@@ -220,6 +220,72 @@ function ptrDrop(x, y) {
   ptrEnd();
 }
 
+// A host-drawn "..." dropdown for whatever a header, action bar or toolbar row didn't have room for --
+// the host's own chrome, so it cannot use a module's tavern.menu.show (that draws inside the module's own
+// frame). Only one is ever open at once across every mounted module, same rule as tavern.menu.show.
+let openOverflow = null;
+function closeOverflow() {
+  if (!openOverflow) return;
+  const { cleanup } = openOverflow;
+  openOverflow = null;
+  cleanup();
+}
+function toggleOverflow(trigger, items) {
+  const reopening = openOverflow && openOverflow.trigger === trigger;
+  closeOverflow();
+  if (reopening || !items.length) return;
+  const doc = trigger.ownerDocument;
+  const menu = doc.createElement('div');
+  menu.className = 'host-menu';
+  menu.setAttribute('role', 'menu');
+  for (const item of items) {
+    const b = doc.createElement('button');
+    b.type = 'button';
+    b.className = 'host-menu-item';
+    b.disabled = Boolean(item.disabled);
+    if (item.icon) {
+      const i = doc.createElement('i');
+      i.className = `fa-${item.regular ? 'regular' : 'solid'} fa-${item.icon} fa-fw`;
+      i.setAttribute('aria-hidden', 'true');
+      b.appendChild(i);
+    }
+    const label = doc.createElement('span');
+    label.textContent = item.label || item.title || '';
+    b.appendChild(label);
+    if (!item.disabled) b.addEventListener('click', () => { closeOverflow(); item.onPick(); });
+    menu.appendChild(b);
+  }
+  const host = trigger.closest('.module-panel, .module-docked, .module') || doc.body;
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  host.appendChild(menu);
+  const hostBox = host.getBoundingClientRect();
+  const t = trigger.getBoundingClientRect();
+  menu.style.left = `${Math.max(4, Math.min(t.left - hostBox.left, hostBox.width - menu.offsetWidth - 4))}px`;
+  menu.style.top = `${t.bottom - hostBox.top + 4}px`;
+  const onKey = (e) => { if (e.key === 'Escape') closeOverflow(); };
+  const onOutside = (e) => { if (!menu.contains(e.target) && e.target !== trigger) closeOverflow(); };
+  doc.addEventListener('keydown', onKey, true);
+  doc.addEventListener('pointerdown', onOutside, true);
+  openOverflow = {
+    trigger,
+    cleanup: () => {
+      menu.remove();
+      doc.removeEventListener('keydown', onKey, true);
+      doc.removeEventListener('pointerdown', onOutside, true);
+    },
+  };
+}
+
+// Splits a cleaned item list into what a header/bar/toolbar row shows directly and what collapses into
+// its "..." (an item marked `overflow: true`, or whatever doesn't fit in `max` slots including the "...").
+function splitOverflow(items, max) {
+  const shown = [];
+  const hidden = [];
+  for (const item of items) (item.overflow ? hidden : shown).push(item);
+  while (shown.length + (hidden.length ? 1 : 0) > max) hidden.unshift(shown.pop());
+  return { shown, hidden };
+}
+
 // Mounts one module: into an empty <iframe> (`frame`; sandboxed, with only the SDK to reach the page), or,
 // for a module that runs in the page, into an empty element (`container`), where it lives in a shadow
 // root of its own, beside the page's own elements, with the page's power (see the run modes in
@@ -227,7 +293,7 @@ function ptrDrop(x, y) {
 //
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, onOpenRef = null, onOpenPage = null, onOpenModule = null }) {
+export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
 
@@ -471,7 +537,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // The module's action bar: the host draws the buttons into `bar` and sends
     // clicks back as a 'bar' event.
     async 'bar.set'({ items }) {
-      const clean = (Array.isArray(items) ? items : []).slice(0, 6).map((i) => ({
+      const clean = (Array.isArray(items) ? items : []).slice(0, 10).map((i) => ({
         id: String(i?.id ?? '').slice(0, 40),
         label: String(i?.label ?? '').slice(0, 30),
         icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
@@ -481,10 +547,14 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         input: i?.type === 'quickadd',
         iconOnly: Boolean(i?.iconOnly),
         placeholder: String(i?.placeholder ?? '').slice(0, 60),
+        // A quick-add is never collapsed into the "..." -- it doesn't count toward the cap either.
+        overflow: Boolean(i?.overflow) && i?.type !== 'quickadd',
       })).filter((i) => i.id && (i.label || i.input));
       if (bar) {
         bar.textContent = '';
-        for (const item of clean) {
+        const quickadds = clean.filter((i) => i.input);
+        const { shown, hidden } = splitOverflow(clean.filter((i) => !i.input), 5);
+        const draw = (item) => {
           if (item.input) {
             const form = document.createElement('form');
             form.className = 'quick-add';
@@ -510,7 +580,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
               field.value = '';
             });
             bar.appendChild(form);
-            continue;
+            return;
           }
           const b = document.createElement('button');
           b.type = 'button';
@@ -526,6 +596,22 @@ export function mountModule({ module, frame = null, container = null, scope, roo
           if (!(item.iconOnly && item.icon)) b.append(item.label);
           b.addEventListener('click', () => send('bar', { id: item.id }));
           bar.appendChild(b);
+        };
+        for (const item of quickadds) draw(item);
+        for (const item of shown) draw(item);
+        if (hidden.length) {
+          const more = document.createElement('button');
+          more.type = 'button';
+          more.className = 'btn bar-icon bar-more';
+          more.title = 'More';
+          more.setAttribute('aria-label', 'More');
+          more.setAttribute('aria-haspopup', 'menu');
+          const i = document.createElement('i');
+          i.className = 'fa-solid fa-ellipsis fa-fw';
+          i.setAttribute('aria-hidden', 'true');
+          more.appendChild(i);
+          more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
+          bar.appendChild(more);
         }
         bar.hidden = clean.length === 0;
       }
@@ -537,35 +623,191 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // so a module can keep its own controls in the page when it is not.
     async 'header.set'({ items }) {
       if (!header) return false;
-      const clean = (Array.isArray(items) ? items : []).slice(0, 6).map((i) => ({
+      const clean = (Array.isArray(items) ? items : []).slice(0, 10).map((i) => ({
         id: String(i?.id ?? '').slice(0, 40),
         title: String(i?.title ?? '').slice(0, 40),
         icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
         regular: Boolean(i?.regular),
         on: Boolean(i?.on),
         disabled: Boolean(i?.disabled),
+        overflow: Boolean(i?.overflow),
       })).filter((i) => i.id && i.icon);
+      const { shown, hidden } = splitOverflow(clean, 5);
       header.textContent = '';
-      for (const item of clean) {
-        const b = header.ownerDocument.createElement('button');
+      const doc = header.ownerDocument;
+      for (const item of shown) {
+        const b = doc.createElement('button');
         b.type = 'button';
         b.className = `msg-btn${item.on ? ' on' : ''}`;
         b.title = item.title;
         b.setAttribute('aria-label', item.title || item.id);
         b.setAttribute('aria-pressed', String(item.on));
         b.disabled = item.disabled;
-        const i = header.ownerDocument.createElement('i');
+        const i = doc.createElement('i');
         i.className = `fa-${item.regular ? 'regular' : 'solid'} fa-${item.icon} fa-fw`;
         i.setAttribute('aria-hidden', 'true');
         b.appendChild(i);
         b.addEventListener('click', () => send('header', { id: item.id }));
         header.appendChild(b);
       }
+      if (hidden.length) {
+        const more = doc.createElement('button');
+        more.type = 'button';
+        more.className = 'msg-btn';
+        more.title = 'More';
+        more.setAttribute('aria-label', 'More');
+        more.setAttribute('aria-haspopup', 'menu');
+        const i = doc.createElement('i');
+        i.className = 'fa-solid fa-ellipsis fa-fw';
+        i.setAttribute('aria-hidden', 'true');
+        more.appendChild(i);
+        more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
+        header.appendChild(more);
+      }
       if (clean.length) {
-        const pipe = header.ownerDocument.createElement('span');
+        const pipe = doc.createElement('span');
         pipe.className = 'header-pipe';
         header.appendChild(pipe);
       }
+      return true;
+    },
+    // An optional row under the titlebar: filters, tabs, a progress bar -- see tavern.toolbar.set.
+    async 'toolbar.set'({ items }) {
+      if (!toolbar) return false;
+      const clean = (Array.isArray(items) ? items : []).slice(0, 12).map((i) => {
+        if (i?.separator) return { separator: true };
+        const type = ['tabs', 'text', 'progress', 'slider'].includes(i?.type) ? i.type : 'button';
+        if (type === 'text') return { type, text: String(i?.text ?? '').slice(0, 80) };
+        if (type === 'progress') return { type, value: Math.max(0, Math.min(100, Number(i?.value) || 0)), label: String(i?.label ?? '').slice(0, 40) };
+        if (type === 'slider') {
+          const min = Number.isFinite(Number(i?.min)) ? Number(i.min) : 0;
+          const max = Number.isFinite(Number(i?.max)) ? Number(i.max) : 100;
+          const step = Number.isFinite(Number(i?.step)) && Number(i.step) > 0 ? Number(i.step) : 1;
+          return {
+            type,
+            id: String(i?.id ?? '').slice(0, 40),
+            min,
+            max: max > min ? max : min + 1,
+            step,
+            value: Math.max(min, Math.min(max, Number.isFinite(Number(i?.value)) ? Number(i.value) : min)),
+            label: String(i?.label ?? '').slice(0, 40),
+            disabled: Boolean(i?.disabled),
+          };
+        }
+        if (type === 'tabs') {
+          return {
+            type,
+            id: String(i?.id ?? '').slice(0, 40),
+            value: String(i?.value ?? '').slice(0, 40),
+            options: (Array.isArray(i?.options) ? i.options : []).slice(0, 8).map((o) => ({
+              id: String(o?.id ?? '').slice(0, 40),
+              label: String(o?.label ?? '').slice(0, 30),
+            })).filter((o) => o.id && o.label),
+          };
+        }
+        return {
+          type: 'button',
+          id: String(i?.id ?? '').slice(0, 40),
+          label: String(i?.label ?? '').slice(0, 30),
+          icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
+          on: Boolean(i?.on),
+          primary: Boolean(i?.primary),
+          disabled: Boolean(i?.disabled),
+          overflow: Boolean(i?.overflow),
+        };
+      }).filter((i) => i.separator || i.type === 'text' || i.type === 'progress'
+        || (i.type === 'slider' && i.id)
+        || (i.type === 'tabs' && i.id && i.options.length)
+        || (i.type === 'button' && i.id && (i.label || i.icon)));
+      const doc = toolbar.ownerDocument;
+      toolbar.textContent = '';
+      const buttons = clean.filter((i) => i.type === 'button');
+      const { shown, hidden: overflow } = splitOverflow(buttons, 5);
+      const shownIds = new Set(shown.map((i) => i.id));
+      for (const item of clean) {
+        if (item.type === 'button' && !shownIds.has(item.id)) continue;
+        if (item.separator) { const s = doc.createElement('span'); s.className = 'tb-sep'; toolbar.appendChild(s); continue; }
+        if (item.type === 'text') { const s = doc.createElement('span'); s.className = 'tb-text'; s.textContent = item.text; toolbar.appendChild(s); continue; }
+        if (item.type === 'progress') {
+          const wrap = doc.createElement('span');
+          wrap.className = 'tb-progress';
+          if (item.label) wrap.setAttribute('aria-label', item.label);
+          const fill = doc.createElement('span');
+          fill.className = 'tb-progress-fill';
+          fill.style.width = `${item.value}%`;
+          wrap.appendChild(fill);
+          toolbar.appendChild(wrap);
+          continue;
+        }
+        if (item.type === 'slider') {
+          const wrap = doc.createElement('span');
+          wrap.className = 'tb-slider';
+          if (item.label) {
+            const lbl = doc.createElement('span');
+            lbl.className = 'tb-slider-label';
+            lbl.textContent = item.label;
+            wrap.appendChild(lbl);
+          }
+          const input = doc.createElement('input');
+          input.type = 'range';
+          input.min = String(item.min);
+          input.max = String(item.max);
+          input.step = String(item.step);
+          input.value = String(item.value);
+          input.disabled = item.disabled;
+          input.setAttribute('aria-label', item.label || item.id);
+          input.addEventListener('input', () => send('toolbar', { id: item.id, value: Number(input.value) }));
+          wrap.appendChild(input);
+          toolbar.appendChild(wrap);
+          continue;
+        }
+        if (item.type === 'tabs') {
+          const seg = doc.createElement('span');
+          seg.className = 'tb-tabs';
+          for (const opt of item.options) {
+            const b = doc.createElement('button');
+            b.type = 'button';
+            b.className = `tb-tab${opt.id === item.value ? ' on' : ''}`;
+            b.textContent = opt.label;
+            b.addEventListener('click', () => send('toolbar', { id: item.id, value: opt.id }));
+            seg.appendChild(b);
+          }
+          toolbar.appendChild(seg);
+          continue;
+        }
+        const b = doc.createElement('button');
+        b.type = 'button';
+        b.className = `tb-btn${item.primary ? ' primary' : ''}${item.on ? ' on' : ''}`;
+        b.disabled = item.disabled;
+        if (item.icon) {
+          const i = doc.createElement('i');
+          i.className = `fa-solid fa-${item.icon} fa-fw`;
+          i.setAttribute('aria-hidden', 'true');
+          b.appendChild(i);
+          if (item.label) b.append(' ');
+        }
+        if (item.label) b.append(item.label);
+        if (!item.icon && !item.label) { b.append(item.id); }
+        b.setAttribute('aria-label', item.label || item.icon || item.id);
+        b.addEventListener('click', () => send('toolbar', { id: item.id }));
+        toolbar.appendChild(b);
+      }
+      if (overflow.length) {
+        const more = doc.createElement('button');
+        more.type = 'button';
+        more.className = 'tb-btn tb-more';
+        more.title = 'More';
+        more.setAttribute('aria-label', 'More');
+        more.setAttribute('aria-haspopup', 'menu');
+        const i = doc.createElement('i');
+        i.className = 'fa-solid fa-ellipsis fa-fw';
+        i.setAttribute('aria-hidden', 'true');
+        more.appendChild(i);
+        more.addEventListener('click', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));
+        toolbar.appendChild(more);
+      }
+      toolbar.hidden = clean.length === 0;
+      if (onToolbar) onToolbar(clean.length > 0);
       return true;
     },
     // A drag of a pointer to one of this module's items began or ended (see tavern.refs.drag).

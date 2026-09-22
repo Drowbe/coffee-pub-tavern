@@ -35,6 +35,8 @@
   /* The height of every control in the shared bottom row (the call toolbar's buttons, the chat's input and
      Send, each module's quick-add), so they line up whatever cell they are in. */
   --bar-control-h: 38px;
+  /* The one height a module's optional toolbar row (under the titlebar) has, wherever it appears. */
+  --toolbar-h: 34px;
   /* Themeable on their own (Manage > Theme); each follows the tokens above
      until a theme sets it. */
   --header-bg: var(--bg);
@@ -3872,6 +3874,193 @@ body.conference-window {
   display: inline-flex;
   gap: 2px;
   flex: none;
+}
+
+/* A module's optional toolbar row, under the titlebar and above its content: filters, tabs, a progress
+   bar -- see tavern.toolbar.set. Sits inside the same flex column as the titlebar and the content in both
+   a docked and a floating module, so no layout rule needs to know which one it is. */
+.mod-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: var(--toolbar-h);
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--shade);
+  overflow: hidden;
+}
+
+.mod-toolbar[hidden] {
+  display: none;
+}
+
+.tb-text {
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tb-sep {
+  align-self: stretch;
+  width: 1px;
+  margin: 6px 0;
+  background: var(--border);
+}
+
+.tb-tabs {
+  display: inline-flex;
+  flex: none;
+}
+
+.tb-tab {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tb-tab:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.tb-tab:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.tb-tab:not(:first-child) {
+  margin-left: -1px;
+}
+
+.tb-tab.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tb-progress {
+  position: relative;
+  flex: 1;
+  min-width: 40px;
+  max-width: 160px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.tb-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+}
+
+.tb-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.tb-slider-label {
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tb-slider input[type="range"] {
+  width: 90px;
+  accent-color: var(--accent);
+}
+
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tb-btn:hover,
+.tb-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  outline: none;
+}
+
+.tb-btn:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.tb-btn.on,
+.tb-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.tb-btn.tb-more {
+  margin-left: auto;
+}
+
+/* The host-drawn "..." for a header, action bar or toolbar row that ran out of room (module-host.js's
+   toggleOverflow) -- the same idea as a module's own tavern.menu.show, but for the host's own chrome, so
+   it can't reach into a module's sandboxed frame to draw there. */
+.host-menu {
+  position: absolute;
+  z-index: 9;
+  min-width: 160px;
+  max-width: 280px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
+.host-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.host-menu-item i {
+  flex: none;
+  width: 1em;
+}
+
+.host-menu-item:hover,
+.host-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: none;
+}
+
+.host-menu-item:disabled {
+  color: var(--text-dim);
+  cursor: default;
 }
 
 .dock-frame {

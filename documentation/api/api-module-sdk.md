@@ -250,6 +250,7 @@ Make the picture the size you want (about 2000 px on the long edge) and a thumbn
 Anything more than one module needs belongs in the SDK, not copied into each module. Use these rather than writing your own; they follow the theme and work the same in a frame and in the page.
 
 - `tavern.ui.datePicker(input, { range, clearable })` adds a calendar button to a date field (`<input type="date">` or `type="datetime-local"`). It opens a small month with the weekdays across the top, shows the weekday of what the field holds under it, closes on Escape or a click elsewhere, and leaves typing working. `range` is a function returning `[from, to]` to shade a span of days, and `clearable` adds a **Clear** button. A `datetime-local` field keeps its time (12:00 if it had none). It returns `{ close, refresh, destroy }`: call `refresh()` after you set the field's value from code, so the weekday shown is current.
+- `tavern.ui.viewSwitch({ id, options, value, onChange })` draws a labelled view or filter switch in the toolbar (see "The toolbar" below) and owns the boilerplate every module drawing one otherwise repeats: it only calls `tavern.toolbar.set` when the value or an option's label actually changed, and wires the `toolbar` event for you. Call `.set(value, options?)` on every render (it no-ops when nothing changed) rather than diffing and calling `toolbar.set` yourself.
 - `tavern.people()` returns the people of the room a panel is in, `[{ key, name }]` (empty outside a room panel), for choosing a person ("whose is it"): store their `key`, not the name.
 - `tavern.ui.icon(name, style)` returns a Font Awesome icon ("circle-right", style "solid", "regular" or "brands") as inline SVG text, coloured by the text colour, for a module that cannot load the icon font (a sandboxed frame). It rejects if there is no such icon.
 - `tavern.actions.pick(items, point)` is the small menu described under Actions.
@@ -259,17 +260,41 @@ When you find yourself writing something a second module might also need, ask fo
 
 ### The titlebar
 
-A module shown as a pane (docked or floating), or in a window of its own, has a titlebar the host draws with the module's name and the pane's buttons. `tavern.header.set([...])` adds icon buttons of the module's own to it, ahead of the pane's buttons and set off by a pipe: a good place for a filter or a view switch that would otherwise repeat the module's name above its content.
+A module shown as a pane (docked or floating), or in a window of its own, has a titlebar the host draws with the module's name and the pane's buttons. `tavern.header.set([...])` adds icon buttons of the module's own to it, ahead of the pane's buttons and set off by a pipe: for a window-level action (pin the pane open, say), not a filter or a view switch -- those belong in the toolbar (below), as `tabs`, not more icons here.
 
 ```js
 const drawn = await tavern.header.set([
-  { id: 'open', icon: 'circle', regular: true, title: 'Open', on: true },   // regular: true for the outline style
-  { id: 'done', icon: 'circle-check', title: 'Done' },
+  { id: 'pin', icon: 'thumbtack', title: 'Keep this pane open', on: pinned },
 ]);
 tavern.on('header', (e) => { /* e.id is the button clicked */ });
 ```
 
-Up to six buttons; `icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true.
+`icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true. More than five collapse into a host-drawn "..." at the end (see Overflow, below); mark one `overflow: true` to always keep it there (a destructive one, say) regardless of how many you set.
+
+### The toolbar
+
+An optional row the host draws under the titlebar, above the content: a small kit of reusable tools about the module's current state -- not window-level actions (the titlebar) and not the module's primary inputs (the action bar), and not a second row of titlebar icons. For the common case, a view or filter switch, reach for `tavern.ui.viewSwitch` (see "Shared tools") rather than building the `tabs` item yourself. `tavern.toolbar.set([...])` takes a list of items, each one of:
+
+```js
+tavern.toolbar.set([
+  { type: 'text', text: '12 of 40' },
+  { separator: true },
+  { type: 'tabs', id: 'view', value: 'mine', options: [{ id: 'mine', label: 'Mine' }, { id: 'all', label: 'All' }] },
+  { type: 'progress', value: 62, label: 'Importing' },
+  { type: 'slider', id: 'zoom', value: 5, min: 1, max: 10, label: 'Zoom' },
+  { id: 'sync', type: 'button', label: 'Sync now', icon: 'rotate' },
+]);
+tavern.on('toolbar', ({ id, value }) => { /* a tabs or slider item's click/move also carries `value` */ });
+```
+
+- `{ type: 'text', text }` -- a plain, dim label.
+- `{ type: 'tabs', id, options: [{ id, label }], value }` -- a segmented switch (labels, not icons); a click sends `{ id, value: optionId }`.
+- `{ type: 'progress', value, label? }` -- a read-only bar, `value` 0-100.
+- `{ type: 'slider', id, value, min?, max?, step?, label?, disabled? }` -- a range input (min 0, max 100, step 1 unless given); moving it sends `{ id, value }`.
+- `{ type: 'button', id, label?, icon?, on?, primary?, disabled?, overflow? }` (the default type when `type` is left out) -- a click sends `{ id }`. Use this sparingly, for the one action that goes with the toolbar's own state (a Sync button beside an import's progress) -- not a place to relocate the titlebar's row of icons.
+- `{ separator: true }` -- a vertical divider, ignoring every other field.
+
+Only `button` items count toward the five-item cap and collapse into the "..." (text, tabs, progress and slider items always show, since they say something, or are themselves the control, rather than being one more action). Resolves `true`/`false` the same way `header.set` does.
 
 ### An action menu
 
@@ -290,7 +315,7 @@ tavern.menu.show({
 });
 ```
 
-Each item is `{ id?, label, icon?, regular?, hint?, disabled?, danger?, separator?, onClick? }`; `separator: true` draws a divider and ignores every other field. Position with `at` (a point) or `anchor` (an element to open under, flipped above it when there is no room below) — give one, not both. `onClick(item, button)` runs on a click and the menu closes afterward, unless it returns exactly `false` (or a promise that resolves to `false`), which leaves it open for an item that needs to arm itself first, as `delete` does above — mutate the clicked button's own `.tv-menu-label` to change what it says. Only one of these is ever open at once per module; showing a new one closes whatever was open, and showing the same `id` again toggles it closed rather than reopening it, so a "..." button behaves the way it looks like it should.
+Each item is `{ id?, label, icon?, iconColor?, regular?, hint?, disabled?, danger?, separator?, href?, target?, onClick? }`; `separator: true` draws a divider and ignores every other field. `iconColor` sets that one icon's color (a CSS color), for a menu whose items are a fixed set of kinds people already tell apart by color elsewhere in the module (Planner's marker types, say) — most menus don't need it; `danger` already covers the one-off "this is destructive" case. An item that just opens somewhere else gives `href` instead of `onClick` — a real `<a>` (`target` "_blank" unless given), so hovering, copying the link and opening it in a new tab all still work, rather than a click handler faking navigation with `window.open`. Position with `at` (a point) or `anchor` (an element to open under, flipped above it when there is no room below) — give one, not both. `onClick(item, button)` runs on a click and the menu closes afterward, unless it returns exactly `false` (or a promise that resolves to `false`), which leaves it open for an item that needs to arm itself first, as `delete` does above — mutate the clicked button's own `.tv-menu-label` to change what it says. Only one of these is ever open at once per module; showing a new one closes whatever was open, and showing the same `id` again toggles it closed rather than reopening it, so a "..." button behaves the way it looks like it should.
 
 ### Events and actions: reacting to and asking things of other modules
 
@@ -331,7 +356,9 @@ tavern.bar.set([{ id: 'add', label: 'Add event', icon: 'plus', primary: true }])
 tavern.on('bar', ({ id }) => { if (id === 'add') openEditor(); });
 ```
 
-Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome `icon` name, and `primary` and `disabled` flags; up to six. Setting an empty list hides the bar, and a docked module then fills the whole column. Set the bar again whenever what the buttons can do changes.
+Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome `icon` name, and `primary` and `disabled` flags. Setting an empty list hides the bar, and a docked module then fills the whole column. Set the bar again whenever what the buttons can do changes. More than five collapse into a host-drawn "..." at the end (a quick-add is exempt, and never counts toward the five); mark an item `overflow: true` to always keep it there.
+
+**Overflow.** `header.set`, `bar.set` and `toolbar.set` each show at most five items before folding the rest into a "..." the host draws and opens (an item marked `overflow: true` goes there regardless of how many you set, for something you always want tucked away, like Delete). It is drawn by the host, not `tavern.menu.show` -- that one draws inside your own module, and a titlebar or bar button is the host's own chrome. You never build it yourself; it is just what setting more items than fit does. See [architecture-module-window](../architecture/architecture-module-window.md) for the shape all four zones follow.
 
 **Text nobody here wrote.** `tavern.util.esc(text)` makes text safe to put in HTML. `tavern.util.markdown(text)` turns a small, safe subset of Markdown into HTML: `#`/`##`/`###` headings, `**bold**`, `*italic*`/`_italic_`, `` `code` ``, fenced ` ``` ` code blocks, `-`/`*` and `1.` lists, `> ` quotes, `[text](https://...)` and bare `https://` links (nothing else is ever a link), paragraphs on a blank line. Everything is escaped first, so raw HTML in the text can never reach the page. It is the one place a module may set `innerHTML` from text a person or an AI wrote, because the safety already happened inside it; everywhere else, text still goes in with `textContent`. Use it for an AI's replies, and anywhere else people's own words might use it. The room page uses the very same function for chat (`window.tavernText.markdown`, exposed once for the host page itself, since Chat is not a module).
 

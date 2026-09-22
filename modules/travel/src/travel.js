@@ -425,28 +425,26 @@
     const joint = button.closest('.joint');
     const allDays = plan.days();
     const after = joint ? joint.dataset.after || null : allDays[allDays.indexOf(gap.dataset.from) - 1] || null;
-    const menu = $('gap-menu');
-    menu.replaceChildren();
-    const entry = (label, icon, color, on) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.setAttribute('role', 'menuitem');
-      const ic = document.createElement('span');
-      ic.className = 'ic';
-      ic.dataset.icon = icon;
-      if (color) ic.style.color = color;
-      b.append(ic, document.createTextNode(' ' + label));
-      b.addEventListener('click', () => { hide(menu, true); on(); });
-      menu.append(b);
-    };
-    for (const t of blockTypes()) entry(`Add ${t.label.toLowerCase()}`, t.icon, t.color, () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: '', after })));
-    if (gap) entry('Show these days', 'eye', '', () => { state.hideEmpty = false; try { localStorage.setItem('planner-hide-empty', '0'); } catch (err) { /* not remembered */ } redraw(); });
-    hydrate(menu);
-    menu.hidden = false;
-    const box = tavern.rootElement.getBoundingClientRect();
-    const r = button.getBoundingClientRect();
-    menu.style.top = `${Math.max(4, r.bottom - box.top + 4)}px`;
-    menu.style.left = `${Math.max(4, Math.min(r.left - box.left, box.width - 220))}px`;
+    const items = blockTypes().map((t) => ({
+      id: `add-${t.id}`,
+      label: `Add ${t.label.toLowerCase()}`,
+      icon: t.icon,
+      iconColor: t.color || undefined,
+      onClick: () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: '', after })),
+    }));
+    if (gap) {
+      items.push({
+        id: 'show-days',
+        label: 'Show these days',
+        icon: 'eye',
+        onClick: () => {
+          state.hideEmpty = false;
+          try { localStorage.setItem('planner-hide-empty', '0'); } catch (err) { /* not remembered */ }
+          redraw();
+        },
+      });
+    }
+    tavern.menu.show({ id: `gap-${after || 'start'}`, anchor: button, items });
   }
 
   // The button (and its small form) to add days before the first day or after the last.
@@ -641,18 +639,29 @@
     return parts2.filter(([n]) => n).map(([n, label]) => [n, label]);
   };
 
-  // The four views, then Hide/Show empty days and Edit trip, are icons in the titlebar when the host has one
-  // (a pane, or a module's own window); on the server page there is none, and the buttons stay in the page.
+  // The four views are the toolbar's view switch. Hide/Show empty days and Edit trip are not a view --
+  // they're the trip's own actions, and stay icons in the titlebar when the host has one (a pane, or a
+  // module's own window); on the server page there is none, and the buttons stay in the page.
+  const VIEWS = [
+    { id: 'days', label: 'Days' },
+    { id: 'decisions', label: 'Decisions' },
+    { id: 'bookings', label: 'Bookings' },
+    { id: 'money', label: 'Money' },
+  ];
+  const viewSwitch = tavern.ui.viewSwitch({
+    id: 'view',
+    options: VIEWS,
+    value: state.view,
+    onChange: (id) => {
+      state.view = id;
+      scrolled = state.view !== 'days';
+      redraw();
+    },
+  });
   let headerSig = '';
   async function syncHeader() {
     if (!tavern.header) return;
-    const openCount = openDecisions().length;
-    const items = [
-      { id: 'days', icon: 'calendar-days', title: 'Days', on: state.view === 'days' },
-      { id: 'decisions', icon: 'scale-balanced', title: openCount ? `Decisions (${openCount} open)` : 'Decisions', on: state.view === 'decisions' },
-      { id: 'bookings', icon: 'ticket', title: 'Bookings', on: state.view === 'bookings' },
-      { id: 'money', icon: 'coins', title: 'Money', on: state.view === 'money' },
-    ];
+    const items = [];
     if (state.view === 'days') items.push({ id: 'toggle-empty', icon: 'eye-slash', title: state.hideEmpty ? 'Show empty days' : 'Hide empty days', on: state.hideEmpty });
     if (canEdit) items.push({ id: 'edit-trip', icon: 'pen', title: 'Edit trip' });
     const sig = JSON.stringify(items);
@@ -674,11 +683,6 @@
         return redraw();
       }
       if (e.id === 'edit-trip') return openEditor('trip');
-      if (['days', 'decisions', 'bookings', 'money'].includes(e.id)) {
-        state.view = e.id;
-        scrolled = state.view !== 'days';
-        return redraw();
-      }
     });
   }
 
@@ -704,10 +708,8 @@
       s.append(b2, document.createTextNode(` ${label}`));
       summary.append(s);
     }
-    for (const btn of head.querySelectorAll('[data-view]')) btn.classList.toggle('on', btn.dataset.view === state.view);
-    const count = slot(head, 'decisions-count');
-    count.textContent = String(openDecisions().length);
-    hide(count, !openDecisions().length);
+    const openCount = openDecisions().length;
+    viewSwitch.set(state.view, VIEWS.map((v) => (v.id === 'decisions' && openCount ? { ...v, label: `Decisions (${openCount} open)` } : v)));
     hide(head.querySelector('[data-action="edit-trip"]'), !canEdit);
     const toggle = head.querySelector('[data-action="toggle-empty"]');
     if (toggle) {
@@ -936,7 +938,6 @@
     if (moving && moving.kind === 'lane') return void attempt(() => plan.updateItem(id, { after: e.target.value === 'start' ? null : date }));
     if (id) attempt(() => plan.moveTo(id, date, 1e6));
   });
-  root.addEventListener('click', (e) => { if (!$('gap-menu').hidden && !e.target.closest('#gap-menu, [data-action="gap-add"]')) hide($('gap-menu'), true); });
   root.addEventListener('click', (e) => { if (!$('item-menu').hidden && !e.target.closest('#item-menu, [data-action="move-menu"]')) closeMenu(); });
 
   // --- dragging (desktop) --------------------------------------------------------------------------------------
@@ -1441,13 +1442,8 @@
   // --- clicks and adding ---------------------------------------------------------------------------------------
 
   root.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-action], [data-view]');
+    const b = e.target.closest('[data-action]');
     if (!b) return;
-    if (b.dataset.view) {
-      state.view = b.dataset.view;
-      scrolled = state.view !== 'days';
-      return redraw();
-    }
     const action = b.dataset.action;
     const li = b.closest('.row.entry, .leg-row');
     if (action === 'strip-prev' || action === 'strip-next') {
@@ -1470,7 +1466,7 @@
     } else if (action === 'edit-leg' && li) {
       openItemEditor(li.dataset.id);
     } else if (action === 'gap-add') {
-      if (!$('gap-menu').hidden) hide($('gap-menu'), true); else openGapMenu(b);
+      openGapMenu(b);
     } else if (action === 'toggle-empty') {
       state.hideEmpty = !state.hideEmpty;
       try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }

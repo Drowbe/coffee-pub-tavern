@@ -22,14 +22,8 @@
       <h1 class="trip-title" data-slot="title"></h1>
       <div class="trip-when" data-slot="dates"></div>
     </div>
-    <!-- icons with tooltips, as everywhere in Tavern: the four views, then a divider and the trip's own actions -->
+    <!-- icons with tooltips: the trip's own actions. The four views live in the toolbar (see syncHeader). -->
     <div class="tools" role="toolbar" aria-label="Trip">
-      <div class="views" role="group" aria-label="View">
-        <button class="btn tool on" type="button" data-view="days" title="Days" aria-label="Days"><span class="ic" data-icon="calendar-days"></span></button>
-        <button class="btn tool" type="button" data-view="decisions" title="Decisions" aria-label="Decisions"><span class="ic" data-icon="scale-balanced"></span><span class="count" data-slot="decisions-count" hidden></span></button>
-        <button class="btn tool" type="button" data-view="bookings" title="Bookings" aria-label="Bookings"><span class="ic" data-icon="ticket"></span></button>
-        <button class="btn tool" type="button" data-view="money" title="Money" aria-label="Money"><span class="ic" data-icon="coins"></span></button>
-      </div>
       <div class="actions" role="group" aria-label="Plan">
         <button class="btn tool tool-empty" type="button" data-action="toggle-empty" title="Hide empty days" aria-label="Hide empty days" aria-pressed="false"><span class="ic" data-icon="eye-slash"></span></button>
         <button class="btn tool tool-edit" type="button" data-action="edit-trip" title="Edit trip" aria-label="Edit trip" hidden><span class="ic" data-icon="pen"></span></button>
@@ -104,12 +98,11 @@
      that day's date; none means before the first day). It sits on the plan's line between the day blocks, in ol.timeline.between[data-after], drawn as the same
      two-part pill with a menu. The script sets data-type, --marker, the icon and the title, as for a time block. -->
 <template id="tpl-row-lane"><li class="row entry marker lane" data-kind="lane"><div class="when"><b data-slot="time"></b></div><div class="rail"><span class="dot"></span></div><div class="slot"><div class="markerpill"><span class="mk-icon"><span class="ic" data-icon=""></span></span><span class="mk-label"><b data-slot="title"></b><span class="mk-note" data-slot="body"></span></span><button class="menu-btn" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis"></span></button></div></div></li></template>
-<!-- The joint between two days (and after the last, and before the first): a + on the line, quiet until pointed at, that opens #gap-menu to add a marker there. -->
+<!-- The joint between two days (and after the last, and before the first): a + on the line, quiet until pointed at, that opens tavern.menu.show to add a marker there. -->
 <template id="tpl-joint"><div class="joint"><button class="jointadd" type="button" data-action="gap-add" aria-haspopup="menu" aria-label="Add a marker here" title="Add a marker here"><span class="ic" data-icon="plus"></span></button></div></template>
 <!-- Where empty days are hidden: one badge for the run of hidden days, on the line that joins the boxes. The circle is how many days; the + opens
-     #gap-menu (what can be added there, a marker for instance, and "Show these days"). data-from and data-to are the first and last hidden day. -->
+     the same menu (what can be added there, a marker for instance, and "Show these days"). data-from and data-to are the first and last hidden day. -->
 <template id="tpl-gap"><div class="gap"><span class="gapcount" data-slot="count"></span><button class="gapadd" type="button" data-action="gap-add" aria-haspopup="menu" aria-label="Add something between these days"><span class="ic" data-icon="plus"></span></button></div></template>
-<div id="gap-menu" class="menu" role="menu" hidden></div>
 <!-- adding days at either end of the plan (data-edge is before or after); the script opens the form, and the plan's start or end date moves -->
 <template id="tpl-dayedge"><div class="dayedge"><button class="btn" type="button" data-action="edge-open"><span class="ic" data-icon="plus"></span> <span data-slot="label"></span></button><form class="edge-form" hidden><label>Add <input type="number" name="count" min="1" max="30" value="1" inputmode="numeric" aria-label="How many days"> <span data-slot="unit">days</span></label><button class="btn btn-primary" type="submit">Add</button><button class="btn" type="button" data-action="edge-cancel">Cancel</button></form></div></template>
 <!-- shown where empty days are hidden: says how many, and shows them again -->

@@ -35,15 +35,6 @@
   <!-- the results of a search, over the foot of the pane while there are some (the script fills it from the tpl-found-* templates) -->
   <div id="found" class="found" role="listbox" aria-label="Search results" hidden></div>
 
-  <!-- the item menu: a popover the script positions under the button that opened it -->
-  <div id="item-menu" class="menu" role="menu" hidden>
-    <button type="button" role="menuitem" data-action="edit"><span class="ic" data-icon="pen"></span> <span data-slot="edit-label">Edit</span></button>
-    <button type="button" role="menuitem" data-action="share" hidden><span class="ic" data-icon="share-nodes"></span> <span data-slot="share-label">Share to this room</span></button>
-    <a role="menuitem" data-action="open-in-maps" target="_blank" rel="noopener"><span class="ic" data-icon="arrow-up-right-from-square"></span> Open in my maps app</a>
-    <button type="button" role="menuitem" data-action="copy-coords"><span class="ic" data-icon="copy"></span> Copy coordinates</button>
-    <button type="button" role="menuitem" class="danger" data-action="delete"><span class="ic" data-icon="trash"></span> Delete</button>
-  </div>
-
   <!-- a place, in a dialog: a form for someone who may edit, read-only for anyone else (the script fills #f-* and shows .readonly instead) -->
   <div id="editor" class="editor" hidden>
     <form id="form" class="editor-card">

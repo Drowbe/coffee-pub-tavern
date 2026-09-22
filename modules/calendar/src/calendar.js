@@ -200,41 +200,25 @@
     return s.getMonth() === e.getMonth() ? `${m(s)} ${s.getDate()} \u2013 ${e.getDate()}, ${e.getFullYear()}` : `${m(s)} ${s.getDate()} \u2013 ${m(e)} ${e.getDate()}, ${e.getFullYear()}`;
   }
 
-  // Month / Week / Month + list / List are icons in the titlebar when the host has one (a pane, or a
-  // module's own window); on the server page there is none, and the buttons stay in the page.
+  // Month / Week / Month + list / List is the toolbar's view switch.
   const VIEWS = [
-    { id: 'month', icon: 'calendar-days', title: 'Month' },
-    { id: 'week', icon: 'calendar-week', title: 'Week' },
-    { id: 'both', icon: 'table-list', title: 'Month + list: the month on top, its events below' },
-    { id: 'list', icon: 'list', title: 'List' },
+    { id: 'month', label: 'Month' },
+    { id: 'week', label: 'Week' },
+    { id: 'both', label: 'Month + list' },
+    { id: 'list', label: 'List' },
   ];
-  let headerSig = '';
-  async function syncHeader() {
-    if (!tavern.header) return;
-    if (view === headerSig) return;
-    headerSig = view;
-    let hosted = false;
-    try {
-      hosted = await tavern.header.set(VIEWS.map((v) => ({ ...v, on: v.id === view })));
-    } catch (err) {
-      hosted = false;
-    }
-    $('app').classList.toggle('hosted-header', Boolean(hosted));
-  }
-  if (tavern.header) {
-    tavern.on('header', (e) => {
-      if (!VIEWS.some((v) => v.id === e.id)) return;
-      view = e.id;
-      render();
-    });
-  }
+  const viewSwitch = tavern.ui.viewSwitch({
+    id: 'view',
+    options: VIEWS,
+    value: view,
+    onChange: (id) => { view = id; render(); },
+  });
 
   function render() {
     const compact = isCompact();
     const showNav = view !== 'list';
     $('prev').hidden = $('next').hidden = !showNav;
-    for (const [v, id] of [['month', 'view-month'], ['week', 'view-week'], ['both', 'view-both'], ['list', 'view-list']]) $(id).classList.toggle('on', view === v);
-    syncHeader();
+    viewSwitch.set(view);
     renderFilters();
     $('title').textContent = view === 'week' ? weekTitle() : view === 'list' ? 'Next 90 days' : cursor.toLocaleDateString([], { month: 'long', year: 'numeric' });
     if (view === 'week') {
@@ -531,11 +515,6 @@
   $('prev').addEventListener('click', () => step(-1));
   $('next').addEventListener('click', () => step(1));
   $('today').addEventListener('click', () => { anchor = new Date(); cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1); render(); });
-  $('view-month').addEventListener('click', () => { view = 'month'; render(); });
-  $('view-week').addEventListener('click', () => { view = 'week'; render(); });
-  for (const el of root.querySelectorAll('[data-icon]')) tavern.ui.icon(el.dataset.icon).then((svg) => { el.innerHTML = svg; }).catch(() => {});
-  $('view-both').addEventListener('click', () => { view = 'both'; render(); });
-  $('view-list').addEventListener('click', () => { view = 'list'; render(); });
   $('add').addEventListener('click', () => openEditor(null));
   // The host draws the Add button in the module's action bar (in the room's bottom row when
   // docked); the button in the header stays only for a host without one.
