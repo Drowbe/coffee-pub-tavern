@@ -105,6 +105,14 @@ export function createRoomModules({ guestToken = null } = {}) {
     }
     return layer;
   }
+  // Floating panels live in their own layer, a sibling of the stage, so hiding the stage (room.js's
+  // own room-list view, shown while still connected but not looking at this room) does not hide them
+  // on its own -- without this they go on floating over whatever the room shows instead. Nothing is
+  // torn down: the same panes reappear exactly as they were once the stage comes back.
+  function showFloating(show) {
+    const layer = layers.get(stageDoc());
+    if (layer) layer.hidden = !show;
+  }
 
   const supports = (p, mode) => (p.modes || ['dock', 'float']).includes(mode);
 
@@ -1002,6 +1010,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     },
     closeAll: closeAllModules,
     stagePopped,
+    showFloating,
     layoutChanged: syncDock,
     updateMenu: update,
     openRef,

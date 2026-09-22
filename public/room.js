@@ -3038,6 +3038,7 @@ function showRoomList() {
   setAway(true);
   document.body.classList.remove('at-table');
   $('stage').hidden = true;
+  roomModules.showFloating(false); // a floating pane lives beside the stage, not inside it
   if (guestToken) {
     $('guest-join').hidden = false;
   } else {
@@ -3053,6 +3054,7 @@ function returnToStage() {
   $('join').hidden = true;
   $('guest-join').hidden = true;
   $('stage').hidden = false;
+  roomModules.showFloating(true);
   document.body.classList.add('at-table');
   updateCrumb();
   setAway(false);
