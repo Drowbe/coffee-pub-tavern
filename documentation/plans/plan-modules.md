@@ -16,10 +16,9 @@
 ## Left to build
 
 1. **Google Calendar sync.** See the section below.
-2. **Travel planner.** Planned in [plan-travel](plan-travel.md). The second module: several people editing one plan live. It exercises the shared store with many writers; expect to find where last-write-wins per key is not enough, and to want finer change events.
-3. **A hello module** as the smallest working example next to the Calendar.
-4. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
-5. **Calendar improvements.** Events across several days, changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
+2. **A hello module** as the smallest working example next to the Calendar.
+3. **Reminders while away.** Notifications wait for people who are away (up to 50 each) but nothing tells them; email or push would.
+4. **Calendar improvements.** Changing or skipping a single occurrence of a repeating event, and a per-person view of reminders.
 
 ## Module interoperability
 

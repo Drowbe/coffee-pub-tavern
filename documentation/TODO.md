@@ -20,10 +20,9 @@ Make the conference a pane like chat and the modules, so a person can join with 
 Collected, none started:
 
 - A module for Foundry that carries communication and commands between Tavern and Foundry.
-- An LLM module.
 - A module for WhatsApp or SMS hooks.
 - Updating modules that do not ship with Tavern without uploading a zip: a module could name an update address (a GitHub release, say) that the server checks and installs from, with the same approval. Bundled modules already update from Manage.
-- The dashboard: built (see plans/plan-dashboard.md). Left: customising the layout, and checking it with two people and in a real call.
+- The dashboard: built (see plans/plan-dashboard.md), including the Planner's Trips widget. Left: customising the layout, and checking it with two people and in a real call.
 - Module interoperability is built (refs, opening, backlinks, events, actions). What is left is in plans/plan-modules.md: a module's own activity on its card, and verifying with two people. Also verify in a real browser: dragging an event or a poll from one pane onto a task in another, and between windows.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
 - Call time in the conference titlebar.
@@ -46,15 +45,11 @@ download's layout differs.
 
 ## Planner (the Travel module): what is left
 
-Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). Left: a map, reading confirmation emails, and checking it with two people in a real call (drag out and the drop menu on items have only been run as code).
+Built: the Days and Decisions views, the trip, items, moves, suggestions from other modules and the Trips card (see plans/plan-travel.md). The map is the Maps module: any Planner item with a place shows there. Left: reading confirmation emails, and checking it with two people in a real call (drag out and the drop menu on items have only been run as code).
 
 ## Modules: what is left
 
-See plans/plan-modules.md: Google Calendar sync, the Travel planner, a hello example, reminders for people who are away, and Calendar improvements.
-
-## Modules: HTTP connection count
-
-Each open module frame holds up to two server-sent event streams, and each page holds one for notifications. On plain HTTP/1.1 a browser allows about six connections per host across all tabs, so a few tabs with a few modules open could stall. Behind an HTTP/2 proxy it is not a problem. Check the behind-a-proxy setup, and if it matters, share one stream per page.
+See plans/plan-modules.md: Google Calendar sync, a hello example, reminders for people who are away (nothing sends email or push yet), and in the Calendar, changing or skipping one occurrence of a repeating event and a per-person view of reminders. Events across several days are built.
 
 ## Architecture: a list is not an editor
 
@@ -99,12 +94,6 @@ offer to publish. Studio doesn't read `room.profile` yet, so today it still offe
 sources for a Participants-only room (and vice versa) with nothing behind them. Studio's own
 TODO.md should pick this up: fetch the room's profile alongside its members and grey out (or
 just not build) the source kind the profile doesn't offer.
-
-## Scheduling
-
-Not started; the Calendar module in the modules plan is the intended home. A way to schedule when a room's session happens next (date/time, maybe a
-recurrence) and let members see it -- session logistics currently live outside the app
-entirely.
 
 ## Desktop sharing has no OBS side
 
