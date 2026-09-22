@@ -260,6 +260,9 @@ function cleanGeocoder(raw, settings) {
   return out;
 }
 
+// Longer text that keeps its line breaks, for help that needs more than a line: a setting's own help, and a choice option's.
+const longText = (s, n) => String(s ?? '').replace(/(?!\n)\p{Cc}/gu, ' ').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
+
 function cleanSettings(raw) {
   const out = [];
   for (const r of Array.isArray(raw) ? raw.slice(0, 20) : []) {
@@ -269,7 +272,7 @@ function cleanSettings(raw) {
     const type = SETTING_TYPES.includes(r.type) ? r.type : null;
     if (!type) throw new ModuleError(`module.json: setting "${key}" needs a type: ${SETTING_TYPES.join(', ')}`);
     const scope = SETTING_SCOPES.includes(r.scope) ? r.scope : 'server';
-    const def = { key, label: text(r.label, 60) || key, help: text(r.help, 200), type, scope };
+    const def = { key, label: text(r.label, 60) || key, help: longText(r.help, 600), type, scope };
     // A setting may be shown only while another one has a given value (`showWhen`), and a choice may start as one of its options
     // when another setting already holds a value and it has none of its own (`defaultIfSet`: for a setting that grew into a choice).
     if (r.showWhen && typeof r.showWhen === 'object') {
@@ -277,8 +280,6 @@ function cleanSettings(raw) {
       if (/^[a-z][a-zA-Z0-9]{0,23}$/.test(k) && typeof r.showWhen.value === 'string') def.showWhen = { key: k, value: r.showWhen.value.slice(0, 40) };
       else if (/^[a-z][a-zA-Z0-9]{0,23}$/.test(k) && typeof r.showWhen.not === 'string') def.showWhen = { key: k, not: r.showWhen.not.slice(0, 40) }; // shown unless it has this value
     }
-    // Longer help that keeps its line breaks, for an option that needs to say more (what it sends, and where).
-    const longText = (s, n) => String(s ?? '').replace(/(?!\n)\p{Cc}/gu, ' ').replace(/[^\S\n]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
     if (type === 'choice') {
       def.options = (Array.isArray(r.options) ? r.options.slice(0, 12) : []).map((o) => ({ value: typeof o?.value === 'string' ? o.value.trim().slice(0, 40) : '', label: text(o?.label, 40), help: longText(o?.help, 600) })).filter((o) => o.value).map((o) => ({ value: o.value, label: o.label || o.value, ...(o.help ? { help: o.help } : {}) }));
       if (def.options.length < 2) throw new ModuleError(`module.json: setting "${key}" needs at least two options`);

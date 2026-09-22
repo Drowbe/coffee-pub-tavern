@@ -164,7 +164,11 @@ class RegionCutJobs extends EventEmitter {
     const dest = path.join(destDir, name);
     if (fs.existsSync(dest)) throw new RegionCutError(`${name} already exists here; choose a different name, or remove it first`);
     const id = crypto.randomBytes(8).toString('hex');
-    const tmp = path.join(os.tmpdir(), `tavern-region-${id}.pmtiles`);
+    // Same volume as `dest` (never the system's own /tmp, which is its own filesystem in a container -- renaming across
+    // filesystems fails), and outside any module's own file folder, so a job in progress never shows up as a stray file
+    // there.
+    const tmp = path.join(this.dir, 'tmp', 'region-cut', `${id}.pmtiles`);
+    fs.mkdirSync(path.dirname(tmp), { recursive: true });
     const job = { id, moduleId, scopeKey, name, by, percent: 0, message: 'Reading the world file…', status: 'running', error: null, endedAt: 0, tmp };
     this.jobs.set(id, job);
     this.runJob(job, { source, destDir, dest, box, minZoom, maxZoom }).catch(() => {}); // errors are recorded on the job itself

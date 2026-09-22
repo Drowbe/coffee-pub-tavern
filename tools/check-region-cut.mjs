@@ -88,6 +88,9 @@ await test('a real cut: progress as it streams in, the file lands where it shoul
   const { id } = await jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'lisbon.pmtiles', box, maxZoom: 10, by: 'admin' });
   assert.ok(id);
   assert.equal(jobs.view(id).status, 'running');
+  // The temp file must live on the same volume as the final destination (inside DATA_DIR), never the system's own /tmp,
+  // or the rename into place fails with EXDEV once the two are different filesystems (as they are in the real container).
+  assert.ok(jobs.jobs.get(id).tmp.startsWith(dataDir + path.sep), 'the temp file is written under DATA_DIR, not the system tmpdir');
   await new Promise((r) => jobs.once('done', r));
   assert.deepEqual(done, { name: 'lisbon.pmtiles' });
   assert.equal(jobs.view(id).status, 'done');
@@ -105,8 +108,8 @@ await test('a failed cut leaves nothing behind, and a bad name or an existing fi
   assert.equal(jobs.view(id).status, 'error');
   assert.match(jobs.view(id).error, /no tiles at this zoom/);
   assert.equal(fs.existsSync(path.join(dataDir, 'modules', 'maps', 'map-tiles', 'nothing.pmtiles')), false);
-  const tmps = fs.readdirSync(os.tmpdir()).filter((f) => f.startsWith('tavern-region-') && !f.includes('estimate'));
-  assert.equal(tmps.length, 0); // the temp file was cleaned up
+  const tmpDir = path.join(dataDir, 'tmp', 'region-cut');
+  assert.deepEqual(fs.existsSync(tmpDir) ? fs.readdirSync(tmpDir) : [], []); // the temp file was cleaned up
 
   await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://x/y.pmtiles', folder: 'map-tiles', name: '../../etc/passwd', box, maxZoom: 10 }), /letters, digits/);
   fs.mkdirSync(path.join(dataDir, 'modules', 'maps', 'map-tiles'), { recursive: true });
