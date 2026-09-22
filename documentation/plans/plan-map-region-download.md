@@ -74,4 +74,13 @@ building with a footprint, not the point result of the same name) both came back
 match, a server with no search configured, and a module with no world file set up were each refused with a plain
 reason.
 
-Left: step 4 (the Module Configuration UI -- the interface side).
+**Step 4 is done: the Module Configuration UI.** "Add a region" (`public/module-config.js`, `wireRegionCut`)
+sits below a module's settings the same way the search-cache section already does, gated on the module declaring
+`regionSource` rather than assuming it is Maps. Find, the size estimate, the confirm step and the progress bar
+follow the design sketch above; a successful cut ticks the new file in the files setting it belongs to (matched by
+folder, not a hardcoded key) and redraws the settings card, so it is ready to use without saving by hand. Verified
+live end-to-end against the real Protomaps daily build: searched "San Marino", got a real box, a real dry-run
+estimate (11 tiles, 1.3 MB), ran the real cut, and watched the file land on disk and appear ticked at the same
+size; also checked a no-match search and Cancel.
+
+All four steps are done.
