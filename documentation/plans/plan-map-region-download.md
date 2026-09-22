@@ -112,3 +112,8 @@ Verified live end-to-end: cut `world.pmtiles` (whole world, zoom 0-5, ~15 MB), t
 `lisbon.pmtiles` at minimum zoom 11 (7 tiles, 42 kB) versus the same box at minimum zoom 0 (18 tiles, 563 kB) --
 trimming saved about 92% of the size, as intended; both files landed ticked with their real zoom ranges shown
 (0-5 and 11-14).
+
+With several map files now a real workflow, having no way to remove one stood out: added a delete button to every
+row of a `files` setting's table (not Maps-specific -- `DELETE /api/modules/:id/files/:name`, admin only, un-ticks
+it from whatever setting named it). Verified live: deleted an unticked and a ticked file, both gone from disk and
+from the setting's stored value.

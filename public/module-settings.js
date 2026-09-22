@@ -62,8 +62,8 @@ function control(def) {
     // How detailed a map file is (street-level or not), read from its own PMTiles header -- blank for anything else.
     const zoom = (n) => { const z = (def.zooms || {})[n]; return z ? (z.minZoom === z.maxZoom ? `${z.maxZoom}` : `${z.minZoom}–${z.maxZoom}`) : ''; };
     const hasZooms = Object.keys(def.zooms || {}).length > 0;
-    const rows = (def.available || []).map((n) => `<tr><td><input type="checkbox" value="${escapeHtml(n)}" ${chosen.has(n) ? 'checked' : ''} aria-label="Use ${escapeHtml(n)}"></td><td>${escapeHtml(n)}</td>${hasZooms ? `<td class="hint">${zoom(n)}</td>` : ''}<td class="hint">${size(n)}</td></tr>`).join('');
-    return `<div data-key="${escapeHtml(def.key)}" data-files><div class="hint">${escapeHtml(def.label)}</div>${rows ? `<table class="files-table"><thead><tr><th>Use</th><th>File</th>${hasZooms ? '<th>Zoom</th>' : ''}<th>Size</th></tr></thead><tbody>${rows}</tbody></table>` : ''}${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}</div>`;
+    const rows = (def.available || []).map((n) => `<tr><td><input type="checkbox" value="${escapeHtml(n)}" ${chosen.has(n) ? 'checked' : ''} aria-label="Use ${escapeHtml(n)}"></td><td>${escapeHtml(n)}</td>${hasZooms ? `<td class="hint">${zoom(n)}</td>` : ''}<td class="hint">${size(n)}</td><td><button type="button" class="btn btn-small btn-danger" data-delete-file="${escapeHtml(n)}" title="Delete ${escapeHtml(n)}" aria-label="Delete ${escapeHtml(n)}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></td></tr>`).join('');
+    return `<div data-key="${escapeHtml(def.key)}" data-files><div class="hint">${escapeHtml(def.label)}</div>${rows ? `<table class="files-table"><thead><tr><th>Use</th><th>File</th>${hasZooms ? '<th>Zoom</th>' : ''}<th>Size</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : ''}${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}</div>`;
   }
   if (def.type === 'file') return `${head}<select data-key="${escapeHtml(def.key)}"><option value="">None</option>${(def.available || []).map((n) => `<option value="${escapeHtml(n)}" ${n === def.value ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>${(def.available || []).length && !(def.skipped || []).length ? '' : `<p class="hint">${escapeHtml(fileHint(def))}</p>`}`;
   if (def.type === 'url') return `${head}<input id="${id}" type="url" data-key="${escapeHtml(def.key)}" value="${escapeHtml(def.value)}" maxlength="500" placeholder="https://"></label>`;
@@ -120,6 +120,22 @@ export async function renderModuleSettings(container, { scope, room = null, only
     card.addEventListener('change', () => refresh(card));
   }
   container.onclick = async (event) => {
+    const delBtn = event.target.closest('[data-delete-file]');
+    if (delBtn) {
+      const card = delBtn.closest('.module-settings-card');
+      const module = modules.find((m) => m.id === card.dataset.module);
+      const name = delBtn.dataset.deleteFile;
+      if (!window.confirm(`Delete ${name}? This can't be undone.`)) return;
+      delBtn.disabled = true;
+      try {
+        await api('DELETE', `/api/modules/${encodeURIComponent(module.id)}/files/${encodeURIComponent(name)}`);
+        await renderModuleSettings(container, { scope, room, only, heading });
+      } catch (err) {
+        delBtn.disabled = false;
+        window.alert(err.message);
+      }
+      return;
+    }
     const button = event.target.closest('[data-save]');
     if (!button) return;
     const card = button.closest('.module-settings-card');

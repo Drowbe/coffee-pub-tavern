@@ -2348,6 +2348,31 @@ app.get('/api/modules/:id/files/:name', (req, res) => {
   if (!file) return res.status(404).json({ error: 'no such file' });
   res.sendFile(file, { acceptRanges: true, headers: { 'Cache-Control': 'private, max-age=3600', 'Content-Type': 'application/octet-stream' } });
 });
+// Remove a file an admin placed for the module (a `file`/`files` setting) -- gone for good, so admin only. Also
+// un-ticks it from any `files` setting that had it, and clears a `file` setting that pointed to it, so nothing on
+// the module's own settings keeps naming a file that is no longer there.
+app.delete('/api/modules/:id/files/:name', requireAdmin, (req, res) => {
+  const found = modules.enabled(req.params.id);
+  if (!found) return res.status(404).json({ error: 'no such module' });
+  const name = req.params.name;
+  const file = moduleFilePath(found.manifest, name);
+  if (!file) return res.status(404).json({ error: 'no such file' });
+  try {
+    fs.unlinkSync(file);
+  } catch (err) {
+    return res.status(500).json({ error: `the file could not be removed: ${err.message}` });
+  }
+  const by = currentUser(req)?.key || null;
+  const values = moduleSettings.values(found.manifest, 'server', {});
+  for (const d of found.manifest.settings || []) {
+    if (d.type === 'files' && Array.isArray(values[d.key]) && values[d.key].includes(name)) {
+      moduleSettings.set(found.manifest, 'server', {}, { [d.key]: values[d.key].filter((n) => n !== name) }, by);
+    } else if (d.type === 'file' && values[d.key] === name) {
+      moduleSettings.set(found.manifest, 'server', {}, { [d.key]: '' }, by);
+    }
+  }
+  res.json({ ok: true });
+});
 
 // The values that apply to the viewer, for the module itself.
 app.get('/api/modules/:id/settings/values', (req, res) => {
