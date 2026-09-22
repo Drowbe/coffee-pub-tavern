@@ -40,7 +40,12 @@ function parsePhoton(json, max = 10) {
     const address = oneLine([street && street !== name ? street : '', pr.district, pr.city && pr.city !== name ? pr.city : '', pr.state, pr.country].filter(Boolean).join(', '), 160);
     const type = ['N', 'W', 'R'].includes(pr.osm_type) ? pr.osm_type : '';
     const id = Number.isFinite(Number(pr.osm_id)) ? Number(pr.osm_id) : 0;
-    out.push({ osmType: type, osmId: type ? id : 0, name, address, lat: round6(lat), lng: round6(lng), category: oneLine([pr.osm_key, pr.osm_value].filter(Boolean).join(':'), 40) });
+    // A place's rough rectangle (a country, a city...), when the service gives one: not part of a saved place (the geocode
+    // cache never keeps it, since it only ever stores a point), only read live for "find a place to cut a map region for".
+    const ext = Array.isArray(pr.extent) && pr.extent.length === 4 && pr.extent.every((n) => Number.isFinite(n))
+      ? { minLon: round6(Math.min(pr.extent[0], pr.extent[2])), minLat: round6(Math.min(pr.extent[1], pr.extent[3])), maxLon: round6(Math.max(pr.extent[0], pr.extent[2])), maxLat: round6(Math.max(pr.extent[1], pr.extent[3])) }
+      : null;
+    out.push({ osmType: type, osmId: type ? id : 0, name, address, lat: round6(lat), lng: round6(lng), category: oneLine([pr.osm_key, pr.osm_value].filter(Boolean).join(':'), 40), ...(ext ? { extent: ext } : {}) });
     if (out.length >= max) break;
   }
   return out;

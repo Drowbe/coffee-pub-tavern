@@ -2188,6 +2188,35 @@ function regionCutSetup(req, res) {
   return { manifest: found.manifest, setup };
 }
 const boxFromBody = (b) => ({ minLon: Number(b?.minLon), minLat: Number(b?.minLat), maxLon: Number(b?.maxLon), maxLat: Number(b?.maxLat) });
+// A place's rough rectangle, from whichever enabled module has a place search configured (never named here: found the same
+// way any other generic conduit is, by what a module declares, not by which one it happens to be). Places is the one that
+// offers this today; anything with a `geocoder` in its manifest would be found the same way.
+// Returns null when no enabled module has a configured search, otherwise `{ name, box }` (box null when nothing matched).
+async function findRegionBox(q) {
+  for (const { manifest } of modules.enabledAll()) {
+    if (!manifest.geocoder) continue;
+    const setup = geocodeSetup(manifest);
+    if (!setup) continue;
+    const found = await askService(setup.address, q, null);
+    const best = found.find((p) => p.extent);
+    return best ? { name: best.name, box: best.extent } : { name: null, box: null };
+  }
+  return null;
+}
+// "Add a region": type a place's name, get back its rough rectangle to cut, before anything is fetched for real.
+app.get('/api/modules/:id/region-cut/find', requireAdmin, async (req, res) => {
+  const ctx = regionCutSetup(req, res);
+  if (!ctx) return;
+  const q = String(req.query.q || '').trim().slice(0, 200);
+  if (q.length < 2) return res.status(400).json({ error: 'type a place name first' });
+  try {
+    const found = await findRegionBox(q);
+    if (found === null) return res.status(404).json({ error: 'no place search is set up on this server (a module with one, such as Places, names where to look)' });
+    res.json(found.box ? { found: true, name: found.name, box: found.box } : { found: false });
+  } catch (err) {
+    res.status(502).json({ error: 'search is not available right now' });
+  }
+});
 // How big a cut would be, without downloading it: the admin confirms before "Add a region" commits to anything.
 app.post('/api/modules/:id/region-cut/estimate', requireAdmin, async (req, res) => {
   const ctx = regionCutSetup(req, res);

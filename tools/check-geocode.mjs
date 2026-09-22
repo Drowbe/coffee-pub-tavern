@@ -29,6 +29,18 @@ test('reading an answer', () => {
   assert.match(keyOf({ osmType: '', osmId: 0, name: 'Cafe', lat: 1, lng: 2 }), /^p:1\.00000,2\.00000:cafe$/);
 });
 
+test('a rough rectangle, when the service gives one', () => {
+  const withExtent = feat('Mexico', 23.6, -102.5, { country: 'Mexico', extent: [-118.4, 32.7, -86.7, 14.5] });
+  const r = parsePhoton({ features: [withExtent, feat('Eiffel Tower', 48.85, 2.29, { osm_key: 'tourism' })] });
+  assert.deepEqual(r[0].extent, { minLon: -118.4, minLat: 14.5, maxLon: -86.7, maxLat: 32.7 });
+  assert.equal(r[1].extent, undefined); // a point result carries no rectangle
+  // Never kept: the geocode cache only ever stores a point.
+  const c = new GeocodeCache(dir);
+  const kept = c.remember('places', r);
+  assert.equal(kept[0].extent, undefined);
+  c.purge('places', 'all', 0);
+});
+
 test('keeping, finding, marking and purging', () => {
   const c = new GeocodeCache(dir);
   const found = parsePhoton({ features: ['Cafe Alpha', 'Cafe Beta', 'Bar Gamma'].map((t, i) => feat(t, 10 + i, 20, { city: 'Lisboa' })) });

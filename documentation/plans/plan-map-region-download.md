@@ -64,5 +64,14 @@ the *real* Protomaps daily build: `estimate` and the full cut both matched the C
 tiles, 844 kB), the file landed in `map-tiles/`, a second request for the same name was refused, and a second cut
 while one was running was refused too.
 
-Left: step 3 (the name-to-box lookup, through Places' search setting) and step 4 (the Module Configuration UI --
-the interface side).
+**Step 3 is done: the name-to-box lookup.** `GET /api/modules/:id/region-cut/find?q=` asks whichever enabled
+module has a place search configured (the same generic conduit `geocoder` already is -- not hardcoded to Places,
+found the same way a module's AI or upload dependency is), and reads the rough rectangle a Photon-compatible
+service already returns for an administrative or area result (its `extent`, a field `server/geocode.js` was not
+reading before now) -- absent for a point or POI result, so those are skipped in favour of the next result that
+carries one. Verified live against the real server and the real Photon service: "Mexico" and "Eiffel Tower" (a
+building with a footprint, not the point result of the same name) both came back with a real box; a query with no
+match, a server with no search configured, and a module with no world file set up were each refused with a plain
+reason.
+
+Left: step 4 (the Module Configuration UI -- the interface side).
