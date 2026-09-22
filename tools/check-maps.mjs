@@ -47,6 +47,11 @@ test('colours from the theme, and the style built from them', () => {
   assert.ok(!dark.layers.some((l) => l['source-layer'] === 'pois'), 'no points of interest');
   assert.ok(dark.layers.every((l) => l.type === 'background' || l.source === 'map'));
   assert.ok(!JSON.stringify(dark).includes('NaN'));
+  // Every place label prefers a feature's English name (name:en, an OpenStreetMap tag) over its local one, never
+  // showing blank for a place that simply has none recorded.
+  const labels = dark.layers.filter((l) => l['source-layer'] === 'places');
+  assert.ok(labels.length >= 3, 'there are place labels to check');
+  assert.ok(labels.every((l) => JSON.stringify(l.layout['text-field']) === JSON.stringify(['coalesce', ['get', 'name:en'], ['get', 'name']])));
 });
 
 test('several map files are drawn together, layer by layer', () => {

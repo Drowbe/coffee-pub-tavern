@@ -4,6 +4,9 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 
 ## [Unreleased]
 
+### Changed
+- Maps (0.7.4): a place's label prefers its English name (`name:en`, an OpenStreetMap tag most named places carry) over the local script, never blank for the rare place that has no English name recorded. Verified against real tile data for a real region (not a guess at the field name): the Protomaps basemap docs confirm `name:en`, and every one of 13 real localities decoded from a live tile (Nikko, Utsunomiya and others, in Tochigi/Fukushima) carried both `name` and `name:en`.
+
 ### Fixed
 - A region cut (map region download) failed on a real deployment with `EXDEV: cross-device link not permitted`: the background job wrote its temp file to the system's own `/tmp`, a different filesystem from `DATA_DIR` in a container with a separate mounted volume, so the final move into place could never succeed there (a local dev setup happens to keep both on one filesystem, which is why this passed local live testing before). The temp file now lives inside `DATA_DIR` itself (its own `tmp/region-cut/` folder, cleaned up the same way as before), so the move is always on one filesystem. Verified with a real cut against the real Protomaps daily build. `tools/check-region-cut.mjs` gained an assertion that the temp path stays under `DATA_DIR`.
 - A setting's own `help` text (module.json) was silently cut off at 200 characters, mid-sentence, with nothing to say so happened -- a choice option's own help already had ten times the room (600, with line breaks kept). Maps' `worldSource` setting was the one that surfaced it (its help ends with a URL, past the 200-character mark). Now 600, keeping line breaks, the same treatment a choice option's help already had. New `tools/check-modules.mjs`.

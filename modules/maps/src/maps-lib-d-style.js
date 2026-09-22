@@ -29,6 +29,9 @@
     const ground = tok.section;
     const font = ['Noto Sans Regular'];
     const fontBold = ['Noto Sans Medium'];
+    // A place's English name where the map data has one (name:en, an OpenStreetMap tag), its own local name otherwise --
+    // always readable, never blank for a place that simply has no English name recorded.
+    const NAME = ['coalesce', ['get', 'name:en'], ['get', 'name']];
     const width = (a, b, c) => ['interpolate', ['exponential', 1.6], ['zoom'], 5, a, 14, b, 20, c];
     const road = (id, kinds, color, w, extra) => ({
       id,
@@ -59,7 +62,7 @@
         'source-layer': 'places',
         filter: ['in', ['get', 'kind_detail'], ['literal', ['neighbourhood', 'macrohood', 'suburb', 'quarter']]],
         minzoom: 12,
-        layout: { 'text-field': ['get', 'name'], 'text-font': font, 'text-size': 11, 'text-transform': 'uppercase', 'text-letter-spacing': 0.06, 'text-max-width': 8 },
+        layout: { 'text-field': NAME, 'text-font': font, 'text-size': 11, 'text-transform': 'uppercase', 'text-letter-spacing': 0.06, 'text-max-width': 8 },
         paint: { 'text-color': rgbText(tok.dim), 'text-halo-color': rgbText(ground), 'text-halo-width': 1.5 },
       },
       {
@@ -68,7 +71,7 @@
         source: 'map',
         'source-layer': 'places',
         filter: ['==', ['get', 'kind'], 'locality'],
-        layout: { 'text-field': ['get', 'name'], 'text-font': fontBold, 'text-size': ['interpolate', ['linear'], ['zoom'], 4, 11, 12, 16], 'text-max-width': 8, 'symbol-sort-key': ['get', 'min_zoom'] },
+        layout: { 'text-field': NAME, 'text-font': fontBold, 'text-size': ['interpolate', ['linear'], ['zoom'], 4, 11, 12, 16], 'text-max-width': 8, 'symbol-sort-key': ['get', 'min_zoom'] },
         paint: { 'text-color': rgbText(tok.text), 'text-halo-color': rgbText(ground), 'text-halo-width': 1.6 },
       },
       {
@@ -78,7 +81,7 @@
         'source-layer': 'places',
         filter: ['in', ['get', 'kind'], ['literal', ['country', 'region']]],
         maxzoom: 8,
-        layout: { 'text-field': ['get', 'name'], 'text-font': fontBold, 'text-size': 12, 'text-transform': 'uppercase', 'text-letter-spacing': 0.08, 'text-max-width': 8 },
+        layout: { 'text-field': NAME, 'text-font': fontBold, 'text-size': 12, 'text-transform': 'uppercase', 'text-letter-spacing': 0.08, 'text-max-width': 8 },
         paint: { 'text-color': rgbText(tok.dim), 'text-halo-color': rgbText(ground), 'text-halo-width': 1.5 },
       },
     ];
