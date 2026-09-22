@@ -313,9 +313,10 @@ async function loadModuleNav() {
     if (!res.ok) return;
     const { modules } = await res.json();
     const keep = new URLSearchParams(window.location.search).get('from') === 'room' ? window.location.search : '';
-    // A module with a dashboard widget is reached from the widget's heading, so it has no item here; one without
-    // still does, so nothing becomes unreachable.
-    slot.innerHTML = modules.filter((m) => !m.widget).map((m) => `<a class="module-nav-link" data-overlay-link data-module="${escapeHtml(m.id)}" aria-label="${escapeHtml(m.name)}" href="/modules/${encodeURIComponent(m.id)}${keep}" title="${escapeHtml(m.name)}"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i><span class="module-nav-label"> ${escapeHtml(m.name)}</span></a>`).join('');
+    // A module with a dashboard widget is reached from the widget's heading, so it has no item here; one
+    // that opted out (surfaces.page.nav: false, reached some other way -- a room's own pane) has none
+    // either; anything else does, so nothing becomes unreachable.
+    slot.innerHTML = modules.filter((m) => !m.widget && m.nav).map((m) => `<a class="module-nav-link" data-overlay-link data-module="${escapeHtml(m.id)}" aria-label="${escapeHtml(m.name)}" href="/modules/${encodeURIComponent(m.id)}${keep}" title="${escapeHtml(m.name)}"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i><span class="module-nav-label"> ${escapeHtml(m.name)}</span></a>`).join('');
     document.dispatchEvent(new CustomEvent('module-nav-loaded', { detail: modules }));
   } catch {
     // no nav is fine

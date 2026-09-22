@@ -1914,14 +1914,17 @@ app.get('/api/backgrounds', (req, res) => {
   res.json({ backgrounds: backgrounds.all() });
 });
 
+// Every enabled module with a server page this viewer may read -- not only the ones shown as a main-nav
+// icon (public/module.js also asks this to find a module's own page at all, by direct link or a room's
+// own "open this"; `nav` just says whether brand.js's topbar should offer an icon for it too).
 app.get('/api/modules/nav', (req, res) => {
   const who = moduleViewer(req);
   if (!who?.user) return res.json({ modules: [] });
   const perms = modulePerms(who, null);
   res.json({
     modules: modules.enabledAll()
-      .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page?.nav && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget) })),
+      .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
+      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget), nav: Boolean(manifest.surfaces.page.nav) })),
   });
 });
 
