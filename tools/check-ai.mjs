@@ -11,7 +11,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const { Ai, AiError, buildPrompt, parseCards, parseTags, citedItems, ICONS } = createRequire(import.meta.url)('../server/ai.js');
+const { Ai, AiError, buildPrompt, parseCards, cleanCard, parseTags, citedItems, ICONS, KINDS, MAX_CARDS } = createRequire(import.meta.url)('../server/ai.js');
 
 let n = 0;
 const test = async (name, fn) => { await fn(); n += 1; };
@@ -161,8 +161,16 @@ await test('cards are checked field by field', () => {
   assert.equal(parseCards('```card\n{"title":"","content":"x"}\n```', 1).cards.length, 0);
   assert.equal(parseCards('```card\n{"title":"T","content":"still writing', 1).cards.length, 0);
   assert.equal(parseCards('```card\n{"title":"T","content":"c","date":"2026-02-28"}\n```', 1).cards[0].date, '2026-02-28');
-  const four = Array(5).fill('```card\n{"title":"T","content":"c"}\n```').join('\n');
-  assert.equal(parseCards(four, 1).cards.length, 3);
+  const many = Array(MAX_CARDS + 5).fill('```card\n{"title":"T","content":"c"}\n```').join('\n');
+  assert.equal(parseCards(many, 1).cards.length, MAX_CARDS);
+});
+
+test('a card\'s kind', () => {
+  assert.equal(KINDS.includes('flight'), true);
+  assert.equal(KINDS.includes('hotel'), true);
+  assert.equal(cleanCard({ title: 'LIS to FAO', content: 'x', kind: 'flight' }, 0).kind, 'flight');
+  assert.equal(cleanCard({ title: 'T', content: 'x', kind: 'nonsense' }, 0).kind, undefined);
+  assert.equal(cleanCard({ title: 'T', content: 'x' }, 0).kind, undefined);
 });
 
 await test('tags and citations', async () => {

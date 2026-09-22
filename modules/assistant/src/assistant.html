@@ -59,7 +59,7 @@
 <!-- the conversation: your question, the model's reply (text pieces and cards in order), the placeholder while a card is being written -->
 <template id="tpl-msg-you"><div class="msg-you" data-slot="text"></div></template>
 <template id="tpl-msg-ai"><div class="msg-ai"><div class="who"><span class="ic" data-icon="wand-magic-sparkles"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
-<template id="tpl-msg-text"><p data-slot="text"></p></template>
+<template id="tpl-msg-text"><div data-slot="text"></div></template>
 <template id="tpl-writing"><div class="thinking"><span class="ic" data-icon="wand-magic-sparkles"></span><span class="thinking-text">Thinking</span><span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span></div></template>
 <!-- the card the model writes: kept (bookmark) asks whichever module offers to save one; dragged onto a plan or anywhere else that takes a card -->
 <template id="tpl-aicard">
@@ -68,7 +68,7 @@
     <div>
       <div class="kicker">Answer <span class="ai-mark"><span class="ic" data-icon="wand-magic-sparkles"></span> AI</span></div>
       <h3 data-slot="title"></h3>
-      <p class="content" data-slot="content"></p>
+      <div class="content" data-slot="content"></div>
       <div class="tags" data-slot="tags"></div>
       <p class="basis" data-slot="basis-wrap"><span class="ic" data-icon="circle-info"></span> <span data-slot="basis"></span></p>
       <span class="place" data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>

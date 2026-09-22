@@ -194,6 +194,23 @@
           const item = await addLink(input.item, isYmd(input.date) ? input.date : null);
           return { ref: tavern.refs.make('plan', item.id) };
         },
+        // A suggestion from anywhere (an AI's typed card, another module's idea): placed as the right kind of item when its
+        // `kind` is one of the everyday words a journey, a stay or a stop already knows (a flight, a hotel, a sight...); an
+        // unrecognised or missing kind is an ordinary stop, the same as addStop. Found by name and input shape, never by
+        // whoever asks for it.
+        acceptSuggestion: async (input) => {
+          const title = clip(input.title, 120);
+          if (!title) throw new Error('that needs a title');
+          const date = isYmd(input.date) ? input.date : null;
+          const fields = { title, date, notes: clip(input.content, 2000), place: clip(input.place, 120) };
+          const kindWord = typeof input.kind === 'string' ? input.kind : '';
+          if (MODES.includes(kindWord)) { fields.kind = 'journey'; fields.mode = kindWord; }
+          else if (STAY_TYPES.includes(kindWord)) { fields.kind = 'stay'; fields.type = kindWord; }
+          else if (STOP_TYPES.includes(kindWord)) { fields.kind = 'stop'; fields.type = kindWord; }
+          else fields.kind = 'stop';
+          const item = await addItem(fields);
+          return { ref: tavern.refs.make('plan', item.id) };
+        },
       });
     }
 

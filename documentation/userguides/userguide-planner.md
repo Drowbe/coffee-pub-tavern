@@ -42,6 +42,7 @@ Items with no time come first in a day, in the order you put them; items with a 
 - Something from the Calendar, To-do or Polls that is dated on a trip day appears under that day as a suggestion, with an **Add** button that puts it on the plan. An added item shows where it comes from and has an **Open** button that takes you to it. It is read only here: change it where it lives.
 - Drag an item from another module onto a day to put it on that day.
 - Another module can ask Planner to add something: a closed poll's winner can go onto the plan as a stop.
+- A card Assistant's AI writes and marks as a flight, a train, a bus, a ferry, a car, a hotel, a restaurant, a cafe, a bar, a sight, a museum, a tour or a show is kept here as that proper kind of item, on the day it names, not just a plain note.
 - Items other modules link to a stop show under it.
 
 ## Bookings

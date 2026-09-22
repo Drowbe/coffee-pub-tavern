@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
   "author": "Coffee Pub",
@@ -75,6 +75,17 @@
         "label": "Put it on the trip's itinerary",
         "input": {
           "item": "ref",
+          "date": "date?"
+        }
+      },
+      {
+        "name": "acceptSuggestion",
+        "label": "Add it to the trip, properly typed",
+        "input": {
+          "title": "string",
+          "kind": "string?",
+          "content": "text?",
+          "place": "string?",
           "date": "date?"
         }
       }

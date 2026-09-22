@@ -71,6 +71,7 @@
     asking: false,
     context: [], // [{ ref, title, icon }]
     saveAction: null, // a note-shaped action (a title, a body of text) to keep a card with, or null when nothing offers one
+    suggestAction: null, // a suggestion-shaped action (a title, a kind) that places a typed card properly, or null when nothing offers one
   };
   const emptyNode = $('ask-empty'); // the "ask anything" line, moved back into #thread by New conversation
 
@@ -159,7 +160,10 @@
   function aiCard(c, question) {
     const el = clone('tpl-aicard');
     setIcon(el.querySelector('.badge [data-icon]'), c.icon || 'note');
-    fill(el, { title: c.title, content: c.content, place: placeText(c.place), when: c.date ? dayText(c.date) : '', basis: BASIS_TEXT[c.basis] || '' });
+    fill(el, { title: c.title, place: placeText(c.place), when: c.date ? dayText(c.date) : '', basis: BASIS_TEXT[c.basis] || '' });
+    const content = slot(el, 'content');
+    content.innerHTML = tavern.util.markdown(c.content || '');
+    content.hidden = !c.content;
     el.dataset.basis = BASIS_TEXT[c.basis] ? c.basis : '';
     const tags = slot(el, 'tags');
     tags.replaceChildren(...(c.tags || []).map(tagNode));
@@ -168,7 +172,10 @@
     srcs.replaceChildren(...(c.sources || []).map(sourcePill));
     hide(slot(el, 'sources-wrap'), !(c.sources || []).length);
     const keepBtn = el.querySelector('[data-action="keep-card"]');
-    if (!state.saveAction) {
+    // A card plainly a flight, a hotel, a sight... is placed properly by whichever module recognises its `kind` (a plan, say),
+    // found generically; anything else, or nothing recognising it, falls back to an ordinary saved note.
+    const placer = c.kind && state.suggestAction ? state.suggestAction : state.saveAction;
+    if (!placer) {
       keepBtn.disabled = true;
       keepBtn.title = 'Nothing here can save a kept card yet.';
       el.append(clone('tpl-state-nowhere-to-save'));
@@ -178,15 +185,10 @@
       if (!b) return;
       if (b.dataset.action === 'copy-card') {
         try { await navigator.clipboard.writeText(`${c.title}\n${c.content}`); say('Copied.', 2000); } catch (err) { say('Select the text and copy it.', 3000); }
-      } else if (b.dataset.action === 'keep-card' && state.saveAction && !keepBtn.disabled) {
+      } else if (b.dataset.action === 'keep-card' && placer && !keepBtn.disabled) {
         keepBtn.disabled = true;
         try {
-          // Name the sources for real (the pills above resolve the same way), so the kept item's own words read as the card does.
-          const sources = c.sources || [];
-          const named = new Map();
-          await Promise.all(sources.map(async (r) => { try { const card = await tavern.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
-          const input = keepInput(c, question, (r) => named.get(r) || '');
-          const out = await tavern.actions.request(state.saveAction.action, input, { wait: true });
+          const out = await tavern.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
           if (out.status !== 'done' || !out.result || !out.result.ok) throw new Error((out.result && out.result.error) || 'it could not be saved');
           keepBtn.classList.add('kept');
           say('Kept.', 2500);
@@ -195,13 +197,25 @@
     });
     return el;
   }
+  // What to send a chosen placing action, from a card and the question that produced it: the suggestion shape (kind, place as
+  // plain text, no sources: acceptSuggestion-like) or the note shape (keepInput's, with sources named and folded into the body).
+  async function placeInput(action, c, question) {
+    if (action === state.suggestAction) {
+      return { title: c.title, kind: c.kind || '', content: c.content, place: c.place && c.place.name ? c.place.name : '', date: c.date || '' };
+    }
+    // Name the sources for real (the pills above resolve the same way), so the kept item's own words read as the card does.
+    const sources = c.sources || [];
+    const named = new Map();
+    await Promise.all(sources.map(async (r) => { try { const card = await tavern.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
+    return keepInput(c, question, (r) => named.get(r) || '');
+  }
   function showReply(question, reply) {
     const msg = clone('tpl-msg-ai');
     fill(msg, { who: 'AI' });
     const parts = msg.querySelector('.parts');
     for (const p of answerParts(reply.text, (reply.cards || []).length)) {
       if (p.card !== undefined) parts.append(aiCard(reply.cards[p.card], question));
-      else { const t = clone('tpl-msg-text'); fill(t, { text: p.text }); parts.append(t); }
+      else { const t = clone('tpl-msg-text'); t.innerHTML = tavern.util.markdown(p.text); parts.append(t); }
     }
     return msg;
   }
@@ -255,13 +269,16 @@
       hydrate(thread());
     }
   }
-  // A note-shaped save action, found by name and input shape (a title, and a body of text), never by naming a module.
+  // A note-shaped save action (a title, a body of text), and a suggestion-shaped one that places a card properly by its `kind`
+  // (a title and a kind), each found by name and input shape, never by naming a module.
   async function findSaveAction() {
     try {
       const list = await tavern.actions.list();
       state.saveAction = list.find((a) => a.name === 'saveNote' && a.input && 'title' in a.input && 'body' in a.input) || null;
+      state.suggestAction = list.find((a) => a.name === 'acceptSuggestion' && a.input && 'title' in a.input && 'kind' in a.input) || null;
     } catch (err) {
       state.saveAction = null;
+      state.suggestAction = null;
     }
   }
 

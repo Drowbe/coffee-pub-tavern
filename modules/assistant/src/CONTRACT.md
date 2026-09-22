@@ -31,11 +31,15 @@ A normal bundled module (`panel: { dock, float }`, poppable into its own window 
 
 ## The card (`tpl-aicard`)
 
-An icon badge, "Answer" with a permanent AI mark, a title, the content, tags, `[data-slot=basis-wrap]` (`[data-slot=basis]`, `data-basis=general|items|both`: "From general knowledge: check it before you rely on it", "From your notes", or both), an optional place and date, and `[data-slot=sources-wrap]` listing what it drew on as `.link` pills (`.gone` for one no longer reachable). `.actions` holds **keep** (bookmark; `.kept` once saved) and **copy the text**. The card is draggable, like any card, onto a plan or anywhere else that takes one.
+An icon badge, "Answer" with a permanent AI mark, a title, the content (the model's own Markdown, rendered with `tavern.util.markdown`; `[data-slot=content]` is a `div`, not a `p`, since rendered Markdown can hold headings and lists), tags, `[data-slot=basis-wrap]` (`[data-slot=basis]`, `data-basis=general|items|both`: "From general knowledge: check it before you rely on it", "From your notes", or both), an optional place and date, and `[data-slot=sources-wrap]` listing what it drew on as `.link` pills (`.gone` for one no longer reachable). `.actions` holds **keep** (bookmark; `.kept` once saved) and **copy the text**. The card is draggable, like any card, onto a plan or anywhere else that takes one. A card may carry a `kind` (an everyday word: a flight, a hotel, a sight...); nothing in the markup shows it yet (a kind-coloured badge is still to design).
 
 ## Saving a card
 
-Keeping a card asks whichever module offers a note-shaped save action (found by name and input shape, as Places' `addPlace` is found today — never by naming a module), giving it the card's title, content, tags and sources. If nothing offers one, the keep button is disabled and `tpl-state-nowhere-to-save` explains why (install a module that keeps notes).
+Keeping a card asks whichever module offers a matching action, found by name and input shape (as Places' `addPlace` is found today — never by naming a module): a card with a `kind` prefers a suggestion-shaped action (a `title` and a `kind`, giving it the card's title, kind, content, place and date), which places it as that proper sort of item; any other card, or when nothing offers one, falls back to a note-shaped action (a `title` and a `body`), giving it the card's title, tags and sources folded into readable text (the action bus carries no list of several pointers or tags of its own). If neither exists, the keep button is disabled and `tpl-state-nowhere-to-save` explains why (install a module that keeps notes).
+
+## Not yet built (see `plan-smart-cards.md`)
+
+**Send all to plan**: a bulk action under a reply with more than one card, calling whichever action each card's `keep` would (once per card, one confirm first), and a kind-coloured badge on a card that carries one.
 
 ## Conduits
 

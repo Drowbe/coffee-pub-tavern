@@ -18,6 +18,10 @@ const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.ant
 const TASKS = ['summarise', 'ask', 'tags'];
 const MAX_ITEMS = 12;
 const BASES = ['general', 'items', 'both'];
+// A card's optional everyday-word kind, so a card that is plainly a flight, a hotel or a sight can be placed as one, not just kept
+// as a note. Ordinary domain language (what a plan, or a places list, already groups things as), not a module's own names.
+const KINDS = ['flight', 'train', 'bus', 'ferry', 'car', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show'];
+const MAX_CARDS = 20;
 const MAX_ITEM_CHARS = 8000;
 const MAX_PROMPT_CHARS = 60000;
 const MAX_QUESTION = 1000;
@@ -281,7 +285,7 @@ function buildPrompt(task, items, question) {
 
 // What the model is asked to write inside its answer: the part worth keeping, as a card in a fenced block. Everything else in the
 // conversation is chatter and is not kept.
-const CARD_RULE = 'Always include at least one card: the part of your answer worth keeping, written as a fenced block in exactly this form, one block per card (at most 3):\n```card\n{"icon":"note","title":"a short title","content":"the text to keep, plain, no markup","tags":["one","word"],"place":{"name":"optional"},"date":"optional YYYY-MM-DD","links":[{"title":"optional","url":"https://..."}],"basis":"general","sources":[1]}\n```\nThe icon is one of: ' + ICONS.join(', ') + '. "basis" says where the card comes from: "general" (your own knowledge), "items" (the material) or "both". "sources" are the item numbers you used. Leave out the optional parts you do not need.';
+const CARD_RULE = 'Always include at least one card: the part of your answer worth keeping, written as a fenced block in exactly this form (at most ' + MAX_CARDS + ', one block per card):\n```card\n{"icon":"note","kind":"optional","title":"a short title","content":"the text to keep; plain prose, or simple Markdown (headings, **bold**, *italic*, lists, links) if that reads better","tags":["one","word"],"place":{"name":"optional"},"date":"optional YYYY-MM-DD","links":[{"title":"optional","url":"https://..."}],"basis":"general","sources":[1]}\n```\nThe icon is one of: ' + ICONS.join(', ') + '. If the card is plainly one of these everyday things, set "kind" to it (leave it out otherwise): ' + KINDS.join(', ') + '. When asked for several distinct things (an itinerary, a list of options, "find me three hotels"), write one card per thing instead of folding them into prose; a single question still gets one card. "basis" says where the card comes from: "general" (your own knowledge), "items" (the material) or "both". "sources" are the item numbers you used. Leave out the optional parts you do not need.';
 
 // A card is checked field by field; anything that does not fit is dropped, and a block that is not a valid card stays as ordinary text.
 const plain = (s, n, lines) => String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(lines ? /(?!\n)\p{Cc}/gu : /\p{Cc}/gu, ' ').replace(lines ? /[ \t]+/g : /\s+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
@@ -291,6 +295,7 @@ function cleanCard(raw, count) {
   const content = plain(raw.content, 2000, true);
   if (!title || !content) return null;
   const card = { icon: ICONS.includes(raw.icon) ? raw.icon : ICONS[0], title, content, basis: BASES.includes(raw.basis) ? raw.basis : count > 0 ? 'items' : 'general' };
+  if (KINDS.includes(raw.kind)) card.kind = raw.kind;
   const tags = [];
   for (const t of Array.isArray(raw.tags) ? raw.tags : []) {
     const tag = String(t == null ? '' : t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24);
@@ -325,7 +330,7 @@ function cleanCard(raw, count) {
 function parseCards(text, count) {
   const cards = [];
   const out = String(text).replace(/```(?:card|json)?[ \t]*\n([\s\S]*?)\n?```/g, (whole, body) => {
-    if (cards.length >= 3) return whole;
+    if (cards.length >= MAX_CARDS) return whole;
     let card = null;
     try { card = cleanCard(JSON.parse(body), count); } catch { /* not JSON */ }
     if (!card) return whole;
@@ -356,4 +361,4 @@ function citedItems(text, count) {
   return [...used].sort((a, b) => a - b);
 }
 
-module.exports = { Ai, AiError, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS };
+module.exports = { Ai, AiError, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_CARDS };

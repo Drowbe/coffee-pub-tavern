@@ -1,7 +1,7 @@
 {
   "assistant": {
-    "version": "0.1.3",
-    "hash": "538f350d814d25d7"
+    "version": "0.1.5",
+    "hash": "b8d013d57d276667"
   },
   "calendar": {
     "version": "1.17.0",
@@ -28,7 +28,7 @@
     "hash": "c221a4f0518dcabf"
   },
   "travel": {
-    "version": "0.7.8",
-    "hash": "ed518094715f1772"
+    "version": "0.7.9",
+    "hash": "ca36889c2dc76edf"
   }
 }
