@@ -16,8 +16,8 @@
     "hash": "949c221d2a7d9b7a"
   },
   "polls": {
-    "version": "1.12.0",
-    "hash": "6fc97aa323097a27"
+    "version": "1.12.1",
+    "hash": "57194663cf67880e"
   },
   "research": {
     "version": "0.2.1",
@@ -28,7 +28,7 @@
     "hash": "c221a4f0518dcabf"
   },
   "travel": {
-    "version": "0.7.9",
-    "hash": "ca36889c2dc76edf"
+    "version": "0.7.12",
+    "hash": "f2d70d8bab9a05dd"
   }
 }

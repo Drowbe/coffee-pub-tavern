@@ -81,7 +81,7 @@
 /* the days-between badge: a circle with the count on the line, and a + beside it that opens what can be added there */
 .gap { display: flex; align-items: center; margin: 0 0 14px; padding-left: calc(var(--spine-x) - 17px); }
 .gapcount { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--text-dim); background: var(--bg-section); color: var(--text); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.gapadd { display: inline-flex; align-items: center; justify-content: center; height: 26px; min-width: 44px; margin-left: -8px; padding: 0 10px 0 16px; border: 1.5px solid var(--text-dim); border-radius: 0 8px 8px 0; background: var(--bg-card); color: var(--text); font: inherit; cursor: pointer; z-index: -1; position: relative; }
+.gapadd { display: inline-flex; align-items: center; justify-content: center; height: 26px; min-width: 44px; margin-left: -8px; padding: 0 12px 0 16px; border: 1.5px solid var(--text-dim); border-radius: 0 999px 999px 0; background: var(--bg-card); color: var(--text); font: inherit; cursor: pointer; z-index: -1; position: relative; }
 .gapadd:hover, .gapadd:focus-visible { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg-card)); }
 .dayedge { display: flex; justify-content: center; margin: 0 0 14px; }
 .dayedge .btn { display: inline-flex; align-items: center; gap: 6px; border-style: dashed; color: var(--text-dim); background: transparent; }
@@ -312,6 +312,15 @@
 .row.marker .slot, .row[data-kind="block"] .slot { position: relative; z-index: 1; }
 .app.narrow .row.marker .markerpill, .app.narrow .row[data-kind="block"] .markerpill { margin-left: -28px; }
 .app.narrow .row.marker .mk-icon, .app.narrow .row[data-kind="block"] .mk-icon { width: 26px; font-size: 13px; }
+/* A plan-wide marker is one banner-like pill with nothing beside its date: stacking the date in its own
+   full-width row above it (the way every other row does on a phone) leaves it stranded with empty space
+   beside it. mk-date carries the same date inside the pill for a phone to show instead (see buildMarker); the
+   rail stays exactly where every other row's does, since .when is simply hidden here, not moved. */
+.mk-date { display: none; }
+.app.narrow .row.marker .when { display: none; }
+.app.narrow .row.marker .mk-date { display: inline; flex: none; color: var(--text); opacity: 0.78; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+.app.narrow .row.marker .mk-date::after { content: '\00b7'; margin: 0 5px; opacity: 0.6; }
+.app.narrow .row.marker .mk-label { gap: 6px; }
 /* the menu button of a block: on the label cell's right edge, over the hatch */
 .card.block.markerpill .menu-btn { top: 50%; right: 4px; margin-top: -14px; }
 

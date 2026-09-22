@@ -286,7 +286,10 @@
     const row = clone('tpl-row-marker');
     row.dataset.marker = kind;
     setIcon(row.querySelector('.markercard [data-icon]'), type.icon);
-    fill(row, { time, title: type.label, sub });
+    // `mdate` repeats `time` (a date, for these plan-wide markers) inside the pill: on a phone, where the pill
+    // is the whole row and .when's own column has nowhere to sit beside it, the stylesheet shows this instead
+    // and hides .when, so the date stays with the box it is about rather than stranded above it.
+    fill(row, { time, mdate: time, title: type.label, sub });
     colourPill(row.querySelector('.markerpill'), type);
     return row;
   }
@@ -494,7 +497,9 @@
       if (runs.has(day)) wrap.append(buildGap(runs.get(day)));
       if (i === 0) wrap.append(...buildBetween(null));
       wrap.append(buildDay(day, i, days, by));
-      wrap.append(...buildBetween(day));
+      // A hidden day's own joint has nowhere meaningful to point (its day is not shown) and only piles up on
+      // the gap badge standing in for it; the badge's own + already opens the same menu for the run.
+      if (!(hiding && empties.has(day))) wrap.append(...buildBetween(day));
       const below = timelineMarkers(day, 'after', days, by);
       if (below) wrap.append(below);
     });
