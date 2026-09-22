@@ -535,12 +535,19 @@ app.get('/manifest.webmanifest', (_req, res) => {
   });
 });
 
-// Static assets, including the LiveKit browser client and Font Awesome Free
+// Static assets, including the LiveKit browser client and Font Awesome
 // (the one icon set every page uses) served from node_modules.
 app.use('/lib/livekit-client.esm.mjs', express.static(path.join(clientDist, 'livekit-client.esm.mjs')));
 const faDir = path.dirname(require.resolve('@fortawesome/fontawesome-free/package.json'));
-app.use('/fa/css', express.static(path.join(faDir, 'css'), { maxAge: '7d' }));
-app.use('/fa/webfonts', express.static(path.join(faDir, 'webfonts'), { maxAge: '30d' }));
+// An admin's own Font Awesome Pro package, dropped at DATA_DIR/fontawesome-pro/ (the "Web" download from their own Font
+// Awesome account: css/, webfonts/ and svgs/, the same shape as the bundled Free set) -- never fetched, never in the image,
+// never a token anywhere in this repo, so the shared image every self-hoster pulls stays Free-only and the licence stays
+// the admin's own. Present, it is served (and looked up for an icon's SVG) ahead of Free; a style or icon it does not have
+// falls back to Free, so nothing breaks if it is partial or absent.
+const faProDir = path.join(DATA_DIR, 'fontawesome-pro');
+const hasFaPro = fs.existsSync(path.join(faProDir, 'css'));
+app.use('/fa/css', express.static(path.join(faProDir, 'css'), { maxAge: '7d' }), express.static(path.join(faDir, 'css'), { maxAge: '7d' }));
+app.use('/fa/webfonts', express.static(path.join(faProDir, 'webfonts'), { maxAge: '30d' }), express.static(path.join(faDir, 'webfonts'), { maxAge: '30d' }));
 
 // Background blur's own dependencies, all self-hosted for the same reason
 // livekit-client is: nothing this page needs is fetched from a CDN at
@@ -1303,16 +1310,22 @@ function iconSvg(id) {
   const classes = icon?.classes || `fa-solid fa-${id}`;
   const style = /fa-brands/.test(classes) ? 'brands' : /fa-regular/.test(classes) ? 'regular' : 'solid';
   const name = classes.split(/\s+/).filter((c) => c.startsWith('fa-')).map((c) => c.slice(3)).find((n) => !['solid', 'regular', 'brands', 'fw'].includes(n));
-  let svg = null;
-  if (name && /^[a-z0-9-]+$/.test(name)) {
-    try {
-      svg = fs.readFileSync(path.join(faDir, 'svgs', style, `${name}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
-    } catch {
-      svg = null;
-    }
-  }
+  const svg = name && /^[a-z0-9-]+$/.test(name) ? faSvg(style, name) : null;
   roomIconSvgs.set(id, svg);
   return svg;
+}
+
+// An icon's SVG, from the admin's Pro package first (if it has this style and icon), then the bundled Free set; null if
+// neither does. `style`/`name` are checked by the caller (a route param or a value already drawn from known-good data).
+function faSvg(style, name) {
+  for (const dir of hasFaPro ? [faProDir, faDir] : [faDir]) {
+    try {
+      return fs.readFileSync(path.join(dir, 'svgs', style, `${name}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    } catch {
+      // try the next place, or give up
+    }
+  }
+  return null;
 }
 
 // A Font Awesome icon as inline SVG, by style and name, for a module's widget in a sandboxed frame (which cannot
@@ -1320,12 +1333,9 @@ function iconSvg(id) {
 app.get('/api/icons/:style/:name', requireUser, (req, res) => {
   const { style, name } = req.params;
   if (!['solid', 'regular', 'brands'].includes(style) || !/^[a-z0-9-]{1,40}$/.test(name)) return res.status(400).json({ error: 'no such icon' });
-  try {
-    const svg = fs.readFileSync(path.join(faDir, 'svgs', style, `${name}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
-    res.type('image/svg+xml').set('Cache-Control', 'private, max-age=86400').send(svg);
-  } catch {
-    res.status(404).json({ error: 'no such icon' });
-  }
+  const svg = faSvg(style, name);
+  if (!svg) return res.status(404).json({ error: 'no such icon' });
+  res.type('image/svg+xml').set('Cache-Control', 'private, max-age=86400').send(svg);
 });
 
 // The viewer's rooms for this module, or null after sending the error.

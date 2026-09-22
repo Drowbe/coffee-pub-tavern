@@ -45,7 +45,14 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
   **1** to **6**.
 - **Font Awesome.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example
   `<i class="fa-solid fa-dice"></i>`, and the preview shows it. These icons are the choices offered for a
-  room's launch link and the home icon. Only the Free icons that ship with Tavern will draw.
+  room's launch link and the home icon. Only the Free icons that ship with Tavern will draw, unless you
+  have added your own Pro package (below).
+- **Font Awesome Pro (optional).** If you have a Pro licence, drop your own "Web" download from your
+  Font Awesome account (the folder with `css/`, `webfonts/` and `svgs/` in it, the Classic style) at
+  `DATA_DIR/fontawesome-pro/` on the server and restart it. Tavern serves and draws from it ahead of
+  the bundled Free set, falling back to Free for any style or icon it does not have. Nothing about your
+  licence or your package ever leaves your own server: it is never built into the shared image, never
+  uploaded, and no token for it lives in this repository.
 
 ## Rooms and Users
 

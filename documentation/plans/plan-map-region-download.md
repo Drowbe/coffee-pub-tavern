@@ -36,6 +36,8 @@ This runs into the choice the server was built around: every dependency is pure 
 3. The name-to-box lookup, through Places' existing search setting.
 4. The Module Configuration UI: the field, the confirm step, the progress bar. (Mine, once 1–3 exist to build against.)
 
-## Open question
+## Decided
 
-The Go-binary trade-off, above. Everything else here is design, not architecture.
+The author said yes to the Go binary (2026-09-22): vendor the `pmtiles` CLI into the Docker image, one binary per
+architecture, cross-compiled (no emulation). Server Development has not yet built the Docker change or the rest of
+this plan; it is the next piece of work, in the order above.
