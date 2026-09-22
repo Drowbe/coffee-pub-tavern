@@ -641,6 +641,47 @@
     return parts2.filter(([n]) => n).map(([n, label]) => [n, label]);
   };
 
+  // The four views, then Hide/Show empty days and Edit trip, are icons in the titlebar when the host has one
+  // (a pane, or a module's own window); on the server page there is none, and the buttons stay in the page.
+  let headerSig = '';
+  async function syncHeader() {
+    if (!tavern.header) return;
+    const openCount = openDecisions().length;
+    const items = [
+      { id: 'days', icon: 'calendar-days', title: 'Days', on: state.view === 'days' },
+      { id: 'decisions', icon: 'scale-balanced', title: openCount ? `Decisions (${openCount} open)` : 'Decisions', on: state.view === 'decisions' },
+      { id: 'bookings', icon: 'ticket', title: 'Bookings', on: state.view === 'bookings' },
+      { id: 'money', icon: 'coins', title: 'Money', on: state.view === 'money' },
+    ];
+    if (state.view === 'days') items.push({ id: 'toggle-empty', icon: 'eye-slash', title: state.hideEmpty ? 'Show empty days' : 'Hide empty days', on: state.hideEmpty });
+    if (canEdit) items.push({ id: 'edit-trip', icon: 'pen', title: 'Edit trip' });
+    const sig = JSON.stringify(items);
+    if (sig === headerSig) return;
+    headerSig = sig;
+    let hosted = false;
+    try {
+      hosted = await tavern.header.set(items);
+    } catch (err) {
+      hosted = false;
+    }
+    $('app').classList.toggle('hosted-header', Boolean(hosted));
+  }
+  if (tavern.header) {
+    tavern.on('header', (e) => {
+      if (e.id === 'toggle-empty') {
+        state.hideEmpty = !state.hideEmpty;
+        try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }
+        return redraw();
+      }
+      if (e.id === 'edit-trip') return openEditor('trip');
+      if (['days', 'decisions', 'bookings', 'money'].includes(e.id)) {
+        state.view = e.id;
+        scrolled = state.view !== 'days';
+        return redraw();
+      }
+    });
+  }
+
   function renderHeader() {
     const trip = plan.trip;
     const head = $('trip');
@@ -677,6 +718,7 @@
       hide(toggle, state.view !== 'days');
     }
     void days;
+    syncHeader();
   }
 
   // Keep what someone is typing in an add row through a redraw.

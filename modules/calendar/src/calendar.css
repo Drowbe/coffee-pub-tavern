@@ -15,6 +15,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .ic svg { width: 1em; height: 1em; fill: currentColor; }
 .seg .btn { padding-inline: 10px; }
 .seg .btn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+/* The view switcher moves into the pane's own titlebar once the host draws it there (see syncHeader); the
+   navigation beside it (Today, the month's name) has nowhere else to go, so it stays in the page either way. */
+.hosted-header #view-toggle { display: none; }
 .body { flex: 1; min-height: 0; overflow: auto; }
 
 /* month */

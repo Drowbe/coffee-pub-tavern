@@ -18,6 +18,9 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .trip { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 12px; }
 .trip > div:first-child { order: 0; flex: 1 1 auto; min-width: 0; }
 .tools { order: 1; display: flex; align-items: center; gap: 0; }
+/* The views and the trip's own actions move into the pane's own titlebar once the host draws them there
+   (see syncHeader); the title and dates beside them have nowhere else to go, so they stay in the page either way. */
+.hosted-header .tools { display: none; }
 .trip-facts { order: 3; }
 .trip-title { margin: 0; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
 .trip-when { color: var(--text-dim); }

@@ -200,11 +200,41 @@
     return s.getMonth() === e.getMonth() ? `${m(s)} ${s.getDate()} \u2013 ${e.getDate()}, ${e.getFullYear()}` : `${m(s)} ${s.getDate()} \u2013 ${m(e)} ${e.getDate()}, ${e.getFullYear()}`;
   }
 
+  // Month / Week / Month + list / List are icons in the titlebar when the host has one (a pane, or a
+  // module's own window); on the server page there is none, and the buttons stay in the page.
+  const VIEWS = [
+    { id: 'month', icon: 'calendar-days', title: 'Month' },
+    { id: 'week', icon: 'calendar-week', title: 'Week' },
+    { id: 'both', icon: 'table-list', title: 'Month + list: the month on top, its events below' },
+    { id: 'list', icon: 'list', title: 'List' },
+  ];
+  let headerSig = '';
+  async function syncHeader() {
+    if (!tavern.header) return;
+    if (view === headerSig) return;
+    headerSig = view;
+    let hosted = false;
+    try {
+      hosted = await tavern.header.set(VIEWS.map((v) => ({ ...v, on: v.id === view })));
+    } catch (err) {
+      hosted = false;
+    }
+    $('app').classList.toggle('hosted-header', Boolean(hosted));
+  }
+  if (tavern.header) {
+    tavern.on('header', (e) => {
+      if (!VIEWS.some((v) => v.id === e.id)) return;
+      view = e.id;
+      render();
+    });
+  }
+
   function render() {
     const compact = isCompact();
     const showNav = view !== 'list';
     $('prev').hidden = $('next').hidden = !showNav;
     for (const [v, id] of [['month', 'view-month'], ['week', 'view-week'], ['both', 'view-both'], ['list', 'view-list']]) $(id).classList.toggle('on', view === v);
+    syncHeader();
     renderFilters();
     $('title').textContent = view === 'week' ? weekTitle() : view === 'list' ? 'Next 90 days' : cursor.toLocaleDateString([], { month: 'long', year: 'numeric' });
     if (view === 'week') {

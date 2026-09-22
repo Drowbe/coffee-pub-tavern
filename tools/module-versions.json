@@ -4,16 +4,16 @@
     "hash": "9065846f5664a1a7"
   },
   "calendar": {
-    "version": "1.17.0",
-    "hash": "1267b2ac59448c0d"
+    "version": "1.17.1",
+    "hash": "1b84434ae16b2eb5"
   },
   "maps": {
     "version": "0.7.4",
     "hash": "79553e4c1e6c6c59"
   },
   "places": {
-    "version": "0.8.2",
-    "hash": "949c221d2a7d9b7a"
+    "version": "0.8.3",
+    "hash": "bc6742213e0a6717"
   },
   "polls": {
     "version": "1.12.1",
@@ -28,7 +28,7 @@
     "hash": "c221a4f0518dcabf"
   },
   "travel": {
-    "version": "0.7.12",
-    "hash": "f2d70d8bab9a05dd"
+    "version": "0.7.13",
+    "hash": "ee158a07281fbe9a"
   }
 }
