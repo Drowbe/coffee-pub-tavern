@@ -60,7 +60,6 @@
   const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
   const hiddenRooms = new Set();
   let show = 'open';
-  let openMenu = null; // the key of the poll whose "..." actions menu is open, or null
 
   // --- storage --------------------------------------------------------------
 
@@ -270,11 +269,7 @@
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
-      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-expanded="${openMenu === x.key}" aria-label="Poll actions" title="Poll actions">&#8942;</button>
-      <div class="menu" role="menu" ${openMenu === x.key ? '' : 'hidden'}>
-        <button type="button" role="menuitem" data-toggle="${esc(x.key)}">${p.closed ? 'Reopen poll' : 'End poll'}</button>
-        <button type="button" role="menuitem" class="danger" data-delete="${esc(x.key)}">Delete poll</button>
-      </div>` : ''}
+      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">&#8942;</button>` : ''}
       <h3 data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
@@ -486,16 +481,18 @@
     render();
   }
 
+  // The menu item arms itself in place (its own label becomes "Really delete?") rather than closing and
+  // reopening; returning `false` to tavern.menu.show is what keeps it open for that second click.
   const armed = new Set();
-  async function remove(key) {
+  async function remove(key, button) {
     const x = polls.get(key);
     if (!x) return;
     if (!armed.has(key)) {
       armed.add(key);
-      const b = root.querySelector(`[data-delete="${CSS.escape(key)}"]`);
-      if (b) b.textContent = 'Really delete?';
-      setTimeout(() => { armed.delete(key); render(); }, 4000);
-      return;
+      const label = button && button.querySelector('.tv-menu-label');
+      if (label) label.textContent = 'Really delete?';
+      setTimeout(() => armed.delete(key), 4000);
+      return false;
     }
     armed.delete(key);
     try {
@@ -503,7 +500,6 @@
       await tavern.storage.delete('poll:' + x.id);
       polls.delete(key);
       votes.delete(key);
-      if (openMenu === key) openMenu = null;
     } catch (err) {
       showNote(err.message);
     }
@@ -665,8 +661,18 @@
   $('body').addEventListener('click', (e) => {
     const mb = e.target.closest('[data-menu]');
     if (mb) {
-      openMenu = openMenu === mb.dataset.menu ? null : mb.dataset.menu;
-      return void render();
+      const key = mb.dataset.menu;
+      const x = polls.get(key);
+      if (!x) return;
+      return void tavern.menu.show({
+        id: `poll-${key}`,
+        anchor: mb,
+        items: [
+          { id: 'toggle', label: x.p.closed ? 'Reopen poll' : 'End poll', icon: x.p.closed ? 'lock-open' : 'lock', onClick: () => setClosed(key) },
+          { separator: true },
+          { id: 'delete', label: 'Delete poll', icon: 'trash', danger: true, onClick: (item, b) => remove(key, b) },
+        ],
+      });
     }
     const un = e.target.closest('[data-unlink]');
     if (un) {
@@ -685,24 +691,10 @@
       const [key, option] = v.dataset.vote.split('|');
       return void vote(key, option);
     }
-    const t = e.target.closest('[data-toggle]');
-    if (t) {
-      openMenu = null;
-      return void setClosed(t.dataset.toggle);
-    }
-    const d = e.target.closest('[data-delete]');
-    if (d) return void remove(d.dataset.delete); // stays armed in the open menu for "Really delete?"
     const a = e.target.closest('[data-addopt]');
     if (a) {
       const input = a.parentElement.querySelector('[data-addtext]');
       addOption(a.dataset.addopt, input.value).then(() => { input.value = ''; });
-    }
-  });
-  // Anywhere else closes an open poll's actions menu, the same as the travel module's own menus.
-  root.addEventListener('click', (e) => {
-    if (openMenu && !e.target.closest('[data-menu], .poll .menu')) {
-      openMenu = null;
-      render();
     }
   });
   $('body').addEventListener('keydown', (e) => {
