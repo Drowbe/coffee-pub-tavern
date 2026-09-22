@@ -249,7 +249,7 @@ The same dialog (`#editor > form#form.editor-card`), rebuilt around **what kind 
 
 | Group | Fields (type) |
 |---|---|
-| Top | `f-title`, `f-date`, `f-time` (all but hotel), `f-minutes` (length or duration; not for hotel, note), `f-checkout` (hotel) |
+| Top | `f-title`, `f-date`, `f-time` (all but note; labelled "Check in" for hotel, "Time" otherwise), `f-minutes` (length or duration; not for hotel, note), `f-checkout`, `f-checkOutTime` (hotel) |
 | Journey | `f-operator`, `f-number`, `f-fromCode`, `f-toCode` (flight), `f-from`, `f-to`, `f-pickup`, `f-dropoff` (car), `f-terminal`, `f-gate` (flight), `f-platform`, `f-carriage` (train), `f-seat` (flight, train), `f-travelClass` (flight) |
 | Stay | `f-address`, `f-roomType`, `f-guests` (hotel) |
 | Where and who | `f-address-stop`, `f-partySize`, `f-reservationName` (meals), `f-admissionCount` (sight, museum, tour, show), `f-gate-show` (show's entry, saved as `gate`) |

@@ -1235,6 +1235,7 @@
     const noLength = ['block:meet-up', 'block:leave-by'].includes(tile); // a moment, not a stretch of time
     const lengthLabel = $('f-minutes').closest('label');
     if (lengthLabel) lengthLabel.hidden = noLength;
+    if ($('f-time-label')) $('f-time-label').textContent = key === 'hotel' ? 'Check in' : 'Time'; // the same field; a stay's own words for it
     for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
     $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : key === 'lane' ? markerType(tile.slice(5)).label : TITLES[tile] || '';
   }

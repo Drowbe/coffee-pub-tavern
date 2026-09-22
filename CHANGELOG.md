@@ -5,6 +5,8 @@ All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Added
+- Planner: a stay had no way to set a check-in time -- only a check-in day, plus a check-out day and time. The check-in time was already there in the data model (the same shared `time` field every kind uses, already labelled "check in" in the read-only card and timeline views); the editor form simply never showed it for a hotel/stay tile. Now shown, labelled "Check in" in that context. `documentation/userguides/userguide-planner.md` and the module's own CONTRACT.md updated to match.
+
 - Map region cutting: the Module Configuration UI (step 4 of plan-map-region-download.md). "Add a region" -- find a place, a real dry-run size estimate before anything downloads, a progress bar over the job's own server-sent events, the new file ticked in the files list above on success. Generic, gated on a module declaring `regionSource`, not Maps-specific. Verified live end-to-end against the real Protomaps daily build: a real search ("San Marino"), a real estimate, a real cut, landing on disk and ticked at the matching size; also checked a no-match search and Cancel.
 
 ### Changed
