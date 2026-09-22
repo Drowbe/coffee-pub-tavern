@@ -39,9 +39,10 @@
         <div class="region-confirm" id="region-confirm" hidden>
           <p id="region-confirm-name"></p>
           <div class="row">
-            <label>Maximum zoom <input type="number" id="region-zoom" min="0" max="15" value="10" step="1"></label>
+            <label>Maximum zoom <input type="number" id="region-zoom" min="0" max="15" value="14" step="1"></label>
             <label>File name <input type="text" id="region-filename" maxlength="100"></label>
           </div>
+          <p class="hint">How much detail the cut keeps, not how far it covers. 10 or below shows towns and the roads between them, not individual streets; 14, the default, shows streets and buildings; 15 is the most detail this can offer. Higher means a far bigger file for the same area — Check size shows the real cost for the box and zoom you've chosen before anything downloads.</p>
           <div class="row">
             <button class="btn btn-small" type="button" id="region-estimate-btn">Check size</button>
             <span class="status" id="region-estimate-status" role="status"></span>
