@@ -165,6 +165,7 @@
     content.innerHTML = tavern.util.markdown(c.content || '');
     content.hidden = !c.content;
     el.dataset.basis = BASIS_TEXT[c.basis] ? c.basis : '';
+    el.dataset.kind = c.kind || ''; // an everyday word (flight, hotel, sight...), for the card's colour; see assistant.css
     const tags = slot(el, 'tags');
     tags.replaceChildren(...(c.tags || []).map(tagNode));
     tags.hidden = !(c.tags || []).length;

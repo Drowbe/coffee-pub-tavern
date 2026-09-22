@@ -61,6 +61,8 @@
 <template id="tpl-msg-ai"><div class="msg-ai"><div class="who"><span class="ic" data-icon="wand-magic-sparkles"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
 <template id="tpl-msg-text"><div data-slot="text"></div></template>
 <template id="tpl-writing"><div class="thinking"><span class="ic" data-icon="wand-magic-sparkles"></span><span class="thinking-text">Thinking</span><span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span></div></template>
+<!-- shown under a reply that has more than one card: sends each the way its own keep button would, one after another -->
+<template id="tpl-send-all"><div class="send-all"><button type="button" data-action="send-all"><span class="ic" data-icon="paper-plane"></span> Send all to plan</button><span class="send-all-count" data-slot="count"></span></div></template>
 <!-- the card the model writes: kept (bookmark) asks whichever module offers to save one; dragged onto a plan or anywhere else that takes a card -->
 <template id="tpl-aicard">
   <article class="aicard">

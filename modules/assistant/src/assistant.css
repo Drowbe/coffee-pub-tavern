@@ -67,6 +67,22 @@ body { margin: 0; overflow: hidden; }
 /* the card the model writes inside its answer: drawn inline, kept only when the person keeps or drags it */
 .aicard { --turn: 255; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; padding: 12px 12px 10px; border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--border)); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 14%, var(--bg-card)), color-mix(in srgb, var(--tone) 6%, var(--bg-card))); box-shadow: 0 2px 10px color-mix(in srgb, black 14%, transparent); cursor: grab; }
 @supports (color: oklch(from red l c h)) { .aicard { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+
+/* A card plainly a flight, a hotel, a sight... is turned to that kind's own hue, the same ones Planner's own type
+   tiles use, so the same word reads as the same colour everywhere in the app. A plain card (no kind) keeps the
+   default --turn set on .aicard above. */
+.aicard[data-kind="flight"] { --turn: 195; } .aicard[data-kind="train"] { --turn: 150; } .aicard[data-kind="ferry"] { --turn: 120; }
+.aicard[data-kind="bus"] { --turn: 100; } .aicard[data-kind="car"] { --turn: 45; } .aicard[data-kind="hotel"] { --turn: 255; }
+.aicard[data-kind="restaurant"] { --turn: 0; } .aicard[data-kind="cafe"] { --turn: 345; } .aicard[data-kind="bar"] { --turn: 320; }
+.aicard[data-kind="sight"] { --turn: 95; } .aicard[data-kind="museum"] { --turn: 285; } .aicard[data-kind="tour"] { --turn: 65; }
+.aicard[data-kind="show"] { --turn: 305; }
+
+/* Send all to plan: a row under a reply that has more than one card. */
+.send-all { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.send-all button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--bg-card)); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.send-all button:hover, .send-all button:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 24%, var(--bg-card)); outline: none; }
+.send-all button:disabled { opacity: 0.5; cursor: default; }
+.send-all-count { color: var(--text-dim); font-size: 12px; }
 .aicard:active { cursor: grabbing; }
 .aicard .ic svg { width: 1em; height: 1em; }
 .aicard .badge { grid-row: 1 / span 3; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--tone); color: rgba(255, 255, 255, 0.9); font-size: 17px; }
