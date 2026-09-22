@@ -29,6 +29,66 @@
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
   }
 
+  // Text made safe to put in HTML.
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
+
+  // A small, safe subset of Markdown, to plain HTML: headings (# to ###), **bold**, *italic* or _italic_, `code`,
+  // fenced ``` code blocks, unordered (-, *) and ordered (1.) lists, [text](url) links (http/https only; anything
+  // else is left as plain text), paragraphs on a blank line, a single line break within one. Everything is escaped
+  // first (via `esc`), so no HTML in the text itself ever reaches the page. This is the one place a module (or the
+  // room page, for chat) may set innerHTML from what a person or an AI wrote, because the safety happens in here;
+  // everywhere else, text still goes in with textContent. Used for an AI's replies and for chat messages, both text
+  // nobody here wrote themselves.
+  function markdown(text) {
+    const inline = (s) => esc(s)
+      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      // A bare address the text didn't wrap in [text](...) itself: linked as it stands.
+      .replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(?:\*|_)([^*_\n]+)(?:\*|_)/g, '<em>$1</em>');
+    const lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    let para = [];
+    let list = null; // { tag: 'ul' | 'ol', items: [] }
+    let quote = null; // lines inside a > quote, raw (not yet inlined)
+    let code = null; // lines inside a ``` fence, raw (not yet escaped)
+    const flushPara = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
+    const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`); list = null; } };
+    const flushQuote = () => { if (quote) { out.push(`<blockquote>${quote.map(inline).join('<br>')}</blockquote>`); quote = null; } };
+    for (const line of lines) {
+      if (code) {
+        if (/^\s*```\s*$/.test(line)) { out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`); code = null; }
+        else code.push(line);
+        continue;
+      }
+      if (/^\s*```/.test(line)) { flushPara(); flushList(); flushQuote(); code = []; continue; }
+      if (!line.trim()) { flushPara(); flushList(); flushQuote(); continue; }
+      const q = /^\s*>\s?(.*)$/.exec(line);
+      if (q) { flushPara(); flushList(); if (!quote) quote = []; quote.push(q[1]); continue; }
+      flushQuote();
+      const h = /^(#{1,3})\s+(.+)$/.exec(line);
+      if (h) { flushPara(); flushList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+      const ol = /^\s*\d+[.)]\s+(.+)$/.exec(line);
+      const ul = !ol && /^\s*[-*]\s+(.+)$/.exec(line);
+      if (ol || ul) {
+        const tag = ol ? 'ol' : 'ul';
+        if (!list || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
+        list.items.push((ol || ul)[1]);
+        continue;
+      }
+      flushList();
+      para.push(line);
+    }
+    flushPara();
+    flushList();
+    flushQuote();
+    if (code) out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`); // an unclosed fence: show what there was
+    return out.join('');
+  }
+
   const UI_CSS = `
 .tv-datefield { display: flex; gap: 4px; align-items: center; }
 .tv-datefield input { flex: 1; min-width: 0; }
@@ -108,7 +168,11 @@
     // Small helpers more than one module needs, so each does not carry its own copy.
     util: {
       // Text made safe to put in HTML.
-      esc: (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]),
+      esc,
+      // A small, safe subset of Markdown to HTML (see the function above): headings, **bold**, *italic*, `code`,
+      // fenced code, lists, [text](url) and bare https:// links, > quotes, paragraphs. The one place a module may
+      // set innerHTML from text nobody here wrote, because the safety is already done inside it.
+      markdown,
       // A new id for something a module stores: short, and unlikely to repeat.
       id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       // A pointer's identity as one string, for keeping and comparing them.
@@ -826,4 +890,9 @@
     // In the page: the host builds one per module running in the page.
     global.createTavern = createTavern;
   }
+
+  // `esc` and `markdown` need no per-module env, so the room page (which loads this file directly for the modules
+  // it hosts in the page, not as a module itself) can use the very same rendering Chat and every module share,
+  // rather than a second copy. See tavern.util.markdown above for what this covers.
+  global.tavernText = { esc, markdown };
 })(window);

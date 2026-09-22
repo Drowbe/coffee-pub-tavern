@@ -2164,9 +2164,34 @@ a.crumb-here:hover {
   word-break: break-word;
 }
 
-.message .text ul {
+.message .text p {
+  margin: 0 0 4px;
+}
+
+.message .text p:last-child {
+  margin-bottom: 0;
+}
+
+.message .text ul,
+.message .text ol {
   margin: 4px 0;
   padding-left: 18px;
+}
+
+.message .text h1,
+.message .text h2,
+.message .text h3 {
+  margin: 6px 0 4px;
+  font-size: 1em;
+}
+
+.message .text pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  overflow-x: auto;
+  white-space: pre;
 }
 
 .message .text blockquote {

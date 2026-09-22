@@ -1263,22 +1263,11 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
-// A little markup: `code`, **bold**, *italic* or _italic_, bare links, line breaks.
+// Markdown to safe HTML: headings, **bold**, *italic*/_italic_, `code`, fenced code, - and 1. lists, > quotes
+// (what replyToEntry() quotes with), [text](url) and bare links. The one shared implementation every module
+// (and now Chat) uses, in /sdk/tavern.js -- loaded on this page already for the modules it hosts in the page.
 function renderMarkup(text) {
-  let html = escapeHtml(text);
-  html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  html = html.replace(/(https?:\/\/[^\s<]+[^\s<.,;:!?)"'])/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  html = html.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
-  html = html.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?:;]|$)/g, '$1<em>$2</em>');
-  // One or more consecutive "- line" lines become a single <ul>, not one
-  // per line -- everything else keeps the plain <br>-per-newline treatment.
-  html = html.replace(/(?:^|\n)- (.+(?:\n- .+)*)/g, (_m, body) => `\n<ul>${body.split('\n- ').map((item) => `<li>${item}</li>`).join('')}</ul>`);
-  // Same idea for "> line" (what replyToEntry() quotes with) -- consecutive
-  // lines share one <blockquote>. ">" is already escaped to &gt; by now.
-  // The blank line(s) after a quote are swallowed: a quote is a block, so the reply starts right under it.
-  html = html.replace(/(?:^|\n)&gt; (.+(?:\n&gt; .+)*)\n{0,2}/g, (_m, body) => `<blockquote>${body.split('\n&gt; ').join('<br>')}</blockquote>`);
-  return html.replace(/\n/g, '<br>');
+  return window.tavernText.markdown(text);
 }
 
 function iconButton(icon, title, onClick) {
