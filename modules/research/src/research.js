@@ -1,9 +1,9 @@
 // The Research module's page: notes, links and photos a group keeps while it plans, each a card that can be tagged, found again,
-// linked from anywhere and dragged onto a plan; and an Ask panel where the AI the admin chose answers over the items, writing what
-// is worth keeping as a card. The items live in the module's store (see research-lib.js). This page draws into the markup in
-// research.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes and
-// data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (a tag's colour, --tag, and the item menu's
-// position are the exceptions). Nothing here names another module.
+// linked from anywhere and dragged onto a plan. The items live in the module's store (see research-lib.js). This page draws into
+// the markup in research.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state
+// classes and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (a tag's colour, --tag, and the
+// item menu's position are the exceptions). Nothing here names another module: "Ask about this" requests the generic askAssistant
+// action of whichever module offers it (found by name and input shape), never Assistant by name.
 (async () => {
   'use strict';
 
@@ -49,9 +49,8 @@
     armed: null,
     uploads: [], // { el, file, step, progress, error, posAsk }
     tagColors: new Map(), // a well-known tag -> its colour
-    ai: false, // whether this person may use AI here
-    asking: false,
-    lastQuestion: '',
+    ai: false, // whether this person may use AI here (for Suggest tags)
+    askAssistant: null, // the generic action that opens a conversation about an item, if some module offers one
     thumbs: new Map(), // photo id -> address of its thumbnail in the view it was asked for
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || (key === me && info.user ? info.user.displayName : '') || '';
@@ -255,7 +254,7 @@
     state.menuFor = id;
     fill(menu, { 'edit-label': canEdit ? 'Edit' : 'View', 'copy-label': view === 'my' ? 'Copy to This room' : 'Copy to Mine' });
     hide(menu.querySelector('[data-action="copy-to"]'), !canEdit || !personal || !inRoom || it.kind === 'photo');
-    hide(menu.querySelector('[data-action="ask-about"]'), !state.ai || it.kind === 'photo');
+    hide(menu.querySelector('[data-action="ask-about"]'), !state.askAssistant || it.kind === 'photo');
     hide(menu.querySelector('[data-action="delete"]'), !mayRemove(it));
     menu.querySelector('[data-action="delete"] [data-slot="delete-label"]').textContent = 'Remove';
     state.armed = null;
@@ -493,136 +492,18 @@
     input.click();
   }
 
-  // --- Ask ----------------------------------------------------------------------------------------------------------
-
-  const ask = { items: [], label: '' };
-  // Ask starts with no context (an assistant answering from what it knows); the person may add research items as context.
-  const MAX_CONTEXT = 12;
-  function drawContext() {
-    fill($('ask'), { scope: ask.items.length === 1 ? ask.items[0].title : ask.items.length ? `${ask.items.length} items` : '' });
-    $('ask-chips').replaceChildren(...ask.items.map((it) => {
-      const c = clone('tpl-ask-chip');
-      c.dataset.id = it.id;
-      setIcon(c.querySelector('.ic[data-icon]'), KIND_ICON[it.kind]);
-      fill(c, { label: it.title });
-      return c;
-    }));
-    hydrate($('ask-context'));
-  }
-  function drawPicker() {
-    const rows = research.list().filter((it) => it.kind !== 'photo').sort((a, b) => String(b.at).localeCompare(String(a.at)));
-    $('ask-picker-list').replaceChildren(...rows.map((it) => {
-      const r = clone('tpl-pick-row');
-      r.dataset.id = it.id;
-      const box = r.querySelector('input');
-      box.checked = ask.items.some((x) => x.id === it.id);
-      box.disabled = !box.checked && ask.items.length >= MAX_CONTEXT;
-      setIcon(r.querySelector('.ic[data-icon]'), KIND_ICON[it.kind]);
-      fill(r, { title: it.title, kind: KIND_LABEL[it.kind] });
-      return r;
-    }));
-    fill($('ask-picker'), { 'picker-count': `${ask.items.length} of ${MAX_CONTEXT} chosen` });
-    hydrate($('ask-picker'));
-  }
-  function openAsk(items) {
-    ask.items = (items || []).slice(0, MAX_CONTEXT);
-    hide($('ask-picker'), true);
-    drawContext();
-    hide($('ask'), false);
-    hydrate($('ask'));
-    $('ask-input').focus();
-  }
-  $('ask-picker').addEventListener('change', (ev) => {
-    const row = ev.target.closest('.pick-row');
-    const it = row && research.get(row.dataset.id);
-    if (!it) return;
-    ask.items = ev.target.checked ? [...ask.items.filter((x) => x.id !== it.id), it].slice(0, MAX_CONTEXT) : ask.items.filter((x) => x.id !== it.id);
-    drawContext();
-    drawPicker();
-  });
-  const closeAsk = () => hide($('ask'), true);
-  const thread = () => $('thread');
-  const scrollDown = () => { thread().scrollTop = thread().scrollHeight; };
-
-  const BASIS_TEXT = { general: 'From general knowledge: check it before you rely on it', items: 'From your notes', both: 'From your notes and general knowledge' };
-  function aiCard(c, question) {
-    const el = clone('tpl-aicard');
-    setIcon(el.querySelector('.badge [data-icon]'), c.icon || 'note');
-    fill(el, { title: c.title, content: c.content, place: placeText(c.place), when: c.date ? dayText(c.date) : '', basis: BASIS_TEXT[c.basis] || '' });
-    el.dataset.basis = BASIS_TEXT[c.basis] ? c.basis : '';
-    const tags = slot(el, 'tags');
-    tags.replaceChildren(...(c.tags || []).map((t) => tagNode(t, 'tpl-tag')));
-    tags.hidden = !(c.tags || []).length;
-    const srcs = slot(el, 'sources');
-    srcs.replaceChildren(...(c.sources || []).map(sourcePill));
-    hide(slot(el, 'sources-wrap'), !(c.sources || []).length);
-    hide(el.querySelector('[data-action="keep-card"]'), !canEdit);
-    el.addEventListener('click', async (ev) => {
-      const b = ev.target.closest('[data-action]');
-      if (!b) return;
-      if (b.dataset.action === 'copy-card') {
-        try { await navigator.clipboard.writeText(`${c.title}\n${c.content}`); say('Copied.', 2000); } catch (err) { say('Select the text and copy it.', 3000); }
-      } else if (b.dataset.action === 'keep-card') {
-        b.disabled = true;
-        try {
-          const kept = await research.save(answerFromCard({ ...c, sources: (c.sources || []).map((r) => ({ ...r, label: sourceLabel(r) })) }, question, me, new Date().toISOString()));
-          b.classList.add('kept');
-          say('Kept in Research.', 2500);
-          el.dataset.kept = kept.id;
-        } catch (err) { b.disabled = false; say('It could not be kept: ' + message(err), 4000); }
-      }
-    });
-    return el;
-  }
-  function showReply(question, reply) {
-    const msg = clone('tpl-msg-ai');
-    fill(msg, { who: 'AI' });
-    const parts = msg.querySelector('.parts');
-    for (const p of answerParts(reply.text, (reply.cards || []).length)) {
-      if (p.card !== undefined) parts.append(aiCard(reply.cards[p.card], question));
-      else { const t = clone('tpl-msg-text'); fill(t, { text: p.text }); parts.append(t); }
-    }
-    return msg;
-  }
-  $('ask-form').addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const q = $('ask-input').value.trim();
-    if (q.length < 3 || state.asking || !state.ai) return;
-    state.asking = true;
-    $('ask-send').disabled = true;
-    const you = clone('tpl-msg-you');
-    fill(you, { text: q });
-    const waiting = document.createElement('div');
-    waiting.append(clone('tpl-writing'));
-    thread().append(you, waiting);
-    hydrate(thread());
-    $('ask-input').value = '';
-    scrollDown();
-    try {
-      const reply = await tavern.ai.ask({ task: 'ask', question: q, items: ask.items.map((it) => research.refOf(it.kind, it.id)) });
-      waiting.replaceWith(showReply(q, reply));
-    } catch (err) {
-      const t = clone('tpl-msg-text');
-      fill(t, { text: 'The AI could not answer: ' + message(err) });
-      waiting.replaceWith(t);
-    } finally {
-      state.asking = false;
-      $('ask-send').disabled = false;
-      hydrate(thread());
-      scrollDown();
-    }
-  });
-  $('ask-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('ask-form').requestSubmit(); } });
   async function checkAi() {
-    // The Ask button is always drawn once the pane is loaded, so a person can see it exists: dimmed, with the reason, when AI cannot be used here.
-    let why = '';
-    try { const a = await tavern.ai.available(); state.ai = Boolean(a.available); why = a.why || ''; } catch (err) { state.ai = false; why = 'this module has not been approved to use AI (turn it off and on again in Manage > Modules and approve it)'; }
-    state.aiWhy = why;
-    const btn = $('ask-btn');
-    hide(btn, !state.loaded);
-    btn.classList.toggle('unavailable', !state.ai);
-    btn.setAttribute('aria-disabled', String(!state.ai));
-    btn.title = state.ai ? '' : 'AI is not available here: ' + why;
+    try { state.ai = Boolean((await tavern.ai.available()).available); } catch (err) { state.ai = false; }
+  }
+  // The generic action that opens a conversation with the AI about an item, found by name and input shape, never by naming a
+  // module: any module could offer this, and Research asks for it the same way Places asks Maps to show something.
+  async function findAssistant() {
+    try {
+      const list = await tavern.actions.list();
+      state.askAssistant = list.find((a) => a.name === 'askAssistant' && a.input && 'ref' in a.input) || null;
+    } catch (err) {
+      state.askAssistant = null;
+    }
   }
 
   // Suggest tags for the item in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
@@ -659,7 +540,10 @@
       const a = t.dataset.action;
       if (!it) return closeMenu();
       if (a === 'edit') { closeMenu(); openEditor(id); }
-      else if (a === 'ask-about') { closeMenu(); openAsk([it]); }
+      else if (a === 'ask-about' && state.askAssistant) {
+        closeMenu();
+        tavern.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000));
+      }
       else if (a === 'copy-to') {
         closeMenu();
         const target = view === 'my' ? stores.room : stores.my;
@@ -681,11 +565,6 @@
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
-    if (t && t.dataset.action === 'ask') { if (!state.ai) return say('AI is not available here: ' + (state.aiWhy || 'it is not set up'), 6000); return openAsk([]); }
-    if (t && t.dataset.action === 'add-context') { drawPicker(); return hide($('ask-picker'), !$('ask-picker').hidden); }
-    if (t && t.dataset.action === 'picker-done') return hide($('ask-picker'), true);
-    if (t && t.dataset.action === 'remove-context') { const c = t.closest('.ask-chip'); ask.items = ask.items.filter((x) => !c || x.id !== c.dataset.id); drawContext(); if (!$('ask-picker').hidden) drawPicker(); return; }
-    if (t && t.dataset.action === 'close-ask') return closeAsk();
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });
   // An item can be dragged out to another module (onto a day of a plan, or a task that links to it): press its card and move.
@@ -699,7 +578,7 @@
   }
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
-      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor(); else if (!$('ask').hidden) closeAsk();
+      if (!$('item-menu').hidden) closeMenu(); else if (!$('editor').hidden) closeEditor();
     } else if (ev.key === 'Enter' && ev.target.classList && ev.target.classList.contains('rcard')) {
       ev.target.click();
     }
@@ -788,6 +667,7 @@
     render();
     loadLinks().catch(() => {});
     checkAi();
+    findAssistant();
     if (state.openWanted) { const f = state.openWanted; state.openWanted = null; f(); }
   } catch (err) {
     $('app').hidden = true;

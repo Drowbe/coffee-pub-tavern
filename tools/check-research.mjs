@@ -13,7 +13,7 @@ win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
 
-const names = ['KINDS', 'cleanItem', 'itemValue', 'textOf', 'parseTags', 'cleanTags', 'cleanUrl', 'readEntry', 'filterItems', 'tagCounts', 'fitSize', 'captionOf', 'answerParts', 'answerFromCard', 'createResearch'];
+const names = ['KINDS', 'cleanItem', 'itemValue', 'textOf', 'parseTags', 'cleanTags', 'cleanUrl', 'readEntry', 'filterItems', 'tagCounts', 'fitSize', 'captionOf', 'createResearch'];
 const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/research/src/research-lib.js', import.meta.url), 'utf8')}\nreturn { ${names.join(', ')} };`)(geo);
 
 function fakeTavern() {
@@ -102,18 +102,6 @@ await test('filtering: words, a kind, and all the chosen tags', () => {
   assert.deepEqual(lib.tagCounts(items), [{ tag: 'hotel', count: 2 }, { tag: 'lisbon', count: 2 }]);
 });
 
-await test('an AI reply: cards drawn in place, a stray marker never trusted', () => {
-  assert.deepEqual(lib.answerParts('Before\n\n{{card:0}}\n\nAfter', 1), [{ text: 'Before' }, { card: 0 }, { text: 'After' }]);
-  assert.deepEqual(lib.answerParts('Only text {{card:5}} here', 1), [{ text: 'Only text {{card:5}} here' }, { card: 0 }]);
-  assert.deepEqual(lib.answerParts('{{card:0}} {{card:0}}', 1), [{ card: 0 }, { text: '{{card:0}}' }]);
-  assert.deepEqual(lib.answerParts('', 0), []);
-  const a = lib.answerFromCard({ title: 'Hotel', content: 'Near the station', tags: ['Hotel'], date: '2026-09-30', place: { name: 'Station', lat: 1, lng: 2 }, sources: [{ module: 'places', kind: 'place', id: 'p' }] }, 'where?', 'u1', '2026-09-21T00:00:00Z');
-  const item = lib.cleanItem('answer', 'x', a);
-  assert.equal(item.ai.question, 'where?');
-  assert.equal(item.date, '2026-09-30');
-  assert.deepEqual(item.point, { lat: 1, lng: 2, name: 'Station' });
-});
-
 await test('the store: save, edit with versions, remove (and the picture), and what others ask', async () => {
   const f = fakeTavern();
   const r = lib.createResearch(f.tavern, { scope: 'room' });
@@ -133,8 +121,9 @@ await test('the store: save, edit with versions, remove (and the picture), and w
   await again.load();
   assert.equal(again.list().length, 1);
   r.provide('u1');
-  const out = await f.handlers.saveNote({ title: 'From elsewhere', body: 'text', ref: { module: 'places', kind: 'place', id: 'p' } }, { by: 'u2' });
+  const out = await f.handlers.saveNote({ title: 'From elsewhere', body: 'text', tags: '#Hotel, Lisbon', ref: { module: 'places', kind: 'place', id: 'p' } }, { by: 'u2' });
   assert.equal(out.ref.kind, 'note');
+  assert.deepEqual(r.get(out.ref.id).tags, ['hotel', 'lisbon']);
   assert.equal(f.links.at(-1)[1], 1);
   await assert.rejects(f.handlers.saveNote({ title: '' }), /title/);
   const link = await f.handlers.saveLink({ url: 'https://example.org/a', excerpt: 'because' });

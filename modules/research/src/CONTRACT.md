@@ -1,6 +1,6 @@
-# Research: the markup and behaviour contract (draft)
+# Research: the markup and behaviour contract
 
-**Audience:** whoever writes the Research module's script (the modules side) and whoever styles it (the interface side). The plan is `documentation/plans/plan-research.md`; the reference renderings are `design/pane.html` (`?state=normal|photos|empty|uploading|position|filtered`, `?theme=light`, `?w=390`) and `design/ask.html` (`?state=normal|streaming|kept`). This file moves to `src/CONTRACT.md` when the module is built.
+**Audience:** whoever writes the Research module's script (the modules side) and whoever styles it (the interface side). The plan is `documentation/plans/plan-research.md`; the reference rendering is `design/pane.html` (`?state=normal|photos|empty|uploading|position|filtered`, `?theme=light`, `?w=390`). The conversation with the AI (once here as Ask, 0.1.10-0.1.12) is now its own module, Assistant (see `documentation/plans/plan-assistant-module.md` and `modules/assistant/src/CONTRACT.md`): a card's menu offers **Research this**, which requests the generic `askAssistant` action of whichever module offers it, never naming Assistant.
 
 **How it works.** The stylesheet styles elements by class and attribute; the script builds them from `<template>`s and toggles states, and never sets a style (the one exception is a tag's colour, `--tag`). Colours come only from the theme tokens. Text from people goes in with `textContent`.
 
@@ -9,7 +9,7 @@
 ```
 <div class="rs [narrow]">                     narrow under 720 px (the script sets it from the pane's width)
   <header class="rs-head">                    h1 "Research", .count, .views (Mine, This room: button.view[aria-pressed])
-  <div class="rs-tools">                      .rs-search (input[type=search]), button.ai-btn "Ask" (hidden unless AI is available)
+  <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
   <div class="rs-chips">                      tag chips (.rs-chip.tag[style=--tag], .on)
   <main class="rs-body">                      .upload and .pos-ask when needed, then .rs-grid of .rcard, or .rs-empty
@@ -22,7 +22,7 @@ Views are as in Places: **Mine** (the person scope, private across rooms) and **
 
 `.top` holds `.kind` (the kind's icon in a round badge), `.kicker` ("Note", "Link", "Photo", "Answer", and for an answer a permanent `.ai-mark` "AI") and `button.menu` (the item menu). Then `h3` (the title), for a link `.site` (the site's name), `p.excerpt` (the body, clamped to four lines), `.tags` of `.tag[style=--tag]`, and `.meta` (the date, the place, an attachment count, and `.by` with the adder's initial). A photo also has `.thumb` first, an image cropped 4:3 across the card's top. The card is focusable and draggable (as any card: onto a plan's day, onto a task); Enter or a click opens it in the editor.
 
-**The menu** (`⋯`): Open, Edit, Copy to "This room" / "Mine", Ask about this (only when AI is available), Remove. Removing a photo also removes its file.
+**The menu** (`⋯`): Open, Edit, Copy to "This room" / "Mine", Research this (only when a module offers `askAssistant`), Remove. Removing a photo also removes its file.
 
 ## Quick add (the host's bottom bar)
 
@@ -42,10 +42,6 @@ A note: title, body, tags (a field that suggests the tags already used), an opti
 
 Plain words, typed freely, one word each. A list of well-known tags with a colour is kept in Module Configuration (the list control); a tag that is on the list wears its colour (\`--tag\`), any other is grey. The tag chips under the kind chips list the tags in use.
 
-## Ask (the AI)
-
-See `design/ask.html` and the plan. `button.ai-btn` opens the Ask panel over the pane (a dialog on a phone) with the selected items (or all the visible ones) as its context. The conversation is not saved. A card the model writes appears inline as `.aicard` with a bookmark (keep) and a copy button, and can be dragged; keeping creates an `answer` item in the current view.
-
 ## States
 
 | State | What is drawn |
@@ -54,7 +50,6 @@ See `design/ask.html` and the plan. `button.ai-btn` opens the Ask panel over the
 | Nothing yet | `.rs-empty`: an icon, "Nothing here yet", one sentence, and **Write a note** and **Add a photo** |
 | A filter matches nothing | "Nothing matches", with **Show everything** |
 | An upload failed | the `.upload` row turns to an error line with **Try again** |
-| AI unavailable | no Ask button; a tooltip on nothing (there is no dead button) |
 
 ## Not decided yet
 
@@ -68,9 +63,8 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 - `tpl-conflict` (as in Places: `text`, `use-theirs`, `keep-mine`), `tpl-source` (a pill for an answer's source; `.gone` when it is no longer there).
 - `tpl-chip-tag` (a tag chip in `#tag-chips`, `--tag`, `.on`), `tpl-tag`.
 - `tpl-upload` (`.upload`: `name`, `progress`, `step`, `[data-action=retry-upload]`), `tpl-pos-ask` (`text`, `[data-action=keep-position]`, `[data-action=drop-position]`).
-- The dialog is one form, `#form.editor-card[data-kind=note|link|photo|answer]`; each row lists the kinds that show it in `data-kinds`, and the stylesheet hides the rest. Fields: `f-title`, `f-caption` (a photo), `f-url`, `f-body`, `f-excerpt`, `f-tags` (with `#tag-list`), `f-point` and `f-date`, `#f-asked` (an answer: `asked`, `sources`), `f-by`, `f-error`, `f-save`, `f-cancel`, `f-delete`.
-- `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` (hidden unless AI is available), `delete`.
-- Ask: `#ask.ask-panel > .ask` with `#thread`, `#ask-form`, `#ask-input`, `#ask-send`, `[data-action=close-ask]`; clones `tpl-msg-you`, `tpl-msg-ai` (`who`, and `.parts` for `tpl-msg-text`, `tpl-aicard` and `tpl-writing` in order), `tpl-aicard` (`title`, `content`, `tags`, `place`, `when`, `sources`; `[data-action=keep-card]`, `[data-action=copy-card]`; the icon badge holds the card's icon).
+- The dialog is one form, `#form.editor-card[data-kind=note|link|photo|answer]`; each row lists the kinds that show it in `data-kinds`, and the stylesheet hides the rest. Fields: `f-title`, `f-caption` (a photo), `f-url`, `f-body`, `f-excerpt`, `f-tags` (with `#tag-list`), `f-point` and `f-date`, `#f-asked` (an answer kept from Assistant: `asked`, `sources`), `f-by`, `f-error`, `f-save`, `f-cancel`, `f-delete`.
+- `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` ("Research this", hidden unless a module offers `askAssistant`), `delete`.
 - States: `tpl-state-loading`, `tpl-state-empty` (`[data-action=new-note]`, `[data-action=add-photo]`), `tpl-state-noresults` (`[data-action=clear-filter]`).
 
 ## Suggest tags, dropping onto Research, a missing photo (0.1.5)
@@ -83,6 +77,6 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 
 `.backlinks[data-slot=backlinks]` sits at the foot of a card, above the meta line, hidden when nothing links to it (room view only; Mine is never linked). It holds one `tpl-backlink` pill per **group** of linkers, grouped by the linker's kind name: the linker module's icon (`[data-slot=icon-holder]`) and a label (`[data-slot=label]`): with one linker its kind and title ("Task: book the hotel"), with several "2 plans". The pill's `title` lists the linkers, and a click opens the linker (the only one, or the first). When there are more groups than fit, a `tpl-backlink-more` pill ("+2") ends the row. Reference: `design/pane.html` (the first card).
 
-## Ask: context is optional (0.1.11)
+## Research this: opening Assistant (0.2.0)
 
-Ask is an assistant you can ask anything, not a reader of the selected items. **Context is what a person adds**: `#ask-context` holds `#ask-chips` (a `tpl-ask-chip` per item, with `[data-action=remove-context]`) and **Add from Research** (`[data-action=add-context]`), which opens `#ask-picker`: a checklist of the visible items (`tpl-pick-row`) and **Done**. With none, the question is answered from the model's own knowledge; with some, from them as well. Opening Ask from a card's menu ("Ask about this") starts with that one item as context; from the header button it starts with none. `#ask-empty` invites the first question. A card the model writes carries a note under it, `p.basis[data-slot=basis-wrap]` (`[data-slot=basis]`; `data-basis=general|items|both`): "From general knowledge: check it before you rely on it", "From your notes", or both, with the sources listed as before.
+The conversation itself (chips, the picker, the thread, a card, keeping one) moved to the Assistant module and is documented in `modules/assistant/src/CONTRACT.md`. Here, a card's menu item `[data-action=ask-about]` ("Research this", shown only when some module offers the generic `askAssistant` action, found by name and input shape) requests it with this one item as context: `tavern.actions.request(found.action, { ref: research.refOf(it.kind, it.id) })`. Assistant opens (docked, floated, or freshly docked if it was never open) and adds the item as a context chip. A card kept there that names this item as its only source arrives back here through `saveNote` (now also accepting an optional `tags` field, a comma- or space-separated string) as an ordinary `note`, linked to the item it was about; the `answer` kind still reads correctly for items saved before this change, but nothing new creates one.

@@ -132,49 +132,6 @@
   // A caption from a file name: "IMG_2041.jpg" -> "IMG 2041".
   const captionOf = (name) => geo.oneLine(String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/[_-]+/g, ' '), 120);
 
-  // An AI answer as the pieces to draw, in order: { text } and { card: index }. A marker {{card:N}} counts only when N is a real card
-  // that has not been drawn yet; any other stays as the text it is. A card the text never mentions goes after it.
-  function answerParts(text, cardCount) {
-    const parts = [];
-    const drawn = new Set();
-    let last = 0;
-    const re = /\{\{card:(\d+)\}\}/g;
-    let m;
-    const push = (s) => { const t = s.trim(); if (t) parts.push({ text: t }); };
-    const src = String(text || '');
-    while ((m = re.exec(src))) {
-      const n = Number(m[1]);
-      if (!(n < cardCount) || drawn.has(n)) continue;
-      push(src.slice(last, m.index));
-      parts.push({ card: n });
-      drawn.add(n);
-      last = m.index + m[0].length;
-    }
-    push(src.slice(last));
-    for (let i = 0; i < cardCount; i += 1) if (!drawn.has(i)) parts.push({ card: i });
-    return parts;
-  }
-  // An AI card ({ title, content, tags, place, date, sources }) as the answer item to keep, asked `question`.
-  function answerFromCard(card, question, by, now) {
-    return {
-      id: '',
-      kind: 'answer',
-      title: geo.oneLine(card.title, 120),
-      body: '',
-      excerpt: '',
-      content: plainText(card.content, 8000),
-      url: '',
-      site: '',
-      tags: cleanTags(card.tags),
-      date: isDay(card.date) ? card.date : '',
-      point: card.place && geo.inRange(Number(card.place.lat), Number(card.place.lng)) ? { lat: geo.round6(Number(card.place.lat)), lng: geo.round6(Number(card.place.lng)), name: geo.oneLine(card.place.name, 120) } : null,
-      file: null,
-      by,
-      at: now,
-      ai: { question: geo.oneLine(question, 1000), sources: (card.sources || []).slice(0, 12) },
-    };
-  }
-
   // The items of one scope ('room' or 'person'), kept live, and what other modules may ask of them. `tavern` is the SDK.
   function createResearch(tavern, opts) {
     const scope = (opts && opts.scope) || 'room';
@@ -234,11 +191,13 @@
       if (!tavern.actions || !tavern.actions.provide) return;
       const link = (item, ref) => { if (ref && scope !== 'person') tavern.refs.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
       tavern.actions.provide({
+        // tags is a plain comma- or space-separated string, as the field in the dialog reads it, so any module (or Assistant,
+        // keeping a card) can offer tags without knowing this module's shape.
         saveNote: async (input, ctx) => {
           const i = input || {};
           const title = geo.oneLine(i.title, 120);
           if (!title) throw new Error('a note needs a title');
-          const item = await save({ kind: 'note', title, body: plainText(i.body, 8000), tags: [], date: '', by: me || (ctx && ctx.by) || '' });
+          const item = await save({ kind: 'note', title, body: plainText(i.body, 8000), tags: parseTags(i.tags), date: '', by: me || (ctx && ctx.by) || '' });
           link(item, i.ref);
           return { ref: refOf('note', item.id) };
         },

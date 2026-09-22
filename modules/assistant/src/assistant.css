@@ -1,0 +1,97 @@
+/*
+ * The Assistant module's look. Assistant is a normal bundled module (dock, float, popout, like Research or Planner): a place
+ * to have an open-ended conversation with the AI the admin configured, with optional context drawn from anywhere else in
+ * Tavern. This file is the Ask panel that was first built inside Research (0.1.10-0.1.12), moved here unchanged: Assistant
+ * owns the conversation, Research (and anything else) only supplies context items and a place to save a kept card.
+ * Colours come only from the theme tokens. Nothing has a fixed pixel height: the module fills its pane and scrolls inside it.
+ * The narrow layout keys on `.ask.narrow`, which the script sets from the pane's width (under 720 px), not the window's.
+ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; }
+[hidden] { display: none !important; }
+.ic { display: inline-flex; align-items: center; flex: none; }
+.ic svg { width: 1em; height: 1em; fill: currentColor; }
+.msg { padding: 16px; color: var(--text-dim); }
+.error { margin: 0; color: var(--danger); }
+.ask-head + .error:not([hidden]) { padding: 6px 14px 0; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); font: inherit; cursor: pointer; }
+.icon-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.ask-head .icon-btn { margin-left: 6px; }
+
+/* ---- the pane itself ---- */
+.ask { display: flex; flex-direction: column; height: 100%; background: var(--bg); color: var(--text); font-size: 14px; }
+.ask-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.ask-head > .ic { color: var(--accent); font-size: 15px; }
+.ask-head h1 { margin: 0; font-size: 16px; }
+.ask-head .scope { margin-left: auto; color: var(--text-dim); font-size: 12px; }
+
+/* ---- what the answer may use: context chips and the picker ---- */
+.ask-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.ask-context-label { color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ask-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; height: 24px; padding: 0 4px 0 8px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); font-size: 12px; }
+.ask-chip > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-chip button { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-dim); cursor: pointer; }
+.ask-chip button:hover { background: color-mix(in srgb, var(--text) 14%, transparent); color: var(--text); }
+.ask-context .btn { height: 26px; padding: 0 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.ask-picker { border-bottom: 1px solid var(--border); background: var(--bg-section); }
+.ask-picker-list { max-height: 220px; overflow: auto; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; }
+.pick-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.pick-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-row input { accent-color: var(--accent); }
+.pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-kind { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.ask-picker-foot { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; }
+
+/* ---- the conversation ---- */
+.thread { flex: 1; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.ask-empty { margin: auto; max-width: 380px; text-align: center; color: var(--text-dim); line-height: 1.5; }
+.ask-empty:not(:only-child) { display: none; }
+.msg-you { align-self: flex-end; max-width: 80%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: color-mix(in srgb, var(--accent) 22%, var(--bg-card)); }
+.msg-ai { align-self: stretch; display: flex; flex-direction: column; gap: 10px; max-width: 720px; }
+.msg-ai p { margin: 0; line-height: 1.5; }
+.msg-ai .who { display: flex; align-items: center; gap: 6px; color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.thinking { color: var(--text-dim); font-size: 12px; }
+
+/* the card the model writes inside its answer: drawn inline, kept only when the person keeps or drags it */
+.aicard { --turn: 255; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 12px; padding: 12px 12px 10px; border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--border)); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 14%, var(--bg-card)), color-mix(in srgb, var(--tone) 6%, var(--bg-card))); box-shadow: 0 2px 10px color-mix(in srgb, black 14%, transparent); cursor: grab; }
+@supports (color: oklch(from red l c h)) { .aicard { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
+.aicard:active { cursor: grabbing; }
+.aicard .ic svg { width: 1em; height: 1em; }
+.aicard .badge { grid-row: 1 / span 3; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--tone); color: rgba(255, 255, 255, 0.9); font-size: 17px; }
+.aicard .kicker { display: flex; align-items: center; gap: 6px; color: var(--tone); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.aicard .kicker .ai-mark { padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--tone) 24%, transparent); }
+.aicard h3 { margin: 2px 0 4px; font-size: 15px; }
+.aicard .content { margin: 0; color: var(--text); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aicard .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.aicard .tag { padding: 0 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--tone) 45%, var(--border)); font-size: 11px; line-height: 20px; color: var(--text); }
+.aicard .basis { grid-column: 2 / span 2; display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--text-dim); font-size: 11px; }
+.aicard .basis[data-basis="general"] { color: color-mix(in srgb, var(--danger) 55%, var(--text-dim)); }
+.aicard .place, .aicard .when { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; margin-right: 12px; color: var(--text-dim); font-size: 12px; }
+.aicard .sources { grid-column: 2 / span 2; margin-top: 8px; color: var(--text-dim); font-size: 11px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+/* nothing here can save a kept card (tpl-state-nowhere-to-save), shown inside the card next to the disabled keep button */
+.aicard .hint { grid-column: 2 / span 2; margin: 6px 0 0; font-size: 11px; }
+.aicard .links { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.aicard .link { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--text-dim); font-size: 11px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.aicard .link.gone { opacity: 0.6; font-style: italic; }
+.aicard .actions { grid-column: 3; grid-row: 1; display: flex; gap: 2px; }
+.aicard .actions button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); cursor: pointer; }
+.aicard .actions button:hover, .aicard .actions button:focus-visible { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); outline: none; }
+.aicard.kept { border-style: solid; }
+.aicard.kept .keep { color: var(--accent); }
+
+/* ---- the composer ---- */
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.composer textarea { flex: 1; min-height: 38px; max-height: 140px; resize: none; }
+.composer .btn { height: 38px; }
+
+/* ---- when AI is not available here: a state that replaces the whole pane, never a dead composer ---- */
+.state { max-width: 420px; margin: 8vh auto; padding: 0 16px; text-align: center; color: var(--text-dim); }
+.state h2 { color: var(--text); }
+.state .ic { font-size: 28px; color: var(--accent); }
+
+/* ---- phones and narrow panes: the script sets .narrow on .ask from the pane's width (under 720 px), not the window's ---- */
+.ask.narrow .ask-chip { max-width: 160px; }
+.ask.narrow .composer textarea { font-size: 16px; }
+.ask.narrow .aicard .actions button { width: 34px; height: 34px; }

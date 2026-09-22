@@ -1,4 +1,8 @@
 {
+  "assistant": {
+    "version": "0.1.1",
+    "hash": "2ad9f5167693ec5a"
+  },
   "calendar": {
     "version": "1.17.0",
     "hash": "1267b2ac59448c0d"
@@ -16,8 +20,8 @@
     "hash": "6fc97aa323097a27"
   },
   "research": {
-    "version": "0.1.12",
-    "hash": "a18ac77e7dc75dc9"
+    "version": "0.2.0",
+    "hash": "2e311a9581c0b7e1"
   },
   "todo": {
     "version": "1.11.1",

@@ -10,7 +10,7 @@ The Research module keeps what a group finds out while it plans: a note, a link 
 2. Tick **Available in every room**, or tick it per room.
 3. On the Roles tab, under **Module: Research**, choose who can **See research** and who can **Add, change and remove research**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 4. **Well-known tags (optional).** Under Research's settings (**Module Configuration**), add tags with a colour each. A tag on the list wears its colour on every card; any other tag stays plain.
-5. **The AI (optional).** Research's **Ask** button appears only when the AI is set up on the Modules tab and the Roles tab lets the person use it ("Use AI in modules", off for everyone until you turn it on; a guest never can). See [Modules](userguide-modules.md).
+5. **Suggest tags (optional).** In the dialog, this button asks the AI for tags; it appears only when the AI is set up on the Modules tab and the Roles tab lets the person use it ("Use AI in modules", off for everyone until you turn it on; a guest never can). See [Modules](userguide-modules.md). To have a whole conversation with the AI, with research as context, install the **Assistant** module (see [Assistant](userguide-assistant.md)).
 
 ## Add things
 
@@ -27,10 +27,10 @@ The Research module keeps what a group finds out while it plans: a note, a link 
 
 The search box matches the title, the text, the site and the tags. The chips filter by kind (notes, links, photos, answers) and by tag; pick several tags to narrow further.
 
-## Ask the AI
+## Research this
 
-**Ask** opens a panel over the notes and links you can see (or over one item, from its menu's **Ask about this**). Only what you selected is sent to the AI, and nothing of the conversation is kept. When the AI writes something worth keeping, it appears as a card inside its answer; the bookmark keeps it in Research as an **answer** (always marked AI, with the question and what it drew on), and you can drag it onto a plan like any card. The AI never changes anything itself.
+A card's menu has **Research this**, which opens the Assistant module (if it is installed) with that item as context, ready to ask about it; see [Assistant](userguide-assistant.md). A card the AI writes worth keeping is saved back here as an ordinary note. An item saved before this changed may still show as an **Answer**, with the question that made it; nothing new is saved that way now.
 
 ## For module authors
 
-Research provides two actions (see [the SDK guide](api-module-sdk.md)): `saveNote` (`title`, optional `body` and `ref`) and `saveLink` (`url`, optional `title`, `excerpt` and `ref`), so any module can offer "Save to research" on something without knowing Research is there. Its items are pointers of kind `note`, `link`, `photo` and `answer`, and their cards carry the item's words as `text`.
+Research provides two actions (see [the SDK guide](api-module-sdk.md)): `saveNote` (`title`, optional `body`, `tags` and `ref`) and `saveLink` (`url`, optional `title`, `excerpt` and `ref`), so any module can offer "Save to research" on something without knowing Research is there. Its items are pointers of kind `note`, `link`, `photo` and `answer`, and their cards carry the item's words as `text`.

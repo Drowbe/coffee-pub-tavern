@@ -1,0 +1,61 @@
+{
+  "id": "assistant",
+  "name": "Assistant",
+  "version": "0.1.1",
+  "icon": "wand-magic-sparkles",
+  "description": "An open-ended conversation with the AI the admin set up. Add a note, a link or anything else as context if you want the answer to use it; a card worth keeping can be saved and dragged like any other.",
+  "author": "Coffee Pub",
+  "scope": [
+    "room"
+  ],
+  "surfaces": {
+    "panel": {
+      "entry": "panel.html",
+      "width": 420,
+      "height": 600,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    }
+  },
+  "permissions": [
+    {
+      "key": "use",
+      "label": "Use the assistant",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    }
+  ],
+  "access": {
+    "read": "use",
+    "write": "use"
+  },
+  "hooks": {
+    "ai": true
+  },
+  "refs": {
+    "consumes": [
+      "*"
+    ]
+  },
+  "actions": {
+    "provides": [
+      {
+        "name": "askAssistant",
+        "label": "Ask the assistant",
+        "local": true,
+        "input": {
+          "ref": "ref?",
+          "question": "string?"
+        }
+      }
+    ],
+    "uses": [
+      "*"
+    ]
+  }
+}
