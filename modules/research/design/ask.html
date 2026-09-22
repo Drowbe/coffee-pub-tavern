@@ -26,7 +26,7 @@ const state = q.get('state') || 'normal';
 const w = Number(q.get('w')) || 560;
 if (q.get('theme') === 'light') document.documentElement.classList.add('light');
 const i = (n) => `<span class="ic"><i class="fa-solid fa-${n}" aria-hidden="true"></i></span>`;
-const card = (kept) => `<article class="aicard${kept ? ' kept' : ''}" draggable="true" data-kind="card">
+const card = (kept) => `<article class="aicard${kept ? ' kept' : ''}" data-kind="card">
   <span class="badge">${i('hotel')}</span>
   <div><div class="kicker">Answer <span class="ai-mark">${i('wand-magic-sparkles')} AI</span></div><h3>Three hotels near Santa Apolónia, under €140</h3>
   <p class="content">Hotel Lisboa Plaza (€128, 4 min walk, breakfast included), Vincci Baixa (€135, 12 min, roof terrace) and Hotel Avenida Palace (€139, 9 min, the one already on the plan). The Plaza is the quietest; the Vincci has the best reviews for the room size.</p>

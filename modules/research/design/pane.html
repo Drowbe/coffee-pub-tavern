@@ -31,7 +31,7 @@ const tag = (t) => `<span class="tag" style="--tag:${TAGS[t] || 'var(--text-dim)
 const by = (n) => `<span class="by"><span>${n[0]}</span></span>`;
 const ICON = { note: 'note-sticky', link: 'link', photo: 'camera', answer: 'wand-magic-sparkles' };
 const LABEL = { note: 'Note', link: 'Link', photo: 'Photo', answer: 'Answer' };
-const card = (kind, title, body, tags, o = {}) => `<article class="rcard" data-kind="${kind}" tabindex="0" draggable="true">
+const card = (kind, title, body, tags, o = {}) => `<article class="rcard" data-kind="${kind}" tabindex="0">
   ${kind === 'photo' ? `<div class="thumb" style="background:linear-gradient(135deg, color-mix(in srgb, var(--tone) 55%, #223), color-mix(in srgb, var(--tone) 15%, #111))"></div>` : ''}
   <div class="top"><span class="kind">${i(ICON[kind])}</span><span class="kicker">${LABEL[kind]}${kind === 'answer' ? '<span class="ai-mark">AI</span>' : ''}</span><button class="menu" type="button" aria-label="Menu">${i('ellipsis')}</button></div>
   <h3>${title}</h3>
