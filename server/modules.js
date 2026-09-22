@@ -237,6 +237,17 @@ function cleanUploads(raw) {
   return { types, maxBytes: num(raw.maxBytes, 10 * 1024 * 1024, 10 * 1024 * 1024), maxFiles: num(raw.maxFiles, 5000, 500) };
 }
 
+// A module's own `regionSource`: cutting a region out of a larger PMTiles file into one of its own file folders (see
+// server/region-cut.js). `folder` must be a `files`-type setting's own folder (so the admin already has a way to see and
+// tick what lands there), and `address` a `url` setting naming where to cut from.
+function cleanRegionSource(raw, settings) {
+  if (!raw || typeof raw !== 'object') return null;
+  const known = (k, type) => typeof k === 'string' && settings.some((d) => d.key === k && (!type || d.type === type));
+  if (typeof raw.folder !== 'string' || !settings.some((d) => d.type === 'files' && d.folder === raw.folder)) throw new ModuleError('module.json: regionSource needs a `folder` matching a "files" setting\'s own folder');
+  if (!known(raw.address, 'url')) throw new ModuleError('module.json: regionSource needs an `address` url setting');
+  return { folder: raw.folder, address: raw.address };
+}
+
 function cleanGeocoder(raw, settings) {
   if (!raw || typeof raw !== 'object') return null;
   const known = (k, type) => typeof k === 'string' && settings.some((d) => d.key === k && (!type || d.type === type));
@@ -385,6 +396,7 @@ function cleanManifest(raw, files) {
 
   const settings = cleanSettings(raw.settings);
   const geocoder = cleanGeocoder(raw.geocoder, settings);
+  const regionSource = cleanRegionSource(raw.regionSource, settings);
   const uploads = cleanUploads(raw.uploads);
 
   // The modules this one cannot work without: the one place a manifest names another module (at run time every module still
@@ -395,7 +407,7 @@ function cleanManifest(raw, files) {
     if (!requires.includes(r)) requires.push(r);
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -467,6 +479,7 @@ class ModuleManager {
         manifest.settings = [];
       }
       try { manifest.geocoder = cleanGeocoder(manifest.geocoder, manifest.settings); } catch { manifest.geocoder = null; }
+      try { manifest.regionSource = cleanRegionSource(manifest.regionSource, manifest.settings); } catch { manifest.regionSource = null; }
       try { manifest.uploads = cleanUploads(manifest.uploads); } catch { manifest.uploads = null; }
       this.manifests.set(cacheKey, manifest);
     }

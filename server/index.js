@@ -16,6 +16,7 @@ const { ChatHistory } = require('./chat-history');
 const { ModuleLimits } = require('./module-limits');
 const { ModuleSettings, SettingError } = require('./module-settings');
 const { GeocodeCache, askService, keyOf: keyOfPlace, ENOUGH } = require('./geocode');
+const { RegionCutJobs, RegionCutError } = require('./region-cut');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
 const { Ai, AiError } = require('./ai');
@@ -2160,6 +2161,88 @@ app.post('/api/modules/:id/geocode/purge', requireAdmin, (req, res) => {
   if (!what) return res.status(400).json({ error: 'say what to remove: unused or all' });
   const days = Number(req.body?.olderThanDays);
   res.json({ removed: geocodeCache.purge(found.manifest.id, what, Number.isFinite(days) && days > 0 ? days : 0), ...geocodeCache.stats(found.manifest.id) });
+});
+// --- cutting a region out of a larger PMTiles file, from the server -----------------------------------------------------------
+// A module that declares `regionSource` (see server/region-cut.js and documentation/plans/plan-map-region-download.md) offers
+// "Add a region" in its Module Configuration: cut a piece of a world file into one of its own file folders. Admin only, since
+// it can take a while and reads a server setting (the world file's address).
+const regionCutJobs = new RegionCutJobs(DATA_DIR);
+regionCutJobs.on('done', (id) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `cut a map region: ${j.name}`, j.by, null); });
+regionCutJobs.on('error', (id, error) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `could not cut a map region: ${error}`, j.by, null); });
+function sendRegionCutError(err, res) {
+  if (err instanceof RegionCutError) return res.status(err.status).json({ error: err.message });
+  throw err;
+}
+// Where this module's world file is, from its own settings: { address, folder }, or null when nothing is set up.
+function regionSourceOf(manifest) {
+  const r = manifest.regionSource;
+  if (!r) return null;
+  const address = moduleSettings.values(manifest, 'server', {})[r.address];
+  return typeof address === 'string' && address ? { address, folder: r.folder } : null;
+}
+function regionCutSetup(req, res) {
+  const found = modules.enabled(req.params.id);
+  if (!found) { res.status(404).json({ error: 'no such module' }); return null; }
+  const setup = regionSourceOf(found.manifest);
+  if (!setup) { res.status(404).json({ error: 'this module has no world file set up to cut from' }); return null; }
+  return { manifest: found.manifest, setup };
+}
+const boxFromBody = (b) => ({ minLon: Number(b?.minLon), minLat: Number(b?.minLat), maxLon: Number(b?.maxLon), maxLat: Number(b?.maxLat) });
+// How big a cut would be, without downloading it: the admin confirms before "Add a region" commits to anything.
+app.post('/api/modules/:id/region-cut/estimate', requireAdmin, async (req, res) => {
+  const ctx = regionCutSetup(req, res);
+  if (!ctx) return;
+  try {
+    res.json(await regionCutJobs.estimate({ source: ctx.setup.address, box: boxFromBody(req.body), maxZoom: Number(req.body?.maxZoom) }));
+  } catch (err) {
+    sendRegionCutError(err, res);
+  }
+});
+// Start the real cut; the job runs in the background, followed over the stream route below.
+app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
+  const ctx = regionCutSetup(req, res);
+  if (!ctx) return;
+  try {
+    const out = await regionCutJobs.start({
+      moduleId: ctx.manifest.id,
+      scopeKey: 'server',
+      source: ctx.setup.address,
+      folder: ctx.setup.folder,
+      name: String(req.body?.name || ''),
+      box: boxFromBody(req.body),
+      minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined,
+      maxZoom: Number(req.body?.maxZoom),
+      by: currentUser(req)?.key,
+    });
+    res.status(202).json(out);
+  } catch (err) {
+    sendRegionCutError(err, res);
+  }
+});
+// Progress, in words and a percentage, over server-sent events; a late subscriber gets the job's current state first, and
+// one already finished (or one Tavern has never heard of) is told so at once rather than hanging.
+app.get('/api/modules/:id/region-cut/:jobId/stream', requireAdmin, (req, res) => {
+  const found = modules.enabled(req.params.id);
+  if (!found || !found.manifest.regionSource) return res.status(404).json({ error: 'no such module' });
+  const job = regionCutJobs.view(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'that cut is not running (it may have finished a while ago)' });
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+  res.write(`event: progress\ndata: ${JSON.stringify({ percent: job.percent, message: job.message })}\n\n`);
+  if (job.status !== 'running') {
+    res.write(`event: ${job.status}\ndata: ${JSON.stringify(job.status === 'done' ? { name: job.name } : { error: job.error })}\n\n`);
+    return res.end();
+  }
+  const { jobId } = req.params;
+  const cleanup = () => { regionCutJobs.off('progress', onProgress); regionCutJobs.off('done', onDone); regionCutJobs.off('error', onErr); };
+  const onProgress = (id, p) => { if (id === jobId) res.write(`event: progress\ndata: ${JSON.stringify(p)}\n\n`); };
+  const onDone = (id, d) => { if (id !== jobId) return; res.write(`event: done\ndata: ${JSON.stringify(d)}\n\n`); cleanup(); res.end(); };
+  const onErr = (id, error) => { if (id !== jobId) return; res.write(`event: error\ndata: ${JSON.stringify({ error })}\n\n`); cleanup(); res.end(); };
+  regionCutJobs.on('progress', onProgress);
+  regionCutJobs.on('done', onDone);
+  regionCutJobs.on('error', onErr);
+  req.on('close', cleanup);
 });
 moduleSettings.on('change', (c) => {
   if (c.scope === 'person') return;

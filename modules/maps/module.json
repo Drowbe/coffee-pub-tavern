@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -89,6 +89,20 @@
         "value": "web"
       },
       "help": "An https link to a .pmtiles file, for example https://maps.example.org/region.pmtiles"
+    },
+    {
+      "key": "worldSource",
+      "label": "World file, for cutting a region",
+      "type": "url",
+      "scope": "server",
+      "default": "",
+      "httpsOnly": true,
+      "pathEnds": ".pmtiles",
+      "showWhen": {
+        "key": "mapSource",
+        "value": "file"
+      },
+      "help": "A world PMTiles file to cut a region from with \"Add a region\", below. Tavern reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for today's, or point this at your own stable copy. Left empty, cutting a region is off."
     }
   ],
   "access": {
@@ -117,5 +131,9 @@
   },
   "requires": [
     "places"
-  ]
+  ],
+  "regionSource": {
+    "folder": "map-tiles",
+    "address": "worldSource"
+  }
 }

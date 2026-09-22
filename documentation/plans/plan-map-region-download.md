@@ -49,5 +49,20 @@ per target platform, checked against a sha256 pinned in the Dockerfile itself (t
 file, so it was computed once from the downloaded asset). Verified by the real thing, not a local guess: pushed to
 `main` and watched the `Publish container image` GitHub Action build both `linux/amd64` and `linux/arm64` (no
 local Docker used or needed) -- both checksums passed (`pmtiles.tar.gz: OK`) and the image published in 46
-seconds. Nothing calls the binary yet: steps 2-4 (the background job and its SSE progress, the name-to-box lookup
-through Places' search setting, and the Module Configuration UI) are still to build.
+seconds.
+
+**Step 2 is done: the cut runs as a background job.** `server/region-cut.js` wraps the CLI: a module opts in with
+`regionSource` in its manifest (see [api-modules](../api/api-modules.md)); a dry run (`--dry-run`) gives the tile
+count and estimated size before anything downloads, refusing one over a size ceiling; the real cut writes to a
+temp file and only renames it into the module's file folder on success, so a failure leaves nothing behind; only
+one cut runs per module at a time; progress streams over server-sent events. Maps is the first module wired up
+(`regionSource` pointing at a new `worldSource` url setting). Verified two ways: `tools/check-region-cut.mjs`
+against a stand-in "pmtiles" script (no network), and, once that caught and fixed a real mistake (the CLI's log
+lines and progress bar are both on stdout, not stderr, once it is not talking to a terminal -- found only by
+running the actual binary locally, installed from its own GitHub release), a live run against a running server and
+the *real* Protomaps daily build: `estimate` and the full cut both matched the CLI's own numbers exactly (13
+tiles, 844 kB), the file landed in `map-tiles/`, a second request for the same name was refused, and a second cut
+while one was running was refused too.
+
+Left: step 3 (the name-to-box lookup, through Places' search setting) and step 4 (the Module Configuration UI --
+the interface side).
