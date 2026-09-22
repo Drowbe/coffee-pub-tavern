@@ -60,6 +60,7 @@
   const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
   const hiddenRooms = new Set();
   let show = 'open';
+  let openMenu = null; // the key of the poll whose "..." actions menu is open, or null
 
   // --- storage --------------------------------------------------------------
 
@@ -269,6 +270,11 @@
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
+      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-expanded="${openMenu === x.key}" aria-label="Poll actions" title="Poll actions">&#8942;</button>
+      <div class="menu" role="menu" ${openMenu === x.key ? '' : 'hidden'}>
+        <button type="button" role="menuitem" data-toggle="${esc(x.key)}">${p.closed ? 'Reopen poll' : 'End poll'}</button>
+        <button type="button" role="menuitem" class="danger" data-delete="${esc(x.key)}">Delete poll</button>
+      </div>` : ''}
       <h3 data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
@@ -276,7 +282,6 @@
       ${x.scope === 'rooms' && !closed ? '<div class="meta">Vote in that room.</div>' : ''}
       ${backlinksHtml(x)}
       ${closed && x.scope === 'own' && offered.length ? `<div class="actions">${offered.map((a) => `<button class="btn btn-small" type="button" data-action="${esc(x.key)}|${esc(a.action)}" title="${esc(a.moduleName)}">${esc(a.label)}</button>`).join('')}</div>` : ''}
-      ${canManage ? `<div class="actions"><button class="btn btn-small" data-toggle="${esc(x.key)}" type="button">${p.closed ? 'Reopen' : 'Close'}</button><button class="btn btn-small btn-danger" data-delete="${esc(x.key)}" type="button">Delete</button></div>` : ''}
     </article>`;
   }
 
@@ -498,6 +503,7 @@
       await tavern.storage.delete('poll:' + x.id);
       polls.delete(key);
       votes.delete(key);
+      if (openMenu === key) openMenu = null;
     } catch (err) {
       showNote(err.message);
     }
@@ -657,6 +663,11 @@
     });
   }
   $('body').addEventListener('click', (e) => {
+    const mb = e.target.closest('[data-menu]');
+    if (mb) {
+      openMenu = openMenu === mb.dataset.menu ? null : mb.dataset.menu;
+      return void render();
+    }
     const un = e.target.closest('[data-unlink]');
     if (un) {
       const [k, o] = un.dataset.unlink.split('|');
@@ -675,13 +686,23 @@
       return void vote(key, option);
     }
     const t = e.target.closest('[data-toggle]');
-    if (t) return void setClosed(t.dataset.toggle);
+    if (t) {
+      openMenu = null;
+      return void setClosed(t.dataset.toggle);
+    }
     const d = e.target.closest('[data-delete]');
-    if (d) return void remove(d.dataset.delete);
+    if (d) return void remove(d.dataset.delete); // stays armed in the open menu for "Really delete?"
     const a = e.target.closest('[data-addopt]');
     if (a) {
       const input = a.parentElement.querySelector('[data-addtext]');
       addOption(a.dataset.addopt, input.value).then(() => { input.value = ''; });
+    }
+  });
+  // Anywhere else closes an open poll's actions menu, the same as the travel module's own menus.
+  root.addEventListener('click', (e) => {
+    if (openMenu && !e.target.closest('[data-menu], .poll .menu')) {
+      openMenu = null;
+      render();
     }
   });
   $('body').addEventListener('keydown', (e) => {
