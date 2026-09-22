@@ -46,6 +46,27 @@ body { margin: 0; overflow: hidden; }
 .aicard.kept { border-style: solid; }
 .aicard.kept .keep { color: var(--accent); }
 .aicard .place, .aicard .when { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; margin-right: 12px; color: var(--text-dim); font-size: 12px; }
+/* Ask: what the answer may use, and the note under a card about where it came from */
+.ask-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
+.ask-context-label { color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ask-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; height: 24px; padding: 0 4px 0 8px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); font-size: 12px; }
+.ask-chip > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-chip button { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-dim); cursor: pointer; }
+.ask-chip button:hover { background: color-mix(in srgb, var(--text) 14%, transparent); color: var(--text); }
+.ask-context .btn { height: 26px; padding: 0 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; }
+.ask-picker { border-bottom: 1px solid var(--border); background: var(--bg-section); }
+.ask-picker-list { max-height: 220px; overflow: auto; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; }
+.pick-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.pick-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pick-row input { accent-color: var(--accent); }
+.pick-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-kind { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.ask-picker-foot { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; }
+.ask-empty { margin: auto; max-width: 380px; text-align: center; color: var(--text-dim); line-height: 1.5; }
+.ask-empty:not(:only-child) { display: none; }
+.aicard .basis { grid-column: 2 / span 2; display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--text-dim); font-size: 11px; }
+.aicard .basis[data-basis="general"] { color: color-mix(in srgb, var(--danger) 55%, var(--text-dim)); }
 .composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
 .composer textarea { flex: 1; min-height: 38px; max-height: 140px; resize: none; }
 .composer .btn { height: 38px; }

@@ -83,8 +83,18 @@
   <div id="ask" class="ask-panel" hidden>
     <div class="ask">
       <header class="ask-head"><span class="ic" data-icon="wand-magic-sparkles"></span><h1>Ask</h1><span class="scope" data-slot="scope"></span><button class="icon-btn" type="button" data-action="close-ask" aria-label="Close"><span class="ic" data-icon="xmark"></span></button></header>
-      <div class="thread" id="thread" role="log" aria-live="polite"></div>
-      <form class="composer" id="ask-form"><textarea id="ask-input" rows="1" maxlength="1000" placeholder="Ask about the selected items" aria-label="Ask"></textarea><button class="btn btn-primary" type="submit" id="ask-send" aria-label="Send"><span class="ic" data-icon="paper-plane"></span></button></form>
+      <!-- What the answer may use besides what the model already knows: research items the person adds. None is fine: ask anything. -->
+      <div class="ask-context" id="ask-context">
+        <span class="ask-context-label">Use as context</span>
+        <div class="ask-chips" id="ask-chips"></div>
+        <button class="btn" type="button" data-action="add-context"><span class="ic" data-icon="plus"></span> Add from Research</button>
+      </div>
+      <div class="ask-picker" id="ask-picker" hidden>
+        <div class="ask-picker-list" id="ask-picker-list"></div>
+        <div class="ask-picker-foot"><span class="hint" data-slot="picker-count"></span><button class="btn btn-primary" type="button" data-action="picker-done">Done</button></div>
+      </div>
+      <div class="thread" id="thread" role="log" aria-live="polite"><p class="ask-empty" id="ask-empty">Ask anything: a place, a plan, a comparison. Add notes or links from Research as context if you want the answer to use them.</p></div>
+      <form class="composer" id="ask-form"><textarea id="ask-input" rows="1" maxlength="1000" placeholder="Ask anything" aria-label="Ask"></textarea><button class="btn btn-primary" type="submit" id="ask-send" aria-label="Send"><span class="ic" data-icon="paper-plane"></span></button></form>
     </div>
   </div>
 </div>
@@ -126,6 +136,9 @@
 <template id="tpl-pos-ask"><div class="pos-ask"><span class="ic" data-icon="location-crosshairs"></span><span class="grow" data-slot="text"></span><button class="btn" type="button" data-action="keep-position">Keep it</button><button class="btn" type="button" data-action="drop-position">Leave it out</button></div></template>
 
 <!-- Ask: your question, the model's reply (text pieces and cards in order), a card, and the placeholder while a card is being written -->
+<!-- a context chip (an item the answer may use; x removes it) and a row of the picker -->
+<template id="tpl-ask-chip"><span class="ask-chip"><span class="ic" data-icon=""></span><span data-slot="label"></span><button type="button" data-action="remove-context" aria-label="Remove"><span class="ic" data-icon="xmark"></span></button></span></template>
+<template id="tpl-pick-row"><label class="pick-row"><input type="checkbox"><span class="ic" data-icon=""></span><span class="pick-title" data-slot="title"></span><span class="pick-kind" data-slot="kind"></span></label></template>
 <template id="tpl-msg-you"><div class="msg-you" data-slot="text"></div></template>
 <template id="tpl-msg-ai"><div class="msg-ai"><div class="who"><span class="ic" data-icon="wand-magic-sparkles"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
 <template id="tpl-msg-text"><p data-slot="text"></p></template>
@@ -138,6 +151,7 @@
     <span class="place" data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>
     <span class="when" data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span></div>
     <div class="actions"><button class="keep" type="button" data-action="keep-card" title="Keep in Research" aria-label="Keep in Research"><span class="ic" data-icon="bookmark"></span></button><button type="button" data-action="copy-card" title="Copy the text" aria-label="Copy the text"><span class="ic" data-icon="copy"></span></button></div>
+    <p class="basis" data-slot="basis-wrap"><span class="ic" data-icon="circle-info"></span> <span data-slot="basis"></span></p>
     <div class="sources" data-slot="sources-wrap"><span class="ic" data-icon="link"></span> From: <span class="links" data-slot="sources"></span></div>
   </article>
 </template>
