@@ -888,6 +888,8 @@ function syncModuleFilters() {
   up.hidden = !updates;
   const conf = $('module-filters').querySelector('[data-count="configurable"]');
   conf.textContent = String(installedModules.filter(isConfigurable).length);
+  const avail = $('module-filters').querySelector('[data-count="available"]');
+  avail.textContent = String(bundledModules.filter((b) => !b.installed).length);
 }
 $('module-filters').addEventListener('click', (event) => {
   const b = event.target.closest('[data-module-filter]');
@@ -903,9 +905,11 @@ function renderModules() {
   // The AI service card is not a versioned module, so it has no update to offer; it does have its own
   // configuration page, so it stays visible under Configurable.
   syncAiVisibility();
-  const updatesOnly = moduleFilter !== 'all';
+  // "Available" isolates the not-yet-installed list below; every other filter hides it and works on what is installed.
+  const showAvailableOnly = moduleFilter === 'available';
+  const updatesOnly = moduleFilter !== 'all' && !showAvailableOnly;
   // The built-in panes first: always on, and not removable.
-  for (const b of updatesOnly ? [] : builtinModules) {
+  for (const b of updatesOnly || showAvailableOnly ? [] : builtinModules) {
     const el = document.createElement('article');
     el.className = 'panel module-card';
     el.innerHTML = `
@@ -920,14 +924,14 @@ function renderModules() {
       ${b.switchable ? `<div class="row"><button class="btn ${b.enabled ? '' : 'btn-primary'}" type="button" data-builtin-toggle="${escapeHtml(b.id)}">${b.enabled ? 'Disable' : 'Approve and enable'}</button>${b.needs ? `<span class="hint">${escapeHtml(b.needs)}</span>` : ''}</div>` : ''}`;
     list.appendChild(el);
   }
-  if (updatesOnly ? !installedModules.some(moduleMatches) : !installedModules.length) {
+  if (!showAvailableOnly && (updatesOnly ? !installedModules.some(moduleMatches) : !installedModules.length)) {
     const none = document.createElement('div');
     none.className = 'panel';
     none.innerHTML = updatesOnly ? `<p class="hint">${moduleFilter === 'configurable' ? 'No installed module has settings.' : 'Everything is up to date.'}</p>` : '<p class="hint">No other modules installed yet.</p>';
     list.appendChild(none);
   }
-  for (const m of installedModules) if (moduleMatches(m)) list.appendChild(moduleCard(m));
-  // Modules that ship with this Tavern and are not installed yet.
+  if (!showAvailableOnly) for (const m of installedModules) if (moduleMatches(m)) list.appendChild(moduleCard(m));
+  // Modules that ship with this Tavern and are not installed yet: shown under All, and on their own under Available.
   const available = updatesOnly ? [] : bundledModules.filter((b) => !b.installed);
   if (available.length) {
     const box = document.createElement('div');
@@ -939,6 +943,11 @@ function renderModules() {
         <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button">Install</button>
       </div>`).join('')}`;
     list.appendChild(box);
+  } else if (showAvailableOnly) {
+    const none = document.createElement('div');
+    none.className = 'panel';
+    none.innerHTML = '<p class="hint">Nothing new to install right now.</p>';
+    list.appendChild(none);
   }
 }
 
