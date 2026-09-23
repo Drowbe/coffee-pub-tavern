@@ -4,7 +4,7 @@
 
 **What Maps is.** A map of every place the room has: a view with **no data of its own**. It draws every card in the room that carries a `place` (the Places module's places, and any other module's items that have one), grouped by the module they come from. Saving a new place from the map hands it to the Places module through the `addPlace` action; if nothing provides that action, the add tools are hidden and the sheet says "Install Places to save places".
 
-**Canonical markup.** The elements a script clones are the `<template>` elements in `maps.html` (`tpl-pin`, `tpl-pin-cluster`, `tpl-callout`, `tpl-result` and the `tpl-state-*` blocks). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `tavern.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win; tell the interface side. `design/map.html` is the reference rendering: open it in a browser to see every state, dark and light, at phone, pane and wide sizes. The map itself is a drawn stand-in there; the real one is MapLibre.
+**Canonical markup.** The elements a script clones are the `<template>` elements in `maps.html` (`tpl-pin`, `tpl-pin-cluster`, `tpl-callout`, `tpl-result` and the `tpl-state-*` blocks). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `host.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win; tell the interface side. `design/map.html` is the reference rendering: open it in a browser to see every state, dark and light, at phone, pane and wide sizes. The map itself is a drawn stand-in there; the real one is MapLibre.
 
 **How it works.** `maps.css` styles the elements by their classes and attributes. The script builds these elements and toggles states; it never sets a style. The one exception is a pin's position, which the map library sets on its marker element.
 
@@ -13,7 +13,7 @@
 - Nothing has a fixed pixel height; the module fills its pane. No `100vh`.
 - Text from people goes in with `textContent`, never as HTML. An icon is `<span class="ic" data-icon="name">`.
 - **The credit is always on the map:** `.attribution` ("© OpenStreetMap contributors", linking to the licence page) is in the bottom-right of every map. No setting hides it, and the script never removes it. If the tile file's metadata names another credit (a tile builder's), the script appends it inside the same element.
-- No default remote tiles and no call to any service unless the admin set one: the map reads the admin's file (`tavern.files.url`) and, if set, the search address.
+- No default remote tiles and no call to any service unless the admin set one: the map reads the admin's file (`host.files.url`) and, if set, the search address.
 
 ## The page
 
@@ -29,7 +29,7 @@
     <div id="state" class="state">                 replaces the map (see States)
 ```
 
-There is no search field, add button, list or panel over the map. **The host's bottom bar is the map's toolbar** (`tavern.bar.set`): a quick-add field with a magnifying-glass button (`id: find`; placeholder "Search for a place, or paste coordinates or a map link", or only "Paste coordinates or a map link" when no search is set up), then a square **+** button (`id: add`, `iconOnly`, tooltip "Add a place: click the map"). The list of places is the Places module.
+There is no search field, add button, list or panel over the map. **The host's bottom bar is the map's toolbar** (`host.bar.set`): a quick-add field with a magnifying-glass button (`id: find`; placeholder "Search for a place, or paste coordinates or a map link", or only "Paste coordinates or a map link" when no search is set up), then a square **+** button (`id: add`, `iconOnly`, tooltip "Add a place: click the map"). The list of places is the Places module.
 
 ## Wide and narrow
 
@@ -44,7 +44,7 @@ The map fills the pane in both. The frame is narrow under 720 px (the script set
 
 ## The callout (`#callout`)
 
-`.callout[data-kind=place|item][data-cat][data-scope]`: `.callout-close`, `h3[data-slot=title]`, `.callout-where` (`[data-slot=where]`, `[data-slot=coords]` in monospace), for an item `.callout-source` (that module's icon, `[data-slot=from]`, `[data-action=open]`), and `.callout-actions`: `a[data-action=open-in-maps]` (its `href` is the platform's own link on Apple devices, `geo:` on Android and an ordinary web link elsewhere, from `tavern.util.geo.mapsLink`) and `button[data-action=copy-coords]`. Every place is read-only here; changing it happens in the module that owns it.
+`.callout[data-kind=place|item][data-cat][data-scope]`: `.callout-close`, `h3[data-slot=title]`, `.callout-where` (`[data-slot=where]`, `[data-slot=coords]` in monospace), for an item `.callout-source` (that module's icon, `[data-slot=from]`, `[data-action=open]`), and `.callout-actions`: `a[data-action=open-in-maps]` (its `href` is the platform's own link on Apple devices, `geo:` on Android and an ordinary web link elsewhere, from `host.util.geo.mapsLink`) and `button[data-action=copy-coords]`. Every place is read-only here; changing it happens in the module that owns it.
 
 ## Search (only when a search address is set)
 

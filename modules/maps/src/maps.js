@@ -8,13 +8,13 @@
   'use strict';
 
   // This module runs in the page (its SDK is handed to its script; a frame cannot read a map file or start the map's worker).
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Maps could not start: ' + err.message;
     return;
@@ -24,11 +24,11 @@
     return;
   }
 
-  const geo = tavern.util.geo;
+  const geo = host.util.geo;
   const { round6, oneLine, parsePoint, coordsText, mapsLink } = geo;
   /*__LIB__*/
 
-  const canEdit = tavern.can('edit');
+  const canEdit = host.can('edit');
   const isAdmin = info.user && info.user.role === 'admin';
   const maplibregl = window.maplibregl;
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window. The
@@ -69,7 +69,7 @@
   const iconWait = new Map();
   function wantIcon(name) {
     if (iconSvg.has(name)) return Promise.resolve(iconSvg.get(name));
-    if (!iconWait.has(name)) iconWait.set(name, tavern.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
+    if (!iconWait.has(name)) iconWait.set(name, host.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
     return iconWait.get(name);
   }
   function hydrate(scope) {
@@ -89,16 +89,16 @@
 
   // --- the places (cards) -------------------------------------------------------------------------------------------
 
-  const cardId = (c) => tavern.util.refKey(c.ref);
+  const cardId = (c) => host.util.refKey(c.ref);
   // A place kept by the module that owns places is drawn as a place; anything else with a position is an item.
   const kindOf = (c) => (c.kind === 'place' ? 'place' : 'item');
   const moduleName = (c) => (c.module && c.module.name) || 'Other';
   const current = () => (state.selected ? state.items.find((c) => cardId(c) === state.selected) || null : null);
   async function loadItems() {
-    if (!tavern.refs || !tavern.refs.search) return;
+    if (!host.refs || !host.refs.search) return;
     try {
       // This room's, the person's own (private to them) and everyone's on this server (a guest has neither of the last, so those answer with nothing).
-      const [room, mine, everyone] = await Promise.all([tavern.refs.search(''), tavern.refs.search('', { scope: 'person' }).catch(() => []), tavern.refs.search('', { scope: 'server' }).catch(() => [])]);
+      const [room, mine, everyone] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => []), host.refs.search('', { scope: 'server' }).catch(() => [])]);
       const found = [...room, ...mine, ...everyone];
       state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
@@ -110,9 +110,9 @@
   async function findAdder() {
     state.adder = null;
     state.searcher = null;
-    if (!tavern.actions || !tavern.actions.list) return;
+    if (!host.actions || !host.actions.list) return;
     try {
-      const list = await tavern.actions.list();
+      const list = await host.actions.list();
       if (canEdit) state.adder = list.find((a) => a.name === 'newPlace' && a.input && a.input.lat && a.input.lng) || null;
       state.searcher = list.find((a) => a.name === 'searchPlaces' && a.input && a.input.q) || null;
     } catch (err) {
@@ -151,7 +151,7 @@
   // Follow the pane's width (the stylesheet keys its narrow layout on `.app.narrow`). A frame can report none while it is still
   // being laid out, so wait for a real one.
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (!w) return;
     const now = w < NARROW;
     if (now === isNarrow() && state.fitted) { state.map && state.map.resize(); return; }
@@ -160,7 +160,7 @@
     if (state.started) state.map && state.map.resize();
   };
   fit();
-  new ResizeObserver(fit).observe(tavern.rootElement);
+  new ResizeObserver(fit).observe(host.rootElement);
 
   function select(id, o) {
     state.selected = id || null;
@@ -253,7 +253,7 @@
     if (state.map) state.map.easeTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 14), duration: 500 });
     const before = state.items.length;
     const a = o || {};
-    tavern.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.origin ? { origin: a.origin } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
+    host.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.origin ? { origin: a.origin } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
     waitForCard(before).then(() => { if (state.draft && state.draft.lat === lat && state.draft.lng === lng) { state.draft = null; drawDraft(); render(); } });
   }
   async function waitForCard(before) {
@@ -302,7 +302,7 @@
     if (!state.searcher || q.length < 2) { drawResults(); return; }
     try {
       const near = state.map ? state.map.getCenter() : null;
-      const out = await tavern.actions.request(state.searcher.action, { q, ...(near ? { lat: round6(near.lat), lon: round6(near.lng) } : {}) }, { wait: true });
+      const out = await host.actions.request(state.searcher.action, { q, ...(near ? { lat: round6(near.lat), lon: round6(near.lng) } : {}) }, { wait: true });
       if (mine !== searchToken) return;
       if (out.status !== 'done' || !out.result || !out.result.ok) {
         state.searchMessage = out.result && /not set up|not configured/.test(out.result.error || '') ? NO_SEARCH : 'Search is not available right now';
@@ -407,7 +407,7 @@
       fileUrls = [];
       headers = [];
       for (const name of wanted) {
-        const url = state.settings.web ? name : new URL(await tavern.files.url(name), location.href).href;
+        const url = state.settings.web ? name : new URL(await host.files.url(name), location.href).href;
         const archive = new pmtiles.PMTiles(url);
         protocol.add(archive);
         headers.push(await archive.getHeader());
@@ -500,7 +500,7 @@
     else if (a === 'cancel') setAdding(false);
     else if (a === 'copy-coords' && c) {
       try { await navigator.clipboard.writeText(coordsText(c.place.lat, c.place.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + coordsText(c.place.lat, c.place.lng)); }
-    } else if (a === 'open' && c) tavern.refs.open(c.ref).catch(() => say('That item could not be opened.'));
+    } else if (a === 'open' && c) host.refs.open(c.ref).catch(() => say('That item could not be opened.'));
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
@@ -508,24 +508,24 @@
   });
 
   // An item dropped on the map: one that already has a pin is shown. Anything else goes to the shared decision
-  // (tavern.refs.dropMenu) with the map position under the pointer as the place: whichever module offers to put
+  // (host.refs.dropMenu) with the map position under the pointer as the place: whichever module offers to put
   // its item at a position, or to save a place there, is offered, by what it declares, not by name. The map has
   // nothing of its own to offer.
-  if (tavern.refs && tavern.refs.dropTarget) {
-    tavern.refs.dropTarget({
+  if (host.refs && host.refs.dropTarget) {
+    host.refs.dropTarget({
       over: () => {},
       leave: () => {},
       drop: async (ref, pt, dragged) => {
         if (!(ref || dragged.card) || !canEdit || !state.map || !state.mapReady) return;
-        const hr = tavern.rootElement.getBoundingClientRect();
+        const hr = host.rootElement.getBoundingClientRect();
         const mr = $('map').getBoundingClientRect();
         const at = state.map.unproject([pt.x + hr.left - mr.left, pt.y + hr.top - mr.top]);
         if (ref) {
-          const known = state.items.find((c) => cardId(c) === tavern.util.refKey(ref));
+          const known = state.items.find((c) => cardId(c) === host.util.refKey(ref));
           if (known) return select(cardId(known));
         }
         try {
-          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { place: { lat: round6(at.lat), lng: round6(at.lng) } }, remember: 'map' });
+          const chosen = await host.refs.dropMenu(dragged, pt, { context: { place: { lat: round6(at.lat), lng: round6(at.lng) } }, remember: 'map' });
           if (!chosen) return;
           await loadItems();
           render();
@@ -539,14 +539,14 @@
   // The host's bottom bar is the map's search: type a place, or paste coordinates or a map link (Enter). A second button
   // starts adding a place by clicking the map. Only where something can be done with it.
   function setBar() {
-    if (!tavern.bar) return;
+    if (!host.bar) return;
     const items = [];
     if (state.searcher || state.adder) items.push({ id: 'find', type: 'quickadd', icon: 'magnifying-glass', label: 'Search', placeholder: state.searcher ? 'Search, or paste coordinates or a link' : 'Paste coordinates or a link' });
     if (state.adder) items.push({ id: 'add', icon: 'plus', iconOnly: true, label: 'Add a place: click the map' });
-    tavern.bar.set(items).catch(() => {});
+    host.bar.set(items).catch(() => {});
   }
-  if (tavern.bar) {
-    tavern.on('bar', (e) => {
+  if (host.bar) {
+    host.on('bar', (e) => {
       if (e.id === 'add') { if (state.adder) setAdding(!state.adding); return; }
       if (e.id !== 'find') return;
       const text = String(e.value || '').trim();
@@ -562,11 +562,11 @@
   // have started, and the item must be one that has a place.
   let startedResolve;
   const startedPromise = new Promise((r) => { startedResolve = r; });
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
       showOnMap: async (input) => {
         await startedPromise;
-        const id = tavern.util.refKey(input.ref);
+        const id = host.util.refKey(input.ref);
         if (!state.items.some((c) => cardId(c) === id)) { await loadItems(); render(); }
         if (!state.items.some((c) => cardId(c) === id)) throw new Error('that place is not on the map');
         if (state.mapReady) select(id); else state.openWanted = id;
@@ -576,14 +576,14 @@
   }
 
   // Asked to show an item on the map (the map shows what has a place): select it when it is there.
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
-      const id = tavern.util.refKey(ref);
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
+      const id = host.util.refKey(ref);
       if (state.mapReady) select(state.items.some((c) => cardId(c) === id) ? id : null); else state.openWanted = id;
     });
   }
 
-  tavern.on('theme', () => {
+  host.on('theme', () => {
     if (!state.map || !state.mapReady) return;
     if (!state.tileUrls) return;
     state.map.setStyle(buildStyle(tokens(), { tiles: state.tileUrls, glyphs: `${location.origin}/maps-glyphs/{fontstack}/{range}.pbf` }));
@@ -602,18 +602,18 @@
     state.settings = { maps: files, web };
     if (mapChanged && state.started) startMap();
   }
-  tavern.settings.onChange((s) => applySettings(s || {}));
+  host.settings.onChange((s) => applySettings(s || {}));
 
   // Other modules' items change without telling this page: look again now and then, and when the page comes back.
   const refresh = async () => { await Promise.all([loadItems(), findAdder()]); setBar(); if (state.started) render(); };
-  const timer = setInterval(() => { if (!tavern.rootElement.isConnected) clearInterval(timer); else refresh(); }, 90000);
+  const timer = setInterval(() => { if (!host.rootElement.isConnected) clearInterval(timer); else refresh(); }, 90000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 
   // --- start --------------------------------------------------------------------------------------------------------
 
   try {
     for (const name of new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(['location-dot', 'map-location-dot', 'link']))) if (name) wantIcon(name);
-    applySettings((await tavern.settings.get()) || {});
+    applySettings((await host.settings.get()) || {});
     await Promise.all([loadItems(), findAdder()]);
     setBar();
     $('msg').hidden = true;

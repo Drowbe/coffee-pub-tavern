@@ -1,27 +1,27 @@
 // To-do module. One file of code for every place it shows: the server's own page, a
 // room's docked pane or floating panel, and a window of its own. Each place has its own
 // list. On the server page the viewer's spaces' lists are shown too, read-only, each with
-// its room's icon. The SDK (window.tavern) is injected by Tavern.
+// its room's icon. The SDK (window.host) is injected by Tavern.
 (async function () {
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
-  // either way it looks elements up in tavern.root, never in document, so it works in both.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // either way it looks elements up in host.root, never in document, so it works in both.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
 
   const $ = (id) => root.getElementById(id);
-  const { esc, ymd, parseYmd, refKey, id: newId } = tavern.util;
+  const { esc, ymd, parseYmd, refKey, id: newId } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'The to-do list could not start: ' + err.message;
     return;
   }
   const inRoom = info.context.scope === 'room';
-  const canEdit = tavern.can('edit');
+  const canEdit = host.can('edit');
   const DAY = 24 * 60 * 60 * 1000;
 
   // Every task we know of, by key. `scope` is 'own' (this place's list) or 'rooms' (another space's, read-only).
@@ -39,7 +39,7 @@
   const kindEvents = new Map(); // "module:kind" -> what that kind of item can report: [{ name, label, data }]
   async function loadKinds() {
     try {
-      const kinds = await tavern.refs.kinds();
+      const kinds = await host.refs.kinds();
       consumable = new Set(kinds.map((k) => k.module + ':' + k.kind));
       for (const k of kinds) kindEvents.set(k.module + ':' + k.kind, k.events || []);
     } catch (err) {
@@ -62,7 +62,7 @@
   let askable = [];
   async function loadAskable() {
     try {
-      askable = (await tavern.actions.list()).filter((a) => a && a.input);
+      askable = (await host.actions.list()).filter((a) => a && a.input);
     } catch (err) {
       askable = [];
     }
@@ -120,17 +120,17 @@
   }
   async function load() {
     tasks.clear();
-    for (const item of await tavern.storage.list('task:')) remember('own', item);
+    for (const item of await host.storage.list('task:')) remember('own', item);
     if (!inRoom && info.context.scope === 'server') {
       try {
-        for (const r of await tavern.rooms()) roomInfo.set(r.id, r);
-        for (const item of await tavern.storage.list('task:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
+        for (const r of await host.rooms()) roomInfo.set(r.id, r);
+        for (const item of await host.storage.list('task:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
       } catch (err) {
         // just the server's own list
       }
     }
   }
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     if (!e.key.startsWith('task:')) return;
     const scope = e.scope === 'rooms' ? 'rooms' : 'own';
     const id = e.key.slice(5);
@@ -144,35 +144,35 @@
 
   // --- links to other modules' items ----------------------------------------
   // A task stores only pointers ({ module, kind, id, scope, room }); what to show comes from
-  // Tavern each time (tavern.refs.resolve), so it is always current and never more than the
+  // Tavern each time (host.refs.resolve), so it is always current and never more than the
   // viewer may see. The pointers are checked in the drop and search: only the kinds above.
 
   const linkable = (r) => consumable.has(r.module + ':' + r.kind);
-  const myRef = (id) => tavern.refs.make('task', id);
+  const myRef = (id) => host.refs.make('task', id);
   const syncedLinks = new Map(); // task id -> the links last told to Tavern
 
   // Tell Tavern what a task points at, so the things it points at can show it. Only when it changed.
   async function syncLinks(id, links) {
-    if (!tavern.refs || !tavern.refs.setLinks) return;
+    if (!host.refs || !host.refs.setLinks) return;
     const sig = JSON.stringify(links.map(refKey));
     if (syncedLinks.get(id) === sig) return;
     syncedLinks.set(id, sig);
     try {
-      await tavern.refs.setLinks(myRef(id), links);
+      await host.refs.setLinks(myRef(id), links);
     } catch (err) {
       syncedLinks.delete(id); // try again next time
     }
   }
 
   async function resolveLinks() {
-    if (!tavern.refs) return;
+    if (!host.refs) return;
     const want = new Map();
     for (const x of tasks.values()) for (const r of x.t.links || []) if (!cards.has(refKey(r))) want.set(refKey(r), r);
     for (const r of editingLinks) if (!cards.has(refKey(r))) want.set(refKey(r), r);
     if (!want.size) return;
     const list = [...want.values()];
     try {
-      const got = await tavern.refs.resolve(list);
+      const got = await host.refs.resolve(list);
       list.forEach((r, i) => cards.set(refKey(r), got[i] || { error: 'unavailable' }));
     } catch (err) {
       list.forEach((r) => cards.set(refKey(r), { error: 'unavailable' }));
@@ -185,7 +185,7 @@
     if (when === undefined || when === null || when === '') return '';
     const d = typeof when === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(when) ? parseYmd(when) : new Date(when);
     if (Number.isNaN(d.getTime())) return '';
-    return allDay === false ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return allDay === false ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: host.util.hour12() }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   function linkChip(r, removable) {
@@ -261,7 +261,7 @@
     { id: 'done', label: 'Done' },
     { id: 'all', label: 'All' },
   ];
-  const filterSwitch = tavern.ui.viewSwitch({
+  const filterSwitch = host.ui.viewSwitch({
     id: 'filter',
     options: FILTERS,
     value: show,
@@ -300,10 +300,10 @@
   async function applyReminder(t) {
     const key = 'remind:' + t.id;
     try {
-      if (!t.remind || !t.due || t.done) return await tavern.cancelSchedule(key);
+      if (!t.remind || !t.due || t.done) return await host.cancelSchedule(key);
       const at = parseYmd(t.due).getTime() + 9 * 60 * 60 * 1000;
-      if (at <= Date.now()) return await tavern.cancelSchedule(key);
-      await tavern.schedule({ key, at, payload: { id: t.id }, notify: { title: t.title, body: 'Due today' } });
+      if (at <= Date.now()) return await host.cancelSchedule(key);
+      await host.schedule({ key, at, payload: { id: t.id }, notify: { title: t.title, body: 'Due today' } });
     } catch (err) {
       showNote('Saved, but the reminder could not be set: ' + err.message);
       throw err;
@@ -313,7 +313,7 @@
   // --- changing tasks --------------------------------------------------------
 
   async function put(x, t) {
-    const saved = await tavern.storage.set('task:' + t.id, t, x && x.version ? { version: x.version } : {});
+    const saved = await host.storage.set('task:' + t.id, t, x && x.version ? { version: x.version } : {});
     remember('own', { key: 'task:' + t.id, value: t, version: saved.version });
     syncLinks(t.id, t.links || []);
     return saved;
@@ -355,7 +355,7 @@
     $('f-remind-wrap').hidden = !$('f-due').value;
   }
   $('f-due').addEventListener('change', syncForm);
-  const duePicker = tavern.ui.datePicker($('f-due'), { clearable: true });
+  const duePicker = host.ui.datePicker($('f-due'), { clearable: true });
 
   function openEditor(x, prefill) {
     const readOnly = !canEdit || (x && x.scope !== 'own');
@@ -365,8 +365,8 @@
     editingRules = rulesFor(x && x.t);
     $('f-link-search').value = '';
     $('f-link-results').innerHTML = '';
-    $('f-link-search').hidden = readOnly || !tavern.refs;
-    $('f-links-wrap').hidden = !tavern.refs || (readOnly && !editingLinks.length);
+    $('f-link-search').hidden = readOnly || !host.refs;
+    $('f-links-wrap').hidden = !host.refs || (readOnly && !editingLinks.length);
     renderEditorLinks(readOnly);
     resolveLinks();
     showError('');
@@ -454,10 +454,10 @@
   async function searchLinks() {
     const text = $('f-link-search').value.trim();
     const box = $('f-link-results');
-    if (!tavern.refs) return;
+    if (!host.refs) return;
     try {
-      const found = [...await tavern.refs.search(text)];
-      if (inRoom) found.push(...await tavern.refs.search(text, { scope: 'server' }).catch(() => []));
+      const found = [...await host.refs.search(text)];
+      if (inRoom) found.push(...await host.refs.search(text, { scope: 'server' }).catch(() => []));
       const fresh = found.filter((c) => !editingLinks.some((r) => refKey(r) === refKey(c.ref))).slice(0, 12);
       for (const c of fresh) cards.set(refKey(c.ref), c);
       box.innerHTML = fresh.length ? fresh.map((c) => `<button type="button" class="result" data-link="${esc(refKey(c.ref))}"><span>${esc(c.module.name)}: ${esc(c.title)}</span><small>${esc(dateText(c.when, c.allDay))}</small></button>`).join('') : '<span class="hint">Nothing found.</span>';
@@ -532,9 +532,9 @@
     }
     deleteArmed = false;
     try {
-      await tavern.storage.delete('task:' + editing.id);
+      await host.storage.delete('task:' + editing.id);
       syncLinks(editing.id, []);
-      try { await tavern.cancelSchedule('remind:' + editing.id); } catch (err) { /* nothing to cancel */ }
+      try { await host.cancelSchedule('remind:' + editing.id); } catch (err) { /* nothing to cancel */ }
       tasks.delete(editing.key);
       closeEditor();
       render();
@@ -554,8 +554,8 @@
   // A link to another module's item opens it there; Tavern opens that module and hands it the pointer.
   const openLink = (key) => {
     const c = cards.get(key);
-    if (!c || c.error || !c.open || !tavern.refs || !tavern.refs.open) return;
-    tavern.refs.open(c.ref).catch((err) => showNote(err.message));
+    if (!c || c.error || !c.open || !host.refs || !host.refs.open) return;
+    host.refs.open(c.ref).catch((err) => showNote(err.message));
   };
   $('body').addEventListener('click', (e) => {
     const ref = e.target.closest('[data-open-ref]');
@@ -567,8 +567,8 @@
     }
   });
   // A task can be dragged to another module (one that links to tasks, or does something with one).
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable($('body'), (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable($('body'), (target) => {
       const row = target.closest('[data-task]');
       const x = row && tasks.get(row.dataset.task);
       return x && x.scope === 'own' ? { kind: 'task', id: x.id, label: x.t.title } : null;
@@ -576,7 +576,7 @@
   }
 
   // Something dropped here from another module (a drag Tavern brokers between panes on the same page): what can be
-  // done with it is the shared decision (tavern.refs.dropMenu). This module's own offers: link it to the task under
+  // done with it is the shared decision (host.refs.dropMenu). This module's own offers: link it to the task under
   // the pointer, or start a task from it (linked to it when it is an item, titled and dated from it when it is a card
   // carried by the drag, an answer say). Dropped on the open editor's link field, it is linked there and nothing is asked.
   const clearDrop = () => {
@@ -584,12 +584,12 @@
     $('editor').classList.remove('drop');
   };
   const taskAt = (pt) => {
-    const el = tavern.refs.elementAt(pt);
+    const el = host.refs.elementAt(pt);
     const row = el && el.closest('[data-task]');
     return row && tasks.get(row.dataset.task) && tasks.get(row.dataset.task).scope === 'own' ? row : null;
   };
-  if (tavern.refs && tavern.refs.dropTarget) {
-    tavern.refs.dropTarget({
+  if (host.refs && host.refs.dropTarget) {
+    host.refs.dropTarget({
       over: (pt, ref, dragged) => {
         clearDrop();
         if (!(ref || dragged.card) || !canEdit) return;
@@ -603,7 +603,7 @@
       leave: clearDrop,
       drop: async (ref, pt, dragged) => {
         clearDrop();
-        if (!(ref || dragged.card) || !canEdit) return tavern.refs.trace(`drop ignored: ${canEdit ? 'nothing valid was dropped' : 'cannot edit'}`);
+        if (!(ref || dragged.card) || !canEdit) return host.refs.trace(`drop ignored: ${canEdit ? 'nothing valid was dropped' : 'cannot edit'}`);
         if (!$('editor').hidden) {
           if (ref && linkable(ref) && !$('f-link-search').hidden) addEditorLink(ref);
           return;
@@ -616,7 +616,7 @@
           const own = x && ref && linkable(ref)
             ? [{ id: 'link', label: `Link it to "${x.t.title}"`, run: () => linkTo(row.dataset.task, ref) }]
             : [{ id: 'create', label: 'Start a task from it', run: (ctx) => { openEditor(null, { title: ctx.card.title || '', date: ctx.card.date || null }); if (ref && linkable(ref)) addEditorLink(ref); } }];
-          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: x ? { target: myRef(x.id) } : {}, own, remember: x ? 'task' : 'list' });
+          const chosen = await host.refs.dropMenu(dragged, pt, { context: x ? { target: myRef(x.id) } : {}, own, remember: x ? 'task' : 'list' });
           if (chosen && chosen.id !== 'link' && chosen.id !== 'create') showNote(`${chosen.label}: done`);
         } catch (err) {
           showNote(err.message);
@@ -645,14 +645,14 @@
   $('add').addEventListener('click', () => openEditor(null));
   // The host draws Add task in the module's action bar (in the space's bottom row when docked);
   // the button and the quick-add field at the top stay only for a host without one.
-  if (tavern.bar) {
+  if (host.bar) {
     // Then the quick-add field at the top is not needed either: there is one place to add a task, the bar.
     $('add').classList.add('hosted');
     $('quick-form').classList.add('hosted');
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => { $('add').classList.remove('hosted'); $('quick-form').classList.remove('hosted'); });
-    tavern.on('bar', (e) => {
+    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => { $('add').classList.remove('hosted'); $('quick-form').classList.remove('hosted'); });
+    host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
-      openEditor(null, e.value ? tavern.util.parseWhen(e.value) : null);
+      openEditor(null, e.value ? host.util.parseWhen(e.value) : null);
     });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
@@ -675,8 +675,8 @@
   // the result in its notes, use it as the title, or link what the item picked. A task from before rules that
   // asked to follow a finished item keeps doing that (the conventional names closed, done, completed and
   // finished). Doing a rule twice is harmless.
-  if (tavern.events && tavern.events.subscribe) {
-    tavern.events.subscribe(async (e) => {
+  if (host.events && host.events.subscribe) {
+    host.events.subscribe(async (e) => {
       if (!e.ref) return;
       const k = refKey(e.ref);
       const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
@@ -705,7 +705,7 @@
           applyReminder(t).catch(() => {});
           if (ask) {
             try {
-              await tavern.actions.request(ask.a.action, ask.input);
+              await host.actions.request(ask.a.action, ask.input);
               showNote(ask.a.moduleName + ': ' + ask.a.label + ' (from "' + t.title + '")');
             } catch (err) {
               showNote(err.message);
@@ -726,8 +726,8 @@
     return x;
   };
   // What other modules may ask of this one. A task made this way links to the item it came from.
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
       createTask: async (input, meta) => {
         const t = {
           id: newId(), title: input.title, notes: input.notes || '', due: null, remind: false, done: false, doneAt: null,
@@ -756,8 +756,8 @@
   }
 
   // Another module asking to show one of this module's tasks (from a link to it): open it.
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
       const x = ref.kind === 'task' ? tasks.get('own:' + ref.id) : null;
       if (x) openEditor(x);
     });

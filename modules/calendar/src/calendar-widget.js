@@ -1,17 +1,17 @@
 // The Calendar's dashboard widget: what is coming up in the next week, across every room the viewer is in and
 // the server's own calendar. It shows and opens; it never edits. The dashboard hosts it, and clicking an item
-// takes the person to that event (tavern.refs.open) while the widget's heading opens the full calendar.
+// takes the person to that event (host.refs.open) while the widget's heading opens the full calendar.
 (async () => {
   'use strict';
 
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
-  const { esc, ymd, parseYmd } = tavern.util;
+  const { esc, ymd, parseYmd } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'The calendar could not start: ' + err.message;
     return;
@@ -21,7 +21,7 @@
 
   // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
   let goIcon = '';
-  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+  try { goIcon = await host.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
 
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 5;
@@ -30,10 +30,10 @@
 
   async function load() {
     events.clear();
-    for (const item of await tavern.storage.list('event:')) if (item.value) events.set('server:' + item.key, { id: item.key.slice(6), roomId: null, ev: item.value });
+    for (const item of await host.storage.list('event:')) if (item.value) events.set('server:' + item.key, { id: item.key.slice(6), roomId: null, ev: item.value });
     try {
-      for (const r of await tavern.rooms()) rooms.set(r.id, r);
-      for (const item of await tavern.storage.list('event:', { scope: 'rooms' })) if (item.value) events.set(`${item.roomId}:${item.key}`, { id: item.key.slice(6), roomId: item.roomId, ev: item.value });
+      for (const r of await host.rooms()) rooms.set(r.id, r);
+      for (const item of await host.storage.list('event:', { scope: 'rooms' })) if (item.value) events.set(`${item.roomId}:${item.key}`, { id: item.key.slice(6), roomId: item.roomId, ev: item.value });
     } catch (err) {
       // no rooms is fine: just the server's own events
     }
@@ -101,7 +101,7 @@
   // A widget in a frame tells the dashboard how tall it is; one in the page just takes the room it needs.
   function fit() {
     try {
-      tavern.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
+      host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
     } catch (err) {
       // the host sizes it
     }
@@ -114,15 +114,15 @@
       return render();
     }
     const day = e.target.closest('[data-day]');
-    if (day) return void tavern.page.open('day=' + day.dataset.day).catch(() => {});
+    if (day) return void host.page.open('day=' + day.dataset.day).catch(() => {});
     const b = e.target.closest('[data-event]');
     if (!b) return;
     const [room, id] = b.dataset.event.split('|');
-    tavern.refs.open(tavern.refs.make('event', id, room ? { room } : undefined)).catch(() => {});
+    host.refs.open(host.refs.make('event', id, room ? { room } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     if (!String(e.key).startsWith('event:')) return;
     clearTimeout(refreshing);
     refreshing = setTimeout(() => load().then(render).catch(() => {}), 300);

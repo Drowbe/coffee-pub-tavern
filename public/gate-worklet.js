@@ -1,7 +1,7 @@
 // Noise gate on the audio thread: closes the microphone when its level stays
 // under the threshold for a moment, and reports the level for the meter.
 // Runs regardless of whether the page is visible, unlike page timers.
-class TavernGate extends AudioWorkletProcessor {
+class MicGate extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [{ name: 'threshold', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' }];
   }
@@ -43,4 +43,4 @@ class TavernGate extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('tavern-gate', TavernGate);
+registerProcessor('mic-gate', MicGate);

@@ -97,7 +97,7 @@ body { margin: 0; overflow: hidden; }
 .rs-bar .btn { height: 38px; min-width: 38px; }
 
 /* ---- the item menu trigger, the dialog, sources, states ---- */
-/* .menu is the card's own "..." trigger button (the menu itself is tavern.menu.show, drawn by the SDK). */
+/* .menu is the card's own "..." trigger button (the menu itself is host.menu.show, drawn by the SDK). */
 .rcard .menu { position: static; min-width: 0; padding: 0; box-shadow: none; border: 0; background: none; display: inline-flex; flex-direction: row; }
 .rs-body { position: relative; }
 .editor { position: absolute; inset: 0; z-index: 30; display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow: auto; background: color-mix(in srgb, var(--bg) 70%, transparent); }

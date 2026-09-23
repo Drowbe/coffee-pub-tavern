@@ -4,12 +4,12 @@
 
 **What Places is.** The room's saved places: named locations (a hotel, a restaurant, a viewpoint) with an address, an optional position, notes, a category and owners. It needs no map and no map file. Other modules point at a place through the links conduit (a trip stop, an event, a task); a place with a position also gives its card a `place`, so the Maps module draws it. Maps stores no places of its own.
 
-**Canonical markup.** The elements a script clones are the `<template>` elements in `places.html` (`tpl-chip`, `tpl-group`, `tpl-place`, `tpl-owner`, `tpl-link`, `tpl-conflict`, `tpl-readonly`, `tpl-state-*`). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `tavern.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win. `design/places.html` is the reference rendering: open it in a browser for every state, dark and light, at phone, pane and wide sizes.
+**Canonical markup.** The elements a script clones are the `<template>` elements in `places.html` (`tpl-chip`, `tpl-group`, `tpl-place`, `tpl-owner`, `tpl-link`, `tpl-conflict`, `tpl-readonly`, `tpl-state-*`). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `host.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win. `design/places.html` is the reference rendering: open it in a browser for every state, dark and light, at phone, pane and wide sizes.
 
 **Rules that hold everywhere**
 - Colours come only from the theme tokens. A light theme must work.
 - Nothing has a fixed pixel height; the module fills its pane and scrolls inside it.
-- **Narrow means the pane, not the window:** the script sets `.narrow` on `#app` from `tavern.rootElement.clientWidth < 720` (a ResizeObserver, not `matchMedia`, since a bundled module runs in the page). The stylesheet keys on `.app.narrow`.
+- **Narrow means the pane, not the window:** the script sets `.narrow` on `#app` from `host.rootElement.clientWidth < 720` (a ResizeObserver, not `matchMedia`, since a bundled module runs in the page). The stylesheet keys on `.app.narrow`.
 - Text from people goes in with `textContent`, never as HTML. A category is always an icon and a label.
 - No inline styles, with one exception: the item menu's `top` and `left`.
 
@@ -44,7 +44,7 @@ For someone who may not edit: the same card with `tpl-readonly` in place of the 
 
 ## Adding
 
-The host's bottom bar quick-add (`tavern.bar.set` with a `quickadd` item, placeholder "Add a place: name, or paste coordinates or a map link"): a name creates a place with that title and opens the dialog to fill in the rest; coordinates or a map link in the text also set the position. `data-action=add-place` in the empty state does the same as an empty submit: it opens the dialog. Another module can ask for a place through the `addPlace` action; that creates one without opening anything.
+The host's bottom bar quick-add (`host.bar.set` with a `quickadd` item, placeholder "Add a place: name, or paste coordinates or a map link"): a name creates a place with that title and opens the dialog to fill in the rest; coordinates or a map link in the text also set the position. `data-action=add-place` in the empty state does the same as an empty submit: it opens the dialog. Another module can ask for a place through the `addPlace` action; that creates one without opening anything.
 
 ## States
 
@@ -62,7 +62,7 @@ A place with a position gives its card a `place` (`{ lat, lng, name }`), so it a
 
 ## Views: mine, this room, everyone
 
-The same places at three scopes (see plan-places-views.md). The switch itself (an icon and "Mine", "This room", "Everyone") is drawn in the toolbar by `tavern.ui.viewSwitch`, not markup in `places.html` -- see `architecture-module-window.md`. Under the header, `p.view-note[data-slot=view-note]` (hidden for the room view) says whose they are: "Only you see these. They follow you into every room." for mine, "Everyone on this server sees these, and anyone who can edit can change them." for everyone. The script builds the switch's options from what the person has (Mine needs a signed-in person, Everyone needs the server scope and shows only where the person may see it) and skips it entirely with only one view available. The list, chips, counts, menu and dialog are the same in each view; in a view the person may not change (everyone, without the right), the menu says "View", there is no Delete and the dialog is read-only, as for a viewer today. The place menu gets one more item, `data-action=share`: "Share to this room" in mine, "Save to mine" in the room view (hidden in everyone).
+The same places at three scopes (see plan-places-views.md). The switch itself (an icon and "Mine", "This room", "Everyone") is drawn in the toolbar by `host.ui.viewSwitch`, not markup in `places.html` -- see `architecture-module-window.md`. Under the header, `p.view-note[data-slot=view-note]` (hidden for the room view) says whose they are: "Only you see these. They follow you into every room." for mine, "Everyone on this server sees these, and anyone who can edit can change them." for everyone. The script builds the switch's options from what the person has (Mine needs a signed-in person, Everyone needs the server scope and shows only where the person may see it) and skips it entirely with only one view available. The list, chips, counts, menu and dialog are the same in each view; in a view the person may not change (everyone, without the right), the menu says "View", there is no Delete and the dialog is read-only, as for a viewer today. The place menu gets one more item, `data-action=share`: "Share to this room" in mine, "Save to mine" in the room view (hidden in everyone).
 
 ## Find a place (only when a search address is set)
 

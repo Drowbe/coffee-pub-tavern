@@ -7,15 +7,15 @@
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script); either way
-  // it looks elements up in tavern.root, never in document, so it works in both.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // it looks elements up in host.root, never in document, so it works in both.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
-  const { ymd, parseYmd } = tavern.util;
+  const { ymd, parseYmd } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Planner could not start: ' + err.message;
     return;
@@ -27,8 +27,8 @@
 
   /*__LIB__*/
 
-  const canEdit = tavern.can('edit');
-  const plan = createPlan(tavern);
+  const canEdit = host.can('edit');
+  const plan = createPlan(host);
   const CAT = { do: 'things', eat: 'food', stay: 'stay', travel: 'travel', other: 'other' };
   const CAT_LABEL = { do: 'Things to do', eat: 'Food', stay: 'Stay', travel: 'Travel', other: 'Other' };
   const CAT_ICON = { do: 'ticket', eat: 'utensils', stay: 'bed', travel: 'plane', other: 'note-sticky' };
@@ -43,7 +43,7 @@
     editing: null, // { mode: 'item' | 'trip', id, kind, day }
     menuFor: null, // item id
     currentDay: null, // the day in view (where a quick add goes)
-    hosted: Boolean(tavern.bar), // the host draws the quick-add bar, so the days' own add rows step aside
+    hosted: Boolean(host.bar), // the host draws the quick-add bar, so the days' own add rows step aside
     deleteArmed: null,
     expanded: new Set(), // item ids whose card's "More" is open
     markerTypes: [],
@@ -75,7 +75,7 @@
   const iconWait = new Map();
   function wantIcon(name) {
     if (iconSvg.has(name)) return Promise.resolve(iconSvg.get(name));
-    if (!iconWait.has(name)) iconWait.set(name, tavern.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
+    if (!iconWait.has(name)) iconWait.set(name, host.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
     return iconWait.get(name);
   }
   function hydrate(scope) {
@@ -88,8 +88,8 @@
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
 
   const dayShort = (d) => parseYmd(d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-  // A stored time ("22:30") the way the server shows times (tavern.util.time: "10:30 PM" on the default 12-hour clock).
-  const tt = (t) => (t ? tavern.util.time(t) : '');
+  // A stored time ("22:30") the way the server shows times (host.util.time: "10:30 PM" on the default 12-hour clock).
+  const tt = (t) => (t ? host.util.time(t) : '');
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   const lengthText = (m) => (m ? (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : `${m} min`) : '');
   // One letter, or two when another traveller of the room starts with the same one.
@@ -100,8 +100,8 @@
     return clash ? first + (name[1] || '').toLowerCase() : first;
   };
   const timeOf = (card) => (cardWhen(card) || {}).time || '';
-  const planRef = (id) => tavern.refs.make('plan', id);
-  const tripRef = () => tavern.refs.make('trip', 'main');
+  const planRef = (id) => host.refs.make('plan', id);
+  const tripRef = () => host.refs.make('trip', 'main');
   const note = (text) => { $('note').textContent = text || ''; hide($('note'), !text); };
 
   // The time cell: the start in bold, then whatever goes after it.
@@ -221,7 +221,7 @@
     add('Guests', words(item.guests, 'guest', 'guests'), 'guests');
     add('Reservation', item.reservationName, 'reservationName');
     add('Address', item.address, 'address');
-    if (item.cost) rows.push(['Cost', `${tavern.util.money(item.cost, (plan.trip || {}).currency || undefined)}${item.paidBy ? ` · paid by ${nameOf(item.paidBy)}` : ''}`]);
+    if (item.cost) rows.push(['Cost', `${host.util.money(item.cost, (plan.trip || {}).currency || undefined)}${item.paidBy ? ` · paid by ${nameOf(item.paidBy)}` : ''}`]);
     if (!rows.length) return;
     const more = clone('tpl-card-more');
     more.open = state.expanded.has(item.id);
@@ -239,7 +239,7 @@
   // (`line`: at a joint between days, not in a day) the same card is drawn with no time: a time means nothing there.
   function buildEntry(entry, line) {
     const { item, span } = entry;
-    const card = item.ref ? plan.cards.get(tavern.util.refKey(item.ref)) : null;
+    const card = item.ref ? plan.cards.get(host.util.refKey(item.ref)) : null;
     const c = cardOf(item, card);
     const row = clone('tpl-row');
     row.dataset.id = item.id;
@@ -556,7 +556,7 @@
         },
       });
     }
-    tavern.menu.show({ id: `add-${placeValue(place)}`, anchor: button, items });
+    host.menu.show({ id: `add-${placeValue(place)}`, anchor: button, items });
   }
 
   // The button (and its small form) to add days before the first day or after the last.
@@ -719,7 +719,7 @@
 
   // Money: what was spent, who is owed what, and the fewest payments that settle it.
   const money = (n) => {
-    return tavern.util.money(n, (plan.trip || {}).currency || undefined); // the trip's currency, else the server's
+    return host.util.money(n, (plan.trip || {}).currency || undefined); // the trip's currency, else the server's
   };
   function renderMoney() {
     const body = $('body');
@@ -759,7 +759,7 @@
     { id: 'bookings', label: 'Bookings' },
     { id: 'money', label: 'Money' },
   ];
-  const viewSwitch = tavern.ui.viewSwitch({
+  const viewSwitch = host.ui.viewSwitch({
     id: 'view',
     options: VIEWS,
     value: state.view,
@@ -771,7 +771,7 @@
   });
   let headerSig = '';
   async function syncHeader() {
-    if (!tavern.header) return;
+    if (!host.header) return;
     const items = [];
     if (state.view === 'days') items.push({ id: 'toggle-empty', icon: 'eye-slash', title: state.hideEmpty ? 'Show empty days' : 'Hide empty days', on: state.hideEmpty });
     if (canEdit) items.push({ id: 'edit-trip', icon: 'pen', title: 'Edit trip' });
@@ -780,14 +780,14 @@
     headerSig = sig;
     let hosted = false;
     try {
-      hosted = await tavern.header.set(items);
+      hosted = await host.header.set(items);
     } catch (err) {
       hosted = false;
     }
     $('app').classList.toggle('hosted-header', Boolean(hosted));
   }
-  if (tavern.header) {
-    tavern.on('header', (e) => {
+  if (host.header) {
+    host.on('header', (e) => {
       if (e.id === 'toggle-empty') {
         state.hideEmpty = !state.hideEmpty;
         try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }
@@ -930,23 +930,23 @@
   // What other modules link to each item and to the trip (only asked for what is shown, and once).
   const asked = new Set();
   async function loadLinks() {
-    if (!tavern.refs || !tavern.refs.linksTo) return;
+    if (!host.refs || !host.refs.linksTo) return;
     let changed = false;
     if (!asked.has('trip')) {
       asked.add('trip');
-      try { state.tripLinks = await tavern.refs.linksTo(tripRef()); changed = true; } catch (err) { state.tripLinks = []; }
+      try { state.tripLinks = await host.refs.linksTo(tripRef()); changed = true; } catch (err) { state.tripLinks = []; }
     }
     for (const item of plan.list().slice(0, 60)) {
       if (asked.has(item.id)) continue;
       asked.add(item.id);
       try {
-        const cards = await tavern.refs.linksTo(planRef(item.id));
+        const cards = await host.refs.linksTo(planRef(item.id));
         if (cards.length) { state.links.set(item.id, cards); changed = true; }
       } catch (err) { /* nothing links to it */ }
     }
     if (changed) redraw();
   }
-  if (tavern.on) tavern.on('links', () => { asked.clear(); state.links.clear(); loadLinks().catch(() => {}); });
+  if (host.on) host.on('links', () => { asked.clear(); state.links.clear(); loadLinks().catch(() => {}); });
 
   // --- the item menu, and moving ------------------------------------------------------------------------------
 
@@ -963,7 +963,7 @@
     const follow = menu.querySelector('[data-action="follow"]');
     hide(follow, item.kind !== 'link');
     // A link that cannot be read has nothing to edit.
-    hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(tavern.util.refKey(item.ref)))));
+    hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(host.util.refKey(item.ref)))));
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     // A time block can change its type; it is removed rather than deleted.
     const isBlock = item.kind === 'block' || item.kind === 'lane';
@@ -1158,24 +1158,24 @@
   // offers to save a place), and the copy's pointer is used.
   async function sharedRef(ref) {
     if (ref.scope !== 'person') return ref;
-    const card = await tavern.refs.resolve(ref);
+    const card = await host.refs.resolve(ref);
     if (!card || card.error) throw new Error('That private item could not be read.');
     let add = null;
-    try { add = (await tavern.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
+    try { add = (await host.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
     if (!add) throw new Error('That item is private to you. Share it to the space first, then use the shared copy.');
-    const out = await tavern.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
+    const out = await host.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
     if (out.status === 'done' && out.result && out.result.ok && out.result.ref) return out.result.ref;
     throw new Error('It could not be shared to the space.');
   }
 
   // Something dropped on the plan, by the pointer drag every module's items share: one of this plan's own items (pressed on its
   // body) moves to the day or the joint it lands on; another module's item or card is put there.
-  if (tavern.refs && tavern.refs.dropTarget && canEdit) {
+  if (host.refs && host.refs.dropTarget && canEdit) {
     const ownRef = (ref) => Boolean(ref) && ref.module === info.module.id && ref.kind === 'plan';
     const isLane = (ref) => { const it = plan.list().find((i) => i.id === ref.id); return Boolean(it) && it.kind === 'lane'; };
     // The pointer is in this module's own coordinates, a box in the page's.
-    const pageY = (pt) => pt.y + tavern.rootElement.getBoundingClientRect().top;
-    const spotAt = (pt) => spotFrom(tavern.refs.elementAt(pt), pageY(pt));
+    const pageY = (pt) => pt.y + host.rootElement.getBoundingClientRect().top;
+    const spotAt = (pt) => spotFrom(host.refs.elementAt(pt), pageY(pt));
     // A marker between days is only ever on the line, so for it the joint nearest the pointer is the spot wherever the pointer is.
     const laneSpot = (pt, id) => {
       const y = pageY(pt);
@@ -1191,7 +1191,7 @@
       return { after: best.joint.dataset.after, el: best.joint, row: inJoint ? spot.row : null, where: inJoint ? spot.where : null };
     };
     const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    tavern.refs.dropTarget({
+    host.refs.dropTarget({
       over: (pt, ref, dragged) => {
         clearDrop(true);
         if (!ownRef(ref) && !foreign(ref, dragged)) return closeJoints();
@@ -1215,7 +1215,7 @@
         const place = spot.after !== undefined ? { after: spot.after } : { date: spot.date };
         const target = spot.row && spot.row.dataset.id ? planRef(spot.row.dataset.id) : null;
         attempt(async () => {
-          // What can be done with it here is the shared decision (tavern.refs.dropMenu). This module's own offer puts it
+          // What can be done with it here is the shared decision (host.refs.dropMenu). This module's own offer puts it
           // on the day, or at the joint on the line: a pointer as a link, a card carried by the drag (an answer) as an item of
           // its own kind. The modules around add whatever they offer for an item of that kind, filled from the day and the
           // entry under the pointer. A private item (someone's own, in their profile) cannot be pointed at from a shared plan,
@@ -1229,12 +1229,12 @@
               : plan.addItem(plan.fromSuggestion({ title: ctx.card.title, kind: ctx.card.kind, content: ctx.card.text, place: ctx.card.place && ctx.card.place.name, ...place }))),
           }];
           if (ref && ref.scope === 'person') {
-            const card = await tavern.refs.resolve(ref);
+            const card = await host.refs.resolve(ref);
             if (!card || card.error) throw new Error('That private item could not be read.');
             await own[0].run({ card });
             return note('');
           }
-          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { ...(place.date ? { date: place.date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : place.date ? 'day' : 'joint' });
+          const chosen = await host.refs.dropMenu(dragged, pt, { context: { ...(place.date ? { date: place.date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : place.date ? 'day' : 'joint' });
           note(chosen && chosen.id !== 'add' ? `${chosen.label}: done` : '');
         });
       },
@@ -1243,8 +1243,8 @@
 
   // An item of the trip can be dragged out to another module (a task links to it): pressing its body and moving. The
   // handle is the other drag (reordering), so a press there is left alone.
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable(root, (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable(root, (target) => {
       const li = target.closest && target.closest('.row.entry');
       if (!li || !li.dataset.id || target.closest('.rail, .menu-btn, button, input, select, textarea, a')) return null;
       const item = plan.list().find((i) => i.id === li.dataset.id);
@@ -1254,12 +1254,12 @@
 
   // An item that follows another module's item (a poll): when that item reports how it turned out, keep the result on
   // the item and, when it says which day, put a stop there. Whichever page records it first does it, once.
-  if (tavern.events && tavern.events.subscribe) {
-    tavern.events.subscribe(async (e) => {
+  if (host.events && host.events.subscribe) {
+    host.events.subscribe(async (e) => {
       const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
       if (!e.ref || !summary) return;
-      const k = tavern.util.refKey(e.ref);
-      for (const item of plan.list().filter((i) => i.kind === 'link' && i.follow && i.ref && tavern.util.refKey(i.ref) === k)) {
+      const k = host.util.refKey(e.ref);
+      for (const item of plan.list().filter((i) => i.kind === 'link' && i.follow && i.ref && host.util.refKey(i.ref) === k)) {
         const fired = Number(e.id) || Date.now();
         if (item.fired === fired) continue;
         try { await plan.updateItem(item.id, { result: summary, fired }); } catch (err) { continue; }
@@ -1555,7 +1555,7 @@
     } else if (action === 'open') {
       const item = li ? plan.list().find((i) => i.id === li.dataset.id) : null;
       const ref = item && item.ref ? item.ref : b.dataset.ref ? JSON.parse(b.dataset.ref) : null;
-      if (ref) tavern.refs.open(ref).catch((err) => note(err.message));
+      if (ref) host.refs.open(ref).catch((err) => note(err.message));
     } else if (action === 'edit-item') {
       openItemEditor(b.dataset.id);
     } else if (action === 'edit-leg' && li) {
@@ -1610,7 +1610,7 @@
     e.preventDefault();
     const text = form.elements.title.value.trim();
     if (!text) return openEditor('item', null, { date: form.dataset.day });
-    const parsed = tavern.util.parseWhen ? tavern.util.parseWhen(text) : { title: text };
+    const parsed = host.util.parseWhen ? host.util.parseWhen(text) : { title: text };
     form.elements.title.value = '';
     attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || text, date: form.dataset.day || null, time: parsed.time || null }));
   });
@@ -1624,14 +1624,14 @@
     const today = ymd(new Date());
     return days.includes(state.currentDay) ? state.currentDay : days.includes(today) ? today : days[0] || null;
   };
-  if (tavern.bar) {
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add to the plan', placeholder: 'Add to the trip: lunch at noon' }] : []).catch(() => { state.hosted = false; redraw(); });
-    tavern.on('bar', (e) => {
+  if (host.bar) {
+    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add to the plan', placeholder: 'Add to the trip: lunch at noon' }] : []).catch(() => { state.hosted = false; redraw(); });
+    host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
       if (!plan.days().length) return openEditor('trip');
       const day = defaultDay();
       if (!e.value) return openEditor('item', null, { date: day });
-      const parsed = tavern.util.parseWhen ? tavern.util.parseWhen(e.value) : { title: e.value };
+      const parsed = host.util.parseWhen ? host.util.parseWhen(e.value) : { title: e.value };
       const named = parsed.date && plan.days().includes(parsed.date) ? parsed.date : day;
       attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || e.value, date: named, time: parsed.time || null }));
     });
@@ -1640,25 +1640,25 @@
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window. The
   // stylesheet keys its narrow layout on `.app.narrow`. A frame can report no width while it is laid out, so wait for one.
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (w) { $('app').classList.toggle('narrow', w < 720); $('app').classList.toggle('tiny', w < 480); }
   };
   fit();
-  new ResizeObserver(fit).observe(tavern.rootElement);
+  new ResizeObserver(fit).observe(host.rootElement);
 
   plan.provide();
   plan.subscribe(() => { if (state.loaded) redraw(); });
   // What the plan points at can change or go where it lives without telling this page, so look again now and then and when the
   // page comes back into view (until the server announces it).
   const look = () => { if (state.loaded) plan.refreshCards().catch(() => {}); };
-  const lookTimer = setInterval(() => { if (!tavern.rootElement.isConnected) clearInterval(lookTimer); else look(); }, 20000);
+  const lookTimer = setInterval(() => { if (!host.rootElement.isConnected) clearInterval(lookTimer); else look(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) look(); });
   render();
   try {
     await plan.load();
-    state.people = await tavern.people().catch(() => []);
-    try { useMarkerTypes(await tavern.settings.get()); } catch (err) { useMarkerTypes(null); }
-    tavern.settings.onChange((v) => { useMarkerTypes(v); if (state.loaded) redraw(); });
+    state.people = await host.people().catch(() => []);
+    try { useMarkerTypes(await host.settings.get()); } catch (err) { useMarkerTypes(null); }
+    host.settings.onChange((v) => { useMarkerTypes(v); if (state.loaded) redraw(); });
     state.loaded = true;
     // Warm the icons the page draws, so the first draw is not empty.
     await Promise.all([...new Set([...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)).concat(Object.values(CAT_ICON), Object.values(BADGES), Object.values(LEG_ICONS), ['link-slash'], [...root.querySelectorAll('[data-icon]')].map((n) => n.dataset.icon)))].filter(Boolean).map(wantIcon));

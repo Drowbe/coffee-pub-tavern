@@ -15,10 +15,10 @@
 import { api, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
-// What each room remembers (`tavern.panels.<room>`): the panes open when the person last used it,
-// and each pane's mode and sizes. `tavern.panels` alone is what earlier versions kept for all
+// What each room remembers (`app.panels.<room>`): the panes open when the person last used it,
+// and each pane's mode and sizes. `app.panels` alone is what earlier versions kept for all
 // rooms, and is the starting point for a room with nothing saved yet.
-const STORE_KEY = 'tavern.panels';
+const STORE_KEY = 'app.panels';
 const storeKey = (roomId) => `${STORE_KEY}.${roomId}`;
 const MIN_W = 240;
 const MIN_H = 160;
@@ -721,7 +721,7 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   function openNativeWindow(def, opts = {}) {
     const size = saved[def.id]?.win || def.windowSize || { w: 380, h: 520 };
-    const win = window.open('/popout.html', `tavern-${def.id}`, `popup,width=${size.w},height=${size.h}`);
+    const win = window.open('/popout.html', `app-${def.id}`, `popup,width=${size.w},height=${size.h}`);
     if (!win) return false;
     const pane = { id: def.id, kind: 'native', mode: 'window', def, el: def.el, win, modes: def.modes || ['dock', 'float'], order: def.order, parts: () => [] };
     panes.set(def.id, pane);
@@ -904,7 +904,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (guestToken) q.set('guest', guestToken);
     const width = Math.max(320, Math.min(m.panel.width, screen.availWidth));
     const height = Math.max(240, Math.min(m.panel.height + HEAD_H, screen.availHeight));
-    const win = window.open(`/modules/${encodeURIComponent(m.id)}?${q}`, `tavern-module-${m.id}`, `popup,width=${width},height=${height}`);
+    const win = window.open(`/modules/${encodeURIComponent(m.id)}?${q}`, `app-module-${m.id}`, `popup,width=${width},height=${height}`);
     if (!win) return;
     windows.set(m.id, win);
     if (pane) closePane(m.id);
@@ -1043,7 +1043,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
   bindDoc(document);
 
-  document.addEventListener('tavern:unread', (event) => {
+  document.addEventListener('app:unread', (event) => {
     unread = event.detail || {};
     update();
   });

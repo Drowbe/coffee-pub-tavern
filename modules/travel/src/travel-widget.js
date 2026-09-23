@@ -4,13 +4,13 @@
 (async () => {
   'use strict';
 
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
-  const { esc, ymd, parseYmd } = tavern.util;
+  const { esc, ymd, parseYmd } = host.util;
 
   try {
-    await tavern.ready();
+    await host.ready();
   } catch (err) {
     $('msg').textContent = 'Trips could not start: ' + err.message;
     return;
@@ -19,7 +19,7 @@
   /*__LIB__*/
 
   let goIcon = '';
-  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+  try { goIcon = await host.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
 
   const MAX_TRIPS = 3;
   const MAX_TODAY = 3;
@@ -31,9 +31,9 @@
     trips.clear();
     planned.clear();
     try {
-      for (const r of await tavern.rooms()) rooms.set(r.id, r);
-      for (const it of await tavern.storage.list(TRIP_KEY, { scope: 'rooms' })) if (it.value) trips.set(it.roomId, cleanTrip(it.value));
-      for (const it of await tavern.storage.list('item:', { scope: 'rooms' })) {
+      for (const r of await host.rooms()) rooms.set(r.id, r);
+      for (const it of await host.storage.list(TRIP_KEY, { scope: 'rooms' })) if (it.value) trips.set(it.roomId, cleanTrip(it.value));
+      for (const it of await host.storage.list('item:', { scope: 'rooms' })) {
         const item = it.value ? cleanItem({ ...it.value, id: it.key.slice(5) }) : null;
         if (!item) continue;
         if (!planned.has(it.roomId)) planned.set(it.roomId, []);
@@ -69,11 +69,11 @@
       return `<div class="trip">
         <button type="button" class="item" data-trip="${esc(roomId)}" title="${esc(t.title || t.destination || 'Trip')}${r ? ' - ' + esc(r.name) : ''}">
           <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="stack"><span class="what">${esc(t.title || t.destination || 'Trip')}</span><span class="sub">${esc(range)}</span></span><span class="when${on ? ' on' : ''}">${esc(whenText(t, today))}</span><span class="go">${goIcon}</span></button>
-        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(roomId)}|${esc(i.id)}"><span class="when">${esc(i.time ? tavern.util.time(i.time) : 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
+        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(roomId)}|${esc(i.id)}"><span class="when">${esc(i.time ? host.util.time(i.time) : 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
       </div>`;
     }).join('');
     try {
-      tavern.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
+      host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
     } catch (err) {
       // the host sizes it
     }
@@ -81,16 +81,16 @@
 
   root.addEventListener('click', (e) => {
     const trip = e.target.closest('[data-trip]');
-    if (trip) return void tavern.refs.open(tavern.refs.make('trip', 'main', { room: trip.dataset.trip })).catch(() => {});
+    if (trip) return void host.refs.open(host.refs.make('trip', 'main', { room: trip.dataset.trip })).catch(() => {});
     const plan = e.target.closest('[data-plan]');
     if (plan) {
       const [room, id] = plan.dataset.plan.split('|');
-      tavern.refs.open(tavern.refs.make('plan', id, { room })).catch(() => {});
+      host.refs.open(host.refs.make('plan', id, { room })).catch(() => {});
     }
   });
 
   let refreshing = 0;
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     const key = String(e.key);
     if (key !== TRIP_KEY && !key.startsWith('item:')) return;
     clearTimeout(refreshing);

@@ -7,14 +7,14 @@
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script); either way it looks
-  // elements up in tavern.root, never in document.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // elements up in host.root, never in document.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Places could not start: ' + err.message;
     return;
@@ -26,10 +26,10 @@
     return;
   }
 
-  const geo = tavern.util.geo;
+  const geo = host.util.geo;
   /*__LIB__*/
 
-  const canEdit = tavern.can('edit');
+  const canEdit = host.can('edit');
   const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so no personal places
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
   const CAT_ORDER = ['do', 'eat', 'stay', 'travel', 'other'];
@@ -38,7 +38,7 @@
 
   // Two stores of the same kind of thing: this room's, and the person's own (private, in their profile, the same in every room).
   // `places` is whichever the person is looking at.
-  const stores = { room: createPlaces(tavern, { scope: 'room' }), my: createPlaces(tavern, { scope: 'person' }), global: createPlaces(tavern, { scope: 'server' }) };
+  const stores = { room: createPlaces(host, { scope: 'room' }), my: createPlaces(host, { scope: 'person' }), global: createPlaces(host, { scope: 'server' }) };
   const loadedStores = new Set();
   const ensureLoaded = (v) => { if (loadedStores.has(v)) return Promise.resolve(); loadedStores.add(v); return stores[v].load().catch((err) => { loadedStores.delete(v); throw err; }); };
   let view = inRoom ? 'room' : 'my';
@@ -47,7 +47,7 @@
   let showAction = null;
   async function findShowAction() {
     try {
-      const list = await tavern.actions.list({ accepts: 'places:place' });
+      const list = await host.actions.list({ accepts: 'places:place' });
       showAction = list.find((a) => a.name === 'showOnMap') || null;
     } catch (err) {
       showAction = null;
@@ -86,7 +86,7 @@
   const iconWait = new Map();
   function wantIcon(name) {
     if (iconSvg.has(name)) return Promise.resolve(iconSvg.get(name));
-    if (!iconWait.has(name)) iconWait.set(name, tavern.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
+    if (!iconWait.has(name)) iconWait.set(name, host.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
     return iconWait.get(name);
   }
   function hydrate(scope) {
@@ -98,15 +98,15 @@
   }
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
   const say = (text) => { const n = $('note'); n.textContent = text || ''; n.hidden = !text; };
-  const placeRef = (id) => tavern.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : undefined);
+  const placeRef = (id) => host.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : undefined);
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (w) $('app').classList.toggle('narrow', w < 720);
   };
   fit();
-  new ResizeObserver(fit).observe(tavern.rootElement);
+  new ResizeObserver(fit).observe(host.rootElement);
 
   // --- the list -----------------------------------------------------------------------------------------------------
 
@@ -119,19 +119,19 @@
   // What other modules point at each place (asked once per place; the 'links' event clears it).
   const asked = new Set();
   async function loadLinks() {
-    if (view === 'my' || !tavern.refs || !tavern.refs.linksTo) return; // personal places are not linked
+    if (view === 'my' || !host.refs || !host.refs.linksTo) return; // personal places are not linked
     let changed = false;
     for (const p of places.list().slice(0, 100)) {
       if (asked.has(p.id)) continue;
       asked.add(p.id);
       try {
-        const cards = await tavern.refs.linksTo(placeRef(p.id));
+        const cards = await host.refs.linksTo(placeRef(p.id));
         if (cards.length) { state.links.set(p.id, cards); changed = true; }
       } catch (err) { /* nothing points at it */ }
     }
     if (changed) render();
   }
-  if (tavern.on) tavern.on('links', () => { asked.clear(); state.links.clear(); loadLinks().catch(() => {}); });
+  if (host.on) host.on('links', () => { asked.clear(); state.links.clear(); loadLinks().catch(() => {}); });
 
   const linkPill = (card) => {
     const el = clone('tpl-link');
@@ -265,7 +265,7 @@
         onClick: (item, b) => {
           if (!armedDelete.has(id)) {
             armedDelete.add(id);
-            const label = b.querySelector('.tv-menu-label');
+            const label = b.querySelector('.sdk-menu-label');
             if (label) label.textContent = 'Delete it?';
             setTimeout(() => armedDelete.delete(id), 4000);
             return false;
@@ -275,7 +275,7 @@
         },
       });
     }
-    tavern.menu.show({ id: `place-${id}`, anchor: button, items });
+    host.menu.show({ id: `place-${id}`, anchor: button, items });
   }
 
   // --- the dialog for one place -------------------------------------------------------------------------------------
@@ -453,34 +453,34 @@
     if (rowEl && !ev.target.closest('.item-menu')) {
       // A click on a place with a position shows it on the map when something offers that; otherwise it opens the place.
       const p = places.get(rowEl.dataset.id);
-      if (p && p.point && showAction) return void tavern.actions.request(showAction.action, { ref: placeRef(p.id) }).catch(() => openEditor(p.id));
+      if (p && p.point && showAction) return void host.actions.request(showAction.action, { ref: placeRef(p.id) }).catch(() => openEditor(p.id));
       openEditor(rowEl.dataset.id);
     }
   });
   // A place can be dragged out to another module (onto a day of a plan, or a task that links to it): press its row and move.
   // The pointer is the place's in the view it is shown in. A click after the drag is swallowed by the SDK.
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable(root, (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable(root, (target) => {
       const row = target.closest && target.closest('.place-row');
       if (!row || !row.dataset.id || target.closest('.item-menu, button, a')) return null;
       const p = places.get(row.dataset.id);
       return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : {}) } : null;
     });
   }
-  // Something from another module dropped here: what can be done with it is the shared decision (tavern.refs.dropMenu).
+  // Something from another module dropped here: what can be done with it is the shared decision (host.refs.dropMenu).
   // This module's own offer, when the item has a position, is to save it as a place: the editor opens seeded from it,
   // so the person finishes it rather than a copy landing unseen. The modules around add theirs.
-  if (tavern.refs && tavern.refs.dropTarget) {
+  if (host.refs && host.refs.dropTarget) {
     const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
     const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    tavern.refs.dropTarget({
+    host.refs.dropTarget({
       over: (_pt, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
         showDrop(false);
         if (!canEdit || !foreign(ref, dragged)) return;
         try {
-          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+          const chosen = await host.refs.dropMenu(dragged, pt, {
             context: {},
             own: [{
               id: 'save',
@@ -514,7 +514,7 @@
   // places it has saved first and asks the outside service only for what is missing.
   async function searchFor(q, near) {
     if (!state.search) throw new Error('search is not configured');
-    const out = await tavern.geocode.search(q, near || null);
+    const out = await host.geocode.search(q, near || null);
     if (out.credit) state.searchCredit = out.credit;
     return (out.results || []).slice(0, 6);
   }
@@ -563,7 +563,7 @@
     hydrate(box);
   }
   // A picked result is marked used on the server, which keeps it from being purged. Nothing depends on it, so a failure is ignored.
-  const markUsed = (key) => { if (key && tavern.geocode) tavern.geocode.used(key).catch(() => {}); };
+  const markUsed = (key) => { if (key && host.geocode) host.geocode.used(key).catch(() => {}); };
   // A result saved as a place: its name, address and position (the category is left for the person to set).
   async function saveFound(i) {
     const h = hits[i];
@@ -592,9 +592,9 @@
     }
   });
 
-  if (tavern.bar) {
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Add a place: name, or paste coordinates or a map link' }] : []).catch(() => {});
-    tavern.on('bar', (e) => {
+  if (host.bar) {
+    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add a place', placeholder: 'Add a place: name, or paste coordinates or a map link' }] : []).catch(() => {});
+    host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
       if (!e.value) return openEditor(null);
       const entry = readEntry(e.value);
@@ -607,8 +607,8 @@
 
   // What other modules may ask of this page, for the person who asked (a view, so only their own page does it): look for a
   // place by name, and open the dialog for a new one where a map was clicked.
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
       searchPlaces: async (input) => {
         const q = geo.oneLine(input && input.q, 200);
         if (q.length < 2) throw new Error('nothing to look for');
@@ -627,8 +627,8 @@
   }
 
   if (inRoom) stores.room.provide(info.user.key); // other modules' requests to add a place go to the space's list
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
       const show = () => openEditor(ref.id);
       if (state.loaded) show(); else state.openWanted = show;
@@ -645,7 +645,7 @@
     { id: 'room', label: 'This space', icon: 'users' },
     { id: 'global', label: 'Everyone', icon: 'globe' },
   ].filter((o) => allowed[o.id]);
-  const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
+  const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   function showView(next) {
     if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;
@@ -656,7 +656,7 @@
     hide(note, !VIEW_NOTES[view]);
     state.links = new Map();
     asked.clear();
-    tavern.menu.close();
+    host.menu.close();
     closeFound();
     closeEditor();
     render();
@@ -673,10 +673,10 @@
   render();
   try {
     await ensureLoaded(view);
-    state.people = await tavern.people().catch(() => []);
+    state.people = await host.people().catch(() => []);
     const useSearch = (v) => { state.search = searchOn(v); state.searchCredit = ''; if (!state.search) closeFound(); };
-    try { useSearch(await tavern.settings.get()); } catch (err) { useSearch(null); }
-    tavern.settings.onChange((v) => useSearch(v));
+    try { useSearch(await host.settings.get()); } catch (err) { useSearch(null); }
+    host.settings.onChange((v) => useSearch(v));
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(CAT_ICON), ['layer-group', 'link']))].filter(Boolean).map(wantIcon));
     findShowAction();
     state.loaded = true;

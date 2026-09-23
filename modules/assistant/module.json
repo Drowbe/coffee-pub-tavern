@@ -1,7 +1,7 @@
 {
   "id": "assistant",
   "name": "Assistant",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "icon": "wand-magic-sparkles",
   "description": "An open-ended conversation with the AI the admin set up. Add a note, a link or anything else as context if you want the answer to use it; a card worth keeping can be saved and dragged like any other.",
   "author": "Coffee Pub",

@@ -8,18 +8,18 @@
 (async () => {
   'use strict';
 
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Assistant could not start: ' + err.message;
     return;
   }
-  const geo = tavern.util.geo;
+  const geo = host.util.geo;
   /*__LIB__*/
 
   // --- small helpers (as every module has: never shared beyond the SDK, so each stays simple and easy to read on its own) -----
@@ -40,7 +40,7 @@
   const iconWait = new Map();
   function wantIcon(name) {
     if (iconSvg.has(name)) return Promise.resolve(iconSvg.get(name));
-    if (!iconWait.has(name)) iconWait.set(name, tavern.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
+    if (!iconWait.has(name)) iconWait.set(name, host.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
     return iconWait.get(name);
   }
   function hydrate(scope) {
@@ -55,11 +55,11 @@
   const message = (err) => (err && err.message) || String(err);
 
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (w) $('app').classList.toggle('narrow', w < 720);
   };
   fit();
-  new ResizeObserver(fit).observe(tavern.rootElement);
+  new ResizeObserver(fit).observe(host.rootElement);
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   const placeText = (p) => (p ? p.name || geo.coordsText(p.lat, p.lng) : '');
@@ -105,7 +105,7 @@
     list.replaceChildren();
     let cards = [];
     try {
-      const [room, mine] = await Promise.all([tavern.refs.search(''), tavern.refs.search('', { scope: 'person' }).catch(() => [])]);
+      const [room, mine] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => [])]);
       const seen = new Set();
       for (const c of [...room, ...mine]) { const k = refKey(c.ref); if (!seen.has(k)) { seen.add(k); cards.push(c); } }
     } catch (err) {
@@ -149,7 +149,7 @@
   function sourcePill(ref) {
     const el = clone('tpl-source');
     fill(el, { label: '…' });
-    tavern.refs.resolve(ref).then((card) => {
+    host.refs.resolve(ref).then((card) => {
       fill(el, { label: card && !card.error ? card.title : 'that item' });
       el.classList.toggle('gone', Boolean(card && card.error));
     }).catch(() => { fill(el, { label: 'that item' }); el.classList.add('gone'); });
@@ -162,7 +162,7 @@
     setIcon(el.querySelector('.badge [data-icon]'), c.icon || 'note');
     fill(el, { title: c.title, place: placeText(c.place), when: c.date ? dayText(c.date) : '', basis: BASIS_TEXT[c.basis] || '' });
     const content = slot(el, 'content');
-    content.innerHTML = tavern.util.markdown(c.content || '');
+    content.innerHTML = host.util.markdown(c.content || '');
     content.hidden = !c.content;
     el.dataset.basis = BASIS_TEXT[c.basis] ? c.basis : '';
     el.dataset.kind = c.kind || ''; // an everyday word (flight, hotel, sight...), for the card's colour; see assistant.css
@@ -188,7 +188,7 @@
       if (!placer || keepBtn.disabled) return false;
       keepBtn.disabled = true;
       try {
-        const out = await tavern.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
+        const out = await host.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
         if (out.status !== 'done' || !out.result || !out.result.ok) throw new Error((out.result && out.result.error) || 'it could not be saved');
         keepBtn.classList.add('kept');
         return true;
@@ -220,7 +220,7 @@
     // Name the sources for real (the pills above resolve the same way), so the kept item's own words read as the card does.
     const sources = c.sources || [];
     const named = new Map();
-    await Promise.all(sources.map(async (r) => { try { const card = await tavern.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
+    await Promise.all(sources.map(async (r) => { try { const card = await host.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
     return keepInput(c, question, (r) => named.get(r) || '');
   }
   // How to call a card's kind in one line, plural or not: "3 hotels", "1 sight", "2 notes" (anything without a kind, or
@@ -233,7 +233,7 @@
     const cardEls = [];
     for (const p of answerParts(reply.text, (reply.cards || []).length)) {
       if (p.card !== undefined) { const el = aiCard(reply.cards[p.card], question); cardEls.push(el); parts.append(el); }
-      else { const t = clone('tpl-msg-text'); t.innerHTML = tavern.util.markdown(p.text); parts.append(t); }
+      else { const t = clone('tpl-msg-text'); t.innerHTML = host.util.markdown(p.text); parts.append(t); }
     }
     if (cardEls.length > 1 && (state.saveAction || state.suggestAction)) parts.append(sendAllNode(cardEls));
     return msg;
@@ -277,7 +277,7 @@
     hydrate(thread());
     scrollDown();
     try {
-      const reply = await tavern.ai.ask({ task: 'ask', question: q, items: state.context.map((it) => it.ref) });
+      const reply = await host.ai.ask({ task: 'ask', question: q, items: state.context.map((it) => it.ref) });
       waiting.replaceWith(showReply(q, reply));
     } catch (err) {
       const t = clone('tpl-msg-text');
@@ -299,27 +299,27 @@
   // on the server page there is none, and the fallback button in .ask-head stays.
   let headerSig = '';
   async function syncHeader() {
-    if (!tavern.header) return;
+    if (!host.header) return;
     const sig = state.ai ? '1' : '0';
     if (sig === headerSig) return;
     headerSig = sig;
     let hosted = false;
     try {
-      hosted = await tavern.header.set(state.ai ? [{ id: 'new-chat', icon: 'rotate-left', title: 'New conversation' }] : []);
+      hosted = await host.header.set(state.ai ? [{ id: 'new-chat', icon: 'rotate-left', title: 'New conversation' }] : []);
     } catch (err) {
       hosted = false;
     }
     $('app').classList.toggle('hosted-header', Boolean(hosted));
   }
-  if (tavern.header) {
-    tavern.on('header', (e) => { if (e.id === 'new-chat') newChat(); });
+  if (host.header) {
+    host.on('header', (e) => { if (e.id === 'new-chat') newChat(); });
   }
 
   // --- availability: whether this person may use the AI here, and what can save a kept card ---------------------------------
 
   async function checkAi() {
     try {
-      const a = await tavern.ai.available();
+      const a = await host.ai.available();
       state.ai = Boolean(a.available);
       state.aiWhy = a.why || '';
     } catch (err) {
@@ -341,7 +341,7 @@
   // (a title and a kind), each found by name and input shape, never by naming a module.
   async function findSaveAction() {
     try {
-      const list = await tavern.actions.list();
+      const list = await host.actions.list();
       state.saveAction = list.find((a) => a.name === 'saveNote' && a.input && 'title' in a.input && 'body' in a.input) || null;
       state.suggestAction = list.find((a) => a.name === 'acceptSuggestion' && a.input && 'title' in a.input && 'kind' in a.input) || null;
     } catch (err) {
@@ -364,8 +364,8 @@
   // A card the model wrote can be dragged onto another module. Assistant stores nothing, so there is no pointer to
   // drag: the card itself travels (title, kind, content, place, date), and the module it lands on offers whatever
   // it can make of that -- "Send all to plan", one card at a time, by hand.
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable(root, (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable(root, (target) => {
       const el = target.closest && target.closest('.aicard');
       if (!el || !el.keepCard || target.closest('button, a')) return null;
       const c = el.keepCard;
@@ -374,9 +374,9 @@
   }
   // Something from another module dropped here: use it as context for the next question, or ask about it at once.
   // A carried card (another answer) has no pointer and cannot be context; only the modules around can offer for it.
-  if (tavern.refs && tavern.refs.dropTarget) {
+  if (host.refs && host.refs.dropTarget) {
     const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
-    tavern.refs.dropTarget({
+    host.refs.dropTarget({
       over: (_pt, ref, dragged) => showDrop(state.ai && Boolean(ref || dragged.card)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
@@ -388,22 +388,22 @@
             { id: 'context', label: 'Use it as context', hint: 'for the next question', run: asContext },
             { id: 'ask', label: 'Ask about it', run: (ctx) => { asContext(ctx); ask(`What should I know about ${ctx.card.title}?`); } },
           ] : [];
-          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: {}, own, remember: 'pane' });
+          const chosen = await host.refs.dropMenu(dragged, pt, { context: {}, own, remember: 'pane' });
           if (chosen && chosen.id !== 'context' && chosen.id !== 'ask') say(`${chosen.label}: done`, 3000);
         } catch (err) { say('It could not do that: ' + message(err), 4000); }
       },
     });
   }
 
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
       // A local view: carried out only by the requester's own open Assistant, never someone else's (see module.json). Adds the
       // given item (if any) as context and, with a question, asks it at once.
       askAssistant: async (input) => {
         const i = input || {};
         if (i.ref) {
           try {
-            const card = await tavern.refs.resolve(i.ref);
+            const card = await host.refs.resolve(i.ref);
             if (card && !card.error) addContext({ ref: i.ref, title: card.title, icon: (card.module && card.module.icon) || 'note' });
           } catch (err) { /* not visible here */ }
         }

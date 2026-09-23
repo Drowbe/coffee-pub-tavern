@@ -4032,7 +4032,7 @@ body.conference-window {
 }
 
 /* A module's optional toolbar row, under the titlebar and above its content: filters, tabs, a progress
-   bar -- see tavern.toolbar.set. Sits inside the same flex column as the titlebar and the content in both
+   bar -- see host.toolbar.set. Sits inside the same flex column as the titlebar and the content in both
    a docked and a floating module, so no layout rule needs to know which one it is. */
 .mod-toolbar {
   display: flex;
@@ -4184,7 +4184,7 @@ body.conference-window {
 }
 
 /* The host-drawn "..." for a header, action bar or toolbar row that ran out of room (module-host.js's
-   toggleOverflow) -- the same idea as a module's own tavern.menu.show, but for the host's own chrome, so
+   toggleOverflow) -- the same idea as a module's own host.menu.show, but for the host's own chrome, so
    it can't reach into a module's sandboxed frame to draw there. */
 .host-menu {
   position: absolute;
@@ -4490,7 +4490,7 @@ body.at-table .module-nav {
   margin-top: 8px;
 }
 
-/* A module's own icon buttons in its titlebar (tavern.header.set), then a pipe before the pane's buttons. */
+/* A module's own icon buttons in its titlebar (host.header.set), then a pipe before the pane's buttons. */
 .titlebar-custom {
   display: inline-flex;
   align-items: center;

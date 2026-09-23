@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building or changing what happens when something is dragged from one module and dropped on another, and the author deciding what comes next.
 
-**Status:** Built through step 10 (the SDK helper, the carried card, every module retrofitted, the docs), verified by `tools/check-drop.mjs` and by real drops in a browser (see Verify). Left: the chat as a target (step 11, host-side) and the open questions. The transport (a drag brokered by the host between module frames, `tavern.refs.draggable` and `tavern.refs.dropTarget`) was built before this plan; the decision -- what a drop *does* -- was not shared: each module decided on its own, four different ways. This plan made that one shared tool, `tavern.refs.dropMenu`, the same move as `tavern.menu.show` and `tavern.ui.viewSwitch`, and retrofitted every module onto it. Documented in [api-module-sdk](../api/api-module-sdk.md) ("Dragging"). Delete this plan when the last item is done or moved to the TODO.
+**Status:** Built through step 10 (the SDK helper, the carried card, every module retrofitted, the docs), verified by `tools/check-drop.mjs` and by real drops in a browser (see Verify). Left: the chat as a target (step 11, host-side) and the open questions. The transport (a drag brokered by the host between module frames, `host.refs.draggable` and `host.refs.dropTarget`) was built before this plan; the decision -- what a drop *does* -- was not shared: each module decided on its own, four different ways. This plan made that one shared tool, `host.refs.dropMenu`, the same move as `host.menu.show` and `host.ui.viewSwitch`, and retrofitted every module onto it. Documented in [api-module-sdk](../api/api-module-sdk.md) ("Dragging"). Delete this plan when the last item is done or moved to the TODO.
 
 ## Why
 
@@ -56,7 +56,7 @@ An action is offered when every required input is filled **and** the dropped ite
 ```js
 // In a module's dropTarget.drop, for something from another module:
 const context = spotAt(point);           // the module's own: { target?, date?, time?, place?, el }
-tavern.refs.dropMenu(ref, point, {
+host.refs.dropMenu(ref, point, {
   context,
   own: [                                 // the module's own offers, first in the menu
     { id: 'create', label: 'Add to the calendar as an event', hint: 'Tue 3 Oct', run: () => createEventOn(card.title, context.date) },
@@ -65,7 +65,7 @@ tavern.refs.dropMenu(ref, point, {
 });
 ```
 
-`tavern.refs.dropMenu(dragged, point, { context, own, remember })`:
+`host.refs.dropMenu(dragged, point, { context, own, remember })`:
 
 1. Resolves the dragged ref into a card (or takes the carried card); an item the viewer may not see stops here with a note, as today.
 2. Asks `actions.list({ accepts: module:kind })` and fills each action's inputs from the context by the rules above; keeps the ones that fill.
@@ -73,9 +73,9 @@ tavern.refs.dropMenu(ref, point, {
 4. Runs the chosen offer: an own offer's `run()`, or `actions.request(action, input, { wait: true })`; reports the outcome the way the module's note does today (`onDone`/`onError` callbacks, or a returned promise).
 5. Traces every step to the `?debug=1` box, so a drop that offers nothing says why (which required input could not be filled).
 
-`tavern.refs.offersFor(dragged, context)` is the same without the menu, for a module that wants the list (Assistant's "Send all to plan" could use it).
+`host.refs.offersFor(dragged, context)` is the same without the menu, for a module that wants the list (Assistant's "Send all to plan" could use it).
 
-The drag payload gains a card: `tavern.refs.draggable(root, resolve)` may return `{ card: { title, kind?, content?, place?, date? }, label }` instead of `{ kind, id, ... }`. The host carries it as it carries a ref; `dropTarget`'s `over`/`drop` receive `dragged`, which is `{ ref }` or `{ card }`, and `dropMenu` takes either.
+The drag payload gains a card: `host.refs.draggable(root, resolve)` may return `{ card: { title, kind?, content?, place?, date? }, label }` instead of `{ kind, id, ... }`. The host carries it as it carries a ref; `dropTarget`'s `over`/`drop` receive `dragged`, which is `{ ref }` or `{ card }`, and `dropMenu` takes either.
 
 ## What each module contributes
 

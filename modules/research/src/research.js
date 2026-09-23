@@ -8,29 +8,29 @@
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script); either way it looks
-  // elements up in tavern.root, never in document.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // elements up in host.root, never in document.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Research could not start: ' + err.message;
     return;
   }
   const inRoom = info.context.scope === 'room';
-  const geo = tavern.util.geo;
+  const geo = host.util.geo;
   /*__LIB__*/
 
-  const canEdit = tavern.can('edit');
+  const canEdit = host.can('edit');
   const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so nothing of their own
   const isAdmin = Boolean(info.user && info.user.role === 'admin');
   const me = (info.user && info.user.key) || '';
 
   // Two stores of the same kind of thing: this room's, and the person's own (private, the same in every room).
-  const stores = { room: createResearch(tavern, { scope: 'room' }), my: createResearch(tavern, { scope: 'person' }) };
+  const stores = { room: createResearch(host, { scope: 'room' }), my: createResearch(host, { scope: 'person' }) };
   const loadedStores = new Set();
   const ensureLoaded = (v) => { if (loadedStores.has(v)) return Promise.resolve(); loadedStores.add(v); return stores[v].load().catch((err) => { loadedStores.delete(v); throw err; }); };
   let view = inRoom ? 'room' : 'my';
@@ -75,7 +75,7 @@
   const iconWait = new Map();
   function wantIcon(name) {
     if (iconSvg.has(name)) return Promise.resolve(iconSvg.get(name));
-    if (!iconWait.has(name)) iconWait.set(name, tavern.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
+    if (!iconWait.has(name)) iconWait.set(name, host.ui.icon(name).then((svg) => { iconSvg.set(name, svg); return svg; }).catch(() => { iconSvg.set(name, ''); return ''; }));
     return iconWait.get(name);
   }
   function hydrate(scope) {
@@ -91,11 +91,11 @@
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (w) $('app').classList.toggle('narrow', w < 720);
   };
   fit();
-  new ResizeObserver(fit).observe(tavern.rootElement);
+  new ResizeObserver(fit).observe(host.rootElement);
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   // What to call an item an answer came from: its title when it is one of ours, otherwise what kind of thing it is.
@@ -131,7 +131,7 @@
     const key = `${view}:${it.file.id}`;
     if (!state.thumbs.has(key)) {
       state.thumbs.set(key, '');
-      tavern.uploads.url(it.file.id, { thumb: it.file.hasThumb, scope: scopeOf() }).then((u) => { state.thumbs.set(key, u); for (const img of root.querySelectorAll(`.rcard[data-id="${it.id}"] [data-slot="thumb"]`)) { img.src = u; img.hidden = false; } }).catch(() => {});
+      host.uploads.url(it.file.id, { thumb: it.file.hasThumb, scope: scopeOf() }).then((u) => { state.thumbs.set(key, u); for (const img of root.querySelectorAll(`.rcard[data-id="${it.id}"] [data-slot="thumb"]`)) { img.src = u; img.hidden = false; } }).catch(() => {});
     }
     return state.thumbs.get(key);
   };
@@ -142,19 +142,19 @@
   const linkTarget = new WeakMap(); // a pill -> the pointer to open
   const askedLinks = new Set();
   async function loadLinks() {
-    if (view === 'my' || !tavern.refs || !tavern.refs.linksTo) return;
+    if (view === 'my' || !host.refs || !host.refs.linksTo) return;
     let changed = false;
     for (const it of research.list().slice(0, 100)) {
       if (askedLinks.has(it.id)) continue;
       askedLinks.add(it.id);
       try {
-        const cards = await tavern.refs.linksTo(research.refOf(it.kind, it.id));
+        const cards = await host.refs.linksTo(research.refOf(it.kind, it.id));
         if (cards.length) { links.set(it.id, cards); changed = true; }
       } catch (err) { /* nothing points at it */ }
     }
     if (changed) render();
   }
-  if (tavern.on) tavern.on('links', () => { askedLinks.clear(); links.clear(); loadLinks().catch(() => {}); });
+  if (host.on) host.on('links', () => { askedLinks.clear(); links.clear(); loadLinks().catch(() => {}); });
   function backlinkPills(cards) {
     const groups = new Map();
     for (const c of cards) { const k = c.kindName || c.kind || 'item'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
@@ -298,7 +298,7 @@
         id: 'ask-about',
         label: 'Research this',
         icon: 'wand-magic-sparkles',
-        onClick: () => { tavern.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000)); },
+        onClick: () => { host.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000)); },
       });
     }
     if (mayRemove(it)) {
@@ -310,7 +310,7 @@
         onClick: (item, b) => {
           if (!armedRemove.has(id)) {
             armedRemove.add(id);
-            const label = b.querySelector('.tv-menu-label');
+            const label = b.querySelector('.sdk-menu-label');
             if (label) label.textContent = 'Remove it?';
             setTimeout(() => armedRemove.delete(id), 4000);
             return false;
@@ -320,7 +320,7 @@
         },
       });
     }
-    tavern.menu.show({ id: `research-${id}`, anchor: button, items });
+    host.menu.show({ id: `research-${id}`, anchor: button, items });
   }
 
   // --- the dialog for one item --------------------------------------------------------------------------------------
@@ -495,16 +495,16 @@
     const store = rec.store;
     try {
       setStep(rec, 'Preparing…', 5);
-      const facts = await tavern.uploads.inspect(rec.file.slice(0, 256 * 1024, rec.file.type), { scope: sc }).catch(() => ({}));
+      const facts = await host.uploads.inspect(rec.file.slice(0, 256 * 1024, rec.file.type), { scope: sc }).catch(() => ({}));
       let bitmap;
       try { bitmap = await createImageBitmap(rec.file, { imageOrientation: 'from-image' }); } catch (err) { throw new Error('this browser cannot read that picture'); }
       const main = await jpegOf(bitmap, 2000, 0.85);
       const thumb = await jpegOf(bitmap, 400, 0.8);
       if (bitmap.close) bitmap.close();
       setStep(rec, 'Uploading…', 35);
-      const file = rec.done || (rec.done = await tavern.uploads.put(main, { name: rec.file.name, scope: sc }));
+      const file = rec.done || (rec.done = await host.uploads.put(main, { name: rec.file.name, scope: sc }));
       setStep(rec, 'Uploading…', 75);
-      await tavern.uploads.thumb(file.id, thumb, { scope: sc });
+      await host.uploads.thumb(file.id, thumb, { scope: sc });
       const day = facts.taken ? facts.taken.slice(0, 10) : '';
       const item = await store.save({ kind: 'photo', title: captionOf(rec.file.name) || 'Photo', file: { id: file.id, hasThumb: true }, tags: [], date: isDay(day) ? day : '', by: me });
       if (facts.hasPosition && facts.position) { rec.el = askPosition(rec, item, facts.position); renderUploads(); } else finishUpload(rec);
@@ -548,13 +548,13 @@
   }
 
   async function checkAi() {
-    try { state.ai = Boolean((await tavern.ai.available()).available); } catch (err) { state.ai = false; }
+    try { state.ai = Boolean((await host.ai.available()).available); } catch (err) { state.ai = false; }
   }
   // The generic action that opens a conversation with the AI about an item, found by name and input shape, never by naming a
   // module: any module could offer this, and Research asks for it the same way Places asks Maps to show something.
   async function findAssistant() {
     try {
-      const list = await tavern.actions.list();
+      const list = await host.actions.list();
       state.askAssistant = list.find((a) => a.name === 'askAssistant' && a.input && 'ref' in a.input) || null;
     } catch (err) {
       state.askAssistant = null;
@@ -570,7 +570,7 @@
     btn.disabled = true;
     editorError('');
     try {
-      const r = await tavern.ai.ask({ task: 'tags', items: [research.refOf(e.kind, e.id)] });
+      const r = await host.ai.ask({ task: 'tags', items: [research.refOf(e.kind, e.id)] });
       const have = parseTags($('f-tags').value);
       $('f-tags').value = [...new Set([...have, ...(r.tags || [])])].slice(0, 8).join(', ');
       if (!(r.tags || []).length) editorError('The AI had no tags to suggest.');
@@ -586,7 +586,7 @@
       ev.stopPropagation();
       return openMenu(cardEl.dataset.id, t);
     }
-    if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) tavern.refs.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
+    if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) host.refs.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
     if (t && t.dataset.action === 'suggest-tags') return suggestTags();
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
@@ -594,8 +594,8 @@
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });
   // An item can be dragged out to another module (onto a day of a plan, or a task that links to it): press its card and move.
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable(root, (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable(root, (target) => {
       const el = target.closest && target.closest('.rcard');
       if (!el || !el.dataset.id || target.closest('.menu, button, a')) return null;
       const it = research.get(el.dataset.id);
@@ -612,12 +612,12 @@
 
   // --- adding: the bottom bar, and what other modules and pointers ask ---------------------------------------------
 
-  if (tavern.bar) {
-    tavern.bar.set(canEdit ? [
+  if (host.bar) {
+    host.bar.set(canEdit ? [
       { id: 'add', type: 'quickadd', label: 'Add a note', placeholder: 'Write a note, or paste a link' },
       { id: 'photo', iconOnly: true, icon: 'camera', label: 'Add a photo' },
     ] : []).catch(() => {});
-    tavern.on('bar', (e) => {
+    host.on('bar', (e) => {
       if (!canEdit) return;
       if (e.id === 'photo') return choosePhotos();
       if (e.id !== 'add') return;
@@ -626,27 +626,27 @@
     });
   }
   // Something from another module dropped on the pane: what can be done with it is the shared decision
-  // (tavern.refs.dropMenu). Starting a note about it, with its title, linked to it, is this module's own offer (a
+  // (host.refs.dropMenu). Starting a note about it, with its title, linked to it, is this module's own offer (a
   // personal note is not linked: private items are not linked to or from); a card carried by the drag (an answer)
   // keeps its text as the note's body. The modules around add theirs.
-  if (tavern.refs && tavern.refs.dropTarget) {
+  if (host.refs && host.refs.dropTarget) {
     const showDrop = (yes) => { $('app').classList.toggle('drop-target', yes); hide($('drop-hint'), !yes); };
     const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    tavern.refs.dropTarget({
+    host.refs.dropTarget({
       over: (_point, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
         showDrop(false);
         if (!canEdit || !foreign(ref, dragged)) return;
         try {
-          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+          const chosen = await host.refs.dropMenu(dragged, pt, {
             context: {},
             own: [{
               id: 'note',
               label: 'Start a note about it',
               run: async (ctx) => {
                 const note = await research.save({ kind: 'note', title: geo.oneLine(ctx.card.title || '', 120) || 'Note', body: ref ? '' : String(ctx.card.text || ''), tags: [], date: '', by: me });
-                if (ref && view !== 'my') tavern.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
+                if (ref && view !== 'my') host.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
                 openEditor(note.id);
               },
             }],
@@ -658,8 +658,8 @@
     });
   }
   if (inRoom) stores.room.provide(me); // other modules' requests to save a note or a link go to the space's research
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || !KINDS.includes(ref.kind)) return;
       const show = async () => {
         const want = ref.scope === 'person' ? 'my' : 'room';
@@ -676,10 +676,10 @@
     { id: 'my', label: 'Mine', icon: 'user' },
     { id: 'room', label: 'This space', icon: 'users' },
   ].filter((o) => allowed[o.id]);
-  const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
+  const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   // How the items are laid out: cards packed like masonry, or a list. Remembered per person.
   try { state.layout = localStorage.getItem('research-layout') === 'list' ? 'list' : 'cards'; } catch (err) { state.layout = 'cards'; }
-  tavern.ui.viewSwitch({
+  host.ui.viewSwitch({
     id: 'layout',
     options: [{ id: 'cards', label: 'Cards', icon: 'grip', iconOnly: true }, { id: 'list', label: 'List', icon: 'list', iconOnly: true }],
     value: state.layout,
@@ -696,7 +696,7 @@
     viewSwitch?.set(view);
     state.filter = ''; state.kind = ''; state.tags = [];
     $('filter').value = '';
-    tavern.menu.close();
+    host.menu.close();
     closeEditor();
     state.uploads = [];
     links.clear();
@@ -711,9 +711,9 @@
   render();
   try {
     await ensureLoaded(view);
-    state.people = await tavern.people().catch(() => []);
-    try { loadTagColors(await tavern.settings.get()); } catch (err) { loadTagColors(null); }
-    tavern.settings.onChange((v) => { loadTagColors(v); if (state.loaded) render(); });
+    state.people = await host.people().catch(() => []);
+    try { loadTagColors(await host.settings.get()); } catch (err) { loadTagColors(null); }
+    host.settings.onChange((v) => { loadTagColors(v); if (state.loaded) render(); });
     await Promise.all([...new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(Object.values(KIND_ICON), ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins']))].filter(Boolean).map(wantIcon));
     state.loaded = true;
     render();

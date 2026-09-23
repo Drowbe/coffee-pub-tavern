@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
- * check-drop.mjs -- the drop fill rules (tavern.refs.fillFor) and the shared drop decision (offersFor, dropMenu)
- * from public/sdk/tavern.js, run on their own: what a drop can fill of an action's inputs from what was dragged
+ * check-drop.mjs -- the drop fill rules (host.refs.fillFor) and the shared drop decision (offersFor, dropMenu)
+ * from public/sdk/host.js, run on their own: what a drop can fill of an action's inputs from what was dragged
  * (a pointer, or a card carried by a module with nothing stored) and what is under the pointer, and which actions
  * a drop offers at all (the dropped item's own module's, by its exact kind, doing something with what is here). See
  * documentation/plans/plan-drop.md.
@@ -9,24 +9,24 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
-const sdk = fs.readFileSync(new URL('../public/sdk/tavern.js', import.meta.url), 'utf8');
+const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 
 // A stub host: what actions.list and refs.resolve answer, and what was requested.
 const calls = [];
-const host = { actions: [], cards: {} };
+const stub = { actions: [], cards: {} }; // what the host would answer with
 const call = async (method, params) => {
   calls.push([method, params]);
-  if (method === 'actions.list') return host.actions;
-  if (method === 'refs.resolve') return params.refs.map((r) => host.cards[`${r.module}:${r.kind}:${r.id}`] || { ref: r, error: 'not available', status: 404 });
+  if (method === 'actions.list') return stub.actions;
+  if (method === 'refs.resolve') return params.refs.map((r) => stub.cards[`${r.module}:${r.kind}:${r.id}`] || { ref: r, error: 'not available', status: 404 });
   if (method === 'actions.request') return { id: 'q1' };
   if (method === 'actions.status') return { status: 'done', result: { ok: true } };
   return {};
 };
-const { tavern } = win.createTavern({ call, root: {}, rootElement: {} });
-const { fillFor } = tavern.refs;
+const { host } = win.createHost({ call, root: {}, rootElement: {} });
+const { fillFor } = host.refs;
 
 const task = { module: 'todo', kind: 'task', id: 't1', scope: 'room', room: 'r' };
 const event = { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'r' };
@@ -92,8 +92,8 @@ await test('a bare pointer is accepted as well as { ref }', () => {
 
 // What a drop offers beyond the target's own: the dropped item's own module's actions, by its exact kind, using something
 // from under the pointer. Every other module's action is left out, however well it fills.
-host.cards['todo:task:t1'] = { ref: task, title: 'Book flights', kind: 'task', module: { id: 'todo', icon: 'list-check' } };
-host.cards['places:place:p1'] = { ref: place, title: 'The pier', kind: 'place', module: { id: 'places', icon: 'location-dot' }, place: { lat: 3, lng: 4 } };
+stub.cards['todo:task:t1'] = { ref: task, title: 'Book flights', kind: 'task', module: { id: 'todo', icon: 'list-check' } };
+stub.cards['places:place:p1'] = { ref: place, title: 'The pier', kind: 'place', module: { id: 'places', icon: 'location-dot' }, place: { lat: 3, lng: 4 } };
 const ALL = [
   { action: 'calendar:createEvent', module: 'calendar', icon: 'calendar-days', label: 'Add it to the calendar', moduleName: 'Calendar', input: { title: 'string', date: 'date', ref: 'ref?' } },
   { action: 'research:saveNote', module: 'research', icon: 'book', label: 'Save a note', moduleName: 'Research', input: { title: 'string', body: 'text?', ref: 'ref?' } },
@@ -105,60 +105,60 @@ const ALL = [
 ];
 
 await test('offersFor: only the dropped item\'s own module\'s actions, by its exact kind, using what is under the pointer', async () => {
-  host.actions = ALL;
+  stub.actions = ALL;
   calls.length = 0;
-  const onDay = await tavern.refs.offersFor({ ref: task }, { date: '2026-10-03' });
+  const onDay = await host.refs.offersFor({ ref: task }, { date: '2026-10-03' });
   assert.deepEqual(onDay.map((o) => o.id), ['todo:setTaskDue'], 'a task on a day: its due date, and not an event, a note, another task or the map');
   assert.deepEqual(onDay[0].input, { task, date: '2026-10-03' });
   assert.equal(onDay[0].icon, 'list-check', 'an offer wears its module\'s icon');
   assert.deepEqual(calls.find((c) => c[0] === 'actions.list')[1], { accepts: 'todo:task', self: false });
-  const onEvent = await tavern.refs.offersFor({ ref: task }, { target: event, date: '2026-10-03' });
+  const onEvent = await host.refs.offersFor({ ref: task }, { target: event, date: '2026-10-03' });
   assert.deepEqual(onEvent.map((o) => o.id), ['todo:setTaskDue', 'todo:linkTask'], 'on an event: its due date, and linking it to the event');
-  const nowhere = await tavern.refs.offersFor({ ref: task }, {});
+  const nowhere = await host.refs.offersFor({ ref: task }, {});
   assert.deepEqual(nowhere, [], 'nothing under the pointer: nothing to offer beyond the target\'s own');
-  const onMap = await tavern.refs.offersFor({ ref: place }, { place: { lat: 1, lng: 2 } });
+  const onMap = await host.refs.offersFor({ ref: place }, { place: { lat: 1, lng: 2 } });
   assert.deepEqual(onMap.map((o) => o.id), ['places:setPlacePoint'], 'a place on a spot of the map: put it there');
-  assert.deepEqual(await tavern.refs.offersFor({ card }, { date: '2026-10-03' }), [], 'a carried card has no module of its own: only the target\'s own offers');
+  assert.deepEqual(await host.refs.offersFor({ card }, { date: '2026-10-03' }), [], 'a carried card has no module of its own: only the target\'s own offers');
 });
 
 await test('offersFor: an action declaring what the item `needs` is left out for an item without it', async () => {
-  host.actions = [{ action: 'todo:setTaskDue', module: 'todo', label: 'Set its due date', moduleName: 'To-do', input: { task: 'ref:todo:task', date: 'date' }, needs: ['place'] }];
-  assert.deepEqual(await tavern.refs.offersFor({ ref: task }, { date: '2026-10-03' }), []);
-  host.cards['todo:task:t1'].place = { lat: 1, lng: 2 };
-  assert.deepEqual((await tavern.refs.offersFor({ ref: task }, { date: '2026-10-03' })).map((o) => o.id), ['todo:setTaskDue']);
-  delete host.cards['todo:task:t1'].place;
+  stub.actions = [{ action: 'todo:setTaskDue', module: 'todo', label: 'Set its due date', moduleName: 'To-do', input: { task: 'ref:todo:task', date: 'date' }, needs: ['place'] }];
+  assert.deepEqual(await host.refs.offersFor({ ref: task }, { date: '2026-10-03' }), []);
+  stub.cards['todo:task:t1'].place = { lat: 1, lng: 2 };
+  assert.deepEqual((await host.refs.offersFor({ ref: task }, { date: '2026-10-03' })).map((o) => o.id), ['todo:setTaskDue']);
+  delete stub.cards['todo:task:t1'].place;
 });
 
 await test('offersFor: an item the viewer may not see stops with its error', async () => {
-  await assert.rejects(tavern.refs.offersFor({ ref: { ...task, id: 'gone' } }, {}), /not available/);
+  await assert.rejects(host.refs.offersFor({ ref: { ...task, id: 'gone' } }, {}), /not available/);
 });
 
 await test('dropMenu: own offers first (wearing the module\'s icon), remembered under the dropped kind; one offer runs at once', async () => {
-  host.actions = ALL;
+  stub.actions = ALL;
   const ran = [];
   const picked = [];
-  tavern.actions.pick = async (items, at, o) => { picked.push({ items: items.map((i) => [i.label, i.icon]), remember: o && o.remember }); return items[0]; };
+  host.actions.pick = async (items, at, o) => { picked.push({ items: items.map((i) => [i.label, i.icon]), remember: o && o.remember }); return items[0]; };
   const own = [{ id: 'put', label: 'Put it on Oct 3', run: (ctx) => ran.push(ctx.card.title) }];
-  const chosen = await tavern.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: { date: '2026-10-03' }, own, remember: 'day' });
+  const chosen = await host.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: { date: '2026-10-03' }, own, remember: 'day' });
   assert.equal(chosen.id, 'put');
   assert.deepEqual(ran, ['Book flights'], 'the own offer saw the resolved card');
   assert.deepEqual(picked[0], { items: [['Put it on Oct 3', undefined], ['Set its due date', 'list-check']], remember: 'todo:task:day' });
   picked.length = 0;
-  const alone = await tavern.refs.dropMenu({ card }, { x: 1, y: 1 }, { context: {}, own: [{ id: 'put', label: 'Put it here', run: (ctx) => ran.push(ctx.card.kind) }] });
+  const alone = await host.refs.dropMenu({ card }, { x: 1, y: 1 }, { context: {}, own: [{ id: 'put', label: 'Put it here', run: (ctx) => ran.push(ctx.card.kind) }] });
   assert.equal(alone.id, 'put');
   assert.deepEqual(picked, [{ items: [['Put it here', undefined]], remember: undefined }], 'one offer: pick gets just it (and, for real, resolves it at once without drawing)');
   assert.deepEqual(ran, ['Book flights', 'restaurant'], 'a carried card reaches the own offer as the card');
 });
 
 await test('dropMenu: an own offer whose `when` says no is left out; an action chosen is requested with its filled input; nothing at all throws', async () => {
-  host.actions = ALL;
-  tavern.actions.pick = async (items) => items[items.length - 1];
+  stub.actions = ALL;
+  host.actions.pick = async (items) => items[items.length - 1];
   const own = [{ id: 'save', label: 'Save it as a place', when: (ctx) => Boolean(ctx.card.place), run: () => {} }];
   calls.length = 0;
-  const chosen = await tavern.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: { date: '2026-10-03' }, own, wait: false });
+  const chosen = await host.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: { date: '2026-10-03' }, own, wait: false });
   assert.equal(chosen.id, 'todo:setTaskDue', 'the own offer was left out (no place), the due date remained');
   assert.deepEqual(calls.find((c) => c[0] === 'actions.request')[1], { action: 'todo:setTaskDue', input: { task, date: '2026-10-03' } });
-  await assert.rejects(tavern.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: {}, own }), /Nothing can be done/);
+  await assert.rejects(host.refs.dropMenu({ ref: task }, { x: 1, y: 1 }, { context: {}, own }), /Nothing can be done/);
 });
 
 await Promise.resolve();

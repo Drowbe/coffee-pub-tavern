@@ -8,9 +8,9 @@
   function startOf(ev) {
     return ev.allDay ? parseYmd(ev.start) : new Date(ev.start);
   }
-  // Times on the server's clock (tavern.util.hour12, read each time: the lib is inlined after the page's own code, so nothing
-  // here may be called during the page's start-up); 12-hour where there is no tavern (the checks).
-  const timeText = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: typeof tavern === 'undefined' || !tavern.util || !tavern.util.hour12 ? true : tavern.util.hour12() });
+  // Times on the server's clock (host.util.hour12, read each time: the lib is inlined after the page's own code, so nothing
+  // here may be called during the page's start-up); 12-hour where there is no host (the checks).
+  const timeText = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: typeof host === 'undefined' || !host.util || !host.util.hour12 ? true : host.util.hour12() });
   const shortDay = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);

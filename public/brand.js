@@ -17,6 +17,24 @@ export function iconClasses(id) {
 }
 
 // Fills in the server name and icon on every page from /api/branding.
+// What a page keeps in the browser was keyed by the product's name once (tavern.panels..., tavern:chat...); it is keyed by
+// "app" now (the host is not the brand, see plans/plan-modules.md). Old keys are moved the first time any page loads, so
+// nobody's layout, chat history or remembered choices are lost.
+function migrateStoredKeys() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      const m = /^tavern([.:])(.*)$/.exec(key);
+      if (!m) continue;
+      const next = `app${m[1]}${m[2]}`;
+      if (localStorage.getItem(next) === null) localStorage.setItem(next, localStorage.getItem(key));
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // no storage: nothing to move
+  }
+}
+migrateStoredKeys();
+
 export async function loadBranding() {
   let b = { serverName: 'Coffee Pub Tavern', tableName: 'The Table', loginText: '', hasIcon: false };
   try {
@@ -188,7 +206,7 @@ function paintUnread() {
     }
     badge.textContent = n > 9 ? '9+' : String(n);
   }
-  document.dispatchEvent(new CustomEvent('tavern:unread', { detail: { ...unreadByModule } }));
+  document.dispatchEvent(new CustomEvent('app:unread', { detail: { ...unreadByModule } }));
 }
 document.addEventListener('module-nav-loaded', paintUnread);
 
@@ -217,7 +235,7 @@ function showToast(n) {
   const dismiss = () => toast.remove();
   toast.addEventListener('click', () => {
     // The call page handles opening a room module's panel; anything else goes to the module's page.
-    const handled = !document.dispatchEvent(new CustomEvent('tavern:notification', { detail: n, cancelable: true }));
+    const handled = !document.dispatchEvent(new CustomEvent('app:notification', { detail: n, cancelable: true }));
     if (!handled && n.scope === 'server') window.location.href = `/modules/${encodeURIComponent(n.module)}`;
     dismiss();
   });
@@ -288,7 +306,7 @@ function showInvite(invite) {
     const b = e.target.closest('[data-invite]');
     if (!b) return;
     if (b.dataset.invite === 'join') {
-      const taken = !document.dispatchEvent(new CustomEvent('tavern:invite-accept', { detail: invite, cancelable: true }));
+      const taken = !document.dispatchEvent(new CustomEvent('app:invite-accept', { detail: invite, cancelable: true }));
       if (!taken) window.location.href = `/#join=${encodeURIComponent(invite.roomId)}`;
     } else {
       fetch(`/api/table/invite/${encodeURIComponent(invite.id)}/decline`, { method: 'POST' }).catch(() => {});

@@ -37,7 +37,7 @@ The module is **Assistant** (id `assistant`), not "AI": the **AI service** stays
 
 1. **Scaffold** `modules/assistant/` (module.json, src/), the way Research was scaffolded: panel dock+float, `refs.consumes: ["*"]`, `refs.produces` none (it keeps nothing), `actions.provides: [askAssistant]`, `actions.uses: ["*"]` (to find a save action and, later, other modules' items), `hooks.ai`.
 2. **Move the design:** the Ask templates and CSS become Assistant's `assistant.html`/`assistant.css`, adapted to be the whole pane (its own header, not a panel inside another module). Contract moves with them.
-3. **Server/script:** Server Development moves the `tavern.ai.ask` call and prompt logic from research.js into assistant.js; wires `askAssistant`; Research's menu item becomes a request instead of a local open.
+3. **Server/script:** Server Development moves the `host.ai.ask` call and prompt logic from research.js into assistant.js; wires `askAssistant`; Research's menu item becomes a request instead of a local open.
 4. **Saving a kept card:** Assistant requests whichever module offers a note-shaped save action (found by name/input, as `newPlace`/`addPlace` are today); Research is the only one that offers it at first.
 
 ## Open question

@@ -12,7 +12,7 @@
 <!--
   The page and every piece of markup the script clones. The script fills a clone by hooks only:
     [data-slot=name]        set its textContent, or hide it when there is no value; a [data-slot=name-wrap] is hidden when [data-slot=name] inside it is empty
-    [data-icon=name]        replace its content with tavern.ui.icon(name)
+    [data-icon=name]        replace its content with host.ui.icon(name)
   and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no style (exceptions:
   a tag's colour, --tag; the item menu placed under its button). The reference renderings are design/pane.html and design/ask.html.
 -->
@@ -21,7 +21,7 @@
     <h1>Research</h1>
     <span class="count" data-slot="count"></span>
   </header>
-  <!-- whose research (Mine/This room): tavern.ui.viewSwitch draws it in the toolbar, not here. Mine needs a signed-in person, so a guest has only This room (the script skips the switch entirely then). -->
+  <!-- whose research (Mine/This room): host.ui.viewSwitch draws it in the toolbar, not here. Mine needs a signed-in person, so a guest has only This room (the script skips the switch entirely then). -->
   <div class="rs-tools">
     <div class="rs-search"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Search research" aria-label="Search research" autocomplete="off"></div>
   </div>

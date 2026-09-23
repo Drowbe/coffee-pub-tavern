@@ -2,7 +2,7 @@
  * The Maps module's look. The markup it styles is fixed in CONTRACT.md; the script builds that markup and
  * toggles state classes and data attributes, it never sets a style (the one exception is a pin's position,
  * which the map library sets on its marker element). Every colour comes from the theme tokens on :root
- * (see public/sdk/tavern.css), so a light theme works, and the map style follows the same tokens (CONTRACT.md,
+ * (see public/sdk/host.css), so a light theme works, and the map style follows the same tokens (CONTRACT.md,
  * "The map style"). Nothing has a fixed pixel height: the module fills its pane.
  */
 * { box-sizing: border-box; }

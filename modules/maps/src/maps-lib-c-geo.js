@@ -1,4 +1,4 @@
-  // What Maps needs beyond the SDK's `tavern.util.geo` (defined by the page ahead of this code): pins that would overlap, and
+  // What Maps needs beyond the SDK's `host.util.geo` (defined by the page ahead of this code): pins that would overlap, and
   // the bounds of some points. No page in it, so the checks can run it.
 
   // Group points that would overlap on screen. `project(lat, lng)` gives { x, y } in pixels; a point joins the first

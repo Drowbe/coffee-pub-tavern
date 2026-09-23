@@ -1,5 +1,5 @@
   // Assistant's model. Assistant keeps no items of its own (see CONTRACT.md), so there is little to test in isolation: parsing an
-  // AI reply into the pieces to draw, and what to ask a note-shaped save action to keep a card. The page defines `geo` (tavern.util.geo)
+  // AI reply into the pieces to draw, and what to ask a note-shaped save action to keep a card. The page defines `geo` (host.util.geo)
   // ahead of this code, as the check does.
 
   // An AI answer as the pieces to draw, in order: { text } and { card: index }. A marker {{card:N}} counts only when N is a real card

@@ -3,7 +3,7 @@
   //   { kind, title, body|excerpt|content (by kind), text, sub, url, site, tags, date, point?, file?, by, at, ai? }
   // `text` is the item's plain words (what the AI reads and a card carries), `sub` its subtitle (a link's site), `date` a day
   // (YYYY-MM-DD) or '', `point` a place on a map, `file` a photo's picture ({ id, hasThumb }), `ai` an answer's { question, sources }.
-  // The page defines `geo` (tavern.util.geo) ahead of this code, as the check does.
+  // The page defines `geo` (host.util.geo) ahead of this code, as the check does.
   const KINDS = ['note', 'link', 'photo', 'answer'];
   const KIND_LABEL = { note: 'Note', link: 'Link', photo: 'Photo', answer: 'Answer' };
   const KIND_ICON = { note: 'note-sticky', link: 'link', photo: 'camera', answer: 'wand-magic-sparkles' };
@@ -133,7 +133,7 @@
   const captionOf = (name) => geo.oneLine(String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/[_-]+/g, ' '), 120);
 
   // The items of one scope ('room' or 'person'), kept live, and what other modules may ask of them. `tavern` is the SDK.
-  function createResearch(tavern, opts) {
+  function createResearch(host, opts) {
     const scope = (opts && opts.scope) || 'room';
     const at = { scope };
     const items = new Map(); // id -> { item, version }
@@ -149,10 +149,10 @@
     };
     async function load() {
       items.clear();
-      for (const kind of KINDS) for (const it of await tavern.storage.list(`${kind}:`, at)) remember(it.key, it.value, it.version);
+      for (const kind of KINDS) for (const it of await host.storage.list(`${kind}:`, at)) remember(it.key, it.value, it.version);
       changed();
     }
-    tavern.on('change', (e) => {
+    host.on('change', (e) => {
       if (e.scope === 'rooms' || (e.scope || 'room') !== scope) return;
       const [kind] = split(e.key);
       if (!KINDS.includes(kind)) return;
@@ -163,14 +163,14 @@
     const list = () => [...items.values()].map((x) => x.item);
     const get = (id) => (items.get(id) || {}).item || null;
     const versionOf = (id) => (items.get(id) || {}).version;
-    const refOf = (kind, id) => tavern.refs.make(kind, id, scope === 'person' ? { scope: 'person' } : undefined);
+    const refOf = (kind, id) => host.refs.make(kind, id, scope === 'person' ? { scope: 'person' } : undefined);
 
     // Save an item (a new one when it has no id). A stale edit is refused with the store's 409.
     async function save(p, version) {
-      const id = p.id && p.id !== 'new' ? p.id : tavern.util.id();
+      const id = p.id && p.id !== 'new' ? p.id : host.util.id();
       const item = cleanItem(p.kind, id, { ...p, by: p.by, at: p.at || new Date().toISOString() });
       if (!item) throw new Error('that is not a whole item');
-      const saved = await tavern.storage.set(`${item.kind}:${id}`, itemValue(item), version === undefined ? at : { ...at, version });
+      const saved = await host.storage.set(`${item.kind}:${id}`, itemValue(item), version === undefined ? at : { ...at, version });
       items.set(id, { item, version: saved && saved.version });
       changed();
       return item;
@@ -179,18 +179,18 @@
     async function remove(id) {
       const cur = items.get(id);
       if (!cur) return;
-      await tavern.storage.delete(`${cur.item.kind}:${id}`, { ...at, version: cur.version });
+      await host.storage.delete(`${cur.item.kind}:${id}`, { ...at, version: cur.version });
       items.delete(id);
-      if (cur.item.file) tavern.uploads.remove(cur.item.file.id, at).catch(() => {});
-      if (scope !== 'person') tavern.refs.setLinks(refOf(cur.item.kind, id), []).catch(() => {});
+      if (cur.item.file) host.uploads.remove(cur.item.file.id, at).catch(() => {});
+      if (scope !== 'person') host.refs.setLinks(refOf(cur.item.kind, id), []).catch(() => {});
       changed();
     }
 
     // What other modules may ask of this one: save a note or a link, optionally about an item of theirs.
     function provide(me) {
-      if (!tavern.actions || !tavern.actions.provide) return;
-      const link = (item, ref) => { if (ref && scope !== 'person') tavern.refs.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
-      tavern.actions.provide({
+      if (!host.actions || !host.actions.provide) return;
+      const link = (item, ref) => { if (ref && scope !== 'person') host.refs.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
+      host.actions.provide({
         // tags is a plain comma- or space-separated string, as the field in the dialog reads it, so any module (or Assistant,
         // keeping a card) can offer tags without knowing this module's shape.
         saveNote: async (input, ctx) => {

@@ -1,7 +1,7 @@
 // Polls module. One file of code for every place it shows: the server's own page, a space's
 // docked pane or floating panel, and a window of its own. Each place has its own polls; on
 // the server page the viewer's spaces' polls are shown too, read-only, under their room's
-// icon. The SDK (window.tavern) is injected by Tavern.
+// icon. The SDK (window.host) is injected by Tavern.
 //
 // A poll is for deciding something together (where to go, where to stay, what to do): each
 // option can carry a short detail, a poll can let people suggest more options while it is
@@ -14,16 +14,16 @@
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
-  // either way it looks elements up in tavern.root, never in document, so it works in both.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // either way it looks elements up in host.root, never in document, so it works in both.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
 
   const $ = (id) => root.getElementById(id);
-  const { esc, refKey, id: newId } = tavern.util;
+  const { esc, refKey, id: newId } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Polls could not start: ' + err.message;
     return;
@@ -32,11 +32,11 @@
   const me = info.user.key;
   // What the server's admin and this space's moderators chose (Module settings): a new poll's starting point.
   let prefs = { addableByDefault: false, closeAfterDays: 0 };
-  const loadPrefs = () => tavern.settings.get().then((v) => { prefs = { ...prefs, ...v }; }).catch(() => {});
+  const loadPrefs = () => host.settings.get().then((v) => { prefs = { ...prefs, ...v }; }).catch(() => {});
   await loadPrefs();
-  tavern.settings.onChange((v) => { prefs = { ...prefs, ...v }; });
-  const canVote = tavern.can('vote');
-  const canCreate = tavern.can('create');
+  host.settings.onChange((v) => { prefs = { ...prefs, ...v }; });
+  const canVote = host.can('vote');
+  const canCreate = host.can('create');
   const MAX_OPTIONS = 20;
 
   // An option can point at an item in another module (a place to stay, a date on the calendar): drop the item
@@ -47,7 +47,7 @@
   const optCards = new Map(); // pointer key -> card, or { error }
   async function loadKinds() {
     try {
-      consumable = new Set((await tavern.refs.kinds()).map((k) => k.module + ':' + k.kind));
+      consumable = new Set((await host.refs.kinds()).map((k) => k.module + ':' + k.kind));
     } catch (err) {
       consumable = new Set();
     }
@@ -86,20 +86,20 @@
   async function load() {
     polls.clear();
     votes.clear();
-    for (const item of await tavern.storage.list('poll:')) if (item.value) rememberPoll('own', item);
-    for (const item of await tavern.storage.list('vote:')) if (item.value) rememberVote('own', item);
+    for (const item of await host.storage.list('poll:')) if (item.value) rememberPoll('own', item);
+    for (const item of await host.storage.list('vote:')) if (item.value) rememberVote('own', item);
     if (!inRoom && info.context.scope === 'server') {
       try {
-        for (const r of await tavern.rooms()) roomInfo.set(r.id, r);
-        for (const item of await tavern.storage.list('poll:', { scope: 'rooms' })) if (item.value) rememberPoll('rooms', item, item.roomId);
-        for (const item of await tavern.storage.list('vote:', { scope: 'rooms' })) if (item.value) rememberVote('rooms', item, item.roomId);
+        for (const r of await host.rooms()) roomInfo.set(r.id, r);
+        for (const item of await host.storage.list('poll:', { scope: 'rooms' })) if (item.value) rememberPoll('rooms', item, item.roomId);
+        for (const item of await host.storage.list('vote:', { scope: 'rooms' })) if (item.value) rememberVote('rooms', item, item.roomId);
       } catch (err) {
         // just this place's own polls
       }
     }
   }
 
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     const scope = e.scope === 'rooms' ? 'rooms' : 'own';
     if (e.key.startsWith('poll:')) {
       const key = pollKey(scope, e.key.slice(5), e.roomId);
@@ -120,18 +120,18 @@
 
   // --- what links to a poll, and being opened from a link ---------------------
   // Other modules (a to-do, say) can point at a poll. Tavern says what points at it, only what the
-  // viewer may see (tavern.refs.linksTo), and a link to a poll can ask for it to be shown
-  // (tavern.refs.onOpen). Nothing here knows which modules those are.
+  // viewer may see (host.refs.linksTo), and a link to a poll can ask for it to be shown
+  // (host.refs.onOpen). Nothing here knows which modules those are.
 
   const backlinks = new Map(); // poll key -> cards
   const asked = new Set();
   function askBacklinks() {
-    if (!tavern.refs || !tavern.refs.linksTo) return;
+    if (!host.refs || !host.refs.linksTo) return;
     for (const x of polls.values()) {
       if (asked.has(x.key)) continue;
       asked.add(x.key);
-      const ref = tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
-      tavern.refs.linksTo(ref).then((cards) => {
+      const ref = host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+      host.refs.linksTo(ref).then((cards) => {
         if (JSON.stringify(cards.map((c) => c.ref)) === JSON.stringify((backlinks.get(x.key) || []).map((c) => c.ref)) && backlinks.has(x.key)) return;
         backlinks.set(x.key, cards);
         render();
@@ -145,8 +145,8 @@
       ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`
       : `<span class="tag"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`)).join(' ')}</div>`;
   };
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
       const key = polls.has('own:' + ref.id) ? 'own:' + ref.id : `rooms:${ref.room}:${ref.id}`;
       if (!polls.has(key)) return;
       show = 'all';
@@ -159,7 +159,7 @@
         setTimeout(() => el.classList.remove('flash'), 2000);
       }
     });
-    tavern.on('links', (e) => {
+    host.on('links', (e) => {
       if (!e.ref || e.ref.kind !== 'poll') return;
       for (const x of polls.values()) if (x.id === e.ref.id) asked.delete(x.key);
       askBacklinks();
@@ -188,7 +188,7 @@
     if (p.closed) return 'Closed';
     if (!p.closesAt) return '';
     const d = new Date(p.closesAt);
-    const when = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() });
+    const when = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: host.util.hour12() });
     return Date.now() >= p.closesAt ? `Closed ${when}` : `Closes ${when}`;
   }
 
@@ -203,13 +203,13 @@
     return `<div class="optlink">${c.open ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}">${body}</span>` : `<span class="tag">${body}</span>`}${remove}</div>`;
   }
   async function resolveOptionLinks() {
-    if (!tavern.refs || !tavern.refs.resolve) return;
+    if (!host.refs || !host.refs.resolve) return;
     const want = new Map();
     for (const x of polls.values()) for (const o of x.p.options) if (o.link && !optCards.has(refKey(o.link))) want.set(refKey(o.link), o.link);
     if (!want.size) return;
     const list = [...want.values()].slice(0, 50);
     try {
-      const got = await tavern.refs.resolve(list);
+      const got = await host.refs.resolve(list);
       list.forEach((r, i) => optCards.set(refKey(r), got[i] || { error: 'unavailable' }));
     } catch (err) {
       list.forEach((r) => optCards.set(refKey(r), { error: 'unavailable' }));
@@ -219,13 +219,13 @@
   // Tell Tavern what this poll points at (all its options' links, as one list), so those items can show it.
   const syncedOptionLinks = new Map();
   async function syncOptionLinks(x) {
-    if (!tavern.refs || !tavern.refs.setLinks || x.scope !== 'own') return;
+    if (!host.refs || !host.refs.setLinks || x.scope !== 'own') return;
     const links = x.p.options.filter((o) => o.link).map((o) => o.link);
     const sig = JSON.stringify(links.map(refKey));
     if (syncedOptionLinks.get(x.id) === sig || (!links.length && !syncedOptionLinks.has(x.id))) return;
     syncedOptionLinks.set(x.id, sig);
     try {
-      await tavern.refs.setLinks(tavern.refs.make('poll', x.id), links);
+      await host.refs.setLinks(host.refs.make('poll', x.id), links);
     } catch (err) {
       syncedOptionLinks.delete(x.id);
     }
@@ -240,7 +240,7 @@
       return ref ? { ...rest, link: ref } : rest;
     }) };
     try {
-      const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+      const saved = await host.storage.set('poll:' + x.id, p, { version: x.version });
       rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
       syncOptionLinks(polls.get(key));
       resolveOptionLinks();
@@ -287,14 +287,14 @@
     return `<section class="group">${label ? `<h4>${label}</h4>` : ''}${shown.map(pollHtml).join('')}</section>`;
   }
 
-  // Open / Closed / All is the toolbar's view switch: tavern.ui.viewSwitch draws it, tracks the current
+  // Open / Closed / All is the toolbar's view switch: host.ui.viewSwitch draws it, tracks the current
   // choice and only redraws when the value or a label (the open count) actually changes.
   const FILTERS = [
     { id: 'open', label: 'Open' },
     { id: 'closed', label: 'Closed' },
     { id: 'all', label: 'All' },
   ];
-  const filterSwitch = tavern.ui.viewSwitch({
+  const filterSwitch = host.ui.viewSwitch({
     id: 'filter',
     options: FILTERS,
     value: show,
@@ -303,7 +303,7 @@
   // The "..." on a poll: the one icon every "..." in Tavern wears (see architecture-module-window.md), fetched
   // once as inline SVG since this page builds its markup from strings.
   let moreSvg = '';
-  tavern.ui.icon('ellipsis-vertical').then((svg) => { moreSvg = svg; render(); }).catch(() => {});
+  host.ui.icon('ellipsis-vertical').then((svg) => { moreSvg = svg; render(); }).catch(() => {});
 
   function render() {
     const own = [...polls.values()].filter((x) => x.scope === 'own');
@@ -336,9 +336,9 @@
   // buttons named by the action, so nothing here knows which modules there are.
   let offered = [];
   async function loadActions() {
-    if (!tavern.actions || !canVote) return;
+    if (!host.actions || !canVote) return;
     try {
-      offered = (await tavern.actions.list()).filter((a) => a.input && a.input.title);
+      offered = (await host.actions.list()).filter((a) => a.input && a.input.title);
     } catch (err) {
       offered = [];
     }
@@ -350,9 +350,9 @@
     const { winner } = winnerOf(x);
     const input = { title: winner ? `${x.p.question}: ${winner}` : x.p.question };
     if (a.input.notes) input.notes = x.p.question;
-    if (a.input.ref) input.ref = tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+    if (a.input.ref) input.ref = host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
     try {
-      await tavern.actions.request(action, input);
+      await host.actions.request(action, input);
       showNote(`Sent to ${a.moduleName}: ${a.label}`, true);
     } catch (err) {
       showNote(err.message);
@@ -372,11 +372,11 @@
     const voteKey = `vote:${x.id}:${me}`;
     try {
       if (!next.length) {
-        await tavern.storage.delete(voteKey);
+        await host.storage.delete(voteKey);
         forgetVote('own', voteKey);
       } else {
         const value = { options: next, name: info.user.name, at: Date.now() };
-        await tavern.storage.set(voteKey, value);
+        await host.storage.set(voteKey, value);
         rememberVote('own', { key: voteKey, value });
       }
     } catch (err) {
@@ -407,21 +407,21 @@
   const announcing = new Set();
   async function announceClosed(x) {
     try {
-      await tavern.events.publish('closed', { ref: tavern.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x), ...pickOf(x) } });
+      await host.events.publish('closed', { ref: host.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x), ...pickOf(x) } });
     } catch (err) {
       // nobody may hear it, or this person cannot publish: the poll is closed either way
-      if (tavern.refs && tavern.refs.trace) tavern.refs.trace('polls: could not announce the close: ' + err.message);
+      if (host.refs && host.refs.trace) host.refs.trace('polls: could not announce the close: ' + err.message);
     }
   }
   // A poll that closes by its time closes with nobody clicking: whoever sees it first announces it, once.
   async function announceIfDue() {
-    if (!tavern.events || !canVote) return;
+    if (!host.events || !canVote) return;
     for (const x of polls.values()) {
       if (x.scope !== 'own' || x.p.closed || x.p.announced || !x.p.closesAt || Date.now() < x.p.closesAt || announcing.has(x.key)) continue;
       announcing.add(x.key);
       const p = { ...x.p, announced: true };
       try {
-        const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+        const saved = await host.storage.set('poll:' + x.id, p, { version: x.version });
         rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
         await announceClosed({ ...x, p });
       } catch (err) {
@@ -436,7 +436,7 @@
     const closing = !x.p.closed;
     const p = { ...x.p, closed: closing, closesAt: closing ? x.p.closesAt : null, announced: closing };
     try {
-      const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+      const saved = await host.storage.set('poll:' + x.id, p, { version: x.version });
       rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
       if (closing) announceClosed({ ...x, p });
     } catch (err) {
@@ -458,7 +458,7 @@
       if (x.p.options.some((o) => o.text.toLowerCase() === text.toLowerCase())) return showNote('That option is already there.');
       const p = { ...x.p, options: [...x.p.options, { id: 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 4), text, by: info.user.name }] };
       try {
-        const saved = await tavern.storage.set('poll:' + x.id, p, { version: x.version });
+        const saved = await host.storage.set('poll:' + x.id, p, { version: x.version });
         rememberPoll('own', { key: 'poll:' + x.id, value: p, version: saved.version });
         break;
       } catch (err) {
@@ -470,22 +470,22 @@
   }
 
   // The menu item arms itself in place (its own label becomes "Really delete?") rather than closing and
-  // reopening; returning `false` to tavern.menu.show is what keeps it open for that second click.
+  // reopening; returning `false` to host.menu.show is what keeps it open for that second click.
   const armed = new Set();
   async function remove(key, button) {
     const x = polls.get(key);
     if (!x) return;
     if (!armed.has(key)) {
       armed.add(key);
-      const label = button && button.querySelector('.tv-menu-label');
+      const label = button && button.querySelector('.sdk-menu-label');
       if (label) label.textContent = 'Really delete?';
       setTimeout(() => armed.delete(key), 4000);
       return false;
     }
     armed.delete(key);
     try {
-      for (const user of [...(votes.get(key) || new Map()).keys()]) await tavern.storage.delete(`vote:${x.id}:${user}`);
-      await tavern.storage.delete('poll:' + x.id);
+      for (const user of [...(votes.get(key) || new Map()).keys()]) await host.storage.delete(`vote:${x.id}:${user}`);
+      await host.storage.delete('poll:' + x.id);
       polls.delete(key);
       votes.delete(key);
     } catch (err) {
@@ -525,12 +525,12 @@
     dateWrap.appendChild(date);
     row.append(name, desc, dateWrap);
     $('f-options').appendChild(row);
-    tavern.ui.datePicker(date, { clearable: true });
+    host.ui.datePicker(date, { clearable: true });
     $('f-more').hidden = $('f-options').children.length >= MAX_OPTIONS;
     return name;
   }
 
-  const closesPicker = tavern.ui.datePicker($('f-closes'), { clearable: true });
+  const closesPicker = host.ui.datePicker($('f-closes'), { clearable: true });
   function openEditor(prefill) {
     showError('');
     $('f-question').value = '';
@@ -588,10 +588,10 @@
     };
     $('f-save').disabled = true;
     try {
-      const saved = await tavern.storage.set('poll:' + p.id, p);
+      const saved = await host.storage.set('poll:' + p.id, p);
       rememberPoll('own', { key: 'poll:' + p.id, value: p, version: saved.version });
       if ($('f-notify').checked) {
-        try { await tavern.notify({ title: 'New poll', body: question }); } catch (err) { showNote('Started, but people could not be notified: ' + err.message); }
+        try { await host.notify({ title: 'New poll', body: question }); } catch (err) { showNote('Started, but people could not be notified: ' + err.message); }
       }
       closeEditor();
       show = 'open';
@@ -633,8 +633,8 @@
     render();
   });
   // A poll's question can be dragged onto another module that links to polls (a to-do, say).
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable($('body'), (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable($('body'), (target) => {
       const h = target.closest('[data-drag]');
       const x = h && polls.get(h.dataset.drag);
       return x ? { kind: 'poll', id: x.id, label: x.p.question, ...(x.scope === 'rooms' ? { room: x.roomId } : {}) } : null;
@@ -646,7 +646,7 @@
       const key = mb.dataset.menu;
       const x = polls.get(key);
       if (!x) return;
-      return void tavern.menu.show({
+      return void host.menu.show({
         id: `poll-${key}`,
         anchor: mb,
         items: [
@@ -667,7 +667,7 @@
       return void runAction(k, a);
     }
     const link = e.target.closest('[data-ref]');
-    if (link && tavern.refs) return void tavern.refs.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
+    if (link && host.refs) return void host.refs.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
     const v = e.target.closest('[data-vote]');
     if (v) {
       const [key, option] = v.dataset.vote.split('|');
@@ -688,7 +688,7 @@
   });
   // An item dragged from another module onto an option links the option to it.
   const optionAt = (pt) => {
-    const el = tavern.refs.elementAt(pt);
+    const el = host.refs.elementAt(pt);
     const opt = el && el.closest('[data-vote]');
     if (!opt) return null;
     const [key, id] = opt.dataset.vote.split('|');
@@ -696,10 +696,10 @@
     return x && mayManage(x) && !isClosed(x.p) ? { el: opt, key, id } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.opt.drop')) e.classList.remove('drop'); };
-  // What the drop can do is the shared decision (tavern.refs.dropMenu): linking the option to it is this module's
+  // What the drop can do is the shared decision (host.refs.dropMenu): linking the option to it is this module's
   // own offer, and whatever the modules around offer for an item of that kind comes after, with this poll as the target.
-  if (tavern.refs && tavern.refs.dropTarget) {
-    tavern.refs.dropTarget({
+  if (host.refs && host.refs.dropTarget) {
+    host.refs.dropTarget({
       over: (pt, ref) => {
         clearDrop();
         const at = ref ? optionAt(pt) : null;
@@ -708,13 +708,13 @@
       leave: clearDrop,
       drop: async (ref, pt, dragged) => {
         clearDrop();
-        if (!ref) return tavern.refs.trace('drop ignored: only a pointer can be linked to an option');
+        if (!ref) return host.refs.trace('drop ignored: only a pointer can be linked to an option');
         const at = optionAt(pt);
-        if (!at) return tavern.refs.trace('drop ignored: no option of yours under the pointer');
+        if (!at) return host.refs.trace('drop ignored: no option of yours under the pointer');
         const x = polls.get(at.key);
         try {
-          const chosen = await tavern.refs.dropMenu(dragged, pt, {
-            context: { target: tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined) },
+          const chosen = await host.refs.dropMenu(dragged, pt, {
+            context: { target: host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined) },
             own: linkable(ref) ? [{ id: 'link', label: 'Link it to this option', run: () => setOptionLink(at.key, at.id, ref) }] : [],
             remember: 'option',
           });
@@ -728,12 +728,12 @@
   $('add').addEventListener('click', () => openEditor());
   // The host draws New poll in the module's action bar (in the space's bottom row when docked);
   // the button in the header stays only for a host without one.
-  if (tavern.bar) {
+  if (host.bar) {
     $('add').classList.add('hosted');
-    tavern.bar.set(canCreate ? [{ id: 'add', type: 'quickadd', label: 'New poll', placeholder: 'Ask a question: where to stay by sep 29' }] : []).catch(() => $('add').classList.remove('hosted'));
-    tavern.on('bar', (e) => {
+    host.bar.set(canCreate ? [{ id: 'add', type: 'quickadd', label: 'New poll', placeholder: 'Ask a question: where to stay by sep 29' }] : []).catch(() => $('add').classList.remove('hosted'));
+    host.on('bar', (e) => {
       if (e.id !== 'add' || !canCreate) return;
-      openEditor(e.value ? tavern.util.parseWhen(e.value) : null);
+      openEditor(e.value ? host.util.parseWhen(e.value) : null);
     });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });

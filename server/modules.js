@@ -149,7 +149,7 @@ function cleanRefs(rawRefs, id) {
     }
     if (!card.title) throw new ModuleError(`module.json: refs "${kind}" needs a card.title`);
     // What a person sees it called; whether the module can open one of its items when asked (it
-    // handles tavern.refs.onOpen); whether it shows what links to its items (tavern.refs.linksTo).
+    // handles host.refs.onOpen); whether it shows what links to its items (host.refs.linksTo).
     const name = String(p.name ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 40) || kind.charAt(0).toUpperCase() + kind.slice(1);
     refs.produces.push({ kind, name, key, card, open: Boolean(p.open), backlinks: Boolean(p.backlinks) });
   }

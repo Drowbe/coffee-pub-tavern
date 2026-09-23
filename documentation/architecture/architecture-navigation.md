@@ -33,4 +33,4 @@ The header is two rows, and each row is three zones. The rows are about differen
 
 ## What is not built yet
 
-Modules registering tools into the bars (`tavern.nav.set`) and the page's own controls becoming registrations of the same shape, with zones, groups, order bands, visibility and toggle state owned by one drawing path: decided, in `documentation/plans/plan-nav.md`, not built. What each zone should grow to hold is being worked out zone by zone in the same plan.
+Modules registering tools into the bars (`host.nav.set`) and the page's own controls becoming registrations of the same shape, with zones, groups, order bands, visibility and toggle state owned by one drawing path: decided, in `documentation/plans/plan-nav.md`, not built. What each zone should grow to hold is being worked out zone by zone in the same plan.

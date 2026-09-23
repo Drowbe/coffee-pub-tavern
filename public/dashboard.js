@@ -7,7 +7,7 @@ import { mountModule } from '/module-host.js';
 // What each module has unread (Tavern's notification counts): shown on its card's heading, since the header no
 // longer has an item for a module with a widget. brand.js announces the counts; this keeps the latest.
 let unread = {};
-document.addEventListener('tavern:unread', (event) => {
+document.addEventListener('app:unread', (event) => {
   unread = event.detail || {};
   paintUnread();
 });

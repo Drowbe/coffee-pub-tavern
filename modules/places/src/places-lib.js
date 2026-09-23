@@ -1,7 +1,7 @@
   // The Places module's model: no page in it, so the page and the checks can both use it. A place is one stored value
   // (`place:<id>`): { title, category, address, point?, notes, owners, by, ref? }. `point` is a field of its own so the
   // module's card can name it (a card's `place`); a place with only an address has none. The page defines `geo`
-  // (tavern.util.geo) ahead of this code, as the check does.
+  // (host.util.geo) ahead of this code, as the check does.
   const PLACE_PREFIX = 'place:';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
 
@@ -64,7 +64,7 @@
 
   // The places of a room, kept live, and what other modules may ask of them. `tavern` is the SDK.
   // `opts.scope` says whose they are: 'room' (this room's, the default) or 'person' (the signed-in person's own, private).
-  function createPlaces(tavern, opts) {
+  function createPlaces(host, opts) {
     const scope = (opts && opts.scope) || 'room';
     const at = { scope };
     const items = new Map(); // id -> { place, version }
@@ -78,10 +78,10 @@
     };
     async function load() {
       items.clear();
-      for (const it of await tavern.storage.list(PLACE_PREFIX, at)) remember(it.key.slice(PLACE_PREFIX.length), it.value, it.version);
+      for (const it of await host.storage.list(PLACE_PREFIX, at)) remember(it.key.slice(PLACE_PREFIX.length), it.value, it.version);
       changed();
     }
-    tavern.on('change', (e) => {
+    host.on('change', (e) => {
       if (e.scope === 'rooms' || (e.scope || 'room') !== scope || !String(e.key).startsWith(PLACE_PREFIX)) return;
       remember(String(e.key).slice(PLACE_PREFIX.length), e.deleted ? null : e.value, e.version);
       changed();
@@ -93,20 +93,20 @@
 
     // Save a place (a new one when it has no id). A stale edit is refused with the store's 409.
     async function save(p, version) {
-      const id = p.id && p.id !== 'new' ? p.id : tavern.util.id();
+      const id = p.id && p.id !== 'new' ? p.id : host.util.id();
       const value = placeValue({ ...p, id });
-      const saved = await tavern.storage.set(PLACE_PREFIX + id, value, version === undefined ? at : { ...at, version });
+      const saved = await host.storage.set(PLACE_PREFIX + id, value, version === undefined ? at : { ...at, version });
       const place = cleanPlace(id, value);
       items.set(id, { place, version: saved && saved.version });
       // Personal places are private, so nothing is linked to or from them.
-      if (place.ref && scope !== 'person') tavern.refs.setLinks(tavern.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), [place.ref]).catch(() => {});
+      if (place.ref && scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), [place.ref]).catch(() => {});
       changed();
       return place;
     }
     async function remove(id) {
-      await tavern.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
+      await host.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
       items.delete(id);
-      if (scope !== 'person') tavern.refs.setLinks(tavern.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), []).catch(() => {});
+      if (scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), []).catch(() => {});
       changed();
     }
     // Give a place a point (or take it away with null).
@@ -119,17 +119,17 @@
 
     // What other modules may ask of this one, and what it is when they do.
     function provide(me) {
-      if (!tavern.actions || !tavern.actions.provide) return;
-      tavern.actions.provide({
+      if (!host.actions || !host.actions.provide) return;
+      host.actions.provide({
         addPlace: async (input, ctx) => {
           const place = await save(placeFromRequest(input, me || (ctx && ctx.by) || ''));
-          return { ref: tavern.refs.make('place', place.id) };
+          return { ref: host.refs.make('place', place.id) };
         },
         setPlacePoint: async (input) => {
           const r = input && input.place;
           if (!r || r.kind !== 'place') throw new Error('that is not a place');
           const place = await setPoint(String(r.id), { lat: input.lat, lng: input.lng });
-          return { ref: tavern.refs.make('place', place.id) };
+          return { ref: host.refs.make('place', place.id) };
         },
       });
     }

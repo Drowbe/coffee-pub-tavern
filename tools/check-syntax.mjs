@@ -32,7 +32,7 @@ for (const dir of fs.existsSync(path.join(ROOT, 'modules')) ? fs.readdirSync(pat
     if (RAW.test(fs.readFileSync(path.join(ROOT, f), 'utf8'))) { rawBytes += 1; console.error(`${f}: has a raw control character; write it as an escape (\\x00)`); }
   }
 }
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tavern-check-'));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sdk-check-'));
 let failed = rawBytes;
 for (const rel of FILES) {
   const file = path.join(ROOT, rel);

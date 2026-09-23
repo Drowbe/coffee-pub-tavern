@@ -8,21 +8,21 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 // The real SDK, run against a bare window, for its geo helpers.
-const sdk = fs.readFileSync(new URL('../public/sdk/tavern.js', import.meta.url), 'utf8');
+const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
 new Function('window', 'document', sdk)(win, {});
-const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
+const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
 
 const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/places/src/places-lib.js', import.meta.url), 'utf8')}\nreturn { cleanPlace, placeValue, placeFromRequest, createPlaces, searchOn, readEntry, PLACE_PREFIX, CATEGORIES };`)(geo);
 
 // An in-memory SDK: the store (with versions and 409s), events, ids, pointers and the actions a page provides.
-function fakeTavern() {
+function fakeHost() {
   const data = new Map();
   const handlers = {};
   let n = 0;
   const links = [];
-  const tavern = {
+  const host = {
     storage: {
       list: async (prefix) => [...data].filter(([k]) => k.startsWith(prefix)).map(([key, x]) => ({ key, value: x.value, version: x.version })),
       set: async (key, value, o) => {
@@ -39,7 +39,7 @@ function fakeTavern() {
     refs: { make: (kind, id) => ({ module: 'places', kind, id, scope: 'room', room: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
-  return { tavern, data, handlers, links };
+  return { host, data, handlers, links };
 }
 
 let n = 0;
@@ -119,8 +119,8 @@ await test('a request to add a place is checked', () => {
 });
 
 await test('the actions a page provides: addPlace and setPlacePoint', async () => {
-  const { tavern, data, handlers } = fakeTavern();
-  const places = lib.createPlaces(tavern);
+  const { host, data, handlers } = fakeHost();
+  const places = lib.createPlaces(host);
   places.provide('me');
   await places.load();
   const out = await handlers.addPlace({ title: 'Cafe', address: 'Rua 1' }, { by: 'u9' });
@@ -141,8 +141,8 @@ await test('the actions a page provides: addPlace and setPlacePoint', async () =
 });
 
 await test('editing keeps versions: a stale save is refused, remove forgets the links', async () => {
-  const { tavern, links } = fakeTavern();
-  const places = lib.createPlaces(tavern);
+  const { host, links } = fakeHost();
+  const places = lib.createPlaces(host);
   await places.load();
   const p = await places.save({ id: '', title: 'A', category: 'do', address: '', point: null, notes: '', owners: [], by: 'u', ref: { module: 'm', kind: 'k', id: '1' } });
   const v = places.versionOf(p.id);

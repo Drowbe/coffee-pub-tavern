@@ -3,8 +3,8 @@
   // so the page, the widget and the checks can all use it. Each item is its own stored value (`item:<id>`) and the
   // trip is one (`trip`), so two people editing different items never collide; an edit to an item someone else
   // changed meanwhile is refused with `error.conflict` and the newer copy is loaded.
-  function createPlan(tavern) {
-    const refKey = tavern.util.refKey;
+  function createPlan(host) {
+    const refKey = host.util.refKey;
     const items = new Map(); // id -> { item, version }
     const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
     let trip = null;
@@ -25,15 +25,15 @@
     };
 
     async function load() {
-      const t = await tavern.storage.get(TRIP_KEY);
+      const t = await host.storage.get(TRIP_KEY);
       remember(TRIP_KEY, t ? t.value : null, t ? t.version : null);
       items.clear();
-      for (const it of await tavern.storage.list('item:')) remember(it.key, it.value, it.version);
+      for (const it of await host.storage.list('item:')) remember(it.key, it.value, it.version);
       changed();
       resolveCards().catch(() => {});
     }
 
-    tavern.on('change', (e) => {
+    host.on('change', (e) => {
       if (e.scope === 'rooms') return;
       if (e.key !== TRIP_KEY && !String(e.key).startsWith('item:')) return;
       remember(e.key, e.deleted ? null : e.value, e.version);
@@ -48,7 +48,7 @@
       if (!want.length) return;
       let got;
       try {
-        got = await tavern.refs.resolve(want);
+        got = await host.refs.resolve(want);
       } catch (err) {
         if (all) return; // asking again failed: what was shown stays as it was
         got = want.map(() => ({ error: 'unavailable' }));
@@ -92,20 +92,20 @@
     const nextJointOrder = (after) => jointOrder(atJoint(after), null, null);
 
     async function saveTrip(patch) {
-      const next = cleanTrip({ ...(trip || {}), ...patch, by: tavern.user.name });
-      const saved = await tavern.storage.set(TRIP_KEY, next, tripVersion === null ? {} : { version: tripVersion });
+      const next = cleanTrip({ ...(trip || {}), ...patch, by: host.user.name });
+      const saved = await host.storage.set(TRIP_KEY, next, tripVersion === null ? {} : { version: tripVersion });
       remember(TRIP_KEY, next, saved.version);
       changed();
       return trip;
     }
 
     async function addItem(fields) {
-      const id = tavern.util.id();
+      const id = host.util.id();
       const onTheLine = !fields.date && (fields.after === '' || isYmd(fields.after) || fields.kind === 'lane');
-      const item = cleanItem({ ...fields, id, order: fields.order ?? (onTheLine ? nextJointOrder(fields.after || '') : nextOrder(fields.date)), by: tavern.user.name });
+      const item = cleanItem({ ...fields, id, order: fields.order ?? (onTheLine ? nextJointOrder(fields.after || '') : nextOrder(fields.date)), by: host.user.name });
       if (!item) throw new Error('that needs a title');
       const { id: _drop, ...value } = item;
-      const saved = await tavern.storage.set(`item:${id}`, value, {});
+      const saved = await host.storage.set(`item:${id}`, value, {});
       items.set(id, { item, version: saved.version });
       changed();
       if (item.ref) resolveCards().catch(() => {});
@@ -119,13 +119,13 @@
       if (!item) throw new Error('that needs a title');
       const { id: _drop, ...value } = item;
       try {
-        const saved = await tavern.storage.set(`item:${id}`, value, { version: cur.version });
+        const saved = await host.storage.set(`item:${id}`, value, { version: cur.version });
         items.set(id, { item, version: saved.version });
         changed();
         return item;
       } catch (err) {
         if (err && err.status === 409) {
-          const fresh = await tavern.storage.get(`item:${id}`).catch(() => null);
+          const fresh = await host.storage.get(`item:${id}`).catch(() => null);
           if (fresh) remember(fresh.key, fresh.value, fresh.version); else items.delete(id);
           changed();
           const conflict = new Error('someone changed this first');
@@ -139,7 +139,7 @@
     async function removeItem(id) {
       const cur = items.get(id);
       if (!cur) return;
-      await tavern.storage.delete(`item:${id}`);
+      await host.storage.delete(`item:${id}`);
       items.delete(id);
       changed();
     }
@@ -201,7 +201,7 @@
       if (!tripDaysList.length) { suggested = []; changed(); return suggested; }
       let found = [];
       try {
-        found = await tavern.refs.search('');
+        found = await host.refs.search('');
       } catch (err) {
         found = [];
       }
@@ -213,18 +213,18 @@
 
     // What other modules may ask of this one, and what it is when they do.
     function provide() {
-      if (!tavern.actions || !tavern.actions.provide) return;
-      tavern.actions.provide({
+      if (!host.actions || !host.actions.provide) return;
+      host.actions.provide({
         addStop: async (input) => {
           const date = input.date && isYmd(input.date) ? input.date : null;
           const item = input.ref
             ? await addLink(input.ref, date, input.title)
             : await addItem({ kind: 'stop', title: input.title, date, notes: input.notes || '' });
-          return { ref: tavern.refs.make('plan', item.id) };
+          return { ref: host.refs.make('plan', item.id) };
         },
         addToDay: async (input) => {
           const item = await addLink(input.item, isYmd(input.date) ? input.date : null);
-          return { ref: tavern.refs.make('plan', item.id) };
+          return { ref: host.refs.make('plan', item.id) };
         },
         // A suggestion from anywhere (an AI's typed card, another module's idea): placed as the right kind of item when its
         // `kind` is one of the everyday words a journey, a stay or a stop already knows (a flight, a hotel, a sight...); an
@@ -232,7 +232,7 @@
         // whoever asks for it.
         acceptSuggestion: async (input) => {
           const item = await addItem(fromSuggestion(input));
-          return { ref: tavern.refs.make('plan', item.id) };
+          return { ref: host.refs.make('plan', item.id) };
         },
       });
     }

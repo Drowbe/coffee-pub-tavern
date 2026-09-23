@@ -1,6 +1,6 @@
   // The Travel module's model, with no page in it: dates, cleaning what is stored, the order of a day, and the gaps
   // between items. Shared by the module's page and its dashboard widget (inlined into both by the build), and run
-  // on its own by tools/check-travel.mjs. It expects `ymd` and `parseYmd` (from tavern.util) in scope.
+  // on its own by tools/check-travel.mjs. It expects `ymd` and `parseYmd` (from host.util) in scope.
 
   // The trip is one stored value per room (its key is a pointer's id, so the trip can be pointed at and opened).
   const TRIP_KEY = 'trip:main';

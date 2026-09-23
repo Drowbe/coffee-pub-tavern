@@ -12,7 +12,7 @@
 <!--
   The page and every piece of markup the script clones. The script fills a clone by hooks only:
     [data-slot=name]   set its textContent (or hide it when there is no value)
-    [data-icon=name]   replace its content with tavern.ui.icon(name)
+    [data-icon=name]   replace its content with host.ui.icon(name)
   and toggles the state classes and data attributes listed in CONTRACT.md. It never builds markup with
   strings and never sets a style. The reference rendering is design/itinerary.html.
 -->
@@ -102,7 +102,7 @@
      that day's date; none means before the first day). It sits on the plan's line between the day blocks, in ol.timeline.between[data-after], drawn as the same
      two-part pill with a menu. The script sets data-type, --marker, the icon and the title, as for a time block. -->
 <template id="tpl-row-lane"><li class="row entry marker lane" data-kind="lane"><div class="when"><b data-slot="time"></b></div><div class="rail"><span class="dot"></span></div><div class="slot"><div class="markerpill"><span class="mk-icon"><span class="ic" data-icon=""></span></span><span class="mk-label"><b data-slot="title"></b><span class="mk-note" data-slot="body"></span></span><button class="menu-btn" type="button" data-action="move-menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis-vertical"></span></button></div></div></li></template>
-<!-- The joint between two days (and after the last, and before the first): a + on the line, quiet until pointed at, that opens tavern.menu.show to add a marker there. -->
+<!-- The joint between two days (and after the last, and before the first): a + on the line, quiet until pointed at, that opens host.menu.show to add a marker there. -->
 <template id="tpl-joint"><div class="joint"><button class="jointadd" type="button" data-action="gap-add" aria-haspopup="menu" aria-label="Add a marker here" title="Add a marker here"><span class="ic" data-icon="plus"></span></button></div></template>
 <!-- Where empty days are hidden: one badge for the run of hidden days, on the line that joins the boxes. The circle is how many days; the + opens
      the same menu (what can be added there, a marker for instance, and "Show these days"). data-from and data-to are the first and last hidden day. -->

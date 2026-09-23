@@ -8,11 +8,11 @@ import assert from 'node:assert/strict';
 
 const read = (name) => fs.readFileSync(new URL(`../modules/maps/src/${name}`, import.meta.url), 'utf8');
 // The SDK's geo helpers, which the page hands to the library.
-const sdk = fs.readFileSync(new URL('../public/sdk/tavern.js', import.meta.url), 'utf8');
+const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
 new Function('window', 'document', sdk)(win, {});
-const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
+const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
 const names = ['clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle'];
 const lib = new Function('geo', `${read('maps-lib-c-geo.js')}\n${read('maps-lib-d-style.js')}\nreturn { ${names.join(', ')} };`)(geo);
 

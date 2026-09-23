@@ -86,7 +86,7 @@ room's (probably both, like Research's Mine and This room); and how far "live" g
 
 ## Money: a trip's currency with the conversion beside it
 
-Decided: amounts show in the trip's own currency (the country's) with the conversion into the server's currency next to it where possible. Built: the server's currency (Manage > Settings > Language, time and money), and the trip's own currency, each shown on its own. Not started: the conversion, which needs a source of daily exchange rates the server can fetch (a free public feed; pick one and decide how stale a rate may be before it is left off), and then `tavern.util.money` gains an optional second currency to show beside the first. Language has one option (English) until there are translations to choose from.
+Decided: amounts show in the trip's own currency (the country's) with the conversion into the server's currency next to it where possible. Built: the server's currency (Manage > Settings > Language, time and money), and the trip's own currency, each shown on its own. Not started: the conversion, which needs a source of daily exchange rates the server can fetch (a free public feed; pick one and decide how stale a rate may be before it is left off), and then `host.util.money` gains an optional second currency to show beside the first. Language has one option (English) until there are translations to choose from.
 
 ## Google Calendar sync
 

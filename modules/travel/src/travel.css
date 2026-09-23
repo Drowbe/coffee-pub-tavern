@@ -1,7 +1,7 @@
 /*
  * The itinerary's look. The markup it styles is fixed in CONTRACT.md; the script only builds that
  * markup and toggles state classes and data attributes, it never sets a style. Every colour comes
- * from the theme tokens the SDK puts on :root (see public/sdk/tavern.css), so a light theme works.
+ * from the theme tokens the SDK puts on :root (see public/sdk/host.css), so a light theme works.
  * Nothing has a fixed height: the module fills its pane and scrolls inside it.
  */
 * { box-sizing: border-box; }
@@ -20,7 +20,7 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .tools { order: 1; display: flex; align-items: center; gap: 0; }
 /* The trip's own actions move into the pane's own titlebar once the host draws them there (see
    syncHeader); the title and dates beside them have nowhere else to go, so they stay in the page either
-   way. The four views live in the toolbar (tavern.ui.viewSwitch), always drawn there. */
+   way. The four views live in the toolbar (host.ui.viewSwitch), always drawn there. */
 .hosted-header .tools { display: none; }
 .trip-facts { order: 3; }
 .trip-title { margin: 0; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }

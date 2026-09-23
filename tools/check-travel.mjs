@@ -156,7 +156,7 @@ test('a trip has an optional three-letter currency, an item an optional cost', (
 
 // --- the plan, against a small stand-in for the SDK -------------------------------------------------------------
 
-function fakeTavern({ cards = [], search = [] } = {}) {
+function fakeHost({ cards = [], search = [] } = {}) {
   const store = new Map(); // key -> { value, version }
   const handlers = { change: [] };
   const provided = {};
@@ -189,7 +189,7 @@ function fakeTavern({ cards = [], search = [] } = {}) {
 }
 
 const run = async () => {
-  const f = fakeTavern();
+  const f = fakeHost();
   const plan = lib.createPlan(f.t);
   await plan.load();
   assert.equal(plan.trip, null);
@@ -211,7 +211,7 @@ const run = async () => {
 
   // a pointer with a card time sorts by it
   const evc = { ref: { module: 'calendar', kind: 'event', id: 'ev9', scope: 'room', room: 'lobby' }, module: { id: 'calendar' }, title: 'Dinner', when: new Date(2026, 9, 1, 20, 0).toISOString() };
-  const h = fakeTavern({ cards: [evc] });
+  const h = fakeHost({ cards: [evc] });
   const plan3 = lib.createPlan(h.t);
   await plan3.load();
   await plan3.saveTrip({ start: '2026-10-01', end: '2026-10-02' });
@@ -264,7 +264,7 @@ const run = async () => {
   await f.provided.acceptSuggestion({ title: 'Something odd', kind: 'nonsense' });
   assert.equal(plan.list().find((i) => i.title === 'Something odd').kind, 'stop');
   const ev = { ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'lobby' }, module: { id: 'calendar' }, title: 'Train', when: '2026-10-03' };
-  const g = fakeTavern({ cards: [ev], search: [ev, { ...ev, ref: { ...ev.ref, id: 'e2' }, when: '2026-12-25' }, { ...ev, ref: { ...ev.ref, id: 'e3' }, module: { id: 'travel' } }] });
+  const g = fakeHost({ cards: [ev], search: [ev, { ...ev, ref: { ...ev.ref, id: 'e2' }, when: '2026-12-25' }, { ...ev, ref: { ...ev.ref, id: 'e3' }, module: { id: 'travel' } }] });
   const plan2 = lib.createPlan(g.t);
   await plan2.load();
   await plan2.saveTrip({ start: '2026-10-01', end: '2026-10-03' });

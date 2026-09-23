@@ -76,7 +76,7 @@ A conversation with the AI is talk: the question, the reasoning, the follow-ups.
 
 ### How it is wired: a server hook, like notifications
 
-The module asks the server (a hook, `tavern.ai.ask`, next to `notify` and `schedule`). The server: checks the person may use AI (a permission on the Roles tab), reads the items **as that person** (only what they may see, from the scope they are in), builds the prompt, calls the provider the admin configured, and returns the answer (streamed). It rate-limits per person and per module, keeps a usage count, and writes a line in the activity log (who, which task, how many tokens; never the text). The key, and the address of a local model, live in the server's settings, never in a page.
+The module asks the server (a hook, `host.ai.ask`, next to `notify` and `schedule`). The server: checks the person may use AI (a permission on the Roles tab), reads the items **as that person** (only what they may see, from the scope they are in), builds the prompt, calls the provider the admin configured, and returns the answer (streamed). It rate-limits per person and per module, keeps a usage count, and writes a line in the activity log (who, which task, how many tokens; never the text). The key, and the address of a local model, live in the server's settings, never in a page.
 
 ### Providers: one adapter covers hosted and local
 

@@ -91,7 +91,7 @@ let currentRoom = null; // the room I am in, once joined
 let unloading = false;
 addEventListener('pagehide', () => { unloading = true; });
 addEventListener('pageshow', () => { unloading = false; });
-const REMEMBERED_ROOM = 'tavern.room';
+const REMEMBERED_ROOM = 'host.room';
 const rememberRoom = (id) => { try { sessionStorage.setItem(REMEMBERED_ROOM, id); } catch { /* not remembered */ } };
 const forgetRoom = () => { if (unloading) return; try { sessionStorage.removeItem(REMEMBERED_ROOM); } catch { /* nothing */ } };
 const rememberedRoom = () => { try { return sessionStorage.getItem(REMEMBERED_ROOM) || ''; } catch { return ''; } };
@@ -824,7 +824,7 @@ const DEFAULT_PREFS = {
 const prefs = loadPrefs();
 // The room's modules: the toolbar's Modules button and its floating panels.
 const roomModules = createRoomModules({ guestToken });
-window.tavernModules = roomModules; // for debugging and tests
+window.hostModules = roomModules; // for debugging and tests
 
 // The stage-level snap, in the room bar: one switch that makes every floating pane, now and later, snap to a grid over the
 // stage, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each pane's own switch
@@ -844,7 +844,7 @@ $('snap-size').addEventListener('input', () => roomModules.setSnapPitch(Number($
 $('snap-size').addEventListener('change', () => roomModules.setSnapPitch(Number($('snap-size').value)));
 syncSnapBar();
 // A toast about a room module opens its panel; a server module opens over the call.
-document.addEventListener('tavern:notification', (event) => {
+document.addEventListener('app:notification', (event) => {
   const n = event.detail;
   if (roomModules.handleNotification(n)) event.preventDefault();
   else if (n.scope === 'server' && document.body.classList.contains('at-table')) {
@@ -855,7 +855,7 @@ document.addEventListener('tavern:notification', (event) => {
 
 function loadPrefs() {
   try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tavern.table') || '{}') };
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('host.table') || '{}') };
   } catch (err) {
     return { ...DEFAULT_PREFS };
   }
@@ -863,7 +863,7 @@ function loadPrefs() {
 
 function savePrefs() {
   try {
-    localStorage.setItem('tavern.table', JSON.stringify(prefs));
+    localStorage.setItem('host.table', JSON.stringify(prefs));
   } catch (err) {
     // private mode or storage off: the session still works
   }
@@ -1228,8 +1228,8 @@ function stageDoc() {
 const chatLog = []; // { who, at, text } or { who, at, blob, name }
 // Older versions kept the history in this browser only; it is still read when the server has none for the room
 // (or cannot be reached). "Clear chat" remembers when, per person, so what came before stays hidden here.
-const chatHistoryKey = (roomId) => `tavern:chat:${roomId}:${me?.key || guestToken || 'guest'}`;
-const chatClearedKey = (roomId) => `tavern:chatclear:${roomId}:${me?.key || guestToken || 'guest'}`;
+const chatHistoryKey = (roomId) => `app:chat:${roomId}:${me?.key || guestToken || 'guest'}`;
+const chatClearedKey = (roomId) => `app:chatclear:${roomId}:${me?.key || guestToken || 'guest'}`;
 function loadChatHistory(roomId) {
   try {
     return JSON.parse(localStorage.getItem(chatHistoryKey(roomId))) || [];
@@ -1294,7 +1294,7 @@ function escapeHtml(s) {
 
 // Markdown to safe HTML: headings, **bold**, *italic*/_italic_, `code`, fenced code, - and 1. lists, > quotes
 // (what replyToEntry() quotes with), [text](url) and bare links. The one shared implementation every module
-// (and now Chat) uses, in /sdk/tavern.js -- loaded on this page already for the modules it hosts in the page.
+// (and now Chat) uses, in /sdk/host.js -- loaded on this page already for the modules it hosts in the page.
 function renderMarkup(text) {
   return window.tavernText.markdown(text);
 }
@@ -1641,12 +1641,12 @@ async function buildMicGraph() {
     // The gate lives on the audio thread (see gate-worklet.js), so it keeps
     // working when the tab is hidden and page timers are throttled.
     await mic.ctx.audioWorklet.addModule('/gate-worklet.js');
-    mic.gate = new AudioWorkletNode(mic.ctx, 'tavern-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    mic.gate = new AudioWorkletNode(mic.ctx, 'mic-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
     mic.gate.port.onmessage = (event) => onMicLevel(event.data);
     mic.level.connect(mic.gate);
     mic.gate.connect(mic.dest);
   } catch (err) {
-    console.warn('[tavern] no audio worklet, gate off:', err.message);
+    console.warn('[app] no audio worklet, gate off:', err.message);
     mic.gate = null;
     mic.analyser = mic.ctx.createAnalyser();
     mic.analyser.fftSize = 512;
@@ -1697,7 +1697,7 @@ async function openMic() {
   if (mic.ctx.state !== 'running') {
     // No audio output device or the browser refused to start the graph:
     // publish the microphone as it is, without level and gate.
-    console.warn('[tavern] audio graph not running; publishing the raw microphone');
+    console.warn('[app] audio graph not running; publishing the raw microphone');
     mic.bypass = true;
     return raw;
   }
@@ -1940,7 +1940,7 @@ async function fillDevices() {
   try {
     devices = await Room.getLocalDevices(undefined, false);
   } catch (err) {
-    console.warn('[tavern] device list:', err.message);
+    console.warn('[app] device list:', err.message);
   }
   const wantedFor = { audioinput: prefs.micId, videoinput: prefs.camId, audiooutput: prefs.speakerId };
   for (const [kind, select] of [['audioinput', $('mic-select')], ['videoinput', $('cam-select')], ['audiooutput', $('speaker-select')]]) {
@@ -1970,7 +1970,7 @@ async function joinInvitedRoom(roomId) {
   return join(roomId);
 }
 // An invitation accepted on this page (the toast in brand.js asks; a page that handles it says so).
-document.addEventListener('tavern:invite-accept', (event) => {
+document.addEventListener('app:invite-accept', (event) => {
   event.preventDefault();
   joinInvitedRoom(event.detail.roomId);
 });
@@ -2175,7 +2175,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
 // autoSubscribe is off.
 async function connectAndSetup(token, livekitUrl) {
     await room.connect(livekitUrl, token, { autoSubscribe: false });
-    console.debug('[tavern] connected to', currentRoom.id);
+    console.debug('[app] connected to', currentRoom.id);
     if (!guestToken && currentRoom && !currentRoom.ephemeral) rememberRoom(currentRoom.id); // an aside is gone once it ends, so it is not kept
     $('join').hidden = true;
     $('guest-join').hidden = true;
@@ -2221,10 +2221,10 @@ async function startCall() {
     const track = await openMic();
     await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
     haveMic = true;
-    console.debug('[tavern] published audio');
+    console.debug('[app] published audio');
     if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
   } catch (err) {
-    console.warn('[tavern] no microphone:', err.message);
+    console.warn('[app] no microphone:', err.message);
   }
   updateMuted(room.localParticipant);
   updateCamera(room.localParticipant);
@@ -2941,7 +2941,7 @@ function openPopout() {
     const size = prefs.popout || { w: 480, h: 300 };
     const width = Math.max(240, Math.min(size.w, screen.availWidth));
     const height = Math.max(120, Math.min(size.h, screen.availHeight));
-    pipWindow = window.open('/popout.html', 'tavern-popout', `popup,width=${width},height=${height}`);
+    pipWindow = window.open('/popout.html', 'app-popout', `popup,width=${width},height=${height}`);
     if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
     pipWindow.addEventListener('load', () => setUpPopoutWindow(pipWindow), { once: true });
     $('popout').classList.add('on');

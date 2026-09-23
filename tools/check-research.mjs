@@ -7,22 +7,22 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
-const sdk = fs.readFileSync(new URL('../public/sdk/tavern.js', import.meta.url), 'utf8');
+const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
 new Function('window', 'document', sdk)(win, {});
-const geo = win.createTavern({ call: async () => ({}), root: {}, rootElement: {} }).tavern.util.geo;
+const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
 
 const names = ['KINDS', 'cleanItem', 'itemValue', 'textOf', 'parseTags', 'cleanTags', 'cleanUrl', 'readEntry', 'filterItems', 'tagCounts', 'fitSize', 'captionOf', 'createResearch'];
 const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/research/src/research-lib.js', import.meta.url), 'utf8')}\nreturn { ${names.join(', ')} };`)(geo);
 
-function fakeTavern() {
+function fakeHost() {
   const data = new Map();
   const handlers = {};
   const removedFiles = [];
   const links = [];
   let n = 0;
-  const tavern = {
+  const host = {
     storage: {
       list: async (prefix) => [...data].filter(([k]) => k.startsWith(prefix)).map(([key, x]) => ({ key, value: x.value, version: x.version })),
       set: async (key, value, o) => {
@@ -40,7 +40,7 @@ function fakeTavern() {
     uploads: { remove: async (id) => { removedFiles.push(id); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
-  return { tavern, data, handlers, removedFiles, links };
+  return { host, data, handlers, removedFiles, links };
 }
 let n = 0;
 const test = async (name, fn) => { await fn(); n += 1; };
@@ -103,9 +103,9 @@ await test('filtering: words, a kind, and all the chosen tags', () => {
 });
 
 await test('the store: save, edit with versions, remove (and the picture), and what others ask', async () => {
-  const f = fakeTavern();
-  const r = lib.createResearch(f.tavern, { scope: 'room' });
-  f.tavern.on = (ev, fn) => fn; // events are not needed here
+  const f = fakeHost();
+  const r = lib.createResearch(f.host, { scope: 'room' });
+  f.host.on = (ev, fn) => fn; // events are not needed here
   const note = await r.save({ kind: 'note', title: 'Ideas', body: 'first', tags: ['a'], by: 'u1' });
   assert.ok(f.data.has(`note:${note.id}`));
   assert.equal(r.list().length, 1);
@@ -117,7 +117,7 @@ await test('the store: save, edit with versions, remove (and the picture), and w
   await r.remove(photo.id);
   assert.deepEqual(f.removedFiles, [FILE]);
   assert.equal(r.list().length, 1);
-  const again = lib.createResearch(f.tavern, { scope: 'room' });
+  const again = lib.createResearch(f.host, { scope: 'room' });
   await again.load();
   assert.equal(again.list().length, 1);
   r.provide('u1');
@@ -130,7 +130,7 @@ await test('the store: save, edit with versions, remove (and the picture), and w
   assert.equal(r.get(link.ref.id).excerpt, 'because');
   await assert.rejects(f.handlers.saveLink({ url: 'ftp://x' }), /web address/);
   // A person's own items are private: nothing is linked.
-  const mine = lib.createResearch(f.tavern, { scope: 'person' });
+  const mine = lib.createResearch(f.host, { scope: 'person' });
   mine.provide('u1');
   const before = f.links.length;
   await f.handlers.saveNote({ title: 'Private', ref: { module: 'places', kind: 'place', id: 'p' } });

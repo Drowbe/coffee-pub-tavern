@@ -1,7 +1,7 @@
 /*
  * Tavern module SDK. A module includes this from its own pages:
  *
- *   <script src="/sdk/tavern.js"></script>
+ *   <script src="/sdk/host.js"></script>
  *
  * A module runs either in a sandboxed frame, with no access to Tavern's pages, cookies or network, or
  * (when the admin has chosen that for it, and for the modules that ship with Tavern) in the page itself,
@@ -9,17 +9,17 @@
  * hosting it (public/module-host.js) makes the real requests on its behalf and the server checks every
  * one. A module in the page is not confined: it could bypass this. See documentation/api/api-module-sdk.md.
  *
- * The API is built by createTavern(env): in a frame this file boots it over postMessage; the page host
+ * The API is built by createHost(env): in a frame this file boots it over postMessage; the page host
  * calls it directly for a module running in the page.
  *
- * Every call returns a promise. tavern.ready() resolves once the host has
+ * Every call returns a promise. host.ready() resolves once the host has
  * answered, with who is looking, where the module is showing, and the theme.
  */
 (function (global) {
   'use strict';
 
-  // The drag data type a pointer to a module's item travels under (see tavern.refs).
-  const REF_MIME = 'application/x-tavern-ref';
+  // The drag data type a pointer to a module's item travels under (see host.refs).
+  const REF_MIME = 'application/x-host-ref';
 
   // A pointer checked for shape, or null. Says nothing about whether the viewer may see the item.
   function cleanRef(ref) {
@@ -173,46 +173,46 @@
   }
 
   const UI_CSS = `
-.tv-datefield { display: flex; gap: 4px; align-items: center; }
-.tv-datefield input { flex: 1; min-width: 0; }
-.tv-datefield input::-webkit-calendar-picker-indicator { display: none; }
-.tv-dp-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); color: var(--secondary-text); cursor: pointer; }
-.tv-dp-btn:hover { background: var(--secondary-hover); }
+.sdk-datefield { display: flex; gap: 4px; align-items: center; }
+.sdk-datefield input { flex: 1; min-width: 0; }
+.sdk-datefield input::-webkit-calendar-picker-indicator { display: none; }
+.sdk-dp-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--secondary); color: var(--secondary-text); cursor: pointer; }
+.sdk-dp-btn:hover { background: var(--secondary-hover); }
 .tv-dow-hint { display: block; min-height: 14px; color: var(--accent); font-size: 11px; font-weight: 600; }
-.tv-dp { position: fixed; z-index: 9999; width: 252px; padding: 8px; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; color: var(--text); }
-.tv-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
-.tv-dp-head button, .tv-dp-foot button { border: 0; border-radius: 6px; padding: 3px 9px; background: var(--secondary); color: var(--secondary-text); font: inherit; cursor: pointer; }
-.tv-dp-head button:hover, .tv-dp-foot button:hover { background: var(--secondary-hover); }
-.tv-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.tv-dp-dow { padding: 2px 0; text-align: center; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
-.tv-dp-day { height: 30px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; cursor: pointer; }
-.tv-dp-day:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
-.tv-dp-day.other { color: var(--text-dim); opacity: .55; }
-.tv-dp-day.inrange { background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.tv-dp-day.today { border-color: var(--accent); }
-.tv-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
-.tv-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
-.tv-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; max-height: 70vh; overflow: auto; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
-.tv-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; box-sizing: border-box; }
-.tv-menu-item:hover, .tv-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
-.tv-menu-item:disabled { color: var(--text-dim); cursor: default; }
-.tv-menu-item.danger { color: var(--danger); }
-.tv-menu-item.danger:hover, .tv-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--danger) 14%, transparent); }
-.tv-menu-icon { flex: none; display: inline-flex; width: 1em; }
-.tv-menu-icon svg { width: 1em; height: 1em; fill: currentColor; }
-.tv-menu-label { flex: 1; min-width: 0; }
-.tv-menu-hint { flex-basis: 100%; margin-top: 1px; color: var(--text-dim); font-size: 12px; }
-.tv-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.sdk-dp { position: fixed; z-index: 9999; width: 252px; padding: 8px; background: var(--bg-section); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; color: var(--text); }
+.sdk-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+.sdk-dp-head button, .sdk-dp-foot button { border: 0; border-radius: 6px; padding: 3px 9px; background: var(--secondary); color: var(--secondary-text); font: inherit; cursor: pointer; }
+.sdk-dp-head button:hover, .sdk-dp-foot button:hover { background: var(--secondary-hover); }
+.sdk-dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.sdk-dp-dow { padding: 2px 0; text-align: center; color: var(--text-dim); font-size: 10px; text-transform: uppercase; }
+.sdk-dp-day { height: 30px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+.sdk-dp-day:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.sdk-dp-day.other { color: var(--text-dim); opacity: .55; }
+.sdk-dp-day.inrange { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.sdk-dp-day.today { border-color: var(--accent); }
+.sdk-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+.sdk-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+.sdk-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; max-height: 70vh; overflow: auto; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
+.sdk-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; box-sizing: border-box; }
+.sdk-menu-item:hover, .sdk-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
+.sdk-menu-item:disabled { color: var(--text-dim); cursor: default; }
+.sdk-menu-item.danger { color: var(--danger); }
+.sdk-menu-item.danger:hover, .sdk-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.sdk-menu-icon { flex: none; display: inline-flex; width: 1em; }
+.sdk-menu-icon svg { width: 1em; height: 1em; fill: currentColor; }
+.sdk-menu-label { flex: 1; min-width: 0; }
+.sdk-menu-hint { flex-basis: 100%; margin-top: 1px; color: var(--text-dim); font-size: 12px; }
+.sdk-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 `;
 
   // env: { call(method, params) -> Promise, root, rootElement, elementAt({x, y}), localPoint(clientX, clientY),
   // applyTheme(theme) }.
-  // Returns { tavern, emit }: `emit` is how the host pushes an event to the module.
-  function createTavern(env) {
+  // Returns { host, emit }: `emit` is how the host pushes an event to the module.
+  function createHost(env) {
   const listeners = new Map();
   let info = null;
   const call = env.call;
-  // The toolbar's view switches (tavern.ui.viewSwitch), in the order they were made; they share the one toolbar row.
+  // The toolbar's view switches (host.ui.viewSwitch), in the order they were made; they share the one toolbar row.
   const switches = [];
   let switchesSig = '';
   function drawSwitches() {
@@ -220,7 +220,7 @@
     const sig = JSON.stringify(items);
     if (sig === switchesSig) return;
     switchesSig = sig;
-    tavern.toolbar.set(items).catch(() => {});
+    host.toolbar.set(items).catch(() => {});
   }
 
   // An "open this item" from the host can arrive before the module has said what to do with one.
@@ -271,7 +271,7 @@
     return menuIconWait.get(key);
   }
 
-  // Only one tavern.menu is ever open at once (per module): { id, cleanup }.
+  // Only one host.menu is ever open at once (per module): { id, cleanup }.
   let openMenu = null;
   function closeMenu() {
     if (!openMenu) return;
@@ -287,14 +287,14 @@
     if (!list.length) return { close: closeMenu };
     ensureUiStyles();
     const menu = document.createElement('div');
-    menu.className = `tv-menu${className ? ` ${className}` : ''}`;
+    menu.className = `sdk-menu${className ? ` ${className}` : ''}`;
     menu.setAttribute('role', 'menu');
     if (maxWidth) menu.style.maxWidth = `${maxWidth}px`;
     const rows = [];
     for (const item of list) {
       if (item.separator) {
         const sep = document.createElement('div');
-        sep.className = 'tv-menu-sep';
+        sep.className = 'sdk-menu-sep';
         sep.setAttribute('role', 'separator');
         menu.appendChild(sep);
         continue;
@@ -303,7 +303,7 @@
       // browser's own affordances (hover preview, middle-click a new tab, copy link address) rather than
       // faking navigation from a click handler.
       const b = item.href ? document.createElement('a') : document.createElement('button');
-      b.className = `tv-menu-item${item.danger ? ' danger' : ''}`;
+      b.className = `sdk-menu-item${item.danger ? ' danger' : ''}`;
       b.setAttribute('role', 'menuitem');
       if (item.href) {
         b.href = item.href;
@@ -315,18 +315,18 @@
       if (item.disabled) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
       if (item.icon) {
         const ic = document.createElement('span');
-        ic.className = 'tv-menu-icon';
+        ic.className = 'sdk-menu-icon';
         if (item.iconColor) ic.style.color = item.iconColor;
         b.appendChild(ic);
         menuIcon(item.icon, item.regular ? 'regular' : 'solid').then((svg) => { if (svg) ic.innerHTML = svg; });
       }
       const label = document.createElement('span');
-      label.className = 'tv-menu-label';
+      label.className = 'sdk-menu-label';
       label.textContent = item.label;
       b.appendChild(label);
       if (item.hint) {
         const h = document.createElement('div');
-        h.className = 'tv-menu-hint';
+        h.className = 'sdk-menu-hint';
         h.textContent = item.hint;
         b.appendChild(h);
       }
@@ -347,7 +347,7 @@
       rows.push(b);
     }
     (env.root === document ? document.body : env.root).appendChild(menu);
-    // Positioned like tavern.actions.pick's own menu and the date picker's popover: clamped inside the
+    // Positioned like host.actions.pick's own menu and the date picker's popover: clamped inside the
     // module's own root, by a point (a drop's own coordinates) or under an element (a "..." button),
     // flipped above it when there is no room below.
     const box = env.rootElement.getBoundingClientRect();
@@ -383,15 +383,15 @@
     return { close: closeMenu };
   }
 
-  const tavern = {
+  const host = {
     // Resolves with { user, context, permissions, theme, module }.
     ready: () => readyPromise,
-    // { language, clock: '12' | '24', currency }: the server's settings for how these are shown. See tavern.util.time,
-    // tavern.util.hour12 and tavern.util.money, which apply them.
+    // { language, clock: '12' | '24', currency }: the server's settings for how these are shown. See host.util.time,
+    // host.util.hour12 and host.util.money, which apply them.
     locale,
 
     // Where the module's page is: `root` is what to look elements up in (document.getElementById becomes
-    // tavern.root.getElementById: in a frame it is the document, in the page it is the module's own
+    // host.root.getElementById: in a frame it is the document, in the page it is the module's own
     // shadow root) and `rootElement` the element whose size is the module's (the frame's document element, or
     // its container). Use these rather than document, so the module runs in either place.
     root: env.root,
@@ -410,7 +410,7 @@
       // A pointer's identity as one string, for keeping and comparing them.
       refKey: (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|'),
       // A time of day ("22:30", as modules store one) the way the server shows times: "10:30 PM" on a 12-hour clock
-      // (the default, see tavern.locale()), "22:30" on a 24-hour one. Anything that is not HH:MM comes back as it is.
+      // (the default, see host.locale()), "22:30" on a 24-hour one. Anything that is not HH:MM comes back as it is.
       time: (hhmm) => {
         const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
         if (!m) return hhmm || '';
@@ -439,7 +439,7 @@
         const out = {};
         const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
         const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-        const ymd = tavern.util.ymd;
+        const ymd = host.util.ymd;
         const fix = (m, d, y) => {
           let year = y || base.getFullYear();
           let date = new Date(year, m, d);
@@ -546,15 +546,15 @@
       // Returns { close, destroy }.
       datePicker: (input, o) => {
         const options = o || {};
-        const u = tavern.util;
+        const u = host.util;
         ensureUiStyles();
         const wrap = document.createElement('span');
-        wrap.className = 'tv-datefield';
+        wrap.className = 'sdk-datefield';
         input.parentNode.insertBefore(wrap, input);
         wrap.appendChild(input);
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'tv-dp-btn';
+        btn.className = 'sdk-dp-btn';
         btn.title = 'Pick a date';
         btn.setAttribute('aria-label', 'Pick a date');
         btn.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M4 0v2H2.5A1.5 1.5 0 0 0 1 3.5v10A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 13.5 2H12V0h-1.5v2h-5V0zM2.5 5h11v8.5h-11z"/></svg>';
@@ -576,7 +576,7 @@
           const seed = dayOf() || u.ymd(new Date());
           let month = new Date(u.parseYmd(seed).getFullYear(), u.parseYmd(seed).getMonth(), 1);
           pop = document.createElement('div');
-          pop.className = 'tv-dp';
+          pop.className = 'sdk-dp';
           const draw = () => {
             const start = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay());
             const [from, to] = options.range ? options.range() : [];
@@ -585,11 +585,11 @@
             for (let i = 0; i < 42; i += 1) {
               const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
               const k = u.ymd(d);
-              cells += `<button type="button" class="tv-dp-day${d.getMonth() !== month.getMonth() ? ' other' : ''}${k === today ? ' today' : ''}${k === dayOf() ? ' sel' : ''}${from && to && k >= from && k <= to ? ' inrange' : ''}" data-day="${k}">${d.getDate()}</button>`;
+              cells += `<button type="button" class="sdk-dp-day${d.getMonth() !== month.getMonth() ? ' other' : ''}${k === today ? ' today' : ''}${k === dayOf() ? ' sel' : ''}${from && to && k >= from && k <= to ? ' inrange' : ''}" data-day="${k}">${d.getDate()}</button>`;
             }
-            pop.innerHTML = `<div class="tv-dp-head"><button type="button" data-dp="prev" aria-label="Previous month">&lsaquo;</button><strong>${u.esc(month.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</strong><button type="button" data-dp="next" aria-label="Next month">&rsaquo;</button></div>
-              <div class="tv-dp-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((n) => `<span class="tv-dp-dow">${n}</span>`).join('')}${cells}</div>
-              <div class="tv-dp-foot"><button type="button" data-dp="today">Today</button>${options.clearable ? '<button type="button" data-dp="clear">Clear</button>' : '<span></span>'}</div>`;
+            pop.innerHTML = `<div class="sdk-dp-head"><button type="button" data-dp="prev" aria-label="Previous month">&lsaquo;</button><strong>${u.esc(month.toLocaleDateString([], { month: 'long', year: 'numeric' }))}</strong><button type="button" data-dp="next" aria-label="Next month">&rsaquo;</button></div>
+              <div class="sdk-dp-grid">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((n) => `<span class="sdk-dp-dow">${n}</span>`).join('')}${cells}</div>
+              <div class="sdk-dp-foot"><button type="button" data-dp="today">Today</button>${options.clearable ? '<button type="button" data-dp="clear">Clear</button>' : '<span></span>'}</div>`;
           };
           pop.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -623,10 +623,10 @@
         btn.addEventListener('click', open);
         return { close, refresh: () => { close(); showDow(); }, destroy: () => { close(); hint.remove(); wrap.parentNode.insertBefore(input, wrap); wrap.remove(); } };
       },
-      // A view or filter switch, drawn in the toolbar (see tavern.toolbar.set) -- its most common tool, so
+      // A view or filter switch, drawn in the toolbar (see host.toolbar.set) -- its most common tool, so
       // this is the one built for every module rather than each writing its own diffing and event wiring.
       // { id, options: [{ id, label?, icon?, regular?, iconOnly? }], value, onChange }: an option needs a
-      // label, an icon, or both (see tavern.toolbar.set's 'tabs' item for what each does). Draws once, then
+      // label, an icon, or both (see host.toolbar.set's 'tabs' item for what each does). Draws once, then
       // only redraws when the value or the options actually change (call set() every render; it no-ops
       // when nothing did). Returns { set(value, options?), destroy() }.
       // A module may have more than one (whose items, and how they are laid out): every live switch shares the
@@ -634,7 +634,7 @@
       viewSwitch: ({ id, options, value, onChange }) => {
         let current = value;
         let opts = options;
-        const off = tavern.on('toolbar', (e) => {
+        const off = host.on('toolbar', (e) => {
           if (e.id !== id) return;
           current = e.value;
           onChange(e.value);
@@ -725,7 +725,7 @@
     // them changes.
     settings: {
       get: () => call('settings.get'),
-      onChange: (fn) => tavern.on('settings', () => call('settings.get').then(fn).catch(() => {})),
+      onChange: (fn) => host.on('settings', () => call('settings.get').then(fn).catch(() => {})),
     },
 
     // Place search, asked of the server (for a module whose manifest declares `geocoder`). `search(q, near)` answers
@@ -750,7 +750,7 @@
     // `onHash(fn)` is called on the page with that place when it is opened that way (and again if it changes).
     page: {
       open: (hash) => call('page.open', { hash }),
-      onHash: (fn) => tavern.on('pagehash', (e) => fn(e.hash)),
+      onHash: (fn) => host.on('pagehash', (e) => fn(e.hash)),
     },
 
     refs: {
@@ -780,10 +780,10 @@
       // Show an item in the module that owns it (its pane opens, and it is asked to show the item). The
       // card says whether it can: card.open.
       open: (ref) => call('refs.open', { ref }),
-      // For a module that owns items: called when someone asks to see one of them (tavern.refs.open from
+      // For a module that owns items: called when someone asks to see one of them (host.refs.open from
       // another module): open it. The pointer is checked for shape and points at one of your own items.
       onOpen: (fn) => {
-        const off = tavern.on('refopen', (e) => {
+        const off = host.on('refopen', (e) => {
           const ref = e && e.ref && cleanRef(e.ref);
           if (ref) fn(ref);
         });
@@ -807,7 +807,7 @@
       search: (text, o) => call('refs.search', { q: text || '', ...opts(o) }),
       // Start a drag carrying a pointer to one of this module's items: call it from a dragstart handler.
       drag: (event, kind, id, o) => {
-        const ref = tavern.refs.make(kind, id, o);
+        const ref = host.refs.make(kind, id, o);
         event.dataTransfer.setData(REF_MIME, JSON.stringify(ref));
         if (o && o.label) event.dataTransfer.setData('text/plain', String(o.label));
         event.dataTransfer.effectAllowed = 'copyLink';
@@ -829,7 +829,7 @@
       // unreliable between sandboxed frames; the host shows the label at the pointer and hands the drop to
       // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
       draggable: (root, resolve) => {
-        const say = (msg) => tavern.refs.trace(msg);
+        const say = (msg) => host.refs.trace(msg);
         // The pointer in the module's own coordinates (a frame's are already; in the page they are shifted).
         const local = (e) => (env.localPoint ? env.localPoint(e.clientX, e.clientY) : { x: e.clientX, y: e.clientY });
         say('draggable ready');
@@ -863,7 +863,7 @@
             say('moved far enough: telling the page a drag began');
             // One of this module's items ({ kind, id, ... }), or a card it has not stored ({ card: { title, ... } }).
             const { kind, id, card, label, ...where } = down.item;
-            payload = card ? { card, label: label || card.title } : { ref: tavern.refs.make(kind, id, where), label };
+            payload = card ? { card, label: label || card.title } : { ref: host.refs.make(kind, id, where), label };
             insideOwn = false;
             call('refs.ptrStart', { ...payload, ...local(e) }).catch(() => {});
           }
@@ -902,11 +902,11 @@
       // listening for dragover and drop yourself: a drag between two module frames reaches only this.
       // `ref` is the pointer dragged, or null; the third argument is what was dragged in full, { ref } or
       // { card } (a card carried by a module with nothing stored), for dropMenu.
-      dropTarget: (handlers) => tavern.on('refsdrag', (e) => {
+      dropTarget: (handlers) => host.on('refsdrag', (e) => {
         const ref = e.ref && cleanRef(e.ref);
         const dragged = { ref, card: (!ref && e.card && typeof e.card.title === 'string') ? e.card : null };
         const point = { x: e.x, y: e.y };
-        if (e.type !== 'over') tavern.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : dragged.card ? 'a card' : 'no valid pointer'})`);
+        if (e.type !== 'over') host.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : dragged.card ? 'a card' : 'no valid pointer'})`);
         if (e.type === 'over') handlers.over && handlers.over(point, ref, dragged);
         else if (e.type === 'leave') handlers.leave && handlers.leave();
         else if (e.type === 'drop') {
@@ -928,7 +928,7 @@
         const ctx = { ...(context || {}) };
         if (!ctx.card) {
           if (d.ref) {
-            const card = await tavern.refs.resolve(d.ref);
+            const card = await host.refs.resolve(d.ref);
             if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
             ctx.card = card;
           } else ctx.card = d.card || {};
@@ -941,18 +941,18 @@
         // card the drag carried has no module of its own, so only this module's own offers apply to it.
         if (!d.ref) return [];
         let list = [];
-        try { list = await tavern.actions.list({ accepts: `${d.ref.module}:${d.ref.kind}` }); } catch (err) { list = []; }
+        try { list = await host.actions.list({ accepts: `${d.ref.module}:${d.ref.kind}` }); } catch (err) { list = []; }
         const offers = [];
         const kindType = `ref:${d.ref.module}:${d.ref.kind}`;
         for (const a of list) {
-          if (a.module !== d.ref.module) { tavern.refs.trace(`drop: ${a.action} not offered (not the item's own module's)`); continue; }
-          if (!Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === kindType)) { tavern.refs.trace(`drop: ${a.action} not offered (takes the item only as any ref)`); continue; }
+          if (a.module !== d.ref.module) { host.refs.trace(`drop: ${a.action} not offered (not the item's own module's)`); continue; }
+          if (!Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === kindType)) { host.refs.trace(`drop: ${a.action} not offered (takes the item only as any ref)`); continue; }
           // What the action says the item must have (a position, a date, text): declared as `needs` on the action.
           const lacks = (a.needs || []).find((f) => !ctx.card[f]);
-          if (lacks) { tavern.refs.trace(`drop: ${a.action} not offered (the item has no ${lacks})`); continue; }
+          if (lacks) { host.refs.trace(`drop: ${a.action} not offered (the item has no ${lacks})`); continue; }
           const input = fillFor(a, d, ctx);
-          if (!input) { tavern.refs.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
-          if (!usesHere(input, ctx)) { tavern.refs.trace(`drop: ${a.action} not offered (nothing from under the pointer would be used)`); continue; }
+          if (!input) { host.refs.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
+          if (!usesHere(input, ctx)) { host.refs.trace(`drop: ${a.action} not offered (nothing from under the pointer would be used)`); continue; }
           offers.push({ id: a.action, label: a.label, hint: a.moduleName, icon: a.icon, action: a, input });
         }
         return offers;
@@ -968,7 +968,7 @@
         // The card first, once, so the module's own offers and the actions' fill see the same one.
         if (!ctx.card) {
           if (d.ref) {
-            const card = await tavern.refs.resolve(d.ref);
+            const card = await host.refs.resolve(d.ref);
             if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
             ctx.card = card;
           } else ctx.card = d.card || {};
@@ -976,15 +976,15 @@
         // An own offer wears this module's icon unless it names one; the actions wear their module's.
         const mine = info && info.module && info.module.icon;
         const offers = (own || []).filter((o) => o && (!o.when || o.when(ctx))).map((o) => (o.icon || !mine ? o : { ...o, icon: mine }));
-        offers.push(...await tavern.refs.offersFor(d, ctx));
-        tavern.refs.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
+        offers.push(...await host.refs.offersFor(d, ctx));
+        host.refs.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
         if (!offers.length) throw new Error('Nothing can be done with that here.');
         const kind = d.ref ? `${d.ref.module}:${d.ref.kind}` : 'card';
-        const chosen = await tavern.actions.pick(offers, point, remember ? { remember: `${kind}:${remember}` } : undefined);
+        const chosen = await host.actions.pick(offers, point, remember ? { remember: `${kind}:${remember}` } : undefined);
         if (!chosen) return null;
         if (chosen.run) await chosen.run(ctx);
         else {
-          const out = await tavern.actions.request(chosen.action.action, chosen.input, { wait: wait !== false });
+          const out = await host.actions.request(chosen.action.action, chosen.input, { wait: wait !== false });
           if (out.status === 'done' && out.result && out.result.ok === false) throw new Error(out.result.error || 'it could not be done');
         }
         return chosen;
@@ -1029,17 +1029,17 @@
             }
             cursor = e.id;
             try {
-              await tavern.storage.set(CURSOR, { id: cursor });
+              await host.storage.set(CURSOR, { id: cursor });
             } catch (err) {
               // read-only here: the cursor is kept for this visit only
             }
           });
         };
-        const off = tavern.on('bus', deliver);
+        const off = host.on('bus', deliver);
         (async () => {
           let saved = null;
           try {
-            const item = await tavern.storage.get(CURSOR);
+            const item = await host.storage.get(CURSOR);
             saved = item && item.value && item.value.id;
           } catch (err) {
             saved = null;
@@ -1048,7 +1048,7 @@
           if (saved == null) {
             if (cursor === null || cursor < r.latest) cursor = r.latest;
             try {
-              await tavern.storage.set(CURSOR, { id: cursor });
+              await host.storage.set(CURSOR, { id: cursor });
             } catch (err) {
               // read-only here
             }
@@ -1079,7 +1079,7 @@
       // asked; give each item an `id` (its label is used if not) so the choice survives wording changes.
       pick: (items, at, o) => new Promise((resolve) => {
         let list = (items || []).filter(Boolean);
-        const memory = o && o.remember ? `tavern:pick:${(info && info.module && info.module.id) || ''}:${String(o.remember).slice(0, 120)}` : '';
+        const memory = o && o.remember ? `app:pick:${(info && info.module && info.module.id) || ''}:${String(o.remember).slice(0, 120)}` : '';
         const idOf = (it) => String(it.id || it.label);
         if (memory && list.length > 1) {
           let last = '';
@@ -1090,11 +1090,11 @@
         }
         const remember = (it) => { if (!memory || !it) return it; try { localStorage.setItem(memory, idOf(it)); } catch (err) { /* not kept */ } return it; };
         if (list.length < 2) return resolve(list[0] || null);
-        // The same look as tavern.menu.show (its styles, an icon, the label, a hint): one menu, wherever it is asked.
+        // The same look as host.menu.show (its styles, an icon, the label, a hint): one menu, wherever it is asked.
         ensureUiStyles();
-        const host = tavern.rootElement;
+        const host = host.rootElement;
         const menu = document.createElement('div');
-        menu.className = 'tv-menu';
+        menu.className = 'sdk-menu';
         menu.setAttribute('role', 'menu');
         const done = (v) => { menu.remove(); document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); resolve(remember(v)); };
         const key = (e) => { if (e.key === 'Escape') done(null); };
@@ -1102,19 +1102,19 @@
         for (const item of list) {
           const b = document.createElement('button');
           b.type = 'button';
-          b.className = 'tv-menu-item';
+          b.className = 'sdk-menu-item';
           b.setAttribute('role', 'menuitem');
           if (item.icon) {
             const ic = document.createElement('span');
-            ic.className = 'tv-menu-icon';
+            ic.className = 'sdk-menu-icon';
             b.appendChild(ic);
             menuIcon(item.icon, item.regular ? 'regular' : 'solid').then((svg) => { if (svg) ic.innerHTML = svg; });
           }
           const label = document.createElement('span');
-          label.className = 'tv-menu-label';
+          label.className = 'sdk-menu-label';
           label.textContent = item.label;
           b.appendChild(label);
-          if (item.hint) { const h = document.createElement('div'); h.className = 'tv-menu-hint'; h.textContent = item.hint; b.appendChild(h); }
+          if (item.hint) { const h = document.createElement('div'); h.className = 'sdk-menu-hint'; h.textContent = item.hint; b.appendChild(h); }
           b.addEventListener('click', () => done(item));
           menu.appendChild(b);
         }
@@ -1171,7 +1171,7 @@
           }
         };
         const queue = (a) => { chain = chain.then(() => run(a)); };
-        tavern.on('action', queue);
+        host.on('action', queue);
         call('actions.pending', {}).then((list) => list.forEach(queue)).catch(() => {});
       },
     },
@@ -1205,7 +1205,7 @@
     // event with the button's id. Resolves true when the host drew them, false when it has no titlebar
     // to draw in (a module's server page), in which case keep the controls in the page. More than 5 items
     // (or any item marked `overflow: true`, e.g. a destructive one you always want tucked away) collapse
-    // into a host-drawn "..." at the end -- the same idea as tavern.menu.show, but for the host's own chrome.
+    // into a host-drawn "..." at the end -- the same idea as host.menu.show, but for the host's own chrome.
     header: {
       set: (items) => call('header.set', { items }),
     },
@@ -1236,7 +1236,7 @@
 
     // A menu of actions -- the shared shape for a row's "..." button, a right-click, a joint's +, anything
     // that is "here are some things you could do, pick one." Not for a single yes/no drop decision with
-    // nothing more to say afterward (see tavern.actions.pick for that).
+    // nothing more to say afterward (see host.actions.pick for that).
     //
     // show({ id, items, at, anchor, className, maxWidth }): items are [{ id?, label, icon?, iconColor?,
     // regular?, hint?, disabled?, danger?, separator?, href?, target?, onClick? }] (separator: true
@@ -1274,12 +1274,12 @@
     },
   };
 
-  return { tavern, emit };
+  return { host, emit };
   }
 
-  // A Tavern page that hosts modules includes this file with data-tavern-host, to build SDKs for modules
+  // A Tavern page that hosts modules includes this file with data-host-sdk, to build SDKs for modules
   // that run in the page; anywhere else, inside a frame, it boots for the module in that frame.
-  const hostPage = Boolean(document.currentScript && document.currentScript.hasAttribute('data-tavern-host'));
+  const hostPage = Boolean(document.currentScript && document.currentScript.hasAttribute('data-host-sdk'));
   if (!hostPage && global.parent !== global) {
     // In a sandboxed frame: talk to the page that hosts it.
     const pending = new Map();
@@ -1287,7 +1287,7 @@
     const call = (method, params) => new Promise((resolve, reject) => {
       const id = ++seq;
       pending.set(id, { resolve, reject });
-      global.parent.postMessage({ tavern: 1, id, method, params }, '*');
+      global.parent.postMessage({ host: 1, id, method, params }, '*');
       setTimeout(() => {
         if (!pending.delete(id)) return;
         reject(new Error('Tavern did not answer'));
@@ -1299,19 +1299,19 @@
       if (!theme) return;
       for (const [name, value] of Object.entries(theme)) document.documentElement.style.setProperty(name, value);
     };
-    const built = createTavern({
+    const built = createHost({
       call,
       root: document,
       rootElement: document.documentElement,
       elementAt: (pt) => document.elementFromPoint(pt.x, pt.y),
       applyTheme,
     });
-    global.tavern = built.tavern;
+    global.host = built.host;
     // The host puts a secret in this frame's address and in every message it sends.
     const secret = new URLSearchParams(global.location.search).get('tk');
     global.addEventListener('message', (e) => {
       const m = e.data;
-      if (!m || m.tavern !== 1 || m.tk !== secret) return;
+      if (!m || m.host !== 1 || m.tk !== secret) return;
       if (m.id !== undefined) {
         const p = pending.get(m.id);
         if (!p) return;
@@ -1331,11 +1331,11 @@
     });
   } else {
     // In the page: the host builds one per module running in the page.
-    global.createTavern = createTavern;
+    global.createHost = createHost;
   }
 
   // `esc` and `markdown` need no per-module env, so the room page (which loads this file directly for the modules
   // it hosts in the page, not as a module itself) can use the very same rendering Chat and every module share,
-  // rather than a second copy. See tavern.util.markdown above for what this covers.
+  // rather than a second copy. See host.util.markdown above for what this covers.
   global.tavernText = { esc, markdown };
 })(window);

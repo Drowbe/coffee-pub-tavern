@@ -2504,13 +2504,13 @@ app.get('/m/:id/:version/*path', (req, res) => {
   // A module's HTML pages get the SDK and the base styles inline, so a module
   // needs no <script> or <link> for them (and works even where a sandboxed
   // frame is not allowed to load its own subresources). A page that already
-  // includes /sdk/tavern.js keeps what it has; <meta name="tavern-base"
+  // includes /sdk/host.js keeps what it has; <meta name="sdk-base"
   // content="none"> leaves the base styles out.
   let html = fs.readFileSync(file, 'utf8');
-  if (!html.includes('/sdk/tavern.js')) {
-    const sdk = fs.readFileSync(path.join(publicDir, 'sdk', 'tavern.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
-    const css = /<meta[^>]+name=["']tavern-base["'][^>]+content=["']none["']/i.test(html) ? '' : fs.readFileSync(path.join(publicDir, 'sdk', 'tavern.css'), 'utf8');
-    const inject = `${css ? `<style id="tavern-base">${css}</style>` : ''}<script id="tavern-sdk">${sdk}</script>`;
+  if (!html.includes('/sdk/host.js')) {
+    const sdk = fs.readFileSync(path.join(publicDir, 'sdk', 'host.js'), 'utf8').replace(/<\/script/gi, '<\\/script');
+    const css = /<meta[^>]+name=["']sdk-base["'][^>]+content=["']none["']/i.test(html) ? '' : fs.readFileSync(path.join(publicDir, 'sdk', 'host.css'), 'utf8');
+    const inject = `${css ? `<style id="sdk-base">${css}</style>` : ''}<script id="sdk-script">${sdk}</script>`;
     html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (m) => m + inject) : inject + html;
   }
   res.type('html').send(html);

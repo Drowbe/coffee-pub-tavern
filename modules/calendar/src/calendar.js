@@ -2,21 +2,21 @@
 // page, a room's docked pane or floating panel, and a window of its own. On the
 // server page it holds the server's events and shows, read-only, the events of every
 // room the viewer belongs to (each marked with its room's icon); in a room it holds
-// that room's events and shows the server's beside them. The SDK (window.tavern) is injected by Tavern.
+// that room's events and shows the server's beside them. The SDK (window.host) is injected by Tavern.
 (async function () {
   'use strict';
 
   // This module runs in a frame (the SDK is a global) or in the page (its SDK is handed to its script);
-  // either way it looks elements up in tavern.root, never in document, so it works in both.
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  // either way it looks elements up in host.root, never in document, so it works in both.
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
 
   const $ = (id) => root.getElementById(id);
-  const { esc, ymd, parseYmd } = tavern.util;
+  const { esc, ymd, parseYmd } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'The calendar could not start: ' + err.message;
     return;
@@ -24,8 +24,8 @@
   const inRoom = info.context.scope === 'room';
   // The person's own choice of the view to open on (Settings > Module settings).
   let prefs = {};
-  try { prefs = await tavern.settings.get(); } catch (err) { prefs = {}; }
-  const canEdit = tavern.can('edit');
+  try { prefs = await host.settings.get(); } catch (err) { prefs = {}; }
+  const canEdit = host.can('edit');
   const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { return undefined; } })();
 
   // Every event we know of, by "<scope>:<id>". `scope` is where it is stored: 'room'
@@ -75,24 +75,24 @@
   };
   async function load() {
     events.clear();
-    for (const item of await tavern.storage.list('event:')) remember('room', item);
+    for (const item of await host.storage.list('event:')) remember('room', item);
     if (inRoom) {
       try {
-        for (const item of await tavern.storage.list('event:', { scope: 'server' })) remember('server', item);
+        for (const item of await host.storage.list('event:', { scope: 'server' })) remember('server', item);
       } catch (err) {
         // guests and people without server access see just the room's events
       }
     } else if (info.context.scope === 'server') {
       // Every room the viewer belongs to that has the calendar on.
       try {
-        for (const r of await tavern.rooms()) roomInfo.set(r.id, r);
-        for (const item of await tavern.storage.list('event:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
+        for (const r of await host.rooms()) roomInfo.set(r.id, r);
+        for (const item of await host.storage.list('event:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
       } catch (err) {
         // no rooms is fine: just the server's own events
       }
     }
   }
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     if (!e.key.startsWith('event:')) return;
     const scope = e.scope === 'rooms' ? 'rooms' : e.scope === 'server' && inRoom ? 'server' : 'room';
     const id = e.key.slice(6);
@@ -207,7 +207,7 @@
     { id: 'both', label: 'Month + list' },
     { id: 'list', label: 'List' },
   ];
-  const viewSwitch = tavern.ui.viewSwitch({
+  const viewSwitch = host.ui.viewSwitch({
     id: 'view',
     options: VIEWS,
     value: view,
@@ -275,25 +275,25 @@
   // shows the event's span.
   const span = () => [$('f-date').value, $('f-end-date').value];
   const pickers = [
-    tavern.ui.datePicker($('f-date'), { range: span }),
-    tavern.ui.datePicker($('f-end-date'), { range: span, clearable: true }),
-    tavern.ui.datePicker($('f-until'), { range: span, clearable: true }),
+    host.ui.datePicker($('f-date'), { range: span }),
+    host.ui.datePicker($('f-end-date'), { range: span, clearable: true }),
+    host.ui.datePicker($('f-until'), { range: span, clearable: true }),
   ];
 
   // --- what links to an event, and being opened from a link -----------------------
   // Other modules (a to-do, say) can point at an event. Tavern tells this module what points at it
-  // (tavern.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
-  // shown (tavern.refs.onOpen). Nothing here knows which modules those are.
+  // (host.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
+  // shown (host.refs.onOpen). Nothing here knows which modules those are.
 
   const whereFor = (x) => (x.scope === 'rooms' ? { room: x.roomId } : x.scope === 'server' && inRoom ? { scope: 'server' } : undefined);
   let backlinksFor = null; // the event key the shown backlinks are for
   async function showBacklinks(x) {
     backlinksFor = x ? x.key : null;
     $('f-links-wrap').hidden = true;
-    if (!x || !tavern.refs || !tavern.refs.linksTo) return;
+    if (!x || !host.refs || !host.refs.linksTo) return;
     let cards = [];
     try {
-      cards = await tavern.refs.linksTo(tavern.refs.make('event', x.id, whereFor(x)));
+      cards = await host.refs.linksTo(host.refs.make('event', x.id, whereFor(x)));
     } catch (err) {
       cards = [];
     }
@@ -305,11 +305,11 @@
   }
   $('f-links').addEventListener('click', (e) => {
     const b = e.target.closest('[data-ref]');
-    if (b && tavern.refs) tavern.refs.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
+    if (b && host.refs) host.refs.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
   });
   // Opened at a place in the page (from the dashboard's month: "day=2026-09-24"): show that month with that day marked.
-  if (tavern.page && tavern.page.onHash) {
-    tavern.page.onHash((hash) => {
+  if (host.page && host.page.onHash) {
+    host.page.onHash((hash) => {
       const m = /(?:^|&)day=(\d{4}-\d{2}-\d{2})(?:&|$)/.exec(hash);
       if (!m) return;
       const d = parseYmd(m[1]);
@@ -326,8 +326,8 @@
       }
     });
   }
-  if (tavern.refs && tavern.refs.onOpen) {
-    tavern.refs.onOpen((ref) => {
+  if (host.refs && host.refs.onOpen) {
+    host.refs.onOpen((ref) => {
       const x = events.get(keyOf('room', ref.id)) || events.get(keyOf('server', ref.id)) || events.get(keyOf('rooms', ref.id, ref.room));
       if (!x) return;
       const d = startOf(x.ev);
@@ -337,7 +337,7 @@
       render();
       openEditor(x);
     });
-    tavern.on('links', (e) => {
+    host.on('links', (e) => {
       if (e.ref && e.ref.kind === 'event' && editing && events.get(backlinksFor) && events.get(backlinksFor).id === e.ref.id) showBacklinks(events.get(backlinksFor));
     });
   }
@@ -394,7 +394,7 @@
   // changes or goes away.
   async function applyReminder(id, ev) {
     const key = 'remind:' + id;
-    const stop = () => tavern.cancelSchedule(key);
+    const stop = () => host.cancelSchedule(key);
     try {
       if (ev.remind === null || ev.remind === undefined) return await stop();
       const lead = ev.remind * 60 * 1000;
@@ -407,7 +407,7 @@
       const until = ev.repeat && ev.repeat.until ? endOfDay(parseYmd(ev.repeat.until)).getTime() : null;
       if (until !== null && at > until) return await stop();
       const label = ev.remind === 0 ? 'Starting now' : ev.remind === 15 ? 'Starts in 15 minutes' : ev.remind === 60 ? 'Starts in an hour' : 'Starts tomorrow';
-      await tavern.schedule({
+      await host.schedule({
         key,
         at,
         payload: { id },
@@ -458,7 +458,7 @@
     const ev = { id, title, allDay, start, end, desc: $('f-desc').value.trim(), remind, repeat, by: info.user.name };
     $('f-save').disabled = true;
     try {
-      const saved = await tavern.storage.set('event:' + id, ev, editing.id ? { version: editing.version } : {});
+      const saved = await host.storage.set('event:' + id, ev, editing.id ? { version: editing.version } : {});
       remember('room', { key: 'event:' + id, value: ev, version: saved.version });
       let reminderFailed = false;
       try { await applyReminder(id, ev); } catch (err) { reminderFailed = true; }
@@ -493,8 +493,8 @@
     }
     deleteArmed = false;
     try {
-      await tavern.storage.delete('event:' + editing.id);
-      try { await tavern.cancelSchedule('remind:' + editing.id); } catch (err) { /* nothing to cancel */ }
+      await host.storage.delete('event:' + editing.id);
+      try { await host.cancelSchedule('remind:' + editing.id); } catch (err) { /* nothing to cancel */ }
       events.delete(keyOf(editing.scope, editing.id));
       closeEditor();
       render();
@@ -518,19 +518,19 @@
   $('add').addEventListener('click', () => openEditor(null));
   // The host draws the Add button in the module's action bar (in the space's bottom row when
   // docked); the button in the header stays only for a host without one.
-  if (tavern.bar) {
+  if (host.bar) {
     $('add').classList.add('hosted');
-    tavern.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add event', placeholder: 'Add an event: lunch fri at noon' }] : []).catch(() => $('add').classList.remove('hosted'));
-    tavern.on('bar', (e) => {
+    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add event', placeholder: 'Add an event: lunch fri at noon' }] : []).catch(() => $('add').classList.remove('hosted'));
+    host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
-      const q = e.value ? tavern.util.parseWhen(e.value) : {};
+      const q = e.value ? host.util.parseWhen(e.value) : {};
       openEditor(null, q.date, q);
     });
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a
   // pointer to the event, and the other module asks Tavern for what it may show.
-  if (tavern.refs && tavern.refs.draggable) {
-    tavern.refs.draggable($('body'), (target) => {
+  if (host.refs && host.refs.draggable) {
+    host.refs.draggable($('body'), (target) => {
       const open = target.closest('[data-open]');
       const x = open && events.get(open.dataset.open);
       return x ? { kind: 'event', id: x.id, label: x.ev.title, ...whereFor(x) } : null;
@@ -552,16 +552,16 @@
   async function createEventOn(title, date, ref) {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const ev = { id, title: String(title).slice(0, 120), allDay: true, start: date, end: null, desc: '', remind: null, repeat: null, by: info.user.name };
-    const saved = await tavern.storage.set('event:' + id, ev, {});
+    const saved = await host.storage.set('event:' + id, ev, {});
     remember('room', { key: 'event:' + id, value: ev, version: saved.version });
-    const made = tavern.refs.make('event', id);
+    const made = host.refs.make('event', id);
     // Made from an item dropped or handed over: point at it, so the link shows from both ends.
-    if (ref && tavern.refs.setLinks) tavern.refs.setLinks(made, [ref]).catch(() => {});
+    if (ref && host.refs.setLinks) host.refs.setLinks(made, [ref]).catch(() => {});
     render();
     return { ref: made };
   }
   const dropSpot = (pt) => {
-    const el = tavern.refs.elementAt(pt);
+    const el = host.refs.elementAt(pt);
     if (!el) return null;
     const open = el.closest('[data-open]');
     const x = open && events.get(open.dataset.open);
@@ -570,12 +570,12 @@
     return cell ? { el: cell, event: null, day: cell.dataset.day } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.drop')) e.classList.remove('drop'); };
-  // What a drop can do is the one shared decision (tavern.refs.dropMenu): this module says what is under the
+  // What a drop can do is the one shared decision (host.refs.dropMenu): this module says what is under the
   // pointer (the day, and the event when dropped on one) and offers its own (make an event of it); the SDK adds
   // whatever the modules around offer for an item of that kind, filled from the same context.
-  if (tavern.refs && tavern.refs.dropTarget && tavern.actions) {
+  if (host.refs && host.refs.dropTarget && host.actions) {
     const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    tavern.refs.dropTarget({
+    host.refs.dropTarget({
       over: (pt, ref, dragged) => {
         clearDrop();
         if (!foreign(ref, dragged) || !canEdit) return;
@@ -587,11 +587,11 @@
         clearDrop();
         if (!foreign(ref, dragged) || !canEdit) return;
         const spot = dropSpot(pt);
-        tavern.refs.trace(spot ? 'drop on ' + (spot.event ? 'event ' + spot.event.id : 'day ' + spot.day) : 'drop: nothing under the pointer');
+        host.refs.trace(spot ? 'drop on ' + (spot.event ? 'event ' + spot.event.id : 'day ' + spot.day) : 'drop: nothing under the pointer');
         if (!spot) return;
         try {
-          const context = { date: spot.day, ...(spot.event ? { target: tavern.refs.make('event', spot.event.id, whereFor(spot.event)) } : {}) };
-          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+          const context = { date: spot.day, ...(spot.event ? { target: host.refs.make('event', spot.event.id, whereFor(spot.event)) } : {}) };
+          const chosen = await host.refs.dropMenu(dragged, pt, {
             context,
             own: spot.event ? [] : [{ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: (ctx) => createEventOn(ctx.card.title || (ref ? ref.kind : 'Event'), spot.day, ref) }],
             remember: spot.event ? 'event' : 'day',
@@ -604,8 +604,8 @@
     });
   }
   // What other modules may ask of this one: put something on the calendar, pointing at `ref` when one is given.
-  if (tavern.actions && tavern.actions.provide) {
-    tavern.actions.provide({
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
       createEvent: async (input) => {
         if (!canEdit) throw new Error('this person cannot add events here');
         return createEventOn(input.title, input.date, input.ref);
@@ -630,11 +630,11 @@
   // A frame can report no width while it is still being laid out, so wait for a real
   // one before choosing the compact layout.
   const fit = () => {
-    const w = tavern.rootElement.clientWidth;
+    const w = host.rootElement.clientWidth;
     if (!w) return;
     $('app').classList.toggle('compact', w < 520);
   };
-  new ResizeObserver(() => { fit(); render(); }).observe(tavern.rootElement);
+  new ResizeObserver(() => { fit(); render(); }).observe(host.rootElement);
 
   $('add').hidden = !canEdit;
   try {
@@ -655,7 +655,7 @@
   const WEEK = 7 * 24 * 60 * 60 * 1000;
   const announcing = new Set();
   async function announceEnded() {
-    if (!tavern.events || !canEdit) return;
+    if (!host.events || !canEdit) return;
     const now = Date.now();
     let sent = 0;
     for (const x of [...events.values()]) {
@@ -666,10 +666,10 @@
       sent += 1;
       const ev = { ...x.ev, announced: true };
       try {
-        const saved = await tavern.storage.set('event:' + x.id, ev, { version: x.version });
+        const saved = await host.storage.set('event:' + x.id, ev, { version: x.version });
         remember('room', { key: 'event:' + x.id, value: ev, version: saved.version });
         const day = startOf(ev).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        await tavern.events.publish('ended', { ref: tavern.refs.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
+        await host.events.publish('ended', { ref: host.refs.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
       } catch (err) {
         // someone else announced it first, or nobody may hear it: the event is fine either way
       } finally {

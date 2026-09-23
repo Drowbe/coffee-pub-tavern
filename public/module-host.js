@@ -1,5 +1,5 @@
 // The page side of a module frame. A module runs in a sandboxed iframe and can
-// only talk to this page (see public/sdk/tavern.js); this file answers those
+// only talk to this page (see public/sdk/host.js); this file answers those
 // calls by making the real, authenticated requests, and pushes live changes
 // back into the frame. Used by the server-page shell (module.js) and by the
 // room's floating panels (room.js).
@@ -61,7 +61,7 @@ function joinStream(room, guest, onEvent) {
 
 // --- dragging an item from one module onto another ---------------------------------------------
 // A drag that starts in one module frame does not reliably carry its data into another, so the host
-// brokers it. The source says a drag of a pointer began (tavern.refs.drag), the host puts an invisible
+// brokers it. The source says a drag of a pointer began (host.refs.drag), the host puts an invisible
 // layer over every other module frame on the page for the length of the drag, and the layer, being in
 // the host's own page, receives the drag. It tells the frame under it where the pointer is and, on a
 // drop, which pointer was dropped, in the frame's own coordinates. The frame decides what that means
@@ -119,14 +119,14 @@ function beginDrag(source, ref) {
 // adds a line at the bottom left of the page.
 try {
   const flag = new URLSearchParams(location.search).get('debug');
-  if (flag === '1') localStorage.setItem('tavern.debug', '1');
-  else if (flag === '0') localStorage.removeItem('tavern.debug');
+  if (flag === '1') localStorage.setItem('app.debug', '1');
+  else if (flag === '0') localStorage.removeItem('app.debug');
 } catch {
   // no storage: no trace
 }
 const debugOn = () => {
   try {
-    return localStorage.getItem('tavern.debug') === '1';
+    return localStorage.getItem('app.debug') === '1';
   } catch {
     return false;
   }
@@ -136,11 +136,11 @@ function trace(text) {
   if (!debugOn()) return;
   traceLines.push(`${new Date().toLocaleTimeString([], { hour12: false })} ${text}`);
   if (traceLines.length > 12) traceLines.shift();
-  console.log('[tavern]', text);
-  let box = document.getElementById('tavern-debug');
+  console.log('[host]', text);
+  let box = document.getElementById('app-debug');
   if (!box) {
     box = document.createElement('pre');
-    box.id = 'tavern-debug';
+    box.id = 'app-debug';
     box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483002;margin:0;padding:8px 10px;max-width:60vw;max-height:40vh;overflow:auto;background:rgba(0,0,0,.85);color:#9f9;font:11px/1.35 monospace;border-radius:6px;pointer-events:none';
     document.body.appendChild(box);
   }
@@ -148,7 +148,7 @@ function trace(text) {
 }
 
 // A drag driven by the pointer instead of the browser's drag and drop, which is unreliable between
-// sandboxed frames. The source frame (tavern.refs.draggable) tells the host when a drag begins, where
+// sandboxed frames. The source frame (host.refs.draggable) tells the host when a drag begins, where
 // the pointer is as it moves, and where it lets go, in its own coordinates; the host turns those into
 // the page's, finds the module frame under the pointer, and forwards over, leave and drop to it in
 // that frame's coordinates, drawing a small label at the pointer meanwhile.
@@ -239,8 +239,8 @@ function ptrDrop(x, y) {
 }
 
 // A host-drawn "..." dropdown for whatever a header, action bar or toolbar row didn't have room for --
-// the host's own chrome, so it cannot use a module's tavern.menu.show (that draws inside the module's own
-// frame). Only one is ever open at once across every mounted module, same rule as tavern.menu.show.
+// the host's own chrome, so it cannot use a module's host.menu.show (that draws inside the module's own
+// frame). Only one is ever open at once across every mounted module, same rule as host.menu.show.
 let openOverflow = null;
 function closeOverflow() {
   if (!openOverflow) return;
@@ -444,7 +444,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (guestToken) p.set('guest', guestToken);
       return (await api('GET', `/api/refs/links?${p}`)).cards;
     },
-    // Events and actions between modules (see the SDK's tavern.events and tavern.actions). Always in this
+    // Events and actions between modules (see the SDK's host.events and host.actions). Always in this
     // module's own place, and always on its behalf: the server checks what it declared and was approved for.
     async 'events.publish'({ name, ref, data }) {
       return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref, data, ...busPlaceBody() });
@@ -690,7 +690,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       }
       return true;
     },
-    // An optional row under the titlebar: filters, tabs, a progress bar -- see tavern.toolbar.set.
+    // An optional row under the titlebar: filters, tabs, a progress bar -- see host.toolbar.set.
     async 'toolbar.set'({ items }) {
       if (!toolbar) return false;
       const clean = (Array.isArray(items) ? items : []).slice(0, 12).map((i) => {
@@ -841,7 +841,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (onToolbar) onToolbar(clean.length > 0);
       return true;
     },
-    // A drag of a pointer to one of this module's items began or ended (see tavern.refs.drag).
+    // A drag of a pointer to one of this module's items began or ended (see host.refs.drag).
     async 'refs.dragStart'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       beginDrag(mine, { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) });
@@ -857,7 +857,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       trace(`${module.id}: ${String(msg).slice(0, 160)}`);
       return true;
     },
-    // The pointer-driven drag (see tavern.refs.draggable): begin, move, and let go.
+    // The pointer-driven drag (see host.refs.draggable): begin, move, and let go.
     // What is dragged is a pointer to one of this module's items, or, for a module with nothing stored (an answer
     // the assistant wrote), the card itself.
     async 'refs.ptrStart'({ ref, card, label, x, y }) {
@@ -892,13 +892,13 @@ export function mountModule({ module, frame = null, container = null, scope, roo
   const secret = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
 
   function reply(id, message) {
-    frame.contentWindow?.postMessage({ tavern: 1, tk: secret, id, ...message }, '*');
+    frame.contentWindow?.postMessage({ host: 1, tk: secret, id, ...message }, '*');
   }
 
   async function onMessage(e) {
     if (pageMode || e.source !== frame.contentWindow) return; // only our own frame
     const m = e.data;
-    if (!m || m.tavern !== 1 || typeof m.id !== 'number' || typeof m.method !== 'string') return;
+    if (!m || m.host !== 1 || typeof m.id !== 'number' || typeof m.method !== 'string') return;
     const handler = handlers[m.method];
     if (!handler) return reply(m.id, { error: { message: `unknown call ${m.method}`, status: 400 } });
     try {
@@ -921,7 +921,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (sdkEmit) sdkEmit(event, data);
       return;
     }
-    frame.contentWindow?.postMessage({ tavern: 1, tk: secret, event, data }, '*');
+    frame.contentWindow?.postMessage({ host: 1, tk: secret, event, data }, '*');
   }
   // A room's pane hears that room and the server; a module's server page hears the server and
   // the viewer's spaces (see the stream's scopes on the server).
@@ -967,7 +967,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (!res.ok) throw new Error(`${url} ${res.status}`);
       return res.text();
     };
-    const [sdkCss, css, body] = await Promise.all([text('/sdk/tavern.css'), text(`${base}?part=css`), text(`${base}?part=body`)]);
+    const [sdkCss, css, body] = await Promise.all([text('/sdk/host.css'), text(`${base}?part=css`), text(`${base}?part=body`)]);
     const root = container.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = scopeCss(sdkCss) + '\n' + scopeCss(css);
@@ -980,7 +980,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (!handler) return Promise.reject(Object.assign(new Error(`unknown call ${method}`), { status: 400 }));
       return Promise.resolve().then(() => handler(params || {}));
     };
-    const built = window.createTavern({
+    const built = window.createHost({
       call,
       root,
       rootElement: container,
@@ -999,7 +999,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     await new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = `${base}?part=js&v=${encodeURIComponent(module.version)}`;
-      script.tavern = built.tavern; // the module reads it from document.currentScript when it starts
+      script.host = built.host; // the module reads it from document.currentScript when it starts
       script.onload = () => { script.remove(); resolve(); };
       script.onerror = () => { script.remove(); reject(new Error('its script did not load')); };
       document.head.appendChild(script);

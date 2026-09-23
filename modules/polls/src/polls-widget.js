@@ -1,17 +1,17 @@
 // The Polls' dashboard widget: open polls the viewer has not voted in yet, across every room they are in and the
 // server's own polls. It shows and opens; voting happens in the poll. Clicking a poll takes the person to it
-// (tavern.refs.open); the widget's heading opens all the polls.
+// (host.refs.open); the widget's heading opens all the polls.
 (async () => {
   'use strict';
 
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
-  const { esc } = tavern.util;
+  const { esc } = host.util;
 
   let info;
   try {
-    info = await tavern.ready();
+    info = await host.ready();
   } catch (err) {
     $('msg').textContent = 'Polls could not start: ' + err.message;
     return;
@@ -20,7 +20,7 @@
 
   // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
   let goIcon = '';
-  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+  try { goIcon = await host.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
 
   const MAX_ITEMS = 8;
   const polls = new Map(); // "<place>:<id>" -> { id, roomId, p }
@@ -40,12 +40,12 @@
         if (user === me && (item.value.options || []).length) mine.add(`${place}:${id}`);
       }
     };
-    for (const item of await tavern.storage.list('poll:')) add(item, null);
-    for (const item of await tavern.storage.list('vote:')) add(item, null);
+    for (const item of await host.storage.list('poll:')) add(item, null);
+    for (const item of await host.storage.list('vote:')) add(item, null);
     try {
-      for (const r of await tavern.rooms()) rooms.set(r.id, r);
-      for (const item of await tavern.storage.list('poll:', { scope: 'rooms' })) add(item, item.roomId);
-      for (const item of await tavern.storage.list('vote:', { scope: 'rooms' })) add(item, item.roomId);
+      for (const r of await host.rooms()) rooms.set(r.id, r);
+      for (const item of await host.storage.list('poll:', { scope: 'rooms' })) add(item, item.roomId);
+      for (const item of await host.storage.list('vote:', { scope: 'rooms' })) add(item, item.roomId);
     } catch (err) {
       // no rooms is fine: just the server's own polls
     }
@@ -53,7 +53,7 @@
 
   function closesText(p) {
     if (!p.closesAt) return '';
-    return 'Closes ' + new Date(p.closesAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() });
+    return 'Closes ' + new Date(p.closesAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: host.util.hour12() });
   }
 
   function render() {
@@ -77,7 +77,7 @@
   // A widget in a frame tells the dashboard how tall it is; one in the page just takes the room it needs.
   function fit() {
     try {
-      tavern.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
+      host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
     } catch (err) {
       // the host sizes it
     }
@@ -87,11 +87,11 @@
     const b = e.target.closest('[data-poll]');
     if (!b) return;
     const [room, id] = b.dataset.poll.split('|');
-    tavern.refs.open(tavern.refs.make('poll', id, room ? { room } : undefined)).catch(() => {});
+    host.refs.open(host.refs.make('poll', id, room ? { room } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     const key = String(e.key);
     if (!key.startsWith('poll:') && !key.startsWith('vote:')) return;
     clearTimeout(refreshing);

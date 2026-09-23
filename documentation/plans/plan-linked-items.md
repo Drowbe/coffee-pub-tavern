@@ -10,7 +10,7 @@ Add a poll to a plan; the plan shows it. Delete the poll. The plan still shows t
 
 ## What exists
 
-- A pointer (`{ module, kind, id, scope, room }`) names an item in another module. A module asks `tavern.refs.resolve` for its card, and the server answers per viewer: a card, or an error such as "that item is no longer there" (404).
+- A pointer (`{ module, kind, id, scope, room }`) names an item in another module. A module asks `host.refs.resolve` for its card, and the server answers per viewer: a card, or an error such as "that item is no longer there" (404).
 - The server keeps a table of what points at what (`setLinks`), so an item can ask what links to it (`linksTo`, backlinks).
 - Modules can hear what happens in others (`events.subscribe`), for example a poll finishing.
 - Planner items keep a stored copy of what they show (a title) as well as the pointer.
@@ -31,7 +31,7 @@ Add a poll to a plan; the plan shows it. Delete the poll. The plan still shows t
 
 ## Design
 
-1. **The server knows the graph, so the server tells holders.** Every write or delete of an item that has a pointer key in the link table raises a generic change: `deleted`, `updated` (its card changed) or `access` (who may see it changed). Modules do not have to remember to announce anything; the store is where it is seen. Holders hear it as `tavern.refs.onChange(fn)`, with `{ ref, change }`, whenever their page is open.
+1. **The server knows the graph, so the server tells holders.** Every write or delete of an item that has a pointer key in the link table raises a generic change: `deleted`, `updated` (its card changed) or `access` (who may see it changed). Modules do not have to remember to announce anything; the store is where it is seen. Holders hear it as `host.refs.onChange(fn)`, with `{ ref, change }`, whenever their page is open.
 2. **Holders declare what they hold, so the server can clean up when no page is open.** A module names in `module.json` which of its stored items hold a pointer and in which field, and what should happen: `refs.holds: [{ key: "item:", field: "ref", onDelete: "remove" | "mark", sync: { title: "title", date: "when" } }]`. `remove` deletes the holding item; `mark` sets it aside as "gone" (for a place a person still wants to see was there). `sync` names the fields kept in step with the card. The server applies these itself, so the result is right even if nobody has the plan open.
 3. **A resolve answer has a state.** `card`, or `{ state: "gone" | "hidden" }`, never a bare error the holder has to interpret. `gone`: the item no longer exists. `hidden`: it exists but this viewer may not see it.
 4. **Holders draw the states.** A "gone" holder is a muted placeholder (a broken-link icon, the last known title struck through, "No longer available", a **Remove** action); a "hidden" one says "Not available to you". Neither opens an editor. The design side draws these once (for the card family in Planner, the small pill in Places, the row in a task), and every module that links follows the same look.

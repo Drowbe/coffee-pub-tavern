@@ -119,13 +119,13 @@ async function start() {
   });
 }
 
-// A place in the module's own page left in the address by a widget ("#day=2026-09-24"; see tavern.page.open).
+// A place in the module's own page left in the address by a widget ("#day=2026-09-24"; see host.page.open).
 function placeFromHash() {
   const m = /^#([A-Za-z0-9=&_.:,-]{1,80})$/.exec(location.hash);
   return m && !m[1].startsWith('ref=') ? m[1] : null;
 }
 
-// A pointer left in the address by another module's "open this" (see tavern.refs.open).
+// A pointer left in the address by another module's "open this" (see host.refs.open).
 function refFromHash() {
   try {
     const m = /^#ref=(.+)$/.exec(location.hash);
@@ -144,7 +144,7 @@ function wireTitlebar(mod) {
   $('module-close').addEventListener('click', () => window.close());
   let host = null;
   try {
-    host = window.opener && !window.opener.closed ? window.opener.tavernModules : null;
+    host = window.opener && !window.opener.closed ? window.opener.hostModules : null;
   } catch {
     host = null;
   }

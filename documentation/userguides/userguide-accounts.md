@@ -13,7 +13,7 @@ Each account can sign in either way, or both:
 
 - **Login and password.** The admin picks both and tells the player.
 - **Personal link.** Turn it on for a player and copy the link, something like
-  `https://tavern.<domain>/j/2f3kd...`. Opening it signs them in and lands them at the table.
+  `https://host.<domain>/j/2f3kd...`. Opening it signs them in and lands them at the table.
   Regenerate it to make the old one stop working; turn it off to require a password.
 
 Nobody changes their own password; an admin sets it. Sessions last 30 days. Changing someone's

@@ -1,16 +1,16 @@
 // The To-do's dashboard widget: tasks that are due within the week (or overdue) and not done, across every room
 // the viewer is in and the server's own list. It shows and opens; it never edits. Clicking a task takes the person
-// to it (tavern.refs.open); the widget's heading opens the full list.
+// to it (host.refs.open); the widget's heading opens the full list.
 (async () => {
   'use strict';
 
-  const tavern = (document.currentScript && document.currentScript.tavern) || window.tavern;
-  const root = tavern.root;
+  const host = (document.currentScript && document.currentScript.host) || window.host;
+  const root = host.root;
   const $ = (id) => root.getElementById(id);
-  const { esc, ymd, parseYmd } = tavern.util;
+  const { esc, ymd, parseYmd } = host.util;
 
   try {
-    await tavern.ready();
+    await host.ready();
   } catch (err) {
     $('msg').textContent = 'The to-do list could not start: ' + err.message;
     return;
@@ -18,7 +18,7 @@
 
   // The arrow that says "go there", as inline SVG (a frame cannot load the icon font).
   let goIcon = '';
-  try { goIcon = await tavern.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
+  try { goIcon = await host.ui.icon('circle-right'); } catch (err) { goIcon = ''; }
 
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 8;
@@ -27,10 +27,10 @@
 
   async function load() {
     tasks.clear();
-    for (const item of await tavern.storage.list('task:')) if (item.value) tasks.set('server:' + item.key, { id: item.key.slice(5), roomId: null, t: item.value });
+    for (const item of await host.storage.list('task:')) if (item.value) tasks.set('server:' + item.key, { id: item.key.slice(5), roomId: null, t: item.value });
     try {
-      for (const r of await tavern.rooms()) rooms.set(r.id, r);
-      for (const item of await tavern.storage.list('task:', { scope: 'rooms' })) if (item.value) tasks.set(`${item.roomId}:${item.key}`, { id: item.key.slice(5), roomId: item.roomId, t: item.value });
+      for (const r of await host.rooms()) rooms.set(r.id, r);
+      for (const item of await host.storage.list('task:', { scope: 'rooms' })) if (item.value) tasks.set(`${item.roomId}:${item.key}`, { id: item.key.slice(5), roomId: item.roomId, t: item.value });
     } catch (err) {
       // no rooms is fine: just the server's own tasks
     }
@@ -67,7 +67,7 @@
   // A widget in a frame tells the dashboard how tall it is; one in the page just takes the room it needs.
   function fit() {
     try {
-      tavern.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
+      host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
     } catch (err) {
       // the host sizes it
     }
@@ -77,11 +77,11 @@
     const b = e.target.closest('[data-task]');
     if (!b) return;
     const [room, id] = b.dataset.task.split('|');
-    tavern.refs.open(tavern.refs.make('task', id, room ? { room } : undefined)).catch(() => {});
+    host.refs.open(host.refs.make('task', id, room ? { room } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;
-  tavern.on('change', (e) => {
+  host.on('change', (e) => {
     if (!String(e.key).startsWith('task:')) return;
     clearTimeout(refreshing);
     refreshing = setTimeout(() => load().then(render).catch(() => {}), 300);

@@ -11,8 +11,8 @@ any other caller relies on. How to add one by hand is in
 ## The URL
 
 ```
-https://tavern.<domain>/view/<key>?s=<stream key>&kind=player
-https://tavern.<domain>/view/<key>?s=<stream key>&kind=character
+https://host.<domain>/view/<key>?s=<stream key>&kind=player
+https://host.<domain>/view/<key>?s=<stream key>&kind=character
 ```
 
 `<key>` is the player's account key, the eight-character identifier that never changes when a login or

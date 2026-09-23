@@ -12,7 +12,7 @@
 <!--
   The page and every piece of markup the script clones. The script fills a clone by hooks only:
     [data-slot=name]   set its textContent (or hide it when there is no value)
-    [data-icon=name]   replace its content with tavern.ui.icon(name)
+    [data-icon=name]   replace its content with host.ui.icon(name)
   and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no style
   (one exception: the item menu is placed under the button that opened it). The reference rendering is design/places.html.
 -->
@@ -22,7 +22,7 @@
     <span class="count" data-slot="count"></span>
     <div class="filter"><span class="ic" data-icon="magnifying-glass"></span><input id="filter" type="search" maxlength="100" placeholder="Filter places" aria-label="Filter places" autocomplete="off"></div>
   </header>
-  <!-- whose places (Mine/This room/Everyone): tavern.ui.viewSwitch draws it in the toolbar, not here -->
+  <!-- whose places (Mine/This room/Everyone): host.ui.viewSwitch draws it in the toolbar, not here -->
   <p class="view-note" data-slot="view-note" hidden><span class="ic" data-icon="circle-info"></span><span data-slot="text"></span></p>
   <div class="chips" id="chips" role="group" aria-label="Category"></div>
   <p class="error" id="note" hidden></p>
