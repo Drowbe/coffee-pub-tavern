@@ -7,7 +7,8 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 .land-links { display: flex; align-items: center; gap: 18px; font-size: 14px; }
 .land-links a { color: var(--text-dim); text-decoration: none; }
 .land-links a:hover { color: var(--text); }
-.land-links .btn { color: var(--on-accent); }
+.land-links .btn { color: var(--secondary-text, var(--text)); }
+.land-links .btn-primary { color: var(--on-accent); }
 
 .hero { padding: 72px 0 56px; text-align: center; }
 .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
