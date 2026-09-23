@@ -101,4 +101,6 @@ Built by two sessions at once against this contract: the server half (the regist
 
 **The console** (`host.<base>`, `public/host.html` + `public/host.js`, the primary nav only): sign in; the environments as a list (a slug, a name, a status, the plan's caps against the usage, a link to open it); create one (slug, name, the first owner); edit a plan; suspend and restore; backup; the host admins; the base domain and version. No tenant's data is shown beyond the counts.
 
+**Previous base domains.** The product's name is not settled, so the base domain may change after environments exist, and every environment's address is `<slug>.<base>`. The registry keeps `previousBaseDomains: [...]` (set from `PREVIOUS_BASE_DOMAINS`, comma-separated): a request at `<slug>.<old base>` or `host.<old base>` is redirected (301) to the same path at the current base, so a rename is "add the new domain, keep the old one answering" and no shared link, bookmark or installed app breaks. Part of phase 1, since it is a few lines in the resolver and the moment it is needed is the worst moment to add it.
+
 **Not in phase 1:** the owner role (phase 2; the first owner is made an admin of the environment for now), enforcing caps (phase 3; the plan is stored and shown), call-name prefixes (phase 4), sign-up and billing (phase 5).
