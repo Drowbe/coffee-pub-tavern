@@ -50,7 +50,7 @@ A tenant is three things, and a folder of spaces is not one:
 
 ## Phases
 
-1. **The seam.** The registry, the per-tenant store, the resolver at the door (hostname to store; the default tenant when there is no base domain), the host console at `host.<base>` (create a tenant, set its slug and plan, see its use), and the migration that gives today's data its slug. Everything under the seam untouched.
+1. **The seam.** The registry, the per-tenant store, the resolver at the door (hostname to store; the default tenant when there is no base domain), the host console at `admin.<base>` (create a tenant, set its slug and plan, see its use), and the migration that gives today's data its slug. Everything under the seam untouched.
 2. **Roles.** The owner role and the host admin; Manage split into what an owner sees and what only the host sees; the host console's own sign-in.
 3. **Entitlements.** The caps on the registry entry, enforced: modules, members, storage, AI, calls; what the owner sees of them.
 4. **The call service.** Slug-prefixed call names; per-tenant call limits.
@@ -66,8 +66,8 @@ One store file per install, module data scoped to server, space or person, setti
 
 - **The visible word for a tenant is "environment."** A customer buys an environment; the code says tenant and never shows it. The words for the tiers and the sign-up page follow from it ("your environment", "environment settings").
 - **The person who runs one is its "owner."** More than one owner is allowed. "Moderator" keeps its space-level meaning.
-- **Slugs** are letters, digits and hyphens, 3 to 30 characters, chosen once at sign-up and fixed; a change the host grants becomes a redirect from the old slug; `www`, `api`, `host`, `admin`, `mail` and the like are refused.
-- **The host console is `host.<base domain>`** with its own sign-in, and the host admin is a separate kind of account, a member of no tenant. A tenant can never see or reach the console. The bare base domain is the sign-up page.
+- **Slugs** are letters, digits and hyphens, 3 to 30 characters, chosen once at sign-up and fixed; a change the host grants becomes a redirect from the old slug; `www`, `api`, `admin`, `host`, `mail` and the like are refused.
+- **The host console is `admin.<base domain>`** with its own sign-in, and the host admin is a separate kind of account, a member of no tenant. A tenant can never see or reach the console. The bare base domain is the sign-up page.
 - **Switching a base domain on names the existing data.** The switch asks for the slug the existing install becomes ("stayingblonde"), and the data moves to that subdomain; nothing is called "default" for longer than the migration takes.
 - **Entitlements** are members as a count, storage as a size, AI as calls per month, calls as concurrent spaces in a call, and the module list. Over a cap, the one thing stops (no more invites, uploads or AI, with a plain message saying why) while everything else keeps running.
 - **Billing** is a payment provider's hosted pages and its webhook, which sets the plan on the registry entry. A lapse marks the tenant past due for **14 days**, with a banner for owners, then degrades it to the free caps. Billing never deletes anything.
@@ -85,11 +85,11 @@ Built by two sessions at once against this contract: the server half (the regist
 
 **The registry.** `DATA_DIR/host.json`: `{ baseDomain, hostAdmins: [{ key, login, passwordHash }], tenants: [{ slug, name, createdAt, plan: { modules: [ids] | 'all', members, storageBytes, aiCallsPerMonth, calls }, status: 'active' | 'pastDue' | 'suspended', pastDueSince }] }`. The base domain comes from the environment (`BASE_DOMAIN`) and is mirrored here for the console to show; a change needs a restart.
 
-**The resolver.** With `BASE_DOMAIN` set: the request's hostname is `host.<base>` (the console and the host API), `<base>` (the sign-up page, phase 5; until then a page saying which environments exist is not shown, only a plain "this is the host" page), `<slug>.<base>` (that environment), or unknown (404, plain). Without it: every request is the one environment, whatever the hostname. The resolver never reads a path.
+**The resolver.** With `BASE_DOMAIN` set: the request's hostname is `admin.<base>` (the console and the host API), `<base>` (the sign-up page, phase 5; until then a page saying which environments exist is not shown, only a plain "this is the host" page), `<slug>.<base>` (that environment), or unknown (404, plain). Without it: every request is the one environment, whatever the hostname. The resolver never reads a path.
 
 **Migration.** On first start with `BASE_DOMAIN` set and data at `DATA_DIR/tavern.json` (a pre-tenant install), the server refuses to start until told the slug: `MIGRATE_TENANT_SLUG=<slug>` in the environment for that one start moves the install (`tavern.json`, `modules/`, images, chat history, everything but `host.json` and `fontawesome-pro/`) to `DATA_DIR/tenants/<slug>/` and records the tenant in the registry with `plan: { modules: 'all' }` and no caps. Without `BASE_DOMAIN` nothing moves and the layout stays as it is; the same code reads either layout (a tenant's directory has the same shape as today's `DATA_DIR`).
 
-**The host API** (all under `/api/host/`, served only at `host.<base>`; 404 elsewhere; a host admin's own session cookie, `host_session`, never a tenant's):
+**The host API** (all under `/api/host/`, served only at `admin.<base>`; 404 elsewhere; a host admin's own session cookie, `host_session`, never a tenant's):
 - `POST /api/host/login { login, password }`, `POST /api/host/logout`, `GET /api/host/me`.
 - `GET /api/host/tenants` -> `{ tenants: [{ slug, name, status, plan, createdAt, usage: { members, storageBytes, aiCallsThisMonth, spaces } }] }`.
 - `POST /api/host/tenants { slug, name, owner: { login, displayName, password } }` creates the directory, the registry entry and the first owner (an admin of that environment, see phase 2).
@@ -99,9 +99,9 @@ Built by two sessions at once against this contract: the server half (the regist
 - `GET /api/host/settings` -> `{ baseDomain, version, hostAdmins: [{ key, login }] }`; `POST /api/host/admins { login, password }`, `DELETE /api/host/admins/:key` (never the last).
 - The first host admin: `HOST_ADMIN_LOGIN` and `HOST_ADMIN_PASSWORD` in the environment on a start where the registry has none, recorded then and not read again.
 
-**The console** (`host.<base>`, `public/host.html` + `public/host.js`, the primary nav only): sign in; the environments as a list (a slug, a name, a status, the plan's caps against the usage, a link to open it); create one (slug, name, the first owner); edit a plan; suspend and restore; backup; the host admins; the base domain and version. No tenant's data is shown beyond the counts.
+**The console** (`admin.<base>`, `public/host.html` + `public/host.js`, the primary nav only): sign in; the environments as a list (a slug, a name, a status, the plan's caps against the usage, a link to open it); create one (slug, name, the first owner); edit a plan; suspend and restore; backup; the host admins; the base domain and version. No tenant's data is shown beyond the counts.
 
-**Previous base domains.** The product's name is not settled, so the base domain may change after environments exist, and every environment's address is `<slug>.<base>`. The registry keeps `previousBaseDomains: [...]` (set from `PREVIOUS_BASE_DOMAINS`, comma-separated): a request at `<slug>.<old base>` or `host.<old base>` is redirected (301) to the same path at the current base, so a rename is "add the new domain, keep the old one answering" and no shared link, bookmark or installed app breaks. Part of phase 1, since it is a few lines in the resolver and the moment it is needed is the worst moment to add it.
+**Previous base domains.** The product's name is not settled, so the base domain may change after environments exist, and every environment's address is `<slug>.<base>`. The registry keeps `previousBaseDomains: [...]` (set from `PREVIOUS_BASE_DOMAINS`, comma-separated): a request at `<slug>.<old base>` or `admin.<old base>` is redirected (301) to the same path at the current base, so a rename is "add the new domain, keep the old one answering" and no shared link, bookmark or installed app breaks. Part of phase 1, since it is a few lines in the resolver and the moment it is needed is the worst moment to add it.
 
 **Not in phase 1:** the owner role (phase 2; the first owner is made an admin of the environment for now), enforcing caps (phase 3; the plan is stored and shown), call-name prefixes (phase 4), sign-up and billing (phase 5).
 
@@ -117,7 +117,7 @@ the unit tests:** a real server (`node server/index.js`, no `BASE_DOMAIN`), logg
 module, changed a setting, watched the resulting `event: settings` arrive live over `/api/modules/stream`,
 confirmed the activity log and its debounced write to disk, all exactly as before.
 
-**With `BASE_DOMAIN` set, verified live end to end:** `GET /api/host/me` at `host.<base>` with no session
+**With `BASE_DOMAIN` set, verified live end to end:** `GET /api/host/me` at `admin.<base>` with no session
 answers 401; logging in as the host admin (bootstrapped from `HOST_ADMIN_LOGIN`/`HOST_ADMIN_PASSWORD`) and back
 out; creating a tenant with its first owner, who immediately signs in at `<slug>.<base>` with their own,
 independent `Store` (a fresh Lobby, no data from any other environment); the bare base domain's placeholder page;
@@ -126,7 +126,7 @@ an unknown subdomain and an unrelated hostname both a plain 404; backing a tenan
 gone, the directory moved to `tenants-deleted/<slug>-<timestamp>/`, never deleted); a pre-tenant install refusing
 to start without `MIGRATE_TENANT_SLUG` and migrating correctly with it (the original admin's password still
 works, at the new subdomain, `host.json` recording `plan: { modules: 'all' }` with no caps); and the
-`PREVIOUS_BASE_DOMAINS` redirect, for both `host.<old base>` and `<slug>.<old base>`, path and query preserved.
+`PREVIOUS_BASE_DOMAINS` redirect, for both `admin.<old base>` and `<slug>.<old base>`, path and query preserved.
 
 One real bug the live testing caught and fixed: `zipFiles` (`server/module-build.js`) was not exported, so the
 backup route 500'd on its first real call -- a stand-in test or a reading of the diff would not have caught it,

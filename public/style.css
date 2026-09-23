@@ -244,7 +244,7 @@ a:hover {
   display: inline;
 }
 
-/* The host console (host.<base domain>, public/host.html): the primary nav's left zone only -- the console is the
+/* The host console (admin.<base domain>, public/host.html): the primary nav's left zone only -- the console is the
    deployment's own door, with no spaces to navigate to and no environment's profile or Manage to reach. */
 body.host-console .topbar .nav-middle,
 body.host-console .topbar .nav-right,
