@@ -4,7 +4,9 @@
 
 Every player is available to OBS as a separate Browser Source, on a transparent background, so you lay
 them out however you like and they stay in place as people talk, join or leave. An absent player
-renders as their Offline picture, or as nothing. This is the **Stream** module's work: it ships with the
+renders as their Offline picture. A player with no Participant picture set anywhere (their own, the
+space's, or the server's Default Images) shows their profile photo instead, and one with neither shows
+nothing. This is the **Stream** module's work: it ships with the
 server and is installed and turned on by itself, so an existing server's sources keep working across the
 update. If it has been turned off, every view link answers with a sentence saying so, and Manage > Modules
 turns it back on.

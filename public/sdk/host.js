@@ -772,8 +772,10 @@
     // done. Slots are the profile's: profile, background, player, playerOffline, playerTalking, playerMuted, playerAside,
     // playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate. `{ room }` asks for
     // that room's own picture set first, the way the table shows them.
+    // The profile slot always answers (an initials plate when no photo is set); `{ fallback: 'none' }` asks for the real
+    // photo only, null otherwise, for a page that wants it only as a last resort behind the Participant pictures.
     images: {
-      get: (key, slot, o) => call('images.get', { key, slot, room: o && o.room }),
+      get: (key, slot, o) => call('images.get', { key, slot, room: o && o.room, fallback: o && o.fallback }),
       release: (url) => call('images.release', { url }),
     },
 

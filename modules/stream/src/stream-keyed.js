@@ -45,6 +45,10 @@
   // Slots this kind draws, as blob URLs (null when the person has none).
   const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'] : ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
   const images = Object.fromEntries(slots.map((s) => [s, null]));
+  // The Participant box's last resort, behind the Participant pictures and the server's Default Images: the person's
+  // own profile photo (the real one only, never the initials plate), the same rule the table's tiles follow. The
+  // Character box has no such fallback: a face where a character picture belongs would be wrong.
+  let profile = null;
   let bgImage = null;
   let settings = {};
   let REACTIONS = {}; // id -> glyph, from the server's reaction list
@@ -83,6 +87,9 @@
       const url = await host.images.get(wanted, 'background', { room: imageRoom }).catch(() => null);
       if (bgImage) host.images.release(bgImage);
       bgImage = url;
+      const photo = await host.images.get(wanted, 'profile', { fallback: 'none' }).catch(() => null);
+      if (profile) host.images.release(profile);
+      profile = photo;
     }
     render();
   }
@@ -156,9 +163,10 @@
     if (kind === 'player') {
       if (online && live.cameraOn && videoEl && !isPrivate) state = 'video';
       else if (online) state = 'image';
-      else if (images.playerOffline) state = 'offline';
+      else if (images.playerOffline || profile) state = 'offline';
       if (videoEl) videoEl.hidden = state !== 'video';
-      setImage($('base'), state === 'image' ? images.player : state === 'offline' ? images.playerOffline : null);
+      // The Online or Offline picture; the profile photo only when that one is not set anywhere.
+      setImage($('base'), state === 'image' ? images.player || profile : state === 'offline' ? images.playerOffline || profile : null);
       setImage($('overlay-talking'), talking ? images.playerTalking : null);
       setImage($('overlay-muted'), muted ? images.playerMuted : null);
       setImage($('overlay-aside'), inAside ? images.playerAside : null);
@@ -223,4 +231,5 @@
     connection: (c) => msg(c.connected ? '' : c.error || 'disconnected'),
   });
   host.presence.onChange(applyPresence);
+  setInterval(loadImages, 5 * 60000); // a replaced picture shows without a reload of the source
 })();

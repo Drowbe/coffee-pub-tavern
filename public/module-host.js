@@ -1052,9 +1052,10 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     },
     // One person's picture in a slot (profile, player, character, talking ...), as a blob URL the module shows and
     // releases; null when they have none there. `room` asks for that room's own picture set, the way the table does.
-    async 'images.get'({ key, slot, room }) {
+    async 'images.get'({ key, slot, room, fallback }) {
       const p = new URLSearchParams();
       if (room) p.set('room', String(room));
+      if (fallback === 'none') p.set('fallback', 'none'); // the profile slot: the real photo only, not the initials plate
       if (guestToken) p.set('guest', guestToken);
       const res = await fetch(`/img/${encodeURIComponent(String(key ?? ''))}/${encodeURIComponent(String(slot ?? ''))}?${p}`, { headers: accessKeyHeaders() });
       if (!res.ok) return null;

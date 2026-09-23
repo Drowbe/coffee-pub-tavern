@@ -42,7 +42,9 @@ already reference it.
 A link never carries a room. The view page reads which room the player is in right now, the same live
 presence that lets it follow them from room to room, and uses that room's own pictures for a slot when
 the player has set any there (with **Use Default Profile Images** off). Otherwise it falls back to the
-player's defaults and then to the server's Default Images. One link keeps working as someone moves
+player's defaults, then to the server's Default Images, and, for the Participant box only, to the
+player's profile photo when no Participant picture is set anywhere (the real photo; never the initials
+plate, and never for the Character box). One link keeps working as someone moves
 between rooms with different picture sets. While someone is in a private aside, their pictures come
 from the room they were pulled out of.
 

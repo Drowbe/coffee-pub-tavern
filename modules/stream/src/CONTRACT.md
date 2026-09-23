@@ -27,4 +27,5 @@ Nothing here reaches the server directly; a keyed page has no session, and its a
 - Aside dim and tint apply relative to the stream (`activeRoom`) only while an admin is online; the Aside overlay picture applies to whoever stepped away themselves.
 - Dim and tint are independent and are not gated on a picture being there.
 - The Character box never plays audio and never shows video; it subscribes to the microphone only to know who is talking.
+- Which picture: the Participant box shows the Online picture (or the Offline one away from the table) from the room's own set, then the person's own, then the server's Default Images, and only when none of those is set the person's profile photo (the real photo, never the initials plate). The Character box shows Character pictures only and never a profile photo.
 - Older links with `mode=` keep working.
