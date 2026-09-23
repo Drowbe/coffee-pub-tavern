@@ -20,15 +20,15 @@
     "hash": "053c279458a20e2d"
   },
   "research": {
-    "version": "0.2.5",
-    "hash": "2e3b6803596e79af"
+    "version": "0.2.6",
+    "hash": "e989791dc8e14744"
   },
   "todo": {
     "version": "1.11.4",
     "hash": "e965aabfec455f2a"
   },
   "travel": {
-    "version": "0.7.21",
-    "hash": "641699e8c73ec21a"
+    "version": "0.7.22",
+    "hash": "2b5cdeaac6008e97"
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.21",
+  "version": "0.7.22",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
   "author": "Coffee Pub",
@@ -140,7 +140,7 @@
         "trip-start",
         "trip-end"
       ],
-      "help": "The markers a plan draws: the four automatic ones (their label, icon and colour can change) and the time blocks people add to a day, such as free time.",
+      "help": "The markers a plan draws: the four automatic ones (their label, icon and colour can change), and the ones people add -- on a day at a time (a time block, such as free time), on a whole day (a tag in its header, such as a travel day), or on the line between days.",
       "default": [
         {
           "id": "planning-start",
@@ -195,6 +195,18 @@
           "label": "Leave by",
           "icon": "clock",
           "color": "#eab308"
+        },
+        {
+          "id": "travel-day",
+          "label": "Travel day",
+          "icon": "suitcase-rolling",
+          "color": "#0ea5e9"
+        },
+        {
+          "id": "free-day",
+          "label": "Free day",
+          "icon": "sun",
+          "color": "#f59e0b"
         }
       ]
     }

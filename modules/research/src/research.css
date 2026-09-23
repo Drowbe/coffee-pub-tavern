@@ -38,7 +38,24 @@ body { margin: 0; overflow: hidden; }
 .rs-chip.tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tag); }
 .rs-chip.tag.on { background: color-mix(in srgb, var(--tag) 30%, var(--bg-card)); color: var(--text); border-color: var(--tag); }
 .rs-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 14px 16px; }
-.rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; align-items: start; }
+/* cards pack like masonry: the grid's rows are a fine unit and the script gives each card the span its own height needs
+   (see masonry() in research.js), so nothing leaves a hole under a short card; the columns come from auto-fill */
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); grid-auto-rows: 8px; gap: 10px; align-items: start; }
+.rs-grid > .rcard { align-self: start; }
+/* the list: one row per item, the kind icon, the title, one line of the excerpt, the tags and the meta */
+.rs-list { display: flex; flex-direction: column; gap: 6px; }
+.rs-list .rcard { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; }
+.rs-list .rcard .thumb { order: -1; width: 48px; height: 36px; margin: 0; aspect-ratio: auto; border-radius: 8px; }
+.rs-list .rcard .top { flex: none; gap: 6px; }
+.rs-list .rcard .top .kicker { display: none; }
+.rs-list .rcard .top .menu { order: 9; }
+.rs-list .rcard h3 { flex: 1 1 180px; min-width: 0; }
+.rs-list .rcard .excerpt { flex: 3 1 240px; min-width: 0; -webkit-line-clamp: 1; font-size: 12px; }
+.rs-list .rcard .site { flex: 0 1 auto; }
+.rs-list .rcard .tags { flex: none; }
+.rs-list .rcard .meta { flex: none; margin-left: auto; }
+.rs-list .rcard .menu { position: absolute; top: 6px; right: 6px; }
+.rs.narrow .rs-list .rcard .excerpt { flex-basis: 100%; }
 
 /* a research card: a note, a link (snippet), a photo or a kept answer. Kind hues are turned from the accent like the other card families. */
 .rcard { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid color-mix(in srgb, var(--tone) 38%, var(--border)); border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 12%, var(--bg-card)), color-mix(in srgb, var(--tone) 5%, var(--bg-card))); box-shadow: 0 2px 8px color-mix(in srgb, black 12%, transparent); cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }

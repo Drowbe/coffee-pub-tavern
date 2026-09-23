@@ -45,6 +45,7 @@
     currentDay: null, // the day in view (where a quick add goes)
     hosted: Boolean(tavern.bar), // the host draws the quick-add bar, so the days' own add rows step aside
     deleteArmed: null,
+    expanded: new Set(), // item ids whose card's "More" is open
     markerTypes: [],
     hideEmpty: (() => { try { return localStorage.getItem('planner-hide-empty') === '1'; } catch (err) { return false; } })(), // per person, off by default
   };
@@ -191,8 +192,45 @@
       hide(el.querySelector('[data-action="remove-link"]'), !broken || !canEdit);
     }
     ownersInto(el, item);
+    moreInto(el, item);
     if (!canEdit) el.querySelector('.menu-btn')?.remove();
     return el;
+  }
+
+  // What the card's own face has no place for, folded under it: the note, who is on it, the booking reference, the
+  // terminal, the cost... Only what the item has and the template did not show (a slot of that name); "More" opens it,
+  // and a card someone opened stays open through redraws.
+  function moreInto(el, item) {
+    if (item.kind === 'link' || item.kind === 'lane') return;
+    const has = (name) => Boolean(slot(el, name));
+    const rows = [];
+    const add = (label, value, slotName) => { if (value && !(slotName && has(slotName))) rows.push([label, value]); };
+    add('Note', item.notes, 'body');
+    if (item.owners && item.owners.length && !has('owners')) rows.push(['Who', item.owners.map(nameOf).join(', ')]);
+    add('Booking', item.confirm, 'confirm');
+    add('Terminal', item.terminal, 'terminal');
+    add('Platform', item.platform, 'platform');
+    add('Carriage', item.carriage, 'carriage');
+    add('Seat', item.seat, 'seat');
+    add('Class', item.travelClass, 'travelClass');
+    add('Pick up', item.pickup, 'pickup');
+    add('Drop off', item.dropoff, 'dropoff');
+    add('Room', item.roomType, 'roomType');
+    add('Guests', words(item.guests, 'guest', 'guests'), 'guests');
+    add('Reservation', item.reservationName, 'reservationName');
+    add('Address', item.address, 'address');
+    if (item.cost) rows.push(['Cost', `${item.cost}${item.paidBy ? ` · paid by ${nameOf(item.paidBy)}` : ''}`]);
+    if (!rows.length) return;
+    const more = clone('tpl-card-more');
+    more.open = state.expanded.has(item.id);
+    const dl = more.querySelector('dl');
+    for (const [label, value] of rows) {
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = value;
+      dl.append(dt, dd);
+    }
+    more.addEventListener('toggle', () => { if (more.open) state.expanded.add(item.id); else state.expanded.delete(item.id); });
+    el.append(more);
   }
 
   // `entry` is { item, span } (a stay is drawn on each night it covers; only its first day is the real item). On the line
@@ -273,6 +311,8 @@
     { id: 'buffer', label: 'Buffer', icon: 'hourglass-half', color: '#a3a3a3' },
     { id: 'meet-up', label: 'Meet-up', icon: 'users', color: '#ec4899' },
     { id: 'leave-by', label: 'Leave by', icon: 'clock', color: '#eab308' },
+    { id: 'travel-day', label: 'Travel day', icon: 'suitcase-rolling', color: '#0ea5e9' },
+    { id: 'free-day', label: 'Free day', icon: 'sun', color: '#f59e0b' },
   ];
   const markerType = (id) => state.markerTypes.find((t) => t.id === id) || DEFAULT_MARKER_TYPES.find((t) => t.id === id) || { id, label: id, icon: 'clock', color: '#888888' };
   const blockTypes = () => state.markerTypes.filter((t) => !AUTOMATIC.includes(t.id));
@@ -326,11 +366,28 @@
     el.dataset.day = day;
     el.dataset.index = String(index + 1);
     el.classList.toggle('today', day === ymd(new Date()));
-    const entries = entriesFor(day, days, by);
+    const all = entriesFor(day, days, by);
+    // A marker with no time is about the whole day ("Travel day", "Free day"): a tag in the day's header, not a row.
+    const tags = all.filter((e) => e.item.kind === 'block' && !e.item.time);
+    const entries = all.filter((e) => !tags.includes(e));
     const head = clone('tpl-day-head');
     if (!canEdit) hide(head.querySelector('[data-action="day-menu"]'), true);
     const d = parseYmd(day);
     fill(head, { daynum: String(d.getDate()), daymonth: `${d.toLocaleDateString([], { weekday: 'short' })} · ${d.toLocaleDateString([], { month: 'short' })}`, position: dayLabel(day, days).position, summary: daySummary(entries) });
+    const tagBox = head.querySelector('.day-tags');
+    hide(tagBox, !tags.length);
+    for (const { item } of tags) {
+      const type = markerType(item.type);
+      const tag = clone('tpl-day-tag');
+      tag.dataset.id = item.id;
+      tag.dataset.type = item.type;
+      if (!canEdit) tag.disabled = true;
+      colourPill(tag, type);
+      setIcon(tag.querySelector('[data-icon]'), type.icon);
+      fill(tag, { title: item.title || type.label });
+      tag.title = item.notes || '';
+      tagBox.append(tag);
+    }
     el.prepend(head);
     const list = el.querySelector('.timeline');
     if (!entries.length) {
@@ -468,10 +525,18 @@
     for (const t of STOP_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
     items.push({ separator: true });
     add('note', 'Add a note', 'note-sticky');
+    // On a day, a marker with no time marks the whole day (a tag in its header), added at once; the timed ones below open the editor.
+    if (!onLine) {
+      items.push({ separator: true });
+      for (const t of blockTypes()) {
+        items.push({ id: `mark:${t.id}`, label: `Mark the day: ${t.label.toLowerCase()}`, icon: t.icon, iconColor: t.color || undefined, onClick: () => attempt(() => plan.addItem({ kind: 'block', type: t.id, title: t.label, date: place.date, time: null, minutes: null })) });
+      }
+      items.push({ separator: true });
+    }
     for (const t of blockTypes()) {
       items.push({
         id: `${onLine ? 'lane' : 'block'}:${t.id}`,
-        label: `Add ${t.label.toLowerCase()}`,
+        label: onLine ? `Add ${t.label.toLowerCase()}` : `Add ${t.label.toLowerCase()} at a time`,
         icon: t.icon,
         iconColor: t.color || undefined,
         onClick: () => (onLine ? attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: t.label, after: place.after })) : withTile(`block:${t.id}`)),
@@ -1481,8 +1546,8 @@
     } else if (action === 'goto-day') {
       const target = $(`day-${b.dataset.day}`);
       if (target) { target.scrollIntoView({ inline: 'center', block: 'start' }); markCurrent(b.dataset.day); }
-    } else if (action === 'move-menu' && li) {
-      openMenu(li.dataset.id, b);
+    } else if (action === 'move-menu' && (li || b.dataset.id)) {
+      openMenu(li ? li.dataset.id : b.dataset.id, b); // a row's "...", or a day tag itself
     } else if (action === 'remove-link' && li) {
       const id = li.dataset.id;
       attempt(() => plan.removeItem(id));

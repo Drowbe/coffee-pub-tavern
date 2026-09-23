@@ -12,11 +12,11 @@
   <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
   <div class="rs-chips">                      tag chips (.rs-chip.tag[style=--tag], .on)
-  <main class="rs-body">                      .upload and .pos-ask when needed, then .rs-grid of .rcard, or .rs-empty
+  <main class="rs-body">                      .upload and .pos-ask when needed, then .rs-grid (cards, packed like masonry) or .rs-list (one row each) of .rcard, or .rs-empty
   <div class="rs-bar">                        the host's bottom bar is the quick add (see below)
 ```
 
-Views are as in Places: **Mine** (the person scope, private across rooms) and **This room**, drawn by `tavern.ui.viewSwitch` in the toolbar; the choice is remembered and a guest has only This room (the script skips the switch entirely then). Filtering combines: search text, a kind, and one or more tags.
+Views are as in Places: **Mine** (the person scope, private across rooms) and **This room**, drawn by `tavern.ui.viewSwitch` in the toolbar; the choice is remembered and a guest has only This room (the script skips the switch entirely then). Filtering combines: search text, a kind, and one or more tags. A second switch beside it, **Cards** / **List** (icons only, `grip` and `list`), picks the layout: `.rs-grid` packs the cards like masonry (the grid's rows are an 8px unit and `masonry()` in the script gives each card the row span its measured height needs, re-measured through a ResizeObserver as photos load or the pane resizes; columns come from the grid's auto-fill), `.rs-list` is one row per item (the kind icon, the title, one line of the excerpt, the tags, the meta; the kicker hidden). Remembered per person (`research-layout`).
 
 ## A card (`article.rcard[data-kind=note|link|photo|answer][data-id]`)
 

@@ -212,6 +212,16 @@
   const listeners = new Map();
   let info = null;
   const call = env.call;
+  // The toolbar's view switches (tavern.ui.viewSwitch), in the order they were made; they share the one toolbar row.
+  const switches = [];
+  let switchesSig = '';
+  function drawSwitches() {
+    const items = switches.flatMap((s, i) => (i ? [{ type: 'separator' }, s.item()] : [s.item()]));
+    const sig = JSON.stringify(items);
+    if (sig === switchesSig) return;
+    switchesSig = sig;
+    tavern.toolbar.set(items).catch(() => {});
+  }
 
   // An "open this item" from the host can arrive before the module has said what to do with one.
   let pendingOpen = null;
@@ -597,8 +607,9 @@
       // label, an icon, or both (see tavern.toolbar.set's 'tabs' item for what each does). Draws once, then
       // only redraws when the value or the options actually change (call set() every render; it no-ops
       // when nothing did). Returns { set(value, options?), destroy() }.
+      // A module may have more than one (whose items, and how they are laid out): every live switch shares the
+      // toolbar, drawn in the order they were made with a separator between, and any one changing redraws the row.
       viewSwitch: ({ id, options, value, onChange }) => {
-        let sig = '';
         let current = value;
         let opts = options;
         const off = tavern.on('toolbar', (e) => {
@@ -606,20 +617,21 @@
           current = e.value;
           onChange(e.value);
         });
-        const draw = () => {
-          const s = `${current}|${JSON.stringify(opts)}`;
-          if (s === sig) return;
-          sig = s;
-          tavern.toolbar.set([{ type: 'tabs', id, value: current, options: opts }]).catch(() => {});
-        };
-        draw();
+        const mine = { item: () => ({ type: 'tabs', id, value: current, options: opts }) };
+        switches.push(mine);
+        drawSwitches();
         return {
           set(newValue, newOptions) {
             current = newValue;
             if (newOptions) opts = newOptions;
-            draw();
+            drawSwitches();
           },
-          destroy: off,
+          destroy: () => {
+            off();
+            const at = switches.indexOf(mine);
+            if (at >= 0) switches.splice(at, 1);
+            drawSwitches();
+          },
         };
       },
     },

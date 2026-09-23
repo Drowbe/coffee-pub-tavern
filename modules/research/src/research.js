@@ -220,12 +220,35 @@
     dl.replaceChildren(...counts.map(({ tag }) => { const o = document.createElement('option'); o.value = tag; return o; }));
     const shown = visible();
     const grid = document.createElement('div');
-    grid.className = 'rs-grid';
+    grid.className = state.layout === 'list' ? 'rs-list' : 'rs-grid';
     if (!shown.length && !state.uploads.length) { body.replaceChildren(clone('tpl-state-noresults')); hydrate(root); return; }
     grid.replaceChildren(...shown.map(card));
     body.replaceChildren(grid);
+    if (state.layout !== 'list') masonry(grid);
     renderUploads();
     hydrate(root);
+  }
+
+  // Cards pack like masonry: each takes as many rows of the grid's fine row unit as its own height needs, so a short card
+  // beside a tall one leaves no hole under it, and the columns adapt to the pane's width (the grid's own auto-fill). A card's
+  // height is read after layout and again whenever it changes (a photo loading, the pane resizing), never guessed.
+  const ROW = 8; // px, the grid's row unit (grid-auto-rows in research.css)
+  function masonry(grid) {
+    const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+    const fit = (el) => {
+      el.style.gridRowEnd = '';
+      const h = el.getBoundingClientRect().height;
+      el.style.gridRowEnd = `span ${Math.max(1, Math.ceil((h + gap) / (ROW + gap)))}`;
+    };
+    const all = () => { for (const el of grid.children) fit(el); };
+    all();
+    if (typeof ResizeObserver !== 'function') return;
+    const ro = new ResizeObserver((entries) => {
+      if (!grid.isConnected) return ro.disconnect();
+      if (entries.some((e) => e.target === grid)) all(); else for (const e of entries) fit(e.target);
+    });
+    ro.observe(grid);
+    for (const el of grid.children) ro.observe(el);
   }
   for (const key of Object.keys(stores)) {
     stores[key].subscribe(() => {
@@ -654,6 +677,18 @@
     { id: 'room', label: 'This room', icon: 'users' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
+  // How the items are laid out: cards packed like masonry, or a list. Remembered per person.
+  try { state.layout = localStorage.getItem('research-layout') === 'list' ? 'list' : 'cards'; } catch (err) { state.layout = 'cards'; }
+  tavern.ui.viewSwitch({
+    id: 'layout',
+    options: [{ id: 'cards', label: 'Cards', icon: 'grip', iconOnly: true }, { id: 'list', label: 'List', icon: 'list', iconOnly: true }],
+    value: state.layout,
+    onChange: (next) => {
+      state.layout = next === 'list' ? 'list' : 'cards';
+      try { localStorage.setItem('research-layout', state.layout); } catch (err) { /* not remembered */ }
+      render();
+    },
+  });
   async function showView(next) {
     if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;

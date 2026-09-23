@@ -1,7 +1,7 @@
 {
   "id": "research",
   "name": "Research",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "icon": "book-open",
   "description": "What a group finds out while it plans: notes, links with the part that mattered, photos with a caption. Tagged, searchable, linkable from anywhere, and questioned or summarised by the AI the admin chose.",
   "author": "Coffee Pub",
@@ -67,7 +67,14 @@
         "open": true,
         "backlinks": true,
         "key": "note:{id}",
-        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+        "card": {
+          "title": "title",
+          "subtitle": "sub",
+          "when": "date",
+          "place": "point",
+          "category": "kind",
+          "text": "text"
+        }
       },
       {
         "kind": "link",
@@ -75,7 +82,14 @@
         "open": true,
         "backlinks": true,
         "key": "link:{id}",
-        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+        "card": {
+          "title": "title",
+          "subtitle": "sub",
+          "when": "date",
+          "place": "point",
+          "category": "kind",
+          "text": "text"
+        }
       },
       {
         "kind": "photo",
@@ -83,7 +97,14 @@
         "open": true,
         "backlinks": true,
         "key": "photo:{id}",
-        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+        "card": {
+          "title": "title",
+          "subtitle": "sub",
+          "when": "date",
+          "place": "point",
+          "category": "kind",
+          "text": "text"
+        }
       },
       {
         "kind": "answer",
@@ -91,7 +112,14 @@
         "open": true,
         "backlinks": true,
         "key": "answer:{id}",
-        "card": { "title": "title", "subtitle": "sub", "when": "date", "place": "point", "category": "kind", "text": "text" }
+        "card": {
+          "title": "title",
+          "subtitle": "sub",
+          "when": "date",
+          "place": "point",
+          "category": "kind",
+          "text": "text"
+        }
       }
     ],
     "consumes": [
