@@ -10,6 +10,9 @@
 const crypto = require('crypto');
 
 const COOKIE = 'tavern_session';
+// The host admin's own session -- a separate cookie, never a tenant's, so the two can never be confused even on
+// the same browser (the host console and an environment are different subdomains anyway; this is belt and braces).
+const HOST_COOKIE = 'host_session';
 const SESSION_DAYS = 30;
 
 function hashPassword(password) {
@@ -82,8 +85,8 @@ function isSecure(req) {
   return req.secure || req.get('x-forwarded-proto') === 'https';
 }
 
-function setSessionCookie(req, res, token) {
-  res.cookie(COOKIE, token, {
+function setSessionCookie(req, res, token, cookieName = COOKIE) {
+  res.cookie(cookieName, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: isSecure(req),
@@ -92,15 +95,17 @@ function setSessionCookie(req, res, token) {
   });
 }
 
-function clearSessionCookie(req, res) {
-  res.clearCookie(COOKIE, { httpOnly: true, sameSite: 'lax', secure: isSecure(req), path: '/' });
+function clearSessionCookie(req, res, cookieName = COOKIE) {
+  res.clearCookie(cookieName, { httpOnly: true, sameSite: 'lax', secure: isSecure(req), path: '/' });
 }
 
-// Session token from the cookie or, for the Studio app, a bearer header.
-function sessionToken(req) {
-  const auth = req.get('authorization') || '';
-  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
-  return parseCookies(req.get('cookie'))[COOKIE] || null;
+// Session token from the cookie or, for the Studio app, a bearer header. `cookieName` picks a tenant's own
+// (the default) or the host admin's (auth.HOST_COOKIE) -- never both read from the same request's bearer header,
+// since only a tenant's session is ever handed out as a bearer token.
+function sessionToken(req, cookieName = COOKIE) {
+  const bearer = req.get('authorization') || '';
+  if (cookieName === COOKIE && bearer.toLowerCase().startsWith('bearer ')) return bearer.slice(7).trim();
+  return parseCookies(req.get('cookie'))[cookieName] || null;
 }
 
 // A handful of failed logins per address, then a cool-down.
@@ -134,6 +139,7 @@ class LoginLimiter {
 
 module.exports = {
   COOKIE,
+  HOST_COOKIE,
   hashPassword,
   verifyPassword,
   issueSession,

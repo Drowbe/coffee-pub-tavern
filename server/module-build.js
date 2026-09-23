@@ -111,4 +111,4 @@ function bundledModules(rootDir) {
   return out;
 }
 
-module.exports = { buildModule, bundledModules };
+module.exports = { buildModule, bundledModules, zipFiles };

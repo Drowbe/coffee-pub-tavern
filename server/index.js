@@ -6,9 +6,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
+const yauzl = require('yauzl');
+const { AsyncLocalStorage } = require('async_hooks');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
-const { buildModule, bundledModules } = require('./module-build');
+const { buildModule, bundledModules, zipFiles } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { Backgrounds } = require('./backgrounds');
 const { ModuleBus } = require('./module-bus');
@@ -26,6 +28,8 @@ const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
+const { buildEnvironment, flushEnvironment } = require('./environment');
+const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
 
 const {
   PORT = 3000,
@@ -38,6 +42,11 @@ const {
   TAVERN_ADMIN_PASSWORD = '',
   TAVERN_ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
   TAVERN_REVISION = 'dev',
+  BASE_DOMAIN = '',
+  PREVIOUS_BASE_DOMAINS = '',
+  MIGRATE_TENANT_SLUG = '',
+  HOST_ADMIN_LOGIN = '',
+  HOST_ADMIN_PASSWORD = '',
 } = process.env;
 
 const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
@@ -47,51 +56,124 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
   process.exit(1);
 }
 
-const store = new Store(DATA_DIR);
-const modules = new ModuleManager(DATA_DIR);
-const moduleData = new ModuleData(modules.dir);
-store.extraPermissions = () => modules.permissionList(); // enabled modules' permissions join the Roles grid
-// Who a module notification reaches: people who could see that module in that place.
-const moduleHooks = new ModuleHooks(modules.dir, {
-  resolveRecipients: ({ module, roomId }, to) => {
-    const found = modules.enabled(module);
-    if (!found) return [];
-    let keys = [];
-    if (to === 'room') keys = roomId ? store.roomById(roomId)?.members || [] : [];
-    else if (to === 'server') keys = store.users.map((u) => u.key);
-    else keys = store.userByKey(to) ? [to] : [];
-    return keys.filter((k) => store.userByKey(k) && moduleCan(found.manifest, store.roomPermissions(k, roomId), 'read'));
-  },
-});
-moduleHooks.start();
-const limiter = new auth.LoginLimiter();
+// --- environments (one host, many environments: documentation/plans/plan-tenants.md, phase 1) -----------------
+// With no BASE_DOMAIN there is exactly one environment, built straight from DATA_DIR: today's install, unchanged.
+// With BASE_DOMAIN set, one environment per tenant (DATA_DIR/tenants/<slug>/), resolved from the request's
+// hostname by the resolver middleware below (see "the door"). Either way, request handlers keep reading `store`,
+// `modules` and the rest by the names they use today: those names are Proxies that forward to whichever
+// environment the current request (or, outside a request, an explicit envContext.run call) resolved.
+const envContext = new AsyncLocalStorage();
+const environments = new Map(); // slug ('' for the default/no-BASE_DOMAIN environment) -> a built environment
+const DEFAULT_SLUG = '';
 
-// Make sure the admin from the environment exists with that password. This is
-// also the way back in after a forgotten password: change the value, restart.
-function bootstrapAdmin() {
-  const password = TAVERN_ADMIN_PASSWORD || TAVERN_ADMIN_KEY;
-  const login = TAVERN_ADMIN_USER || 'admin';
-  if (password) {
-    const existing = store.userByLogin(login);
-    const passwordHash = auth.hashPassword(password);
-    if (existing) {
-      if (!auth.verifyPassword(password, existing.passwordHash) || existing.role !== 'admin') {
-        store.updateUser(existing.key, { passwordHash, role: 'admin' });
-        console.log(`Admin "${login}" updated from the environment.`);
-      }
-    } else {
-      store.addUser({ login, displayName: login, role: 'admin', passwordHash });
-      console.log(`Admin "${login}" created from the environment.`);
-    }
-    return;
+function currentEnvironment() {
+  const env = envContext.getStore();
+  if (!env) throw new Error('no environment resolved for this request');
+  return env;
+}
+
+// A Proxy standing in for one of the current environment's services, by name: every property access resolves
+// against envContext's current environment, and a method comes back bound to the real instance (never the
+// Proxy), so `store.someMethod()` runs against the right environment's real `store`, whichever one is current.
+// Works uniformly for a class instance, a plain Map, or an EventEmitter -- everything under the seam.
+function proxyFor(name) {
+  const forward = (trap) => (_target, ...args) => trap(currentEnvironment()[name], ...args);
+  return new Proxy(Object.create(null), {
+    get: forward((real, prop) => {
+      const value = Reflect.get(real, prop, real);
+      return typeof value === 'function' ? value.bind(real) : value;
+    }),
+    set: forward((real, prop, value) => Reflect.set(real, prop, value)),
+    has: forward((real, prop) => Reflect.has(real, prop)),
+    deleteProperty: forward((real, prop) => Reflect.deleteProperty(real, prop)),
+    ownKeys: forward((real) => Reflect.ownKeys(real)),
+    getOwnPropertyDescriptor: forward((real, prop) => Reflect.getOwnPropertyDescriptor(real, prop)),
+  });
+}
+
+const store = proxyFor('store');
+const modules = proxyFor('modules');
+const moduleData = proxyFor('moduleData');
+const moduleHooks = proxyFor('moduleHooks');
+const chatHistory = proxyFor('chatHistory');
+const chatPosts = proxyFor('chatPosts');
+const moduleLinks = proxyFor('moduleLinks');
+const moduleBus = proxyFor('moduleBus');
+const moduleSettings = proxyFor('moduleSettings');
+const ai = proxyFor('ai');
+const moduleUploads = proxyFor('moduleUploads');
+const geocodeCache = proxyFor('geocodeCache');
+const regionCutJobs = proxyFor('regionCutJobs');
+const moduleLimits = proxyFor('moduleLimits');
+const limiter = proxyFor('limiter');
+const presence = proxyFor('presence');
+const invites = proxyFor('invites');
+const inviteEvents = proxyFor('inviteEvents');
+const roomIconSvgs = proxyFor('roomIconSvgs');
+const moduleActivity = proxyFor('moduleActivity');
+function noteActivity(...args) { return currentEnvironment().noteActivity(...args); }
+
+// The registry of environments (DATA_DIR/host.json): which tenants exist, their plans, the host admins. Only
+// built when BASE_DOMAIN is set -- a self-hosted install with no base domain never has this file.
+const hostRegistry = BASE_DOMAIN ? new HostRegistry(DATA_DIR) : null;
+if (hostRegistry) {
+  hostRegistry.setBaseDomain(BASE_DOMAIN);
+  hostRegistry.setPreviousBaseDomains(PREVIOUS_BASE_DOMAINS);
+}
+
+// First start with BASE_DOMAIN set and data at DATA_DIR/tavern.json (a pre-tenant install): refuses to start
+// until told which environment that data becomes.
+function migrateIfNeeded() {
+  if (!BASE_DOMAIN || !fs.existsSync(path.join(DATA_DIR, 'tavern.json'))) return;
+  if (!MIGRATE_TENANT_SLUG) {
+    console.error(`BASE_DOMAIN is set and ${path.join(DATA_DIR, 'tavern.json')} is a pre-tenant install. Set MIGRATE_TENANT_SLUG=<slug> for one start to move it to that environment, then remove it.`);
+    process.exit(1);
   }
-  if (store.adminCount() === 0) {
-    const generated = randomToken(9);
-    store.addUser({ login, displayName: login, role: 'admin', passwordHash: auth.hashPassword(generated) });
-    console.log(`No admin yet and no TAVERN_ADMIN_PASSWORD set. Created "${login}" with password: ${generated}`);
+  const slug = cleanSlug(MIGRATE_TENANT_SLUG);
+  const dest = path.join(DATA_DIR, 'tenants', slug);
+  if (fs.existsSync(dest)) throw new Error(`${dest} already exists; migration already ran`);
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(DATA_DIR)) {
+    if (['host.json', 'fontawesome-pro', 'tenants', 'tenants-deleted'].includes(entry)) continue;
+    fs.renameSync(path.join(DATA_DIR, entry), path.join(dest, entry));
+  }
+  hostRegistry.addTenant({ slug, name: slug, plan: { modules: 'all' } });
+  console.log(`Migrated the existing install to the "${slug}" environment (${dest}).`);
+}
+migrateIfNeeded();
+
+// Build (or fetch the already-built) environment for a slug, from its own data directory. Only ever called for
+// a slug the caller already knows is real (the default, or one host.json names) -- the resolver 404s before this.
+function environmentFor(slug) {
+  const key = slug || DEFAULT_SLUG;
+  let env = environments.get(key);
+  if (env) return env;
+  const dataDir = slug ? path.join(DATA_DIR, 'tenants', slug) : DATA_DIR;
+  env = buildEnvironment(dataDir, {
+    slug: slug || null,
+    admin: slug ? null : { login: TAVERN_ADMIN_USER, password: TAVERN_ADMIN_PASSWORD || TAVERN_ADMIN_KEY },
+  });
+  environments.set(key, env);
+  return env;
+}
+
+if (!BASE_DOMAIN) {
+  environmentFor(DEFAULT_SLUG); // the one environment, built eagerly, exactly as today
+} else {
+  for (const t of hostRegistry.listTenants()) environmentFor(t.slug); // every existing tenant, built at startup
+  if (HOST_ADMIN_LOGIN && HOST_ADMIN_PASSWORD && hostRegistry.listAdmins().length === 0) {
+    hostRegistry.addAdmin({ login: HOST_ADMIN_LOGIN, passwordHash: auth.hashPassword(HOST_ADMIN_PASSWORD) });
+    console.log(`Host admin "${HOST_ADMIN_LOGIN}" created from the environment.`);
   }
 }
-bootstrapAdmin();
+
+// Every environment's own writes still owed to disk (chat, AI usage, saved places, the activity log -- each
+// debounced, not synchronous like everything else under the seam).
+function flushAllEnvironments() {
+  for (const env of environments.values()) flushEnvironment(env);
+}
+process.on('exit', flushAllEnvironments);
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(0));
 
 // --- LiveKit ---------------------------------------------------------------
 
@@ -129,13 +211,21 @@ async function mintToken({ identity, name, room, publisher, media = publisher, i
 
 // Each Tavern room is its own LiveKit room: the Lobby keeps the base name
 // (so links and the Studio from before rooms still work), the others hang
-// their id off it.
+// their id off it. One LiveKit behind every environment (plan-tenants.md): with BASE_DOMAIN set, the base name
+// is prefixed with the environment's own slug, so two environments with the same "room" setting never collide --
+// the smallest safe thing ahead of phase 4's own naming. With no BASE_DOMAIN (env.slug is null) this is exactly
+// today's name, unchanged.
+function livekitBase() {
+  const env = currentEnvironment();
+  return env.slug ? `${env.slug}-${store.settings.room}` : store.settings.room;
+}
 function livekitRoomName(roomId) {
-  return !roomId || roomId === LOBBY ? store.settings.room : `${store.settings.room}-${roomId}`;
+  const base = livekitBase();
+  return !roomId || roomId === LOBBY ? base : `${base}-${roomId}`;
 }
 
 function roomIdOfLivekit(name) {
-  const base = store.settings.room;
+  const base = livekitBase();
   if (name === base) return LOBBY;
   return name.startsWith(`${base}-`) ? name.slice(base.length + 1) : null;
 }
@@ -350,6 +440,217 @@ const clientDist = path.join(__dirname, '..', 'node_modules', 'livekit-client', 
 const page = (name) => path.join(publicDir, name);
 const rawZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: MODULE_LIMITS.zipBytes + 1024 });
 const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES + 1024 });
+
+// --- the host console and its API (documentation/plans/plan-tenants.md) ----------------------------------------
+// A separate mini-app, reached only at host.<base>: never mounted on the main app directly, so a request routed
+// here can never fall through to a tenant's own routes below (which need an environment resolved, and none is,
+// for the host admin -- see requireHostAdmin, its own session, auth.HOST_COOKIE, never a tenant's).
+const hostRouter = express.Router();
+const hostLimiter = new auth.LoginLimiter();
+
+function currentHostAdmin(req) {
+  if (req._hostAdmin !== undefined) return req._hostAdmin;
+  req._hostAdmin = hostRegistry ? auth.readSession(hostRegistry.sessionSecret, auth.sessionToken(req, auth.HOST_COOKIE), (key) => hostRegistry.findAdminByKey(key)) : null;
+  return req._hostAdmin;
+}
+function requireHostAdmin(req, res, next) {
+  if (!currentHostAdmin(req)) return res.status(401).json({ error: 'sign in first' });
+  next();
+}
+function sendHostError(err, res) {
+  if (err instanceof HostError) return res.status(err.status).json({ error: err.message });
+  throw err;
+}
+
+hostRouter.use(express.static(publicDir, { index: false }));
+hostRouter.get('/', (_req, res) => res.sendFile(page('host.html')));
+
+hostRouter.post('/api/host/login', (req, res) => {
+  const ip = req.ip || 'unknown';
+  if (hostLimiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a few minutes' });
+  const found = hostRegistry.findAdminByLogin(req.body?.login);
+  const ok = found && auth.verifyPassword(req.body?.password || '', found.passwordHash);
+  if (!ok) { hostLimiter.fail(ip); return res.status(401).json({ error: 'wrong username or password' }); }
+  hostLimiter.clear(ip);
+  const token = auth.issueSession(hostRegistry.sessionSecret, found);
+  auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
+  res.json({ admin: { key: found.key, login: found.login } });
+});
+hostRouter.post('/api/host/logout', (req, res) => { auth.clearSessionCookie(req, res, auth.HOST_COOKIE); res.json({ ok: true }); });
+hostRouter.get('/api/host/me', (req, res) => {
+  const found = currentHostAdmin(req);
+  if (!found) return res.status(401).json({ error: 'sign in first' });
+  res.json({ admin: { key: found.key, login: found.login } });
+});
+
+// What a tenant is using, from its own already-built environment (building it if it is not running yet -- an
+// admin looking at the list is reason enough to have it up). Storage isn't walked here (a real figure needs
+// reading the whole directory); left null until that is worth the cost.
+function tenantUsage(slug) {
+  const env = environmentFor(slug);
+  return { members: env.store.users.length, storageBytes: null, aiCallsThisMonth: env.ai.usageView?.().callsThisMonth ?? null, spaces: env.store.rooms.length };
+}
+hostRouter.get('/api/host/tenants', requireHostAdmin, (_req, res) => {
+  res.json({ tenants: hostRegistry.listTenants().map((t) => ({ ...t, usage: tenantUsage(t.slug) })) });
+});
+hostRouter.post('/api/host/tenants', requireHostAdmin, (req, res) => {
+  try {
+    const tenant = hostRegistry.addTenant({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan });
+    const env = environmentFor(tenant.slug); // the fresh directory and its services, built now
+    const owner = req.body?.owner;
+    if (owner?.login && owner?.password) env.store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
+    res.status(201).json({ tenant });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+hostRouter.patch('/api/host/tenants/:slug', requireHostAdmin, (req, res) => {
+  try {
+    res.json({ tenant: hostRegistry.updateTenant(req.params.slug, req.body || {}) });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+hostRouter.delete('/api/host/tenants/:slug', requireHostAdmin, (req, res) => {
+  try {
+    if (!hostRegistry.findTenant(req.params.slug)) throw new HostError('no such environment', 404);
+    hostRegistry.removeTenant(req.params.slug);
+    const env = environments.get(req.params.slug);
+    if (env) { flushEnvironment(env); environments.delete(req.params.slug); }
+    const from = path.join(DATA_DIR, 'tenants', req.params.slug);
+    if (fs.existsSync(from)) {
+      const to = path.join(DATA_DIR, 'tenants-deleted', `${req.params.slug}-${Date.now()}`);
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.renameSync(from, to);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+
+// A tenant's whole directory, walked into [name, bytes] pairs for zipFiles (server/module-build.js), or read back
+// out of a zip on restore (a general-purpose reader, not modules.js's own readZip -- a tenant's own data is
+// whatever shape it is, not the narrow set of file types a module's zip is allowed).
+function walkFiles(dir, base = dir, out = []) {
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    const st = fs.statSync(full);
+    if (st.isDirectory()) walkFiles(full, base, out);
+    else if (st.isFile()) out.push([path.relative(base, full).split(path.sep).join('/'), fs.readFileSync(full)]);
+  }
+  return out;
+}
+function readTenantZip(buffer) {
+  return new Promise((resolve, reject) => {
+    const MAX_FILES = 20000;
+    const MAX_TOTAL = 500 * 1024 * 1024;
+    yauzl.fromBuffer(buffer, { lazyEntries: true }, (err, zip) => {
+      if (err) return reject(new Error("that isn't a readable zip file"));
+      const files = [];
+      let total = 0;
+      const fail = (message) => { zip.close(); reject(new Error(message)); };
+      zip.on('error', () => fail("that isn't a readable zip file"));
+      zip.on('end', () => resolve(files));
+      zip.on('entry', (entry) => {
+        const name = entry.fileName;
+        if (name.endsWith('/')) return zip.readEntry(); // a folder
+        if (files.length >= MAX_FILES) return fail(`too many files (more than ${MAX_FILES})`);
+        const mode = (entry.externalFileAttributes >>> 16) & 0o170000;
+        if (mode === 0o120000) return fail('symbolic links are not allowed');
+        total += entry.uncompressedSize;
+        if (total > MAX_TOTAL) return fail(`the backup is larger than ${MAX_TOTAL / (1024 * 1024)} MB`);
+        zip.openReadStream(entry, (streamErr, stream) => {
+          if (streamErr) return fail("that isn't a readable zip file");
+          const chunks = [];
+          stream.on('data', (c) => chunks.push(c));
+          stream.on('error', () => fail("that isn't a readable zip file"));
+          stream.on('end', () => { files.push([name, Buffer.concat(chunks)]); zip.readEntry(); });
+        });
+      });
+      zip.readEntry();
+    });
+  });
+}
+hostRouter.post('/api/host/tenants/:slug/backup', requireHostAdmin, (req, res) => {
+  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+  const env = environments.get(req.params.slug);
+  if (env) flushEnvironment(env); // every debounced write is on disk before it is zipped
+  const dir = path.join(DATA_DIR, 'tenants', req.params.slug);
+  const zip = zipFiles(fs.existsSync(dir) ? walkFiles(dir) : []);
+  res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${req.params.slug}-backup.zip"` });
+  res.send(zip);
+});
+const rawHostZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: 500 * 1024 * 1024 });
+hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip, async (req, res) => {
+  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+  if (!req.body || !req.body.length) return res.status(400).json({ error: 'choose a zip file to restore' });
+  try {
+    const files = await readTenantZip(req.body);
+    const env = environments.get(req.params.slug);
+    if (env) { flushEnvironment(env); environments.delete(req.params.slug); } // rebuilt fresh from the restored files, next asked for
+    const dir = path.join(DATA_DIR, 'tenants', req.params.slug);
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+    for (const [name, data] of files) {
+      const full = path.join(dir, name);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, data);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "that isn't a readable zip file" });
+  }
+});
+
+hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
+  res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins() });
+});
+hostRouter.post('/api/host/admins', requireHostAdmin, (req, res) => {
+  try {
+    const password = String(req.body?.password || '');
+    if (password.length < 8) throw new HostError('a password needs at least 8 characters');
+    res.status(201).json({ admin: hostRegistry.addAdmin({ login: req.body?.login, passwordHash: auth.hashPassword(password) }) });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+hostRouter.delete('/api/host/admins/:key', requireHostAdmin, (req, res) => {
+  try {
+    hostRegistry.removeAdmin(req.params.key);
+    res.json({ ok: true });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+hostRouter.use((_req, res) => res.status(404).json({ error: 'not found' }));
+
+// --- the door: resolve an environment for this request, or route to the host console -----------------------
+// With no BASE_DOMAIN every request is the one environment (today's behaviour, unchanged). With BASE_DOMAIN set:
+// host.<base> is the console above; <base> alone is a plain "this is the host" page (sign-up is phase 5, not
+// this); <slug>.<base> resolves that environment; anything else is a plain 404. A request at an old base domain
+// (PREVIOUS_BASE_DOMAINS) is redirected (301) to the same path at the current one, before any of that -- see
+// "Previous base domains" in plan-tenants.md. The resolver never reads a path, only the hostname.
+if (BASE_DOMAIN) {
+  app.use((req, res, next) => {
+    const host = (req.hostname || '').toLowerCase();
+    const oldBase = hostRegistry.previousBaseDomains().find((d) => host === d || host.endsWith(`.${d}`));
+    if (oldBase) {
+      const newHost = host === oldBase ? BASE_DOMAIN : `${host.slice(0, host.length - oldBase.length - 1)}.${BASE_DOMAIN}`;
+      return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${req.originalUrl}`);
+    }
+    if (host === `host.${BASE_DOMAIN}`) return hostRouter(req, res, next);
+    if (host === BASE_DOMAIN) return res.type('html').send('<!doctype html><title>Coffee Pub Tavern</title><p>This is a Coffee Pub Tavern host.</p>');
+    if (host.endsWith(`.${BASE_DOMAIN}`)) {
+      const slug = host.slice(0, host.length - BASE_DOMAIN.length - 1);
+      if (!hostRegistry.findTenant(slug)) return res.status(404).type('text').send('not found');
+      return envContext.run(environmentFor(slug), next);
+    }
+    return res.status(404).type('text').send('not found');
+  });
+} else {
+  app.use((req, res, next) => envContext.run(environmentFor(DEFAULT_SLUG), next));
+}
 
 // Pages ----------------------------------------------------------------------
 
@@ -783,7 +1084,6 @@ app.patch('/api/users/:key/call-prefs', requireAdmin, (req, res) => {
 // (POST /api/presence), and a person counts as present for a little longer than that. Held in memory, so it
 // starts empty when the server does and fills within half a minute.
 const PRESENT_MS = 75 * 1000;
-const presence = new Map(); // user key -> last time a page said it was open
 const isPresent = (key) => Date.now() - (presence.get(key) || 0) < PRESENT_MS;
 app.post('/api/presence', requireUser, (req, res) => {
   presence.set(currentUser(req).key, Date.now());
@@ -794,9 +1094,6 @@ app.post('/api/presence', requireUser, (req, res) => {
 // person invited, who is told wherever they have Tavern open (the notification stream) and can join or decline.
 // It lives a couple of minutes; the room is swept away when nobody is in it, as any aside is.
 const INVITE_MS = 2 * 60 * 1000;
-const invites = new Map(); // id -> { id, from, to, roomId, at }
-const inviteEvents = new EventEmitter();
-inviteEvents.setMaxListeners(0);
 app.post('/api/table/invite', requireUser, (req, res) => {
   const me = currentUser(req);
   const to = store.userByKey(String(req.body?.to || ''));
@@ -1257,11 +1554,6 @@ function moduleAccess(req, res, need) {
 // was said (see server/chat-history.js for what is kept and for how long). Only a real room keeps history, never
 // an aside. Reading needs the "open and read the chat" permission, posting "send chat messages", and the person
 // must be in the room (or an admin, or a guest of that room).
-const chatHistory = new ChatHistory(DATA_DIR);
-process.on('exit', () => chatHistory.flush());
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(0));
-const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a room's history
-
 function chatRoomFor(req, res, permission) {
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
@@ -1304,7 +1596,6 @@ app.post('/api/rooms/:id/chat', (req, res) => {
 // room an admin could open), the module must be on for the room, and the viewer's role must
 // be allowed to read it there. Read-only: writes always go to one scope.
 
-const roomIconSvgs = new Map();
 // A Font Awesome icon as inline SVG, for a module's sandboxed frame, which cannot load the icon font.
 function iconSvg(id) {
   if (roomIconSvgs.has(id)) return roomIconSvgs.get(id);
@@ -1382,7 +1673,6 @@ app.get('/api/modules/:id/rooms-data', (req, res) => {
 
 const refError = (status, message) => Object.assign(new Error(message), { status });
 const REF_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
-const moduleLinks = new ModuleLinks(modules.dir);
 
 const refScopeKey = (ref) => (ref.scope === 'room' ? `room:${ref.room}` : 'server');
 const refShape = (r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && REF_ID_RE.test(String(r.id ?? ''))
@@ -1643,8 +1933,6 @@ app.get('/api/refs/links', (req, res) => {
 // request waits in the providing module's queue until a person has that module open: its page claims
 // the request (one page only), does it under its own rules, and reports back.
 
-const moduleBus = new ModuleBus(modules.dir);
-
 const busMay = (rules, approved, want) => (rules.includes('*') || rules.includes(want)) && (approved.includes('*') || approved.includes(want));
 const mayHear = ({ manifest, entry }, publisher, name) => busMay(manifest.events.subscribes, entry.approved?.events || [], `${publisher}:${name}`);
 const mayUse = ({ manifest, entry }, provider, action) => busMay(manifest.actions.uses, entry.approved?.actions || [], `${provider}:${action}`);
@@ -1859,37 +2147,11 @@ app.get('/api/bus/actions/status', busRoute((who, req) => {
 // for), so an admin can see, above all for a module running in the page, what it has been up to. Only
 // what passes through Tavern is seen: a module in the page can also do things Tavern never hears of.
 // Kept across a restart (DATA_DIR/modules/activity.json, written a few seconds after a change and on exit).
-const activityFile = path.join(modules.dir, 'activity.json');
-const moduleActivity = (() => {
-  try {
-    const raw = JSON.parse(fs.readFileSync(activityFile, 'utf8'));
-    return Array.isArray(raw) ? raw.slice(-300) : [];
-  } catch {
-    return [];
-  }
-})();
-let activityTimer = null;
-function saveActivity() {
-  if (activityTimer) clearTimeout(activityTimer);
-  activityTimer = null;
-  try {
-    fs.mkdirSync(path.dirname(activityFile), { recursive: true });
-    fs.writeFileSync(`${activityFile}.tmp`, JSON.stringify(moduleActivity));
-    fs.renameSync(`${activityFile}.tmp`, activityFile);
-  } catch {
-    // the log is a convenience
-  }
-}
-process.on('exit', saveActivity);
-function noteActivity(module, what, by, scopeKey) {
-  moduleActivity.push({ at: Date.now(), module, what, by: by || null, scope: scopeKey || null });
-  if (moduleActivity.length > 300) moduleActivity.shift();
-  if (!activityTimer) { activityTimer = setTimeout(saveActivity, 5000); if (activityTimer.unref) activityTimer.unref(); }
-}
+// Built per environment in server/environment.js (moduleActivity, noteActivity); the event wiring below it
+// (a change, a published event, an action asked for -> a line in the activity list) is wired there too.
 
 // How often a module may do things through Tavern (see server/module-limits.js). Over the limit is a 429 and, the
 // first time in a while, a line in the activity list so an admin can see which module is being slowed.
-const moduleLimits = new ModuleLimits();
 function overLimit(moduleId, by, kind) {
   const r = moduleLimits.take(moduleId, by || 'guest', kind);
   if (r.ok) return null;
@@ -1897,9 +2159,6 @@ function overLimit(moduleId, by, kind) {
   return r;
 }
 const limitMessage = 'this module is doing that too often; try again in a moment';
-moduleData.on('change', (c) => noteActivity(c.module, `${c.deleted ? 'deleted' : 'saved'} ${c.key}`, c.by, c.scopeKey));
-moduleBus.on('event', (e) => noteActivity(e.module, `published the event ${e.name}`, e.by, e.scopeKey));
-moduleBus.on('action', (a) => noteActivity(a.from, `asked ${a.provider} to ${a.action}`, a.by, a.scopeKey));
 app.get('/api/modules/activity', requireAdmin, (_req, res) => {
   res.json({
     activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? 'a guest' : a.by) })),
@@ -1949,16 +2208,12 @@ app.get('/api/modules/widgets', (req, res) => {
 // the values that apply to the viewer; the forms that change them are drawn by Tavern on the Modules tab (the server's),
 // a room's own page (the room's) and the profile page (a person's own). Who may change what: the server's, an admin; a
 // room's, an admin or one of that room's moderators; a person's own, that person.
-const moduleSettings = new ModuleSettings(modules.dir);
 
 // --- AI, for the modules that ask ---------------------------------------------------------------------------------------------
 // One server-wide setting (see ai.js); the key never leaves the server and is never sent back. A module asks through the `ai` hook:
 // the server checks the person's role and the room, reads the chosen items as that person, asks the service the admin set up, and
 // returns text with any cards the model wrote (each checked). Nothing is kept: no question, no answer, no item text. The activity
 // list gets who, which module and task, and how many tokens.
-const ai = new Ai(DATA_DIR);
-modules.aiReady = () => ai.ready(); // a module declaring hooks.ai depends on the AI service the way one module depends on another
-process.on('exit', () => ai.flush());
 function sendAiError(err, res) {
   if (err instanceof AiError) return res.status(err.status).json({ error: err.message });
   throw err;
@@ -2039,7 +2294,6 @@ app.post('/api/modules/:id/ai', async (req, res) => {
 // --- files a module's people upload ---------------------------------------------------------------------------------------
 // A module that declares `uploads` keeps pictures per scope (server, room, person), with the same read and write permissions as
 // its data. The server checks what arrives from the bytes themselves and takes out what rides along (see image-clean.js).
-const moduleUploads = new ModuleUploads(modules.dir);
 const rawUpload = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: 10 * 1024 * 1024 + 1024 });
 function uploadAccess(req, res, need) {
   const ctx = moduleAccess(req, res, need);
@@ -2103,8 +2357,6 @@ app.delete('/api/modules/:id/uploads/:fid', (req, res) => {
 // --- place search, from the server -----------------------------------------------------------------------------------------
 // A module that declares `geocoder` in its manifest has its searches for places answered here: from the saved places first, then
 // (when there are too few) from the service its settings name, keeping what comes back if the admin allows it. See geocode.js.
-const geocodeCache = new GeocodeCache(modules.dir);
-process.on('exit', () => geocodeCache.flush());
 function geocodeAccess(req, res, need) {
   const ctx = moduleAccess(req, res, need);
   if (!ctx) return null;
@@ -2170,9 +2422,6 @@ app.post('/api/modules/:id/geocode/purge', requireAdmin, (req, res) => {
 // A module that declares `regionSource` (see server/region-cut.js and documentation/plans/plan-map-region-download.md) offers
 // "Add a region" in its Module Configuration: cut a piece of a world file into one of its own file folders. Admin only, since
 // it can take a while and reads a server setting (the world file's address).
-const regionCutJobs = new RegionCutJobs(DATA_DIR);
-regionCutJobs.on('done', (id) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `cut a map region: ${j.name}`, j.by, null); });
-regionCutJobs.on('error', (id, error) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `could not cut a map region: ${error}`, j.by, null); });
 function sendRegionCutError(err, res) {
   if (err instanceof RegionCutError) return res.status(err.status).json({ error: err.message });
   throw err;
@@ -2255,6 +2504,7 @@ app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
 // Progress, in words and a percentage, over server-sent events; a late subscriber gets the job's current state first, and
 // one already finished (or one Tavern has never heard of) is told so at once rather than hanging.
 app.get('/api/modules/:id/region-cut/:jobId/stream', requireAdmin, (req, res) => {
+  const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const found = modules.enabled(req.params.id);
   if (!found || !found.manifest.regionSource) return res.status(404).json({ error: 'no such module' });
   const job = regionCutJobs.view(req.params.jobId);
@@ -2275,13 +2525,10 @@ app.get('/api/modules/:id/region-cut/:jobId/stream', requireAdmin, (req, res) =>
   regionCutJobs.on('progress', onProgress);
   regionCutJobs.on('done', onDone);
   regionCutJobs.on('error', onErr);
-  req.on('close', cleanup);
+  req.on('close', () => envContext.run(env, cleanup));
 });
-moduleSettings.on('change', (c) => {
-  if (c.scope === 'person') return;
-  const where = c.scope === 'room' ? ` for ${store.roomById(c.roomId)?.name || 'a room'}` : '';
-  noteActivity(c.module, `changed the ${c.scope} settings${where}: ${c.keys.join(', ')}`, c.by, null);
-});
+// A settings change -> a line in the activity list: wired per environment in server/environment.js, on that
+// environment's own real moduleSettings (this used to be one top-level listener; now it's one per environment).
 function sendSettingError(err, res) {
   if (err instanceof SettingError) return res.status(err.status).json({ error: err.message });
   throw err;
@@ -2611,6 +2858,7 @@ app.post('/api/notifications/read', requireUser, (req, res) => {
   res.json({ ok: true });
 });
 app.get('/api/notifications/stream', requireUser, (req, res) => {
+  const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const key = currentUser(req).key;
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
@@ -2627,11 +2875,11 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
   };
   inviteEvents.on('invite', onInvite);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
-  req.on('close', () => {
+  req.on('close', () => envContext.run(env, () => {
     clearInterval(beat);
     moduleHooks.off('notification', onNote);
     inviteEvents.off('invite', onInvite);
-  });
+  }));
 });
 
 // One live stream for every module on a page. A browser allows only a handful of long-lived
@@ -2642,6 +2890,7 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
 //   with ?room=<id>   scope 'room' (that room) and 'server'   -- a room's panes
 //   without a room    scope 'server' and 'rooms' (the viewer's own rooms) -- a module's server page
 app.get('/api/modules/stream', (req, res) => {
+  const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const room = req.query.room ? store.roomById(String(req.query.room)) : null;
@@ -2711,7 +2960,7 @@ app.get('/api/modules/stream', (req, res) => {
   moduleBus.on('event', onBus);
   moduleBus.on('action', onAction);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
-  req.on('close', () => {
+  req.on('close', () => envContext.run(env, () => {
     clearInterval(beat);
     moduleSettings.off('change', onSettings);
     moduleData.off('change', onChange);
@@ -2719,10 +2968,11 @@ app.get('/api/modules/stream', (req, res) => {
     moduleLinks.off('change', onLinks);
     moduleBus.off('event', onBus);
     moduleBus.off('action', onAction);
-  });
+  }));
 });
 
 app.get('/api/modules/:id/events', (req, res) => {
+  const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   // scope=rooms: changes in any of the viewer's rooms (a module's page showing them all).
   const all = req.query.scope === 'rooms' ? moduleRoomsFor(req, res) : null;
   if (req.query.scope === 'rooms' && !all) return;
@@ -2749,11 +2999,11 @@ app.get('/api/modules/:id/events', (req, res) => {
   moduleData.on('change', onChange);
   moduleHooks.on('fire', onFire);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
-  req.on('close', () => {
+  req.on('close', () => envContext.run(env, () => {
     clearInterval(beat);
     moduleData.off('change', onChange);
     moduleHooks.off('fire', onFire);
-  });
+  }));
 });
 
 app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: store.allPermissions(), roles: store.roles() }));
@@ -2824,8 +3074,14 @@ app.use((err, _req, res, _next) => {
 });
 
 app.listen(Number(PORT), () => {
-  console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
-  // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
-  for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
-  if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
+  if (!BASE_DOMAIN) {
+    envContext.run(environmentFor(DEFAULT_SLUG), () => {
+      console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
+      // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
+      for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
+      if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
+    });
+    return;
+  }
+  console.log(`Coffee Pub Tavern ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at host.${BASE_DOMAIN}`);
 });

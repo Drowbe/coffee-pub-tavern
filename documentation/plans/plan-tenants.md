@@ -104,3 +104,36 @@ Built by two sessions at once against this contract: the server half (the regist
 **Previous base domains.** The product's name is not settled, so the base domain may change after environments exist, and every environment's address is `<slug>.<base>`. The registry keeps `previousBaseDomains: [...]` (set from `PREVIOUS_BASE_DOMAINS`, comma-separated): a request at `<slug>.<old base>` or `host.<old base>` is redirected (301) to the same path at the current base, so a rename is "add the new domain, keep the old one answering" and no shared link, bookmark or installed app breaks. Part of phase 1, since it is a few lines in the resolver and the moment it is needed is the worst moment to add it.
 
 **Not in phase 1:** the owner role (phase 2; the first owner is made an admin of the environment for now), enforcing caps (phase 3; the plan is stored and shown), call-name prefixes (phase 4), sign-up and billing (phase 5).
+
+## Progress (September 23, 2026): the server half is done
+
+The seam, the registry, the resolver, the host API and the migration are built (`server/environment.js`,
+`server/host-registry.js`, the changes to `server/index.js` and `server/auth.js`), and the mechanism is written
+up for whoever touches it next in [architecture-tenants](../architecture/architecture-tenants.md). What is not
+in this list is the console page itself (`public/host.html` + `public/host.js`), the other session's own half.
+
+**The critical acceptance test -- no `BASE_DOMAIN`, nothing under the seam changed -- passed live, not just in
+the unit tests:** a real server (`node server/index.js`, no `BASE_DOMAIN`), logged in, installed and enabled a
+module, changed a setting, watched the resulting `event: settings` arrive live over `/api/modules/stream`,
+confirmed the activity log and its debounced write to disk, all exactly as before.
+
+**With `BASE_DOMAIN` set, verified live end to end:** `GET /api/host/me` at `host.<base>` with no session
+answers 401; logging in as the host admin (bootstrapped from `HOST_ADMIN_LOGIN`/`HOST_ADMIN_PASSWORD`) and back
+out; creating a tenant with its first owner, who immediately signs in at `<slug>.<base>` with their own,
+independent `Store` (a fresh Lobby, no data from any other environment); the bare base domain's placeholder page;
+an unknown subdomain and an unrelated hostname both a plain 404; backing a tenant up to a zip and restoring it
+(its environment rebuilds from the restored files on the next request); deleting a tenant (the registry entry
+gone, the directory moved to `tenants-deleted/<slug>-<timestamp>/`, never deleted); a pre-tenant install refusing
+to start without `MIGRATE_TENANT_SLUG` and migrating correctly with it (the original admin's password still
+works, at the new subdomain, `host.json` recording `plan: { modules: 'all' }` with no caps); and the
+`PREVIOUS_BASE_DOMAINS` redirect, for both `host.<old base>` and `<slug>.<old base>`, path and query preserved.
+
+One real bug the live testing caught and fixed: `zipFiles` (`server/module-build.js`) was not exported, so the
+backup route 500'd on its first real call -- a stand-in test or a reading of the diff would not have caught it,
+since the syntax and unit checks have no reason to call it. Fixed by adding it to that file's own exports.
+
+One gap found and closed while building this: a `moduleSettings.on('change', ...)` listener that used to be
+wired once, at module scope in `index.js`, would have kept running against whichever environment happened to be
+current at the moment it fired rather than the one it was meant for -- moved into `buildEnvironment`, wired once
+per environment on that environment's own real instance, the same as every other cross-singleton wiring already
+was.
