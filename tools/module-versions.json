@@ -12,16 +12,16 @@
     "hash": "79553e4c1e6c6c59"
   },
   "places": {
-    "version": "0.8.4",
-    "hash": "5edf18022a0c5eb6"
+    "version": "0.8.5",
+    "hash": "04a26e7da0edf802"
   },
   "polls": {
     "version": "1.12.4",
     "hash": "45e20fa1271c02b8"
   },
   "research": {
-    "version": "0.2.2",
-    "hash": "b1b24e0df66a6283"
+    "version": "0.2.3",
+    "hash": "7f9276e7fb158d24"
   },
   "todo": {
     "version": "1.11.2",

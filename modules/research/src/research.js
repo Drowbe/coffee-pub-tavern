@@ -637,11 +637,16 @@
 
   // --- start --------------------------------------------------------------------------------------------------------
 
+  const VIEW_OPTIONS = [
+    { id: 'my', label: 'Mine', icon: 'user' },
+    { id: 'room', label: 'This room', icon: 'users' },
+  ].filter((o) => allowed[o.id]);
+  const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   async function showView(next) {
     if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;
     try { localStorage.setItem('research-view', view); } catch (err) { /* not remembered */ }
-    for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    viewSwitch?.set(view);
     state.filter = ''; state.kind = ''; state.tags = [];
     $('filter').value = '';
     tavern.menu.close();
@@ -652,11 +657,8 @@
     render();
     try { await ensureLoaded(view); if (view === next) { render(); loadLinks().catch(() => {}); } } catch (err) { say('This could not load: ' + message(err)); }
   }
-  $('views').addEventListener('click', (ev) => { const b = ev.target.closest('.view'); if (b && !b.hidden) showView(b.dataset.view); });
-  for (const b of $('views').querySelectorAll('.view')) hide(b, !allowed[b.dataset.view]);
-  hide($('views'), [...$('views').querySelectorAll('.view')].filter((b) => !b.hidden).length < 2);
   try { const last = localStorage.getItem('research-view'); if (allowed[last]) view = last; } catch (err) { /* the default */ }
-  for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+  viewSwitch?.set(view);
   $('msg').hidden = true;
   $('app').hidden = false;
   render();

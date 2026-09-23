@@ -8,7 +8,7 @@
 
 ```
 <div class="rs [narrow]">                     narrow under 720 px (the script sets it from the pane's width)
-  <header class="rs-head">                    h1 "Research", .count, .views (Mine, This room: button.view[aria-pressed])
+  <header class="rs-head">                    h1 "Research", .count (the Mine/This room switch is in the toolbar, not here)
   <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
   <div class="rs-chips">                      tag chips (.rs-chip.tag[style=--tag], .on)
@@ -16,7 +16,7 @@
   <div class="rs-bar">                        the host's bottom bar is the quick add (see below)
 ```
 
-Views are as in Places: **Mine** (the person scope, private across rooms) and **This room**; the choice is remembered and a guest has only This room. Filtering combines: search text, a kind, and one or more tags.
+Views are as in Places: **Mine** (the person scope, private across rooms) and **This room**, drawn by `tavern.ui.viewSwitch` in the toolbar; the choice is remembered and a guest has only This room (the script skips the switch entirely then). Filtering combines: search text, a kind, and one or more tags.
 
 ## A card (`article.rcard[data-kind=note|link|photo|answer][data-id]`)
 

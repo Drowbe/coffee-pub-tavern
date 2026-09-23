@@ -611,11 +611,17 @@
   // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (a server-wide store).
   const VIEW_NOTES = { my: 'Only you see these. They follow you into every room.', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
   const allowed = { my: personal, room: inRoom, global: personal };
+  const VIEW_OPTIONS = [
+    { id: 'my', label: 'Mine', icon: 'user' },
+    { id: 'room', label: 'This room', icon: 'users' },
+    { id: 'global', label: 'Everyone', icon: 'globe' },
+  ].filter((o) => allowed[o.id]);
+  const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   function showView(next) {
     if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;
     try { localStorage.setItem('places-view', view); } catch (err) { /* not remembered */ }
-    for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    viewSwitch?.set(view);
     const note = root.querySelector('[data-slot="view-note"]');
     fill(note, { text: VIEW_NOTES[view] || '' });
     hide(note, !VIEW_NOTES[view]);
@@ -627,12 +633,9 @@
     render();
     ensureLoaded(view).then(() => { if (view === next) { render(); loadLinks().catch(() => {}); } }).catch((err) => say('These places could not load: ' + err.message));
   }
-  $('views').addEventListener('click', (ev) => { const b = ev.target.closest('.view'); if (b && !b.hidden) showView(b.dataset.view); });
-  for (const b of $('views').querySelectorAll('.view')) hide(b, !allowed[b.dataset.view]);
-  hide($('views'), [...$('views').querySelectorAll('.view')].filter((b) => !b.hidden).length < 2);
   try { const last = localStorage.getItem('places-view'); if (allowed[last] && (last !== 'room' || inRoom)) view = last; } catch (err) { /* the default */ }
   if (view !== 'room' || !inRoom) {
-    for (const b of $('views').querySelectorAll('.view')) b.setAttribute('aria-pressed', String(b.dataset.view === view));
+    viewSwitch?.set(view);
     fill(root.querySelector('[data-slot="view-note"]'), { text: VIEW_NOTES[view] || '' });
     hide(root.querySelector('[data-slot="view-note"]'), !VIEW_NOTES[view]);
   }

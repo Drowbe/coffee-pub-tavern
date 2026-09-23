@@ -288,10 +288,10 @@ tavern.on('toolbar', ({ id, value }) => { /* a tabs or slider item's click/move 
 ```
 
 - `{ type: 'text', text }` -- a plain, dim label.
-- `{ type: 'tabs', id, options: [{ id, label }], value }` -- a segmented switch (labels, not icons); a click sends `{ id, value: optionId }`.
+- `{ type: 'tabs', id, value, options: [{ id, label?, icon?, regular?, iconOnly? }] }` -- a segmented switch; each option needs a `label`, an `icon`, or both -- `iconOnly` keeps the icon and drops the visible label (kept as the tooltip and `aria-label`), for a tight space where the icon alone already reads clearly (Places' Mine/This room/Everyone, an icon and a label together, is the more common shape). A click sends `{ id, value: optionId }`.
 - `{ type: 'progress', value, label? }` -- a read-only bar, `value` 0-100.
 - `{ type: 'slider', id, value, min?, max?, step?, label?, disabled? }` -- a range input (min 0, max 100, step 1 unless given); moving it sends `{ id, value }`.
-- `{ type: 'button', id, label?, icon?, on?, primary?, disabled?, overflow? }` (the default type when `type` is left out) -- a click sends `{ id }`. Use this sparingly, for the one action that goes with the toolbar's own state (a Sync button beside an import's progress) -- not a place to relocate the titlebar's row of icons.
+- `{ type: 'button', id, label?, icon?, on?, primary?, disabled?, overflow? }` (the default type when `type` is left out) -- a click sends `{ id }`. Use this sparingly, for the one action that goes with the toolbar's own state (a Sync button beside an import's progress) -- not a place to relocate the titlebar's row of icons. Unlike a `tabs` option, a lone `button` item repeating the titlebar's icon style is exactly the thing to avoid.
 - `{ separator: true }` -- a vertical divider, ignoring every other field.
 
 Only `button` items count toward the five-item cap and collapse into the "..." (text, tabs, progress and slider items always show, since they say something, or are themselves the control, rather than being one more action). Resolves `true`/`false` the same way `header.set` does.

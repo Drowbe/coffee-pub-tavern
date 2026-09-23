@@ -34,10 +34,12 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
   module's primary input (that's the action bar). Set with `tavern.toolbar.set`. Present everywhere the
   titlebar is, and also on a module's own page even when it is not popped out (unlike the titlebar, a
   standalone page still has room under its own header for one). **It is not a second row of titlebar
-  icons.** A view or filter switch is `type: 'tabs'` (text labels), not a row of icon buttons repeating
-  what the titlebar already looks like; `type: 'button'` is for the one action that goes with the
-  toolbar's own state (a Sync button next to an import's progress, say), not a place to relocate the
-  titlebar's row. See "Reusable toolbar tools" below before building one from raw items.
+  icons.** A view or filter switch is `type: 'tabs'`, not `type: 'button'` items repeating what the
+  titlebar already looks like -- a tab can still carry an icon when the icon itself means something
+  (Places' Mine/This room/Everyone), that is a different thing from a button row standing in for the
+  titlebar. `type: 'button'` is for the one action that goes with the toolbar's own state (a Sync button
+  next to an import's progress, say), not a place to relocate the titlebar's row. See "Reusable toolbar
+  tools" below before building one from raw items.
 - **Content.** The module's frame or in-page root. This is the section that scrolls, and the drop target for
   a dragged ref, either as a whole or onto specific items within it.
 - **Action bar.** Optional, along the bottom: the module's primary inputs and actions -- an Add button, a

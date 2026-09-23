@@ -3889,7 +3889,13 @@ body.conference-window {
   padding: 0 10px;
   border-bottom: 1px solid var(--border);
   background: var(--shade);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* a narrow pane scrolls the row by touch/drag rather than clipping it */
+}
+
+.mod-toolbar::-webkit-scrollbar {
+  display: none;
 }
 
 .mod-toolbar[hidden] {
@@ -3915,6 +3921,9 @@ body.conference-window {
 }
 
 .tb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 3px 10px;
   border: 1px solid var(--border);
   background: none;
@@ -3922,6 +3931,10 @@ body.conference-window {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.tb-tab-icon {
+  padding-inline: 8px;
 }
 
 .tb-tab:first-child {

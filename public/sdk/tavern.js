@@ -508,11 +508,12 @@
         btn.addEventListener('click', open);
         return { close, refresh: () => { close(); showDow(); }, destroy: () => { close(); hint.remove(); wrap.parentNode.insertBefore(input, wrap); wrap.remove(); } };
       },
-      // A labelled view or filter switch, drawn in the toolbar (see tavern.toolbar.set) -- its most common
-      // tool, so this is the one built for every module rather than each writing its own diffing and event
-      // wiring. { id, options: [{ id, label }], value, onChange }: draws once, then only redraws when the
-      // value or the options actually change (call set() every render; it no-ops when nothing did).
-      // Returns { set(value, options?), destroy() }.
+      // A view or filter switch, drawn in the toolbar (see tavern.toolbar.set) -- its most common tool, so
+      // this is the one built for every module rather than each writing its own diffing and event wiring.
+      // { id, options: [{ id, label?, icon?, regular?, iconOnly? }], value, onChange }: an option needs a
+      // label, an icon, or both (see tavern.toolbar.set's 'tabs' item for what each does). Draws once, then
+      // only redraws when the value or the options actually change (call set() every render; it no-ops
+      // when nothing did). Returns { set(value, options?), destroy() }.
       viewSwitch: ({ id, options, value, onChange }) => {
         let sig = '';
         let current = value;
@@ -988,12 +989,14 @@
     // An optional row under the titlebar, above the content: a small kit of reusable tools about the
     // module's current state -- a view switch, a filter, a progress bar, a slider -- not window-level
     // actions (those are the titlebar) and not the module's primary inputs (those are the action bar).
-    // It is not a second row of titlebar icons: reach for 'tabs' (text, not icons) for a view switch, and
-    // use 'button' sparingly, for the one action that goes with the toolbar's own state, not a place to
-    // relocate the titlebar's row. set([item, ...]) where item is one of:
+    // It is not a second row of titlebar icons: use 'button' sparingly, for the one action that goes with
+    // the toolbar's own state, not a place to relocate the titlebar's row. 'tabs' can carry an icon per
+    // option when the icon itself is meaningful (Places' Mine/This room/Everyone, say) -- that is different
+    // from a button row standing in for a titlebar. set([item, ...]) where item is one of:
     //   { type: 'text', text }                                             -- plain dim label
-    //   { type: 'tabs', id, options: [{ id, label }], value }              -- a segmented switch (labels,
-    //       not icons); a click arrives as the 'toolbar' event { id, value: optionId }
+    //   { type: 'tabs', id, value, options: [{ id, label?, icon?, regular?, iconOnly? }] } -- a segmented
+    //       switch; give label, icon, or both per option (iconOnly hides the label, kept for aria-label
+    //       and the tooltip). A click arrives as the 'toolbar' event { id, value: optionId }
     //   { type: 'progress', value, label? }                               -- a read-only bar, value 0-100
     //   { type: 'slider', id, value, min?, max?, step?, label?, disabled? } -- a range input; moving it
     //       arrives as the 'toolbar' event { id, value } (min 0, max 100, step 1 unless given)

@@ -702,7 +702,10 @@ export function mountModule({ module, frame = null, container = null, scope, roo
             options: (Array.isArray(i?.options) ? i.options : []).slice(0, 8).map((o) => ({
               id: String(o?.id ?? '').slice(0, 40),
               label: String(o?.label ?? '').slice(0, 30),
-            })).filter((o) => o.id && o.label),
+              icon: /^[a-z0-9-]{1,40}$/.test(o?.icon || '') ? o.icon : '',
+              regular: Boolean(o?.regular),
+              iconOnly: Boolean(o?.iconOnly),
+            })).filter((o) => o.id && (o.label || o.icon)),
           };
         }
         return {
@@ -767,8 +770,17 @@ export function mountModule({ module, frame = null, container = null, scope, roo
           for (const opt of item.options) {
             const b = doc.createElement('button');
             b.type = 'button';
-            b.className = `tb-tab${opt.id === item.value ? ' on' : ''}`;
-            b.textContent = opt.label;
+            b.className = `tb-tab${opt.id === item.value ? ' on' : ''}${opt.iconOnly && opt.icon ? ' tb-tab-icon' : ''}`;
+            if (opt.icon) {
+              const i = doc.createElement('i');
+              i.className = `fa-${opt.regular ? 'regular' : 'solid'} fa-${opt.icon} fa-fw`;
+              i.setAttribute('aria-hidden', 'true');
+              b.appendChild(i);
+              if (opt.label && !opt.iconOnly) b.append(' ');
+            }
+            if (opt.label && !(opt.iconOnly && opt.icon)) b.append(opt.label);
+            b.setAttribute('aria-label', opt.label || opt.id);
+            if (opt.iconOnly && opt.icon) b.title = opt.label || '';
             b.addEventListener('click', () => send('toolbar', { id: item.id, value: opt.id }));
             seg.appendChild(b);
           }
