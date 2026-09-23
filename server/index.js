@@ -3080,18 +3080,20 @@ app.delete('/api/modules/:id/files/:name', requireAdmin, (req, res) => {
 });
 
 // The values that apply to the viewer, for the module itself.
+// A shared setting's real value is the host's, not whatever this environment's own (unused) copy holds --
+// every file in the shared folder (nothing to tick), or the host's own saved region source address. Shared by
+// GET /api/modules/:id/settings/values (a module reading its own settings) and withValues (the admin's own
+// settings form) below, so both ever answer the same thing for it.
+function sharedValue(manifest, def) {
+  if (def.type === 'files') return listModuleFiles(manifest, def.folder);
+  if (def.type === 'file') return listModuleFiles(manifest, def.folder)[0] || '';
+  return hostRegistry.sharedFolderAddress(manifest.id, manifest.regionSource.folder);
+}
 app.get('/api/modules/:id/settings/values', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
   if (!ctx) return;
   const values = moduleSettings.effective(ctx.manifest, { roomId: ctx.roomId, userKey: ctx.who.user?.key || null });
-  // A shared setting's real value is the host's, not whatever this environment's own (unused) copy holds --
-  // every file in the shared folder (nothing to tick), or the host's own saved region source address.
-  for (const d of ctx.manifest.settings || []) {
-    if (!settingIsShared(ctx.manifest, d)) continue;
-    if (d.type === 'files') values[d.key] = listModuleFiles(ctx.manifest, d.folder);
-    else if (d.type === 'file') values[d.key] = listModuleFiles(ctx.manifest, d.folder)[0] || '';
-    else values[d.key] = hostRegistry.sharedFolderAddress(ctx.manifest.id, ctx.manifest.regionSource.folder);
-  }
+  for (const d of ctx.manifest.settings || []) if (settingIsShared(ctx.manifest, d)) values[d.key] = sharedValue(ctx.manifest, d);
   res.json({ values });
 });
 
@@ -3115,12 +3117,15 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({
-    ...d,
-    value: values[d.key],
-    ...(settingIsShared(manifest, d) ? { shared: true } : {}),
-    ...(d.type === 'file' || d.type === 'files' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest, d.folder)) : {}),
-  }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => {
+    const shared = settingIsShared(manifest, d);
+    return {
+      ...d,
+      value: shared ? sharedValue(manifest, d) : values[d.key],
+      ...(shared ? { shared: true } : {}),
+      ...(d.type === 'file' || d.type === 'files' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest, d.folder)) : {}),
+    };
+  });
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
