@@ -76,3 +76,29 @@ One store file per install, module data scoped to server, space or person, setti
 - **A tenant's own domain comes later, on the top plan**: a hostname-to-slug mapping in the registry, a CNAME at the base, a certificate the host obtains itself. Not in the first phases.
 
 Nothing is left open for phase 1.
+
+## Phase 1 in detail (September 23, 2026)
+
+Built by two sessions at once against this contract: the server half (the registry, the store per environment, the resolver, the host API, the migration) and the console page (`public/host.html`, `public/host.js`).
+
+**The seam in the server.** Everything under the seam is what runs today: `Store`, `ModuleManager`, `ChatHistory`, `ModuleSettings`, `Ai`, `RegionCutJobs` and the rest, each built from a data directory. Phase 1 builds them once per environment (`DATA_DIR/tenants/<slug>/` as that environment's data directory) and resolves the set for a request from the hostname at the door. Request handlers keep reading `store`, `modules` and the others by the names they use now: those names become request-scoped accessors (an `AsyncLocalStorage` context set by the resolver, with a proxy in front of each singleton name), so the body of a handler does not change. Work that runs outside a request (timers, schedules, the activity flush, the presence sweep, the streams) runs once per environment, from each environment's own services, not from a global. With no base domain there is exactly one environment and the accessors always find it: today's behaviour, unchanged.
+
+**The registry.** `DATA_DIR/host.json`: `{ baseDomain, hostAdmins: [{ key, login, passwordHash }], tenants: [{ slug, name, createdAt, plan: { modules: [ids] | 'all', members, storageBytes, aiCallsPerMonth, calls }, status: 'active' | 'pastDue' | 'suspended', pastDueSince }] }`. The base domain comes from the environment (`BASE_DOMAIN`) and is mirrored here for the console to show; a change needs a restart.
+
+**The resolver.** With `BASE_DOMAIN` set: the request's hostname is `host.<base>` (the console and the host API), `<base>` (the sign-up page, phase 5; until then a page saying which environments exist is not shown, only a plain "this is the host" page), `<slug>.<base>` (that environment), or unknown (404, plain). Without it: every request is the one environment, whatever the hostname. The resolver never reads a path.
+
+**Migration.** On first start with `BASE_DOMAIN` set and data at `DATA_DIR/tavern.json` (a pre-tenant install), the server refuses to start until told the slug: `MIGRATE_TENANT_SLUG=<slug>` in the environment for that one start moves the install (`tavern.json`, `modules/`, images, chat history, everything but `host.json` and `fontawesome-pro/`) to `DATA_DIR/tenants/<slug>/` and records the tenant in the registry with `plan: { modules: 'all' }` and no caps. Without `BASE_DOMAIN` nothing moves and the layout stays as it is; the same code reads either layout (a tenant's directory has the same shape as today's `DATA_DIR`).
+
+**The host API** (all under `/api/host/`, served only at `host.<base>`; 404 elsewhere; a host admin's own session cookie, `host_session`, never a tenant's):
+- `POST /api/host/login { login, password }`, `POST /api/host/logout`, `GET /api/host/me`.
+- `GET /api/host/tenants` -> `{ tenants: [{ slug, name, status, plan, createdAt, usage: { members, storageBytes, aiCallsThisMonth, spaces } }] }`.
+- `POST /api/host/tenants { slug, name, owner: { login, displayName, password } }` creates the directory, the registry entry and the first owner (an admin of that environment, see phase 2).
+- `PATCH /api/host/tenants/:slug { name?, plan?, status? }`.
+- `DELETE /api/host/tenants/:slug` removes the registry entry and moves the directory to `DATA_DIR/tenants-deleted/<slug>-<timestamp>/` (never deletes it).
+- `POST /api/host/tenants/:slug/backup` -> a zip of the directory; `POST /api/host/tenants/:slug/restore` with a zip.
+- `GET /api/host/settings` -> `{ baseDomain, version, hostAdmins: [{ key, login }] }`; `POST /api/host/admins { login, password }`, `DELETE /api/host/admins/:key` (never the last).
+- The first host admin: `HOST_ADMIN_LOGIN` and `HOST_ADMIN_PASSWORD` in the environment on a start where the registry has none, recorded then and not read again.
+
+**The console** (`host.<base>`, `public/host.html` + `public/host.js`, the primary nav only): sign in; the environments as a list (a slug, a name, a status, the plan's caps against the usage, a link to open it); create one (slug, name, the first owner); edit a plan; suspend and restore; backup; the host admins; the base domain and version. No tenant's data is shown beyond the counts.
+
+**Not in phase 1:** the owner role (phase 2; the first owner is made an admin of the environment for now), enforcing caps (phase 3; the plan is stored and shown), call-name prefixes (phase 4), sign-up and billing (phase 5).
