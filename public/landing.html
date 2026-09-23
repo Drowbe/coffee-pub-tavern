@@ -97,12 +97,18 @@
     <!-- Sign in: the host knows where a person has been (the env_hint cookie an environment leaves on the parent domain), never who they are -->
     <section id="signin" class="band cta">
       <h2>Sign in</h2>
-      <p id="signin-lede">Every environment has its own address. Where are you going?</p>
-      <div class="signin-known" id="signin-known" hidden></div>
-      <form class="signin-form" id="signin-form">
-        <label for="signin-slug" class="sr-only">Environment</label>
-        <span class="signin-field"><input id="signin-slug" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="yourname" pattern="[a-z0-9-]{3,30}" required><span class="signin-suffix" data-suffix>.example</span></span>
-        <button class="btn btn-primary" type="submit">Go</button>
+      <p id="signin-lede">Each environment has its own sign-in. Which one is yours?</p>
+      <form class="signin-form" id="signin-form" method="post" action="#signin">
+        <label for="signin-env" class="sr-only">Environment</label>
+        <select id="signin-env" name="environment" required><option value="">Choose an environment</option></select>
+        <div class="signin-creds" id="signin-creds" hidden>
+          <label for="signin-login" class="sr-only">Login</label>
+          <input id="signin-login" name="login" type="text" placeholder="Login" autocapitalize="off" autocomplete="username" required>
+          <label for="signin-password" class="sr-only">Password</label>
+          <input id="signin-password" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+          <input type="hidden" name="next" value="/">
+          <button class="btn btn-primary" type="submit">Sign in</button>
+        </div>
       </form>
       <p class="hint" id="signin-note" hidden></p>
     </section>

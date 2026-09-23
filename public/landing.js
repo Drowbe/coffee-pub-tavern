@@ -28,55 +28,63 @@ if (hint) {
   hint.textContent = product.contact ? `Or write to ${product.contact}.` : 'Sign-up from this page is coming; for now, ask whoever runs this host.';
 }
 
-// --- Sign in: where has this person been? -----------------------------------------------------------------------
-// An environment leaves `env_hint=<slug>,<slug>...` on the parent domain when someone signs in there (most recent first).
-// The host never knows who they are, only where they have been; each slug is looked up for its name, and a button goes
-// straight there. A box for a first visit (or another device) takes an environment's slug.
+// --- Sign in: which environment? ---------------------------------------------------------------------------------
+// The host's environments (GET /api/product/environments, public: on a host run for a handful of groups, naming them is
+// fine) as a list to choose from. The host never knows who a visitor is, only where they have been: an environment leaves
+// `env_hint=<slug>,<slug>...` on the parent domain when someone signs in there (most recent first), and that one is
+// preselected, so a second visit is one click.
 const envUrl = (slug, path = '/login') => `${location.protocol}//${slug}.${product.baseDomain}${location.port ? `:${location.port}` : ''}${path}`;
 const slugOk = (s) => /^[a-z0-9-]{3,30}$/.test(s);
 const cookie = (name) => { const m = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith(`${name}=`)); return m ? decodeURIComponent(m.slice(name.length + 1)) : ''; };
-const suffix = document.querySelector('[data-suffix]');
-if (suffix) suffix.textContent = `.${product.baseDomain || 'example'}`;
 const note = document.getElementById('signin-note');
 const sayNote = (text) => { note.textContent = text; note.hidden = !text; };
-
-async function lookup(slug) {
-  try {
-    const res = await fetch(`/api/product/environment?slug=${encodeURIComponent(slug)}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    return null;
-  }
-}
+const select = document.getElementById('signin-env');
+const navSignin = document.getElementById('nav-signin');
 
 (async () => {
-  const known = document.getElementById('signin-known');
-  const navSignin = document.getElementById('nav-signin');
-  const slugs = cookie('env_hint').split(',').map((s) => s.trim()).filter(slugOk).slice(0, 5);
-  if (!slugs.length || !product.baseDomain) return;
-  const found = (await Promise.all(slugs.map(lookup))).filter(Boolean);
-  if (!found.length) return;
-  known.replaceChildren(...found.map((env) => {
-    const a = document.createElement('a');
-    a.className = 'btn btn-primary';
-    a.href = envUrl(env.slug);
-    a.textContent = `Sign in to ${env.name || env.slug}`;
-    return a;
-  }));
-  known.hidden = false;
-  document.getElementById('signin-lede').textContent = found.length === 1 ? 'Back to where you were:' : 'Back to one of yours:';
-  // the nav's Sign in goes straight to the most recent one
-  if (navSignin) { navSignin.href = envUrl(found[0].slug); navSignin.textContent = `Sign in to ${found[0].name || found[0].slug}`; }
+  let environments = [];
+  try {
+    const res = await fetch('/api/product/environments');
+    if (res.ok) environments = (await res.json()).environments || [];
+  } catch (err) {
+    environments = [];
+  }
+  environments = environments.filter((e) => e && slugOk(e.slug));
+  for (const env of environments) {
+    const o = document.createElement('option');
+    o.value = env.slug;
+    o.textContent = env.name || env.slug;
+    select.append(o);
+  }
+  if (!environments.length) {
+    sayNote(product.baseDomain ? 'No environments to sign in to yet.' : 'Sign-in from this page needs a base domain; this host has one environment, at its own address.');
+    select.disabled = true;
+    return;
+  }
+  // the one this browser was last in, if it is still here
+  const recent = cookie('env_hint').split(',').map((s) => s.trim()).find((s) => environments.some((e) => e.slug === s));
+  if (recent) {
+    select.value = recent;
+    const env = environments.find((e) => e.slug === recent);
+    if (navSignin) { navSignin.href = envUrl(recent); navSignin.textContent = `Sign in to ${env.name || recent}`; }
+    chosen();
+  }
 })();
 
-document.getElementById('signin-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const input = document.getElementById('signin-slug');
-  const slug = input.value.trim().toLowerCase().replace(/^https?:\/\//, '').split('.')[0];
-  if (!slugOk(slug)) { sayNote('An environment\'s name is 3 to 30 letters, digits or hyphens.'); return; }
-  sayNote('');
-  const env = await lookup(slug);
-  if (!env) { sayNote(`There is no environment called "${slug}" here. Check the address you were given.`); return; }
-  location.href = envUrl(env.slug);
+// Choosing an environment reveals the login and password; the form then posts to that environment's own /login (a
+// plain, top-level form post, so its session cookie is first-party), which signs the person in and sends them on.
+const creds = document.getElementById('signin-creds');
+const form = document.getElementById('signin-form');
+function chosen() {
+  const slug = select.value;
+  const ok = slugOk(slug) && Boolean(product.baseDomain);
+  creds.hidden = !ok;
+  form.action = ok ? envUrl(slug) : '#signin';
+  if (ok) { sayNote(''); document.getElementById('signin-login').focus(); }
+}
+select.addEventListener('change', chosen);
+form.addEventListener('submit', (e) => {
+  const slug = select.value;
+  if (!slugOk(slug) || !product.baseDomain) { e.preventDefault(); sayNote('Choose an environment first.'); return; }
+  form.action = envUrl(slug); // and let the browser post it there
 });
