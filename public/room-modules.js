@@ -245,11 +245,29 @@ export function createRoomModules({ guestToken = null } = {}) {
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
   }
-  // The stage-level switch: every floating pane snaps, the ones open now (each one's own switch follows) and any opened later.
+  // The stage-level switch. On: every pane that can float does -- the docked ones are floated first, their docked mode
+  // remembered (`__snap.before`) -- and snaps, each one's own switch following; any pane opened later floats and snaps too
+  // (preferredMode, api_openNative). Off: the panes that were docked when it went on go back to docked, the rest stay floating,
+  // free again. A pane on a narrow stage (a phone) is left docked either way: it has no room to float.
   function setSnapAll(on) {
-    saved.__snap = { ...(saved.__snap || {}), all: Boolean(on) };
+    const snap = saved.__snap || {};
+    if (on) {
+      const before = { ...(snap.before || {}) };
+      for (const p of [...panes.values()]) {
+        if (p.mode === 'dock' && supports(p, 'float') && !isNarrow()) { before[p.id] = 'dock'; setMode(p.id, 'float'); }
+      }
+      saved.__snap = { ...snap, all: true, before };
+      persist();
+      for (const p of panes.values()) if (floatPanel(p)) setSnap(p.id, true);
+      return;
+    }
+    saved.__snap = { ...snap, all: false, before: {} };
     persist();
-    for (const p of panes.values()) if (floatPanel(p)) setSnap(p.id, on);
+    for (const p of [...panes.values()]) if (floatPanel(p)) setSnap(p.id, false);
+    for (const [id, mode] of Object.entries(snap.before || {})) {
+      const p = panes.get(id);
+      if (p && p.mode === 'float' && supports(p, mode)) setMode(id, mode);
+    }
   }
   // The grid's size, from the room bar's slider: every snapped pane refits to the cells nearest its box. While the slider
   // moves (`preview`) the grid shows, so the size can be seen; it hides when the slider is let go.
@@ -776,6 +794,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const want = saved[p.id]?.mode;
     // A phone shows one pane at a time, docked below the conference strip like the chat; a module that cannot dock floats.
     if (isNarrow()) return supports(p, 'dock') ? 'dock' : 'float';
+    if (snapAllOn() && supports(p, 'float')) return 'float'; // the stage-level snap: every pane that can float does, snapped
     if (want && supports(p, want)) return want;
     return supports(p, 'dock') ? 'dock' : 'float';
   }
@@ -1108,7 +1127,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (panes.has(id)) return true;
     if (!restoring) keepLayout = false;
     if (isNarrow()) view = id;
-    const want = saved[id]?.mode === 'float' && (!def.modes || def.modes.includes('float')) ? 'float' : 'dock';
+    const canFloat = !def.modes || def.modes.includes('float');
+    // With the stage-level snap on, a pane that can float opens floating (and snapped), whatever it was last time.
+    const want = canFloat && (saved[id]?.mode === 'float' || snapAllOn()) ? 'float' : 'dock';
     return openNativeIn(def, mode || (isNarrow() ? 'dock' : want));
   };
 

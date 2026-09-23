@@ -12,7 +12,6 @@
   let info;
   try {
     info = await tavern.ready();
-    setClock(tavern.locale().clock);
   } catch (err) {
     $('msg').textContent = 'The calendar could not start: ' + err.message;
     return;
