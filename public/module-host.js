@@ -625,7 +625,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
           more.setAttribute('aria-label', 'More');
           more.setAttribute('aria-haspopup', 'menu');
           const i = document.createElement('i');
-          i.className = 'fa-solid fa-ellipsis fa-fw';
+          i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
           i.setAttribute('aria-hidden', 'true');
           more.appendChild(i);
           more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
@@ -676,7 +676,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         more.setAttribute('aria-label', 'More');
         more.setAttribute('aria-haspopup', 'menu');
         const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis fa-fw';
+        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
         i.setAttribute('aria-hidden', 'true');
         more.appendChild(i);
         more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
@@ -830,7 +830,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         more.setAttribute('aria-label', 'More');
         more.setAttribute('aria-haspopup', 'menu');
         const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis fa-fw';
+        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
         i.setAttribute('aria-hidden', 'true');
         more.appendChild(i);
         more.addEventListener('click', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));

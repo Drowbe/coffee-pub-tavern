@@ -611,13 +611,11 @@
         const row = taskAt(pt);
         const x = row && tasks.get(row.dataset.task);
         try {
-          const own = [];
-          if (x && ref && linkable(ref)) own.push({ id: 'link', label: `Link it to "${x.t.title}"`, run: () => linkTo(row.dataset.task, ref) });
-          own.push({
-            id: 'create',
-            label: 'Start a task from it',
-            run: (ctx) => { openEditor(null, { title: ctx.card.title || '', date: ctx.card.date || null }); if (ref && linkable(ref)) addEditorLink(ref); },
-          });
+          // On a task, the obvious thing is to link it there; on the list's empty space, to start a task from it. One
+          // own offer each, so the drop just does it unless the item's own module adds something (see dropMenu).
+          const own = x && ref && linkable(ref)
+            ? [{ id: 'link', label: `Link it to "${x.t.title}"`, run: () => linkTo(row.dataset.task, ref) }]
+            : [{ id: 'create', label: 'Start a task from it', run: (ctx) => { openEditor(null, { title: ctx.card.title || '', date: ctx.card.date || null }); if (ref && linkable(ref)) addEditorLink(ref); } }];
           const chosen = await tavern.refs.dropMenu(dragged, pt, { context: x ? { target: myRef(x.id) } : {}, own, remember: x ? 'task' : 'list' });
           if (chosen && chosen.id !== 'link' && chosen.id !== 'create') showNote(`${chosen.label}: done`);
         } catch (err) {

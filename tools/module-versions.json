@@ -12,23 +12,23 @@
     "hash": "eaeee5bfe211a740"
   },
   "places": {
-    "version": "0.8.7",
-    "hash": "f9d65cfd04748cc5"
+    "version": "0.8.8",
+    "hash": "38bf099f1b0196f0"
   },
   "polls": {
-    "version": "1.12.5",
-    "hash": "286969bedcf295b9"
+    "version": "1.12.6",
+    "hash": "053c279458a20e2d"
   },
   "research": {
-    "version": "0.2.4",
-    "hash": "b320247148345376"
+    "version": "0.2.5",
+    "hash": "2e3b6803596e79af"
   },
   "todo": {
-    "version": "1.11.3",
-    "hash": "be4a433f30db3e4f"
+    "version": "1.11.4",
+    "hash": "e965aabfec455f2a"
   },
   "travel": {
-    "version": "0.7.18",
-    "hash": "81e67e7cf0069add"
+    "version": "0.7.19",
+    "hash": "645bb554fa4980c7"
   }
 }

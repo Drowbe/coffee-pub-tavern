@@ -110,12 +110,25 @@ module builds), the same as the titlebar's custom span: whichever zone's DOM nod
 switch would otherwise lose whatever `tavern.toolbar.set`/`tavern.bar.set` last drew into it, or worse, leave
 `module-host.js`'s own reference to it pointing at a detached node.
 
+## Rules
+
+- **The "..." is one icon.** Every "more" affordance -- the host's overflow at the end of a titlebar, a toolbar or
+  an action bar, a card's own menu, a day's, the call's More -- is Font Awesome's `ellipsis-vertical`. Not the
+  horizontal `ellipsis`, and not a text glyph standing in for it. It opens `tavern.menu.show` (a module's own) or
+  the host's overflow menu; both look the same. Found by hand once (a vertical glyph on a poll, a horizontal
+  icon everywhere else), which is what the check below is for.
+- **A menu is one of two things.** `tavern.menu.show` inside a module, `toggleOverflow` for the host's own chrome,
+  and `tavern.actions.pick` (the drop menu, a choice) draws in `menu.show`'s look. Nothing draws its own list of
+  actions.
+
+`tools/check-module-window.mjs` enforces the first rule mechanically, as part of `npm run check`, the way
+`check-room-layout.mjs` enforces the room grid's; add a rule there when the next drift shows the shape of one.
+
 ## What is not built yet
 
-- **Enforcement.** `tools/check-room-layout.mjs` mechanically enforces the room grid's rules (one header
-  height token, and so on); nothing yet does the same for the four zones here (a module drawing its own
-  titlebar-like row instead of using `header.set`, say). Worth adding once a second or third violation shows
-  the shape of what to catch.
+- **More enforcement.** The zones themselves (a module drawing its own titlebar-like row instead of using
+  `header.set`, a bespoke action list instead of `menu.show`) are not checked yet; worth adding to
+  `check-module-window.mjs` once a violation shows what to match.
 - **Language, not code.** `architecture-room-layout.md` still calls the call's own bottom control strip "the
   video toolbar"/"the call toolbar" in places. It is the same idea as a module's action bar (above); the
   wording there should catch up, without needing the call's own native implementation to actually move onto

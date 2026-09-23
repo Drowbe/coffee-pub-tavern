@@ -269,7 +269,7 @@
     const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
-      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">&#8942;</button>` : ''}
+      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">${moreSvg}</button>` : ''}
       <h3 data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
@@ -300,6 +300,10 @@
     value: show,
     onChange: (id) => { show = id; render(); },
   });
+  // The "..." on a poll: the one icon every "..." in Tavern wears (see architecture-module-window.md), fetched
+  // once as inline SVG since this page builds its markup from strings.
+  let moreSvg = '';
+  tavern.ui.icon('ellipsis-vertical').then((svg) => { moreSvg = svg; render(); }).catch(() => {});
 
   function render() {
     const own = [...polls.values()].filter((x) => x.scope === 'own');

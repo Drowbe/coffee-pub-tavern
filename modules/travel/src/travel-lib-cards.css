@@ -30,7 +30,7 @@
 /* ---- the day ---- */
 /* overflow: clip, not hidden: it rounds the corners without making this the scroller, so the sticky day header sticks to the page */
 .day2 { background: var(--bg-section); border: 1px solid var(--border); border-radius: 16px; overflow: clip; }
-.day-head2 { display: flex; align-items: center; gap: 14px; padding: 14px 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--bg-section)), var(--bg-section)); border-bottom: 1px solid var(--border); }
+.day-head2 { position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 44px 14px 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--bg-section)), var(--bg-section)); border-bottom: 1px solid var(--border); }
 .dnum { display: flex; flex-direction: column; align-items: center; min-width: 54px; padding: 6px 8px; border-radius: 12px; background: var(--accent); color: var(--bg); line-height: 1.05; }
 .dnum b { font-size: 26px; font-weight: 700; }
 .dnum span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.9; }

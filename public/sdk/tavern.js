@@ -192,7 +192,7 @@
 .tv-dp-day.today { border-color: var(--accent); }
 .tv-dp-day.sel { background: var(--accent); color: var(--on-accent); font-weight: 700; }
 .tv-dp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
-.tv-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
+.tv-menu { position: fixed; z-index: 9999; min-width: 180px; max-width: 320px; max-height: 70vh; overflow: auto; padding: 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.45); font: 13px system-ui, sans-serif; }
 .tv-menu-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; box-sizing: border-box; }
 .tv-menu-item:hover, .tv-menu-item:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); outline: none; }
 .tv-menu-item:disabled { color: var(--text-dim); cursor: default; }

@@ -327,6 +327,7 @@
     el.classList.toggle('today', !ideas && day === ymd(new Date()));
     const entries = ideas ? (by.get(null) || []).map((item) => ({ item })) : entriesFor(day, days, by);
     const head = clone('tpl-day-head');
+    if (!canEdit) hide(head.querySelector('[data-action="day-menu"]'), true);
     if (ideas) fill(head, { daynum: '', daymonth: 'Ideas', position: 'Ideas', summary: 'not on a day yet' });
     else {
       const d = parseYmd(day);
@@ -445,6 +446,24 @@
       });
     }
     tavern.menu.show({ id: `gap-${after || 'start'}`, anchor: button, items });
+  }
+  // The "..." on a day (and on Ideas): everything that can be added there, the same kinds the editor's tiles offer
+  // and the time blocks, each opening the editor on that day with the kind chosen. The type-to-add row is the fast
+  // path; this is the plain one.
+  function openDayMenu(button, dayEl) {
+    const date = dayEl.dataset.day || null;
+    const items = [];
+    const withTile = (tile) => { openEditor('item', null, date); applyType(tile); };
+    const add = (tile, label, icon) => items.push({ id: tile, label, icon, onClick: () => withTile(tile) });
+    for (const t of JOURNEY_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
+    items.push({ separator: true });
+    add('hotel', 'Add a stay', 'bed');
+    items.push({ separator: true });
+    for (const t of STOP_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
+    items.push({ separator: true });
+    add('note', 'Add a note', 'note-sticky');
+    for (const t of blockTypes()) items.push({ id: `block:${t.id}`, label: `Add ${t.label.toLowerCase()}`, icon: t.icon, iconColor: t.color, onClick: () => withTile(`block:${t.id}`) });
+    tavern.menu.show({ id: `day-${date || 'ideas'}`, anchor: button, items });
   }
 
   // The button (and its small form) to add days before the first day or after the last.
@@ -1472,6 +1491,9 @@
       openItemEditor(b.dataset.id);
     } else if (action === 'edit-leg' && li) {
       openItemEditor(li.dataset.id);
+    } else if (action === 'day-menu') {
+      const dayEl = b.closest('.day2');
+      if (dayEl) openDayMenu(b, dayEl);
     } else if (action === 'gap-add') {
       openGapMenu(b);
     } else if (action === 'toggle-empty') {
