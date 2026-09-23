@@ -269,6 +269,18 @@ export function createRoomModules({ guestToken = null } = {}) {
       if (p && p.mode === 'float' && supports(p, mode)) setMode(id, mode);
     }
   }
+  // The space bar's "dock all": every floating pane that can be a column goes back beside the call. The stage-level snap
+  // goes off first (it would float a pane again the moment it opened), with nothing remembered to restore, since docked is
+  // where everything is now. A pane in a window of its own, and one that can only float, are left alone.
+  function dockAll() {
+    if (snapAllOn()) {
+      saved.__snap = { ...(saved.__snap || {}), all: false, before: {} };
+      persist();
+      for (const p of panes.values()) if (floatPanel(p)) setSnap(p.id, false);
+    }
+    for (const p of [...panes.values()]) if (p.mode === 'float' && supports(p, 'dock') && !isNarrow()) setMode(p.id, 'dock');
+    update();
+  }
   // The grid's size, from the space bar's slider: every snapped pane refits to the cells nearest its box. While the slider
   // moves (`preview`) the grid shows, so the size can be seen; it hides when the slider is let go.
   function setSnapPitch(px, { preview = false } = {}) {
@@ -1156,6 +1168,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     // The stage-level snap (the room bar's switch and slider): whether every floating pane snaps, and the grid's pitch.
     snapAll: setSnapAll,
     snapAllOn,
+    dockAll,
     snapPitch,
     snapPitchRange: () => ({ ...SNAP_PITCH }),
     setSnapPitch,

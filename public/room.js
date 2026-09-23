@@ -36,7 +36,7 @@ subnav.innerHTML = `
   </div>
   <div class="nav-middle subnav-middle" id="subnav-middle"></div>
   <span class="nav-right subnav-tools">
-  <span class="snap-tools" id="snap-tools"><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
+  <span class="snap-tools" id="snap-tools"><button class="icon-link" id="dock-all" type="button" title="Dock every floating pane beside the call" aria-label="Dock every floating pane beside the call"><i class="fa-solid fa-table-columns fa-fw" aria-hidden="true"></i></button><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this space a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
@@ -840,6 +840,8 @@ function syncSnapBar() {
   size.value = String(roomModules.snapPitch());
 }
 $('snap-all').addEventListener('click', () => { roomModules.snapAll(!roomModules.snapAllOn()); syncSnapBar(); });
+// The way back: every floating pane docks beside the call (the stage-level snap goes off with it, or it would float them again).
+$('dock-all').addEventListener('click', () => { roomModules.dockAll(); syncSnapBar(); });
 $('snap-size').addEventListener('input', () => roomModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
 $('snap-size').addEventListener('change', () => roomModules.setSnapPitch(Number($('snap-size').value)));
 syncSnapBar();

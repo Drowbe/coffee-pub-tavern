@@ -22,7 +22,7 @@ The header is two rows, and each row is three zones. The rows are about differen
 |---|---|---|
 | Left | `.nav-left` | the room's name (`#space-name`, set by `updateCrumb()`), then the module selector (`#modules-menu`: the switches for the conference, the chat and the room's modules, rendered by `public/room-modules.js`) |
 | Middle | `.nav-middle` (`#subnav-middle`) | the space's information and navigation: nothing yet |
-| Right | `.nav-right` (`.subnav-tools`) | the space's actions: the stage-level snap and its grid slider, Full screen, Pop out, Pull participants back (during an aside), Leave room |
+| Right | `.nav-right` (`.subnav-tools`) | the space's actions: Dock all (every floating pane back beside the call), the stage-level snap and its grid slider, Full screen, Pop out, Pull participants back (during an aside), Leave room |
 
 ## Rules
 
