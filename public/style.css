@@ -5214,6 +5214,11 @@ body.at-table .module-nav {
 .module-config .module-settings-card { border: 0; padding: 0; margin-top: 12px; }
 
 /* a table of files to tick (a module setting that takes several) */
+/* The host console's managed AI: one company per row, its own small form. */
+.ai-services { display: grid; gap: 12px; margin-top: 8px; }
+.ai-service { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); }
+.ai-service-head { display: flex; align-items: center; gap: 10px; }
+.ai-service-address { display: flex; flex-direction: column; gap: 4px; }
 .shared-files { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 .shared-files li { margin: 2px 0; }
 .files-table { width: 100%; border-collapse: collapse; margin: 6px 0; }

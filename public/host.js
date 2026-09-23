@@ -2,7 +2,6 @@
 // settings and modules), their plans against their use, the host admins, the host itself. It shows no environment's
 // data beyond the counts. The API is /api/host/ (documentation/plans/plan-tenants.md, "Phase 1 in detail").
 import { loadBranding, api, renderTopbar } from '/brand.js';
-import { mountAiForm } from '/ai-form.js';
 import { wireRegionCut } from '/region-cut.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,12 +38,114 @@ async function load() {
   renderTenants();
   renderAdmins();
   renderFacts();
-  await aiForm.load();
+  await loadAiServices();
   await loadShared();
 }
 
-// --- the managed AI service: the same form as an environment's page, against the host's own endpoints -------------
-const aiForm = mountAiForm({ get: '/api/host/ai', put: '/api/host/ai', models: '/api/host/ai/models' });
+// --- the managed AI services: one row per company ---------------------------------------------------------------
+// GET /api/host/ai lists every company with whether it is offered (a key, or an address for Other, and a model); a row
+// sets or replaces the key (write-only, or read from the server's environment), picks the model from the company's own
+// list, and saves that one company (PUT /api/host/ai { provider, ... }).
+const AI_COMPANIES = [
+  { id: 'openai', name: 'OpenAI', env: 'AI_OPENAI_KEY' },
+  { id: 'anthropic', name: 'Anthropic', env: 'AI_ANTHROPIC_KEY' },
+  { id: 'compatible', name: 'Other (OpenAI-compatible)', env: 'AI_KEY' },
+];
+async function loadAiServices() {
+  let services = [];
+  try {
+    services = (await api('GET', '/api/host/ai')).services || [];
+  } catch (err) {
+    $('ai-panel').hidden = true;
+    return;
+  }
+  const box = $('ai-services');
+  box.replaceChildren();
+  for (const c of AI_COMPANIES) {
+    const s = services.find((x) => x.provider === c.id) || { provider: c.id, model: '', address: '', keySet: false, keyFromEnvironment: false, offered: false };
+    box.appendChild(aiServiceRow(c, s));
+  }
+}
+function aiServiceRow(c, s) {
+  const form = clone('tpl-ai-service');
+  form.dataset.provider = c.id;
+  slot(form, 'name').textContent = c.name;
+  const offered = slot(form, 'offered');
+  offered.textContent = s.offered ? 'Offered' : 'Not offered';
+  offered.classList.toggle('on', Boolean(s.offered));
+  slot(form, 'address-row').hidden = c.id !== 'compatible';
+  form.elements.address.value = s.address || '';
+  // The key: keep what is saved, replace it, or clear it; the page never sees the key itself.
+  let keyMode = 'keep';
+  const keyState = slot(form, 'key-state');
+  const keyInput = form.elements.key;
+  const replaceBtn = form.querySelector('[data-action="key-replace"]');
+  const clearBtn = form.querySelector('[data-action="key-clear"]');
+  const syncKey = () => {
+    const set = (s.keySet || keyMode === 'replace') && keyMode !== 'clear';
+    keyState.textContent = s.keyFromEnvironment ? 'set by the server\'s environment' : keyMode === 'clear' ? 'will be removed' : set ? 'set' : 'not set';
+    keyState.classList.toggle('on', set);
+    keyInput.hidden = keyMode !== 'replace';
+    replaceBtn.hidden = Boolean(s.keyFromEnvironment);
+    replaceBtn.textContent = keyMode === 'replace' ? 'Cancel' : s.keySet ? 'Replace the key' : 'Set a key';
+    clearBtn.hidden = Boolean(s.keyFromEnvironment) || !s.keySet || keyMode === 'clear';
+    slot(form, 'key-help').textContent = s.keyFromEnvironment ? `The key comes from the server's environment (${c.env}); change it there.` : c.id === 'compatible' ? 'Optional for a model on your own network. Kept on the host and never shown again.' : 'Kept on the host and never shown again.';
+  };
+  replaceBtn.addEventListener('click', () => { keyMode = keyMode === 'replace' ? 'keep' : 'replace'; keyInput.value = ''; syncKey(); if (keyMode === 'replace') keyInput.focus(); else loadModels(); });
+  clearBtn.addEventListener('click', () => { keyMode = 'clear'; syncKey(); });
+  // The model, from the company's own list once there is a key (or an address); typed by hand when the list cannot be had.
+  const sel = form.elements.model;
+  const text = form.elements['model-text'];
+  const manualBtn = form.querySelector('[data-action="model-manual"]');
+  const refreshBtn = form.querySelector('[data-action="models-refresh"]');
+  const hint = slot(form, 'models-hint');
+  let manual = false;
+  const syncModel = () => { sel.hidden = manual; text.hidden = !manual; refreshBtn.hidden = manual; };
+  async function loadModels() {
+    const wanted = manual ? text.value.trim() : sel.value || s.model || '';
+    const haveKey = s.keySet || s.keyFromEnvironment || (keyMode === 'replace' && keyInput.value);
+    if (c.id !== 'compatible' && !haveKey) { sel.replaceChildren(new Option('Set a key to see the models', '')); hint.textContent = ''; manualBtn.hidden = false; return; }
+    if (c.id === 'compatible' && !form.elements.address.value.trim()) { sel.replaceChildren(new Option('Enter the address first', '')); hint.textContent = ''; return; }
+    sel.replaceChildren(new Option('Loading models...', ''));
+    hint.textContent = '';
+    try {
+      const body = { provider: c.id, address: form.elements.address.value.trim() };
+      if (keyMode === 'replace' && keyInput.value) body.key = keyInput.value;
+      const { models: list = [] } = await api('POST', '/api/host/ai/models', body);
+      sel.replaceChildren(...list.map((m) => new Option(m.name || m.id, m.id)));
+      if (wanted && !list.some((m) => m.id === wanted)) sel.append(new Option(`${wanted} (current)`, wanted));
+      if (!list.length) sel.append(new Option('No models were listed', ''));
+      sel.value = wanted || (list[0] && list[0].id) || '';
+      hint.textContent = list.length ? `${list.length} models available.` : '';
+    } catch (err) {
+      sel.replaceChildren(...(wanted ? [new Option(`${wanted} (current)`, wanted)] : [new Option('The list could not be loaded', '')]));
+      sel.value = wanted;
+      hint.textContent = `${err.message || 'The list of models could not be loaded'}.`;
+    }
+    manualBtn.hidden = false;
+  }
+  manualBtn.addEventListener('click', () => { manual = true; text.value = sel.value || s.model || ''; manualBtn.hidden = true; syncModel(); text.focus(); });
+  refreshBtn.addEventListener('click', loadModels);
+  form.elements.address.addEventListener('change', loadModels);
+  keyInput.addEventListener('change', loadModels);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const model = manual ? text.value.trim() : sel.value;
+    const body = { provider: c.id, model, address: c.id === 'compatible' ? form.elements.address.value.trim() : '' };
+    if (keyMode === 'replace' && keyInput.value) body.key = keyInput.value;
+    if (keyMode === 'clear') body.clearKey = true;
+    say(slot(form, 'status'), 'saving...');
+    try {
+      await api('PUT', '/api/host/ai', body);
+      say($('ai-status'), `${c.name} saved`);
+      await loadAiServices();
+    } catch (err) { say(slot(form, 'status'), err.message, true); }
+  });
+  syncKey();
+  syncModel();
+  loadModels();
+  return form;
+}
 
 // --- the host's shared files (the map every environment shows) -------------------------------------------------
 // GET /api/host/shared lists every bundled module's shared folder; phase 1 has one (Maps' map-tiles), so the panel

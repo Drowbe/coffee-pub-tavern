@@ -28,18 +28,29 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
   let aiManual = false; // typing the model's name because the list could not be had
   let aiModelsToken = 0;
 
-  const managedChosen = () => source && $('ai-source').value === 'managed';
+  // The Source select: one "managed:<company>" entry per company the host offers, then "custom".
+  const managedChosen = () => source && $('ai-source').value.startsWith('managed:');
+  const managedProvider = () => (managedChosen() ? $('ai-source').value.slice('managed:'.length) : '');
+  const offered = () => ((aiState.managed && aiState.managed.services) || []).filter((s) => s && s.provider);
+  function drawSourceOptions() {
+    const sel = $('ai-source');
+    const keep = sel.value;
+    const services = offered();
+    sel.replaceChildren(
+      ...services.map((s) => new Option(`Managed: ${COMPANY[s.provider] || s.provider}${s.model ? ', ' + s.model : ''} (this host's key)`, `managed:${s.provider}`)),
+      ...(services.length ? [] : [Object.assign(new Option('Managed: this host offers no service', 'managed:'), { disabled: true })]),
+      new Option('Custom: this environment\'s own service and key', 'custom'),
+    );
+    sel.value = [...sel.options].some((o) => o.value === keep && !o.disabled) ? keep : (services.length ? `managed:${services[0].provider}` : 'custom');
+  }
 
   function syncAiPanel() {
     const provider = $('ai-provider').value;
     const managed = managedChosen();
     if (source) {
-      const m = aiState.managed || {};
-      const opt = $('ai-source').querySelector('option[value="managed"]');
-      opt.disabled = !m.available;
-      opt.textContent = m.available ? `Managed: this host's service (${COMPANY[m.provider] || m.provider}${m.model ? ', ' + m.model : ''})` : 'Managed: this host offers no service';
+      const s = offered().find((x) => x.provider === managedProvider());
       $('ai-managed-note').hidden = !managed;
-      $('ai-managed-note').textContent = m.available ? `Every request goes to ${COMPANY[m.provider] || m.provider}${m.model ? ' (' + m.model + ')' : ''} under the host's own account and key. Nothing is set up here; the allowance below is this environment's own.` : '';
+      $('ai-managed-note').textContent = s ? `Every request goes to ${COMPANY[s.provider] || s.provider}${s.model ? ' (' + s.model + ')' : ''} under the host's own account and key. Nothing is set up here; the allowance below is this environment's own.` : '';
       for (const el of document.querySelectorAll('[data-ai-custom]')) el.hidden = managed;
     }
     $('ai-notice').textContent = managed ? '' : AI_NOTICES[provider] || '';
@@ -102,10 +113,14 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
   }
 
   function showAi({ ai, usage: used }) {
-    aiState = { source: 'custom', managed: { available: false }, ...ai };
+    aiState = { source: 'custom', managed: { available: false, services: [] }, ...ai };
     aiKeyMode = 'keep';
     aiManual = false;
-    if (source) $('ai-source').value = aiState.source === 'managed' && aiState.managed && aiState.managed.available ? 'managed' : 'custom';
+    if (source) {
+      drawSourceOptions();
+      const chosen = aiState.source === 'managed' && offered().some((s) => s.provider === aiState.managedProvider) ? `managed:${aiState.managedProvider}` : 'custom';
+      $('ai-source').value = chosen;
+    }
     $('ai-provider').value = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : (ai.provider || 'none');
     $('ai-address').value = ai.address || '';
     $('ai-model').value = ai.model || '';
@@ -116,7 +131,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     syncAiEnable();
     if (!usage) return;
     const limit = (used && used.monthlyTokens) || 0;
-    const off = managedChosen() ? !(aiState.managed && aiState.managed.available) : ai.provider === 'none';
+    const off = managedChosen() ? !offered().some((s) => s.provider === managedProvider()) : ai.provider === 'none';
     $('ai-usage').hidden = off;
     const pct = limit ? Math.min(100, Math.round(((used.tokens || 0) / limit) * 100)) : 0;
     $('ai-meter').hidden = !limit;
@@ -131,7 +146,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
   function syncAiEnable() {
     const pill = $('ai-state');
     if (!pill) return;
-    const saved = managedChosen() ? Boolean(aiState.managed && aiState.managed.available) : aiState.provider !== 'none' && aiState.model;
+    const saved = managedChosen() ? offered().some((s) => s.provider === managedProvider()) : aiState.provider !== 'none' && aiState.model;
     // The host's own form has no enable step: its service is offered or not. An environment's says whether it is enabled.
     if (!source && aiState.enabled === undefined) {
       pill.textContent = saved ? 'Offered' : 'Not offered';
@@ -158,7 +173,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
   $('ai-save').addEventListener('click', async () => {
     let body;
     if (managedChosen()) {
-      body = { source: 'managed' };
+      body = { source: 'managed', managedProvider: managedProvider() };
     } else {
       const provider = $('ai-provider').value;
       const model = aiManual ? $('ai-model').value.trim() : $('ai-model-select').value;

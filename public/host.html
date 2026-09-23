@@ -77,45 +77,44 @@
       <section class="panel module-config" id="ai-panel">
         <div class="section-head">
           <h2>Managed AI</h2>
-          <span class="pill" id="ai-state">Off</span>
+          <span class="status" id="ai-status"></span>
         </div>
-        <p class="hint">The one AI service this host offers every environment. An environment chooses it (<strong>Managed</strong>) or sets up its own on its AI configuration page, and enables it there either way. The key stays here and is never shown to an environment. With no service here, environments can only use their own.</p>
-        <div class="ai-fields">
-          <label>Service
-            <select id="ai-provider">
-              <option value="none">None (no managed service)</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="compatible">Other (OpenAI-compatible)</option>
-            </select>
-          </label>
-          <div class="option-help" id="ai-notice"></div>
-          <label data-ai-for="compatible" id="ai-address-row">Address <span class="hint">Your own server's address, or another company's service that speaks the OpenAI interface. The server's root or ending in /v1.</span>
-            <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
-          </label>
-          <div class="ai-key" data-ai-for="openai anthropic compatible">
-            <div class="ai-label">Key <span class="hint" id="ai-key-optional" hidden>(optional for a model on your own network)</span></div>
-            <div class="ai-key-row">
-              <span class="pill" id="ai-key-state">not set</span>
-              <input id="ai-key" type="password" maxlength="300" placeholder="paste a new key" autocomplete="new-password" hidden>
-              <button class="btn btn-small" type="button" id="ai-key-replace">Set a key</button>
-              <button class="btn btn-small btn-danger" type="button" id="ai-key-clear" hidden>Remove the key</button>
-            </div>
-            <p class="hint" id="ai-key-help">The key is kept on the host and is never shown again.</p>
+        <p class="hint">The AI services this host offers every environment, one per company: set a key (or give the server <code>AI_OPENAI_KEY</code> or <code>AI_ANTHROPIC_KEY</code>) and that company is offered with a model chosen for it; change the model here if you like. An environment picks one of them (<strong>Managed</strong>) or sets up its own on its AI configuration page, and enables it there either way. A key stays here and is never shown to an environment.</p>
+        <div id="ai-services" class="ai-services"></div>
+      </section>
+
+      <template id="tpl-ai-service">
+        <form class="ai-service" autocomplete="off">
+          <div class="ai-service-head">
+            <strong data-slot="name"></strong>
+            <span class="pill" data-slot="offered"></span>
           </div>
-          <div class="ai-model" data-ai-for="openai anthropic compatible">
+          <label class="ai-service-address" data-slot="address-row" hidden>Address <span class="hint">the server's root or ending in /v1</span>
+            <input name="address" type="url" maxlength="300" placeholder="https://">
+          </label>
+          <div class="ai-key">
+            <div class="ai-label">Key</div>
+            <div class="ai-key-row">
+              <span class="pill" data-slot="key-state">not set</span>
+              <input name="key" type="password" maxlength="300" placeholder="paste a new key" autocomplete="new-password" hidden>
+              <button class="btn btn-small" type="button" data-action="key-replace">Set a key</button>
+              <button class="btn btn-small btn-danger" type="button" data-action="key-clear" hidden>Remove the key</button>
+            </div>
+            <p class="hint" data-slot="key-help"></p>
+          </div>
+          <div class="ai-model">
             <div class="ai-label">Model</div>
             <div class="ai-model-row">
-              <select id="ai-model-select" aria-label="Model"></select>
-              <input id="ai-model" type="text" maxlength="100" placeholder="the model's name" autocomplete="off" hidden>
-              <button class="btn btn-small" type="button" id="ai-models-refresh" title="Load the list of models again"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
+              <select name="model" aria-label="Model"></select>
+              <input name="model-text" type="text" maxlength="100" placeholder="the model's name" hidden>
+              <button class="btn btn-small" type="button" data-action="models-refresh" title="Load the list of models again"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
             </div>
-            <p class="hint" id="ai-models-hint"></p>
-            <button class="linklike" type="button" id="ai-model-manual" hidden>Type a model name instead</button>
+            <p class="hint" data-slot="models-hint"></p>
+            <button class="linklike" type="button" data-action="model-manual" hidden>Type a model name instead</button>
           </div>
-        </div>
-        <div class="row"><button class="btn btn-primary" type="button" id="ai-save">Save</button><span class="status" id="ai-status" role="status"></span></div>
-      </section>
+          <div class="row"><button class="btn btn-primary btn-small" type="submit">Save</button><span class="status" data-slot="status" role="status"></span></div>
+        </form>
+      </template>
 
       <section class="panel module-config" id="shared-panel" hidden>
         <div class="section-head">

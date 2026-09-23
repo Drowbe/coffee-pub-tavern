@@ -12,7 +12,10 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 .land-links .btn { color: var(--secondary-text, var(--text)); }
 .land-links .btn-primary { color: var(--on-accent); }
 
-.hero { padding: 72px 0 56px; text-align: center; }
+.hero { padding: 48px 0 56px; text-align: center; }
+/* The logo, large, at the top of the hero (the bar's small one stays for the way home). The file has wide transparent
+   margins, so it is drawn taller than the room it takes. */
+.hero-logo { display: block; width: min(420px, 80vw); height: auto; margin: -36px auto 2px; }
 .eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 .hero h1 { max-width: 760px; margin: 0 auto; font-size: clamp(30px, 5vw, 46px); line-height: 1.12; }
 .lede { max-width: 720px; margin: 20px auto 0; color: var(--text-dim); font-size: 17px; line-height: 1.55; }

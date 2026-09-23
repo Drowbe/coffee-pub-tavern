@@ -61,6 +61,10 @@ services:
       # HOST_ADMIN_PASSWORD: "CHANGE_ME"
       # PRODUCT_NAME: "CHANGE_ME"        # optional: the product page's name
       # CONTACT_EMAIL: "you@example.com" # optional: where the product page's "ask" writes to
+      # The AI the host offers every environment (each picks it as "Managed", or sets up its own): a key is
+      # enough, the model is chosen for you and can be changed on the host console. Either or both.
+      # AI_OPENAI_KEY: "sk-..."
+      # AI_ANTHROPIC_KEY: "sk-ant-..."
       PORT: "3000"
     volumes:
       - /share/appdata/magpie:/app/data # users, settings and images
