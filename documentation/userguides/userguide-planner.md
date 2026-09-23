@@ -6,7 +6,7 @@ The Planner module plans one trip for a room, day by day. The room's Calendar ev
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Planner under **Available with this Magpie**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
+1. On the Modules tab, choose **Install** beside Planner under **Available with this server**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
 2. Tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Planner**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, users and moderators can plan, and guests can see but not plan.
 

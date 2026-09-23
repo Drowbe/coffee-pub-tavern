@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -54,12 +54,12 @@
         {
           "value": "file",
           "label": "A map file on this server",
-          "help": "Tavern reads a PMTiles map file that you put in the map-tiles folder of this module's folder on the server. Nothing is sent to anyone else: the map works offline and nobody outside sees where your places are. A city is a few megabytes, a country hundreds, the world well over 100 GB."
+          "help": "The server reads a PMTiles map file that you put in the map-tiles folder of this module's folder on the server. Nothing is sent to anyone else: the map works offline and nobody outside sees where your places are. A city is a few megabytes, a country hundreds, the world well over 100 GB."
         },
         {
           "value": "web",
           "label": "A map file at a web address",
-          "help": "Tavern reads a PMTiles map file from the address you give below, so the map does not have to be stored on this server.\nEvery person's browser contacts that host directly. The host can see their internet address and roughly which area they are looking at. Choose a host you trust, and tell the people who use this server.\nThe host must allow requests from this server's pages (CORS) and support range requests, as static hosting and most content delivery networks do. Its terms, cost and reliability are yours to check. Only https addresses work.\nThe credit © OpenStreetMap contributors always stays on the map."
+          "help": "The server reads a PMTiles map file from the address you give below, so the map does not have to be stored on this server.\nEvery person's browser contacts that host directly. The host can see their internet address and roughly which area they are looking at. Choose a host you trust, and tell the people who use this server.\nThe host must allow requests from this server's pages (CORS) and support range requests, as static hosting and most content delivery networks do. Its terms, cost and reliability are yours to check. Only https addresses work.\nThe credit © OpenStreetMap contributors always stays on the map."
         }
       ]
     },
@@ -102,7 +102,7 @@
         "key": "mapSource",
         "value": "file"
       },
-      "help": "A world PMTiles file to cut a region from with \"Add a region\", below. Tavern reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for today's, or point this at your own stable copy. Left empty, cutting a region is off."
+      "help": "A world PMTiles file to cut a region from with \"Add a region\", below. The server reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for today's, or point this at your own stable copy. Left empty, cutting a region is off."
     }
   ],
   "access": {

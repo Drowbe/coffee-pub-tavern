@@ -4580,6 +4580,11 @@ body.at-table .module-nav {
   white-space: nowrap;
 }
 
+.module-available .module-needs {
+  margin-top: 4px;
+  color: var(--text);
+}
+
 /* A module's own icon buttons in its titlebar (host.header.set), then a pipe before the pane's buttons. */
 .titlebar-custom {
   display: inline-flex;

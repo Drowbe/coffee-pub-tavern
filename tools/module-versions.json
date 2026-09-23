@@ -8,12 +8,12 @@
     "hash": "5ef4f096beb11e53"
   },
   "maps": {
-    "version": "0.7.8",
-    "hash": "fec81d4bb34e9a1b"
+    "version": "0.7.9",
+    "hash": "8836c2125c51e093"
   },
   "places": {
-    "version": "0.8.11",
-    "hash": "b296ceca4ddfe639"
+    "version": "0.8.12",
+    "hash": "eadaa1a8f7fcc37a"
   },
   "polls": {
     "version": "1.12.9",

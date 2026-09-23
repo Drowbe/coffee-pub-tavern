@@ -6,7 +6,7 @@ The Places module keeps the places your room cares about: where you are staying,
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Places under **Available with this Magpie**, then **Approve and enable**. It asks to link to other modules' items.
+1. On the Modules tab, choose **Install** beside Places under **Available with this server**, then **Approve and enable**. It asks to link to other modules' items.
 2. Tick **Available in every room**, or tick it per room on the room's own page.
 3. **Search (optional).** Under Places' settings (**Module Configuration** on its card), **Place search** chooses where a search for a place by name is asked, and Magpie sends nothing out unless you choose one:
    - **None** (the default): no search.

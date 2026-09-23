@@ -1,7 +1,7 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.8.11",
+  "version": "0.8.12",
   "icon": "location-dot",
   "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
@@ -148,7 +148,7 @@
         "key": "search",
         "value": "custom"
       },
-      "help": "Where a search for a place by name is asked. Tavern sends nothing out unless you choose one.",
+      "help": "Where a search for a place by name is asked. The server sends nothing out unless you choose one.",
       "options": [
         {
           "value": "none",
@@ -157,7 +157,7 @@
         {
           "value": "photon",
           "label": "Photon, the public service",
-          "help": "Every search is sent to the public Photon service at photon.komoot.io, and Tavern otherwise sends nothing out.\nTheir terms are \"reasonable limits\": extensive use may be throttled or banned, and there is no availability guarantee (https://github.com/komoot/photon).\nResults come from OpenStreetMap data, so \"© OpenStreetMap contributors\" applies (Tavern already shows that credit on the map)."
+          "help": "Every search is sent to the public Photon service at photon.komoot.io, and the server otherwise sends nothing out.\nTheir terms are \"reasonable limits\": extensive use may be throttled or banned, and there is no availability guarantee (https://github.com/komoot/photon).\nResults come from OpenStreetMap data, so \"© OpenStreetMap contributors\" applies (the map already shows that credit)."
         },
         {
           "value": "custom",

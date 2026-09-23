@@ -742,6 +742,15 @@ async function loadModules() {
   }
 }
 
+// What a bundled module still needs before it can be turned on (Maps needs Places): said in its row of the list, so the
+// admin installs those first instead of meeting a disabled Approve button afterwards.
+function bundledNeeds(b) {
+  const waiting = (b.requires || []).filter((r) => !installedModules.some((m) => m.id === r && m.enabled));
+  if (!waiting.length) return '';
+  const name = (r) => (installedModules.find((m) => m.id === r) || bundledModules.find((x) => x.id === r) || {}).name || r;
+  return `<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Needs ${waiting.map((r) => `<strong>${escapeHtml(name(r))}</strong>`).join(' and ')} installed and turned on first.</div>`;
+}
+
 function moduleCard(m) {
   const scopes = m.scope.map((s) => (s === 'server' ? 'Server page' : 'Space panel')).join(' + ');
   const asks = [
@@ -957,7 +966,7 @@ function renderModules() {
     box.innerHTML = `<h2>Available with this server</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
       <div class="row module-available">
         <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
-        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div></div>
+        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${bundledNeeds(b)}</div>
         <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button">Install</button>
       </div>`).join('')}`;
     list.appendChild(box);

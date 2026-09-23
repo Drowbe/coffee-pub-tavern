@@ -6,7 +6,7 @@ Polls lets a group decide something together: where to go on a trip, where to st
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Polls under **Available with this Magpie**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add three permissions to the Roles tab and to send notifications.
+1. On the Modules tab, choose **Install** beside Polls under **Available with this server**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add three permissions to the Roles tab and to send notifications.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**. By default users and moderators can do all three, and guests can only see. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
 

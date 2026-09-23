@@ -1601,6 +1601,7 @@ function bundledList() {
     const have = installed.get(m.id) || null;
     return {
       id: m.id, name: m.name, icon: m.icon, description: m.description, version: m.version, installed: have,
+      requires: m.requires || [], // what it needs installed and on (Maps needs Places), so the list can say so before Install
       update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
     };
   });
