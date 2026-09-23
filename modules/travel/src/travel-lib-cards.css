@@ -72,7 +72,7 @@
 .row.marker .when b { font-size: 12px; font-weight: 500; color: var(--text-dim); }
 .row.marker .rail .dot { top: 50%; margin-top: -6px; width: 12px; height: 12px; margin-left: -6px; border-radius: 3px; transform: rotate(45deg); background: var(--marker-dot, var(--text-dim)); border: 2px solid var(--bg-section); box-shadow: none; }
 /* the line that joins every box, badge and marker of the plan: behind them all, seen in the gaps */
-.days { position: relative; --spine-x: 82px; }
+.days { position: relative; --spine-x: 94px; }
 .days::before { content: ""; position: absolute; left: var(--spine-x); top: 0; bottom: 0; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--text) 18%, transparent); }
 .days > * { position: relative; z-index: 1; }
 .app.narrow .days { --spine-x: 14px; }
@@ -101,8 +101,9 @@
 .timeline { list-style: none; margin: 0; padding: 12px 14px 8px 8px; }
 
 /* a row: the time, the rail with its dot, the card */
-.row { display: grid; grid-template-columns: 54px 18px minmax(0, 1fr); column-gap: 10px; }
-.when { padding-top: 14px; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.2; }
+/* the time column fits "10:30 PM" on one line (the 12-hour clock is the default); --spine-x on .days follows it */
+.row { display: grid; grid-template-columns: 66px 18px minmax(0, 1fr); column-gap: 10px; }
+.when { padding-top: 14px; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
 .when b { display: block; font-size: 14px; }
 .when small { color: var(--text-dim); font-size: 11px; }
 .rail { position: relative; }

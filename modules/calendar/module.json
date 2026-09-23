@@ -1,38 +1,137 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.17.3",
+  "version": "1.17.4",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole server and for each room, with reminders.",
   "author": "Coffee Pub",
-  "scope": ["server", "room"],
+  "scope": [
+    "server",
+    "room"
+  ],
   "surfaces": {
-    "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] },
-    "widget": { "entry": "widget.html", "title": "Coming up", "size": "tall", "order": 10 }
+    "page": {
+      "entry": "page.html"
+    },
+    "panel": {
+      "entry": "panel.html",
+      "width": 400,
+      "height": 580,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    },
+    "widget": {
+      "entry": "widget.html",
+      "title": "Coming up",
+      "size": "tall",
+      "order": 10
+    }
   },
   "permissions": [
-    { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },
-    { "key": "edit", "label": "Add and change events", "default": { "user": true, "guest": false, "moderator": true } }
+    {
+      "key": "view",
+      "label": "See the calendar",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    },
+    {
+      "key": "edit",
+      "label": "Add and change events",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    }
   ],
   "settings": [
-    { "key": "defaultView", "label": "Open on", "type": "choice", "scope": "person", "default": "month", "help": "The view the Calendar shows when you open it.", "options": [{ "value": "month", "label": "Month" }, { "value": "week", "label": "Week" }, { "value": "both", "label": "Month + list" }, { "value": "list", "label": "List" }] }
+    {
+      "key": "defaultView",
+      "label": "Open on",
+      "type": "choice",
+      "scope": "person",
+      "default": "month",
+      "help": "The view the Calendar shows when you open it.",
+      "options": [
+        {
+          "value": "month",
+          "label": "Month"
+        },
+        {
+          "value": "week",
+          "label": "Week"
+        },
+        {
+          "value": "both",
+          "label": "Month + list"
+        },
+        {
+          "value": "list",
+          "label": "List"
+        }
+      ]
+    }
   ],
-  "access": { "read": "view", "write": "edit" },
-  "hooks": { "schedule": true, "notify": true },
+  "access": {
+    "read": "view",
+    "write": "edit"
+  },
+  "hooks": {
+    "schedule": true,
+    "notify": true
+  },
   "events": {
-    "publishes": [{ "name": "ended", "kind": "event", "label": "An event has passed", "data": { "summary": "string" } }]
+    "publishes": [
+      {
+        "name": "ended",
+        "kind": "event",
+        "label": "An event has passed",
+        "data": {
+          "summary": "string"
+        }
+      }
+    ]
   },
   "actions": {
     "provides": [
-      { "name": "createEvent", "label": "Add it to the calendar", "input": { "title": "string", "date": "date", "ref": "ref?" } }
+      {
+        "name": "createEvent",
+        "label": "Add it to the calendar",
+        "input": {
+          "title": "string",
+          "date": "date",
+          "ref": "ref?"
+        }
+      }
     ],
-    "uses": ["*"]
+    "uses": [
+      "*"
+    ]
   },
   "refs": {
     "produces": [
-      { "kind": "event", "name": "Event", "open": true, "backlinks": true, "key": "event:{id}", "card": { "title": "title", "subtitle": "desc", "when": "start", "end": "end", "allDay": "allDay" } }
+      {
+        "kind": "event",
+        "name": "Event",
+        "open": true,
+        "backlinks": true,
+        "key": "event:{id}",
+        "card": {
+          "title": "title",
+          "subtitle": "desc",
+          "when": "start",
+          "end": "end",
+          "allDay": "allDay"
+        }
+      }
     ],
-    "consumes": ["*"]
+    "consumes": [
+      "*"
+    ]
   }
 }

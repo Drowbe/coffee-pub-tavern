@@ -1,35 +1,116 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.11.4",
+  "version": "1.11.5",
   "icon": "list-check",
   "description": "A shared to-do list for the whole server and for each room, with due dates and reminders.",
   "author": "Coffee Pub",
-  "scope": ["server", "room"],
+  "scope": [
+    "server",
+    "room"
+  ],
   "surfaces": {
-    "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 380, "height": 540, "mode": ["dock", "float"] },
-    "widget": { "entry": "widget.html", "title": "Due soon", "size": "small", "order": 20 }
+    "page": {
+      "entry": "page.html"
+    },
+    "panel": {
+      "entry": "panel.html",
+      "width": 380,
+      "height": 540,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    },
+    "widget": {
+      "entry": "widget.html",
+      "title": "Due soon",
+      "size": "small",
+      "order": 20
+    }
   },
   "permissions": [
-    { "key": "view", "label": "See the to-do list", "default": { "user": true, "guest": true, "moderator": true } },
-    { "key": "edit", "label": "Add, change and tick off tasks", "default": { "user": true, "guest": false, "moderator": true } }
+    {
+      "key": "view",
+      "label": "See the to-do list",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    },
+    {
+      "key": "edit",
+      "label": "Add, change and tick off tasks",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    }
   ],
-  "access": { "read": "view", "write": "edit" },
-  "hooks": { "schedule": true, "notify": true },
-  "events": { "subscribes": ["*"] },
+  "access": {
+    "read": "view",
+    "write": "edit"
+  },
+  "hooks": {
+    "schedule": true,
+    "notify": true
+  },
+  "events": {
+    "subscribes": [
+      "*"
+    ]
+  },
   "actions": {
     "provides": [
-      { "name": "createTask", "label": "Add a task", "input": { "title": "string", "notes": "text?", "ref": "ref?" } },
-      { "name": "linkTask", "label": "Link this task to it", "input": { "task": "ref:todo:task", "target": "ref" } },
-      { "name": "setTaskDue", "label": "Set this task's due date to its date", "input": { "task": "ref:todo:task", "date": "date" } }
+      {
+        "name": "createTask",
+        "label": "Add a task",
+        "input": {
+          "title": "string",
+          "notes": "text?",
+          "ref": "ref?"
+        }
+      },
+      {
+        "name": "linkTask",
+        "label": "Link this task to it",
+        "input": {
+          "task": "ref:todo:task",
+          "target": "ref"
+        }
+      },
+      {
+        "name": "setTaskDue",
+        "label": "Set this task's due date to its date",
+        "input": {
+          "task": "ref:todo:task",
+          "date": "date"
+        }
+      }
     ],
-    "uses": ["*"]
+    "uses": [
+      "*"
+    ]
   },
   "refs": {
     "produces": [
-      { "kind": "task", "name": "Task", "open": true, "key": "task:{id}", "card": { "title": "title", "subtitle": "notes", "when": "due", "done": "done" } }
+      {
+        "kind": "task",
+        "name": "Task",
+        "open": true,
+        "key": "task:{id}",
+        "card": {
+          "title": "title",
+          "subtitle": "notes",
+          "when": "due",
+          "done": "done"
+        }
+      }
     ],
-    "consumes": ["*"]
+    "consumes": [
+      "*"
+    ]
   }
 }

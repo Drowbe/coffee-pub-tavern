@@ -372,6 +372,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         permissions: contextInfo.permissions,
         module: contextInfo.module,
         context: { scope, roomId },
+        locale: contextInfo.locale || { language: 'en', clock: '12', currency: 'USD' },
         theme: readTheme(),
         debug: debugOn(),
       };

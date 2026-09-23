@@ -69,7 +69,7 @@
       return `<div class="trip">
         <button type="button" class="item" data-trip="${esc(roomId)}" title="${esc(t.title || t.destination || 'Trip')}${r ? ' - ' + esc(r.name) : ''}">
           <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="stack"><span class="what">${esc(t.title || t.destination || 'Trip')}</span><span class="sub">${esc(range)}</span></span><span class="when${on ? ' on' : ''}">${esc(whenText(t, today))}</span><span class="go">${goIcon}</span></button>
-        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(roomId)}|${esc(i.id)}"><span class="when">${esc(i.time || 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
+        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(roomId)}|${esc(i.id)}"><span class="when">${esc(i.time ? tavern.util.time(i.time) : 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
       </div>`;
     }).join('');
     try {

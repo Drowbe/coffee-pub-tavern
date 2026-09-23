@@ -285,6 +285,21 @@
       </div>
 
       <div class="panel">
+      <h2>Language, time and money</h2>
+      <p class="hint">How the server and every module show these. Times are on a 12-hour clock unless you choose 24-hour; amounts are shown in this currency unless a trip names its own.</p>
+      <div class="fields">
+        <label>Language<select id="set-language"><option value="en">English</option></select></label>
+        <label>Clock<select id="set-clock"><option value="12">12-hour (10:30 PM)</option><option value="24">24-hour (22:30)</option></select></label>
+        <label>Currency<select id="set-currency"></select></label>
+      </div>
+      <p class="hint">More languages come with translations. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.</p>
+      <div class="row">
+        <button class="btn btn-primary" id="save-locale" type="button">Save</button>
+        <span class="status" id="locale-status"></span>
+      </div>
+      </div>
+
+      <div class="panel">
       <h2>Call features</h2>
       <p class="hint">Turn any of these off server-wide. All on by default.</p>
       <div class="fields">

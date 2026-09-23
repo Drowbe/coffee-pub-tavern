@@ -188,7 +188,7 @@
     if (p.closed) return 'Closed';
     if (!p.closesAt) return '';
     const d = new Date(p.closesAt);
-    const when = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const when = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() });
     return Date.now() >= p.closesAt ? `Closed ${when}` : `Closes ${when}`;
   }
 

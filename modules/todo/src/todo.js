@@ -185,7 +185,7 @@
     if (when === undefined || when === null || when === '') return '';
     const d = typeof when === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(when) ? parseYmd(when) : new Date(when);
     if (Number.isNaN(d.getTime())) return '';
-    return allDay === false ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return allDay === false ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
   function linkChip(r, removable) {

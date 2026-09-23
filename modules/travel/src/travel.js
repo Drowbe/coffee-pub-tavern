@@ -88,6 +88,8 @@
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
 
   const dayShort = (d) => parseYmd(d).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  // A stored time ("22:30") the way the server shows times (tavern.util.time: "10:30 PM" on the default 12-hour clock).
+  const tt = (t) => (t ? tavern.util.time(t) : '');
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   const lengthText = (m) => (m ? (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : `${m} min`) : '');
   // One letter, or two when another traveller of the room starts with the same one.
@@ -140,35 +142,35 @@
     const { item, span } = entry;
     const c = cardOf(item, card);
     const el = clone(`tpl-card-${span === 'middle' ? 'hotel-mid' : span === 'end' ? 'hotel-out' : c.card}`);
-    const arrive = item.time && item.minutes ? hm(minutesOfDay(item.time) + item.minutes) : '';
+    const arrive = item.time && item.minutes ? tt(hm(minutesOfDay(item.time) + item.minutes)) : '';
     const duration = lengthText(item.minutes);
     const where = item.place || item.address;
     const badge = el.querySelector('.badge [data-icon]');
     if (badge && c.badge && !badge.dataset.icon) setIcon(badge, c.badge);
     if (c.card === 'flight') {
-      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, fromCode: item.fromCode, toCode: item.toCode, from: item.from, to: item.to, time: item.time, arrival: arrive, duration, seat: item.seat, gate: item.gate, travelClass: item.travelClass });
+      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, fromCode: item.fromCode, toCode: item.toCode, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, duration, seat: item.seat, gate: item.gate, travelClass: item.travelClass });
     } else if (c.card === 'train') {
-      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: item.time, arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Car ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
+      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Car ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
     } else if (c.card === 'transit') {
       const to = item.to || item.dropoff || '';
-      put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: item.time, to, confirm: item.confirm });
+      put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: tt(item.time), to, confirm: item.confirm });
       const go = el.querySelector('.go');
       if (go && !item.time && !to && !item.confirm) go.hidden = true;
     } else if (c.card === 'hotel' && span !== 'end' && span !== 'middle') {
       const nights = stayNights(item);
-      put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), item.time].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
+      put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), tt(item.time)].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
     } else if (span === 'end') {
-      put(el, { title: item.title, address: where, time: item.checkOutTime || '', nights: words(stayNights(item), 'night', 'nights') });
+      put(el, { title: item.title, address: where, time: tt(item.checkOutTime), nights: words(stayNights(item), 'night', 'nights') });
     } else if (span === 'middle') {
       put(el, { title: `Staying at ${item.title}` });
     } else if (c.card === 'meal') {
       setIcon(el.querySelector('.badge [data-icon]'), c.badge);
-      put(el, { kicker: c.kicker, title: item.title, address: where, partySize: item.partySize ? `Table for ${item.partySize}` : '', reservationName: item.reservationName ? `under ${item.reservationName}` : '', time: item.time, minutes: duration });
+      put(el, { kicker: c.kicker, title: item.title, address: where, partySize: item.partySize ? `Table for ${item.partySize}` : '', reservationName: item.reservationName ? `under ${item.reservationName}` : '', time: tt(item.time), minutes: duration });
     } else if (c.card === 'activity') {
       setIcon(el.querySelector('.badge [data-icon]'), c.badge);
       put(el, { kicker: c.kicker, title: item.title, address: where, minutes: duration, admissionCount: words(item.admissionCount, 'ticket', 'tickets'), confirm: item.confirm });
     } else if (c.card === 'show') {
-      put(el, { kicker: c.kicker, title: item.title, address: where, gate: item.gate ? `Gate ${item.gate}` : '', confirm: item.confirm, admissionCount: item.admissionCount ? String(item.admissionCount) : '', time: item.time });
+      put(el, { kicker: c.kicker, title: item.title, address: where, gate: item.gate ? `Gate ${item.gate}` : '', confirm: item.confirm, admissionCount: item.admissionCount ? String(item.admissionCount) : '', time: tt(item.time) });
     } else if (c.card === 'block') {
       const type = markerType(item.type);
       el.dataset.type = item.type;
@@ -219,7 +221,7 @@
     add('Guests', words(item.guests, 'guest', 'guests'), 'guests');
     add('Reservation', item.reservationName, 'reservationName');
     add('Address', item.address, 'address');
-    if (item.cost) rows.push(['Cost', `${item.cost}${item.paidBy ? ` · paid by ${nameOf(item.paidBy)}` : ''}`]);
+    if (item.cost) rows.push(['Cost', `${tavern.util.money(item.cost, (plan.trip || {}).currency || undefined)}${item.paidBy ? ` · paid by ${nameOf(item.paidBy)}` : ''}`]);
     if (!rows.length) return;
     const more = clone('tpl-card-more');
     more.open = state.expanded.has(item.id);
@@ -244,11 +246,11 @@
     row.dataset.kind = item.kind;
     row.dataset.type = c.family;
     row.classList.toggle('done', item.done);
-    let time = item.time || '';
+    let time = tt(item.time);
     let sub = '';
-    if (item.kind === 'link') { time = timeOf(card); sub = ''; }
-    else if (item.kind === 'stay') { time = span === 'end' ? item.checkOutTime || '' : span === 'middle' ? '' : item.time || ''; sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
-    else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${hm(minutesOfDay(item.time) + item.minutes)}` : '';
+    if (item.kind === 'link') { time = tt(timeOf(card)); sub = ''; }
+    else if (item.kind === 'stay') { time = span === 'end' ? tt(item.checkOutTime) : span === 'middle' ? '' : tt(item.time); sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
+    else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${tt(hm(minutesOfDay(item.time) + item.minutes))}` : '';
     else sub = lengthText(item.minutes);
     if (line) { time = ''; sub = ''; }
     fill(row, { time, sub });
@@ -293,7 +295,7 @@
   function daySummary(entries) {
     const own = entries.filter((e) => (!e.span || e.span === 'start') && e.item.kind !== 'block');
     const times = own.map((e) => e.item.time).filter(Boolean).sort();
-    const range = times.length ? (times.length > 1 && times[0] !== times[times.length - 1] ? `${times[0]} – ${times[times.length - 1]}` : times[0]) : '';
+    const range = times.length ? (times.length > 1 && times[0] !== times[times.length - 1] ? `${tt(times[0])} – ${tt(times[times.length - 1])}` : tt(times[0])) : '';
     const around = own.reduce((sum, e) => sum + (e.item.travelMode && e.item.travelMode !== 'none' && e.item.travelMinutes ? e.item.travelMinutes : 0), 0);
     return [range, words(own.length, 'stop', 'stops'), around ? `${lengthText(around)} getting around` : ''].filter(Boolean).join(' · ');
   }
@@ -344,9 +346,9 @@
     const itemOf = (id) => plan.list().find((i) => i.id === id);
     if (position === 'before') {
       if (day === days[0]) rows.push(buildMarker('planning-start', dateText(day), 'the plan begins'));
-      if (bounds && bounds.start.day === day) rows.push(buildMarker('trip-start', bounds.start.time, describe(itemOf(bounds.start.id) || {})));
+      if (bounds && bounds.start.day === day) rows.push(buildMarker('trip-start', tt(bounds.start.time), describe(itemOf(bounds.start.id) || {})));
     } else {
-      if (bounds && bounds.end.day === day) rows.push(buildMarker('trip-end', bounds.end.time, describe(itemOf(bounds.end.id) || {})));
+      if (bounds && bounds.end.day === day) rows.push(buildMarker('trip-end', tt(bounds.end.time), describe(itemOf(bounds.end.id) || {})));
       if (day === days[days.length - 1]) rows.push(buildMarker('planning-end', dateText(day), 'the plan ends'));
     }
     if (!rows.length) return null;
@@ -717,8 +719,7 @@
 
   // Money: what was spent, who is owed what, and the fewest payments that settle it.
   const money = (n) => {
-    const c = (plan.trip || {}).currency;
-    try { return c ? new Intl.NumberFormat([], { style: 'currency', currency: c }).format(n) : n.toFixed(2); } catch (err) { return `${n.toFixed(2)} ${c}`; }
+    return tavern.util.money(n, (plan.trip || {}).currency || undefined); // the trip's currency, else the server's
   };
   function renderMoney() {
     const body = $('body');

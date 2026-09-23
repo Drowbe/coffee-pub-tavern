@@ -25,6 +25,10 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 - **OBS access.** The stream key that OBS view links carry. Show, copy or regenerate it; regenerating
   stops every existing link working.
 
+## Language, time and money
+
+On the Server tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the server and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
+
 ## Theme
 
 - **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Pick a

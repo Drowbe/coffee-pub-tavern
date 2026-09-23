@@ -1,35 +1,126 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.6",
+  "version": "1.12.7",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole server and for each room, with live results.",
   "author": "Coffee Pub",
-  "scope": ["server", "room"],
+  "scope": [
+    "server",
+    "room"
+  ],
   "surfaces": {
-    "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 380, "height": 560, "mode": ["dock", "float"] },
-    "widget": { "entry": "widget.html", "title": "Need your vote", "size": "small", "order": 30 }
+    "page": {
+      "entry": "page.html"
+    },
+    "panel": {
+      "entry": "panel.html",
+      "width": 380,
+      "height": 560,
+      "mode": [
+        "dock",
+        "float"
+      ]
+    },
+    "widget": {
+      "entry": "widget.html",
+      "title": "Need your vote",
+      "size": "small",
+      "order": 30
+    }
   },
   "permissions": [
-    { "key": "view", "label": "See polls and their results", "default": { "user": true, "guest": true, "moderator": true } },
-    { "key": "vote", "label": "Vote in polls", "default": { "user": true, "guest": false, "moderator": true } },
-    { "key": "create", "label": "Start, close and delete polls", "default": { "user": true, "guest": false, "moderator": true } }
+    {
+      "key": "view",
+      "label": "See polls and their results",
+      "default": {
+        "user": true,
+        "guest": true,
+        "moderator": true
+      }
+    },
+    {
+      "key": "vote",
+      "label": "Vote in polls",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    },
+    {
+      "key": "create",
+      "label": "Start, close and delete polls",
+      "default": {
+        "user": true,
+        "guest": false,
+        "moderator": true
+      }
+    }
   ],
   "settings": [
-    { "key": "addableByDefault", "label": "Let people suggest options by default", "type": "boolean", "scope": "room", "default": false, "help": "New polls in this room start with \"let people add options\" ticked." },
-    { "key": "closeAfterDays", "label": "Close new polls after this many days", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 60, "help": "0 means a new poll stays open until someone closes it. Each poll can still be changed when it is started." }
+    {
+      "key": "addableByDefault",
+      "label": "Let people suggest options by default",
+      "type": "boolean",
+      "scope": "room",
+      "default": false,
+      "help": "New polls in this room start with \"let people add options\" ticked."
+    },
+    {
+      "key": "closeAfterDays",
+      "label": "Close new polls after this many days",
+      "type": "number",
+      "scope": "server",
+      "default": 0,
+      "min": 0,
+      "max": 60,
+      "help": "0 means a new poll stays open until someone closes it. Each poll can still be changed when it is started."
+    }
   ],
-  "access": { "read": "view", "write": "vote" },
-  "hooks": { "notify": true },
-  "events": {
-    "publishes": [{ "name": "closed", "kind": "poll", "label": "A poll closed", "data": { "summary": "string", "winner": "string?", "pick": "ref?", "date": "date?" } }]
+  "access": {
+    "read": "view",
+    "write": "vote"
   },
-  "actions": { "uses": ["*"] },
+  "hooks": {
+    "notify": true
+  },
+  "events": {
+    "publishes": [
+      {
+        "name": "closed",
+        "kind": "poll",
+        "label": "A poll closed",
+        "data": {
+          "summary": "string",
+          "winner": "string?",
+          "pick": "ref?",
+          "date": "date?"
+        }
+      }
+    ]
+  },
+  "actions": {
+    "uses": [
+      "*"
+    ]
+  },
   "refs": {
     "produces": [
-      { "kind": "poll", "name": "Poll", "open": true, "backlinks": true, "key": "poll:{id}", "card": { "title": "question", "when": "closesAt" } }
+      {
+        "kind": "poll",
+        "name": "Poll",
+        "open": true,
+        "backlinks": true,
+        "key": "poll:{id}",
+        "card": {
+          "title": "question",
+          "when": "closesAt"
+        }
+      }
     ],
-    "consumes": ["*"]
+    "consumes": [
+      "*"
+    ]
   }
 }

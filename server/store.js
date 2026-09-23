@@ -138,6 +138,8 @@ const DEFAULT_CALL_PREFS = {
   pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
 
+// The languages the interface comes in (a setting; only English so far).
+const LANGUAGES = ['en'];
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern',
   homeIcon: DEFAULT_HOME_ICON,
@@ -159,6 +161,11 @@ const DEFAULT_SETTINGS = {
   // The video and voice conference. Off, nobody (an admin included) has the "See and join the conference" permission, so joins carry
   // no media and the room page shows no conference; chat, presence and the modules carry on.
   conferenceEnabled: true,
+  // Language, time and money: how the server and every module show them. The clock is 12-hour by default; the
+  // currency is the one amounts are shown in unless a trip says otherwise; only English is available so far.
+  language: 'en',
+  clock: '12',
+  currency: 'USD',
   // Saved color themes (see /theme.css and the :root comment in style.css)
   // -- each one the same seven colors, named and kept around so an admin
   // can switch back without re-picking them. activeThemeId null means "use
@@ -581,6 +588,13 @@ class Store {
     if (patch.allowPrivate !== undefined) s.allowPrivate = Boolean(patch.allowPrivate);
     if (patch.allowReactions !== undefined) s.allowReactions = Boolean(patch.allowReactions);
     if (patch.conferenceEnabled !== undefined) s.conferenceEnabled = Boolean(patch.conferenceEnabled);
+    if (patch.language !== undefined) s.language = LANGUAGES.includes(patch.language) ? patch.language : DEFAULT_SETTINGS.language;
+    if (patch.clock !== undefined) s.clock = String(patch.clock) === '24' ? '24' : '12';
+    if (patch.currency !== undefined) {
+      const code = String(patch.currency || '').trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(code)) throw new StoreError('a currency is a three-letter code, such as USD');
+      s.currency = code;
+    }
     // null/empty picks "Default" (style.css's own built-in palette); any
     // other value must be one of the saved themes' ids.
     if (patch.activeThemeId !== undefined) {

@@ -237,6 +237,8 @@
     }
   }
 
+  // How the server shows language, time and money (Manage > Settings): known once hello has answered, the defaults before.
+  const locale = () => (info && info.locale) || { language: 'en', clock: '12', currency: 'USD' };
   const readyPromise = call('hello').then((result) => {
     info = result;
     if (env.applyTheme) env.applyTheme(result.theme);
@@ -384,6 +386,9 @@
   const tavern = {
     // Resolves with { user, context, permissions, theme, module }.
     ready: () => readyPromise,
+    // { language, clock: '12' | '24', currency }: the server's settings for how these are shown. See tavern.util.time,
+    // tavern.util.hour12 and tavern.util.money, which apply them.
+    locale,
 
     // Where the module's page is: `root` is what to look elements up in (document.getElementById becomes
     // tavern.root.getElementById: in a frame it is the document, in the page it is the module's own
@@ -404,6 +409,23 @@
       id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       // A pointer's identity as one string, for keeping and comparing them.
       refKey: (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|'),
+      // A time of day ("22:30", as modules store one) the way the server shows times: "10:30 PM" on a 12-hour clock
+      // (the default, see tavern.locale()), "22:30" on a 24-hour one. Anything that is not HH:MM comes back as it is.
+      time: (hhmm) => {
+        const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+        if (!m) return hhmm || '';
+        if (locale().clock === '24') return `${m[1].padStart(2, '0')}:${m[2]}`;
+        const h = Number(m[1]);
+        return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+      },
+      // Whether times are on a 12-hour clock, for toLocaleString's hour12 where a Date is shown.
+      hour12: () => locale().clock !== '24',
+      // An amount of money in a currency (the server's unless one is given), formatted for the reader.
+      money: (amount, currency) => {
+        const code = currency || locale().currency;
+        const n = Number(amount) || 0;
+        try { return new Intl.NumberFormat([], { style: 'currency', currency: code }).format(n); } catch (err) { return `${n.toFixed(2)} ${code}`; }
+      },
       // Dates as "2026-09-24" (a local day): text from a Date, and back.
       ymd: (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       // Pull a date and a time out of what someone typed, and leave the rest as the title:

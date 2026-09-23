@@ -53,7 +53,7 @@
 
   function closesText(p) {
     if (!p.closesAt) return '';
-    return 'Closes ' + new Date(p.closesAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return 'Closes ' + new Date(p.closesAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: tavern.util.hour12() });
   }
 
   function render() {
