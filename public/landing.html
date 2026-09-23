@@ -21,6 +21,7 @@
       <a href="#modules">Modules</a>
       <a href="#how">How it works</a>
       <a href="#plans">Plans</a>
+      <a class="btn btn-small" href="#signin" id="nav-signin">Sign in</a>
       <a class="btn btn-primary btn-small" href="#start" data-contact-link>Get started</a>
     </nav>
   </header>
@@ -91,6 +92,19 @@
         <div class="plan"><h3>For a small company</h3><p>Spaces per team, the calendar and to-do for everyone, research and the assistant, more people and more room.</p></div>
         <div class="plan"><h3>For a table of players</h3><p>A space per campaign, side conversations for whispers, the calendar for session nights, and a stream-ready view of who is speaking.</p></div>
       </div>
+    </section>
+
+    <!-- Sign in: the host knows where a person has been (the env_hint cookie an environment leaves on the parent domain), never who they are -->
+    <section id="signin" class="band cta">
+      <h2>Sign in</h2>
+      <p id="signin-lede">Every environment has its own address. Where are you going?</p>
+      <div class="signin-known" id="signin-known" hidden></div>
+      <form class="signin-form" id="signin-form">
+        <label for="signin-slug" class="sr-only">Environment</label>
+        <span class="signin-field"><input id="signin-slug" type="text" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="yourname" pattern="[a-z0-9-]{3,30}" required><span class="signin-suffix" data-suffix>.example</span></span>
+        <button class="btn btn-primary" type="submit">Go</button>
+      </form>
+      <p class="hint" id="signin-note" hidden></p>
     </section>
 
     <section id="start" class="band cta">

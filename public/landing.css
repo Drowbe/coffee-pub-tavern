@@ -45,6 +45,18 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 .cta { text-align: center; }
 .cta p { color: var(--text-dim); }
 
+/* Sign in: the environments this browser has been to, then a box for any other */
+.signin-known { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 0 0 18px; }
+.signin-form { display: flex; justify-content: center; align-items: stretch; gap: 8px; }
+.signin-field { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input, var(--bg-section)); overflow: hidden; }
+.signin-field input { width: 12em; padding: 9px 10px; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+.signin-suffix { padding: 0 10px 0 0; color: var(--text-dim); font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+@media (max-width: 640px) {
+  .signin-form { flex-direction: column; align-items: stretch; }
+  .signin-field input { width: auto; flex: 1; }
+}
+
 .land-foot { padding: 28px 20px 40px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 13px; text-align: center; }
 .land-foot a { color: var(--text-dim); }
 .land-foot .dot { margin: 0 8px; }
