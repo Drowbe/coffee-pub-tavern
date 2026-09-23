@@ -17,21 +17,20 @@ Make the conference a pane like chat and the modules, so a person can join with 
 
 ## Stage: a snap-to-grid layout
 
-Right now the stage is a series of docked columns plus float/window escape hatches -- a 1D
-layout, each pane just `{mode, order}`. The idea (not started): a floating pane gets a
-toggle, **free** (what floating is today, anywhere over the stage) or **snap** (drag it and
-it snaps into a cell of a 2D grid over the stage). Docked and window stay as they are; snap
-is a way of floating, not a replacement for docking. It gives real tiling -- more than one
-row, a pane spanning several cells, resizing to grid-cell boundaries -- without losing the
-free case. The same drag-to-snap mechanism would lay out the rooms (dashboard) page too,
-though a room card there is a static tile, not a live pane, so keep the generic snap
-mechanism separate from each page's own content rather than assuming identical reuse.
+Built (September 2026): a floating pane has a toggle, **free** (anywhere over the stage, any
+size) or **snap** (it sits in the cells of a 2D grid over the stage, moves and grows a cell at
+a time, and keeps its cells when the window changes size). Docked and window are untouched;
+snap is a way of floating, not a replacement for docking. See "Free or snapped" in
+architecture-room-layout.md. Only checked in a browser with the call unavailable (the chat
+pane, floating over the room list): try it in a real call, with a module pane and the chat
+both snapped, and with the call popped out.
 
-Two things it must not break: a pane's DOM/media identity across a re-tile (the same
-guarantee the dock/float fix now gives every module), and today's "one flexible column
-never leaves a gap" rule needs a 2D-grid equivalent. Persistence would move from
-`{mode, order}` to `{row, col, rowSpan, colSpan}`. Comes after the module window framework
-work (titlebar/toolbar/content/action bar, see the SDK docs).
+Left from the idea: the same drag-to-snap mechanism laying out the rooms (dashboard) page --
+a room card there is a static tile, not a live pane, so the generic snap (`snapGrid`,
+`snapCell`, `cellBox` in `public/room-modules.js`) would need lifting out of the pane
+manager first rather than assuming identical reuse. And a 2D equivalent of the dock's "one
+flexible column never leaves a gap" rule, if snapped panes should ever tile the stage
+exhaustively rather than sit where they were put.
 
 ## Ideas and open questions
 

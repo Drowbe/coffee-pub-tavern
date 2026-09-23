@@ -62,7 +62,8 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 
 // The buttons at the end of every pane's header: switch between docked and
 // floating, open in a window, close.
-const toolsHtml = ({ mode, canDock, canFloat, closable = true }) => `
+const toolsHtml = ({ mode, canDock, canFloat, closable = true, snap = false }) => `
+  ${mode === 'float' ? `<button class="msg-btn${snap ? ' on' : ''}" data-snap type="button" title="Snap to a grid" aria-label="Snap to a grid" aria-pressed="${snap ? 'true' : 'false'}"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button>` : ''}
   ${mode !== 'float' && canFloat ? '<button class="msg-btn" data-mode="float" type="button" title="Float over the call" aria-label="Float over the call"><i class="fa-regular fa-window-restore fa-fw" aria-hidden="true"></i></button>' : ''}
   ${mode !== 'dock' && canDock ? '<button class="msg-btn" data-mode="dock" type="button" title="Dock beside the video" aria-label="Dock beside the video"><i class="fa-solid fa-table-columns fa-fw" aria-hidden="true"></i></button>' : ''}
   ${mode !== 'window' ? '<button class="msg-btn" data-popout type="button" title="Open in its own window" aria-label="Open in its own window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>' : ''}
@@ -173,15 +174,81 @@ export function createRoomModules({ guestToken = null } = {}) {
   const currentBox = (panel) => ({ x: panel.offsetLeft, y: panel.offsetTop, w: panel.offsetWidth, h: panel.offsetHeight });
   const front = (panel) => { panel.style.zIndex = String(++z); };
 
-  // Drag a floating panel by `handle`, resize it by `grip`.
+  // --- snap: a floating pane can snap to a grid over the stage --------------
+  // Floating is free by default (anywhere, any size). A pane with `snap` on sits in the cells of a grid laid over
+  // the stage instead: dragged, it jumps from cell to cell; resized, it grows a cell at a time; and what is
+  // remembered is its cells (`cell`: col, row, cols, rows), so it keeps its place in the grid when the window
+  // changes size. The grid is as many cells of about SNAP_CELL as the stage fits (never fewer than one), gutter
+  // SNAP_GAP, drawn (`.snap-grid`) only while a snapped pane is being dragged. Docked and window are untouched.
+  const SNAP_CELL = { w: 260, h: 200 };
+  const SNAP_GAP = 16; // the same 16px clampBox keeps clear of the window's edges, so a pane spanning every cell still fits the grid
+  const snapping = (id) => Boolean(saved[id]?.snap);
+  function snapGrid() {
+    const win = stageWin();
+    const r = stage.getBoundingClientRect();
+    const s = r.width > 0 && r.height > 0 ? r : { left: 0, top: 0, width: win.innerWidth, height: win.innerHeight };
+    const cols = Math.max(1, Math.floor(s.width / SNAP_CELL.w));
+    const rows = Math.max(1, Math.floor(s.height / SNAP_CELL.h));
+    return { x: s.left, y: s.top, w: s.width, h: s.height, cols, rows, cw: s.width / cols, ch: s.height / rows };
+  }
+  // The box a run of cells makes, and the run of cells a box is nearest to.
+  const cellBox = (g, c) => ({ x: g.x + c.col * g.cw + SNAP_GAP / 2, y: g.y + c.row * g.ch + SNAP_GAP / 2, w: c.cols * g.cw - SNAP_GAP, h: c.rows * g.ch - SNAP_GAP });
+  function snapCell(g, box) {
+    const cols = Math.max(1, Math.min(g.cols, Math.round((box.w + SNAP_GAP) / g.cw)));
+    const rows = Math.max(1, Math.min(g.rows, Math.round((box.h + SNAP_GAP) / g.ch)));
+    const col = Math.max(0, Math.min(g.cols - cols, Math.round((box.x - g.x) / g.cw)));
+    const row = Math.max(0, Math.min(g.rows - rows, Math.round((box.y - g.y) / g.ch)));
+    return { col, row, cols, rows };
+  }
+  // Put a snapped pane in its cells (its remembered ones, or the ones nearest its box) and remember both.
+  function settleSnap(id, panel, cell) {
+    const g = snapGrid();
+    const c = cell || snapCell(g, currentBox(panel));
+    const box = place(panel, cellBox(g, c));
+    remember(id, { cell: c, box });
+    return box;
+  }
+  // The grid, drawn in the layer while a snapped pane moves.
+  function showGrid(layer, g) {
+    let grid = layer.querySelector('.snap-grid');
+    if (!grid) {
+      grid = layer.ownerDocument.createElement('div');
+      grid.className = 'snap-grid';
+      layer.appendChild(grid);
+    }
+    grid.style.left = `${g.x}px`;
+    grid.style.top = `${g.y}px`;
+    grid.style.width = `${g.w}px`;
+    grid.style.height = `${g.h}px`;
+    grid.style.setProperty('--snap-cw', `${g.cw}px`);
+    grid.style.setProperty('--snap-ch', `${g.ch}px`);
+    layer.classList.add('snapping');
+  }
+  const hideGrid = (layer) => layer.classList.remove('snapping');
+  // The panel a pane floats in (a module's is the pane itself; a native pane's is around it).
+  const floatPanel = (pane) => (pane.kind === 'native' ? pane.floatEl : pane.mode === 'float' ? pane.el : null);
+  function setSnap(id, on) {
+    const pane = panes.get(id);
+    const panel = pane && floatPanel(pane);
+    if (!panel) return;
+    remember(id, { snap: Boolean(on) });
+    if (on) settleSnap(id, panel);
+    for (const b of [pane.el, panel].flatMap((el) => [...(el?.querySelectorAll?.('[data-snap]') || [])])) {
+      b.classList.toggle('on', Boolean(on));
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  // Drag a floating panel by `handle`, resize it by `grip`. A snapped pane moves and grows by whole cells.
   function wireFloating(id, panel, handle, grip) {
     const layer = panel.parentNode;
     let drag = null;
     const begin = (kind) => (event) => {
       if (event.target.closest('button, input, textarea, a')) return;
       event.preventDefault();
-      drag = { kind, sx: event.clientX, sy: event.clientY, box: currentBox(panel) };
+      drag = { kind, sx: event.clientX, sy: event.clientY, box: currentBox(panel), grid: snapping(id) ? snapGrid() : null };
       layer.classList.add('dragging'); // frames swallow pointer events; switch them off while dragging
+      if (drag.grid) showGrid(layer, drag.grid);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     };
     const move = (event) => {
@@ -190,13 +257,16 @@ export function createRoomModules({ guestToken = null } = {}) {
       const dy = event.clientY - drag.sy;
       const b = { ...drag.box };
       if (drag.kind === 'move') { b.x += dx; b.y += dy; } else { b.w += dx; b.h += dy; }
-      place(panel, b);
+      place(panel, drag.grid ? cellBox(drag.grid, snapCell(drag.grid, b)) : b);
     };
     const end = () => {
       if (!drag) return;
+      const g = drag.grid;
       drag = null;
       layer.classList.remove('dragging');
-      remember(id, { box: currentBox(panel) });
+      hideGrid(layer);
+      if (g) settleSnap(id, panel, snapCell(g, currentBox(panel)));
+      else remember(id, { box: currentBox(panel) });
     };
     for (const [el, kind] of [[handle, 'move'], [grip, 'size']]) {
       el.addEventListener('pointerdown', begin(kind));
@@ -369,9 +439,9 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   // --- module panes ---------------------------------------------------------
 
-  const moduleHeader = (m, mode, canDock, canFloat) => `
+  const moduleHeader = (m, mode, canDock, canFloat, snap = false) => `
     <span class="module-panel-title"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> <span data-title>${escapeHtml(m.name)}</span></span>
-    <span class="mod-header-tools"><span class="titlebar-custom" data-header-custom></span>${toolsHtml({ mode, canDock, canFloat })}</span>`;
+    <span class="mod-header-tools"><span class="titlebar-custom" data-header-custom></span>${toolsHtml({ mode, canDock, canFloat, snap })}</span>`;
 
   // A module's place in a pane: a frame for a sandboxed module, an element of its own for one that runs in the page.
   const holder = (m, cls) => (m.runMode === 'page'
@@ -405,6 +475,7 @@ export function createRoomModules({ guestToken = null } = {}) {
         const b = currentBox(pane.el);
         if (Number.isFinite(width)) b.w = width;
         if (Number.isFinite(height)) b.h = height + HEAD_H;
+        if (snapping(m.id)) { const g = snapGrid(); settleSnap(m.id, pane.el, snapCell(g, b)); return; }
         remember(m.id, { box: place(pane.el, b) });
       },
       ...extra,
@@ -421,7 +492,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     panel.className = 'module-panel';
     panel.dataset.module = m.id;
     panel.innerHTML = `
-      <header class="mod-header module-panel-head">${moduleHeader(m, 'float', supports({ modes: m.panel.mode }, 'dock') && !isNarrow(), true)}</header>
+      <header class="mod-header module-panel-head">${moduleHeader(m, 'float', supports({ modes: m.panel.mode }, 'dock') && !isNarrow(), true, snapping(m.id))}</header>
       <div class="mod-toolbar" data-toolbar hidden></div>
       ${reuse ? '<div class="reuse-slot frame-slot"></div>' : holder(m, 'module-panel-frame')}
       <div class="module-panel-bar" hidden></div>
@@ -435,6 +506,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       x: win.innerWidth - m.panel.width - 24 - index * 28,
       y: 70 + index * 28,
     });
+    if (snapping(m.id)) settleSnap(m.id, panel, saved[m.id].cell);
     front(panel);
     const pane = { id: m.id, kind: 'module', mode: 'float', m, el: panel, modes: m.panel.mode, order: ++order, parts: () => [] };
     if (reuse) {
@@ -559,6 +631,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       el.hidden = false;
       const size = def.floatSize || { w: 340, h: 480 };
       place(panel, saved[def.id]?.box || { ...size, x: Math.max(8, stageWin().innerWidth - size.w - 24), y: 70 });
+      if (snapping(def.id)) settleSnap(def.id, panel, saved[def.id].cell);
       front(panel);
       pane.floatEl = panel;
       wireFloating(def.id, panel, el.querySelector('header'), grip);
@@ -587,13 +660,20 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (!tools) return;
     tools.querySelectorAll('[data-mode], [data-popout]').forEach((b) => b.remove());
     const holder = tools.ownerDocument.createElement('span');
-    holder.innerHTML = toolsHtml({ mode: pane.mode, canDock: true, canFloat: pane.modes.includes('float'), closable: false });
+    tools.querySelectorAll('[data-snap]').forEach((b) => b.remove());
+    holder.innerHTML = toolsHtml({ mode: pane.mode, canDock: true, canFloat: pane.modes.includes('float'), closable: false, snap: snapping(pane.id) });
     const close = tools.querySelector('#chat-close, [data-pane-close]');
     for (const b of [...holder.children]) tools.insertBefore(b, close);
     for (const b of tools.querySelectorAll('[data-mode], [data-popout]')) {
       b.onclick = (event) => {
         event.stopPropagation();
         setMode(pane.id, b.dataset.mode || 'window');
+      };
+    }
+    for (const b of tools.querySelectorAll('[data-snap]')) {
+      b.onclick = (event) => {
+        event.stopPropagation();
+        setSnap(pane.id, !snapping(pane.id));
       };
     }
   }
@@ -792,6 +872,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     el.querySelector('[data-close]').addEventListener('click', () => closePane(pane.id));
     el.querySelector('[data-popout]').addEventListener('click', () => popOut(pane.id));
     el.querySelector('[data-mode]')?.addEventListener('click', (event) => setMode(pane.id, event.currentTarget.dataset.mode));
+    el.querySelector('[data-snap]')?.addEventListener('click', () => setSnap(pane.id, !snapping(pane.id)));
   }
 
   // The call moved to (or came back from) a window of its own. Module frames cannot
@@ -909,8 +990,10 @@ export function createRoomModules({ guestToken = null } = {}) {
     });
     (doc.defaultView || window).addEventListener('resize', () => {
       for (const p of panes.values()) {
-        const panel = p.kind === 'native' ? p.floatEl : p.mode === 'float' ? p.el : null;
-        if (panel && panel.ownerDocument === doc) place(panel, currentBox(panel));
+        const panel = floatPanel(p);
+        if (!panel || panel.ownerDocument !== doc) continue;
+        // A snapped pane keeps its cells in the grid the new size makes; a free one just stays on screen.
+        if (snapping(p.id)) settleSnap(p.id, panel, saved[p.id].cell); else place(panel, currentBox(panel));
       }
       syncDock();
       if (menu && !inline() && !menu.hidden) positionMenu();

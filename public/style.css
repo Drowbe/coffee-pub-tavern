@@ -3778,6 +3778,22 @@ body.conference-window {
   pointer-events: none;
 }
 
+/* The grid a snapped floating pane sits in, drawn over the stage only while one is being dragged or
+   resized (room-modules.js sets the cell size as --snap-cw/--snap-ch and the box to the stage's). */
+.snap-grid {
+  position: absolute;
+  display: none;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--accent) 45%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--accent) 45%, transparent) 1px, transparent 1px);
+  background-size: var(--snap-cw) var(--snap-ch);
+}
+
+.module-layer.snapping .snap-grid {
+  display: block;
+}
+
 /* Unread count on a module's header item */
 .nav-badge {
   min-width: 16px;
