@@ -2865,7 +2865,15 @@ function wake() {
   for (const s of idleStages()) s.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    const keepOpen = roomModules.nativeOpen('chat') || !$('settings').hidden || !$('react-tray').hidden || $('floatbar').matches(':hover');
+    // The settings popover, the reaction tray and the floating toolbar live inside the conference section, so they are in
+    // whichever document the conference is in: this page's, or its own window's once popped out. An open popover, or a
+    // pointer resting on the toolbar, keeps the chrome up. The chat keeps it up only while the call is on this page: in
+    // the conference's own window the chat is not there to need it.
+    const win = roomModules.nativeWindow('conference');
+    const doc = win ? win.document : document;
+    const shown = (id) => { const el = doc.getElementById(id); return Boolean(el && !el.hidden); };
+    const floatbar = doc.getElementById('floatbar');
+    const keepOpen = shown('settings') || shown('react-tray') || Boolean(floatbar && floatbar.matches(':hover')) || (!win && roomModules.nativeOpen('chat'));
     if (!keepOpen) for (const s of idleStages()) s.classList.add('idle');
     else wake();
   }, 2500);
