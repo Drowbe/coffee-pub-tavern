@@ -312,6 +312,19 @@ function currentUser(req) {
   return req._user;
 }
 
+// A hint, not a session: on a real sign-in at this environment (never the host admin's own), remembers which
+// slugs this browser has used, most recent first, so the product page's own Sign in can offer them back without
+// the host ever learning who anyone is (see "Sign in from the product page" in plan-tenants.md). Only set with a
+// base domain; never cleared on sign-out, since it names no person, just a short list of addresses.
+function setEnvHint(req, res) {
+  if (!BASE_DOMAIN) return;
+  const env = currentEnvironment();
+  if (!env.slug) return;
+  const existing = (auth.parseCookies(req.get('cookie')).env_hint || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const slugs = [env.slug, ...existing.filter((s) => s !== env.slug)].slice(0, 5);
+  res.cookie('env_hint', slugs.join(','), { domain: BASE_DOMAIN, path: '/', sameSite: 'lax', secure: auth.isSecure(req), maxAge: 365 * 86400000, httpOnly: false });
+}
+
 function hasStreamKey(req) {
   const given = String(req.query.s || req.get('x-stream-key') || '');
   const wanted = store.streamKey;
@@ -634,6 +647,34 @@ function productInfo(_req, res) {
   res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION });
 }
 hostRouter.get('/api/product', productInfo);
+// One environment's public name, for the product page's own Sign in (a slug is an address already, so confirming
+// one exists reveals nothing): { slug, name } for an active or pastDue environment, 404 for anything else --
+// unknown, suspended, or a slug that does not even look like one (checked before it ever reaches the registry).
+function productEnvironment(req, res) {
+  if (!hostRegistry) return res.status(404).json({ error: 'not found' });
+  let slug;
+  try {
+    slug = cleanSlug(req.query.slug);
+  } catch {
+    return res.status(404).json({ error: 'not found' });
+  }
+  const tenant = hostRegistry.findTenant(slug);
+  if (!tenant || (tenant.status !== 'active' && tenant.status !== 'pastDue')) return res.status(404).json({ error: 'not found' });
+  res.json({ slug: tenant.slug, name: tenant.name });
+}
+hostRouter.get('/api/product/environment', productEnvironment);
+// The same, as a list, for the product page's own Sign in dropdown: every active or pastDue environment, sorted
+// by name, suspended ones left out entirely (not even a slug -- there is nothing for a visitor to do with one).
+function productEnvironments(_req, res) {
+  if (!hostRegistry) return res.json({ environments: [] });
+  const environments = hostRegistry
+    .listTenants()
+    .filter((t) => t.status === 'active' || t.status === 'pastDue')
+    .map((t) => ({ slug: t.slug, name: t.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ environments });
+}
+hostRouter.get('/api/product/environments', productEnvironments);
 hostRouter.use((_req, res) => res.status(404).json({ error: 'not found' }));
 
 // --- the door: resolve an environment for this request, or route to the host console -----------------------
@@ -663,7 +704,7 @@ if (BASE_DOMAIN) {
     // same as an unknown subdomain.
     if (host === BASE_DOMAIN) {
       if (req.path === '/') return res.sendFile(page('landing.html'));
-      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/api/product'];
+      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/api/product', '/api/product/environment', '/api/product/environments'];
       if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/')) return next();
       return res.status(404).type('text').send('not found');
     }
@@ -678,6 +719,8 @@ if (BASE_DOMAIN) {
   app.use((req, res, next) => envContext.run(environmentFor(DEFAULT_SLUG), next));
 }
 app.get('/api/product', productInfo);
+app.get('/api/product/environment', productEnvironment);
+app.get('/api/product/environments', productEnvironments);
 
 // Pages ----------------------------------------------------------------------
 
@@ -716,6 +759,7 @@ app.get('/j/:token', (req, res) => {
   const user = store.userByLinkToken(req.params.token);
   if (!user) return res.status(404).sendFile(page('bad-link.html'));
   auth.setSessionCookie(req, res, auth.issueSession(store.sessionSecret, user));
+  setEnvHint(req, res);
   res.redirect('/');
 });
 
@@ -951,6 +995,7 @@ app.post('/api/login', (req, res) => {
   limiter.clear(ip);
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
+  setEnvHint(req, res);
   res.json({ user: publicUser(req, user), token });
 });
 
@@ -964,6 +1009,7 @@ app.post('/api/register', (req, res) => {
   const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
+  setEnvHint(req, res);
   res.status(201).json({ user: publicUser(req, user) });
 });
 
@@ -992,6 +1038,7 @@ app.post('/api/invites/:token/accept', (req, res) => {
   store.removeInvite(invite.token);
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
+  setEnvHint(req, res);
   res.status(201).json({ user: publicUser(req, user) });
 });
 

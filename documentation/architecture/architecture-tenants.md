@@ -69,6 +69,26 @@ The "door" is one middleware, registered right after `express.json()`, before an
   both the main app and `hostRouter`, never behind a session) answers `{ name, contact, baseDomain, version }`
   wherever it is reached.
 
+Two more pieces exist only to let the product page's own **Sign in** send someone to the right place, without the
+host ever learning who anyone is (accounts live inside each environment, not in `host.json`):
+
+- On every real tenant sign-in (`GET /j/:token`, `POST /api/login`, `POST /api/register`,
+  `POST /api/invites/:token/accept` -- never the host admin's own `POST /api/host/login`), `setEnvHint(req, res)`
+  sets a cookie `env_hint` on the parent `BASE_DOMAIN`: a comma-separated list of slugs, most recent first,
+  deduplicated, capped at five, `Path=/`, `SameSite=Lax`, `Secure` when the request is, a year long, **not**
+  `HttpOnly` (the page reads it with `document.cookie`). Never cleared on sign-out -- it is a hint, not a session,
+  and it names no person. A no-op without `BASE_DOMAIN`.
+- `GET /api/product/environment?slug=` (registered on both the main app and `hostRouter`, and in
+  `BARE_BASE_PATHS`, so it answers at the bare base domain too) answers `{ slug, name }` for an `active` or
+  `pastDue` tenant and a plain 404 for anything else -- unknown, suspended, or a slug that fails `cleanSlug`'s own
+  shape check before it ever reaches the registry. Suspended and unknown look identical on purpose: a slug is
+  already a public address (it is the tenant's own subdomain), so confirming one exists reveals nothing a browser
+  couldn't already see by just visiting it.
+- `GET /api/product/environments` (same registration pattern) answers `{ environments: [{ slug, name }] }` for
+  the page's own dropdown: every `active` or `pastDue` tenant, sorted by name, suspended ones left out entirely
+  (not even a slug -- unlike the single lookup above, there is no address a visitor already has here to confirm).
+  `{ environments: [] }` when there is no `hostRegistry` at all.
+
 Because `AsyncLocalStorage` context follows the real async causality chain (promises, `await`, timers,
 `EventEmitter.emit`), a route handler can `await` anything, register a `setInterval`, or call `moduleBus.on(...)`
 and the Proxy still resolves correctly inside all of it, with one exception below.
