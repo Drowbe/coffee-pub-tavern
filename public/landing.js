@@ -12,6 +12,7 @@ try {
 
 fill('[data-product]', product.name);
 document.title = product.name;
+for (const img of document.querySelectorAll('[data-product-alt]')) img.alt = product.name;
 fill('[data-version]', product.version ? String(product.version) : '');
 const example = document.querySelector('[data-example-host]');
 if (example && product.baseDomain) example.textContent = `yourname.${product.baseDomain}`;

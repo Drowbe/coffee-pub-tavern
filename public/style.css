@@ -252,6 +252,13 @@ body.host-console .topbar .nav-toggle {
   display: none;
 }
 
+body.host-console .host-logo {
+  display: block;
+  height: 60px; /* the file has wide transparent margins; the bar's own height is unchanged */
+  width: auto;
+  margin: -12px 0;
+}
+
 body.host-console .tenant .section-head h2 code {
   margin-left: 8px;
   color: var(--text-dim);

@@ -4,6 +4,8 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 
 .land-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 20px; background: var(--nav-primary-bg); border-bottom: 1px solid var(--border); }
 .land-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--header-text); font-weight: 700; font-size: 17px; text-decoration: none; }
+/* the logo (the brandmark and the words, light text for the dark bar); the name stays in the markup for a reader */
+.land-logo { display: block; height: 64px; width: auto; margin: -14px 0; } /* the file has wide transparent margins: taller than the bar, margins pull it back in */
 .land-links { display: flex; align-items: center; gap: 18px; font-size: 14px; }
 .land-links a { color: var(--text-dim); text-decoration: none; }
 .land-links a:hover { color: var(--text); }

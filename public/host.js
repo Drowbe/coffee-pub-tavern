@@ -218,4 +218,15 @@ $('host-logout').addEventListener('click', async () => {
 
 renderTopbar({ location: '' });
 await loadBranding();
+// The console is the product's own door, so its bar wears the product's logo, not any environment's name and icon.
+const brandHome = document.querySelector('.topbar .brand-home');
+if (brandHome) {
+  const logo = document.createElement('img');
+  logo.className = 'host-logo';
+  logo.src = '/assets/images/brand/logo-light.png';
+  logo.alt = 'Host console';
+  brandHome.replaceChildren(logo);
+  brandHome.href = '/';
+  brandHome.title = 'Host console';
+}
 await load();
