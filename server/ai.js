@@ -15,7 +15,15 @@ const path = require('path');
 // service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
 const PROVIDERS = ['none', 'openai', 'anthropic', 'compatible'];
 const SOURCES = ['managed', 'custom'];
+// The companies the host may offer a managed service for (documentation/plans/plan-tenants.md, "Managed AI,
+// per company") -- PROVIDERS minus 'none', in the order a fresh environment picks its first offered one.
+const MANAGED_PROVIDERS = ['openai', 'anthropic', 'compatible'];
 const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
+// One current, inexpensive model per company, so a key alone is enough to offer it -- the console lets an
+// admin change it. Chosen this server session (2026-09-23): gpt-4o-mini (OpenAI), claude-haiku-4-5-20251001
+// (Anthropic's Claude Haiku 4.5). No default for compatible: an arbitrary address has no catalog to default
+// from, so it needs its own model named explicitly.
+const DEFAULT_MODELS = { openai: 'gpt-4o-mini', anthropic: 'claude-haiku-4-5-20251001' };
 const TASKS = ['summarise', 'ask', 'tags'];
 const MAX_ITEMS = 12;
 const BASES = ['general', 'items', 'both'];
@@ -72,6 +80,45 @@ function applyAiFields(current, patch) {
   return next;
 }
 
+// One company's own slot in the host's managed AI (documentation/plans/plan-tenants.md, "Managed AI, per
+// company"): openai and anthropic keep a model and a key (their address is always the company's own, never
+// stored); compatible keeps an address too. `key` replaces only when a non-empty string is sent; `clearKey`
+// removes it. Used by HostRegistry.setManagedAi -- the validation an environment's own custom slot has,
+// scoped to one company at a time.
+function applyManagedFields(provider, current, patch) {
+  if (!MANAGED_PROVIDERS.includes(provider)) throw new AiError('choose openai, anthropic or compatible');
+  const p = patch && typeof patch === 'object' ? patch : {};
+  const next = { model: current.model || '', key: current.key || '', ...(provider === 'compatible' ? { address: current.address || '' } : {}) };
+  if (provider === 'compatible' && p.address !== undefined) {
+    const a = String(p.address || '').trim();
+    if (a) {
+      let u;
+      try { u = new URL(a); } catch { throw new AiError('that address is not valid'); }
+      if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
+      next.address = u.href.replace(/\/$/, '');
+    } else next.address = '';
+  }
+  if (p.model !== undefined) next.model = oneLine(p.model, 100);
+  if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
+  if (p.clearKey === true) next.key = '';
+  return next;
+}
+
+// Whether a company's slot -- its saved model/key/address plus a live environment-variable key -- is offered
+// right now: a key (or, for compatible, an address) and a model, falling back to DEFAULT_MODELS when a key is
+// set but no model has been saved yet (a key alone is enough to get going). `slot`: { model, key, address },
+// whatever applies right now (server/index.js's managedSlot combines what is saved with the live env vars
+// before calling this); `envKey`: the live override, already resolved, winning over a saved key when set.
+// Returns the real offer -- including the key, for making calls -- or null.
+function managedOffer(provider, slot, envKey) {
+  const key = envKey || (slot && slot.key) || '';
+  const address = provider === 'compatible' ? ((slot && slot.address) || '') : '';
+  if (provider === 'compatible' ? !address : !key) return null;
+  const model = (slot && slot.model) || DEFAULT_MODELS[provider] || '';
+  if (!model) return null;
+  return { provider, model, address, key };
+}
+
 // The models a service offers, from its own list: [{ id, name }]. A module-level function (not a method) so
 // both an environment's own Ai.listModels (its own saved key as the fallback) and the host's managed-service
 // listing (server/index.js's POST /api/host/ai/models, the host's own saved key as the fallback) can call it
@@ -109,16 +156,17 @@ async function listModelsFor({ provider, address, key }, hosts = HOSTS) {
 }
 
 class Ai {
-  // `managed` is a function returning the host's offer -- { provider, address, model, key } (a real key, for
-  // making calls; never exposed by view()) or null when the host offers none. AI_KEY moved to the host: an
-  // environment's own custom slot no longer has an environment-variable fallback of its own.
+  // `managed` is a function returning the host's offered companies -- [{ provider, address, model, key }]
+  // (real keys, for making calls; never exposed by view()), in offer order, or null when the host offers none.
+  // AI_KEY moved to the host: an environment's own custom slot no longer has an environment-variable fallback
+  // of its own.
   constructor(dataDir, env = process.env, hosts = HOSTS, managed = () => null) {
     this.hosts = { ...HOSTS, ...hosts };
     this.managed = managed;
     this.file = path.join(dataDir, 'ai.json');
     this.usageFile = path.join(dataDir, 'ai-usage.json');
     this.env = env;
-    this.config = { source: undefined, provider: 'none', address: '', model: '', key: '', monthlyTokens: 0 };
+    this.config = { source: undefined, managedProvider: '', provider: 'none', address: '', model: '', key: '', monthlyTokens: 0 };
     this.usage = { month: month(), tokens: 0, calls: 0, byTask: {} };
     let loaded = false;
     try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); loaded = true; } catch { /* not set up */ }
@@ -134,16 +182,20 @@ class Ai {
     if (typeof this.config.enabled !== 'boolean') this.config.enabled = this.config.provider !== 'none';
     // The managed/custom choice, decided once and saved: a file from before it existed, with its own saved
     // provider and model but no saved key (it worked only through the old per-environment AI_KEY), becomes
-    // managed -- migrationSeed() below is read once by index.js to give the host's managed service a starting
-    // point if it has nothing saved yet. A file with its own saved key stays custom. A brand-new environment
-    // (no file at all) starts managed when the host already offers a service, else custom.
+    // managed, landing in that same company's own slot -- migrationSeed() below is read once by index.js to
+    // give the host's managed service a starting point there if it has nothing saved yet for it. A file with
+    // its own saved key stays custom. A brand-new environment (no file at all) starts managed on the first
+    // offered company (managed() returns them in offer order), else custom.
     this._migrationSeed = null;
     if (!SOURCES.includes(this.config.source)) {
       if (!loaded) {
-        this.config.source = this.managed() ? 'managed' : 'custom';
+        const offers = this.managed();
+        if (offers && offers.length) { this.config.source = 'managed'; this.config.managedProvider = offers[0].provider; }
+        else this.config.source = 'custom';
       } else if (this.config.provider !== 'none' && this.config.model && !this.config.key) {
         this._migrationSeed = { provider: this.config.provider, address: this.config.address, model: this.config.model };
         this.config.source = 'managed';
+        this.config.managedProvider = this.config.provider;
       } else {
         this.config.source = 'custom';
       }
@@ -159,13 +211,18 @@ class Ai {
     return this._migrationSeed;
   }
 
-  // The active provider, address, model and key: the host's managed offer when that is the choice, this
-  // environment's own custom slot otherwise. { provider: 'none', ... } when managed is chosen but the host
-  // currently offers nothing (an admin turned it off after this environment chose it).
+  // Whichever the host currently offers for the chosen managedProvider, or null.
+  managedOffer() {
+    return (this.managed() || []).find((o) => o.provider === this.config.managedProvider) || null;
+  }
+
+  // The active provider, address, model and key: the host's chosen managed offer when that is the source, this
+  // environment's own custom slot otherwise. { provider: 'none', ... } when managed is chosen but the host no
+  // longer offers that company (an admin turned it off, or removed its key, after this environment chose it).
   effective() {
     if (this.config.source === 'managed') {
-      const m = this.managed();
-      return m ? { provider: m.provider, address: m.address || '', model: m.model || '', key: m.key || '' } : { provider: 'none', address: '', model: '', key: '' };
+      const o = this.managedOffer();
+      return o ? { provider: o.provider, address: o.address || '', model: o.model, key: o.key || '' } : { provider: 'none', address: '', model: '', key: '' };
     }
     return { provider: this.config.provider, address: this.config.address, model: this.config.model, key: this.config.key };
   }
@@ -177,15 +234,17 @@ class Ai {
 
   // What the admin's page may see: never a key, only whether the active source has one. `provider`/`address`/
   // `model`/`keySet` describe this environment's own custom slot (kept even while managed is chosen, so
-  // switching back to custom does not lose it); `managed` describes the host's offer, if any (no address, no
-  // key -- the host's own console shows those). `keyFromEnvironment` is always false now: AI_KEY seeds the
-  // host's managed service, not an environment's own custom one.
+  // switching back to custom does not lose it); `managed` describes the host's offer (every company it has,
+  // never a key); `managedProvider` is which one this environment has chosen. `keyFromEnvironment` is always
+  // false now: AI_KEY (and AI_OPENAI_KEY/AI_ANTHROPIC_KEY) seed the host's managed service, not an
+  // environment's own custom one.
   view() {
     const c = this.config;
-    const m = this.managed();
+    const offers = this.managed() || [];
     return {
       source: c.source,
-      managed: { available: !!m, provider: m ? m.provider : '', model: m ? m.model : '' },
+      managedProvider: c.managedProvider,
+      managed: { available: offers.length > 0, services: offers.map((o) => ({ provider: o.provider, model: o.model })) },
       provider: c.provider,
       address: c.address,
       model: c.model,
@@ -205,9 +264,20 @@ class Ai {
     const next = { ...this.config };
     if (p.source !== undefined) {
       if (!SOURCES.includes(p.source)) throw new AiError('source must be "managed" or "custom"');
-      if (p.source === 'managed' && !this.managed()) throw new AiError('this host offers no managed service');
       if (p.source !== next.source) next.enabled = false;
       next.source = p.source;
+    }
+    if (p.managedProvider !== undefined) {
+      if (!MANAGED_PROVIDERS.includes(p.managedProvider)) throw new AiError('choose openai, anthropic or compatible');
+      if (p.managedProvider !== next.managedProvider) next.enabled = false;
+      next.managedProvider = p.managedProvider;
+    }
+    // Choosing managed with a company -- naming the source, or the company, while managed -- needs that company
+    // actually offered right now; saving something unrelated (the monthly cap, say) while an already-chosen
+    // company quietly stopped being offered is not an error, only a silent drop to no effective provider (see
+    // effective()).
+    if (next.source === 'managed' && (p.source !== undefined || p.managedProvider !== undefined) && !(this.managed() || []).some((o) => o.provider === next.managedProvider)) {
+      throw new AiError('the host does not offer that company');
     }
     if (p.provider !== undefined && p.provider !== next.provider) next.enabled = false;
     Object.assign(next, applyAiFields(next, p));
@@ -217,12 +287,12 @@ class Ai {
       next.monthlyTokens = Math.floor(n);
     }
     if (p.enabled !== undefined) {
-      const activeProvider = next.source === 'managed' ? (this.managed()?.provider || 'none') : next.provider;
+      const activeProvider = next.source === 'managed' ? ((this.managed() || []).find((o) => o.provider === next.managedProvider)?.provider || 'none') : next.provider;
       if (p.enabled === true && activeProvider === 'none') throw new AiError('choose a service and save it before enabling AI');
       next.enabled = p.enabled === true;
     }
     if (next.source === 'custom' && next.provider === 'none') next.enabled = false;
-    if (next.source === 'managed' && !this.managed()) next.enabled = false;
+    if (next.source === 'managed' && !(this.managed() || []).some((o) => o.provider === next.managedProvider)) next.enabled = false;
     this.config = next;
     this.saveConfig();
     return this.view();
@@ -244,14 +314,16 @@ class Ai {
     const p = patch || {};
     let enabled = this.config.enabled;
     let source = this.config.source;
+    let managedProvider = this.config.managedProvider;
     let provider = this.config.provider;
     if (p.source !== undefined && p.source !== source) { enabled = false; source = p.source; }
+    if (p.managedProvider !== undefined && p.managedProvider !== managedProvider) { enabled = false; managedProvider = p.managedProvider; }
     if (p.provider !== undefined) {
       if (p.provider !== provider) enabled = false;
       provider = p.provider;
     }
     if (p.enabled !== undefined) enabled = p.enabled === true;
-    const activeProvider = source === 'managed' ? (this.managed()?.provider || 'none') : provider;
+    const activeProvider = source === 'managed' ? ((this.managed() || []).find((o) => o.provider === managedProvider)?.provider || 'none') : provider;
     if (activeProvider === 'none') enabled = false;
     return enabled;
   }
@@ -450,4 +522,4 @@ function citedItems(text, count) {
   return [...used].sort((a, b) => a - b);
 }
 
-module.exports = { Ai, AiError, applyAiFields, listModelsFor, PROVIDERS, HOSTS, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_CARDS };
+module.exports = { Ai, AiError, applyAiFields, applyManagedFields, managedOffer, listModelsFor, PROVIDERS, MANAGED_PROVIDERS, DEFAULT_MODELS, HOSTS, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_CARDS };

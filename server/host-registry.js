@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { cleanText, cleanLogin, randomToken } = require('./store');
-const { applyAiFields, PROVIDERS: AI_PROVIDERS } = require('./ai');
+const { applyManagedFields, MANAGED_PROVIDERS } = require('./ai');
 
 class HostError extends Error {
   constructor(message, status = 400) {
@@ -50,17 +50,23 @@ function cleanPlan(raw, fallback) {
   return { modules, members: cap(raw.members, base.members), storageBytes: cap(raw.storageBytes, base.storageBytes), aiCallsPerMonth: cap(raw.aiCallsPerMonth, base.aiCallsPerMonth), calls: cap(raw.calls, base.calls) };
 }
 
-// The host's managed AI service (documentation/plans/plan-tenants.md, "Managed AI"): a plain shape, not
-// validated the way a PUT is (applyAiFields, used by setManagedAi) -- corrupt or old data just falls back to
-// "none" here, the same lenient way cleanTenantRecord reads a tenant.
+// The host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per company"):
+// { openai: { model, key }, anthropic: { model, key }, compatible: { address, model, key } }, any subset --
+// lenient like cleanTenantRecord, not the way a PUT is (applyManagedFields, used by setManagedAi): corrupt data
+// for one company just drops that company's slot rather than crashing the registry.
 function cleanHostAi(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
-  return {
-    provider: AI_PROVIDERS.includes(r.provider) ? r.provider : 'none',
-    address: typeof r.address === 'string' ? r.address : '',
-    model: typeof r.model === 'string' ? r.model : '',
-    key: typeof r.key === 'string' ? r.key : '',
-  };
+  const out = {};
+  for (const provider of MANAGED_PROVIDERS) {
+    const s = r[provider];
+    if (!s || typeof s !== 'object') continue;
+    out[provider] = {
+      model: typeof s.model === 'string' ? s.model : '',
+      key: typeof s.key === 'string' ? s.key : '',
+      ...(provider === 'compatible' ? { address: typeof s.address === 'string' ? s.address : '' } : {}),
+    };
+  }
+  return out;
 }
 
 // A shared file folder's own settings (documentation/plans/plan-tenants.md, "Shared files: the host's map"):
@@ -154,27 +160,33 @@ class HostRegistry {
   }
 
   // ai ----------------------------------------------------------------------------------------------------
-  // The host's own managed AI service, above every environment: real values (including the key), for building
-  // an Ai instance's `managed()` callback (server/index.js) and for an environment's own listing/answering
-  // calls. Never returned from a route as-is -- GET /api/host/ai answers keySet/keyFromEnvironment instead.
+  // The host's own managed AI service, above every environment, per company: real values (including the key),
+  // for server/index.js's managedSlot to build both an Ai instance's `managed()` callback and the host
+  // console's own view from -- never returned from a route as-is (GET /api/host/ai answers keySet/
+  // keyFromEnvironment/offered instead). A shallow copy, always with an entry for openai/anthropic/compatible
+  // (empty when nothing is saved for it), so a caller never has to guard against a missing key.
   get managedAi() {
-    return { ...this.data.ai };
+    const out = {};
+    for (const provider of MANAGED_PROVIDERS) out[provider] = { model: '', key: '', ...(provider === 'compatible' ? { address: '' } : {}), ...(this.data.ai[provider] || {}) };
+    return out;
   }
 
-  setManagedAi(patch) {
-    this.data.ai = applyAiFields(this.data.ai, patch);
+  setManagedAi(provider, patch) {
+    if (!MANAGED_PROVIDERS.includes(provider)) throw new HostError('choose openai, anthropic or compatible');
+    this.data.ai[provider] = applyManagedFields(provider, this.managedAi[provider], patch);
     this.save();
-    return this.managedAi;
+    return { ...this.data.ai[provider] };
   }
 
   // Used only by index.js's migration seeding: an environment's old provider/address/model, worked only
-  // through the old per-environment AI_KEY, becomes the host's starting point -- with no key of its own, since
-  // that env var is this host's own live override now (managedAi in index.js), not something to demand here.
-  // Never overwrites something already saved (the caller checks too, but a second migrating environment in the
-  // same start should not win a race against the first).
-  seedManagedAi({ provider, address, model }) {
-    if (this.data.ai.provider !== 'none') return;
-    this.data.ai = cleanHostAi({ provider, address, model, key: '' });
+  // through the old per-environment AI_KEY, becomes that company's own starting point -- with no key of its
+  // own, since the env var is this host's own live override now (managedSlot in index.js), not something to
+  // demand here. Never overwrites a company's slot that already has something saved (the caller checks too,
+  // but a second migrating environment landing on the same company in the same start should not win a race
+  // against the first).
+  seedManagedAi(provider, { address, model }) {
+    if (!MANAGED_PROVIDERS.includes(provider) || this.data.ai[provider]) return;
+    this.data.ai[provider] = cleanHostAi({ [provider]: { address, model, key: '' } })[provider];
     this.save();
   }
 

@@ -22,7 +22,7 @@ const { RegionCutJobs, RegionCutError } = require('./region-cut');
 const { pmtilesZoomRange } = require('./pmtiles-header');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
-const { Ai, AiError, listModelsFor } = require('./ai');
+const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require('./ai');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -52,11 +52,16 @@ const {
   HOST_ADMIN_PASSWORD = '',
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
-  AI_PROVIDER = '', // seeds the host's managed AI service (documentation/plans/plan-tenants.md, "Managed AI")
+  // Seed the host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per
+  // company"): AI_OPENAI_KEY/AI_ANTHROPIC_KEY name a company's key directly; AI_PROVIDER (with AI_ADDRESS,
+  // AI_MODEL, AI_KEY) is the older one-company form, filling whichever company it names -- both still work.
+  AI_PROVIDER = '',
   AI_ADDRESS = '',
   AI_MODEL = '',
   AI_KEY = '',
   TAVERN_AI_KEY = '', // deprecated: use AI_KEY (used to be an environment's own key; it is the host's now)
+  AI_OPENAI_KEY = '',
+  AI_ANTHROPIC_KEY = '',
 } = process.env;
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
@@ -194,17 +199,59 @@ function migrateSharedFolders() {
 }
 migrateSharedFolders();
 
-// The host's managed AI service, as an Ai instance reads it: real values, including the key, never a view (see
-// GET /api/host/ai for that). Backed by the host registry (an admin's own to set, persisted) when there is
-// one; the AI_* environment variables directly otherwise, read fresh every call -- the only way to offer one
-// on a single-environment install, which has no host console to set one on. AI_KEY always wins for the key
-// specifically, live, even once a provider is saved (the same "an env var overrides the saved value" pattern
-// the key itself used to follow at the environment level, before it moved here).
+// A company's managed slot from the environment alone, before anything saved in host.json is applied:
+// AI_OPENAI_KEY/AI_ANTHROPIC_KEY name that company's key directly; AI_PROVIDER (with AI_ADDRESS, AI_MODEL,
+// AI_KEY) is the older one-company form, filling whichever company it names. Both still work; when both apply
+// to the same company either sets its key.
+function envSlot(provider) {
+  const fromOneCompanyForm = AI_PROVIDER === provider;
+  return {
+    key: (provider === 'openai' ? AI_OPENAI_KEY : provider === 'anthropic' ? AI_ANTHROPIC_KEY : '') || (fromOneCompanyForm ? aiKeyFromEnv : ''),
+    model: fromOneCompanyForm ? AI_MODEL : '',
+    address: provider === 'compatible' && fromOneCompanyForm ? AI_ADDRESS : '',
+  };
+}
+// One company's managed slot, combining what is saved (host.json, when there is one -- a single-environment
+// install has none, so the environment variables are the only way to offer a company at all there) with its
+// live environment-variable override: the one place both managedAi (the Ai-facing offer list) and
+// hostAiServices (the host console's own view) start from, so they can never disagree about it.
+function managedSlot(provider) {
+  const saved = hostRegistry ? hostRegistry.managedAi[provider] : null;
+  const env = envSlot(provider);
+  return {
+    model: (saved && saved.model) || env.model || '',
+    key: (saved && saved.key) || '',
+    address: provider === 'compatible' ? ((saved && saved.address) || env.address || '') : '',
+    envKey: env.key,
+  };
+}
+// The host's managed AI offer, every company at once, as an Ai instance reads it: real values, including keys,
+// never a view (see hostAiServices for that). In MANAGED_PROVIDERS order, so a fresh environment's own default
+// (the first one offered) is openai, then anthropic, then compatible.
 function managedAi() {
-  const saved = hostRegistry ? hostRegistry.managedAi : { provider: AI_PROVIDER, address: AI_ADDRESS, model: AI_MODEL, key: '' };
-  const provider = hostRegistry ? saved.provider : (['openai', 'anthropic', 'compatible'].includes(AI_PROVIDER) ? AI_PROVIDER : 'none');
-  if (provider === 'none') return null;
-  return { provider, address: saved.address, model: saved.model, key: aiKeyFromEnv || saved.key };
+  const offers = [];
+  for (const provider of MANAGED_PROVIDERS) {
+    const slot = managedSlot(provider);
+    const offer = managedOffer(provider, slot, slot.envKey);
+    if (offer) offers.push(offer);
+  }
+  return offers.length ? offers : null;
+}
+// The same, for the host console: { provider, model, address, keySet, keyFromEnvironment, offered }, one row
+// per company, never a key.
+function hostAiServices() {
+  return MANAGED_PROVIDERS.map((provider) => {
+    const slot = managedSlot(provider);
+    const offer = managedOffer(provider, slot, slot.envKey);
+    return {
+      provider,
+      model: offer ? offer.model : slot.model,
+      address: slot.address,
+      keySet: !!(slot.envKey || slot.key),
+      keyFromEnvironment: !!slot.envKey,
+      offered: !!offer,
+    };
+  });
 }
 
 // Build (or fetch the already-built) environment for a slug, from its own data directory. Only ever called for
@@ -228,10 +275,10 @@ function environmentFor(slug) {
   }
   environments.set(key, env);
   // An environment that just migrated its own old custom AI setting to "managed" (see Ai's constructor) gives
-  // the host's managed service a starting point, once, if the host has nothing saved yet -- so what worked
-  // through the old per-environment AI_KEY keeps working through the host's now instead.
+  // that company's own managed slot a starting point, once, if the host has nothing saved for it yet -- so what
+  // worked through the old per-environment AI_KEY keeps working through the host's now instead.
   const aiSeed = env.ai.migrationSeed();
-  if (aiSeed && hostRegistry && hostRegistry.managedAi.provider === 'none') hostRegistry.seedManagedAi(aiSeed);
+  if (aiSeed && hostRegistry) hostRegistry.seedManagedAi(aiSeed.provider, aiSeed);
   // Fire-and-forget: install() reads a zip asynchronously (yauzl), and environmentFor must stay synchronous --
   // every caller, including the resolver middleware, expects an environment back at once. A few milliseconds'
   // delay before an auto-installed module is actually usable is fine today, since nothing yet depends on it
@@ -758,26 +805,29 @@ hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
   res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null });
 });
 
-// The host's own managed AI service (documentation/plans/plan-tenants.md, "Managed AI"), above every
-// environment: an environment chooses "managed" (this) or "custom" (its own, see PUT /api/ai). The key never
-// leaves the server, same as an environment's own never does.
+// The host's own managed AI service (documentation/plans/plan-tenants.md, "Managed AI, per company"), above
+// every environment, one row per company: an environment chooses one of them (source "managed", a
+// managedProvider) or "custom" (its own, see PUT /api/ai). A key never leaves the server, same as an
+// environment's own never does.
 hostRouter.get('/api/host/ai', requireHostAdmin, (_req, res) => {
-  const m = hostRegistry.managedAi;
-  res.json({ ai: { provider: m.provider, address: m.address, model: m.model, keySet: !!(aiKeyFromEnv || m.key), keyFromEnvironment: !!aiKeyFromEnv } });
+  res.json({ services: hostAiServices() });
 });
 hostRouter.put('/api/host/ai', requireHostAdmin, (req, res) => {
   try {
-    const m = hostRegistry.setManagedAi(req.body || {});
-    res.json({ ai: { provider: m.provider, address: m.address, model: m.model, keySet: !!(aiKeyFromEnv || m.key), keyFromEnvironment: !!aiKeyFromEnv } });
+    const provider = String(req.body?.provider || '');
+    if (!MANAGED_PROVIDERS.includes(provider)) throw new AiError('choose openai, anthropic or compatible');
+    hostRegistry.setManagedAi(provider, req.body || {});
+    res.json({ services: hostAiServices() });
   } catch (err) {
     sendAiError(err, res);
   }
 });
 hostRouter.post('/api/host/ai/models', requireHostAdmin, async (req, res) => {
   try {
-    const current = hostRegistry.managedAi;
-    const key = (typeof req.body?.key === 'string' && req.body.key.trim()) || aiKeyFromEnv || current.key;
-    res.json({ models: await listModelsFor({ provider: String(req.body?.provider || ''), address: req.body?.address ?? current.address, key }) });
+    const provider = String(req.body?.provider || '');
+    const slot = managedSlot(provider);
+    const key = (typeof req.body?.key === 'string' && req.body.key.trim()) || slot.envKey || slot.key;
+    res.json({ models: await listModelsFor({ provider, address: req.body?.address ?? slot.address, key }) });
   } catch (err) {
     sendAiError(err, res);
   }
