@@ -2852,12 +2852,21 @@ syncViewportHeight();
 // --- floating controls: show on movement, hide when the pointer rests --------
 
 let idleTimer = 0;
+// The stages that hide their chrome when the pointer rests: the page's own, and the one the conference is wrapped in
+// when it is popped out into a window of its own (that window's document, not this page's).
+function idleStages() {
+  const out = [$('stage')];
+  const win = roomModules.nativeWindow('conference');
+  const theirs = win && win.document.querySelector('.stage');
+  if (theirs) out.push(theirs);
+  return out;
+}
 function wake() {
-  $('stage').classList.remove('idle');
+  for (const s of idleStages()) s.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     const keepOpen = roomModules.nativeOpen('chat') || !$('settings').hidden || !$('react-tray').hidden || $('floatbar').matches(':hover');
-    if (!keepOpen) $('stage').classList.add('idle');
+    if (!keepOpen) for (const s of idleStages()) s.classList.add('idle');
     else wake();
   }, 2500);
 }

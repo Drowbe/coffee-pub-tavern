@@ -1200,6 +1200,8 @@ export function createRoomModules({ guestToken = null } = {}) {
     openNative: api_openNative,
     closeNative,
     nativeOpen: (id) => panes.has(id),
+    // The window a native pane is popped out into, or null (the page's idle-hide needs that document's own stage).
+    nativeWindow: (id) => { const p = panes.get(id); return p && p.mode === 'window' && p.win && !p.win.closed ? p.win : null; },
     nativeMode: (id) => panes.get(id)?.mode || null,
     // A notification's toast asks the call to open the module's pane.
     handleNotification(n) {

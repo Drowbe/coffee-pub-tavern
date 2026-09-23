@@ -1912,13 +1912,20 @@ a.crumb-here:hover {
   flex-direction: column;
 }
 
-/* Popped out, the conference keeps its titlebar and toolbar, but they slide away when
-   nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
+/* Popped out (the whole table, body.popout, or the conference pane alone in its own window,
+   body.conference-window), the conference keeps its titlebar and toolbar, but they slide away
+   when nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
    and slide back on the next movement. Gone, they leave the flow, so the tiles take the
    whole window. */
 .popout .conference-head,
-.popout .video-bar {
+.popout .video-bar,
+.conference-window .conference-head,
+.conference-window .video-bar {
   transition: transform 0.25s ease;
+}
+
+.conference-window .stage {
+  position: relative; /* the hidden titlebar and toolbar park against the window's edges */
 }
 
 /* The header goes with the titlebar and toolbar, so an idle popout is only tiles. */
@@ -1933,7 +1940,8 @@ a.crumb-here:hover {
   transition: transform 0.25s ease;
 }
 
-.popout .stage.idle .conference-head {
+.popout .stage.idle .conference-head,
+.conference-window .stage.idle .conference-head {
   position: absolute;
   top: 0;
   left: 0;
@@ -1942,7 +1950,8 @@ a.crumb-here:hover {
   transform: translateY(-100%);
 }
 
-.popout .stage.idle .video-bar {
+.popout .stage.idle .video-bar,
+.conference-window .stage.idle .video-bar {
   position: absolute;
   grid-row: 1 / -1;
   left: 0;
@@ -1962,12 +1971,14 @@ a.crumb-here:hover {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.popout .stage.idle .float:not(.floatbar) {
+.popout .stage.idle .float:not(.floatbar),
+.conference-window .stage.idle .float:not(.floatbar) {
   opacity: 0;
   pointer-events: none;
 }
 
-.popout .stage.idle {
+.popout .stage.idle,
+.conference-window .stage.idle {
   cursor: none;
 }
 
