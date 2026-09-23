@@ -2160,6 +2160,36 @@ a.crumb-here:hover {
   border-color: var(--danger);
 }
 
+/* After Hang up: the phone turns green to dial back in, the pane says so, and the rest of the toolbar waits. */
+.fbtn.join {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.no-call {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.no-call i {
+  font-size: 28px;
+  opacity: 0.7;
+}
+
+.module-video.no-call .fbtn:not(#hangup):not(#floatbar-more) {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 .fbtn .glyph {
   position: relative;
   z-index: 1;

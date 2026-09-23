@@ -1582,13 +1582,14 @@ roomModules.registerNative({
     $('stage').classList.toggle('conference-open', open && mode === 'dock'); // the narrow layout keys off this
     if (!moving) {
       if (open) callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
-      else stopCall();
+      else { stopCall(); setNoCall(false); } // closed, the pane starts fresh next time
     }
     updateCrumb();
     setTimeout(applyLayout, 0); // once the pane is in place
   },
 });
-$('conf-close').addEventListener('click', hangUp);
+// The titlebar's x closes the pane (and with it the call); Hang up on the toolbar only leaves the call.
+$('conf-close').addEventListener('click', () => { if (pipWindow) closePopout(); roomModules.closeNative('conference'); });
 
 
 // The chat is a pane like a module's: a column beside the video, a floating panel,
@@ -2199,6 +2200,7 @@ async function connectAndSetup(token, livekitUrl) {
 async function startCall() {
   if (inCall || room.state !== 'connected') return;
   inCall = true;
+  setNoCall(false);
   if (room.localParticipant.attributes?.call !== 'on') {
     await room.localParticipant.setAttributes({ call: 'on' }).catch(() => {});
   }
@@ -2273,9 +2275,27 @@ async function stopCall() {
 
 // The hang-up button. In a pop-out window the stage comes back to the page first, since the
 // Modules button that brings the conference back is in the page's header.
+// Hang up leaves the call but keeps the conference pane, which says "Not in a call" while the toolbar's phone turns
+// green to dial back in; the pane's own close (its titlebar x) is what closes it. The whole-table popout comes back
+// in with the call, as before.
 function hangUp() {
   if (pipWindow) closePopout();
-  roomModules.closeNative('conference');
+  stopCall();
+  setNoCall(true);
+}
+function setNoCall(off) {
+  $('conference').classList.toggle('no-call', off);
+  $('no-call').hidden = !off;
+  const h = $('hangup');
+  h.classList.toggle('danger', !off);
+  h.classList.toggle('join', off);
+  h.title = off ? 'Rejoin the call' : 'Leave the call (you stay in the space)';
+  h.querySelector('i').className = off ? 'fa-solid fa-phone fa-fw' : 'fa-solid fa-phone-slash fa-fw';
+}
+// The toolbar's phone: red hangs up, green dials back in.
+function phoneButton() {
+  if (inCall) hangUp();
+  else callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
 }
 
 async function toggleMic() {
@@ -2502,7 +2522,7 @@ async function restartCamera() {
     setStatus(`camera: ${err.message}`, true);
   }
 }
-$('hangup').addEventListener('click', hangUp);
+$('hangup').addEventListener('click', phoneButton);
 // The crumb's own action buttons (Leave, Rejoin Call) get regenerated with
 // every updateCrumb() call, so one delegated listener on the stable
 // container instead of rewiring a fresh element's click every time.
