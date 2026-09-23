@@ -217,7 +217,7 @@
 .admit .stub b { font-size: 26px; line-height: 1; color: var(--tone); }
 
 /* ---- a note: a sticky note with a folded corner ---- */
-.note { padding: 12px 14px; background: color-mix(in srgb, var(--tone) 20%, var(--bg-card)); border-color: color-mix(in srgb, var(--tone) 45%, var(--border)); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); }
+.note { padding: 12px 40px 12px 14px; background: color-mix(in srgb, var(--tone) 20%, var(--bg-card)); border-color: color-mix(in srgb, var(--tone) 45%, var(--border)); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); }
 .note::after { content: ""; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; background: color-mix(in srgb, var(--tone) 40%, var(--bg-card)); border-top-left-radius: 6px; }
 .note p { color: var(--text); font-size: 13px; }
 
@@ -277,7 +277,7 @@
 .entry.conflict .card { border-color: var(--danger); }
 .card .conflict-bar { margin: 0 12px 10px; }
 
-/* ---- the day: today, ideas with no day yet, a drop target ---- */
+/* ---- the day: today, a drop target ---- */
 .day2 { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
 /* the day the strip has chosen (the one at the top of the page) */
 .day2.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 26px color-mix(in srgb, var(--accent) 22%, transparent); }
@@ -285,8 +285,6 @@
 @media (prefers-reduced-motion: reduce) { .day2 { transition: none; } }
 .day2.today .day-head2 { box-shadow: inset 4px 0 0 var(--accent); }
 .day2.today .dmeta h2::after { content: " · today"; color: var(--accent); font-weight: 500; }
-.day2.ideas { border-style: dashed; }
-.day2.ideas .dnum { background: var(--text-dim); }
 .day2.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .day2.drop-target .day-empty { border-color: var(--accent); color: var(--text); }
 .timeline > .day-empty { margin: 4px 0 8px 12px; }
@@ -327,9 +325,12 @@
 /* the menu button of a block: on the label cell's right edge, over the hatch */
 .card.block.markerpill .menu-btn { top: 50%; right: 4px; margin-top: -14px; }
 
-/* markers that belong to no day: on the line between the day blocks. The same pill, with a menu button on its right edge. */
-.timeline.between { margin: 0 0 12px; padding: 0 14px 0 9px; }
+/* items at a joint on the line between the day blocks: a marker as its pill, anything else as the card it would be in a day, with
+   no time. The head of the line (data-after="") is before the first day. A list being dropped on is .drop-target. */
+.timeline.between { margin: 0 0 12px; padding: 0 14px 0 9px; border-radius: 12px; }
 .timeline.between .rail::before { display: none; }
+.timeline.between .when { visibility: hidden; }
+.timeline.between.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; }
 .row.marker.lane .markerpill { padding-right: 34px; }
 .row.marker.lane .menu-btn { position: absolute; top: 50%; right: 4px; margin-top: -14px; z-index: 1; }
 .row.marker.lane .when b { font-size: 12px; font-weight: 500; color: var(--text-dim); }
@@ -342,16 +343,16 @@
 @media (hover: none) { .jointadd { opacity: 0.6; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .jointadd { transition: none; } }
 
-/* Dragging a marker between the days: press its icon cell or its body and move. While it moves, every joint opens into a place to drop it (.days.dragging-lane),
-   the joint under the pointer is .drop-target, and the marker itself is .dragging. Dropping on another marker of the same joint puts it before or after (data-drop). */
+/* Dragging over the plan: one of its own items (press its body, or a marker's pill, and move) or another module's item. While anything
+   is over it, every joint opens into a place to drop (.days.dragging-line), the joint or day under the pointer is .drop-target, and the
+   plan's own item being moved is .dragging. Dropping on another item of the same joint or day puts it before or after (data-drop). */
 @media (hover: hover) { .row.marker.lane .markerpill { cursor: grab; } .row.marker.lane .markerpill:active { cursor: grabbing; } .row.marker.lane .menu-btn { cursor: pointer; } }
 .row.marker.lane.dragging { opacity: 0.45; }
 .row.marker.lane.dragging .markerpill { box-shadow: 0 0 0 2px var(--accent), 0 10px 26px color-mix(in srgb, black 40%, transparent); }
 .row.marker.lane[data-drop="before"] { box-shadow: 0 -3px 0 var(--accent); }
 .row.marker.lane[data-drop="after"] { box-shadow: 0 3px 0 var(--accent); }
-.days.dragging-lane .joint { height: 30px; margin: -4px 0 4px; }
-.days.dragging-lane .joint::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 2px dashed color-mix(in srgb, var(--text-dim) 60%, transparent); }
-.days.dragging-lane .jointadd { top: 3px; opacity: 1; transform: none; pointer-events: none; }
-.days.dragging-lane .joint.drop-target::before { border-top-color: var(--accent); border-top-style: solid; border-top-width: 3px; }
-.days.dragging-lane .joint.drop-target .jointadd { border-color: var(--accent); color: var(--on-accent); background: var(--accent); transform: scale(1.15); }
-.days.dragging-lane .day2, .days.dragging-lane .timeline.ends { opacity: 0.6; }
+.days.dragging-line .joint { height: 30px; margin: -4px 0 4px; }
+.days.dragging-line .joint::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 2px dashed color-mix(in srgb, var(--text-dim) 60%, transparent); }
+.days.dragging-line .jointadd { top: 3px; opacity: 1; transform: none; pointer-events: none; }
+.days.dragging-line .joint.drop-target::before { border-top-color: var(--accent); border-top-style: solid; border-top-width: 3px; }
+.days.dragging-line .joint.drop-target .jointadd { border-color: var(--accent); color: var(--on-accent); background: var(--accent); transform: scale(1.15); }

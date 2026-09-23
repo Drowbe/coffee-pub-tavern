@@ -2,7 +2,7 @@
 
 **Audience:** whoever is building the Travel module, and the author deciding what it does first.
 
-**Status:** Phase 1 and the dashboard widget are built (the Days view, the trip and its items, moves, the editor, suggestions from other modules, the Decisions view, the actions, the Trips card). Also built: dragging a trip item out to link a task, dropping onto items with the drop menu, following a poll's result, the Bookings view, and money (costs, who paid, sharing, settling up). Left: a map, and the later items. The questions at the end were answered as suggested: one trip per room, order by time then by hand, money and a map later.
+**Status:** Phase 1 and the dashboard widget are built (the Days view, the trip and its items, moves, the editor, suggestions from other modules, the Decisions view, the actions, the Trips card). Also built: dragging a trip item out to link a task, dropping onto items with the drop menu, following a poll's result, the Bookings view, and money (costs, who paid, sharing, settling up), and the plan line (anything between days as well as on one; see the last section). Left: a map, and the later items. The questions at the end were answered as suggested: one trip per room, order by time then by hand, money and a map later.
 
 ## What it is for
 
@@ -78,7 +78,7 @@ Both sides' suggested answers are marked; the author has not answered yet.
 
 Items carry optional details for stylized cards: a journey `mode`, `operator`, `number`, `fromCode`, `toCode`, `terminal`, `gate`, `platform`, `carriage`, `seat`, `travelClass`, `pickup`, `dropoff`; a stop `type`, `partySize`, `reservationName`, `admissionCount`, `gate`; a stay `type`, `roomType`, `guests`; any item `travelMode` and `travelMinutes` (the leg from the item before, set by hand, later by a routing service). The city names are the existing `from` and `to`, the booking reference the existing `confirm`. The editor and the cards that use them come next.
 
-## The plan line: the mental model (September 2026, not built)
+## The plan line: the mental model (September 2026)
 
 The author's frame, recorded before a Planner session so it is not lost: a plan goes **from the unknown to the known to the experienced**, and Planner should carry the whole lifecycle. For now, what matters is that anything can be dropped anywhere on the plan -- on a day, between days, before a date is known -- and that the organizing principle is **date first, then time, then where a person placed it**. One or two idea blocks near the first day, a few more near the tenth, a poll on the main line ("this place or that place") between days, a linked poll inside a day to decide where to eat.
 
@@ -89,3 +89,24 @@ The author's frame, recorded before a Planner session so it is not lost: a plan 
 **What it would take.** Joints accept a drop of anything, not only the + that adds a marker ("Put it here, between day 2 and 3"); the item menu gains that place under Move to; the timeline draws a linked card at a joint the way it draws a marker pill; the sort rule becomes date, then time, then order, with items at a joint sorting by the joint then order. Storage keeps its shape (`after` and `order` exist). Open: telling "on day 3, untimed" from "between day 2 and 3" at a glance -- the pill-on-the-line against card-in-the-day distinction markers already draw is the likely answer -- and what "locked down" means once a decision lands (a state on the item, or just a date and a booking).
 
 Also for that session: the "..." on an Ideas card (reported as showing no controls), and Places' `newPlace` and `addPlace` both appearing on a card drop.
+
+### Decided and built (September 23, 2026)
+
+**One rule of placement.** Every item is in exactly one of two places, and the two fields that say so already existed:
+
+- **On a day:** `date` (a day of the trip), an optional `time`, then `order` among the day's untimed items. `after` is null.
+- **On the line, at a joint:** `after` is the day the joint follows, or `''` for the head of the line (before the first day); then `order` among the items at that joint. `date` is null.
+
+`cleanItem` enforces it: a `date` clears `after`; a between-days marker (`lane`) is always on the line (a stored null `after` reads as the head). An item with neither (an old idea, or a pointer with no day of its own) sits at the head, unless it points at something that has a day, in which case it shows on that day as before. So nothing stored had to change: the old Ideas column is simply the head of the line.
+
+**Ideas is the head of the line.** There is no Ideas column any more. The items before the first day are drawn on the line between the "Planning starts" marker and Day 1, the same way a marker between days always was; the items between two days are drawn between them. A card on the line is the same card it would be in a day, with no time. Menus say where a joint is in words: "Before the first day", "Between Oct 1 and Oct 2", "After the last day".
+
+**Every joint takes anything.** The + on a joint offers the same kinds the day's "..." does (journeys, a stay, stops, a note) plus the between-days marker types, each opening the editor at that joint (a marker is added at once, as before). The editor's Day field became **Where**: the days and the joints, interleaved in line order; a between-days marker sees only the joints. The item menu's **Move to** lists the same; **Back to ideas** became **Back to the line**, which puts a day's item at the joint before its day (near where it was, no longer decided). **Earlier** and **Later** on the line swap with a neighbour at the joint and hop to the next joint at the ends.
+
+**Dropping.** While anything is dragged over the plan (one of its own items by its body, or another module's item or card), every joint opens into a drop zone on the line, as it did only for a marker before. A day's own item dropped on a joint moves there (among the items already at it, before or after the one under the pointer); dropped on a day it moves there as before. Another module's item or card dropped on a joint is offered "Put it here, between Oct 1 and Oct 2" through the shared drop menu, the same as "Put it on Thu, Oct 1" on a day. The rail handle's drag does the same.
+
+**Sort rule.** On a day: untimed by hand order, then timed by time (unchanged). On the line: the joint (head first, then by the day it follows), then hand order. A hidden day's joint still draws its items, after the hidden-days badge, so nothing disappears when empty days are hidden.
+
+**Fixed with it.** A note card had no "..." at all (the "no controls" report; a typed idea is a note). The item menu now opens above its button when there is no room below it, instead of off the bottom of the pane.
+
+**Still open.** Telling "on day 3, untimed" from "between day 2 and 3" at a glance (today: a card in a day block against a card on the bare line); what "locked down" means once a decision lands.

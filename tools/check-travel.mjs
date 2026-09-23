@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'laneOrder', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -395,21 +395,42 @@ test('a marker between the days follows a day and has no time', () => {
   assert.equal(l.date, null);
   assert.equal(l.time, null);
   assert.equal(l.minutes, null);
-  assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', type: 'rest', after: 'nope' }).after, null, 'before the first day');
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', type: 'rest', after: 'nope' }).after, '', 'the head of the line');
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', type: 'rest', after: null }).after, '', 'a stored null reads as the head');
   assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', title: 'x' }), null, 'a marker needs a type');
   assert.equal(lib.tileOf(l), 'lane:free-time');
   assert.deepEqual(lib.fromTile('lane:rest'), { kind: 'lane', type: 'rest', category: 'other' });
   assert.equal(lib.cardOf(l).card, 'lane');
 });
 
-test('a marker dropped among others at a joint gets an order between its neighbours', () => {
+test('an item is on a day or at a joint, never both; nothing is read as the head or the borrowed day', () => {
+  assert.equal(lib.cleanItem({ id: 'a', title: 'x', date: '2026-10-01', after: '2026-10-01' }).after, null, 'a day clears the joint');
+  assert.equal(lib.cleanItem({ id: 'a', title: 'x', after: '2026-10-01' }).after, '2026-10-01');
+  assert.equal(lib.cleanItem({ id: 'a', title: 'x', after: '' }).after, '', 'the head');
+  assert.equal(lib.cleanItem({ id: 'a', title: 'x' }).after, null, 'nowhere in particular');
+  assert.equal(lib.cleanItem({ id: 'a', title: 'x', after: 'nope' }).after, null);
+  assert.equal(lib.lineOf({ after: '2026-10-02' }, null), '2026-10-02');
+  assert.equal(lib.lineOf({ after: '' }, null), '');
+  assert.equal(lib.lineOf({ after: null, date: '2026-10-02' }, '2026-10-02'), null, 'on a day');
+  assert.equal(lib.lineOf({ after: null }, '2026-10-02'), null, 'a pointer borrowing its day');
+  assert.equal(lib.lineOf({ after: null }, null), '', 'an old idea is at the head');
+  assert.deepEqual(lib.joints(['2026-10-01', '2026-10-02']), ['', '2026-10-01', '2026-10-02']);
+  assert.deepEqual(lib.sortLine([{ id: 'b', after: '2026-10-01', order: 1000 }, { id: 'a', after: '', order: 2000 }, { id: 'c', after: '', order: 1000 }]).map((i) => i.id), ['c', 'a', 'b']);
+  assert.deepEqual(lib.placeFields({ date: '2026-10-01' }), { date: '2026-10-01', after: null });
+  assert.deepEqual(lib.placeFields({ after: '' }), { date: null, after: '' });
+  assert.deepEqual(lib.placeFields({ after: '2026-10-01' }), { date: null, after: '2026-10-01' });
+  assert.deepEqual(lib.placeFields(null), { date: null, after: null });
+  assert.deepEqual(lib.placeFields({ date: 'nope', after: 'nope' }), { date: null, after: null });
+});
+
+test('an item dropped among others at a joint gets an order between its neighbours', () => {
   const others = [{ id: 'a', order: 1000 }, { id: 'b', order: 2000 }];
-  assert.equal(lib.laneOrder([], null, null), 1000);
-  assert.equal(lib.laneOrder(others, null, null), 3000, 'at the end');
-  assert.equal(lib.laneOrder(others, 'a', 'before'), 0);
-  assert.equal(lib.laneOrder(others, 'a', 'after'), 1500);
-  assert.equal(lib.laneOrder(others, 'b', 'before'), 1500);
-  assert.equal(lib.laneOrder(others, 'b', 'after'), 3000);
+  assert.equal(lib.jointOrder([], null, null), 1000);
+  assert.equal(lib.jointOrder(others, null, null), 3000, 'at the end');
+  assert.equal(lib.jointOrder(others, 'a', 'before'), 0);
+  assert.equal(lib.jointOrder(others, 'a', 'after'), 1500);
+  assert.equal(lib.jointOrder(others, 'b', 'before'), 1500);
+  assert.equal(lib.jointOrder(others, 'b', 'after'), 3000);
 });
 
 console.log(`check-travel: OK (${n} checks)`);

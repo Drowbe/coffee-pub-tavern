@@ -802,6 +802,16 @@
         let down = null;
         let dragging = false;
         let sent = 0;
+        let payload = null;
+        // Over this module's own frame the host has nothing to do (it hands a drag to the *other* modules): the
+        // drag is delivered here directly, as dropTarget's over, leave and drop, so a module's own items can be
+        // dropped on itself (an item of a plan moved between its days) through the one dropTarget it already has.
+        let insideOwn = false;
+        const overOwn = (e) => {
+          const r = env.rootElement && env.rootElement.getBoundingClientRect ? env.rootElement.getBoundingClientRect() : null;
+          return Boolean(r) && e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
+        };
+        const own = (type, e) => emit('refsdrag', { type, ...(type === 'leave' ? {} : { ...local(e), ref: payload.ref || null, card: payload.card || null }) });
         root.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.pointerType === 'touch' || e.target.closest('input, textarea, select')) return;
           const item = resolve(e.target);
@@ -819,21 +829,28 @@
             say('moved far enough: telling the page a drag began');
             // One of this module's items ({ kind, id, ... }), or a card it has not stored ({ card: { title, ... } }).
             const { kind, id, card, label, ...where } = down.item;
-            const payload = card ? { card, label: label || card.title } : { ref: tavern.refs.make(kind, id, where), label };
+            payload = card ? { card, label: label || card.title } : { ref: tavern.refs.make(kind, id, where), label };
+            insideOwn = false;
             call('refs.ptrStart', { ...payload, ...local(e) }).catch(() => {});
-            return;
           }
           const now = Date.now();
           if (now - sent < 30) return;
           sent = now;
+          const inside = overOwn(e);
+          if (inside) own('over', e);
+          else if (insideOwn) own('leave', e);
+          insideOwn = inside;
           call('refs.ptrMove', local(e)).catch(() => {});
         });
         const finish = (e, dropped) => {
           if (!down || e.pointerId !== down.id) return;
           say(dragging ? (dropped ? 'released: sending the drop' : 'pointer cancelled') : 'released without dragging');
           if (dragging) {
-            if (dropped) call('refs.ptrDrop', local(e)).catch(() => {});
+            if (dropped && overOwn(e)) { own('drop', e); call('refs.dragEnd', {}).catch(() => {}); }
+            else if (dropped) call('refs.ptrDrop', local(e)).catch(() => {});
             else call('refs.dragEnd', {}).catch(() => {});
+            if (insideOwn && !(dropped && overOwn(e))) own('leave', e);
+            insideOwn = false;
             // The release would otherwise count as a click on the item.
             const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
             window.addEventListener('click', stop, { capture: true, once: true });

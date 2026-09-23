@@ -18,10 +18,12 @@ Make the conference a pane like chat and the modules, so a person can join with 
 ## Stage: a snap-to-grid layout
 
 Right now the stage is a series of docked columns plus float/window escape hatches -- a 1D
-layout, each pane just `{mode, order}`. The idea (not started): drag a pane and have it
-snap into a 2D grid cell, giving the same flexibility as today's dock/float but with real
-tiling -- more than one row, a pane spanning several cells, resizing to grid-cell
-boundaries. The same drag-to-snap mechanism would lay out the rooms (dashboard) page too,
+layout, each pane just `{mode, order}`. The idea (not started): a floating pane gets a
+toggle, **free** (what floating is today, anywhere over the stage) or **snap** (drag it and
+it snaps into a cell of a 2D grid over the stage). Docked and window stay as they are; snap
+is a way of floating, not a replacement for docking. It gives real tiling -- more than one
+row, a pane spanning several cells, resizing to grid-cell boundaries -- without losing the
+free case. The same drag-to-snap mechanism would lay out the rooms (dashboard) page too,
 though a room card there is a static tile, not a live pane, so keep the generic snap
 mechanism separate from each page's own content rather than assuming identical reuse.
 

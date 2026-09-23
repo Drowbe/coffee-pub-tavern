@@ -62,12 +62,17 @@
       if (!r || typeof r.module !== 'string' || typeof r.kind !== 'string' || typeof r.id !== 'string') return null;
       item.ref = { module: r.module, kind: r.kind, id: r.id, scope: r.scope === 'room' ? 'room' : 'server', ...(r.scope === 'room' && r.room ? { room: r.room } : {}) };
     }
+    // Where the item is: on a day (`date`, then `time`, then `order`) or on the plan's line at a joint (`after`: the day the joint
+    // follows, '' for the head of the line before the first day; then `order`). One or the other: a day clears the joint. Neither
+    // (an old idea, a pointer with no day of its own) is read by the plan as the head of the line, or the pointed-at item's day.
+    item.after = isYmd(raw.after) ? raw.after : raw.after === '' ? '' : null;
+    if (item.date) item.after = null;
     // A time block (free time, rest, a meet-up...): something that happens inside a day and has no place. Its `type` names one of the
     // module's marker types (a setting); the label is optional and falls back to the type's.
-    // A marker between the days (a `lane`): on the plan's line, not in a day. `after` is the day it follows (none: before the first day).
+    // A marker between the days (a `lane`): always on the line, never in a day.
     if (kind === 'lane') {
       item.type = typeof raw.type === 'string' && /^[a-z][a-z0-9-]{0,29}$/.test(raw.type) ? raw.type : '';
-      item.after = isYmd(raw.after) ? raw.after : null;
+      item.after = isYmd(raw.after) ? raw.after : '';
       item.date = null;
       item.time = null;
       item.minutes = null;
@@ -139,6 +144,20 @@
     if (!trip || !isYmd(trip.start)) return null;
     return Math.round((parseYmd(trip.start) - parseYmd(today)) / DAY_MS);
   }
+
+  // The joint an item is at on the plan's line ('' the head, else the day it follows), or null when it is on a day. `day` is
+  // the day the item shows on (its own, or for a pointer the pointed-at item's), given by the plan's dayOf. An item placed
+  // nowhere and with no day to borrow is at the head: the old "ideas with no day yet".
+  const lineOf = (item, day) => (item.after !== null && item.after !== undefined ? item.after : day ? null : '');
+  // The joints of the plan in line order: the head, then after each day.
+  const joints = (days) => ['', ...days];
+  // The stored fields for a place: `{ date }` a day, `{ after }` a joint ('' the head), nothing for "wherever it falls".
+  const placeFields = (place) => {
+    if (place && (place.after === '' || isYmd(place.after))) return { date: null, after: place.after };
+    return { date: place && isYmd(place.date) ? place.date : null, after: null };
+  };
+  // Items on the line in their order: by joint (the head first, then the day each follows), then by hand order.
+  const sortLine = (items) => [...items].sort((a, b) => String(a.after || '').localeCompare(String(b.after || '')) || a.order - b.order || String(a.id).localeCompare(String(b.id)));
 
   // Where a day's items sit: those with no time first (the whole-day things, in the order people put them), then
   // the timed ones by time. An item's `cards` day (for a link) is given by dayOf.
@@ -379,9 +398,9 @@
     return { start: { id: first.id, day: first.date, time: first.time || '' }, end: { id: last.id, day: e.day, time: e.time } };
   }
 
-  // An `order` for a marker placed among the ones already at a joint (`others`, in their order): before or after the one with id
+  // An `order` for an item placed among the ones already at a joint (`others`, in their order): before or after the one with id
   // `targetId`, or at the end when there is none.
-  function laneOrder(others, targetId, where) {
+  function jointOrder(others, targetId, where) {
     const at = targetId ? others.findIndex((l) => l.id === targetId) : -1;
     if (at < 0) return others.length ? Math.max(...others.map((l) => l.order)) + 1000 : 1000;
     const lo = where === 'before' ? (others[at - 1] ? others[at - 1].order : others[at].order - 2000) : others[at].order;

@@ -74,8 +74,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 
 /* another module's item: the same frame, a source line, a read-only body, an open action */
 
-/* ideas: things with no day yet, the first column */
-
 /* dated items other modules hold on this day, offered to the plan */
 .suggestions { display: flex; flex-direction: column; gap: 6px; padding: 0 8px 8px; }
 .suggestions-title { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }

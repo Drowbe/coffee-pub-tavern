@@ -57,13 +57,17 @@
       changed();
     }
 
-    // The day of an item: its own, or for a pointer the day of the item it points at.
+    // The day of an item: its own, or for a pointer with no place of its own the day of the item it points at. An item on the
+    // line (at a joint) has no day.
     const dayOf = (item) => {
       if (item.date) return item.date;
+      if (item.after !== null && item.after !== undefined) return null;
       const c = item.ref ? cards.get(refKey(item.ref)) : null;
       const w = c && !c.error ? cardWhen(c) : null;
       return w ? w.day : null;
     };
+    // The joint an item is at on the line ('' the head, else the day it follows), or null when it is on a day.
+    const jointOf = (item) => lineOf(item, dayOf(item));
 
     const list = () => [...items.values()].map((x) => x.item);
     // An item as it is placed in a day: a pointer with no time of its own takes the time its card gives, so it sorts
@@ -74,16 +78,18 @@
       const w = c && !c.error ? cardWhen(c) : null;
       return w && w.time ? { ...item, time: w.time } : item;
     };
-    // Markers between the days are on the plan's line, not in any day, so days never see them.
-    const sortable = () => list().filter((i) => i.kind !== 'lane').map(timed);
-    // The markers between the days, in the order they are on the line: by the day they follow, then by their own order.
-    const lanes = () => list().filter((i) => i.kind === 'lane').sort((a, b) => String(a.after || '').localeCompare(String(b.after || '')) || a.order - b.order || String(a.id).localeCompare(String(b.id)));
+    // The items on days (what the days see); items on the line are not among them.
+    const sortable = () => list().filter((i) => jointOf(i) === null).map(timed);
+    // The items on the line, in the order they are on it: by joint (the head first, then the day each follows), then by hand order.
+    const onLine = () => sortLine(list().filter((i) => jointOf(i) !== null).map((i) => ({ ...i, after: jointOf(i) })));
+    const atJoint = (after) => onLine().filter((i) => i.after === after);
     const days = () => tripDays(trip);
     const byDay = () => itemsByDay(sortable(), days(), dayOf);
     const nextOrder = (date) => {
       const same = sortable().filter((i) => !i.time && i.date === date);
       return same.length ? Math.max(...same.map((i) => i.order)) + 1000 : 1000;
     };
+    const nextJointOrder = (after) => jointOrder(atJoint(after), null, null);
 
     async function saveTrip(patch) {
       const next = cleanTrip({ ...(trip || {}), ...patch, by: tavern.user.name });
@@ -95,7 +101,8 @@
 
     async function addItem(fields) {
       const id = tavern.util.id();
-      const item = cleanItem({ ...fields, id, order: fields.order ?? nextOrder(fields.date), by: tavern.user.name });
+      const onTheLine = !fields.date && (fields.after === '' || isYmd(fields.after) || fields.kind === 'lane');
+      const item = cleanItem({ ...fields, id, order: fields.order ?? (onTheLine ? nextJointOrder(fields.after || '') : nextOrder(fields.date)), by: tavern.user.name });
       if (!item) throw new Error('that needs a title');
       const { id: _drop, ...value } = item;
       const saved = await tavern.storage.set(`item:${id}`, value, {});
@@ -142,25 +149,50 @@
       for (const [id, patch] of Object.entries(changes)) await updateItem(id, patch);
     }
 
-    // Put the item at a place in a day (the drag, and "Move to day..."): untimed items are ordered by hand, a timed
-    // one only changes day.
+    // Put the item at a place in a day (the drag, and "Move to..."): untimed items are ordered by hand, a timed
+    // one only changes day. Coming off the line, it leaves its joint.
     async function moveTo(id, date, index) {
       const cur = items.get(id);
       if (!cur) return;
-      if (timed(cur.item).time) return void (await updateItem(id, { date }));
-      const dayUntimed = sortDay(sortable().filter((i) => !i.time && dayOf(i) === date));
-      await applyChanges(placeUntimed(dayUntimed, cur.item, date, index));
+      if (timed(cur.item).time) return void (await updateItem(id, { date, after: null }));
+      const dayUntimed = sortDay(sortable().filter((i) => !i.time && dayOf(i) === date && i.id !== id));
+      const changes = placeUntimed(dayUntimed, cur.item, date, index);
+      changes[id] = { ...(changes[id] || {}), after: null };
+      await applyChanges(changes);
     }
+    // Put the item at a joint on the line ('' the head), at `index` among the items already there.
+    async function moveToJoint(id, after, index) {
+      const cur = items.get(id);
+      if (!cur) return;
+      const others = atJoint(after).filter((i) => i.id !== id);
+      const changes = placeUntimed(others, cur.item, null, index);
+      changes[id] = { ...(changes[id] || {}), date: null, after };
+      await applyChanges(changes);
+    }
+    // Earlier or later: on a day, the day's own rule (nudge); on the line, a swap with the neighbour at the joint, and at
+    // either end of a joint a hop to the next one.
     async function nudgeItem(id, direction) {
       const cur = items.get(id);
       if (!cur) return;
-      const day = dayOf(cur.item);
-      const changes = nudge(sortDay(sortable().filter((i) => dayOf(i) === day)), timed(cur.item), direction);
-      if (changes) await applyChanges(changes);
+      const joint = jointOf(cur.item);
+      if (joint === null) {
+        const day = dayOf(cur.item);
+        const changes = nudge(sortDay(sortable().filter((i) => dayOf(i) === day)), timed(cur.item), direction);
+        if (changes) await applyChanges(changes);
+        return;
+      }
+      const here = atJoint(joint);
+      const changes = nudge(here, { ...cur.item, time: null }, direction);
+      if (changes) return void (await applyChanges(changes));
+      const all = joints(days());
+      const next = all[all.indexOf(joint) + direction];
+      if (next === undefined) return;
+      await moveToJoint(id, next, direction < 0 ? 1e6 : 0);
     }
 
-    // A pointer to another module's item, put on a day (or left without one: taken from the item when it has one).
-    const addLink = (ref, date, title) => addItem({ kind: 'link', ref, date: date || null, title: title || '' });
+    // A pointer to another module's item, put at a place: `{ date }` a day, `{ after }` a joint on the line, or nothing (the
+    // pointed-at item's own day when it has one, else the head of the line).
+    const addLink = (ref, place, title) => addItem({ kind: 'link', ref, ...placeFields(place), title: title || '' });
 
     // Dated items other modules hold in this room, on days of the trip, that the plan does not already point at:
     // what the plan could take in. Nothing is stored until one is added.
@@ -209,8 +241,7 @@
     function fromSuggestion(input) {
       const title = clip(input.title, 120);
       if (!title) throw new Error('that needs a title');
-      const date = isYmd(input.date) ? input.date : null;
-      const fields = { title, date, notes: clip(input.content, 2000), place: clip(input.place, 120) };
+      const fields = { title, ...placeFields(input), notes: clip(input.content, 2000), place: clip(input.place, 120) };
       const kindWord = typeof input.kind === 'string' ? input.kind : '';
       if (MODES.includes(kindWord)) { fields.kind = 'journey'; fields.mode = kindWord; }
       else if (STAY_TYPES.includes(kindWord)) { fields.kind = 'stay'; fields.type = kindWord; }
@@ -220,7 +251,7 @@
     }
 
     return {
-      refreshCards: () => resolveCards(true), load, list, lanes, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink, fromSuggestion,
+      refreshCards: () => resolveCards(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

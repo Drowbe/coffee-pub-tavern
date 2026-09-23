@@ -195,8 +195,9 @@
     return el;
   }
 
-  // `entry` is { item, span } (a stay is drawn on each night it covers; only its first day is the real item).
-  function buildEntry(entry) {
+  // `entry` is { item, span } (a stay is drawn on each night it covers; only its first day is the real item). On the line
+  // (`line`: at a joint between days, not in a day) the same card is drawn with no time: a time means nothing there.
+  function buildEntry(entry, line) {
     const { item, span } = entry;
     const card = item.ref ? plan.cards.get(tavern.util.refKey(item.ref)) : null;
     const c = cardOf(item, card);
@@ -211,6 +212,7 @@
     else if (item.kind === 'stay') { time = span === 'end' ? item.checkOutTime || '' : span === 'middle' ? '' : item.time || ''; sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
     else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${hm(minutesOfDay(item.time) + item.minutes)}` : '';
     else sub = lengthText(item.minutes);
+    if (line) { time = ''; sub = ''; }
     fill(row, { time, sub });
     row.querySelector('.slot').append(buildCard(entry, item.kind, card));
     if (state.conflicts.has(item.id)) {
@@ -320,24 +322,20 @@
 
   function buildDay(day, index, days, by) {
     const el = clone('tpl-day2');
-    const ideas = day === null;
-    el.id = ideas ? 'day-ideas' : `day-${day}`;
-    el.dataset.day = ideas ? '' : day;
-    if (!ideas) el.dataset.index = String(index + 1);
-    el.classList.toggle('today', !ideas && day === ymd(new Date()));
-    const entries = ideas ? (by.get(null) || []).map((item) => ({ item })) : entriesFor(day, days, by);
+    el.id = `day-${day}`;
+    el.dataset.day = day;
+    el.dataset.index = String(index + 1);
+    el.classList.toggle('today', day === ymd(new Date()));
+    const entries = entriesFor(day, days, by);
     const head = clone('tpl-day-head');
     if (!canEdit) hide(head.querySelector('[data-action="day-menu"]'), true);
-    if (ideas) fill(head, { daynum: '', daymonth: 'Ideas', position: 'Ideas', summary: 'not on a day yet' });
-    else {
-      const d = parseYmd(day);
-      fill(head, { daynum: String(d.getDate()), daymonth: `${d.toLocaleDateString([], { weekday: 'short' })} · ${d.toLocaleDateString([], { month: 'short' })}`, position: dayLabel(day, days).position, summary: daySummary(entries) });
-    }
+    const d = parseYmd(day);
+    fill(head, { daynum: String(d.getDate()), daymonth: `${d.toLocaleDateString([], { weekday: 'short' })} · ${d.toLocaleDateString([], { month: 'short' })}`, position: dayLabel(day, days).position, summary: daySummary(entries) });
     el.prepend(head);
     const list = el.querySelector('.timeline');
     if (!entries.length) {
       const empty = clone('tpl-day-empty');
-      empty.textContent = ideas ? 'Ideas with no day yet wait here.' : 'Nothing planned yet. Add something below.';
+      empty.textContent = 'Nothing planned yet. Add something below.';
       list.append(empty);
     }
     // The plan's own ends, and where the trip itself starts and ends (the first and last booked item). Markers are drawn, never stored:
@@ -348,20 +346,20 @@
       if (i && !covers(entry) && !covers(prev)) { const leg = buildLeg(entry.item); if (leg) list.append(leg); }
       list.append(buildEntry(entry));
     });
-    if (!ideas && !entries.length) el.classList.add('is-empty');
+    if (!entries.length) el.classList.add('is-empty');
     // The days the trip itself covers (from the first booked item to the last) are marked, for their badge.
     const b = state.bounds;
-    if (!ideas && b && day >= b.start.day && day <= b.end.day) el.classList.add('in-trip');
+    if (b && day >= b.start.day && day <= b.end.day) el.classList.add('in-trip');
     const add = el.querySelector('.add-row');
-    add.dataset.day = ideas ? '' : day;
-    add.setAttribute('aria-label', `Add to ${ideas ? 'ideas' : dayShort(day)}`);
-    // With the host's bar the days' add rows hide; the Ideas one stays, the only quick way to add an idea.
-    add.classList.toggle('hosted', state.hosted && !ideas);
+    add.dataset.day = day;
+    add.setAttribute('aria-label', `Add to ${dayShort(day)}`);
+    // With the host's bar the days' add rows hide: the bar is the quick way to add.
+    add.classList.toggle('hosted', state.hosted);
     if (!canEdit) add.remove();
     // What other modules hold on this day that the plan could take in.
     const box = el.querySelector('.suggestions');
     const list2 = box.querySelector('.suggestions-list');
-    const mine = canEdit && !ideas ? plan.suggestions.filter((c) => (cardWhen(c) || {}).day === day) : [];
+    const mine = canEdit ? plan.suggestions.filter((c) => (cardWhen(c) || {}).day === day) : [];
     hide(box, !mine.length);
     for (const c of mine) {
       const s = clone('tpl-suggestion');
@@ -388,23 +386,51 @@
     if (!canEdit) row.querySelector('.menu-btn')?.remove();
     return row;
   }
-  // The markers between two days (`after` is the day before them; none is before the first day), and the + where a new one goes.
-  function buildBetween(after) {
-    const mine = plan.lanes().filter((l) => (l.after || null) === after);
+  // The items at a joint on the line (`after` is the day before it; '' is the head, before the first day): a marker as its
+  // pill, anything else as the card it would be in a day. Then the + where a new one goes (`withJoint`; a hidden day's joint
+  // has no + of its own, the badge standing in for the day has it).
+  function buildBetween(after, withJoint = true) {
+    const mine = plan.atJoint(after);
     const out = [];
     if (mine.length) {
       const list = document.createElement('ol');
       list.className = 'timeline between';
-      list.dataset.after = after || '';
-      list.append(...mine.map(buildLane));
+      list.dataset.after = after;
+      list.append(...mine.map((item) => (item.kind === 'lane' ? buildLane(item) : buildEntry({ item }, true))));
       out.push(list);
     }
-    if (canEdit) {
+    if (canEdit && withJoint) {
       const joint = clone('tpl-joint');
-      joint.dataset.after = after || '';
+      joint.dataset.after = after;
       out.push(joint);
     }
     return out;
+  }
+  // Where a joint is, in words, for a menu: "Before the first day", "Between Oct 1 and Oct 2", "After the last day".
+  function jointLabel(after) {
+    const days = plan.days();
+    if (after === '' || !days.includes(after)) return 'Before the first day';
+    const at = days.indexOf(after);
+    if (at === days.length - 1) return 'After the last day';
+    const short = (d) => parseYmd(d).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return `Between ${short(after)} and ${short(days[at + 1])}`;
+  }
+  // A place as a menu value and back: a day is `d:<date>`, a joint `j:<after>` (`j:` the head).
+  const placeValue = (place) => (place && place.after !== null && place.after !== undefined ? `j:${place.after}` : `d:${(place && place.date) || ''}`);
+  const parsePlace = (value) => (String(value).startsWith('j:') ? { after: value.slice(2) } : { date: value.slice(2) || null });
+  // The places an item can be, in line order (the head, day 1, the joint after it, day 2...), as a select's options. A
+  // between-days marker sees only the joints.
+  function placeOptions(select, { jointsOnly } = {}) {
+    const was = select.value;
+    select.replaceChildren();
+    const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; select.append(o); };
+    const days = plan.days();
+    add('j:', jointLabel(''));
+    days.forEach((d) => {
+      if (!jointsOnly) add(`d:${d}`, dayShort(d));
+      add(`j:${d}`, jointLabel(d));
+    });
+    select.value = [...select.options].some((o) => o.value === was) ? was : 'j:';
   }
 
   // The badge for a run of hidden days: how many, and a + for what can be added there.
@@ -418,21 +444,39 @@
     if (!canEdit) hide(el.querySelector('[data-action="gap-add"]'), true);
     return el;
   }
-  // The menu on a gap's +: a time block of each type on the first hidden day, or show the days.
-  function openGapMenu(button) {
-    // Where a marker would go: after this day (none: before the first day). A joint says so; a badge for hidden days is at the joint
-    // before its first hidden day.
-    const gap = button.closest('.gap');
+  // The joint a + stands at: a joint says so; a badge for hidden days is at the joint before its first hidden day.
+  function jointOfButton(button) {
     const joint = button.closest('.joint');
+    if (joint) return joint.dataset.after;
+    const gap = button.closest('.gap');
     const allDays = plan.days();
-    const after = joint ? joint.dataset.after || null : allDays[allDays.indexOf(gap.dataset.from) - 1] || null;
-    const items = blockTypes().map((t) => ({
-      id: `add-${t.id}`,
-      label: `Add ${t.label.toLowerCase()}`,
-      icon: t.icon,
-      iconColor: t.color || undefined,
-      onClick: () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: t.label, after })),
-    }));
+    return (gap && allDays[allDays.indexOf(gap.dataset.from) - 1]) || '';
+  }
+  // The "..." on a day and the + on a joint: everything that can be added there, the same kinds the editor's tiles offer,
+  // each opening the editor at that place with the kind chosen; then the markers (a time block on a day, a between-days
+  // marker on the line, added at once). A hidden-days badge also offers to show the days. The type-to-add row and the
+  // host's bar are the fast path; this is the plain one.
+  function openAddMenu(button, place, { gap } = {}) {
+    const onLine = place.after !== undefined;
+    const items = [];
+    const withTile = (tile) => { openEditor('item', null, place); applyType(tile); };
+    const add = (tile, label, icon) => items.push({ id: tile, label, icon, onClick: () => withTile(tile) });
+    for (const t of JOURNEY_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
+    items.push({ separator: true });
+    add('hotel', 'Add a stay', 'bed');
+    items.push({ separator: true });
+    for (const t of STOP_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
+    items.push({ separator: true });
+    add('note', 'Add a note', 'note-sticky');
+    for (const t of blockTypes()) {
+      items.push({
+        id: `${onLine ? 'lane' : 'block'}:${t.id}`,
+        label: `Add ${t.label.toLowerCase()}`,
+        icon: t.icon,
+        iconColor: t.color || undefined,
+        onClick: () => (onLine ? attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: t.label, after: place.after })) : withTile(`block:${t.id}`)),
+      });
+    }
     if (gap) {
       items.push({
         id: 'show-days',
@@ -445,25 +489,7 @@
         },
       });
     }
-    tavern.menu.show({ id: `gap-${after || 'start'}`, anchor: button, items });
-  }
-  // The "..." on a day (and on Ideas): everything that can be added there, the same kinds the editor's tiles offer
-  // and the time blocks, each opening the editor on that day with the kind chosen. The type-to-add row is the fast
-  // path; this is the plain one.
-  function openDayMenu(button, dayEl) {
-    const date = dayEl.dataset.day || null;
-    const items = [];
-    const withTile = (tile) => { openEditor('item', null, date); applyType(tile); };
-    const add = (tile, label, icon) => items.push({ id: tile, label, icon, onClick: () => withTile(tile) });
-    for (const t of JOURNEY_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
-    items.push({ separator: true });
-    add('hotel', 'Add a stay', 'bed');
-    items.push({ separator: true });
-    for (const t of STOP_TILES) add(t, `Add a ${KICKERS[t].toLowerCase()}`, BADGES[t]);
-    items.push({ separator: true });
-    add('note', 'Add a note', 'note-sticky');
-    for (const t of blockTypes()) items.push({ id: `block:${t.id}`, label: `Add ${t.label.toLowerCase()}`, icon: t.icon, iconColor: t.color, onClick: () => withTile(`block:${t.id}`) });
-    tavern.menu.show({ id: `day-${date || 'ideas'}`, anchor: button, items });
+    tavern.menu.show({ id: `add-${placeValue(place)}`, anchor: button, items });
   }
 
   // The button (and its small form) to add days before the first day or after the last.
@@ -512,16 +538,16 @@
       const above = timelineMarkers(day, 'before', days, by);
       if (above) wrap.append(above);
       if (runs.has(day)) wrap.append(buildGap(runs.get(day)));
-      if (i === 0) wrap.append(...buildBetween(null));
+      if (i === 0) wrap.append(...buildBetween(''));
       wrap.append(buildDay(day, i, days, by));
       // A hidden day's own joint has nowhere meaningful to point (its day is not shown) and only piles up on
-      // the gap badge standing in for it; the badge's own + already opens the same menu for the run.
-      if (!(hiding && empties.has(day))) wrap.append(...buildBetween(day));
+      // the gap badge standing in for it; the badge's own + already opens the same menu for the run. What is at
+      // that joint is still drawn, after the badge, so nothing on the line disappears with the day.
+      wrap.append(...buildBetween(day, !(hiding && empties.has(day))));
       const below = timelineMarkers(day, 'after', days, by);
       if (below) wrap.append(below);
     });
     if (canEdit) wrap.append(buildEdge('after'));
-    if ((by.get(null) || []).length) wrap.append(buildDay(null, days.length, days, by));
     $('body').replaceChildren(wrap);
   }
 
@@ -858,24 +884,16 @@
 
   // --- the item menu, and moving ------------------------------------------------------------------------------
 
-  function menuDays() {
-    return [...plan.days().map((d) => [d, dayShort(d)]), ['', 'Ideas (no day yet)']];
-  }
-  // The joints on the line where a marker between days can be: before the first day, and after each day.
-  function menuJoints() {
-    return [['start', 'Before the first day'], ...plan.days().map((d, i) => [d, `After Day ${i + 1} (${dayShort(d)})`])];
-  }
+  // Where an item is, as the menu's Move to value: its joint on the line, or its day.
+  const placeOf = (item) => { const j = plan.jointOf(item); return j === null ? { date: plan.dayOf(item) } : { after: j }; };
   function openMenu(id, button) {
     const menu = $('item-menu');
     state.menuFor = id;
     const item = plan.list().find((i) => i.id === id);
     if (!item) return;
     const select = $('menu-day');
-    select.replaceChildren(...menuDays().map(([value, label]) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; }));
-    if (item.kind === 'lane') {
-      select.replaceChildren(...menuJoints().map(([value, label]) => { const o = document.createElement('option'); o.value = value; o.textContent = label; return o; }));
-      select.value = item.after || 'start';
-    } else select.value = plan.dayOf(item) || '';
+    placeOptions(select, { jointsOnly: item.kind === 'lane' });
+    select.value = placeValue(placeOf(item));
     const follow = menu.querySelector('[data-action="follow"]');
     hide(follow, item.kind !== 'link');
     // A link that cannot be read has nothing to edit.
@@ -883,8 +901,8 @@
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     // A time block can change its type; it is removed rather than deleted.
     const isBlock = item.kind === 'block' || item.kind === 'lane';
-    const isLane = item.kind === 'lane';
-    hide(menu.querySelector('[data-action="to-ideas"]'), isLane || !plan.dayOf(item));
+    // Back to the line: for an item on a day (not a marker between days, which is never on one).
+    hide(menu.querySelector('[data-action="to-line"]'), plan.jointOf(item) !== null);
     const typeLabel = menu.querySelector('[data-block-only]');
     hide(typeLabel, !isBlock);
     if (isBlock) {
@@ -899,7 +917,10 @@
     menu.hidden = false;
     const app = $('app').getBoundingClientRect();
     const b = button.getBoundingClientRect();
-    menu.style.top = `${Math.round(b.bottom - app.top + 4)}px`;
+    // Under the button, or above it when there is no room below (the last card of the plan, near the pane's bottom).
+    let top = Math.round(b.bottom - app.top + 4);
+    if (top + menu.offsetHeight > app.height - 8) top = Math.max(8, Math.round(b.top - app.top - menu.offsetHeight - 4));
+    menu.style.top = `${top}px`;
     menu.style.left = `${Math.max(8, Math.min(Math.round(b.right - app.left - menu.offsetWidth), Math.round(app.width - menu.offsetWidth - 8)))}px`;
   }
   const closeMenu = () => { $('item-menu').hidden = true; state.menuFor = null; };
@@ -921,14 +942,6 @@
     if (action === 'edit') { closeMenu(); return openItemEditor(id); }
     if (action === 'earlier' || action === 'later') {
       closeMenu();
-      const item = plan.list().find((i) => i.id === id);
-      if (item && item.kind === 'lane') {
-        // A marker between days moves to the joint before or after.
-        const joints = [null, ...plan.days()];
-        const at = joints.indexOf(item.after || null) + (action === 'earlier' ? -1 : 1);
-        if (at < 0 || at >= joints.length) return;
-        return void attempt(() => plan.updateItem(id, { after: joints[at] }));
-      }
       return void attempt(() => plan.nudgeItem(id, action === 'earlier' ? -1 : 1));
     }
     if (action === 'follow') {
@@ -936,7 +949,15 @@
       closeMenu();
       return void attempt(() => plan.updateItem(id, { follow: !(item && item.follow) }));
     }
-    if (action === 'to-ideas') { closeMenu(); return void attempt(() => plan.moveTo(id, null, 1e6)); }
+    if (action === 'to-line') {
+      // Off its day, onto the line at the joint before that day: near where it was, no longer decided.
+      const item = plan.list().find((i) => i.id === id);
+      closeMenu();
+      if (!item) return;
+      const days = plan.days();
+      const after = days[days.indexOf(plan.dayOf(item)) - 1] || '';
+      return void attempt(() => plan.moveToJoint(id, after, 1e6));
+    }
     if (action === 'delete') {
       if (state.deleteArmed !== id) { const block = ['block', 'lane'].includes((plan.list().find((i) => i.id === id) || {}).kind); state.deleteArmed = id; fill(b, { 'delete-label': block ? 'Really remove?' : 'Really delete?' }); return; }
       closeMenu();
@@ -951,11 +972,10 @@
   });
   $('menu-day').addEventListener('change', (e) => {
     const id = state.menuFor;
-    const date = e.target.value || null;
-    const moving = plan.list().find((i) => i.id === id);
+    const place = parsePlace(e.target.value);
     closeMenu();
-    if (moving && moving.kind === 'lane') return void attempt(() => plan.updateItem(id, { after: e.target.value === 'start' ? null : date }));
-    if (id) attempt(() => plan.moveTo(id, date, 1e6));
+    if (!id) return;
+    attempt(() => (place.after !== undefined ? plan.moveToJoint(id, place.after, 1e6) : plan.moveTo(id, place.date, 1e6)));
   });
   root.addEventListener('click', (e) => { if (!$('item-menu').hidden && !e.target.closest('#item-menu, [data-action="move-menu"]')) closeMenu(); });
 
@@ -963,14 +983,40 @@
 
   let dragId = null;
   let lastTarget = null;
-  const clearDrop = () => {
+  // While anything is over the plan, every joint opens into a drop zone on the line (.days.dragging-line). Closing them
+  // moves everything below the first joint up, so it must not happen between the last "over" and the drop: a drop
+  // is hit-tested against the layout the pointer saw. `leave` (which the drop is sent right after) closes them a tick later.
+  const openJoints = () => { const days = root.querySelector('.days'); if (days) days.classList.add('dragging-line'); };
+  const closeJoints = () => { for (const d of root.querySelectorAll('.days.dragging-line')) d.classList.remove('dragging-line'); };
+  const clearDrop = (keepJoints) => {
     if (lastTarget) lastTarget.removeAttribute('data-drop');
     lastTarget = null;
-    for (const d of root.querySelectorAll('.day2.drop-target, .joint.drop-target')) d.classList.remove('drop-target');
-    // A marker between days being dragged: the line shows every joint as a place to drop, and the days dim.
-    for (const d of root.querySelectorAll('.days.dragging-lane')) d.classList.remove('dragging-lane');
-    for (const d of root.querySelectorAll('.row.lane.dragging')) d.classList.remove('dragging');
+    for (const d of root.querySelectorAll('.day2.drop-target, .joint.drop-target, .timeline.between.drop-target')) d.classList.remove('drop-target');
+    for (const d of root.querySelectorAll('.row.entry.dragging')) d.classList.remove('dragging');
+    if (!keepJoints) closeJoints();
   };
+  // Where a point on the page is on the plan: at a joint on the line (`after`; `el` is the list of items there or the + itself) or
+  // on a day (`date`; `el` the day), and either way the entry under the pointer and whether the pointer is in its top or bottom
+  // half. Null off both.
+  function spotFrom(el, clientY) {
+    if (!el || !el.closest) return null;
+    const half = (row) => { const r = row.getBoundingClientRect(); return clientY < r.top + r.height / 2 ? 'before' : 'after'; };
+    const line = el.closest('.joint, .timeline.between');
+    if (line) {
+      const row = el.closest('.timeline.between .row.entry');
+      return { after: line.dataset.after, el: line, row, where: row ? half(row) : null };
+    }
+    const dayEl = el.closest('.day2');
+    if (!dayEl) return null;
+    const row = el.closest('.day2 .row.entry');
+    return { date: dayEl.dataset.day, el: dayEl, row, where: row ? half(row) : null };
+  }
+  // Light a spot as the drop target, with the entry under the pointer and the side the item would go on.
+  function showSpot(spot, movingId) {
+    if (!spot) return;
+    spot.el.classList.add('drop-target');
+    if (spot.row && spot.row.dataset.id !== movingId) { spot.row.dataset.drop = spot.where; lastTarget = spot.row; }
+  }
   // The handle is the only drag source: an item becomes draggable only while it is pressed.
   root.addEventListener('pointerdown', (e) => {
     const handle = e.target.closest('.rail');
@@ -983,6 +1029,7 @@
     li.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', dragId);
+    openJoints();
   });
   root.addEventListener('dragend', () => {
     for (const li of root.querySelectorAll('.row.entry.dragging, .row.entry[draggable="true"]')) { li.classList.remove('dragging'); li.draggable = false; }
@@ -991,42 +1038,42 @@
   });
   root.addEventListener('dragover', (e) => {
     if (!dragId) return;
-    const day = e.target.closest && e.target.closest('.day2');
-    if (!day) return;
+    const spot = spotFrom(e.target, e.clientY);
+    if (!spot) return;
     e.preventDefault();
-    clearDrop();
-    day.classList.add('drop-target');
-    const over = e.target.closest('.row.entry');
-    if (over && over.dataset.id !== dragId) {
-      const r = over.getBoundingClientRect();
-      over.dataset.drop = e.clientY < r.top + r.height / 2 ? 'before' : 'after';
-      lastTarget = over;
-    }
+    clearDrop(true);
+    openJoints();
+    showSpot(spot, dragId);
   });
   root.addEventListener('drop', (e) => {
     if (!dragId) return;
     e.preventDefault();
-    const day = e.target.closest('.day2');
-    if (!day) return;
-    const over = e.target.closest('.row.entry');
+    const spot = spotFrom(e.target, e.clientY);
     const id = dragId;
-    const where = over && over.dataset.drop;
     clearDrop();
-    attempt(() => moveOwn(id, day, over, where));
+    if (spot) attempt(() => moveOwn(id, spot));
   });
 
-  // Where an item of the plan is put when it is dropped on a day, before or after another item. An item with no time is placed in the
-  // order of the day's untimed ones; an item with a time keeps it when it goes to another day, and, dropped between two others on
-  // the same day, takes the end of the item before it as its time (nothing changes if that one has no time).
-  function moveOwn(id, dayEl, overEl, where) {
+  // Where an item of the plan is put when it is dropped. At a joint on the line: among the items there, before or after the one
+  // under the pointer, else last. On a day: an item with no time is placed in the order of the day's untimed ones; an item with a
+  // time keeps it when it goes to another day, and, dropped between two others on the same day, takes the end of the item before it
+  // as its time (nothing changes if that one has no time). A marker between days only ever goes to a joint.
+  function moveOwn(id, spot) {
     const item = plan.list().find((i) => i.id === id);
-    if (!item || item.kind === 'lane') return null; // a marker between days moves from its menu
-    const date = dayEl.dataset.day || null;
+    if (!item || !spot) return null;
+    const overId = spot.row && spot.row.dataset.id !== id ? spot.row.dataset.id : null;
+    if (spot.after !== undefined) {
+      const others = plan.atJoint(spot.after).filter((i) => i.id !== id);
+      const at = overId ? others.findIndex((i) => i.id === overId) : -1;
+      return plan.moveToJoint(id, spot.after, at >= 0 ? at + (spot.where === 'after' ? 1 : 0) : others.length);
+    }
+    if (item.kind === 'lane') return null;
+    const date = spot.date;
     const sameDay = plan.dayOf(item) === date;
     if (item.time) {
-      if (!sameDay || !overEl || overEl.dataset.id === id) return sameDay ? null : plan.moveTo(id, date, 1e6);
-      const rows = [...dayEl.querySelectorAll('.row.entry')].filter((r) => r.dataset.id !== id);
-      const prevRow = where === 'after' ? overEl : rows[rows.indexOf(overEl) - 1];
+      if (!sameDay || !overId) return sameDay ? null : plan.moveTo(id, date, 1e6);
+      const rows = [...spot.el.querySelectorAll('.row.entry')].filter((r) => r.dataset.id !== id);
+      const prevRow = spot.where === 'after' ? spot.row : rows[rows.indexOf(spot.row) - 1];
       const prev = prevRow && plan.list().find((i) => i.id === prevRow.dataset.id);
       if (!prev || !prev.time) return null;
       const end = minutesOfDay(prev.time) + (prev.minutes || 30);
@@ -1034,9 +1081,9 @@
     }
     const dayUntimed = sortDay(plan.sortable().filter((i) => !i.time && plan.dayOf(i) === date && i.id !== id));
     let index = dayUntimed.length;
-    if (overEl && overEl.dataset.id !== id) {
-      const at = dayUntimed.findIndex((i) => i.id === overEl.dataset.id);
-      if (at >= 0) index = at + (where === 'after' ? 1 : 0);
+    if (overId) {
+      const at = dayUntimed.findIndex((i) => i.id === overId);
+      if (at >= 0) index = at + (spot.where === 'after' ? 1 : 0);
     }
     return plan.moveTo(id, date, index);
   }
@@ -1055,16 +1102,17 @@
     throw new Error('It could not be shared to the room.');
   }
 
-  // Something from another module dropped on a day: put it on that day.
+  // Something dropped on the plan, by the pointer drag every module's items share: one of this plan's own items (pressed on its
+  // body) moves to the day or the joint it lands on; another module's item or card is put there.
   if (tavern.refs && tavern.refs.dropTarget && canEdit) {
-    const dayAt = (pt) => { const el = tavern.refs.elementAt(pt); return el && el.closest ? el.closest('.day2') : null; };
-    // One of this plan's own items, pressed on its body and dragged (the pointer drag every module's items share).
     const ownRef = (ref) => Boolean(ref) && ref.module === info.module.id && ref.kind === 'plan';
-    const laneOf = (ref) => { const it = plan.list().find((i) => i.id === ref.id); return it && it.kind === 'lane' ? it : null; };
-    // The joint nearest the pointer (the pointer is in this module's own coordinates, a box in the page's), and the marker under it, if
-    // it is in that joint: which half of it the pointer is in says before or after.
+    const isLane = (ref) => { const it = plan.list().find((i) => i.id === ref.id); return Boolean(it) && it.kind === 'lane'; };
+    // The pointer is in this module's own coordinates, a box in the page's.
+    const pageY = (pt) => pt.y + tavern.rootElement.getBoundingClientRect().top;
+    const spotAt = (pt) => spotFrom(tavern.refs.elementAt(pt), pageY(pt));
+    // A marker between days is only ever on the line, so for it the joint nearest the pointer is the spot wherever the pointer is.
     const laneSpot = (pt, id) => {
-      const y = pt.y + tavern.rootElement.getBoundingClientRect().top;
+      const y = pageY(pt);
       let best = null;
       for (const j of root.querySelectorAll('.joint')) {
         const r = j.getBoundingClientRect();
@@ -1072,92 +1120,47 @@
         if (!best || d < best.d) best = { joint: j, d };
       }
       if (!best) return null;
-      const after = best.joint.dataset.after || '';
-      const el = tavern.refs.elementAt(pt);
-      const row = el && el.closest ? el.closest('.row.lane') : null;
-      const inJoint = row && row.dataset.id !== id && row.parentElement && row.parentElement.dataset.after === after;
-      let where = null;
-      if (inJoint) { const r = row.getBoundingClientRect(); where = y < r.top + r.height / 2 ? 'before' : 'after'; }
-      return { joint: best.joint, after: after || null, row: inJoint ? row : null, where };
+      const spot = spotAt(pt);
+      const inJoint = Boolean(spot) && spot.after === best.joint.dataset.after && Boolean(spot.row) && spot.row.dataset.id !== id;
+      return { after: best.joint.dataset.after, el: best.joint, row: inJoint ? spot.row : null, where: inJoint ? spot.where : null };
     };
-    // Put a marker at a joint, and among the markers already there.
-    function moveLane(id, spot) {
-      const others = plan.lanes().filter((l) => l.id !== id && (l.after || null) === spot.after);
-      const order = laneOrder(others, spot.row ? spot.row.dataset.id : null, spot.where);
-      return plan.updateItem(id, { after: spot.after, order });
-    }
-    // The row under the pointer, and whether the pointer is in its top or bottom half (the pointer is in this module's own
-    // coordinates, a row's box in the page's).
-    const rowAt = (pt) => {
-      const el = tavern.refs.elementAt(pt);
-      const row = el && el.closest ? el.closest('.row.entry') : null;
-      if (!row) return { row: null, where: null };
-      const r = row.getBoundingClientRect();
-      const y = pt.y + tavern.rootElement.getBoundingClientRect().top;
-      return { row, where: y < r.top + r.height / 2 ? 'before' : 'after' };
-    };
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
     tavern.refs.dropTarget({
       over: (pt, ref, dragged) => {
-        clearDrop();
-        if (ownRef(ref) && laneOf(ref)) {
-          // A marker between days looks for the nearest joint on the line, and, over another marker there, before or after it.
-          const days = root.querySelector('.days');
-          if (days) days.classList.add('dragging-lane');
-          const me = root.querySelector(`.row.lane[data-id="${ref.id}"]`);
+        clearDrop(true);
+        if (!ownRef(ref) && !foreign(ref, dragged)) return closeJoints();
+        openJoints();
+        if (ownRef(ref)) {
+          const me = root.querySelector(`.row.entry[data-id="${ref.id}"]`);
           if (me) me.classList.add('dragging');
-          const spot = laneSpot(pt, ref.id);
-          if (!spot) return;
-          spot.joint.classList.add('drop-target');
-          if (spot.row) { spot.row.dataset.drop = spot.where; lastTarget = spot.row; }
+          showSpot(isLane(ref) ? laneSpot(pt, ref.id) : spotAt(pt), ref.id);
           return;
         }
-        if (ownRef(ref)) {
-          const day = dayAt(pt);
-          if (!day) return;
-          day.classList.add('drop-target');
-          const { row, where } = rowAt(pt);
-          if (row && row.dataset.id !== ref.id) { row.dataset.drop = where; lastTarget = row; }
-          return;
-        }
-        const day = (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card)) ? dayAt(pt) : null;
-        if (day) day.classList.add('drop-target');
+        const spot = spotAt(pt);
+        if (spot) spot.el.classList.add('drop-target');
       },
-      leave: clearDrop,
+      leave: () => { clearDrop(true); setTimeout(closeJoints, 0); },
       drop: (ref, pt, dragged) => {
-        if (ownRef(ref) && laneOf(ref)) {
-          const spot = laneSpot(pt, ref.id);
-          clearDrop();
-          if (spot) attempt(() => moveLane(ref.id, spot));
-          return;
-        }
+        const spot = ownRef(ref) && isLane(ref) ? laneSpot(pt, ref.id) : spotAt(pt);
         clearDrop();
-        if (ownRef(ref)) {
-          const day = dayAt(pt);
-          if (!day) return;
-          const { row, where } = rowAt(pt);
-          attempt(() => moveOwn(ref.id, day, row, where));
-          return;
-        }
-        const isCard = !ref && Boolean(dragged && dragged.card);
-        const day = (ref ? ref.module !== info.module.id : isCard) ? dayAt(pt) : null;
-        if (!day) return;
-        const date = day.dataset.day || null;
-        const over = tavern.refs.elementAt(pt);
-        const li = over && over.closest ? over.closest('.row.entry') : null;
-        const target = li && li.dataset.id ? planRef(li.dataset.id) : null;
+        if (!spot) return;
+        if (ownRef(ref)) { attempt(() => moveOwn(ref.id, spot)); return; }
+        if (!foreign(ref, dragged)) return;
+        const place = spot.after !== undefined ? { after: spot.after } : { date: spot.date };
+        const target = spot.row && spot.row.dataset.id ? planRef(spot.row.dataset.id) : null;
         attempt(async () => {
           // What can be done with it here is the shared decision (tavern.refs.dropMenu). This module's own offer puts it
-          // on the day: a pointer as a link, a card carried by the drag (an answer) as an item of its own kind. The modules
-          // around add whatever they offer for an item of that kind, filled from the day and the entry under the pointer.
-          // A private item (someone's own, in their profile) cannot be pointed at from a shared plan, nor handed to another
-          // module here: only they could open it. So it is shared first, as a copy in the room, by whichever module offers
-          // to save a place, and the plan points at the copy; nothing else is offered for it.
+          // on the day, or at the joint on the line: a pointer as a link, a card carried by the drag (an answer) as an item of
+          // its own kind. The modules around add whatever they offer for an item of that kind, filled from the day and the
+          // entry under the pointer. A private item (someone's own, in their profile) cannot be pointed at from a shared plan,
+          // nor handed to another module here: only they could open it. So it is shared first, as a copy in the room, by
+          // whichever module offers to save a place, and the plan points at the copy; nothing else is offered for it.
           const own = [{
             id: 'add',
-            label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas',
+            label: place.date ? `Put it on ${dayShort(place.date)}` : `Put it here, ${jointLabel(place.after).toLowerCase()}`,
             run: async (ctx) => (ref
-              ? plan.addLink(await sharedRef(ref), date)
-              : plan.addItem(plan.fromSuggestion({ title: ctx.card.title, kind: ctx.card.kind, content: ctx.card.text, place: ctx.card.place && ctx.card.place.name, date }))),
+              ? plan.addLink(await sharedRef(ref), place)
+              : plan.addItem(plan.fromSuggestion({ title: ctx.card.title, kind: ctx.card.kind, content: ctx.card.text, place: ctx.card.place && ctx.card.place.name, ...place }))),
           }];
           if (ref && ref.scope === 'person') {
             const card = await tavern.refs.resolve(ref);
@@ -1165,7 +1168,7 @@
             await own[0].run({ card });
             return note('');
           }
-          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { ...(date ? { date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : 'day' });
+          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { ...(place.date ? { date: place.date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : place.date ? 'day' : 'joint' });
           note(chosen && chosen.id !== 'add' ? `${chosen.label}: done` : '');
         });
       },
@@ -1196,7 +1199,7 @@
         try { await plan.updateItem(item.id, { result: summary, fired }); } catch (err) { continue; }
         const date = e.data.date && /^\d{4}-\d{2}-\d{2}$/.test(String(e.data.date)) ? String(e.data.date) : null;
         try {
-          if (e.data.pick && e.data.pick.module) await plan.addLink(e.data.pick, date);
+          if (e.data.pick && e.data.pick.module) await plan.addLink(e.data.pick, { date });
           else if (date) await plan.addItem({ kind: 'stop', title: summary, date, notes: `From ${item.title || 'a linked item'}` });
         } catch (err) { /* the result is kept either way */ }
       }
@@ -1207,9 +1210,10 @@
 
   // A placeholder for the title of each kind of thing.
   const TITLES = { flight: 'Flight to Lisbon', train: 'Train to Porto', ferry: 'Ferry to the island', bus: 'Bus to the airport', car: 'Rental car', hotel: 'Hotel Avenida', restaurant: 'Dinner at Cervejaria Ramiro', cafe: 'Coffee at the pier', bar: 'Drinks at the rooftop', sight: 'Belem Tower', museum: 'The tile museum', tour: 'Walking tour', show: 'Fado night', note: 'Remember to...' };
-  function dayOptions(select, { ideas, after }) {
+  // The days a stay can check out on: none yet, or any day after the one it checks in on.
+  function checkoutOptions(select, after) {
     select.replaceChildren();
-    if (ideas) { const o = document.createElement('option'); o.value = ''; o.textContent = 'Not on a day yet'; select.append(o); }
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'Not set'; select.append(none);
     for (const d of plan.days()) {
       if (after && d <= after) continue;
       const o = document.createElement('option');
@@ -1251,8 +1255,7 @@
     const key = tile.startsWith('block:') ? 'block' : tile.startsWith('lane:') ? 'lane' : tile; // every marker shows the same fields
     for (const el of $('form').querySelectorAll('[data-types]')) el.classList.toggle('on-type', el.dataset.types.split(/\s+/).includes(key));
     $('f-title').required = key !== 'block' && key !== 'lane'; // a marker's label is optional: the type names it
-    const dateRow = $('f-date').closest('.editor-row');
-    if (dateRow) dateRow.hidden = key === 'lane'; // a marker between days has no day of its own
+    placeOptions($('f-date'), { jointsOnly: key === 'lane' }); // a marker between days is only ever at a joint on the line
     const noLength = ['block:meet-up', 'block:leave-by'].includes(tile); // a moment, not a stretch of time
     const lengthLabel = $('f-minutes').closest('label');
     if (lengthLabel) lengthLabel.hidden = noLength;
@@ -1295,10 +1298,11 @@
   }
   const chosenMode = () => { const on = $('f-travelMode') && $('f-travelMode').querySelector('.mode.on'); return on ? on.dataset.mode : null; };
 
-  function openEditor(mode, item, day) {
+  // `place` for a new item: `{ date }` a day, `{ after }` a joint on the line; none is the head of the line.
+  function openEditor(mode, item, place) {
     if (!canEdit) return;
     const isLink = Boolean(item && item.kind === 'link');
-    state.editing = { mode, id: item ? item.id : null, day: day || null, version: item ? plan.versionOf(item.id) : null, tile: 'sight', isLink };
+    state.editing = { mode, id: item ? item.id : null, place: place || null, version: item ? plan.versionOf(item.id) : null, tile: 'sight', isLink };
     $('editor').replaceChildren(clone(mode === 'trip' ? 'tpl-editor-trip' : 'tpl-editor2'));
     $('f-error').hidden = true;
     if (mode === 'trip') {
@@ -1317,9 +1321,8 @@
       hide($('f-types'), Boolean(item) && isLink);
       hide($('f-delete'), !item);
       applyType(item ? tileOf(item) || 'sight' : 'sight');
-      dayOptions($('f-date'), { ideas: true });
-      $('f-date').value = item ? item.date || '' : day || '';
-      dayOptions($('f-checkout'), { ideas: true, after: item ? item.date : day });
+      $('f-date').value = placeValue(item ? placeOf(item) : place);
+      checkoutOptions($('f-checkout'), item ? item.date : place && place.date);
       const v = item || {};
       setVal('f-checkout', v.checkOut);
       setVal('f-checkOutTime', v.checkOutTime);
@@ -1368,7 +1371,7 @@
       if (!ed.isLink && !ed.tile.startsWith('block:') && !ed.tile.startsWith('lane:') && !$('f-title').value.trim()) return fail('Give it a title.');
       const common = {
         title: $('f-title').value.trim(),
-        date: $('f-date').value || null,
+        ...placeFields(parsePlace($('f-date').value)),
         notes: $('f-notes').value.trim(),
         owners: [...$('f-owners').querySelectorAll('input:checked')].map((i) => i.value),
         travelMode: shown('f-travelMode') ? chosenMode() : null,
@@ -1388,7 +1391,7 @@
         // context picker, a ref search, a backlink), not just in this module's own rendering, which already
         // falls back to the type's label on its own.
         if ((t.kind === 'lane' || t.kind === 'block') && !common.title) common.title = markerType(t.type).label;
-        fields = { ...common, ...t, ...(t.kind === 'lane' ? { after: item && item.kind === 'lane' ? item.after : null } : {}), time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : num('f-minutes') };
+        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : num('f-minutes') };
         if (t.kind === 'journey') {
           for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);
           fields.fromCode = get('f-fromCode');
@@ -1493,9 +1496,9 @@
       openItemEditor(li.dataset.id);
     } else if (action === 'day-menu') {
       const dayEl = b.closest('.day2');
-      if (dayEl) openDayMenu(b, dayEl);
+      if (dayEl) openAddMenu(b, { date: dayEl.dataset.day });
     } else if (action === 'gap-add') {
-      openGapMenu(b);
+      openAddMenu(b, { after: jointOfButton(b) }, { gap: Boolean(b.closest('.gap')) });
     } else if (action === 'toggle-empty') {
       state.hideEmpty = !state.hideEmpty;
       try { localStorage.setItem('planner-hide-empty', state.hideEmpty ? '1' : '0'); } catch (err) { /* not remembered */ }
@@ -1521,7 +1524,7 @@
     } else if (action === 'add-suggestion') {
       const s = b.closest('.suggestion');
       const day = b.closest('.day2');
-      if (s && day) attempt(async () => { await plan.addLink(JSON.parse(s.dataset.ref), day.dataset.day || null); await plan.suggest(); });
+      if (s && day) attempt(async () => { await plan.addLink(JSON.parse(s.dataset.ref), { date: day.dataset.day }); await plan.suggest(); });
     }
   });
 
@@ -1540,7 +1543,7 @@
     if (!form) return;
     e.preventDefault();
     const text = form.elements.title.value.trim();
-    if (!text) return openEditor('item', null, form.dataset.day || null);
+    if (!text) return openEditor('item', null, { date: form.dataset.day });
     const parsed = tavern.util.parseWhen ? tavern.util.parseWhen(text) : { title: text };
     form.elements.title.value = '';
     attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || text, date: form.dataset.day || null, time: parsed.time || null }));
@@ -1561,7 +1564,7 @@
       if (e.id !== 'add' || !canEdit) return;
       if (!plan.days().length) return openEditor('trip');
       const day = defaultDay();
-      if (!e.value) return openEditor('item', null, day);
+      if (!e.value) return openEditor('item', null, { date: day });
       const parsed = tavern.util.parseWhen ? tavern.util.parseWhen(e.value) : { title: e.value };
       const named = parsed.date && plan.days().includes(parsed.date) ? parsed.date : day;
       attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || e.value, date: named, time: parsed.time || null }));
