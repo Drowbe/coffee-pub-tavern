@@ -909,12 +909,6 @@ app.get('/rooms/:id', (req, res) => {
   res.sendFile(page('roomconfig.html'));
 });
 
-// OBS view of one user: /view/<key>?s=<stream key>&mode=auto|video|avatar&audio=1&plate=1
-app.get('/view/:key', (req, res) => {
-  if (!hasStreamAccess(req)) return res.status(403).send('This view needs the stream key (?s=...).');
-  if (!store.userByKey(req.params.key)) return res.status(404).send('No such user.');
-  res.sendFile(page('view.html'));
-});
 
 // Images ---------------------------------------------------------------------
 
@@ -3269,12 +3263,11 @@ app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-// A module's keyed page: the same idea as /view/<key> above, generalized so any bundled module can claim a
-// path (surfaces.keyed.path) instead of the host hard-coding one. Registered last, right before the error
-// handler, so nothing earlier and more specific is ever shadowed -- in particular /view/:key above still
-// answers "view" itself for now (the module's own claim on it is real, just unreachable until phase 3 removes
-// that route; see plan-stream-module.md, "Moving without breaking a stream"). A path nothing has ever claimed,
-// installed or bundled, falls through to the ordinary 404 rather than this route claiming it.
+// A module's keyed page: what /view/<key> used to be, generalized so any bundled module can claim a path
+// (surfaces.keyed.path) instead of the host hard-coding one -- the Stream module claims "view" (see
+// plan-stream-module.md), so /view/<key> answers exactly as it always did, now served by that module. Registered
+// last, right before the error handler, so nothing earlier and more specific is ever shadowed. A path nothing
+// has ever claimed, installed or bundled, falls through to the ordinary 404 rather than this route claiming it.
 app.get('/:path/:key', (req, res, next) => {
   if (!/^[a-z0-9-]{2,20}$/.test(req.params.path)) return next();
   const bundled = () => bundledModules(BUNDLED_DIR).find((m) => m.surfaces?.keyed?.path === req.params.path);
