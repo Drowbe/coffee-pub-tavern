@@ -103,6 +103,8 @@ Built by two sessions at once against this contract: the server half (the regist
 
 **Previous base domains.** The product's name is not settled, so the base domain may change after environments exist, and every environment's address is `<slug>.<base>`. The registry keeps `previousBaseDomains: [...]` (set from `PREVIOUS_BASE_DOMAINS`, comma-separated): a request at `<slug>.<old base>` or `admin.<old base>` is redirected (301) to the same path at the current base, so a rename is "add the new domain, keep the old one answering" and no shared link, bookmark or installed app breaks. Part of phase 1, since it is a few lines in the resolver and the moment it is needed is the worst moment to add it.
 
+**The product page.** The bare base domain serves `public/landing.html` (the product's one page: what it is, the modules, how an environment works, the plans' shapes, a way to ask for one) instead of a placeholder. The name, the contact address, the base domain and the version come from `GET /api/product` (public; `PRODUCT_NAME`, `CONTACT_EMAIL` on the container), so the page carries no name of its own while the product's is being chosen. Phase 5's sign-up replaces its "ask for an environment" with a form.
+
 **Not in phase 1:** the owner role (phase 2; the first owner is made an admin of the environment for now), enforcing caps (phase 3; the plan is stored and shown), call-name prefixes (phase 4), sign-up and billing (phase 5).
 
 ## Progress (September 23, 2026): the server half is done

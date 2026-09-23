@@ -1,0 +1,56 @@
+/* The product page (public/landing.html): one page, the theme's own tokens, no measured heights. */
+body.landing { margin: 0; background: var(--bg); color: var(--text); }
+.landing main { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+.land-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 20px; background: var(--nav-primary-bg); border-bottom: 1px solid var(--border); }
+.land-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--header-text); font-weight: 700; font-size: 17px; text-decoration: none; }
+.land-links { display: flex; align-items: center; gap: 18px; font-size: 14px; }
+.land-links a { color: var(--text-dim); text-decoration: none; }
+.land-links a:hover { color: var(--text); }
+.land-links .btn { color: var(--on-accent); }
+
+.hero { padding: 72px 0 56px; text-align: center; }
+.eyebrow { margin: 0 0 12px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.hero h1 { max-width: 760px; margin: 0 auto; font-size: clamp(30px, 5vw, 46px); line-height: 1.12; }
+.lede { max-width: 720px; margin: 20px auto 0; color: var(--text-dim); font-size: 17px; line-height: 1.55; }
+.hero-actions { display: flex; justify-content: center; gap: 12px; margin-top: 28px; }
+.hero-note { margin-top: 18px; color: var(--text-dim); font-size: 13px; }
+.hero-note code { padding: 1px 6px; border-radius: 6px; background: var(--bg-section); color: var(--text); }
+
+.band { padding: 48px 0; border-top: 1px solid var(--border); }
+.band h2 { margin: 0 0 8px; font-size: 26px; }
+.band-lede { max-width: 720px; margin: 0 0 22px; color: var(--text-dim); line-height: 1.5; }
+.band.alt { margin: 0 -20px; padding-left: 20px; padding-right: 20px; background: var(--bg-section); }
+
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; margin-top: 22px; }
+.col i { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 18%, var(--bg-card)); color: var(--accent); font-size: 18px; }
+.col h3 { margin: 12px 0 6px; font-size: 17px; }
+.col p { margin: 0; color: var(--text-dim); line-height: 1.5; }
+
+.modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.modules li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 2px 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.modules li i { grid-row: 1 / 3; align-self: start; margin-top: 2px; color: var(--accent); font-size: 20px; }
+.modules li b { font-size: 15px; }
+.modules li span { color: var(--text-dim); font-size: 13px; line-height: 1.45; }
+
+.steps { max-width: 760px; margin: 18px 0 0; padding-left: 22px; line-height: 1.55; }
+.steps li { margin-bottom: 12px; color: var(--text-dim); }
+.steps li b { color: var(--text); }
+
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.plan { padding: 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card); }
+.plan h3 { margin: 0 0 8px; font-size: 16px; }
+.plan p { margin: 0; color: var(--text-dim); font-size: 14px; line-height: 1.5; }
+
+.cta { text-align: center; }
+.cta p { color: var(--text-dim); }
+
+.land-foot { padding: 28px 20px 40px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: 13px; text-align: center; }
+.land-foot a { color: var(--text-dim); }
+.land-foot .dot { margin: 0 8px; }
+
+@media (max-width: 640px) {
+  .land-links a:not(.btn) { display: none; }
+  .hero { padding: 48px 0 36px; }
+  .hero-actions { flex-direction: column; align-items: stretch; }
+}
