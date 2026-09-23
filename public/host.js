@@ -14,7 +14,7 @@ let tenants = [];
 
 const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB` : '0');
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
-const tenantUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}`;
+const tenantUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}${location.port ? `:${location.port}` : ''}`; // the port only in development
 
 async function load() {
   try {
@@ -63,7 +63,7 @@ function renderTenants() {
     slot(el, 'facts').innerHTML = [
       ['Members', cap(u.members ?? 0, p.members)],
       ['Spaces', String(u.spaces ?? 0)],
-      ['Storage', p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`],
+      ['Storage', u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`],
       ['AI this month', cap(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth, ' calls')],
       ['Calls', p.calls ? `up to ${p.calls} at once` : 'no cap'],
       ['Modules', mods],

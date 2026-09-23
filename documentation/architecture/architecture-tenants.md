@@ -110,6 +110,10 @@ prefix the room name with the current environment's own slug when one is resolve
 default environment), so two environments with the same `room` setting cannot collide in LiveKit today, even
 before phase 4's fuller scheme.
 
+## The console
+
+`public/host.html` and `public/host.js`, served for `/` at `host.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; Delete arms on the first click and acts on the second. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+
 ## Adding a new module-level singleton
 
 If you add a thirteenth thing like `store` -- built once from a data directory, read throughout the route
