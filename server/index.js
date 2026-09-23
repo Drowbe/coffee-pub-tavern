@@ -637,7 +637,13 @@ if (BASE_DOMAIN) {
     const oldBase = hostRegistry.previousBaseDomains().find((d) => host === d || host.endsWith(`.${d}`));
     if (oldBase) {
       const newHost = host === oldBase ? BASE_DOMAIN : `${host.slice(0, host.length - oldBase.length - 1)}.${BASE_DOMAIN}`;
-      return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${req.originalUrl}`);
+      // req.hostname (host, above) is always port-stripped, for matching against BASE_DOMAIN, which never has one;
+      // the redirect target still needs the request's own port carried through, or it silently lands on the
+      // scheme's default port instead -- invisible behind a real proxy (the port is implicit there), but wrong for
+      // local development, where BASE_DOMAIN is often "localhost" at some other port than 80/443.
+      const requestHost = req.get('host') || '';
+      const port = requestHost.includes(':') ? requestHost.slice(requestHost.lastIndexOf(':')) : '';
+      return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}${req.originalUrl}`);
     }
     if (host === `host.${BASE_DOMAIN}`) return hostRouter(req, res, next);
     if (host === BASE_DOMAIN) return res.type('html').send('<!doctype html><title>Coffee Pub Tavern</title><p>This is a Coffee Pub Tavern host.</p>');
