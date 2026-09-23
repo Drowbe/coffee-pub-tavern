@@ -59,8 +59,8 @@ The "door" is one middleware, registered right after `express.json()`, before an
 - **`BASE_DOMAIN` set:** the hostname picks a branch -- `admin.<base>` dispatches to `hostRouter` (a separate
   `express.Router()`, never mounted on `app` directly, so a request there can never fall through to a route that
   needs an environment); the bare base domain serves `public/landing.html` for `/` and a short allowlist of other
-  paths it needs (`/landing.css`, `/landing.js`, `/style.css`, `/theme.css`, `/img/site/icon`, `/fa/*`,
-  `/assets/images/brand/*`, `/api/product`, `/api/product/environment`, `/api/product/environments`) -- no
+  paths it needs (`/landing.css`, `/landing.js`, `/style.css`, `/theme.css`, `/img/site/icon`, `/favicon.ico`,
+  `/fa/*`, `/assets/images/brand/*`, `/api/product`, `/api/product/environment`, `/api/product/environments`) -- no
   environment is ever resolved there, so `/theme.css` and `siteIcon` both fall back to "nothing set" when
   `envContext.getStore()` is empty, the same as any environment that has not set its own (for `siteIcon` that
   bundled default, and the one `/manifest.webmanifest` offers alongside any environment's own custom icon, is

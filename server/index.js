@@ -704,7 +704,7 @@ if (BASE_DOMAIN) {
     // same as an unknown subdomain.
     if (host === BASE_DOMAIN) {
       if (req.path === '/') return res.sendFile(page('landing.html'));
-      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/api/product', '/api/product/environment', '/api/product/environments'];
+      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/favicon.ico', '/api/product', '/api/product/environment', '/api/product/environments'];
       if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/') || req.path.startsWith('/assets/images/brand/')) return next();
       return res.status(404).type('text').send('not found');
     }
