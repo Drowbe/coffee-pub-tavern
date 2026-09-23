@@ -244,6 +244,63 @@ a:hover {
   display: inline;
 }
 
+/* The host console (host.<base domain>, public/host.html): the primary nav's left zone only -- the console is the
+   deployment's own door, with no spaces to navigate to and no environment's profile or Manage to reach. */
+body.host-console .topbar .nav-middle,
+body.host-console .topbar .nav-right,
+body.host-console .topbar .nav-toggle {
+  display: none;
+}
+
+body.host-console .tenant .section-head h2 code {
+  margin-left: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+body.host-console .facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 8px 0 0;
+}
+
+body.host-console .facts dt {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+body.host-console .facts dd {
+  margin: 0;
+}
+
+body.host-console .tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body.host-console .tag[data-status="pastDue"] {
+  border-color: var(--danger);
+  color: var(--danger-text);
+}
+
+body.host-console .tag[data-status="suspended"] {
+  opacity: 0.6;
+}
+
+body.host-console .btn.danger {
+  color: var(--danger-text);
+}
+
+body.host-console .grow {
+  flex: 1;
+}
+
 /* The time, on the server's clock: information, not an action, so it is text among the icons. */
 .topbar-clock {
   color: var(--text-dim);

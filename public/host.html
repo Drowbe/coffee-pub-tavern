@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1410">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
+  <title>Host console</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css" id="theme-link">
+</head>
+<body class="host-console">
+  <header class="topbar"></header>
+
+  <main class="admin">
+    <!-- the host admin's own sign-in: a separate kind of account, a member of no environment -->
+    <section class="panel" id="host-login" hidden>
+      <h2>Host console</h2>
+      <p class="hint">Sign in as a host admin. This is the deployment's own door, not any environment's.</p>
+      <form id="login-form" class="fields">
+        <label>Login<input id="login-name" type="text" autocomplete="username" required></label>
+        <label>Password<input id="login-password" type="password" autocomplete="current-password" required></label>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Sign in</button>
+          <span class="status error" id="login-error" hidden></span>
+        </div>
+      </form>
+    </section>
+
+    <div id="host-main" hidden>
+      <section class="panel">
+        <div class="section-head">
+          <h1>Environments</h1>
+          <span class="status" id="tenants-status"></span>
+          <button class="btn btn-primary btn-small" id="create-toggle" type="button">New environment</button>
+        </div>
+        <p class="hint">Each environment is its own people, spaces, settings and modules, at <code id="base-hint"></code>. The counts are the whole of what the host sees of one.</p>
+      </section>
+
+      <form class="panel" id="create-form" hidden>
+        <h2>New environment</h2>
+        <div class="fields">
+          <label>Slug<input id="new-slug" type="text" minlength="3" maxlength="30" pattern="[a-z0-9-]+" placeholder="stayingblonde" required autocapitalize="off" autocomplete="off"></label>
+          <label>Name<input id="new-name" type="text" maxlength="60" placeholder="Staying Blonde" required autocomplete="off"></label>
+        </div>
+        <h3>The first owner</h3>
+        <div class="fields">
+          <label>Login<input id="new-owner-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
+          <label>Display name<input id="new-owner-name" type="text" maxlength="40" autocomplete="off"></label>
+          <label>Password<input id="new-owner-password" type="text" maxlength="200" required autocomplete="off"></label>
+        </div>
+        <p class="hint">The slug is the environment's address and is fixed once made: letters, digits and hyphens, 3 to 30. The owner signs in there with these.</p>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Create</button>
+          <button class="btn" id="create-cancel" type="button">Cancel</button>
+          <span class="status error" id="create-error" hidden></span>
+        </div>
+      </form>
+
+      <div id="tenants" class="tenants"></div>
+
+      <section class="panel">
+        <div class="section-head">
+          <h2>Host admins</h2>
+          <span class="status" id="admins-status"></span>
+        </div>
+        <div id="admins" class="list"></div>
+        <form id="admin-form" class="fields" autocomplete="off">
+          <label>Login<input id="admin-login" type="text" maxlength="40" required autocapitalize="off"></label>
+          <label>Password<input id="admin-password" type="text" maxlength="200" required></label>
+          <div class="row"><button class="btn" type="submit">Add a host admin</button></div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>The host</h2>
+        <dl class="facts" id="host-facts"></dl>
+        <div class="row"><button class="btn" id="host-logout" type="button">Sign out of the host</button></div>
+      </section>
+    </div>
+  </main>
+
+  <template id="tpl-tenant">
+    <section class="panel tenant">
+      <div class="section-head">
+        <h2><a data-slot="link" target="_blank" rel="noopener"><span data-slot="name"></span></a> <code data-slot="slug"></code></h2>
+        <span class="tag" data-slot="status"></span>
+        <span class="grow"></span>
+        <button class="btn btn-small" data-action="plan" type="button">Plan</button>
+        <button class="btn btn-small" data-action="backup" type="button">Backup</button>
+        <button class="btn btn-small" data-action="suspend" type="button">Suspend</button>
+        <button class="btn btn-small danger" data-action="delete" type="button">Delete</button>
+      </div>
+      <dl class="facts" data-slot="facts"></dl>
+      <form class="plan-form fields" data-slot="plan-form" hidden>
+        <label>Name<input name="name" type="text" maxlength="60"></label>
+        <label>Modules<select name="modules"><option value="all">All installed</option><option value="list">Only these</option></select></label>
+        <label class="modules-list" data-slot="modules-list" hidden><span>Allowed modules (ids, one per line)</span><textarea name="moduleIds" rows="3"></textarea></label>
+        <label>Members (cap)<input name="members" type="number" min="1" placeholder="no cap"></label>
+        <label>Storage (GB, cap)<input name="storageGb" type="number" min="1" step="0.5" placeholder="no cap"></label>
+        <label>AI calls per month (cap)<input name="aiCallsPerMonth" type="number" min="0" placeholder="no cap"></label>
+        <label>Concurrent calls (cap)<input name="calls" type="number" min="1" placeholder="no cap"></label>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Save</button>
+          <button class="btn" data-action="plan-cancel" type="button">Cancel</button>
+          <span class="status" data-slot="plan-status"></span>
+        </div>
+      </form>
+    </section>
+  </template>
+  <template id="tpl-admin"><div class="list-row"><span data-slot="login"></span><span class="grow"></span><button class="btn btn-small" data-action="remove-admin" type="button">Remove</button></div></template>
+
+  <script type="module" src="/host.js"></script>
+</body>
+</html>
