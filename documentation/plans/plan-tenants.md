@@ -27,7 +27,7 @@ A tenant is three things, and a folder of spaces is not one:
 
 **The tenant is the subdomain.** `stayingblonde.<base domain>`. The base domain is configuration (`BASE_DOMAIN`), never code: `magpie.coffeepub.live`, `magpie.coffeepub.com`, or anything a self-hoster owns, and a wildcard certificate at the proxy covers every tenant. The hostname's first label picks the store; the paths under it stay what they are, the session cookie is scoped per subdomain by the browser for free, and nothing in the client (`/api/...`, `/modules/:id`, `/sdk/host.js`, the streams, the popout names, the browser's keys) learns a base path. A path form (`<base>/stayingblonde`) is a redirect to the subdomain, if wanted, never the address itself. A tenant's own domain (`plan.stayingblonde.com`) is a later option: a mapping in the registry from a hostname to a slug, and a certificate for it.
 
-**No base domain, no tenants.** With `BASE_DOMAIN` unset the deployment is one tenant, the "default", at whatever hostname it has: today's install, unchanged, and the self-hosted product. Setting a base domain turns the seam on; the existing data becomes the default tenant, so nothing moves. The same image serves both.
+**No base domain, no tenants.** With `BASE_DOMAIN` unset the deployment is one tenant, the "default", at whatever hostname it has: today's install, unchanged, and the self-hosted product. Setting a base domain turns the seam on and asks for the slug the existing data becomes (see the decisions at the end); the data moves to that subdomain and nothing else changes. The same image serves both.
 
 **Roles.** Two things sit above "user", and they are not the same thing (the visible words: an *environment*, run by its *owner*):
 
@@ -38,7 +38,7 @@ A tenant is three things, and a folder of spaces is not one:
 | moderator | one space | unchanged: set on a person's profile for a space |
 | user, guest | unchanged | |
 
-"Moderator" keeps its space-level meaning; the tenant's runner is its **owner** (the visible word may differ, see open decisions), and a tenant may have more than one. What an owner sees of Manage: Server (the name, icon, sign-in text, sign-up, language, time and money), Theme, Spaces, Roles, Users, Modules (enable and configure among the entitled ones), About. What only the host admin sees: the call service, the AI service and its key, module installs and updates, the Font Awesome package, the tenants and their plans, the base domain.
+"Moderator" keeps its space-level meaning; the tenant's runner is its **owner**, and a tenant may have more than one. What an owner sees of Manage: Server (the name, icon, sign-in text, sign-up, language, time and money), Theme, Spaces, Roles, Users, Modules (enable and configure among the entitled ones), About. What only the host admin sees: the call service, the AI service and its key, module installs and updates, the Font Awesome package, the tenants and their plans, the base domain.
 
 **Entitlements are the host's, enforced at the seam.** A plan is a set of caps on the registry entry: the modules a tenant may enable (one installed set on the host, enabled per tenant), how many members, how much storage, how much AI (the key is the host's, the quota the tenant's), how many concurrent calls. An owner sees the caps and what is used; the server refuses past them with a plain message. Billing stays outside the app: a payment provider's hosted pages and a webhook that sets the plan on the registry entry, with a grace period before anything is turned off. The app never sees a card.
 
@@ -50,7 +50,7 @@ A tenant is three things, and a folder of spaces is not one:
 
 ## Phases
 
-1. **The seam.** The registry, the per-tenant store, the resolver at the door (hostname to store; the default tenant when there is no base domain), the host console (create a tenant, set its slug and plan, see its use), and the migration that makes today's data the default tenant. Everything under the seam untouched.
+1. **The seam.** The registry, the per-tenant store, the resolver at the door (hostname to store; the default tenant when there is no base domain), the host console at `host.<base>` (create a tenant, set its slug and plan, see its use), and the migration that gives today's data its slug. Everything under the seam untouched.
 2. **Roles.** The owner role and the host admin; Manage split into what an owner sees and what only the host sees; the host console's own sign-in.
 3. **Entitlements.** The caps on the registry entry, enforced: modules, members, storage, AI, calls; what the owner sees of them.
 4. **The call service.** Slug-prefixed call names; per-tenant call limits.
