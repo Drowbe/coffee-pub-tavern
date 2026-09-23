@@ -88,14 +88,15 @@
         <h2><a data-slot="link" target="_blank" rel="noopener"><span data-slot="name"></span></a> <code data-slot="slug"></code></h2>
         <span class="tag" data-slot="status"></span>
         <span class="grow"></span>
-        <button class="btn btn-small" data-action="plan" type="button">Plan</button>
+        <button class="btn btn-small" data-action="plan" type="button">Edit</button>
         <button class="btn btn-small" data-action="backup" type="button">Backup</button>
         <button class="btn btn-small" data-action="suspend" type="button">Suspend</button>
         <button class="btn btn-small danger" data-action="delete" type="button">Delete</button>
       </div>
       <dl class="facts" data-slot="facts"></dl>
       <form class="plan-form fields" data-slot="plan-form" hidden>
-        <label>Name<input name="name" type="text" maxlength="60"></label>
+        <p class="hint plan-hint">The name is what the environment calls itself and what the product page lists; the slug (its address) is fixed. Empty caps mean no cap.</p>
+        <label>Name<input name="name" type="text" maxlength="60" required></label>
         <label>Modules<select name="modules"><option value="all">All installed</option><option value="list">Only these</option></select></label>
         <label class="modules-list" data-slot="modules-list" hidden><span>Allowed modules (ids, one per line)</span><textarea name="moduleIds" rows="3"></textarea></label>
         <label>Members (cap)<input name="members" type="number" min="1" placeholder="no cap"></label>
