@@ -180,22 +180,29 @@ export function createRoomModules({ guestToken = null } = {}) {
   // remembered is its cells (`cell`: col, row, cols, rows), so it keeps its place in the grid when the window
   // changes size. The grid is as many cells of about SNAP_CELL as the stage fits (never fewer than one), gutter
   // SNAP_GAP, drawn (`.snap-grid`) only while a snapped pane is being dragged. Docked and window are untouched.
-  const SNAP_CELL = { w: 260, h: 200 };
+  // The grid's pitch (a cell's width; a cell is 0.77 as tall) is the stage's: the room bar's slider sets it, remembered with
+  // the room's layout (`__snap.pitch`), beside the stage-level switch (`__snap.all`) that snaps every floating pane, now and later.
+  const SNAP_PITCH = { min: 60, max: 320, step: 10, default: 130 };
   const SNAP_GAP = 16; // the same 16px clampBox keeps clear of the window's edges, so a pane spanning every cell still fits the grid
-  const snapping = (id) => Boolean(saved[id]?.snap);
+  const snapPitch = () => { const p = Number(saved.__snap?.pitch); return p >= SNAP_PITCH.min && p <= SNAP_PITCH.max ? p : SNAP_PITCH.default; };
+  const snapAllOn = () => Boolean(saved.__snap?.all);
+  const snapping = (id) => snapAllOn() || Boolean(saved[id]?.snap);
   function snapGrid() {
     const win = stageWin();
     const r = stage.getBoundingClientRect();
     const s = r.width > 0 && r.height > 0 ? r : { left: 0, top: 0, width: win.innerWidth, height: win.innerHeight };
-    const cols = Math.max(1, Math.floor(s.width / SNAP_CELL.w));
-    const rows = Math.max(1, Math.floor(s.height / SNAP_CELL.h));
+    const pitch = snapPitch();
+    const cols = Math.max(1, Math.floor(s.width / pitch));
+    const rows = Math.max(1, Math.floor(s.height / (pitch * 0.77)));
     return { x: s.left, y: s.top, w: s.width, h: s.height, cols, rows, cw: s.width / cols, ch: s.height / rows };
   }
-  // The box a run of cells makes, and the run of cells a box is nearest to.
+  // The box a run of cells makes, and the run of cells a box is nearest to (never fewer cells than a pane's smallest size needs).
   const cellBox = (g, c) => ({ x: g.x + c.col * g.cw + SNAP_GAP / 2, y: g.y + c.row * g.ch + SNAP_GAP / 2, w: c.cols * g.cw - SNAP_GAP, h: c.rows * g.ch - SNAP_GAP });
   function snapCell(g, box) {
-    const cols = Math.max(1, Math.min(g.cols, Math.round((box.w + SNAP_GAP) / g.cw)));
-    const rows = Math.max(1, Math.min(g.rows, Math.round((box.h + SNAP_GAP) / g.ch)));
+    const leastCols = Math.min(g.cols, Math.ceil((MIN_W + SNAP_GAP) / g.cw));
+    const leastRows = Math.min(g.rows, Math.ceil((MIN_H + SNAP_GAP) / g.ch));
+    const cols = Math.max(leastCols, Math.min(g.cols, Math.round((box.w + SNAP_GAP) / g.cw)));
+    const rows = Math.max(leastRows, Math.min(g.rows, Math.round((box.h + SNAP_GAP) / g.ch)));
     const col = Math.max(0, Math.min(g.cols - cols, Math.round((box.x - g.x) / g.cw)));
     const row = Math.max(0, Math.min(g.rows - rows, Math.round((box.y - g.y) / g.ch)));
     return { col, row, cols, rows };
@@ -237,6 +244,22 @@ export function createRoomModules({ guestToken = null } = {}) {
       b.classList.toggle('on', Boolean(on));
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
+  }
+  // The stage-level switch: every floating pane snaps, the ones open now (each one's own switch follows) and any opened later.
+  function setSnapAll(on) {
+    saved.__snap = { ...(saved.__snap || {}), all: Boolean(on) };
+    persist();
+    for (const p of panes.values()) if (floatPanel(p)) setSnap(p.id, on);
+  }
+  // The grid's size, from the room bar's slider: every snapped pane refits to the cells nearest its box. While the slider
+  // moves (`preview`) the grid shows, so the size can be seen; it hides when the slider is let go.
+  function setSnapPitch(px, { preview = false } = {}) {
+    const pitch = Math.min(SNAP_PITCH.max, Math.max(SNAP_PITCH.min, Math.round(Number(px) || SNAP_PITCH.default)));
+    saved.__snap = { ...(saved.__snap || {}), pitch };
+    persist();
+    for (const p of panes.values()) { const panel = floatPanel(p); if (panel && snapping(p.id)) settleSnap(p.id, panel); }
+    const layer = layerFor(stageDoc());
+    if (preview) showGrid(layer, snapGrid()); else hideGrid(layer);
   }
 
   // Drag a floating panel by `handle`, resize it by `grip`. A snapped pane moves and grows by whole cells.
@@ -1109,6 +1132,12 @@ export function createRoomModules({ guestToken = null } = {}) {
     sendTo: (id, event, data) => panes.get(id)?.mount?.send(event, data),
     testDrag: (id, ref) => panes.get(id)?.mount?.beginDragForTest(ref),
     testPtr: (id, step, ref, label, x, y) => panes.get(id)?.mount?.ptrForTest(step, ref, label, x, y),
+    // The stage-level snap (the room bar's switch and slider): whether every floating pane snaps, and the grid's pitch.
+    snapAll: setSnapAll,
+    snapAllOn,
+    snapPitch,
+    snapPitchRange: () => ({ ...SNAP_PITCH }),
+    setSnapPitch,
     toggleMenu,
     // `mode` (a module's own window asking to come back as a column or a panel) is remembered.
     open: (id, mode) => {

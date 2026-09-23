@@ -834,6 +834,19 @@ body.at-table .subnav {
   height: 14px;
 }
 
+/* the stage-level snap: the switch, and, while it is on, the grid-size slider beside it */
+.snap-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.snap-tools input[type="range"] {
+  width: 84px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .subnav .icon-link {
   height: 20px;
   padding: 0 6px;
@@ -901,6 +914,7 @@ body.at-table .topbar {
 @media (max-width: 560px) {
   .subnav #fullscreen-toggle,
   .subnav #popout,
+  .subnav #snap-tools,
   .subnav .nav-divider {
     display: none;
   }

@@ -28,6 +28,7 @@ subnav.id = 'subnav';
 subnav.innerHTML = `
   <div class="subnav-panes" id="modules-menu"></div>
   <span class="subnav-tools">
+  <span class="snap-tools" id="snap-tools"><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
   <span class="nav-divider"></span>
@@ -814,6 +815,24 @@ const prefs = loadPrefs();
 // The room's modules: the toolbar's Modules button and its floating panels.
 const roomModules = createRoomModules({ guestToken });
 window.tavernModules = roomModules; // for debugging and tests
+
+// The stage-level snap, in the room bar: one switch that makes every floating pane, now and later, snap to a grid over the
+// stage, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each pane's own switch
+// on its titlebar still works on its own; this one sets them all. Remembered with the room's layout.
+function syncSnapBar() {
+  const on = roomModules.snapAllOn();
+  const range = roomModules.snapPitchRange();
+  $('snap-all').classList.toggle('on', on);
+  $('snap-all').setAttribute('aria-pressed', on ? 'true' : 'false');
+  const size = $('snap-size');
+  size.hidden = !on;
+  size.min = String(range.min); size.max = String(range.max); size.step = String(range.step);
+  size.value = String(roomModules.snapPitch());
+}
+$('snap-all').addEventListener('click', () => { roomModules.snapAll(!roomModules.snapAllOn()); syncSnapBar(); });
+$('snap-size').addEventListener('input', () => roomModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
+$('snap-size').addEventListener('change', () => roomModules.setSnapPitch(Number($('snap-size').value)));
+syncSnapBar();
 // A toast about a room module opens its panel; a server module opens over the call.
 document.addEventListener('tavern:notification', (event) => {
   const n = event.detail;
@@ -2146,6 +2165,7 @@ async function connectAndSetup(token, livekitUrl) {
     if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
     roomModules.updateMenu();
     roomModules.restore(); // the panes this room had open last time, or the conference the first time
+    syncSnapBar(); // and this room's stage-level snap
     if (roomModules.nativeOpen('conference')) await callStarting;
     else setStatus(`in ${tableName} (not in the call)`);
 }

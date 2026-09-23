@@ -19,9 +19,10 @@ Make the conference a pane like chat and the modules, so a person can join with 
 
 Built (September 2026): a floating pane has a toggle, **free** (anywhere over the stage, any
 size) or **snap** (it sits in the cells of a 2D grid over the stage, moves and grows a cell at
-a time, and keeps its cells when the window changes size). Docked and window are untouched;
-snap is a way of floating, not a replacement for docking. See "Free or snapped" in
-architecture-room-layout.md. Only checked in a browser with the call unavailable (the chat
+a time, and keeps its cells when the window changes size), plus a stage-level switch in the
+room bar that snaps every floating pane, now and later, and a slider for the grid's size.
+Docked and window are untouched; snap is a way of floating, not a replacement for docking.
+See "Free or snapped" in architecture-room-layout.md. Only checked in a browser with the call unavailable (the chat
 pane, floating over the room list): try it in a real call, with a module pane and the chat
 both snapped, and with the call popped out.
 
