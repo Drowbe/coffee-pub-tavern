@@ -47,6 +47,8 @@ const {
   MIGRATE_TENANT_SLUG = '',
   HOST_ADMIN_LOGIN = '',
   HOST_ADMIN_PASSWORD = '',
+  PRODUCT_NAME = 'Coffee Pub Tavern', // the product's own name, still being chosen -- configuration, never code
+  CONTACT_EMAIL = '',
 } = process.env;
 
 const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
@@ -604,7 +606,7 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
 });
 
 hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
-  res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins() });
+  res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null });
 });
 hostRouter.post('/api/host/admins', requireHostAdmin, (req, res) => {
   try {
@@ -623,6 +625,15 @@ hostRouter.delete('/api/host/admins/:key', requireHostAdmin, (req, res) => {
     sendHostError(err, res);
   }
 });
+// The product itself, for the landing page (the bare base domain) and the console (admin.<base>): public, no
+// session needed, and harmless anywhere else it happens to be reached. name and contact are configuration, never
+// code, since the product's own name is still being chosen. Registered on hostRouter here (admin.<base> only
+// ever reaches it through here anyway); the main app's own copy is registered after the resolver below, not
+// here, so an old-base-domain request still 301s instead of this one route quietly bypassing that.
+function productInfo(_req, res) {
+  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION });
+}
+hostRouter.get('/api/product', productInfo);
 hostRouter.use((_req, res) => res.status(404).json({ error: 'not found' }));
 
 // --- the door: resolve an environment for this request, or route to the host console -----------------------
@@ -646,7 +657,16 @@ if (BASE_DOMAIN) {
       return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}${req.originalUrl}`);
     }
     if (host === `admin.${BASE_DOMAIN}`) return hostRouter(req, res, next);
-    if (host === BASE_DOMAIN) return res.type('html').send('<!doctype html><title>Coffee Pub Tavern</title><p>This is a Coffee Pub Tavern host.</p>');
+    // The bare base domain: the product's own landing page (public/landing.html), never any one environment's
+    // page -- no store is ever resolved here (see the "no environment" fallback in /theme.css and siteIcon
+    // above). Only the handful of paths that page actually needs are let through; anything else is a plain 404,
+    // same as an unknown subdomain.
+    if (host === BASE_DOMAIN) {
+      if (req.path === '/') return res.sendFile(page('landing.html'));
+      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/api/product'];
+      if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/')) return next();
+      return res.status(404).type('text').send('not found');
+    }
     if (host.endsWith(`.${BASE_DOMAIN}`)) {
       const slug = host.slice(0, host.length - BASE_DOMAIN.length - 1);
       if (!hostRegistry.findTenant(slug)) return res.status(404).type('text').send('not found');
@@ -657,6 +677,7 @@ if (BASE_DOMAIN) {
 } else {
   app.use((req, res, next) => envContext.run(environmentFor(DEFAULT_SLUG), next));
 }
+app.get('/api/product', productInfo);
 
 // Pages ----------------------------------------------------------------------
 
@@ -750,7 +771,10 @@ app.get('/view/:key', (req, res) => {
 // tools still fetch that path directly (bookmarks, tab previews, before any
 // page JS has run) and got a bare 404 without this.
 function siteIcon(_req, res) {
-  const file = store.iconPath();
+  // No environment at the bare base domain (the landing page): the bundled default, same as any environment
+  // that has not set its own.
+  const env = envContext.getStore();
+  const file = env && env.store.iconPath();
   if (file) return sendImage(res, file);
   res.set('Cache-Control', 'no-cache').sendFile(path.join(publicDir, 'icon.png'));
 }
@@ -879,9 +903,11 @@ app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { ma
 // free -- it's just another stylesheet link, not a runtime JS override
 // that would need its own copy into that second document.
 app.get('/theme.css', (_req, res) => {
-  const theme = store.activeTheme();
   res.set('Content-Type', 'text/css');
   res.set('Cache-Control', 'no-cache');
+  // No environment at the bare base domain (the landing page): no theme there either, same as one that has not set one.
+  const env = envContext.getStore();
+  const theme = env && env.store.activeTheme();
   if (!theme) return res.send('');
   const vars = [
     ['--bg', theme.bg],

@@ -58,9 +58,16 @@ The "door" is one middleware, registered right after `express.json()`, before an
   one extra `AsyncLocalStorage.run` wrapping every request, resolving to the same environment every time.
 - **`BASE_DOMAIN` set:** the hostname picks a branch -- `admin.<base>` dispatches to `hostRouter` (a separate
   `express.Router()`, never mounted on `app` directly, so a request there can never fall through to a route that
-  needs an environment); the bare base domain gets a static placeholder; `<slug>.<base>` resolves that tenant's
-  environment the same way the no-base-domain case resolves the default one; anything else is a plain 404. A
-  hostname matching `PREVIOUS_BASE_DOMAINS` 301s to the same path at the current base first.
+  needs an environment); the bare base domain serves `public/landing.html` for `/` and a short allowlist of other
+  paths it needs (`/landing.css`, `/landing.js`, `/style.css`, `/theme.css`, `/img/site/icon`, `/fa/*`,
+  `/api/product`) -- no environment is ever resolved there, so `/theme.css` and `siteIcon` both fall back to
+  "nothing set" when `envContext.getStore()` is empty, the same as any environment that has not set its own;
+  `<slug>.<base>` resolves that tenant's environment the same way the no-base-domain case resolves the default
+  one; anything else is a plain 404. A hostname matching `PREVIOUS_BASE_DOMAINS` 301s to the same path at the
+  current base first. `PRODUCT_NAME` (default "Coffee Pub Tavern") and `CONTACT_EMAIL` (default none) are
+  configuration, never code, since the product's own name is not settled yet -- `GET /api/product` (registered on
+  both the main app and `hostRouter`, never behind a session) answers `{ name, contact, baseDomain, version }`
+  wherever it is reached.
 
 Because `AsyncLocalStorage` context follows the real async causality chain (promises, `await`, timers,
 `EventEmitter.emit`), a route handler can `await` anything, register a `setInterval`, or call `moduleBus.on(...)`
