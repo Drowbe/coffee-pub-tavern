@@ -14,6 +14,7 @@ const path = require('path');
 // none; openai and anthropic are those companies (the host knows their addresses, so nobody types them); compatible is any other
 // service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
 const PROVIDERS = ['none', 'openai', 'anthropic', 'compatible'];
+const SOURCES = ['managed', 'custom'];
 const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
 const TASKS = ['summarise', 'ask', 'tags'];
 const MAX_ITEMS = 12;
@@ -41,15 +42,86 @@ class AiError extends Error {
   }
 }
 
+// A provider, an address, a model and a key made to fit together -- the part of a setting shared by an
+// environment's own (Ai.set, its custom slot) and the host's managed service (HostRegistry.setManagedAi): same
+// rules, since the same four fields mean the same thing in both places. `key` is replaced only when a
+// non-empty string is sent (a page that shows "set" sends nothing); `clearKey` removes it.
+function applyAiFields(current, patch) {
+  const p = patch && typeof patch === 'object' ? patch : {};
+  const next = { provider: current.provider, address: current.address, model: current.model, key: current.key };
+  if (p.provider !== undefined) {
+    if (!PROVIDERS.includes(p.provider)) throw new AiError('choose none, an OpenAI-compatible service or Anthropic');
+    next.provider = p.provider;
+  }
+  if (p.address !== undefined) {
+    const a = String(p.address || '').trim();
+    if (a) {
+      let u;
+      try { u = new URL(a); } catch { throw new AiError('that address is not valid'); }
+      if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
+      next.address = u.href.replace(/\/$/, '');
+    } else next.address = '';
+  }
+  if (p.model !== undefined) next.model = oneLine(p.model, 100);
+  if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
+  if (p.clearKey === true) next.key = '';
+  if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, already known here
+  if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
+  if ((next.provider === 'openai' || next.provider === 'anthropic') && !next.key) throw new AiError('this service needs a key');
+  if (next.provider !== 'none' && !next.model) throw new AiError('say which model to use');
+  return next;
+}
+
+// The models a service offers, from its own list: [{ id, name }]. A module-level function (not a method) so
+// both an environment's own Ai.listModels (its own saved key as the fallback) and the host's managed-service
+// listing (server/index.js's POST /api/host/ai/models, the host's own saved key as the fallback) can call it
+// the same way, each already having resolved which key to try. Plain errors: no key, unreachable, refused.
+async function listModelsFor({ provider, address, key }, hosts = HOSTS) {
+  if (!['openai', 'anthropic', 'compatible'].includes(provider)) throw new AiError('choose a service first');
+  let base = hosts[provider];
+  if (provider === 'compatible') {
+    const a = String(address || '').trim();
+    let u;
+    try { u = new URL(a); } catch { throw new AiError('give the service\'s address first'); }
+    if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
+    base = u.href.replace(/\/$/, '');
+  } else if (!key) throw new AiError('enter the key first');
+  const headers = { Accept: 'application/json' };
+  if (provider === 'anthropic') { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01'; } else if (key) headers.Authorization = `Bearer ${key}`;
+  const root = base.replace(/\/chat\/completions$/, '');
+  const url = provider === 'anthropic' ? `${base}/v1/models?limit=100` : `${root}${/\/v1$/.test(root) ? '' : '/v1'}/models`;
+  let res;
+  try {
+    res = await fetch(url, { headers, signal: AbortSignal.timeout(15000), redirect: 'error' });
+  } catch {
+    throw new AiError(provider === 'compatible' ? 'that address could not be reached' : 'the service could not be reached', 502);
+  }
+  const raw = await res.text();
+  if (!res.ok) throw new AiError(res.status === 401 || res.status === 403 ? 'the service refused the key' : provider === 'compatible' && res.status === 404 ? 'that address did not list its models (check the address, or type the model name)' : 'the service could not list its models', 502);
+  if (raw.length > MAX_BODY) throw new AiError('the service answered too much', 502);
+  let json;
+  try { json = JSON.parse(raw); } catch { throw new AiError('the service answered something unreadable', 502); }
+  const rows = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
+  let list = rows.filter((m) => m && typeof m.id === 'string').map((m) => ({ id: m.id.slice(0, 120), name: oneLine(m.display_name || m.id, 120), created: Number(m.created) || 0 }));
+  if (provider === 'openai') list = list.filter((m) => /^(gpt-|chatgpt-|o1|o3|o4)/.test(m.id) && !/(embed|tts|whisper|dall-e|moderation|transcribe|realtime|audio|image)/.test(m.id)).sort((a, b) => b.created - a.created);
+  else if (provider === 'compatible') list.sort((a, b) => a.id.localeCompare(b.id));
+  return list.slice(0, 200).map(({ id, name }) => ({ id, name }));
+}
+
 class Ai {
-  constructor(dataDir, env = process.env, hosts = HOSTS) {
+  // `managed` is a function returning the host's offer -- { provider, address, model, key } (a real key, for
+  // making calls; never exposed by view()) or null when the host offers none. AI_KEY moved to the host: an
+  // environment's own custom slot no longer has an environment-variable fallback of its own.
+  constructor(dataDir, env = process.env, hosts = HOSTS, managed = () => null) {
     this.hosts = { ...HOSTS, ...hosts };
+    this.managed = managed;
     this.file = path.join(dataDir, 'ai.json');
     this.usageFile = path.join(dataDir, 'ai-usage.json');
     this.env = env;
-    this.config = { provider: 'none', address: '', model: '', key: '', monthlyTokens: 0 };
+    this.config = { source: undefined, provider: 'none', address: '', model: '', key: '', monthlyTokens: 0 };
     this.usage = { month: month(), tokens: 0, calls: 0, byTask: {} };
-    try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); } catch { /* not set up */ }
+    let loaded = false;
+    try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); loaded = true; } catch { /* not set up */ }
     try { const u = JSON.parse(fs.readFileSync(this.usageFile, 'utf8')); if (u && u.month === month()) this.usage = { ...this.usage, ...u }; } catch { /* nothing used yet */ }
     if (!PROVIDERS.includes(this.config.provider)) this.config.provider = 'none';
     // Before there were companies to choose, `openai` meant any OpenAI-compatible address: one that is not OpenAI's own is `compatible`.
@@ -60,63 +132,97 @@ class Ai {
     if (this.config.provider === 'anthropic') this.config.address = '';
     // A setting saved before there was an enable step, with a service chosen, counts as enabled; nothing else does.
     if (typeof this.config.enabled !== 'boolean') this.config.enabled = this.config.provider !== 'none';
-    if (this.config.provider === 'none') this.config.enabled = false;
+    // The managed/custom choice, decided once and saved: a file from before it existed, with its own saved
+    // provider and model but no saved key (it worked only through the old per-environment AI_KEY), becomes
+    // managed -- migrationSeed() below is read once by index.js to give the host's managed service a starting
+    // point if it has nothing saved yet. A file with its own saved key stays custom. A brand-new environment
+    // (no file at all) starts managed when the host already offers a service, else custom.
+    this._migrationSeed = null;
+    if (!SOURCES.includes(this.config.source)) {
+      if (!loaded) {
+        this.config.source = this.managed() ? 'managed' : 'custom';
+      } else if (this.config.provider !== 'none' && this.config.model && !this.config.key) {
+        this._migrationSeed = { provider: this.config.provider, address: this.config.address, model: this.config.model };
+        this.config.source = 'managed';
+      } else {
+        this.config.source = 'custom';
+      }
+      this.saveConfig();
+    }
+    if (this.config.source === 'custom' && this.config.provider === 'none') this.config.enabled = false;
     this.timer = null;
   }
 
-  // The key set on the environment (AI_KEY; TAVERN_AI_KEY still honoured), or none set there at all.
-  envKey() {
-    return this.env.AI_KEY || this.env.TAVERN_AI_KEY || '';
+  // Read once by index.js right after construction, to seed the host's managed service from an environment
+  // that just migrated to it -- see the constructor. Never used again by the Ai instance itself.
+  migrationSeed() {
+    return this._migrationSeed;
   }
 
-  // The key: from the environment when it is set there, otherwise the one the admin saved.
+  // The active provider, address, model and key: the host's managed offer when that is the choice, this
+  // environment's own custom slot otherwise. { provider: 'none', ... } when managed is chosen but the host
+  // currently offers nothing (an admin turned it off after this environment chose it).
+  effective() {
+    if (this.config.source === 'managed') {
+      const m = this.managed();
+      return m ? { provider: m.provider, address: m.address || '', model: m.model || '', key: m.key || '' } : { provider: 'none', address: '', model: '', key: '' };
+    }
+    return { provider: this.config.provider, address: this.config.address, model: this.config.model, key: this.config.key };
+  }
+
+  // The active key: whichever source is chosen, resolved through effective().
   key() {
-    return this.envKey() || this.config.key || '';
+    return this.effective().key;
   }
 
-  // What the admin's page may see: never the key, only whether there is one.
+  // What the admin's page may see: never a key, only whether the active source has one. `provider`/`address`/
+  // `model`/`keySet` describe this environment's own custom slot (kept even while managed is chosen, so
+  // switching back to custom does not lose it); `managed` describes the host's offer, if any (no address, no
+  // key -- the host's own console shows those). `keyFromEnvironment` is always false now: AI_KEY seeds the
+  // host's managed service, not an environment's own custom one.
   view() {
     const c = this.config;
-    return { provider: c.provider, address: c.address, model: c.model, monthlyTokens: c.monthlyTokens, keySet: !!this.key(), keyFromEnvironment: !!this.envKey(), enabled: c.enabled };
+    const m = this.managed();
+    return {
+      source: c.source,
+      managed: { available: !!m, provider: m ? m.provider : '', model: m ? m.model : '' },
+      provider: c.provider,
+      address: c.address,
+      model: c.model,
+      monthlyTokens: c.monthlyTokens,
+      keySet: !!c.key,
+      keyFromEnvironment: false,
+      enabled: c.enabled,
+    };
   }
 
   // Change the setting. `key` is replaced only when a non-empty string is sent (a page that shows "set" sends nothing); `clearKey`
-  // removes it. An address must be http or https, without a user name or password.
+  // removes it. An address must be http or https, without a user name or password. `source` picks managed
+  // (refused when the host offers none) or custom; changing it, like changing the custom provider, switches AI
+  // off until the admin enables it again, since a different source can mean a different company entirely.
   set(patch) {
     const p = patch || {};
     const next = { ...this.config };
-    if (p.provider !== undefined) {
-      if (!PROVIDERS.includes(p.provider)) throw new AiError('choose none, an OpenAI-compatible service or Anthropic');
-      // A different service is a different company receiving what people select, so it starts switched off until the admin enables it.
-      if (p.provider !== next.provider) next.enabled = false;
-      next.provider = p.provider;
+    if (p.source !== undefined) {
+      if (!SOURCES.includes(p.source)) throw new AiError('source must be "managed" or "custom"');
+      if (p.source === 'managed' && !this.managed()) throw new AiError('this host offers no managed service');
+      if (p.source !== next.source) next.enabled = false;
+      next.source = p.source;
     }
-    if (p.address !== undefined) {
-      const a = String(p.address || '').trim();
-      if (a) {
-        let u;
-        try { u = new URL(a); } catch { throw new AiError('that address is not valid'); }
-        if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
-        next.address = u.href.replace(/\/$/, '');
-      } else next.address = '';
-    }
-    if (p.model !== undefined) next.model = oneLine(p.model, 100);
+    if (p.provider !== undefined && p.provider !== next.provider) next.enabled = false;
+    Object.assign(next, applyAiFields(next, p));
     if (p.monthlyTokens !== undefined) {
       const n = Number(p.monthlyTokens);
       if (!Number.isFinite(n) || n < 0 || n > 1e10) throw new AiError('the monthly limit must be a number of tokens, 0 for none');
       next.monthlyTokens = Math.floor(n);
     }
-    if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
-    if (p.clearKey === true) next.key = '';
-    if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, already known here
-    if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
-    if ((next.provider === 'openai' || next.provider === 'anthropic') && !(this.envKey() || next.key)) throw new AiError('this service needs a key');
-    if (next.provider !== 'none' && !next.model) throw new AiError('say which model to use');
     if (p.enabled !== undefined) {
-      if (p.enabled === true && next.provider === 'none') throw new AiError('choose a service and save it before enabling AI');
+      const activeProvider = next.source === 'managed' ? (this.managed()?.provider || 'none') : next.provider;
+      if (p.enabled === true && activeProvider === 'none') throw new AiError('choose a service and save it before enabling AI');
       next.enabled = p.enabled === true;
     }
-    if (next.provider === 'none') next.enabled = false;
+    if (next.source === 'custom' && next.provider === 'none') next.enabled = false;
+    if (next.source === 'managed' && !this.managed()) next.enabled = false;
     this.config = next;
     this.saveConfig();
     return this.view();
@@ -137,21 +243,26 @@ class Ai {
   previewEnabled(patch) {
     const p = patch || {};
     let enabled = this.config.enabled;
+    let source = this.config.source;
     let provider = this.config.provider;
+    if (p.source !== undefined && p.source !== source) { enabled = false; source = p.source; }
     if (p.provider !== undefined) {
       if (p.provider !== provider) enabled = false;
       provider = p.provider;
     }
     if (p.enabled !== undefined) enabled = p.enabled === true;
-    if (provider === 'none') enabled = false;
+    const activeProvider = source === 'managed' ? (this.managed()?.provider || 'none') : provider;
+    if (activeProvider === 'none') enabled = false;
     return enabled;
   }
 
-  // Ready to answer: a provider is chosen and, for a hosted one, it has a key.
+  // Ready to answer: the active source has a provider chosen, this environment has it enabled, and, for a
+  // hosted provider, there is a key.
   ready() {
-    const c = this.config;
-    if (c.provider === 'none' || !c.enabled) return false;
-    if (c.provider === 'anthropic' || c.provider === 'openai') return !!this.key();
+    if (!this.config.enabled) return false;
+    const c = this.effective();
+    if (c.provider === 'none') return false;
+    if (c.provider === 'anthropic' || c.provider === 'openai') return !!c.key;
     return true; // another service may need no key (a local model)
   }
 
@@ -202,49 +313,22 @@ class Ai {
     return { text, cards, tokens: out.tokens, used: citedItems(out.text, list.length) };
   }
 
-  // The models a service offers, from its own list, for the admin's choice: [{ id, name }]. Uses the typed key when given, otherwise the
-  // saved one. Plain errors: no key, unreachable, refused.
+  // The models a service offers, from its own list, for the admin's choice: [{ id, name }]. Uses the typed key
+  // when given, otherwise the saved one on this environment's own custom slot (never the managed key -- the
+  // host lists the managed service's own models itself, via listModelsFor directly).
   async listModels({ provider, address, key }) {
-    if (!['openai', 'anthropic', 'compatible'].includes(provider)) throw new AiError('choose a service first');
-    const useKey = (typeof key === 'string' && key.trim()) || this.key();
-    let base = this.hosts[provider];
-    if (provider === 'compatible') {
-      const a = String(address || this.config.address || '').trim();
-      let u;
-      try { u = new URL(a); } catch { throw new AiError('give the service\'s address first'); }
-      if (!/^https?:$/.test(u.protocol) || u.username || u.password) throw new AiError('the address must be http or https, without a user name or password');
-      base = u.href.replace(/\/$/, '');
-    } else if (!useKey) throw new AiError('enter the key first');
-    const headers = { Accept: 'application/json' };
-    if (provider === 'anthropic') { headers['x-api-key'] = useKey; headers['anthropic-version'] = '2023-06-01'; } else if (useKey) headers.Authorization = `Bearer ${useKey}`;
-    const root = base.replace(/\/chat\/completions$/, '');
-    const url = provider === 'anthropic' ? `${base}/v1/models?limit=100` : `${root}${/\/v1$/.test(root) ? '' : '/v1'}/models`;
-    let res;
-    try {
-      res = await fetch(url, { headers, signal: AbortSignal.timeout(15000), redirect: 'error' });
-    } catch {
-      throw new AiError(provider === 'compatible' ? 'that address could not be reached' : 'the service could not be reached', 502);
-    }
-    const raw = await res.text();
-    if (!res.ok) throw new AiError(res.status === 401 || res.status === 403 ? 'the service refused the key' : provider === 'compatible' && res.status === 404 ? 'that address did not list its models (check the address, or type the model name)' : 'the service could not list its models', 502);
-    if (raw.length > MAX_BODY) throw new AiError('the service answered too much', 502);
-    let json;
-    try { json = JSON.parse(raw); } catch { throw new AiError('the service answered something unreadable', 502); }
-    const rows = Array.isArray(json.data) ? json.data : Array.isArray(json.models) ? json.models : [];
-    let list = rows.filter((m) => m && typeof m.id === 'string').map((m) => ({ id: m.id.slice(0, 120), name: oneLine(m.display_name || m.id, 120), created: Number(m.created) || 0 }));
-    if (provider === 'openai') list = list.filter((m) => /^(gpt-|chatgpt-|o1|o3|o4)/.test(m.id) && !/(embed|tts|whisper|dall-e|moderation|transcribe|realtime|audio|image)/.test(m.id)).sort((a, b) => b.created - a.created);
-    else if (provider === 'compatible') list.sort((a, b) => a.id.localeCompare(b.id));
-    return list.slice(0, 200).map(({ id, name }) => ({ id, name }));
+    const useKey = (typeof key === 'string' && key.trim()) || this.config.key;
+    return listModelsFor({ provider, address: address || this.config.address, key: useKey }, this.hosts);
   }
 
   async complete(system, prompt) {
-    const c = this.config;
+    const c = this.effective();
     const isAnthropic = c.provider === 'anthropic';
     const base = c.provider === 'compatible' ? c.address : this.hosts[c.provider];
     const url = isAnthropic ? `${base}/v1/messages` : `${base}${/\/v1$|\/chat\/completions$/.test(base) ? (base.endsWith('/completions') ? '' : '/chat/completions') : '/v1/chat/completions'}`;
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    if (isAnthropic) { headers['x-api-key'] = this.key(); headers['anthropic-version'] = '2023-06-01'; }
-    else if (this.key()) headers.Authorization = `Bearer ${this.key()}`;
+    if (isAnthropic) { headers['x-api-key'] = c.key; headers['anthropic-version'] = '2023-06-01'; }
+    else if (c.key) headers.Authorization = `Bearer ${c.key}`;
     const body = isAnthropic
       ? { model: c.model, max_tokens: MAX_ANSWER_TOKENS, system, messages: [{ role: 'user', content: prompt }] }
       : { model: c.model, [c.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: MAX_ANSWER_TOKENS, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
@@ -366,4 +450,4 @@ function citedItems(text, count) {
   return [...used].sort((a, b) => a - b);
 }
 
-module.exports = { Ai, AiError, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_CARDS };
+module.exports = { Ai, AiError, applyAiFields, listModelsFor, PROVIDERS, HOSTS, buildPrompt, parseTags, parseCards, cleanCard, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_CARDS };

@@ -320,11 +320,14 @@ function cleanSettings(raw) {
       if (typeof r.pathEnds === 'string' && /^\.?[A-Za-z0-9]{1,12}$/.test(r.pathEnds)) def.pathEnds = r.pathEnds.startsWith('.') ? r.pathEnds : `.${r.pathEnds}`;
     } else if (type === 'file' || type === 'files') {
       // A file (or, for `files`, several: a table of what is there with a tick for each) the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
-      // server can choose one.
+      // server can choose one. `shared: "host"` makes the folder the host's, one for every environment, rather
+      // than each environment's own (documentation/plans/plan-tenants.md, "Shared files: the host's map") --
+      // only with a base domain; without one the declaration has no effect, since there is no separate host.
       if (def.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "server"`);
       const folder = r.folder === undefined ? 'files' : String(r.folder);
       if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder) || folder === 'versions') throw new ModuleError(`module.json: setting "${key}" folder must be lowercase letters, digits and dashes (not "versions")`);
       def.folder = folder;
+      if (r.shared === 'host') def.shared = 'host';
       def.default = type === 'files' ? [] : '';
     } else if (type === 'color') {
       def.default = typeof r.default === 'string' && COLOR_RE.test(r.default.trim()) ? r.default.trim().toLowerCase() : '#000000';

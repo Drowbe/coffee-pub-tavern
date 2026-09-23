@@ -22,7 +22,7 @@ const { RegionCutJobs, RegionCutError } = require('./region-cut');
 const { pmtilesZoomRange } = require('./pmtiles-header');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
-const { Ai, AiError } = require('./ai');
+const { Ai, AiError, listModelsFor } = require('./ai');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -52,6 +52,11 @@ const {
   HOST_ADMIN_PASSWORD = '',
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
+  AI_PROVIDER = '', // seeds the host's managed AI service (documentation/plans/plan-tenants.md, "Managed AI")
+  AI_ADDRESS = '',
+  AI_MODEL = '',
+  AI_KEY = '',
+  TAVERN_AI_KEY = '', // deprecated: use AI_KEY (used to be an environment's own key; it is the host's now)
 } = process.env;
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
@@ -59,6 +64,7 @@ const {
 const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
 const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
+const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 
 const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
 
@@ -135,6 +141,11 @@ if (hostRegistry) {
   hostRegistry.setBaseDomain(BASE_DOMAIN);
   hostRegistry.setPreviousBaseDomains(PREVIOUS_BASE_DOMAINS);
 }
+// The host's own region-cut jobs, over its shared folders (documentation/plans/plan-tenants.md, "Shared files:
+// the host's map") -- lands a cut in DATA_DIR/shared/<module id>/<folder>/ (`under: ''`, no per-environment
+// "modules" segment), never DATA_DIR/shared/modules/... An environment's own regionCutJobs (per environment,
+// built in buildEnvironment) is untouched; this is the host's own, only reachable from hostRouter.
+const sharedRegionCutJobs = BASE_DOMAIN ? new RegionCutJobs(path.join(DATA_DIR, 'shared'), undefined, { under: '' }) : null;
 
 // First start with BASE_DOMAIN set and data still at DATA_DIR's own root (a pre-tenant install -- its settings
 // file is app.json now, or still tavern.json if it has not been started since that rename): refuses to start
@@ -159,6 +170,43 @@ function migrateIfNeeded() {
 }
 migrateIfNeeded();
 
+// On a first start with BASE_DOMAIN where a shared folder (documentation/plans/plan-tenants.md, "Shared files:
+// the host's map") does not exist yet: if exactly one environment has files in its own, pre-shared folder for
+// it, those files move to the shared one, so that environment's map keeps working without anyone copying
+// anything by hand; more than one, or none, and the folder is simply left to start empty (an admin adds files
+// or cuts a region from the host console). Runs once, here, before any environment is built against the new
+// shared location.
+function migrateSharedFolders() {
+  if (!BASE_DOMAIN) return;
+  const envDataDirs = hostRegistry.listTenants().map((t) => path.join(DATA_DIR, 'tenants', t.slug));
+  for (const { module: moduleId, folder } of bundledSharedFolders()) {
+    const sharedDir = path.resolve(DATA_DIR, 'shared', moduleId, folder);
+    if (fs.existsSync(sharedDir)) continue;
+    const withFiles = envDataDirs.filter((d) => {
+      try { return fs.readdirSync(path.join(d, 'modules', moduleId, folder)).length > 0; } catch { return false; }
+    });
+    if (withFiles.length === 1) {
+      fs.mkdirSync(path.dirname(sharedDir), { recursive: true });
+      fs.renameSync(path.join(withFiles[0], 'modules', moduleId, folder), sharedDir);
+      console.log(`Moved "${moduleId}"'s "${folder}" files to the shared folder (from ${withFiles[0]}).`);
+    }
+  }
+}
+migrateSharedFolders();
+
+// The host's managed AI service, as an Ai instance reads it: real values, including the key, never a view (see
+// GET /api/host/ai for that). Backed by the host registry (an admin's own to set, persisted) when there is
+// one; the AI_* environment variables directly otherwise, read fresh every call -- the only way to offer one
+// on a single-environment install, which has no host console to set one on. AI_KEY always wins for the key
+// specifically, live, even once a provider is saved (the same "an env var overrides the saved value" pattern
+// the key itself used to follow at the environment level, before it moved here).
+function managedAi() {
+  const saved = hostRegistry ? hostRegistry.managedAi : { provider: AI_PROVIDER, address: AI_ADDRESS, model: AI_MODEL, key: '' };
+  const provider = hostRegistry ? saved.provider : (['openai', 'anthropic', 'compatible'].includes(AI_PROVIDER) ? AI_PROVIDER : 'none');
+  if (provider === 'none') return null;
+  return { provider, address: saved.address, model: saved.model, key: aiKeyFromEnv || saved.key };
+}
+
 // Build (or fetch the already-built) environment for a slug, from its own data directory. Only ever called for
 // a slug the caller already knows is real (the default, or one host.json names) -- the resolver 404s before this.
 function environmentFor(slug) {
@@ -169,6 +217,7 @@ function environmentFor(slug) {
   env = buildEnvironment(dataDir, {
     slug: slug || null,
     admin: slug ? null : { login: adminUser, password: adminPassword || adminKey },
+    managed: managedAi,
   });
   // An environment's own name is its server name (the author's call). Still on the shipped sentinel default --
   // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
@@ -178,6 +227,11 @@ function environmentFor(slug) {
     env.store.updateSettings({ serverName: slug ? (hostRegistry.findTenant(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
   }
   environments.set(key, env);
+  // An environment that just migrated its own old custom AI setting to "managed" (see Ai's constructor) gives
+  // the host's managed service a starting point, once, if the host has nothing saved yet -- so what worked
+  // through the old per-environment AI_KEY keeps working through the host's now instead.
+  const aiSeed = env.ai.migrationSeed();
+  if (aiSeed && hostRegistry && hostRegistry.managedAi.provider === 'none') hostRegistry.seedManagedAi(aiSeed);
   // Fire-and-forget: install() reads a zip asynchronously (yauzl), and environmentFor must stay synchronous --
   // every caller, including the resolver middleware, expects an environment back at once. A few milliseconds'
   // delay before an auto-installed module is actually usable is fine today, since nothing yet depends on it
@@ -702,6 +756,174 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
 
 hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
   res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null });
+});
+
+// The host's own managed AI service (documentation/plans/plan-tenants.md, "Managed AI"), above every
+// environment: an environment chooses "managed" (this) or "custom" (its own, see PUT /api/ai). The key never
+// leaves the server, same as an environment's own never does.
+hostRouter.get('/api/host/ai', requireHostAdmin, (_req, res) => {
+  const m = hostRegistry.managedAi;
+  res.json({ ai: { provider: m.provider, address: m.address, model: m.model, keySet: !!(aiKeyFromEnv || m.key), keyFromEnvironment: !!aiKeyFromEnv } });
+});
+hostRouter.put('/api/host/ai', requireHostAdmin, (req, res) => {
+  try {
+    const m = hostRegistry.setManagedAi(req.body || {});
+    res.json({ ai: { provider: m.provider, address: m.address, model: m.model, keySet: !!(aiKeyFromEnv || m.key), keyFromEnvironment: !!aiKeyFromEnv } });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
+hostRouter.post('/api/host/ai/models', requireHostAdmin, async (req, res) => {
+  try {
+    const current = hostRegistry.managedAi;
+    const key = (typeof req.body?.key === 'string' && req.body.key.trim()) || aiKeyFromEnv || current.key;
+    res.json({ models: await listModelsFor({ provider: String(req.body?.provider || ''), address: req.body?.address ?? current.address, key }) });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
+
+// The host's own shared file folders (documentation/plans/plan-tenants.md, "Shared files: the host's map"):
+// every bundled module that declares one (Maps' map-tiles), whether or not it happens to be installed anywhere
+// yet -- an admin manages the folder from here regardless. { module, name, folder, key } each.
+function bundledSharedFolders() {
+  const out = [];
+  for (const m of bundledModules(BUNDLED_DIR)) {
+    for (const d of m.settings || []) if ((d.type === 'file' || d.type === 'files') && d.shared === 'host') out.push({ module: m.id, name: m.name, folder: d.folder, key: d.key });
+  }
+  return out;
+}
+// One of those, from the request's own :module/:folder, or null (sending the 404 itself) when it names
+// nothing real.
+function sharedFolderSetup(req, res) {
+  const found = bundledSharedFolders().find((f) => f.module === req.params.module && f.folder === req.params.folder);
+  if (!found) { res.status(404).json({ error: 'no such shared folder' }); return null; }
+  return found;
+}
+hostRouter.get('/api/host/shared', requireHostAdmin, (_req, res) => {
+  const folders = bundledSharedFolders().map(({ module, name, folder }) => {
+    const dir = path.resolve(DATA_DIR, 'shared', module, folder);
+    const inspected = inspectDir(dir);
+    return {
+      module,
+      name,
+      folder,
+      files: inspected.files.map((f) => ({ name: f, size: inspected.sizes[f], ...(inspected.zooms[f] ? { zoom: inspected.zooms[f] } : {}) })),
+      address: hostRegistry.sharedFolderAddress(module, folder),
+      exists: inspected.exists,
+      cutting: Boolean(sharedRegionCutJobs.runningFor(module, 'server')),
+    };
+  });
+  res.json({ folders });
+});
+hostRouter.put('/api/host/shared/:module/:folder', requireHostAdmin, (req, res) => {
+  const found = sharedFolderSetup(req, res);
+  if (!found) return;
+  try {
+    res.json({ address: hostRegistry.setSharedFolderAddress(found.module, found.folder, req.body?.address).address });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+hostRouter.delete('/api/host/shared/:module/:folder/files/:name', requireHostAdmin, (req, res) => {
+  const found = sharedFolderSetup(req, res);
+  if (!found) return;
+  const name = req.params.name;
+  if (!FILE_NAME_RE.test(name)) return res.status(404).json({ error: 'no such file' });
+  const file = path.join(path.resolve(DATA_DIR, 'shared', found.module, found.folder), name);
+  if (!inspectDir(path.dirname(file)).files.includes(name)) return res.status(404).json({ error: 'no such file' });
+  try {
+    fs.unlinkSync(file);
+  } catch (err) {
+    return res.status(500).json({ error: `the file could not be removed: ${err.message}` });
+  }
+  res.json({ ok: true });
+});
+
+// The place search a host-level "Add a region" find needs, since the host holds no geocoder of its own: the
+// first enabled module across every environment that has one configured (Places, typically), each checked
+// inside its own envContext.run so moduleSettings and modules resolve to that one environment, the same as a
+// request to it would -- admin.<base> never otherwise resolves one.
+async function findRegionBoxAcrossEnvironments(q) {
+  // Every real tenant, never DEFAULT_SLUG -- this route only ever runs with BASE_DOMAIN set, where the default
+  // (root DATA_DIR) environment is not a real one anybody uses, so building it just to find it has no geocoder
+  // configured would be pure waste.
+  const slugs = hostRegistry.listTenants().map((t) => t.slug);
+  for (const slug of slugs) {
+    const env = environmentFor(slug);
+    const setup = envContext.run(env, () => {
+      for (const { manifest } of env.modules.enabledAll()) {
+        if (manifest.geocoder) { const s = geocodeSetup(manifest); if (s) return s; }
+      }
+      return null;
+    });
+    if (setup) {
+      const found = await askService(setup.address, q, null);
+      const best = found.find((p) => p.extent);
+      return best ? { name: best.name, box: best.extent } : { name: null, box: null };
+    }
+  }
+  return null;
+}
+hostRouter.get('/api/host/shared/:module/:folder/region-cut/find', requireHostAdmin, async (req, res) => {
+  if (!sharedFolderSetup(req, res)) return;
+  const q = String(req.query.q || '').trim().slice(0, 200);
+  if (q.length < 2) return res.status(400).json({ error: 'type a place name first' });
+  try {
+    const found = await findRegionBoxAcrossEnvironments(q);
+    if (found === null) return res.status(404).json({ error: 'no place search is set up on any environment (a module with one, such as Places, names where to look)' });
+    res.json(found.box ? { found: true, name: found.name, box: found.box } : { found: false });
+  } catch (err) {
+    res.status(502).json({ error: 'search is not available right now' });
+  }
+});
+hostRouter.post('/api/host/shared/:module/:folder/region-cut/estimate', requireHostAdmin, async (req, res) => {
+  const found = sharedFolderSetup(req, res);
+  if (!found) return;
+  try {
+    res.json(await sharedRegionCutJobs.estimate({ source: hostRegistry.sharedFolderAddress(found.module, found.folder), box: boxFromBody(req.body), maxZoom: Number(req.body?.maxZoom), minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined }));
+  } catch (err) {
+    sendRegionCutError(err, res);
+  }
+});
+hostRouter.post('/api/host/shared/:module/:folder/region-cut', requireHostAdmin, async (req, res) => {
+  const found = sharedFolderSetup(req, res);
+  if (!found) return;
+  try {
+    const out = await sharedRegionCutJobs.start({
+      moduleId: found.module,
+      scopeKey: 'server',
+      source: hostRegistry.sharedFolderAddress(found.module, found.folder),
+      folder: found.folder,
+      name: String(req.body?.name || ''),
+      box: boxFromBody(req.body),
+      minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined,
+      maxZoom: Number(req.body?.maxZoom),
+      by: currentHostAdmin(req)?.key,
+    });
+    res.status(202).json(out);
+  } catch (err) {
+    sendRegionCutError(err, res);
+  }
+});
+hostRouter.get('/api/host/shared/:module/:folder/region-cut/:jobId/stream', requireHostAdmin, (req, res) => {
+  const job = sharedRegionCutJobs.view(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'that cut is not running (it may have finished a while ago)' });
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  if (job.status !== 'running') {
+    res.write(`event: ${job.status}\ndata: ${JSON.stringify(job.status === 'done' ? { name: job.name } : { error: job.error })}\n\n`);
+    return res.end();
+  }
+  const { jobId } = req.params;
+  const cleanup = () => { sharedRegionCutJobs.off('progress', onProgress); sharedRegionCutJobs.off('done', onDone); sharedRegionCutJobs.off('error', onErr); };
+  const onProgress = (id, p) => { if (id === jobId) res.write(`event: progress\ndata: ${JSON.stringify(p)}\n\n`); };
+  const onDone = (id, d) => { if (id !== jobId) return; res.write(`event: done\ndata: ${JSON.stringify(d)}\n\n`); cleanup(); res.end(); };
+  const onErr = (id, error) => { if (id !== jobId) return; res.write(`event: error\ndata: ${JSON.stringify({ error })}\n\n`); cleanup(); res.end(); };
+  sharedRegionCutJobs.on('progress', onProgress);
+  sharedRegionCutJobs.on('done', onDone);
+  sharedRegionCutJobs.on('error', onErr);
+  req.on('close', cleanup); // host-level: no environment to hand back to a later callback, unlike the SSE routes under the seam
 });
 hostRouter.post('/api/host/admins', requireHostAdmin, (req, res) => {
   try {
@@ -2640,6 +2862,10 @@ function regionSourceOf(manifest) {
 function regionCutSetup(req, res) {
   const found = modules.enabled(req.params.id);
   if (!found) { res.status(404).json({ error: 'no such module' }); return null; }
+  if (found.manifest.regionSource && folderIsShared(found.manifest, found.manifest.regionSource.folder)) {
+    res.status(403).json({ error: 'managed by the host' });
+    return null;
+  }
   const setup = regionSourceOf(found.manifest);
   if (!setup) { res.status(404).json({ error: 'this module has no world file set up to cut from' }); return null; }
   return { manifest: found.manifest, setup };
@@ -2740,16 +2966,37 @@ function sendSettingError(err, res) {
 
 // --- files an admin placed for a module ---------------------------------------------------------------------
 // Some modules need a large file that cannot be uploaded through a page (a map's tile archive, gigabytes): the operator
-// copies it into the folder the module's `file` setting names inside its own folder (DATA_DIR/modules/<module id>/<folder>/), the admin picks it in the module's settings, and the module reads
-// it here, by range, like any static file. Nothing else in that folder is reachable, and only by name.
-// Where a module's files live: a folder of its own inside its folder in the data folder, named by the `file` setting's `folder`
-// in its manifest (DATA_DIR/modules/<id>/<folder>/). Uninstalling and updating never touch it.
-const moduleFilesDir = (id, folder) => path.resolve(DATA_DIR, 'modules', id, folder);
+// copies it into the folder the module's `file` setting names inside its own folder, the admin picks it in the
+// module's settings, and the module reads it here, by range, like any static file. Nothing else in that folder
+// is reachable, and only by name. Uninstalling and updating never touch it.
+//
+// A folder declared `shared: "host"` (documentation/plans/plan-tenants.md, "Shared files: the host's map") is
+// the host's, one for every environment, rather than each environment's own -- but only with a base domain;
+// without one there is no separate host, so the declaration has no effect and an environment keeps its files
+// and region cutting exactly as it always has.
+function folderIsShared(manifest, folder) {
+  return Boolean(BASE_DOMAIN) && (manifest.settings || []).some((d) => (d.type === 'file' || d.type === 'files') && d.folder === folder && d.shared === 'host');
+}
+// Whether one specific setting is shared right now: a shared files/file setting itself, or the url setting
+// that is its regionSource's own address (a shared folder's world file is the host's to set, not the
+// environment's).
+function settingIsShared(manifest, def) {
+  if (def.type === 'file' || def.type === 'files') return folderIsShared(manifest, def.folder);
+  return Boolean(manifest.regionSource && def.key === manifest.regionSource.address && folderIsShared(manifest, manifest.regionSource.folder));
+}
+// Where a module's file-setting folder actually lives: the host's own (DATA_DIR/shared/<id>/<folder>/) for one
+// shared right now; this environment's own otherwise (its own dataDir/modules/<id>/<folder>/ -- with no
+// BASE_DOMAIN that is DATA_DIR itself, exactly where files have always lived).
+function filesDirFor(manifest, folder) {
+  if (folderIsShared(manifest, folder)) return path.resolve(DATA_DIR, 'shared', manifest.id, folder);
+  return path.resolve(currentEnvironment().dataDir, 'modules', manifest.id, folder);
+}
 const FILE_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
-// What is in a module's folder: the usable files, and each thing skipped with the reason, so an admin whose file does not
-// show up is told why. A link to a file (a NAS shortcut) counts as the file.
-function inspectModuleFiles(id, sub) {
-  const folder = moduleFilesDir(id, sub);
+// What is in a folder: the usable files, and each thing skipped with the reason, so an admin whose file does not
+// show up is told why. A link to a file (a NAS shortcut) counts as the file. The lower-level scan, so the
+// host's own listing of a shared folder (GET /api/host/shared, no manifest or environment in view) can use it
+// the same way inspectModuleFiles does.
+function inspectDir(folder) {
   const out = { folder, exists: false, files: [], sizes: {}, zooms: {}, skipped: [] };
   let names;
   try {
@@ -2778,16 +3025,17 @@ function inspectModuleFiles(id, sub) {
   }
   return out;
 }
-const listModuleFiles = (id, sub) => inspectModuleFiles(id, sub).files;
+const inspectModuleFiles = (manifest, sub) => inspectDir(filesDirFor(manifest, sub));
+const listModuleFiles = (manifest, sub) => inspectModuleFiles(manifest, sub).files;
 // The path of a file a module's file settings can name, or null.
 const moduleFilePath = (manifest, name) => {
   if (!FILE_NAME_RE.test(name)) return null;
-  for (const d of manifest.settings || []) if ((d.type === 'file' || d.type === 'files') && listModuleFiles(manifest.id, d.folder).includes(name)) return path.join(moduleFilesDir(manifest.id, d.folder), name);
+  for (const d of manifest.settings || []) if ((d.type === 'file' || d.type === 'files') && listModuleFiles(manifest, d.folder).includes(name)) return path.join(filesDirFor(manifest, d.folder), name);
   return null;
 };
 // The same, in words, for the log and for the picker.
-function describeModuleFiles(id, sub) {
-  const f = inspectModuleFiles(id, sub);
+function describeModuleFiles(manifest, sub) {
+  const f = inspectModuleFiles(manifest, sub);
   if (!f.exists) return `${f.folder} does not exist yet`;
   const skipped = f.skipped.map((s) => `${s.name} (${s.reason})`).join('; ');
   return `${f.folder} has ${f.files.length} usable file${f.files.length === 1 ? '' : 's'}${f.files.length ? ': ' + f.files.join(', ') : ''}${f.skipped.length ? `; ignored ${f.skipped.length}: ${skipped}` : ''}`;
@@ -2809,6 +3057,9 @@ app.delete('/api/modules/:id/files/:name', requireAdmin, (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found) return res.status(404).json({ error: 'no such module' });
   const name = req.params.name;
+  const def = (found.manifest.settings || []).find((d) => (d.type === 'file' || d.type === 'files') && listModuleFiles(found.manifest, d.folder).includes(name));
+  if (!def) return res.status(404).json({ error: 'no such file' });
+  if (settingIsShared(found.manifest, def)) return res.status(403).json({ error: 'managed by the host' });
   const file = moduleFilePath(found.manifest, name);
   if (!file) return res.status(404).json({ error: 'no such file' });
   try {
@@ -2832,7 +3083,16 @@ app.delete('/api/modules/:id/files/:name', requireAdmin, (req, res) => {
 app.get('/api/modules/:id/settings/values', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
   if (!ctx) return;
-  res.json({ values: moduleSettings.effective(ctx.manifest, { roomId: ctx.roomId, userKey: ctx.who.user?.key || null }) });
+  const values = moduleSettings.effective(ctx.manifest, { roomId: ctx.roomId, userKey: ctx.who.user?.key || null });
+  // A shared setting's real value is the host's, not whatever this environment's own (unused) copy holds --
+  // every file in the shared folder (nothing to tick), or the host's own saved region source address.
+  for (const d of ctx.manifest.settings || []) {
+    if (!settingIsShared(ctx.manifest, d)) continue;
+    if (d.type === 'files') values[d.key] = listModuleFiles(ctx.manifest, d.folder);
+    else if (d.type === 'file') values[d.key] = listModuleFiles(ctx.manifest, d.folder)[0] || '';
+    else values[d.key] = hostRegistry.sharedFolderAddress(ctx.manifest.id, ctx.manifest.regionSource.folder);
+  }
+  res.json({ values });
 });
 
 // Who may change the settings of a scope, and where they are kept; sends the error itself and returns null when not.
@@ -2855,7 +3115,12 @@ function settingsPlace(req, res, scope) {
 }
 const withValues = (manifest, scope, ctx) => {
   const values = moduleSettings.values(manifest, scope, ctx);
-  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({ ...d, value: values[d.key], ...(d.type === 'file' || d.type === 'files' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest.id, d.folder)) : {}) }));
+  return manifest.settings.filter((d) => d.scope === scope).map((d) => ({
+    ...d,
+    value: values[d.key],
+    ...(settingIsShared(manifest, d) ? { shared: true } : {}),
+    ...(d.type === 'file' || d.type === 'files' ? (({ files, ...rest }) => ({ available: files, ...rest }))(inspectModuleFiles(manifest, d.folder)) : {}),
+  }));
 };
 
 // The modules that have settings of a scope here, each with its settings and their values.
@@ -2874,12 +3139,17 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found) return res.status(404).json({ error: 'no such module' });
   try {
-    for (const [key, v] of Object.entries(req.body?.values || {})) {
+    // A shared setting (its files, or the world address that cuts into them) is the host's while there is
+    // one; ignored here rather than refusing the whole save, so a page saving several settings together still
+    // saves the ones that are its own.
+    const values = { ...(req.body?.values || {}) };
+    for (const d of found.manifest.settings) if (settingIsShared(found.manifest, d)) delete values[d.key];
+    for (const [key, v] of Object.entries(values)) {
       const def = found.manifest.settings.find((d) => d.key === key);
-      if (def && def.type === 'files' && Array.isArray(v)) { const have = listModuleFiles(found.manifest.id, def.folder); const gone = v.find((n) => !have.includes(n)); if (gone) throw new SettingError(`${def.label}: there is no file called ${gone} for this module`); }
-      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest.id, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
+      if (def && def.type === 'files' && Array.isArray(v)) { const have = listModuleFiles(found.manifest, def.folder); const gone = v.find((n) => !have.includes(n)); if (gone) throw new SettingError(`${def.label}: there is no file called ${gone} for this module`); }
+      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
     }
-    moduleSettings.set(found.manifest, req.params.scope, place.ctx, req.body?.values, place.user.key);
+    moduleSettings.set(found.manifest, req.params.scope, place.ctx, values, place.user.key);
     res.json({ settings: withValues(found.manifest, req.params.scope, place.ctx) });
   } catch (err) {
     sendSettingError(err, res);
@@ -3299,7 +3569,7 @@ app.listen(Number(PORT), () => {
     envContext.run(environmentFor(DEFAULT_SLUG), () => {
       console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
       // A module that takes a file the operator supplies: say where it looks and what it found, once.
-      for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
+      for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m, d.folder)}`);
       if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
     });
     return;

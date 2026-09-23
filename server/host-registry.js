@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { cleanText, cleanLogin, randomToken } = require('./store');
+const { applyAiFields, PROVIDERS: AI_PROVIDERS } = require('./ai');
 
 class HostError extends Error {
   constructor(message, status = 400) {
@@ -47,6 +48,36 @@ function cleanPlan(raw, fallback) {
   const cap = (n, was) => (n === null ? null : Number.isFinite(n) && n >= 0 ? Math.round(n) : was);
   const base = fallback || defaultPlan();
   return { modules, members: cap(raw.members, base.members), storageBytes: cap(raw.storageBytes, base.storageBytes), aiCallsPerMonth: cap(raw.aiCallsPerMonth, base.aiCallsPerMonth), calls: cap(raw.calls, base.calls) };
+}
+
+// The host's managed AI service (documentation/plans/plan-tenants.md, "Managed AI"): a plain shape, not
+// validated the way a PUT is (applyAiFields, used by setManagedAi) -- corrupt or old data just falls back to
+// "none" here, the same lenient way cleanTenantRecord reads a tenant.
+function cleanHostAi(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  return {
+    provider: AI_PROVIDERS.includes(r.provider) ? r.provider : 'none',
+    address: typeof r.address === 'string' ? r.address : '',
+    model: typeof r.model === 'string' ? r.model : '',
+    key: typeof r.key === 'string' ? r.key : '',
+  };
+}
+
+// A shared file folder's own settings (documentation/plans/plan-tenants.md, "Shared files: the host's map"):
+// today just the region source's address (a module's `worldSource`, e.g.) -- the files themselves live on
+// disk (DATA_DIR/shared/<module>/<folder>/), never in host.json. Lenient, like cleanHostAi: bad data just
+// drops that one folder rather than crashing the registry.
+function cleanSharedFolders(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [moduleId, folders] of Object.entries(raw)) {
+    if (!/^[a-z][a-z0-9-]{1,31}$/.test(moduleId) || !folders || typeof folders !== 'object') continue;
+    for (const [folder, f] of Object.entries(folders)) {
+      if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder)) continue;
+      (out[moduleId] ||= {})[folder] = { address: typeof f?.address === 'string' ? f.address : '' };
+    }
+  }
+  return out;
 }
 
 function cleanTenantRecord(raw) {
@@ -92,6 +123,8 @@ class HostRegistry {
       secrets: { session: raw.secrets?.session || randomToken(32) },
       hostAdmins: Array.isArray(raw.hostAdmins) ? raw.hostAdmins.filter((a) => a && typeof a.key === 'string' && typeof a.login === 'string' && typeof a.passwordHash === 'string') : [],
       tenants: Array.isArray(raw.tenants) ? raw.tenants.map(cleanTenantRecord).filter(Boolean) : [],
+      ai: cleanHostAi(raw.ai),
+      shared: cleanSharedFolders(raw.shared),
     };
   }
 
@@ -118,6 +151,49 @@ class HostRegistry {
 
   get sessionSecret() {
     return this.data.secrets.session;
+  }
+
+  // ai ----------------------------------------------------------------------------------------------------
+  // The host's own managed AI service, above every environment: real values (including the key), for building
+  // an Ai instance's `managed()` callback (server/index.js) and for an environment's own listing/answering
+  // calls. Never returned from a route as-is -- GET /api/host/ai answers keySet/keyFromEnvironment instead.
+  get managedAi() {
+    return { ...this.data.ai };
+  }
+
+  setManagedAi(patch) {
+    this.data.ai = applyAiFields(this.data.ai, patch);
+    this.save();
+    return this.managedAi;
+  }
+
+  // Used only by index.js's migration seeding: an environment's old provider/address/model, worked only
+  // through the old per-environment AI_KEY, becomes the host's starting point -- with no key of its own, since
+  // that env var is this host's own live override now (managedAi in index.js), not something to demand here.
+  // Never overwrites something already saved (the caller checks too, but a second migrating environment in the
+  // same start should not win a race against the first).
+  seedManagedAi({ provider, address, model }) {
+    if (this.data.ai.provider !== 'none') return;
+    this.data.ai = cleanHostAi({ provider, address, model, key: '' });
+    this.save();
+  }
+
+  // shared files -------------------------------------------------------------------------------------------
+  sharedFolderAddress(moduleId, folder) {
+    return this.data.shared[moduleId]?.[folder]?.address || '';
+  }
+
+  setSharedFolderAddress(moduleId, folder, address) {
+    const a = String(address || '').trim();
+    if (a) {
+      let u;
+      try { u = new URL(a); } catch { throw new HostError('that address is not valid'); }
+      if (u.protocol !== 'https:' || u.username || u.password) throw new HostError('the address must be https, without a user name or password');
+      if (!/\.pmtiles$/i.test(u.pathname)) throw new HostError('the address must be the address of a .pmtiles file');
+    }
+    (this.data.shared[moduleId] ||= {})[folder] = { address: a };
+    this.save();
+    return this.data.shared[moduleId][folder];
   }
 
   // tenants -------------------------------------------------------------------------------------------------

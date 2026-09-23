@@ -77,13 +77,17 @@ function reason(output) {
 }
 
 class RegionCutJobs extends EventEmitter {
-  // `dataDir`: DATA_DIR, so a cut lands in DATA_DIR/modules/<module id>/<folder>/, the same place the admin's own file
-  // uploads live. `bin`: the pmtiles executable to run (its own PATH entry by default; a check overrides this to run the
-  // parsing against fixed sample output instead of a real binary).
-  constructor(dataDir, bin = 'pmtiles') {
+  // `dataDir`: an environment's own, so a cut lands in <dataDir>/modules/<module id>/<folder>/, the same place
+  // the admin's own file uploads live -- or, for the host's own instance over a shared folder (index.js, "Shared
+  // files: the host's map"), `under: ''` so it lands in <dataDir>/<module id>/<folder>/ instead (`dataDir` then
+  // being DATA_DIR/shared, with no per-environment "modules" segment to land in). `bin`: the pmtiles executable
+  // to run (its own PATH entry by default; a check overrides this to run the parsing against fixed sample
+  // output instead of a real binary).
+  constructor(dataDir, bin = 'pmtiles', { under = 'modules' } = {}) {
     super();
     this.setMaxListeners(0);
     this.dir = dataDir;
+    this.under = under;
     this.bin = bin;
     this.jobs = new Map(); // id -> job
   }
@@ -163,7 +167,7 @@ class RegionCutJobs extends EventEmitter {
     if (!validBox(box)) throw new RegionCutError('that is not a sensible area');
     if (!Number.isInteger(maxZoom) || maxZoom < 0 || maxZoom > MAX_ZOOM) throw new RegionCutError(`the zoom must be 0 to ${MAX_ZOOM}`);
     if (minZoom !== undefined && (!Number.isInteger(minZoom) || minZoom < 0 || minZoom > maxZoom)) throw new RegionCutError('the minimum zoom must be 0 or more, and no higher than the maximum');
-    const destDir = path.resolve(this.dir, 'modules', moduleId, folder);
+    const destDir = path.resolve(this.dir, this.under, moduleId, folder);
     const dest = path.join(destDir, name);
     if (fs.existsSync(dest)) throw new RegionCutError(`${name} already exists here; choose a different name, or remove it first`);
     const id = crypto.randomBytes(8).toString('hex');

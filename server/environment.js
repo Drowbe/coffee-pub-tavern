@@ -48,7 +48,12 @@ function moduleCan(manifest, perms, need) {
 // all -- makes a random one the first time there is no admin yet). This only ever runs for the default
 // environment; a tenant's first admin comes from the host API's own tenant-creation flow instead (its password
 // is that owner's own choice, not a value every tenant would otherwise share).
-function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log } = {}) {
+//
+// `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
+// AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
+// registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
+// need it.
+function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null } = {}) {
   const store = new Store(dataDir);
   const modules = new ModuleManager(dataDir);
   const moduleData = new ModuleData(modules.dir);
@@ -107,7 +112,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   const moduleBus = new ModuleBus(modules.dir);
   const moduleSettings = new ModuleSettings(modules.dir);
 
-  const ai = new Ai(dataDir);
+  const ai = new Ai(dataDir, process.env, undefined, managed);
   modules.aiReady = () => ai.ready(); // a module declaring hooks.ai depends on the AI service the way one module depends on another
 
   const moduleUploads = new ModuleUploads(modules.dir);
