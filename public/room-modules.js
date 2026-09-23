@@ -547,7 +547,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       x: win.innerWidth - m.panel.width - 24 - index * 28,
       y: 70 + index * 28,
     });
-    if (snapping(m.id)) settleSnap(m.id, panel, saved[m.id].cell);
+    if (snapping(m.id)) settleSnap(m.id, panel, saved[m.id]?.cell);
     front(panel);
     const pane = { id: m.id, kind: 'module', mode: 'float', m, el: panel, modes: m.panel.mode, order: ++order, parts: () => [] };
     if (reuse) {
@@ -672,7 +672,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       el.hidden = false;
       const size = def.floatSize || { w: 340, h: 480 };
       place(panel, saved[def.id]?.box || { ...size, x: Math.max(8, stageWin().innerWidth - size.w - 24), y: 70 });
-      if (snapping(def.id)) settleSnap(def.id, panel, saved[def.id].cell);
+      if (snapping(def.id)) settleSnap(def.id, panel, saved[def.id]?.cell);
       front(panel);
       pane.floatEl = panel;
       wireFloating(def.id, panel, el.querySelector('header'), grip);
@@ -1035,7 +1035,7 @@ export function createRoomModules({ guestToken = null } = {}) {
         const panel = floatPanel(p);
         if (!panel || panel.ownerDocument !== doc) continue;
         // A snapped pane keeps its cells in the grid the new size makes; a free one just stays on screen.
-        if (snapping(p.id)) settleSnap(p.id, panel, saved[p.id].cell); else place(panel, currentBox(panel));
+        if (snapping(p.id)) settleSnap(p.id, panel, saved[p.id]?.cell); else place(panel, currentBox(panel));
       }
       syncDock();
       if (menu && !inline() && !menu.hidden) positionMenu();
