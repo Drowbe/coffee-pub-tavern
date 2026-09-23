@@ -4,7 +4,7 @@
 // back into the frame. Used by the server-page shell (module.js) and by the
 // room's floating panels (room.js).
 
-import { api } from '/brand.js';
+import { api, accessKeyHeaders } from '/brand.js';
 
 // The design tokens a module's frame receives (see design-theme.md).
 const THEME_TOKENS = [
@@ -56,6 +56,159 @@ function joinStream(room, guest, onEvent) {
       s.source.close();
       streams.delete(key);
     }
+  };
+}
+
+// --- watching one person's media (host.media.watch) ----------------------------------------------
+// A read-only viewer connection to the room the person is in, following them as they move (`follow`),
+// that never publishes. The module gets the elements to place (`handlers.video`, `handlers.audio`),
+// the person's state (`handlers.state`: online, cameraOn, micOn, speaking, name) and their reactions
+// (`handlers.reaction`). The client library is loaded the first time anyone watches.
+let livekit = null;
+async function watchMedia({ key, audio = false, video = true, room: startRoom = 'lobby', handlers = {} }) {
+  if (typeof key !== 'string' || !key) throw Object.assign(new Error('media.watch needs the person\'s key'), { status: 400 });
+  if (!livekit) livekit = await import('/lib/livekit-client.esm.mjs');
+  const { Room, RoomEvent, Track } = livekit;
+  const call = (name, ...args) => { try { if (typeof handlers[name] === 'function') handlers[name](...args); } catch (err) { console.error(err); } };
+  const room = new Room({ adaptiveStream: false });
+  // Everything for a video box; a box that only needs "are they talking" subscribes to the microphone
+  // alone once the person is found (LiveKit reports who is talking over the subscriber link).
+  const autoSubscribe = video || audio;
+  let participant = null;
+  let speaking = false;
+  let wantedRoom = typeof startRoom === 'string' && startRoom ? startRoom : 'lobby';
+  let connectedRoom = null;
+  let following = false; // this disconnect is ours (follow), so reconnect at once, not after the usual pause
+  let stopped = false;
+  let videoEl = null;
+  let audioEl = null;
+  // One retry at a time: a failed connect is reported both by its own rejection and by a Disconnected event,
+  // and two timers per failure would double the attempts every round.
+  let retry = null;
+  const connectLater = (ms) => {
+    if (stopped) return;
+    clearTimeout(retry);
+    retry = setTimeout(connect, ms);
+  };
+
+  const state = () => {
+    const cam = participant && participant.getTrackPublication(Track.Source.Camera);
+    const mic = participant && participant.getTrackPublication(Track.Source.Microphone);
+    call('state', {
+      online: Boolean(participant),
+      cameraOn: Boolean(cam && !cam.isMuted && cam.track),
+      micOn: Boolean(mic && !mic.isMuted),
+      speaking: Boolean(participant) && speaking,
+      name: participant ? participant.name || null : null,
+    });
+  };
+  const subscribeMic = (p) => {
+    if (autoSubscribe) return;
+    for (const pub of p.trackPublications.values()) if (pub.kind === Track.Kind.Audio && !pub.isSubscribed) pub.setSubscribed(true);
+  };
+  const adopt = (p) => {
+    if (p.identity !== key) return;
+    participant = p;
+    subscribeMic(p);
+    state();
+  };
+  const dropMedia = () => {
+    if (videoEl) { videoEl.remove(); videoEl = null; call('video', null); }
+    if (audioEl) { audioEl.remove(); audioEl = null; call('audio', null); }
+  };
+  const drop = (p) => {
+    if (p.identity !== key) return;
+    participant = null;
+    dropMedia();
+    state();
+  };
+  room
+    .on(RoomEvent.ParticipantConnected, adopt)
+    .on(RoomEvent.ParticipantDisconnected, drop)
+    .on(RoomEvent.TrackPublished, (_pub, p) => adopt(p))
+    .on(RoomEvent.TrackSubscribed, (track, _pub, p) => {
+      if (p.identity !== key) return;
+      participant = p;
+      if (track.kind === Track.Kind.Video && video) {
+        if (videoEl) videoEl.remove();
+        videoEl = track.attach();
+        call('video', videoEl);
+      } else if (track.kind === Track.Kind.Audio && audio) {
+        if (audioEl) audioEl.remove();
+        audioEl = track.attach();
+        call('audio', audioEl);
+      }
+      state();
+    })
+    .on(RoomEvent.TrackUnsubscribed, (track, _pub, p) => {
+      if (p.identity !== key) return;
+      const gone = track.detach();
+      if (videoEl && gone.includes(videoEl)) { videoEl = null; call('video', null); }
+      if (audioEl && gone.includes(audioEl)) { audioEl = null; call('audio', null); }
+      gone.forEach((el) => el.remove());
+      state();
+    })
+    .on(RoomEvent.TrackMuted, (_pub, p) => adopt(p))
+    .on(RoomEvent.TrackUnmuted, (_pub, p) => adopt(p))
+    .on(RoomEvent.DataReceived, (payload, p, _kind, topic) => {
+      if (topic !== 'reaction' || !p || p.identity !== key) return;
+      try {
+        const data = JSON.parse(new TextDecoder().decode(payload));
+        if (data.type === 'reaction' && typeof data.id === 'string') call('reaction', data.id);
+      } catch {
+        // not a reaction
+      }
+    })
+    .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      const now = speakers.some((s) => s.identity === key);
+      if (now !== speaking) {
+        speaking = now;
+        state();
+      }
+    })
+    .on(RoomEvent.Disconnected, () => {
+      connectedRoom = null;
+      participant = null;
+      dropMedia();
+      state();
+      call('connection', { connected: false, room: null });
+      const soon = following;
+      following = false;
+      connectLater(soon ? 300 : 3000);
+    });
+
+  async function connect() {
+    if (stopped) return;
+    const target = wantedRoom;
+    try {
+      const { token, livekitUrl } = await api('POST', '/api/token', { role: 'viewer', room: target });
+      await room.connect(livekitUrl, token, { autoSubscribe });
+      connectedRoom = target;
+      call('connection', { connected: true, room: target });
+      for (const p of room.remoteParticipants.values()) adopt(p);
+      state();
+    } catch (err) {
+      call('connection', { connected: false, room: null, error: err.message });
+      connectLater(5000);
+    }
+  }
+  connect();
+  return {
+    // The person moved: leave this room for that one (the reconnect follows Disconnected).
+    follow(roomId) {
+      if (typeof roomId !== 'string' || !roomId || roomId === wantedRoom) return;
+      wantedRoom = roomId;
+      if (connectedRoom) {
+        following = true;
+        room.disconnect().catch(() => {});
+      }
+    },
+    stop() {
+      stopped = true;
+      clearTimeout(retry);
+      dropMedia();
+      room.disconnect().catch(() => {});
+    },
   };
 }
 
@@ -311,9 +464,11 @@ function splitOverflow(items, max) {
 //
 // Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
 // own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null }) {
+export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
+  // A keyed page (public/keyed.js): the module's page about one person, opened with the access key and no
+  // session. `keyed` is { path, subject, query }; the page's own api() already carries the key.
 
   const q = (sc) => {
     const p = new URLSearchParams();
@@ -371,7 +526,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
         user: contextInfo.user,
         permissions: contextInfo.permissions,
         module: contextInfo.module,
-        context: { scope, roomId },
+        context: keyed ? { scope: 'keyed', roomId: null, path: keyed.path, subject: keyed.subject, query: keyed.query || {} } : { scope, roomId },
         locale: contextInfo.locale || { language: 'en', clock: '12', currency: 'USD' },
         theme: readTheme(),
         debug: debugOn(),
@@ -883,6 +1038,45 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (onTitle) onTitle(String(title || '').slice(0, 80));
       return true;
     },
+    // Who is at the table right now, everyone: the same roster the table page reads. For a page that follows
+    // people (a keyed page about one of them, a dashboard) rather than a room panel's own members (`people`).
+    async 'presence.get'() {
+      const d = await api('GET', `/api/table${busGuest()}`);
+      return {
+        people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), room: u.room || null, inCall: Boolean(u.inCall), isAdmin: Boolean(u.isAdmin) })),
+        rooms: (d.rooms || []).map((r) => ({ id: r.id, name: r.name, ephemeral: Boolean(r.ephemeral), origin: r.origin || null, private: Boolean(r.private) })),
+        activeRoom: d.activeRoom || null,
+        adminOnline: Boolean(d.adminOnline),
+        reactions: (d.reactions || []).map((r) => ({ id: r.id, glyph: r.glyph })),
+      };
+    },
+    // One person's picture in a slot (profile, player, character, talking ...), as a blob URL the module shows and
+    // releases; null when they have none there. `room` asks for that room's own picture set, the way the table does.
+    async 'images.get'({ key, slot, room }) {
+      const p = new URLSearchParams();
+      if (room) p.set('room', String(room));
+      if (guestToken) p.set('guest', guestToken);
+      const res = await fetch(`/img/${encodeURIComponent(String(key ?? ''))}/${encodeURIComponent(String(slot ?? ''))}?${p}`, { headers: accessKeyHeaders() });
+      if (!res.ok) return null;
+      return URL.createObjectURL(await res.blob());
+    },
+    'images.release'({ url }) {
+      if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+      return true;
+    },
+    // The server's access key (an admin's to see), for a module that builds links to a keyed page.
+    async 'access.key'() {
+      return (await api('GET', '/api/me')).streamKey || null;
+    },
+    async 'access.regenerate'() {
+      return (await api('POST', '/api/stream-key/regenerate')).streamKey;
+    },
+    // A read-only viewer of one person's camera and microphone, following them from room to room. Page mode only:
+    // the media elements are handed to the module's own handlers, which a frame could not receive.
+    async 'media.watch'(params) {
+      if (!pageMode) throw Object.assign(new Error('media.watch needs a module that runs in the page'), { status: 400 });
+      return watchMedia(params);
+    },
   };
 
   // Each frame has its own secret, handed to it in its address. Messages to the frame carry it, and
@@ -924,8 +1118,9 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     frame.contentWindow?.postMessage({ host: 1, tk: secret, event, data }, '*');
   }
   // A room's pane hears that space and the server; a module's server page hears the server and
-  // the viewer's spaces (see the stream's scopes on the server).
-  const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
+  // the viewer's spaces (see the stream's scopes on the server). A keyed page has no session for the
+  // event stream, so it asks after its settings now and then instead (the one live thing it needs).
+  const leaveStream = keyed ? pollSettings() : joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
     if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
     else if (type === 'links') send('links', { ref: d.ref });
@@ -939,6 +1134,24 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     }
     else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
   });
+
+  // The keyed page's stand-in for the event stream: its settings, compared every 10 seconds, a 'settings'
+  // event when they changed (an admin adjusting the box while the stream is up).
+  function pollSettings() {
+    let last = null;
+    const tick = async () => {
+      try {
+        const sig = JSON.stringify((await api('GET', url('/settings/values', 'server'))).values);
+        if (last !== null && sig !== last) send('settings', { scope: 'server' });
+        last = sig;
+      } catch {
+        // the next tick asks again
+      }
+    };
+    const timer = setInterval(tick, 10000);
+    tick();
+    return () => clearInterval(timer);
+  }
 
   // No same-origin: an opaque origin, no cookies, no host DOM. allow-forms lets a
   // module's own <form> fire its submit event (a sandboxed frame without it

@@ -61,6 +61,37 @@ The host also keeps two things that are not the module's to own:
 - **The URL never moves.** `/view/<key>` is the module's claimed path, so Studio's link builder and every existing source keep working. With the module disabled or uninstalled the path answers 404 with a plain sentence saying which module serves it.
 - **The API names stay.** `streamKey` on `/api/me` and `/api/settings`, `POST /api/stream-key/regenerate`, `?s=` everywhere: unchanged. Only the Manage page's own words change to "access key" where the host talks about it.
 
+## The contract (decided 2026-09-23, the author's answers: Stream, settings move, pictures stay, links on the module page, install on update)
+
+Two halves, built in parallel: the server (the Server Development session) and the pages, SDK and module (this session). Names below are the ones both build to.
+
+**Manifest.**
+
+- `surfaces.keyed: { "path": "view", "entry": "view.html" }`. `path` is 2 to 20 lowercase letters, digits and dashes, and may not be a path the host serves itself (`api`, `m`, `modules`, `img`, `login`, `logout`, `register`, `guest`, `rooms`, `spaces`, `admin`, `profile`, `fa`, `lib`, `assets`, `sdk`, and the rest of the top-level routes, the server keeps the list). A keyed page runs in the page (`runMode` page), never in a frame, since the host draws media into it. One enabled module per path: enabling a second that claims the same path fails with a sentence naming the first.
+- `install: { "auto": true, "settingsFrom": "server" }`. `auto`: the host installs and enables the module once per environment, on the first start where it is bundled and has never been auto-installed there (the environment's module registry remembers `autoInstalled`), so an admin who later uninstalls it is respected. `settingsFrom: "server"`: on that one install, each declared server-scope setting whose key exists in `store.settings` takes that value, so nothing an admin chose is lost.
+- Settings: the cap rises from 20 to 40. A new setting type `color` (a `#rrggbb` string; the form draws a colour picker).
+
+**Server.**
+
+- `modules.keyedFor(path)` (the enabled claimant, with entry and run mode), `modules.keyedPaths()` (every enabled claim), and which installed or bundled module claims a path even when off, for the 404 sentence.
+- `GET /<path>/<key>` for a claimed path, registered before the final 404: without stream access 403 with the text "This page needs the access key (?s=...)."; no such user 404 "No such user."; module off 404 "The <name> module serves this page and is not enabled." Otherwise it serves `public/keyed.html`. The query string passes through untouched.
+- `GET /api/pages/<path>` (stream access): `{ page: { path, entry, module: { id, name, version, icon, runMode } } }`, or 404.
+- `moduleViewer(req)` gains a third kind of viewer, `{ user: null, guestRoom: null, keyed: true }`, when the request carries the access key (`?s=` or `x-stream-key`) and no session. A keyed viewer may read (`need === 'read'`) only a module with a keyed surface: `/api/modules/:id/context` (its `user` is `{ key: 'viewer', name: 'Viewer', role: 'viewer' }`, `permissions` all false) and `/api/modules/:id/settings/values`. Everything else the keyed page reads already takes the key: `/api/table`, `/api/token` with `role: viewer`, `/img/*`.
+- `GET /api/status` gains `pages`: the enabled keyed paths, e.g. `["view"]` (asked for by Studio).
+- `/api/me` and `/api/settings` keep `streamKey`; `POST /api/stream-key/regenerate` stays. The host's own words for it become "access key" (the Manage page, this session's side).
+- Auto-install runs where an environment starts (`environmentFor`), after the store and the module manager exist.
+- Phase 3, only after the module ships: the OBS box settings leave `store.settings` and `tableUser`, `GET /view/:key` and `public/view.*` go, and the keyed route answers `/view` instead.
+
+**Pages and SDK (this session).**
+
+- `brand.js`'s `api` sends `x-stream-key` on every call once the page has an access key.
+- `public/keyed.html` and `keyed.js`: a transparent shell with no header that reads the path, the subject's key and the query from the address, asks `/api/pages/<path>`, and mounts the module in the page with `accessKey` and a keyed context.
+- `host.ready()` on a keyed page resolves with `context: { scope: 'keyed', path, subject: '<user key>', query: { kind, plate, ... } }` and `user.role === 'viewer'`.
+- `host.presence.get()`: `{ people: [{ key, name, online, room, inCall }], rooms: [{ id, name, ephemeral, origin, private }], activeRoom, adminOnline, reactions: [{ id, glyph }] }`, from `/api/table`; `host.presence.onChange(fn)` polls every 5 seconds and calls back when anything changed.
+- `host.images.get(key, slot, { room })`: a blob URL for that person's picture in that slot, or null when unset; revoke it with `host.images.release(url)`.
+- `host.media.watch(key, { audio, video, room }, handlers)`: the host connects a read-only viewer to that room, follows the person, and calls `handlers.state({ online, cameraOn, micOn, speaking, name })`, `handlers.video(element | null)` (a `<video>` the module places), `handlers.audio(element | null)`, `handlers.reaction(id)`; returns `{ follow(room), stop() }`. Page mode only.
+- `module-config.js` draws the `color` type.
+
 ## Phases
 
 1. **Host conduits.** The keyed page surface (manifest field, route, path claims, the shell page opening with the key), `host.presence`, `host.people`, `host.media.viewer`, `host.images.url`; the once-only install-and-carry-over migration hook a bundled module can declare (`migrate: { settingsFrom: [...] }` or the host's own one-off, decided when built). Verified with a stub module before the real one.

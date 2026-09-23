@@ -423,8 +423,18 @@ function wireInstall() {
   });
 }
 
+// A page opened with the server's access key instead of a sign-in (a module's keyed page, /view/<key>?s=...):
+// every call the page makes carries the key, so nothing here needs a session.
+let accessKey = '';
+export function setAccessKey(key) {
+  accessKey = String(key || '');
+}
+export function accessKeyHeaders() {
+  return accessKey ? { 'x-stream-key': accessKey } : {};
+}
+
 export async function api(method, url, body, contentType) {
-  const headers = {};
+  const headers = accessKeyHeaders();
   let payload = body;
   if (body !== undefined && !(body instanceof Blob)) {
     headers['content-type'] = 'application/json';

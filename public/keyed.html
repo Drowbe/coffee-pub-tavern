@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss: https:; media-src 'self' blob: mediastream:; img-src 'self' data: blob:; worker-src 'self' blob:">
+  <title>View</title>
+  <style>
+    /* A module's keyed page (/<path>/<key>?s=<access key>): no header, no sign-in, a transparent
+       background, the module filling the window. Meant to be loaded where nothing else is on the
+       page (a browser source in a streaming program), so nothing of the app's own chrome is here. */
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; color: #f1e6d8; }
+    .keyed-root { position: absolute; inset: 0; }
+    .keyed-missing { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 16px; text-align: center; color: #a8998a; font-size: 14px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="keyed-root" id="module-frame"></div>
+  <p class="keyed-missing" id="keyed-missing" hidden></p>
+  <script src="/sdk/host.js" data-host-sdk></script>
+  <script type="module" src="/keyed.js"></script>
+</body>
+</html>

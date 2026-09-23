@@ -593,71 +593,6 @@ $('make-invite').addEventListener('click', async () => {
 });
 $('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
-// Sliders, not spinner number inputs, for anything with a small bounded
-// range -- sets the range input's own value and the live-value label next
-// to it (e.g. "35%") together, and wires the label to keep tracking the
-// slider as it's dragged, before Save is even clicked.
-function setSlider(id, value, suffix = '') {
-  $(id).value = value;
-  const label = $(`${id}-value`);
-  if (label) label.textContent = `${value}${suffix}`;
-}
-for (const [id, suffix] of [
-  ['set-border-width', 'px'],
-  ['set-char-border-width', 'px'],
-  ['set-plate-font-size', 'px'],
-  ['set-plate-opacity', '%'],
-  ['set-picture-scale', '%'],
-  ['set-offline-dim', '%'],
-  ['set-offline-tint-opacity', '%'],
-  ['set-aside-dim', '%'],
-  ['set-aside-tint-opacity', '%'],
-  ['set-private-dim', '%'],
-  ['set-private-tint-opacity', '%'],
-]) {
-  $(id).addEventListener('input', () => setSlider(id, $(id).value, suffix));
-}
-
-$('save-defaults').addEventListener('click', async () => {
-  try {
-    const { settings } = await api('PATCH', '/api/settings', {
-      border: $('set-border').checked,
-      borderColor: $('set-border-color').value,
-      borderWidth: $('set-border-width').value,
-      mutedBorder: $('set-muted-border').checked,
-      mutedColor: $('set-muted-color').value,
-      charBorder: $('set-char-border').checked,
-      charBorderColor: $('set-char-border-color').value,
-      charMutedBorder: $('set-char-muted-border').checked,
-      charMutedColor: $('set-char-muted-color').value,
-      charBorderWidth: $('set-char-border-width').value,
-      plate: $('set-plate').checked,
-      plateLayout: $('set-plate-layout').value,
-      plateColor: $('set-plate-color').value,
-      plateTextColor: $('set-plate-text-color').value,
-      plateFontSize: $('set-plate-font-size').value,
-      plateOpacity: $('set-plate-opacity').value,
-      plateTextCase: $('set-plate-text-case').value,
-      pictureBackground: $('set-picture-bg').checked,
-      pictureColor: $('set-picture-color').value,
-      pictureScale: $('set-picture-scale').value,
-      offlineDim: $('set-offline-dim').value,
-      offlineTint: $('set-offline-tint').value,
-      offlineTintOpacity: $('set-offline-tint-opacity').value,
-      asideDim: $('set-aside-dim').value,
-      asideTint: $('set-aside-tint').value,
-      asideTintOpacity: $('set-aside-tint-opacity').value,
-      privateDim: $('set-private-dim').value,
-      privateTint: $('set-private-tint').value,
-      privateTintOpacity: $('set-private-tint-opacity').value,
-    });
-    say($('defaults-status'), 'saved');
-    await loadUsers();
-  } catch (err) {
-    say($('defaults-status'), err.message, true);
-  }
-});
-
 // --- reactions --------------------------------------------------------------
 
 function reactionRow(reaction) {
@@ -1241,7 +1176,7 @@ $('guest-images').addEventListener('change', async (event) => {
     await api('PUT', `/api/settings/guest-images/${slot}`, file, file.type);
     renderGuestImages(await loadBranding());
   } catch (err) {
-    say($('defaults-status'), err.message, true);
+    say($('theme-status'), err.message, true);
   }
   input.value = '';
 });
@@ -1253,7 +1188,7 @@ $('guest-images').addEventListener('click', async (event) => {
     await api('DELETE', `/api/settings/guest-images/${slot}`);
     renderGuestImages(await loadBranding());
   } catch (err) {
-    say($('defaults-status'), err.message, true);
+    say($('theme-status'), err.message, true);
   }
 });
 
@@ -1284,7 +1219,7 @@ $('default-images').addEventListener('change', async (event) => {
     await api('PUT', `/api/settings/default-images/${slot}`, file, file.type);
     renderDefaultImages(await loadBranding());
   } catch (err) {
-    say($('defaults-status'), err.message, true);
+    say($('theme-status'), err.message, true);
   }
   input.value = '';
 });
@@ -1296,7 +1231,7 @@ $('default-images').addEventListener('click', async (event) => {
     await api('DELETE', `/api/settings/default-images/${slot}`);
     renderDefaultImages(await loadBranding());
   } catch (err) {
-    say($('defaults-status'), err.message, true);
+    say($('theme-status'), err.message, true);
   }
 });
 
@@ -1310,12 +1245,12 @@ $('stream-show').addEventListener('click', () => {
 });
 $('stream-copy').addEventListener('click', () => copy(streamKey, $('settings-status')));
 $('stream-regen').addEventListener('click', async () => {
-  if (!window.confirm('Regenerate the stream key? Every OBS view link and the Studio app need the new one.')) return;
+  if (!window.confirm('Regenerate the access key? Every link made with it and the Studio app need the new one.')) return;
   try {
     ({ streamKey } = await api('POST', '/api/stream-key/regenerate'));
     showStreamKey();
     for (const user of users) fill(cardFor(user), user);
-    say($('settings-status'), 'new stream key');
+    say($('settings-status'), 'new access key');
   } catch (err) {
     say($('settings-status'), err.message, true);
   }
@@ -1355,35 +1290,6 @@ async function init() {
     $('set-allow-reactions').checked = settings.allowReactions !== false;
     $('set-login-text').value = settings.loginText;
     $('set-allow-registration').checked = Boolean(settings.allowRegistration);
-    $('set-border').checked = settings.border;
-    $('set-border-color').value = settings.borderColor;
-    setSlider('set-border-width', settings.borderWidth || 6, 'px');
-    $('set-muted-border').checked = settings.mutedBorder !== false;
-    $('set-muted-color').value = settings.mutedColor || '#b8503f';
-    $('set-plate').checked = Boolean(settings.plate);
-    $('set-plate-layout').value = settings.plateLayout || 'lower-left';
-    $('set-plate-color').value = settings.plateColor || '#000000';
-    $('set-plate-text-color').value = settings.plateTextColor || '#f1e6d8';
-    setSlider('set-plate-font-size', settings.plateFontSize || 16, 'px');
-    setSlider('set-plate-opacity', settings.plateOpacity ?? 60, '%');
-    $('set-plate-text-case').value = settings.plateTextCase || 'default';
-    $('set-char-border').checked = Boolean(settings.charBorder);
-    $('set-char-border-color').value = settings.charBorderColor || '#6fae6b';
-    $('set-char-muted-border').checked = Boolean(settings.charMutedBorder);
-    $('set-char-muted-color').value = settings.charMutedColor || '#b8503f';
-    setSlider('set-char-border-width', settings.charBorderWidth || 6, 'px');
-    $('set-picture-bg').checked = Boolean(settings.pictureBackground);
-    $('set-picture-color').value = settings.pictureColor || '#1a1410';
-    setSlider('set-picture-scale', settings.pictureScale || 100, '%');
-    setSlider('set-offline-dim', settings.offlineDim ?? 0, '%');
-    $('set-offline-tint').value = settings.offlineTint || '#000000';
-    setSlider('set-offline-tint-opacity', settings.offlineTintOpacity ?? 0, '%');
-    setSlider('set-aside-dim', settings.asideDim ?? 0, '%');
-    $('set-aside-tint').value = settings.asideTint || '#000000';
-    setSlider('set-aside-tint-opacity', settings.asideTintOpacity ?? 0, '%');
-    setSlider('set-private-dim', settings.privateDim ?? 0, '%');
-    $('set-private-tint').value = settings.privateTint || '#000000';
-    setSlider('set-private-tint-opacity', settings.privateTintOpacity ?? 0, '%');
     renderReactionRows(settings.reactions);
     renderIconRows(settings.icons);
     renderSiteImages(settings);

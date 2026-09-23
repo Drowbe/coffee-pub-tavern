@@ -739,6 +739,61 @@
     // ("whose is it"): store their `key`, never the name.
     people: () => call('people'),
 
+    // Who is at the table right now, everyone, for a page that follows people (a keyed page about one of them):
+    // { people: [{ key, name, online, room, inCall, isAdmin }], rooms: [{ id, name, ephemeral, origin, private }],
+    //   activeRoom, adminOnline, reactions: [{ id, glyph }] }.
+    // `onChange(fn)` asks every 5 seconds (`{ every }` in ms to change that) and calls fn(presence) when anything
+    // differs, once at the start; it returns a function that stops asking.
+    presence: {
+      get: () => call('presence.get'),
+      onChange: (fn, o) => {
+        let last = '';
+        let on = true;
+        const tick = async () => {
+          if (!on) return;
+          try {
+            const p = await call('presence.get');
+            const sig = JSON.stringify(p);
+            if (sig !== last) {
+              last = sig;
+              fn(p);
+            }
+          } catch {
+            // the next tick asks again
+          }
+        };
+        tick();
+        const timer = setInterval(tick, (o && o.every) || 5000);
+        return () => { on = false; clearInterval(timer); };
+      },
+    },
+
+    // One person's picture in a slot, as a blob URL to show (null when they have none there), and release it when
+    // done. Slots are the profile's: profile, background, player, playerOffline, playerTalking, playerMuted, playerAside,
+    // playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate. `{ room }` asks for
+    // that room's own picture set first, the way the table shows them.
+    images: {
+      get: (key, slot, o) => call('images.get', { key, slot, room: o && o.room }),
+      release: (url) => call('images.release', { url }),
+    },
+
+    // Watch one person's camera and microphone, read-only, following them from room to room (a module that runs
+    // in the page only). `watch(key, { video, audio, room }, handlers)` connects as a viewer and calls
+    // handlers.state({ online, cameraOn, micOn, speaking, name }), handlers.video(element or null) and
+    // handlers.audio(element or null) with elements to place, handlers.reaction(id) as they react, and
+    // handlers.connection({ connected, room }). It resolves to { follow(roomId), stop() }. With `video: false` and
+    // `audio: false` only the state is followed.
+    media: {
+      watch: (key, o, handlers) => call('media.watch', { key, video: !(o && o.video === false), audio: Boolean(o && o.audio), room: (o && o.room) || 'lobby', handlers: handlers || {} }),
+    },
+
+    // The server's access key, the one a keyed page's link carries (`/<path>/<key>?s=<access key>`): null unless the
+    // viewer is an admin. `regenerate()` makes a new one, so every link made with the old one stops working.
+    access: {
+      key: () => call('access.key'),
+      regenerate: () => call('access.regenerate'),
+    },
+
     // Refs: pointing at another module's items without reaching into its data. A module lists what
     // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
     // the latter. A pointer is { module, kind, id, scope: 'room' | 'server', room? }: store it, never

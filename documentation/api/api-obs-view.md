@@ -8,6 +8,13 @@ Browser Source. Coffee Pub Studio builds and maintains them automatically; this 
 any other caller relies on. How to add one by hand is in
 [userguide-obs](../userguides/userguide-obs.md).
 
+The pages are served by the bundled **Stream** module, which claims the `view` path as its keyed page
+(see "Keyed pages" in [the SDK guide](api-module-sdk.md)). The URL, its parameters and the pictures
+below are the same whichever code answers. With the module turned off or uninstalled, a view URL answers
+404 with a sentence saying which module serves it; `GET /api/status` lists the keyed paths currently
+served in `pages` (`"view"` among them while the module is on), so a caller can tell before it loads
+one.
+
 ## The URL
 
 ```

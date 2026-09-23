@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stream</title>
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<div id="app" class="app" hidden>
+  <p class="error" id="note" hidden></p>
+
+  <section class="panel" id="key-panel" hidden>
+    <h2>Access key</h2>
+    <p class="hint">A streaming program never signs in. Every link below carries this key instead, and Coffee Pub Studio fetches it by itself when you sign in there. Regenerating it makes every existing link stop working.</p>
+    <div class="row">
+      <code class="key" id="key-text">••••••••</code>
+      <button class="btn" id="key-show" type="button">Show</button>
+      <button class="btn" id="key-copy" type="button">Copy</button>
+      <button class="btn btn-danger" id="key-regen" type="button">Regenerate</button>
+    </div>
+    <p class="hint" id="key-status" aria-live="polite"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Links</h2>
+    <p class="hint">One browser source per player, on a transparent background. <strong>Player</strong> is the camera, or the Online picture when it is off, with the talking and muted borders. <strong>Character</strong> is the Character pictures only, never the video. Paste a link as a browser source and untick "Shutdown source when not visible".</p>
+    <p class="hint" id="links-note" hidden></p>
+    <ul class="people" id="people"></ul>
+  </section>
+</div>
+
+<template id="tpl-person">
+  <li class="person">
+    <img class="avatar" alt="">
+    <span class="name"></span>
+    <span class="online" hidden>at the table</span>
+    <span class="links">
+      <button class="btn btn-small" type="button" data-copy="player" title="Copy the Player link">Player</button>
+      <button class="btn btn-small" type="button" data-copy="character" title="Copy the Character link">Character</button>
+      <a class="btn btn-small" data-open="player" target="_blank" rel="noopener" title="Open the Player view in a new tab">Open</a>
+    </span>
+  </li>
+</template>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

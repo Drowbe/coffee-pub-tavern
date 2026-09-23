@@ -15,7 +15,6 @@ const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
 let me = null; // the signed-in admin, only used for the "last admin" check
 let user = null; // whose profile this is: me, or the person being edited
-let streamKey = '';
 let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
 
 // If this page is open as the overlay on top of an active call (same
@@ -49,11 +48,6 @@ async function copy(text, statusEl) {
 
 function imgUrl(slot) {
   return `/img/${encodeURIComponent(user.key)}/${slot}?v=${Date.now()}`;
-}
-
-function viewLink() {
-  const q = new URLSearchParams({ s: streamKey, kind: $('view-kind').value });
-  return `${user.viewUrl}?${q}`;
 }
 
 async function reload() {
@@ -172,9 +166,6 @@ function render() {
     slot.querySelector('.slot-pick').classList.toggle('still', !canImg(name));
     slot.querySelector('[data-action="slot-clear"]').hidden = !canImg(name) || !set;
   }
-
-  $('obs-link-row').hidden = !editing;
-  if (editing) $('view-open').href = viewLink();
 
   $('danger-row').hidden = !editing;
   if (editing) {
@@ -521,9 +512,6 @@ $('other-images').addEventListener('click', (event) => {
   });
 });
 
-$('view-kind').addEventListener('change', () => { $('view-open').href = viewLink(); });
-$('view-copy').addEventListener('click', () => copy(viewLink(), $('status')));
-
 $('mute-btn').addEventListener('click', () => run(async () => {
   await api('POST', `/api/users/${user.key}/mute`, { muted: true });
   say('muted');
@@ -568,7 +556,6 @@ async function init() {
       const mine = await api('GET', '/api/me');
       me = mine.user;
       if (me.role !== 'admin') { location.href = '/'; return; }
-      streamKey = mine.streamKey || '';
     }
     const [, { rooms }] = await Promise.all([reload(), api('GET', '/api/rooms')]);
     roomsById = new Map(rooms.map((r) => [r.id, r]));

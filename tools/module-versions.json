@@ -23,6 +23,10 @@
     "version": "0.2.8",
     "hash": "26634fe01539f5a5"
   },
+  "stream": {
+    "version": "0.1.0",
+    "hash": "33b42e2229f2b324"
+  },
   "todo": {
     "version": "1.11.7",
     "hash": "dbfbc97f955f8c45"

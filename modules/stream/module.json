@@ -1,0 +1,81 @@
+{
+  "id": "stream",
+  "name": "Stream",
+  "version": "0.1.0",
+  "icon": "clapperboard",
+  "description": "Every player as a browser source for a streaming program, on a transparent background: their camera or picture, the talking and muted borders, the name plate. The links, the access key, and how the boxes look.",
+  "author": "Coffee Pub",
+  "scope": [
+    "server"
+  ],
+  "surfaces": {
+    "page": {
+      "entry": "page.html"
+    },
+    "keyed": {
+      "path": "view",
+      "entry": "view.html"
+    }
+  },
+  "install": {
+    "auto": true,
+    "settingsFrom": "server"
+  },
+  "permissions": [
+    {
+      "key": "links",
+      "label": "See the stream links and the access key",
+      "default": {
+        "user": false,
+        "guest": false,
+        "moderator": false
+      }
+    }
+  ],
+  "access": {
+    "read": "links"
+  },
+  "settings": [
+    { "key": "border", "label": "Talking border on the Participant box", "type": "boolean", "scope": "server", "default": true, "help": "Drawn around the box while the participant talks." },
+    { "key": "borderColor", "label": "Talking border colour", "type": "color", "scope": "server", "default": "#6fae6b" },
+    { "key": "mutedBorder", "label": "Muted border on the Participant box", "type": "boolean", "scope": "server", "default": true, "help": "Drawn while their microphone is off." },
+    { "key": "mutedColor", "label": "Muted border colour", "type": "color", "scope": "server", "default": "#b8503f" },
+    { "key": "borderWidth", "label": "Participant border width (px)", "type": "number", "scope": "server", "default": 6, "min": 1, "max": 24 },
+    { "key": "charBorder", "label": "Talking border on the Character box", "type": "boolean", "scope": "server", "default": false },
+    { "key": "charBorderColor", "label": "Character talking border colour", "type": "color", "scope": "server", "default": "#6fae6b" },
+    { "key": "charMutedBorder", "label": "Muted border on the Character box", "type": "boolean", "scope": "server", "default": false },
+    { "key": "charMutedColor", "label": "Character muted border colour", "type": "color", "scope": "server", "default": "#b8503f" },
+    { "key": "charBorderWidth", "label": "Character border width (px)", "type": "number", "scope": "server", "default": 6, "min": 1, "max": 24 },
+    { "key": "plate", "label": "Name plate with the participant's name", "type": "boolean", "scope": "server", "default": false, "help": "On the Participant box. A link with plate=1 shows it on either box regardless." },
+    { "key": "plateLayout", "label": "Name plate position", "type": "choice", "scope": "server", "default": "lower-left", "options": [
+      { "value": "upper-left", "label": "Upper left" },
+      { "value": "upper-right", "label": "Upper right" },
+      { "value": "lower-left", "label": "Lower left" },
+      { "value": "lower-right", "label": "Lower right" },
+      { "value": "bottom-center", "label": "Centred bottom" },
+      { "value": "bottom-full", "label": "Full width bottom" }
+    ] },
+    { "key": "plateColor", "label": "Name plate box colour", "type": "color", "scope": "server", "default": "#000000" },
+    { "key": "plateTextColor", "label": "Name plate text colour", "type": "color", "scope": "server", "default": "#f1e6d8" },
+    { "key": "plateFontSize", "label": "Name plate text size (px)", "type": "number", "scope": "server", "default": 16, "min": 10, "max": 40 },
+    { "key": "plateOpacity", "label": "Name plate box opacity (%)", "type": "number", "scope": "server", "default": 60, "min": 0, "max": 100 },
+    { "key": "plateTextCase", "label": "Name plate text case", "type": "choice", "scope": "server", "default": "default", "options": [
+      { "value": "default", "label": "As typed" },
+      { "value": "upper", "label": "UPPER CASE" },
+      { "value": "lower", "label": "lower case" },
+      { "value": "sentence", "label": "Sentence case" }
+    ] },
+    { "key": "pictureBackground", "label": "A colour behind the Participant picture", "type": "boolean", "scope": "server", "default": false, "help": "While the box shows a picture instead of the camera, the box keeps this colour, or the participant's own background picture when they have one." },
+    { "key": "pictureColor", "label": "Colour behind the picture", "type": "color", "scope": "server", "default": "#1a1410" },
+    { "key": "pictureScale", "label": "Portrait size (% of the box)", "type": "number", "scope": "server", "default": 100, "min": 20, "max": 100 },
+    { "key": "offlineDim", "label": "Offline: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "How a box looks while the person is not at the table: 0 leaves it untouched, 100 is black." },
+    { "key": "offlineTint", "label": "Offline: tint colour", "type": "color", "scope": "server", "default": "#000000" },
+    { "key": "offlineTintOpacity", "label": "Offline: tint opacity (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100 },
+    { "key": "asideDim", "label": "Aside: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "While they are online but not in the space the stream is following." },
+    { "key": "asideTint", "label": "Aside: tint colour", "type": "color", "scope": "server", "default": "#000000" },
+    { "key": "asideTintOpacity", "label": "Aside: tint opacity (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100 },
+    { "key": "privateDim", "label": "Private conversation: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "A private conversation also keeps the camera off the stream regardless." },
+    { "key": "privateTint", "label": "Private conversation: tint colour", "type": "color", "scope": "server", "default": "#000000" },
+    { "key": "privateTintOpacity", "label": "Private conversation: tint opacity (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100 }
+  ]
+}

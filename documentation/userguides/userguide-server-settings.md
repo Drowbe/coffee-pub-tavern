@@ -17,13 +17,10 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 - **Sign-in page.** A background picture behind the sign-in box, and the text under the password field. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Magpie (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
 - **Sign-up.** Self-service `/register` on or off, and invite links into specific rooms. See
   [Accounts, roles and permissions](userguide-accounts.md).
-- **Participant video defaults.** The talking border, its color and width; the name plate, with its
-  layout (six corner and edge positions, including a full-width strip), box color, font color, font size
-  and transparency; and the color and size behind a Participant picture. These are the same for
-  everyone. There are matching **Character borders** and dimming and tint levels for Offline, Aside and
-  Private members.
-- **OBS access.** The stream key that OBS view links carry. Show, copy or regenerate it; regenerating
-  stops every existing link working.
+- **Access key.** The key that a keyed page's link carries in place of a sign-in (the Stream module's
+  OBS views, `?s=...`). Show, copy or regenerate it; regenerating stops every existing link working.
+  How the OBS boxes look (borders, the name plate, dimming) is the Stream module's own settings now; see
+  [Magpie in OBS](userguide-obs.md).
 
 ## Language, time and money
 

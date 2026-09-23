@@ -393,6 +393,54 @@ host.setTitle('Calendar');              // the title above the module
 host.resize({ width: 500, height: 600 }); // ask a floating panel for a size (page content height, in pixels)
 ```
 
+### Keyed pages: a page about one person, with no sign-in
+
+A module may claim a path for a **keyed page** (`surfaces.keyed: { path, entry }` in module.json, see [api-modules](api-modules.md)): `/<path>/<key>?s=<access key>&...` shows the module's page about the person with that key, opened with the server's access key in place of a sign-in. It is for something unattended that a person never sits at: the Stream module's `/view/<key>` is a browser source in a streaming program. The page runs in the page (never a frame), on a transparent background with no header, and everything it asks of the host carries the key.
+
+```js
+const t = await host.ready();
+// t.context  { scope: 'keyed', path: 'view', subject: '<the person's key>', query: { kind: 'player', plate: '1' } }
+// t.user     { key: 'viewer', name: 'Viewer', role: 'viewer' }   nobody: every permission is false
+```
+
+A keyed page can read its settings and what the SDK offers a page that follows people, nothing else: no storage, no refs, no uploads. `host.settings.onChange` still fires (the host asks after the settings every 10 seconds there, having no session for the event stream).
+
+**Presence.** Who is at the table right now, everyone, from any page (a keyed page, a dashboard):
+
+```js
+const p = await host.presence.get();
+// p.people     [{ key, name, online, room, inCall, isAdmin }]
+// p.rooms      [{ id, name, ephemeral, origin, private }]   an aside is ephemeral with an origin; a private conversation is private
+// p.activeRoom the room the stream follows (the admin's), adminOnline whether one is online
+// p.reactions  [{ id, glyph }]
+const stop = host.presence.onChange((p) => { ... }, { every: 5000 }); // polls; called once at the start and whenever anything differs
+```
+
+**Pictures.** One person's picture in a slot, as a blob URL to show, or null when they have none there; release it when you replace it. `{ room }` asks for that room's own picture set first, the way the table does.
+
+```js
+const url = await host.images.get(key, 'player', { room });   // profile, background, player, playerOffline, playerTalking, playerMuted,
+host.images.release(url);                                     // playerAside, playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate
+```
+
+**Media.** Watch one person's camera and microphone, read-only, following them from room to room (a module that runs in the page only, since the elements are handed to you):
+
+```js
+const w = await host.media.watch(key, { video: true, audio: false, room: 'lobby' }, {
+  state: ({ online, cameraOn, micOn, speaking, name }) => { ... },
+  video: (el) => { /* a <video> to place, or null when it went away */ },
+  audio: (el) => { /* an <audio> to place, or null */ },
+  reaction: (id) => { ... },            // as they react at the table
+  connection: ({ connected, room }) => { ... },
+});
+w.follow(roomId);   // the roster says they moved: leave this room for that one
+w.stop();
+```
+
+With `video: false` and `audio: false` only the state is followed (the host subscribes to the microphone alone, so it still knows who is talking, and plays nothing). The host reconnects by itself when the connection drops.
+
+**The access key.** On the module's own page (an admin's), `await host.access.key()` is the key a keyed page's link carries (null for anyone else) and `await host.access.regenerate()` makes a new one, after which every link made with the old one stops working.
+
 ## Theme
 
 The SDK applies the theme to your page as CSS custom properties on `:root`, so plain CSS follows the theme. **Never hard-code colors, and never assume a dark background.** The tokens and the rules are in [design-theme](../designsystem/design-theme.md). The base stylesheet gives you `.btn`, `.btn-primary`, `.btn-danger`, `.card`, `.section` and styled inputs.
