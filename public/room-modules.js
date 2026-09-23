@@ -766,17 +766,23 @@ export function createRoomModules({ guestToken = null } = {}) {
     };
     win.addEventListener('load', () => {
       setup();
-      // Closing the window closes the pane, and its parts go back to the page. Registered only
-      // once the window has loaded: the blank page it starts as also fires pagehide, when it
-      // navigates to the real one, and that must not count as the person closing it.
+      // Closing the window brings the pane back into the page, in the mode it had before it left (docked or
+      // floating), with whatever it holds untouched: a call keeps going, a chat keeps its draft. Closing the
+      // window is not closing the pane; a call is left with Hang up, a chat with its own close. Registered
+      // only once the window has loaded: the blank page it starts as also fires pagehide, when it navigates
+      // to the real one, and that must not count as the person closing it. The pane the app closed itself
+      // (closeNative) is already gone from `panes` by the time its window's pagehide fires, so it stays closed.
       win.addEventListener('pagehide', () => {
         if (panes.get(def.id) !== pane) return;
         stage.appendChild(def.el);
         def.el.hidden = true;
         def.el.classList.remove('is-flex');
         panes.delete(def.id);
-        syncDock();
-        def.onChange?.({ open: false, mode: 'window' });
+        const back = saved[def.id]?.mode === 'float' && supports(pane, 'float') && !isNarrow() ? 'float' : 'dock';
+        if (!openNativeIn(def, back, { moving: true })) {
+          syncDock();
+          def.onChange?.({ open: false, mode: 'window' });
+        }
         update();
       });
     }, { once: true });

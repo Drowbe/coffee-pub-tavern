@@ -1965,6 +1965,13 @@ a.crumb-here:hover {
   display: none; /* the whole table is already in a window */
 }
 
+/* The conference alone in a window of its own: no close on its titlebar, which would read as "close this window"
+   (which brings the call back to the page) when it means "leave the call"; Hang up on the toolbar leaves. */
+.conference-window .conference-head [data-pane-close],
+.conference-window .conference-head [data-popout] {
+  display: none;
+}
+
 .float {
   position: absolute;
   z-index: 5;
