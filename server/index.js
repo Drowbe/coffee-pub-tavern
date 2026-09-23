@@ -2443,7 +2443,7 @@ app.get('/api/modules/:id/context', (req, res) => {
   res.json({
     user: who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
     permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
-    module: { id: manifest.id, name: manifest.name, version: manifest.version },
+    module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon },
   });
 });
 

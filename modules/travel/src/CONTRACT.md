@@ -182,7 +182,7 @@ Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few
 
 **Colour families** (`--turn`, degrees added to the accent's hue): flight 195, train 150, ferry 120, bus 100, car 45, hotel 255, restaurant 0, cafe 345, bar 320, sight 95, museum 285, tour 65, show 305, note 25, place 130; `link` is the dimmed text colour. The stylesheet sets these; the script only sets `data-type`.
 
-**Narrow** (`.app.narrow`): the time moves above its card so the card has the whole width, the boarding pass and the show ticket stack their stub under the main part, and legs stay between cards.
+**Narrow** (`.app.narrow`, under 720px): the time moves above its card so the card has the whole width, and legs stay between cards. The boarding pass and the show ticket keep their stub beside the main part -- the perforated stub with the barcode is the card -- down to **tiny** (`.app.tiny`, under 480px, set beside `.narrow`), where they stack it under the main part, barcode kept across the strip.
 
 **What the mock does not cover yet:** an editor for the new fields (the modules side), the small editor for a leg, drag on the new rows (same `data-drop` and `.dragging` states, styled in `travel-lib-cards.css`), and a print or share view.
 

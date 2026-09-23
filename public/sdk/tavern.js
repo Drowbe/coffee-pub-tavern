@@ -88,6 +88,15 @@
     }
     return used ? input : null;
   }
+  // Whether a filled input used anything from under the pointer (the target item, the day or time, the spot):
+  // an action that used only the dropped item is about the item, not about here.
+  function usesHere(input, ctx) {
+    const t = ctx.target;
+    return Object.values(input || {}).some((v) =>
+      (t && v && typeof v === 'object' && v.module === t.module && v.kind === t.kind && v.id === t.id)
+      || (ctx.date && typeof v === 'string' && (v === ctx.date || v.startsWith(`${ctx.date}T`)))
+      || (ctx.place && (v === ctx.place.lat || v === ctx.place.lng)));
+  }
   // Why fillFor said no, for the drag trace.
   function whyNot(action, dragged, context) {
     const d = normalizeDragged(dragged);
@@ -873,22 +882,27 @@
             ctx.card = card;
           } else ctx.card = d.card || {};
         }
+        // A drop is about the item and what is here. Beyond what this module offers of its own (`own`, in dropMenu),
+        // the only actions offered are the dropped item's own module's, taking it by its exact kind and doing something
+        // with what is under the pointer: set this task's due date to this day, link this task to this event, put this
+        // place at this spot on the map. A third module making something new of the item (an event from a note dropped
+        // on a plan) is not about here; that belongs where the item lives, not in a drop between two other modules. A
+        // card the drag carried has no module of its own, so only this module's own offers apply to it.
+        if (!d.ref) return [];
         let list = [];
-        try { list = await tavern.actions.list(d.ref ? { accepts: `${d.ref.module}:${d.ref.kind}` } : {}); } catch (err) { list = []; }
+        try { list = await tavern.actions.list({ accepts: `${d.ref.module}:${d.ref.kind}` }); } catch (err) { list = []; }
         const offers = [];
+        const kindType = `ref:${d.ref.module}:${d.ref.kind}`;
         for (const a of list) {
+          if (a.module !== d.ref.module) { tavern.refs.trace(`drop: ${a.action} not offered (not the item's own module's)`); continue; }
+          if (!Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === kindType)) { tavern.refs.trace(`drop: ${a.action} not offered (takes the item only as any ref)`); continue; }
           // What the action says the item must have (a position, a date, text): declared as `needs` on the action.
           const lacks = (a.needs || []).find((f) => !ctx.card[f]);
           if (lacks) { tavern.refs.trace(`drop: ${a.action} not offered (the item has no ${lacks})`); continue; }
-          // An action of the module the item came from, taking it only as a plain ref, makes something of its own item
-          // elsewhere (a task from a task): not what a drop means. Taking it by its exact kind (link this task to...) is.
-          if (d.ref && a.module === d.ref.module && !Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === `ref:${d.ref.module}:${d.ref.kind}`)) {
-            tavern.refs.trace(`drop: ${a.action} not offered (its own module's, and it takes the item only as any ref)`);
-            continue;
-          }
           const input = fillFor(a, d, ctx);
           if (!input) { tavern.refs.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
-          offers.push({ id: a.action, label: a.label, hint: a.moduleName, action: a, input });
+          if (!usesHere(input, ctx)) { tavern.refs.trace(`drop: ${a.action} not offered (nothing from under the pointer would be used)`); continue; }
+          offers.push({ id: a.action, label: a.label, hint: a.moduleName, icon: a.icon, action: a, input });
         }
         return offers;
       },
@@ -908,7 +922,9 @@
             ctx.card = card;
           } else ctx.card = d.card || {};
         }
-        const offers = (own || []).filter((o) => o && (!o.when || o.when(ctx)));
+        // An own offer wears this module's icon unless it names one; the actions wear their module's.
+        const mine = info && info.module && info.module.icon;
+        const offers = (own || []).filter((o) => o && (!o.when || o.when(ctx))).map((o) => (o.icon || !mine ? o : { ...o, icon: mine }));
         offers.push(...await tavern.refs.offersFor(d, ctx));
         tavern.refs.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
         if (!offers.length) throw new Error('Nothing can be done with that here.');
@@ -1023,22 +1039,31 @@
         }
         const remember = (it) => { if (!memory || !it) return it; try { localStorage.setItem(memory, idOf(it)); } catch (err) { /* not kept */ } return it; };
         if (list.length < 2) return resolve(list[0] || null);
+        // The same look as tavern.menu.show (its styles, an icon, the label, a hint): one menu, wherever it is asked.
+        ensureUiStyles();
         const host = tavern.rootElement;
         const menu = document.createElement('div');
+        menu.className = 'tv-menu';
         menu.setAttribute('role', 'menu');
-        menu.style.cssText = 'position:fixed;z-index:9999;min-width:200px;max-width:320px;padding:4px;border-radius:8px;border:1px solid var(--border,#555);background:var(--bg-card,#2a231d);color:var(--text,#f1e8dc);box-shadow:0 8px 24px rgba(0,0,0,.45);font:14px system-ui,sans-serif';
         const done = (v) => { menu.remove(); document.removeEventListener('keydown', key, true); env.root.removeEventListener('pointerdown', away, true); resolve(remember(v)); };
         const key = (e) => { if (e.key === 'Escape') done(null); };
         const away = (e) => { if (!menu.contains(e.target)) done(null); };
         for (const item of list) {
           const b = document.createElement('button');
           b.type = 'button';
+          b.className = 'tv-menu-item';
           b.setAttribute('role', 'menuitem');
-          b.style.cssText = 'display:block;width:100%;text-align:left;padding:7px 10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer';
-          b.textContent = item.label;
-          if (item.hint) { const h = document.createElement('div'); h.textContent = item.hint; h.style.cssText = 'font-size:12px;opacity:.65'; b.appendChild(h); }
-          b.addEventListener('mouseenter', () => { b.style.background = 'rgba(255,255,255,.1)'; });
-          b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+          if (item.icon) {
+            const ic = document.createElement('span');
+            ic.className = 'tv-menu-icon';
+            b.appendChild(ic);
+            menuIcon(item.icon, item.regular ? 'regular' : 'solid').then((svg) => { if (svg) ic.innerHTML = svg; });
+          }
+          const label = document.createElement('span');
+          label.className = 'tv-menu-label';
+          label.textContent = item.label;
+          b.appendChild(label);
+          if (item.hint) { const h = document.createElement('div'); h.className = 'tv-menu-hint'; h.textContent = item.hint; b.appendChild(h); }
           b.addEventListener('click', () => done(item));
           menu.appendChild(b);
         }

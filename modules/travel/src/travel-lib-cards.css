@@ -244,12 +244,15 @@
 .linkcard [data-action="remove-link"] { margin-top: 8px; padding: 2px 10px; font-size: 12px; }
 .linkcard [data-action="remove-link"] .ic { margin-right: 4px; }
 
-/* ---- narrow: the pass and the ticket stack ---- */
-.app.narrow .pass, .app.narrow .admit { grid-template-columns: 1fr; }
-.app.narrow .pass .stub, .app.narrow .admit .stub { flex-direction: row; flex-wrap: wrap; justify-content: space-between; border-left: 0; border-top: 2px dashed color-mix(in srgb, var(--tone) 45%, var(--border)); }
-.app.narrow .pass .stub::before, .app.narrow .admit .stub::before { left: -9px; top: -9px; }
-.app.narrow .pass .stub::after, .app.narrow .admit .stub::after { left: auto; right: -9px; top: -9px; bottom: auto; }
-.app.narrow .pass .bars { display: none; }
+/* ---- tiny: the pass and the ticket stack. The boarding pass keeps its stub beside the route down to a tiny pane
+   (`.app.tiny`, under 480px, set by the script beside `.narrow`): the stub with its perforation and barcode is the
+   card, and a narrow pane still has room for it. Only where it truly does not fit does the stub fold under the
+   route, and it keeps its barcode there, across the strip. ---- */
+.app.tiny .pass, .app.tiny .admit { grid-template-columns: 1fr; }
+.app.tiny .pass .stub, .app.tiny .admit .stub { flex-direction: row; flex-wrap: wrap; justify-content: space-between; border-left: 0; border-top: 2px dashed color-mix(in srgb, var(--tone) 45%, var(--border)); }
+.app.tiny .pass .stub::before, .app.tiny .admit .stub::before { left: -9px; top: -9px; }
+.app.tiny .pass .stub::after, .app.tiny .admit .stub::after { left: auto; right: -9px; top: -9px; bottom: auto; }
+.app.tiny .pass .bars { flex-basis: 100%; }
 /* on a phone the time moves above its card so the card gets the whole width */
 .app.narrow .row { grid-template-columns: 14px minmax(0, 1fr); column-gap: 8px; grid-template-areas: "rail when" "rail slot"; }
 .app.narrow .rail { grid-area: rail; }

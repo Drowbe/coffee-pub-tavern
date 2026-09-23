@@ -1550,7 +1550,7 @@
   // stylesheet keys its narrow layout on `.app.narrow`. A frame can report no width while it is laid out, so wait for one.
   const fit = () => {
     const w = tavern.rootElement.clientWidth;
-    if (w) $('app').classList.toggle('narrow', w < 720);
+    if (w) { $('app').classList.toggle('narrow', w < 720); $('app').classList.toggle('tiny', w < 480); }
   };
   fit();
   new ResizeObserver(fit).observe(tavern.rootElement);
