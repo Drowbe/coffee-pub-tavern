@@ -47,6 +47,35 @@ Collected, none started:
 - Call time in the conference titlebar.
 - Reduce the height of the header a bit.
 
+## A Journal module
+
+Not started. A journal is where what *happened* is kept, as against the Planner, which is where
+what is planned is decided: the record of experiences, made while they happen and read after.
+It is not only for travel -- a campaign, a season, a project, a year can each have one -- but the
+trip is the first case, and there it sits beside the Planner the way the Trips widget does: for
+each day of the trip, the photos taken, the notes written and the badges earned (a place reached,
+a booking done, a first of something), gathered for reading after the trip is over.
+
+Shape agreed on so far:
+
+- **Entries by day**, each with images, text and badges; the trip's days (and anything the Planner
+  already knows about a day: the flight, the hotel, the stops) give the journal its spine, through
+  the pointers modules already share, never a copy of the plan.
+- **Read after.** The point is consumption afterwards: a way to read the whole journal as a book
+  (an export, printable or as a document) and to put it on a site of one's own (a blog-style
+  export, one post per day or per entry). The formats are a later decision; the entries hold enough
+  (a date, a place, text, images, who) that any format can be built from them.
+- **Live, optionally.** A journal can post as it goes: each new entry going out as it is written,
+  for people following along, rather than only being read at the end. Where it posts (the room's
+  chat, a feed, elsewhere) is a conduit the module declares, not a specific service it names.
+- **Generic first.** Nothing in it should be travel-only: a badge is a badge, a day is a day. The
+  Planner is one source of days and things to write about; anything with dates could be another.
+
+Questions to settle before building: what a badge is and who awards it (a person, the module
+itself on some event, another module through an action); whether an entry is one person's or the
+room's (probably both, like Research's Mine and This room); and how far "live" goes on day one
+(the room's chat is the obvious first place).
+
 ## Money: a trip's currency with the conversion beside it
 
 Decided: amounts show in the trip's own currency (the country's) with the conversion into the server's currency next to it where possible. Built: the server's currency (Manage > Settings > Language, time and money), and the trip's own currency, each shown on its own. Not started: the conversion, which needs a source of daily exchange rates the server can fetch (a free public feed; pick one and decide how stale a rate may be before it is left off), and then `tavern.util.money` gains an optional second currency to show beside the first. Language has one option (English) until there are translations to choose from.
