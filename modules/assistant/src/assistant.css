@@ -1,7 +1,7 @@
 /*
  * The Assistant module's look. Assistant is a normal bundled module (dock, float, popout, like Research or Planner): a place
  * to have an open-ended conversation with the AI the admin configured, with optional context drawn from anywhere else in
- * Tavern. This file is the Ask panel that was first built inside Research (0.1.10-0.1.12), moved here unchanged: Assistant
+ * the host. This file is the Ask panel that was first built inside Research (0.1.10-0.1.12), moved here unchanged: Assistant
  * owns the conversation, Research (and anything else) only supplies context items and a place to save a kept card.
  * Colours come only from the theme tokens. Nothing has a fixed pixel height: the module fills its pane and scrolls inside it.
  * The narrow layout keys on `.ask.narrow`, which the script sets from the pane's width (under 720 px), not the window's.

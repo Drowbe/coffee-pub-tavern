@@ -132,7 +132,7 @@
   // A caption from a file name: "IMG_2041.jpg" -> "IMG 2041".
   const captionOf = (name) => geo.oneLine(String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/[_-]+/g, ' '), 120);
 
-  // The items of one scope ('room' or 'person'), kept live, and what other modules may ask of them. `tavern` is the SDK.
+  // The items of one scope ('room' or 'person'), kept live, and what other modules may ask of them. `host` is the SDK.
   function createResearch(host, opts) {
     const scope = (opts && opts.scope) || 'room';
     const at = { scope };

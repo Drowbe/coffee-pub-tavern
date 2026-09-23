@@ -62,7 +62,7 @@
     return p;
   }
 
-  // The places of a room, kept live, and what other modules may ask of them. `tavern` is the SDK.
+  // The places of a room, kept live, and what other modules may ask of them. `host` is the SDK.
   // `opts.scope` says whose they are: 'room' (this room's, the default) or 'person' (the signed-in person's own, private).
   function createPlaces(host, opts) {
     const scope = (opts && opts.scope) || 'room';

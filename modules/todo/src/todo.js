@@ -1,7 +1,7 @@
 // To-do module. One file of code for every place it shows: the server's own page, a
 // room's docked pane or floating panel, and a window of its own. Each place has its own
 // list. On the server page the viewer's spaces' lists are shown too, read-only, each with
-// its room's icon. The SDK (window.host) is injected by Tavern.
+// its room's icon. The SDK (window.host) is injected by the host.
 (async function () {
   'use strict';
 
@@ -33,7 +33,7 @@
   let editingLinks = []; // the links the open editor will save
   let editingRules = {}; // and what each does when the item reports something: { pointerKey: { eventName: outcome } }
   const MAX_LINKS = 5;
-  // What this module may link to is whatever other modules share and Tavern says it may (module.json
+  // What this module may link to is whatever other modules share and the host says it may (module.json
   // refs.consumes is "*"), so a module written later takes part with no change here.
   let consumable = new Set(); // "module:kind"
   const kindEvents = new Map(); // "module:kind" -> what that kind of item can report: [{ name, label, data }]
@@ -144,14 +144,14 @@
 
   // --- links to other modules' items ----------------------------------------
   // A task stores only pointers ({ module, kind, id, scope, room }); what to show comes from
-  // Tavern each time (host.refs.resolve), so it is always current and never more than the
+  // the host each time (host.refs.resolve), so it is always current and never more than the
   // viewer may see. The pointers are checked in the drop and search: only the kinds above.
 
   const linkable = (r) => consumable.has(r.module + ':' + r.kind);
   const myRef = (id) => host.refs.make('task', id);
-  const syncedLinks = new Map(); // task id -> the links last told to Tavern
+  const syncedLinks = new Map(); // task id -> the links last told to the host
 
-  // Tell Tavern what a task points at, so the things it points at can show it. Only when it changed.
+  // Tell the host what a task points at, so the things it points at can show it. Only when it changed.
   async function syncLinks(id, links) {
     if (!host.refs || !host.refs.setLinks) return;
     const sig = JSON.stringify(links.map(refKey));
@@ -294,7 +294,7 @@
   }
 
   // --- reminders ------------------------------------------------------------
-  // A reminder is a schedule Tavern runs for us: at 9:00 on the due date it sends a
+  // A reminder is a schedule the host runs for us: at 9:00 on the due date it sends a
   // notification, even with this page closed. It stops when the task is done, changed or deleted.
 
   async function applyReminder(t) {
@@ -551,7 +551,7 @@
     if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
     render();
   });
-  // A link to another module's item opens it there; Tavern opens that module and hands it the pointer.
+  // A link to another module's item opens it there; the host opens that module and hands it the pointer.
   const openLink = (key) => {
     const c = cards.get(key);
     if (!c || c.error || !c.open || !host.refs || !host.refs.open) return;
@@ -575,7 +575,7 @@
     });
   }
 
-  // Something dropped here from another module (a drag Tavern brokers between panes on the same page): what can be
+  // Something dropped here from another module (a drag the host brokers between panes on the same page): what can be
   // done with it is the shared decision (host.refs.dropMenu). This module's own offers: link it to the task under
   // the pointer, or start a task from it (linked to it when it is an item, titled and dated from it when it is a card
   // carried by the drag, an answer say). Dropped on the open editor's link field, it is linked there and nothing is asked.
@@ -670,7 +670,7 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   render();
-  // Other modules say what happens to their items (a poll closing, say); Tavern delivers what this module
+  // Other modules say what happens to their items (a poll closing, say); the host delivers what this module
   // was approved to hear. Each link on a task can carry a rule for an event it may report: tick the task, keep
   // the result in its notes, use it as the title, or link what the item picked. A task from before rules that
   // asked to follow a finished item keeps doing that (the conventional names closed, done, completed and
@@ -763,7 +763,7 @@
     });
   }
   resolveLinks();
-  // Tell Tavern about links made before it was told (and only those that changed).
+  // Tell the host about links made before it was told (and only those that changed).
   for (const x of [...tasks.values()].filter((t) => t.scope === 'own' && (t.t.links || []).length).slice(0, 100)) syncLinks(x.id, x.t.links);
   // The items linked to can change or go; look again now and then.
   setInterval(() => { cards.clear(); resolveLinks(); }, 60000);

@@ -58,7 +58,7 @@ Keeping a card asks whichever module offers a matching action, found by name and
 
 ## Surviving a mode change
 
-Switching between docked and floating (the pane's own buttons, not popping into a window) does not touch the page: Tavern moves the frame in place rather than tearing it down and starting the module over, so the conversation, its context chips and anything mid-flight survive exactly as if nothing happened. Popping into its own window is a real new page, so that still starts the module over, the same as closing the pane or **New conversation** — a conversation is not carried into a window, and a history of past conversations is not kept, by design.
+Switching between docked and floating (the pane's own buttons, not popping into a window) does not touch the page: the host moves the frame in place rather than tearing it down and starting the module over, so the conversation, its context chips and anything mid-flight survive exactly as if nothing happened. Popping into its own window is a real new page, so that still starts the module over, the same as closing the pane or **New conversation** — a conversation is not carried into a window, and a history of past conversations is not kept, by design.
 
 ## Not decided yet
 

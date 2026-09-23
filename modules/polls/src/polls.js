@@ -1,7 +1,7 @@
 // Polls module. One file of code for every place it shows: the server's own page, a space's
 // docked pane or floating panel, and a window of its own. Each place has its own polls; on
 // the server page the viewer's spaces' polls are shown too, read-only, under their room's
-// icon. The SDK (window.host) is injected by Tavern.
+// icon. The SDK (window.host) is injected by the host.
 //
 // A poll is for deciding something together (where to go, where to stay, what to do): each
 // option can carry a short detail, a poll can let people suggest more options while it is
@@ -41,7 +41,7 @@
 
   // An option can point at an item in another module (a place to stay, a date on the calendar): drop the item
   // on the option. When the poll closes, the item the winning option points at goes out with the result, for
-  // whoever follows the poll to use. What may be linked is whatever other modules share and Tavern allows.
+  // whoever follows the poll to use. What may be linked is whatever other modules share and the host allows.
   let consumable = new Set();
   const linkable = (r) => Boolean(r) && consumable.has(r.module + ':' + r.kind);
   const optCards = new Map(); // pointer key -> card, or { error }
@@ -119,7 +119,7 @@
   });
 
   // --- what links to a poll, and being opened from a link ---------------------
-  // Other modules (a to-do, say) can point at a poll. Tavern says what points at it, only what the
+  // Other modules (a to-do, say) can point at a poll. The host says what points at it, only what the
   // viewer may see (host.refs.linksTo), and a link to a poll can ask for it to be shown
   // (host.refs.onOpen). Nothing here knows which modules those are.
 
@@ -216,7 +216,7 @@
     }
     render();
   }
-  // Tell Tavern what this poll points at (all its options' links, as one list), so those items can show it.
+  // Tell the host what this poll points at (all its options' links, as one list), so those items can show it.
   const syncedOptionLinks = new Map();
   async function syncOptionLinks(x) {
     if (!host.refs || !host.refs.setLinks || x.scope !== 'own') return;
@@ -300,7 +300,7 @@
     value: show,
     onChange: (id) => { show = id; render(); },
   });
-  // The "..." on a poll: the one icon every "..." in Tavern wears (see architecture-module-window.md), fetched
+  // The "..." on a poll: the one icon every "..." in the host wears (see architecture-module-window.md), fetched
   // once as inline SVG since this page builds its markup from strings.
   let moreSvg = '';
   host.ui.icon('ellipsis-vertical').then((svg) => { moreSvg = svg; render(); }).catch(() => {});
@@ -386,7 +386,7 @@
   }
 
   // Closing a poll is something other modules may care about (a task waiting on it, say): say so through
-  // Tavern, which delivers it to whichever modules were approved to hear it. Nothing here knows which.
+  // the host, which delivers it to whichever modules were approved to hear it. Nothing here knows which.
   function winnerOf(x) {
     const { counts } = tally(x);
     const max = Math.max(0, ...[...counts.values()].map((v) => v.length));

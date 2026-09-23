@@ -2,7 +2,7 @@
 // page, a room's docked pane or floating panel, and a window of its own. On the
 // server page it holds the server's events and shows, read-only, the events of every
 // room the viewer belongs to (each marked with its room's icon); in a room it holds
-// that room's events and shows the server's beside them. The SDK (window.host) is injected by Tavern.
+// that room's events and shows the server's beside them. The SDK (window.host) is injected by the host.
 (async function () {
   'use strict';
 
@@ -68,7 +68,7 @@
     events.set(key, { key, scope, roomId, id, version: item.version, ev: item.value });
   }
 
-  // A room's icon (inline SVG from Tavern) with its name for a tooltip.
+  // A room's icon (inline SVG from the host) with its name for a tooltip.
   const roomIcon = (x) => {
     const r = x.scope === 'rooms' ? roomInfo.get(x.roomId) : null;
     return r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : '';
@@ -281,7 +281,7 @@
   ];
 
   // --- what links to an event, and being opened from a link -----------------------
-  // Other modules (a to-do, say) can point at an event. Tavern tells this module what points at it
+  // Other modules (a to-do, say) can point at an event. The host tells this module what points at it
   // (host.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
   // shown (host.refs.onOpen). Nothing here knows which modules those are.
 
@@ -388,8 +388,8 @@
   $('f-cancel').addEventListener('click', closeEditor);
   $('editor').addEventListener('click', (e) => { if (e.target === $('editor')) closeEditor(); });
 
-  // A reminder is a schedule Tavern runs for us: at the right time it sends the
-  // notification, and for a repeating event Tavern schedules the next one itself,
+  // A reminder is a schedule the host runs for us: at the right time it sends the
+  // notification, and for a repeating event the host schedules the next one itself,
   // so reminders keep coming while this page is closed. It stops if the event
   // changes or goes away.
   async function applyReminder(id, ev) {
@@ -528,7 +528,7 @@
     });
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a
-  // pointer to the event, and the other module asks Tavern for what it may show.
+  // pointer to the event, and the other module asks the host for what it may show.
   if (host.refs && host.refs.draggable) {
     host.refs.draggable($('body'), (target) => {
       const open = target.closest('[data-open]');
