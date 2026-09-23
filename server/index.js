@@ -76,6 +76,10 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
 const envContext = new AsyncLocalStorage();
 const environments = new Map(); // slug ('' for the default/no-BASE_DOMAIN environment) -> a built environment
 const DEFAULT_SLUG = '';
+// Where the modules that ship with this deployment live -- moved up here (out of its old spot near
+// bundledList()) because environmentFor()'s auto-install needs it, and environmentFor() runs at module load,
+// before that part of the file has executed.
+const BUNDLED_DIR = path.join(__dirname, '..', 'modules');
 
 function currentEnvironment() {
   const env = envContext.getStore();
@@ -174,7 +178,49 @@ function environmentFor(slug) {
     env.store.updateSettings({ serverName: slug ? (hostRegistry.findTenant(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
   }
   environments.set(key, env);
+  // Fire-and-forget: install() reads a zip asynchronously (yauzl), and environmentFor must stay synchronous --
+  // every caller, including the resolver middleware, expects an environment back at once. A few milliseconds'
+  // delay before an auto-installed module is actually usable is fine today, since nothing yet depends on it
+  // being installed (see plan-stream-module.md's phases: the old GET /view/:key keeps answering on its own
+  // until phase 3 removes it); it will matter once that changes, at which point this may need to be awaited.
+  autoInstallBundled(env).catch((err) => console.error(`Auto-install failed for "${slug || DEFAULT_SLUG}": ${err.message}`));
   return env;
+}
+
+// A bundled module with install.auto (see cleanManifest in modules.js) gets installed and enabled once, ever,
+// per environment, so a server updated to a version where some core feature moved into a module is never left
+// without it. Never runs again for a module once it has, even if an admin later uninstalls it (modules.
+// autoInstalled/markAutoInstalled). settingsFrom: "server" copies each declared server-scope setting whose key
+// exists in store.settings into the module's own settings, on that same install, for one whose fields used to
+// live there -- a value that fails to validate against its declared type is skipped rather than failing the
+// whole install (logged either way).
+async function autoInstallBundled(env) {
+  for (const bundled of bundledModules(BUNDLED_DIR)) {
+    if (!bundled.install?.auto || env.modules.isInstalled(bundled.id) || env.modules.autoInstalled(bundled.id)) continue;
+    let installed;
+    try {
+      const { zip } = buildModule(path.join(BUNDLED_DIR, bundled.id));
+      installed = await env.modules.install(zip, { source: 'bundled' });
+      env.modules.update(bundled.id, { enabled: true });
+    } catch (err) {
+      console.error(`Could not auto-install "${bundled.id}": ${err.message}`);
+      continue; // not marked -- it never actually installed, so the next start tries again
+    }
+    env.modules.markAutoInstalled(bundled.id);
+    if (bundled.install.settingsFrom === 'server') {
+      try {
+        const manifest = env.modules.manifestOf(bundled.id, installed.version);
+        const values = {};
+        for (const def of manifest.settings || []) {
+          if (def.scope === 'server' && env.store.settings[def.key] !== undefined) values[def.key] = env.store.settings[def.key];
+        }
+        if (Object.keys(values).length) env.moduleSettings.set(manifest, 'server', {}, values, null);
+      } catch (err) {
+        console.error(`Auto-installed "${bundled.id}" but could not carry its settings over: ${err.message}`);
+      }
+    }
+    console.log(`Auto-installed and enabled "${bundled.id}".`);
+  }
 }
 
 if (!BASE_DOMAIN) {
@@ -1387,7 +1433,17 @@ app.get('/api/status', requireStream, async (req, res) => {
     rooms: store.rooms,
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
+    pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
   });
+});
+
+// What a keyed page (public/keyed.html) needs to mount the module that claims its path: the surface's own entry
+// file and enough of the module to draw its chrome. Stream access, same as the page itself.
+app.get('/api/pages/:path', requireStream, (req, res) => {
+  const claimed = modules.keyedFor(req.params.path);
+  if (!claimed) return res.status(404).json({ error: 'no such page' });
+  const { manifest, entry, runMode } = claimed;
+  res.json({ page: { path: req.params.path, entry: manifest.surfaces.keyed.entry, module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, runMode } } });
 });
 
 // Rooms: the Lobby (everyone) plus the rooms an admin curates. Signed-in
@@ -1594,7 +1650,6 @@ const BUILTIN_MODULES = [
 // not installed, installed and current, or installed with a newer version available. Installing or
 // updating one builds its zip on the server, so nothing has to be uploaded; it then goes through the
 // same approval as any zip (an update that asks for something new waits for the admin).
-const BUNDLED_DIR = path.join(__dirname, '..', 'modules');
 function bundledList() {
   const installed = new Map(modules.list().map((m) => [m.id, m.version]));
   return bundledModules(BUNDLED_DIR).map((m) => {
@@ -1641,13 +1696,16 @@ app.delete('/api/modules/:id', requireAdmin, (req, res) => {
 // module's frame makes these calls on the frame's behalf (see
 // public/module-host.js); the frame itself never talks to the server.
 
-// Who is asking: a signed-in user, or a guest carrying a room's guest token.
+// Who is asking: a signed-in user, a guest carrying a room's guest token, or -- carrying the access key and no
+// session -- a keyed viewer: a module's own keyed page (see moduleAccess below), never a person, so it reads
+// only, and only a module with a keyed surface.
 function moduleViewer(req) {
   const user = currentUser(req);
   if (user) return { user, guestRoom: null };
   const token = req.query.guest;
   const guestRoom = typeof token === 'string' ? store.roomByGuestToken(token) : null;
-  return guestRoom ? { user: null, guestRoom } : null;
+  if (guestRoom) return { user: null, guestRoom };
+  return hasStreamKey(req) ? { user: null, guestRoom: null, keyed: true } : null;
 }
 
 // Whether someone may see a room's module at all: on for that room, and in it.
@@ -1658,6 +1716,7 @@ function moduleRoomAccess(entry, who, room) {
 }
 
 function modulePerms(who, roomId) {
+  if (who.keyed) return {};
   return who.user ? store.roomPermissions(who.user.key, roomId) : store.roleSet('guest');
 }
 
@@ -1674,6 +1733,12 @@ function moduleAccess(req, res, need) {
   const { manifest, entry } = found;
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
+  // The access key stands in for a session only on a module's own keyed page, and only to read it: the key is
+  // the permission, so there is no room, person or fine-grained access.read to check beyond that.
+  if (who.keyed) {
+    if (need !== 'read' || !manifest.surfaces.keyed) return void res.status(403).json({ error: 'the access key only reads a module with a keyed page' });
+    return { manifest, entry, scope: 'server', roomId: null, scopeKey: 'server', who, perms: {}, by: 'keyed' };
+  }
   const scope = req.query.scope === 'room' ? 'room' : req.query.scope === 'person' ? 'person' : 'server';
   if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this module has no ${scope} scope` });
   let roomId = null;
@@ -2833,7 +2898,7 @@ app.get('/api/modules/:id/context', (req, res) => {
   if (!ctx) return;
   const { manifest, perms, who } = ctx;
   res.json({
-    user: who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
+    user: who.keyed ? { key: 'viewer', name: 'Viewer', role: 'viewer' } : who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
     permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
     module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon },
     // How the server shows language, time and money (Manage > Settings), for every module to follow.
@@ -3203,6 +3268,24 @@ app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {
 });
 
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
+
+// A module's keyed page: the same idea as /view/<key> above, generalized so any bundled module can claim a
+// path (surfaces.keyed.path) instead of the host hard-coding one. Registered last, right before the error
+// handler, so nothing earlier and more specific is ever shadowed -- in particular /view/:key above still
+// answers "view" itself for now (the module's own claim on it is real, just unreachable until phase 3 removes
+// that route; see plan-stream-module.md, "Moving without breaking a stream"). A path nothing has ever claimed,
+// installed or bundled, falls through to the ordinary 404 rather than this route claiming it.
+app.get('/:path/:key', (req, res, next) => {
+  if (!/^[a-z0-9-]{2,20}$/.test(req.params.path)) return next();
+  const bundled = () => bundledModules(BUNDLED_DIR).find((m) => m.surfaces?.keyed?.path === req.params.path);
+  const claimant = modules.keyedClaimant(req.params.path) || bundled();
+  if (!claimant) return next();
+  if (!hasStreamAccess(req)) return res.status(403).send('This page needs the access key (?s=...).');
+  const claimed = modules.keyedFor(req.params.path);
+  if (!claimed) return res.status(404).send(`The ${claimant.name} module serves this page and is not enabled.`);
+  if (!store.userByKey(req.params.key)) return res.status(404).send('No such user.');
+  res.sendFile(page('keyed.html'));
+});
 
 // Errors ---------------------------------------------------------------------
 

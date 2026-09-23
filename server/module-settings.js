@@ -12,7 +12,8 @@ const { EventEmitter } = require('events');
 
 const SCOPES = ['server', 'room', 'person'];
 const { cleanRows } = require('./setting-list');
-const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list'];
+const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color'];
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
 class SettingError extends Error {
   constructor(message, status = 400) {
@@ -47,6 +48,10 @@ function cleanValue(def, raw) {
     if (def.httpsOnly && u.protocol !== 'https:') throw new SettingError(`${def.label} must be an https address`);
     if (def.pathEnds && !u.pathname.toLowerCase().endsWith(def.pathEnds.toLowerCase())) throw new SettingError(`${def.label} must be the address of a ${def.pathEnds} file`);
     return t;
+  }
+  if (def.type === 'color') {
+    if (typeof raw !== 'string' || !COLOR_RE.test(raw.trim())) throw new SettingError(`${def.label} must be a color, like #336699`);
+    return raw.trim().toLowerCase();
   }
   if (def.type === 'list') {
     try {

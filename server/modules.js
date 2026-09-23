@@ -223,9 +223,17 @@ function cleanBus(rawEvents, rawActions, id) {
   return { events, actions };
 }
 
-// The settings a module declares: up to 20, each with a scope (who chooses it), a type and a default.
-const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list'];
+// The settings a module declares: up to 40, each with a scope (who chooses it), a type and a default.
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
+// A path a keyed surface (surfaces.keyed.path) may not claim: the host's own top-level routes, kept here so a
+// module manifest is refused up front rather than claiming a path nothing would ever route to it. "view" is
+// deliberately not here -- the Stream module's own claim, left reachable once GET /view/:key's page-serving
+// goes in phase 3 (see plan-stream-module.md); until then the old route simply answers first (it is registered
+// earlier), so the claim exists but nothing reaches it yet.
+const RESERVED_KEYED_PATHS = ['api', 'm', 'modules', 'img', 'login', 'logout', 'register', 'guest', 'rooms', 'spaces', 'admin', 'profile', 'fa', 'lib', 'assets', 'sdk', 'invite', 'me', 'module-settings'];
+const KEYED_PATH_RE = /^[a-z0-9-]{2,20}$/;
 // A module's place search, asked from the server (see geocode.js): which settings say where to search, and the providers it knows.
 // { provider: <a choice setting>, address: <a url setting for a custom address>, save: <a boolean setting: keep what comes back>,
 //   custom: <the provider value that means the address>, providers: { <provider value>: { address, credit } } }, or null.
@@ -268,7 +276,7 @@ const longText = (s, n) => String(s ?? '').replace(/(?!\n)\p{Cc}/gu, ' ').replac
 
 function cleanSettings(raw) {
   const out = [];
-  for (const r of Array.isArray(raw) ? raw.slice(0, 20) : []) {
+  for (const r of Array.isArray(raw) ? raw.slice(0, 40) : []) {
     const key = typeof r?.key === 'string' ? r.key.trim() : '';
     if (!/^[a-z][a-zA-Z0-9]{0,23}$/.test(key)) throw new ModuleError(`module.json: setting key "${key}" must be letters and digits, starting with a lowercase letter`);
     if (out.some((d) => d.key === key)) throw new ModuleError(`module.json: setting "${key}" is listed twice`);
@@ -318,6 +326,8 @@ function cleanSettings(raw) {
       if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder) || folder === 'versions') throw new ModuleError(`module.json: setting "${key}" folder must be lowercase letters, digits and dashes (not "versions")`);
       def.folder = folder;
       def.default = type === 'files' ? [] : '';
+    } else if (type === 'color') {
+      def.default = typeof r.default === 'string' && COLOR_RE.test(r.default.trim()) ? r.default.trim().toLowerCase() : '#000000';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
       def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';
@@ -369,6 +379,16 @@ function cleanManifest(raw, files) {
       order: Number.isFinite(w.order) ? clamp(Math.round(w.order), -1000, 1000, 100) : 100,
     };
   }
+  if (raw.surfaces?.keyed) {
+    // A page the access key opens instead of a session, at a path this module claims (one enabled module per
+    // path -- see ModuleManager.update's enable guard). Always runs in the page, never a frame, since the host
+    // draws media into it directly.
+    const k = raw.surfaces.keyed;
+    const kpath = typeof k.path === 'string' ? k.path.trim() : '';
+    if (!KEYED_PATH_RE.test(kpath)) throw new ModuleError('module.json: surfaces.keyed.path must be 2-20 lowercase letters, digits and dashes');
+    if (RESERVED_KEYED_PATHS.includes(kpath)) throw new ModuleError(`module.json: "${kpath}" is a path the host already serves and cannot be claimed`);
+    surfaces.keyed = { path: kpath, entry: cleanEntry(k.entry, files, 'surfaces.keyed') };
+  }
   if (scope.includes('server') && !surfaces.page) throw new ModuleError('a "server" module needs a surfaces.page');
   if (scope.includes('room') && !surfaces.panel) throw new ModuleError('a "room" module needs a surfaces.panel');
 
@@ -413,7 +433,15 @@ function cleanManifest(raw, files) {
     if (!requires.includes(r)) requires.push(r);
   }
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource };
+  // How a bundled module gets onto a fresh or updated environment without an admin visiting Modules first (see
+  // ModuleManager.autoInstall in index.js's environmentFor): `auto` installs and enables it once, ever, per
+  // environment; `settingsFrom: "server"` copies each declared server-scope setting's value out of the host's
+  // own store.settings on that same install, for one whose fields used to live there.
+  const install = raw.install && typeof raw.install === 'object'
+    ? { auto: raw.install.auto === true, settingsFrom: raw.install.settingsFrom === 'server' ? 'server' : null }
+    : null;
+
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -434,6 +462,7 @@ class ModuleManager {
     } catch {
       // first run, or unreadable: start empty (module files are untouched)
     }
+    if (!Array.isArray(this.registry.autoInstalled)) this.registry.autoInstalled = [];
   }
 
   save() {
@@ -445,6 +474,24 @@ class ModuleManager {
 
   versionDir(id, version) {
     return path.join(this.dir, id, 'versions', version);
+  }
+
+  isInstalled(id) {
+    return Boolean(this.registry.modules[id]);
+  }
+
+  // Whether a bundled module's install.auto has already run for this environment, ever -- checked before
+  // running it again (see autoInstall in index.js's environmentFor), so an admin who later uninstalls the
+  // module is respected rather than having it reinstalled out from under them on the next start.
+  autoInstalled(id) {
+    return this.registry.autoInstalled.includes(id);
+  }
+
+  markAutoInstalled(id) {
+    if (!this.registry.autoInstalled.includes(id)) {
+      this.registry.autoInstalled.push(id);
+      this.save();
+    }
   }
 
   dataDirFor(id) {
@@ -503,6 +550,30 @@ class ModuleManager {
   // Every enabled module, for lists and for the permissions grid.
   enabledAll() {
     return Object.keys(this.registry.modules).map((id) => this.enabled(id)).filter(Boolean);
+  }
+
+  // The enabled module claiming a keyed path (surfaces.keyed.path), with its run mode -- at most one, kept true
+  // by the enable guard in update(). null when nothing enabled claims it.
+  keyedFor(path) {
+    const found = this.enabledAll().find(({ manifest }) => manifest.surfaces.keyed?.path === path);
+    return found ? { manifest: found.manifest, entry: found.entry, runMode: this.runModeOf(found.entry) } : null;
+  }
+
+  // Every path an enabled module currently claims.
+  keyedPaths() {
+    return this.enabledAll().filter(({ manifest }) => manifest.surfaces.keyed).map(({ manifest }) => manifest.surfaces.keyed.path);
+  }
+
+  // The installed module claiming a path even while off -- for the 404 sentence when a keyed path's module is
+  // not enabled. Not the bundled-but-never-installed case (index.js checks the bundled list itself for that,
+  // since only it knows where bundled modules live on disk).
+  keyedClaimant(path) {
+    for (const id of Object.keys(this.registry.modules)) {
+      const entry = this.registry.modules[id];
+      const manifest = this.manifestOf(id, entry.version);
+      if (manifest?.surfaces.keyed?.path === path) return manifest;
+    }
+    return null;
   }
 
   // The permissions enabled modules add to the Roles grid: module.<id>.<key>.
@@ -696,6 +767,11 @@ class ModuleManager {
       if (patch.enabled) {
         const missing = this.missingFor(manifest);
         if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => this.missingName(r)).join(' and ')} installed and turned on first`);
+        // One enabled module per keyed path: another one already there means naming it, not silently taking over.
+        if (manifest.surfaces.keyed) {
+          const holder = this.keyedFor(manifest.surfaces.keyed.path);
+          if (holder && holder.manifest.id !== id) throw new ModuleError(`"${manifest.surfaces.keyed.path}" is already claimed by ${holder.manifest.name}`);
+        }
       } else {
         // Turning off a module others need: those go off with it, but only when the caller said so (`force`).
         const needing = this.dependentsOf(id);
@@ -711,6 +787,7 @@ class ModuleManager {
     // say they understand (`acceptRisk`); one that ships with the app already does. Sandboxed is always allowed.
     if (patch.runMode !== undefined) {
       if (patch.runMode === 'sandbox') {
+        if (manifest.surfaces.keyed) throw new ModuleError('this module has a keyed page, so it must run in the page, not a frame');
         entry.runMode = 'sandbox';
       } else if (patch.runMode === 'page') {
         if (entry.source !== 'bundled' && patch.acceptRisk !== true) throw new ModuleError('running a module in the page means accepting the risk');

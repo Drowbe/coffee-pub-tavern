@@ -78,14 +78,16 @@ function buildModule(dir) {
   const build = (name) => read(name, 'html')
     .replace('/*__CSS__*/', () => (name === manifest.id ? cssLib + '\n' : '') + read(name, 'css'))
     .replace('/*__JS__*/', () => read(name, 'js').replace('/*__LIB__*/', () => lib).replace(/<\/script/gi, '<\\/script'));
-  // The page and the panel are one file; a dashboard widget is its own (src/<id>-widget.*).
+  // The page and the panel are one file; a dashboard widget is its own (src/<id>-widget.*), and so is a keyed
+  // page (src/<id>-keyed.*) -- a transparent box for something like OBS is a different page from the module's
+  // own, not a variant of it. Both share the same lib.
   const shared = build(manifest.id);
   const files = [['module.json', fs.readFileSync(manifestPath)]];
   const seen = new Set();
   for (const [surface, def] of Object.entries(manifest.surfaces || {})) {
     if (seen.has(def.entry)) continue;
     seen.add(def.entry);
-    files.push([def.entry, Buffer.from(surface === 'widget' ? build(`${manifest.id}-widget`) : shared)]);
+    files.push([def.entry, Buffer.from(surface === 'widget' ? build(`${manifest.id}-widget`) : surface === 'keyed' ? build(`${manifest.id}-keyed`) : shared)]);
   }
   return { manifest, fileCount: files.length, zip: zipFiles(files) };
 }
