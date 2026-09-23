@@ -4,6 +4,7 @@
 #
 # Before starting:
 #   DNS:    tavern.<domain> and livekit.<domain> -> your public IP (DNS only, not proxied)
+#           (for several environments, also *.tavern.<domain>, and a wildcard certificate: see the guide)
 #   Router: forward 7881/tcp, 7882/udp and 3478/udp to the NAS
 #   Proxy:  Nginx Proxy Manager hosts with TLS:
 #             livekit.<domain> -> NAS:7880 (Websockets Support ON)
@@ -52,6 +53,14 @@ services:
       # the password, change it here and restart the container.
       TAVERN_ADMIN_USER: "gm"
       TAVERN_ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
+      # Several environments on one server (see the getting-started guide, "Environments"): set the base
+      # domain, drop the two TAVERN_ADMIN_ lines above, and add the next three for ONE start only.
+      # BASE_DOMAIN: "magpie.CHANGE_ME_DOMAIN"
+      # MIGRATE_TENANT_SLUG: "thepub"
+      # HOST_ADMIN_LOGIN: "CHANGE_ME"
+      # HOST_ADMIN_PASSWORD: "CHANGE_ME"
+      # PRODUCT_NAME: "CHANGE_ME"        # optional: the product page's name
+      # CONTACT_EMAIL: "you@example.com" # optional: where the product page's "ask" writes to
       PORT: "3000"
     volumes:
       - /share/appdata/tavern:/app/data # users, settings and images
