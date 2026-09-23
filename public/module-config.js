@@ -40,7 +40,7 @@ if (!m) {
   }
   if (m.geocoder && m.enabled) wireCache(m.id);
   if (m.regionSource && m.enabled) wireRegionCut(m, showSettings);
-  const others = [mine('room') && "each room's moderators choose some in the room's module settings", mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
+  const others = [mine('room') && "each space's moderators choose some in the space's module settings", mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
   if (others.length) {
     $('cfg-other').hidden = false;
     $('cfg-other').textContent = `Also: ${others.join('; ')}.`;

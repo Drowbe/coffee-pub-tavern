@@ -20,7 +20,7 @@
     <nav class="subtabs" id="subtabs">
       <button class="subtab active" data-tab="server" type="button">Server</button>
       <button class="subtab" data-tab="theme" type="button">Theme</button>
-      <button class="subtab" data-tab="rooms" type="button">Rooms</button>
+      <button class="subtab" data-tab="rooms" type="button">Spaces</button>
       <button class="subtab" data-tab="roles" type="button">Roles</button>
       <button class="subtab" data-tab="users" type="button">Users</button>
       <button class="subtab" data-tab="modules" type="button">Modules</button>
@@ -123,7 +123,7 @@
 
       <div class="panel">
       <h2>Default Images</h2>
-      <p class="hint">The Participant box a member shows once neither they nor the room they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
+      <p class="hint">The Participant box a member shows once neither they nor the space they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
       <div class="slots" id="default-images">
         <div class="slot" data-default-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
         <div class="slot" data-default-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
@@ -137,7 +137,7 @@
 
       <div class="panel">
       <h2>Guest images</h2>
-      <p class="hint">The Participant box a guest shows in place of a real member's own pictures -- anyone can hand out a room's guest link from inside it (Settings, in the room itself); no account behind them to hang per-guest images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
+      <p class="hint">The Participant box a guest shows in place of a real member's own pictures -- anyone can hand out a space's guest link from inside it (Settings, in the space itself); no account behind them to hang per-guest images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
       <div class="slots" id="guest-images">
         <div class="slot" data-guest-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
         <div class="slot" data-guest-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
@@ -175,11 +175,11 @@
     <section class="tab-rooms" id="tab-rooms" hidden>
       <div class="panel">
         <div class="section-head">
-          <h1>Rooms</h1>
+          <h1>Spaces</h1>
           <span class="status" id="rooms-status"></span>
-          <button class="btn btn-primary btn-small" id="add-room" type="button">Add room</button>
+          <button class="btn btn-primary btn-small" id="add-room" type="button">Add space</button>
         </div>
-        <p class="hint">Everyone belongs to the Lobby. Each room is its own conversation for the users you pick; players see their rooms after signing in and choose one. Coffee Pub Studio shows one room at a time.</p>
+        <p class="hint">Everyone belongs to the Lobby. Each space is its own conversation for the users you pick; players see their spaces after signing in and choose one. Coffee Pub Studio shows one space at a time.</p>
       </div>
       <div id="rooms" class="users"></div>
     </section>
@@ -187,7 +187,7 @@
     <section class="tab-stack" id="tab-roles" hidden>
       <div class="panel">
         <h2>Roles</h2>
-        <p class="hint">What each kind of person can do. Admin can do everything and can't be turned down. Moderator is what someone gets in any room where they're marked Moderator on their profile's Rooms tab. Guest is everyone who joins from a room's guest link. Changes save as you click.</p>
+        <p class="hint">What each kind of person can do. Admin can do everything and can't be turned down. Moderator is what someone gets in any space where they're marked Moderator on their profile's Spaces tab. Guest is everyone who joins from a space's guest link. Changes save as you click.</p>
         <div class="roles-scroll"><table class="roles-table" id="roles-table"></table></div>
         <p class="status" id="roles-status"></p>
         <p class="hint">Kicking, muting, guest links and asides are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>
@@ -243,7 +243,7 @@
       <div class="panel about">
         <h2>Troubleshooting</h2>
         <p><a href="/diag.html" target="_top">Layout diagnostics</a> -- shows what this device and browser report about the screen: viewport heights, safe areas and where fixed bars land. Open it in the browser and from the home screen app, and send screenshots when the layout is wrong on a phone.</p>
-        <p><a href="/?layout=1" target="_top">Table layout readout</a> -- opens the rooms page with a live readout of the table's real sizes over it. Join a room, and send a screenshot of the readout in the Conference view and in the Chat view.</p>
+        <p><a href="/?layout=1" target="_top">Table layout readout</a> -- opens the spaces page with a live readout of the table's real sizes over it. Join a space, and send a screenshot of the readout in the Conference view and in the Chat view.</p>
         <p><a href="/diag.html?fit=auto" target="_top">Layout diagnostics, edge-to-edge off</a> -- the same page with the page kept inside the safe area, to compare.</p>
       </div>
       <div class="panel about">
@@ -277,7 +277,7 @@
         <span class="field-label">Home icon</span>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
-      <p class="hint">Shown next to the server name wherever it's a link back to the room list.</p>
+      <p class="hint">Shown next to the server name wherever it's a link back to the space list.</p>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
@@ -349,9 +349,9 @@
         <button class="btn btn-primary" id="save-registration" type="button">Save</button>
         <span class="status" id="registration-status"></span>
       </div>
-      <p class="hint">Or invite someone straight into specific rooms without opening sign-up to everyone:</p>
+      <p class="hint">Or invite someone straight into specific spaces without opening sign-up to everyone:</p>
       <div class="row">
-        <span class="field-label">Rooms</span>
+        <span class="field-label">Spaces</span>
         <div class="member-checks" id="invite-rooms"></div>
       </div>
       <div class="row">
@@ -495,7 +495,7 @@
       </div>
       <button class="btn btn-small" data-action="room-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
       <button class="btn btn-small" data-action="room-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
-      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit room</a>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit space</a>
     </article>
   </template>
 

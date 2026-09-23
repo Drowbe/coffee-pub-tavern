@@ -1,6 +1,6 @@
-// Polls module. One file of code for every place it shows: the server's own page, a room's
+// Polls module. One file of code for every place it shows: the server's own page, a space's
 // docked pane or floating panel, and a window of its own. Each place has its own polls; on
-// the server page the viewer's rooms' polls are shown too, read-only, under their room's
+// the server page the viewer's spaces' polls are shown too, read-only, under their room's
 // icon. The SDK (window.tavern) is injected by Tavern.
 //
 // A poll is for deciding something together (where to go, where to stay, what to do): each
@@ -30,7 +30,7 @@
   }
   const inRoom = info.context.scope === 'room';
   const me = info.user.key;
-  // What the server's admin and this room's moderators chose (Module settings): a new poll's starting point.
+  // What the server's admin and this space's moderators chose (Module settings): a new poll's starting point.
   let prefs = { addableByDefault: false, closeAfterDays: 0 };
   const loadPrefs = () => tavern.settings.get().then((v) => { prefs = { ...prefs, ...v }; }).catch(() => {});
   await loadPrefs();
@@ -726,7 +726,7 @@
     });
   }
   $('add').addEventListener('click', () => openEditor());
-  // The host draws New poll in the module's action bar (in the room's bottom row when docked);
+  // The host draws New poll in the module's action bar (in the space's bottom row when docked);
   // the button in the header stays only for a host without one.
   if (tavern.bar) {
     $('add').classList.add('hosted');

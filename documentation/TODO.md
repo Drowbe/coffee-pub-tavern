@@ -47,6 +47,14 @@ Collected, none started:
 - Call time in the conference titlebar.
 - Reduce the height of the header a bit.
 
+## Spaces: the documentation, and the internals
+
+Decided (September 23, 2026): rooms are **spaces** in everything a person reads. The pages and modules say so now; the code, routes, API fields and stored data keep `room` on purpose (nothing stored or linked changes). Left: the user guides and the architecture documents still say "room" throughout, and should follow in one pass, keeping code identifiers (`roomId`, `/rooms/:id`, `scope: 'room'`) as they are and changing only the prose; and whether the internals ever follow (a rename of routes and fields is a compatibility question, not a wording one: only with a migration and only if it earns it). "The table" and "the Lobby" stay as they are.
+
+## The theme editor: the nav colours
+
+`--nav-primary-bg`, `--nav-primary-edge-bg` and `--nav-secondary-bg` derive from the header colour until a theme sets them, but Manage > Theme has no fields for them yet (the seven colours plus the header, buttons and icons). Add them to the "Header, buttons and icons" group with Auto boxes like the others.
+
 ## A Journal module
 
 Not started. A journal is where what *happened* is kept, as against the Planner, which is where

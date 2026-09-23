@@ -281,14 +281,14 @@
     if (canEdit && personal && inRoom && it.kind !== 'photo') {
       items.push({
         id: 'copy-to',
-        label: view === 'my' ? 'Copy to This room' : 'Copy to Mine',
+        label: view === 'my' ? 'Copy to This space' : 'Copy to Mine',
         icon: 'share-nodes',
         onClick: async () => {
           const target = view === 'my' ? stores.room : stores.my;
           try {
             await ensureLoaded(view === 'my' ? 'room' : 'my');
             await target.save({ ...it, id: '', by: me, at: new Date().toISOString(), ai: it.ai ? { ...it.ai, sources: [] } : null });
-            say(view === 'my' ? 'Copied to this room.' : 'Copied to Mine.', 2500);
+            say(view === 'my' ? 'Copied to this space.' : 'Copied to Mine.', 2500);
           } catch (err) { say('It could not be copied: ' + message(err)); }
         },
       });
@@ -657,7 +657,7 @@
       },
     });
   }
-  if (inRoom) stores.room.provide(me); // other modules' requests to save a note or a link go to the room's research
+  if (inRoom) stores.room.provide(me); // other modules' requests to save a note or a link go to the space's research
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || !KINDS.includes(ref.kind)) return;
@@ -674,7 +674,7 @@
 
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'room', label: 'This room', icon: 'users' },
+    { id: 'room', label: 'This space', icon: 'users' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   // How the items are laid out: cards packed like masonry, or a list. Remembered per person.

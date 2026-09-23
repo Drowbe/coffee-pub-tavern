@@ -54,11 +54,11 @@
       <p class="hint room-choice-desc"></p>
       <div class="members"></div>
       <div class="room-choice-actions">
-        <a class="btn btn-small" data-link target="_blank" rel="noopener" href="#" title="Open this room's link" hidden><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></a>
+        <a class="btn btn-small" data-link target="_blank" rel="noopener" href="#" title="Open this space's link" hidden><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></a>
         <button class="btn btn-primary" data-join type="button"><i class="fa-solid fa-comments fa-fw" data-join-icon aria-hidden="true"></i> <span data-join-label>Join</span></button>
         <button class="btn btn-accent btn-small" data-join-popout type="button" title="Join in a pop-out window" aria-label="Join in a pop-out window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>
         <button class="btn btn-small" data-join-with type="button" title="Choose what to join with" aria-label="Choose what to join with"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i></button>
-        <a class="btn btn-small" data-edit data-overlay-link href="#" title="Room settings" hidden><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></a>
+        <a class="btn btn-small" data-edit data-overlay-link href="#" title="Space settings" hidden><i class="fa-solid fa-pen fa-fw" aria-hidden="true"></i></a>
         <a class="btn btn-small" data-module-settings data-overlay-link href="#" title="Module settings" hidden><i class="fa-solid fa-gears fa-fw" aria-hidden="true"></i></a>
       </div>
     </article>
@@ -167,9 +167,9 @@
         <button class="fbtn" id="away-toggle" type="button" title="Away: pauses your mic and camera and lets everyone know" data-collapse="5"><span class="glyph"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)" data-collapse="3"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more" data-collapse="2"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
-        <button class="fbtn" id="room-link" type="button" title="Open this room's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn" id="room-link" type="button" title="Open this space's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="floatbar-more" type="button" title="More" aria-label="More" hidden><span class="glyph"><i class="fa-solid fa-ellipsis-vertical fa-fw" aria-hidden="true"></i></span></button>
-        <button class="fbtn danger" id="hangup" type="button" title="Leave the call (you stay in the room)"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn danger" id="hangup" type="button" title="Leave the call (you stay in the space)"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
       </div>
       <div class="popover floatbar-overflow" id="floatbar-overflow" hidden></div>
 
@@ -228,8 +228,8 @@
           </div>
           <div id="guest-section">
             <h3>Guests</h3>
-            <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed.</p>
-            <p class="hint" id="guest-link-off-note" hidden>An admin has turned guests off for this room.</p>
+            <p class="hint">Anyone with this link joins this space with just a name -- no account, no invite needed.</p>
+            <p class="hint" id="guest-link-off-note" hidden>An admin has turned guests off for this space.</p>
             <div class="row">
               <code class="key link" id="guest-link-value">off</code>
               <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
@@ -304,7 +304,7 @@
 
     <!-- Shown when nothing is open on the stage: no conference, no chat, no module. -->
     <div class="stage-empty" id="stage-empty" hidden>
-      <p>Nothing is open. Open the conference, the chat or a module from the room bar.</p>
+      <p>Nothing is open. Open the conference, the chat or a module from the space bar.</p>
     </div>
 
   </main>

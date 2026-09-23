@@ -180,7 +180,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   // remembered is its cells (`cell`: col, row, cols, rows), so it keeps its place in the grid when the window
   // changes size. The grid is as many cells of about SNAP_CELL as the stage fits (never fewer than one), gutter
   // SNAP_GAP, drawn (`.snap-grid`) only while a snapped pane is being dragged. Docked and window are untouched.
-  // The grid's pitch (a cell's width; a cell is 0.77 as tall) is the stage's: the room bar's slider sets it, remembered with
+  // The grid's pitch (a cell's width; a cell is 0.77 as tall) is the stage's: the space bar's slider sets it, remembered with
   // the room's layout (`__snap.pitch`), beside the stage-level switch (`__snap.all`) that snaps every floating pane, now and later.
   const SNAP_PITCH = { min: 60, max: 320, step: 10, default: 130 };
   const SNAP_GAP = 16; // the same 16px clampBox keeps clear of the window's edges, so a pane spanning every cell still fits the grid
@@ -269,7 +269,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       if (p && p.mode === 'float' && supports(p, mode)) setMode(id, mode);
     }
   }
-  // The grid's size, from the room bar's slider: every snapped pane refits to the cells nearest its box. While the slider
+  // The grid's size, from the space bar's slider: every snapped pane refits to the cells nearest its box. While the slider
   // moves (`preview`) the grid shows, so the size can be seen; it hides when the slider is let go.
   function setSnapPitch(px, { preview = false } = {}) {
     const pitch = Math.min(SNAP_PITCH.max, Math.max(SNAP_PITCH.min, Math.round(Number(px) || SNAP_PITCH.default)));
@@ -894,7 +894,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     update();
   }
 
-  // A module's own window: the same page a server page uses, in this room's scope.
+  // A module's own window: the same page a server page uses, in this space's scope.
   const windows = new Map();
   function popOut(id) {
     const pane = panes.get(id);

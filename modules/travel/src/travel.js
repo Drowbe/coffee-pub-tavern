@@ -1162,10 +1162,10 @@
     if (!card || card.error) throw new Error('That private item could not be read.');
     let add = null;
     try { add = (await tavern.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
-    if (!add) throw new Error('That item is private to you. Share it to the room first, then use the shared copy.');
+    if (!add) throw new Error('That item is private to you. Share it to the space first, then use the shared copy.');
     const out = await tavern.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
     if (out.status === 'done' && out.result && out.result.ok && out.result.ref) return out.result.ref;
-    throw new Error('It could not be shared to the room.');
+    throw new Error('It could not be shared to the space.');
   }
 
   // Something dropped on the plan, by the pointer drag every module's items share: one of this plan's own items (pressed on its

@@ -219,7 +219,7 @@ function fillRoomSection(section, room, roomImages) {
     box.disabled = !editing || user.role === 'admin';
   }
   section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
-    ? 'Admins can always do all of this, in every room.'
+    ? 'Admins can always do all of this, in every space.'
     : editing
       ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
       : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name} only.`;

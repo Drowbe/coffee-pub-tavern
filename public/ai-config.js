@@ -15,9 +15,9 @@ wireOverlayBack();
 
 const AI_NOTICES = {
   none: 'AI is off. A module that asks for it is told AI is not set up.',
-  openai: 'Sends the items a person selects, and their question, to OpenAI under your account and its terms. Only what a person selects is sent, never another room.',
-  anthropic: 'Sends the items a person selects, and their question, to Anthropic under your account and its terms. Only what a person selects is sent, never another room.',
-  compatible: 'Sends the items a person selects, and their question, to the address below. For a hosted service that means to that company, under its terms and your account. For a model you run yourself nothing leaves your network. Only what a person selects is sent, never another room.',
+  openai: 'Sends the items a person selects, and their question, to OpenAI under your account and its terms. Only what a person selects is sent, never another space.',
+  anthropic: 'Sends the items a person selects, and their question, to Anthropic under your account and its terms. Only what a person selects is sent, never another space.',
+  compatible: 'Sends the items a person selects, and their question, to the address below. For a hosted service that means to that company, under its terms and your account. For a model you run yourself nothing leaves your network. Only what a person selects is sent, never another space.',
 };
 let aiState = { provider: 'none', keySet: false, keyFromEnvironment: false, model: '' };
 let aiKeyMode = 'keep'; // keep | replace | clear

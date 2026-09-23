@@ -11,7 +11,7 @@ The header is two rows, and each row is three zones: **left** (left-justified), 
 | Zone | What it is for | Today |
 |---|---|---|
 | Left | The logo (home), where you are, and quick actions (to be defined) | the server icon and name (the home link), the crumb ("> Lobby", "> Server Settings") |
-| Middle | Core navigation, system-level: the rooms (to be renamed, "spaces" or something less literal, still open), and more to come | Rooms, and each module's own page |
+| Middle | Core navigation, system-level: the spaces (decided: rooms are "spaces" in everything a person reads; the code keeps `room`), and more to come | Spaces, and each module's own page |
 | Right | System-level actions and system information: settings, your profile, sign out, install; a clock | your profile, Manage, Install, Sign out, and the time on the server's clock (12- or 24-hour, the Language, time and money setting) |
 
 **Secondary nav: the space.** Only at the table (a room), under the primary nav.
@@ -44,6 +44,6 @@ The author's Blacksmith module (its `api-menubar` wiki page) has the same idea, 
 
 - Primary left: what the quick actions are (a new room, a search, a notification tray?).
 - Primary middle: what else is core navigation beyond the rooms and module pages -- the dashboard, a person's own things (their research, their places)?
-- The name for rooms ("spaces"?), and whether the crumb and the secondary nav's room name should both show the room at the table (today they do).
+- Decided: the crumb is not shown at the table (the secondary nav names the space); it stays on the pages that have no second row. Whether those pages should have a second row of their own (a profile's, a module page's) is open.
 - Secondary middle: the space's information (who is here, the call's state, the time in the call) and space navigation (the views of the space?).
 - Secondary right: whether the layout choice (docked, floating, snap) grows into one layout menu rather than several buttons.

@@ -1,4 +1,4 @@
-// The Maps module's page: a map of every place the room has, from the admin's map file. Maps keeps no data of its own: it draws
+// The Maps module's page: a map of every place the space has, from the admin's map file. Maps keeps no data of its own: it draws
 // every card in the room that carries a `place` (through the cards conduit), each with its own module's icon and grouped by
 // module, and it saves a new place by asking whichever module provides the `addPlace` action. This page draws into the markup
 // in maps.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes
@@ -20,7 +20,7 @@
     return;
   }
   if (info.context.scope !== 'room') {
-    $('msg').textContent = 'A map belongs to a room. Open the room, then Maps from its panes.';
+    $('msg').textContent = 'A map belongs to a space. Open the space, then Maps from its panes.';
     return;
   }
 
@@ -268,7 +268,7 @@
   // --- search (only when the admin set an address) ------------------------------------------------------------------
 
   // What someone sees when they search and no search has been chosen in Places' settings.
-  const NO_SEARCH = 'Search is not available. It has not been configured for this room.';
+  const NO_SEARCH = 'Search is not available. It has not been configured for this space.';
   let searchToken = 0;
   let hits = [];
   let hit = -1;

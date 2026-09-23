@@ -41,6 +41,12 @@
      until a theme sets it. */
   --header-bg: var(--bg);
   --header-text: var(--text);
+  /* The two rows of the header, each its own colour (see architecture-navigation.md): the primary nav's middle zone
+     is --header-bg itself, its left and right zones a shade darker, and the secondary nav (the space) its own,
+     between the header and the page. Derived from --header-bg until a theme sets them. */
+  --nav-primary-bg: var(--header-bg);
+  --nav-primary-edge-bg: color-mix(in srgb, var(--header-bg) 86%, black);
+  --nav-secondary-bg: color-mix(in srgb, var(--header-bg) 70%, var(--bg));
   /* --icon has no default here: where it is used, var(--icon, <fallback>) picks
      the fallback that suits the surface (dim text in the page, the header
      text color in the header) until a theme sets it. */
@@ -145,7 +151,28 @@ a:hover {
   min-height: calc(44px + env(safe-area-inset-top)); /* border-box: 43px of content plus the 1px rule below */
   border-bottom: 1px solid var(--border);
   color: var(--header-text);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--header-bg) 85%, var(--border) 15%), var(--header-bg));
+  background: var(--nav-primary-bg);
+}
+
+/* The left and right zones are a shade darker than the middle, the full height of the row. */
+.topbar .nav-left,
+.topbar .nav-right {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  background: var(--nav-primary-edge-bg);
+}
+
+.topbar .nav-left {
+  padding-right: 14px;
+  margin-left: -16px;
+  padding-left: 16px;
+}
+
+.topbar .nav-right {
+  padding-left: 14px;
+  margin-right: -16px;
+  padding-right: 16px;
 }
 
 /* The server icon runs the full height of the header, flush to its top,
@@ -877,6 +904,7 @@ body.at-table .page-scroll {
   margin: 0 -16px;
   padding: 2px 16px;
   border-top: 1px solid var(--border);
+  background: var(--nav-secondary-bg);
 }
 
 /* Three zones, like the primary nav: left (the room's name, the pane switches), middle (space information and navigation),

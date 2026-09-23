@@ -154,7 +154,7 @@
     }
     return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start < floor ? floor : g[0].start))}</h4>${g.map(({ x, start, end }) => `
       <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start, end))}</span>
-        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag room">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
+        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag space">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
   function monthList() {
@@ -266,7 +266,7 @@
   function remindHint() {
     $('f-remind-hint').textContent = $('f-remind').value === ''
       ? ''
-      : (inRoom ? 'Everyone in this room' : 'Everyone on the server') + ' gets a notification, if they are allowed to see the calendar.';
+      : (inRoom ? 'Everyone in this space' : 'Everyone on the server') + ' gets a notification, if they are allowed to see the calendar.';
   }
   $('f-remind').addEventListener('change', remindHint);
 
@@ -516,7 +516,7 @@
   $('next').addEventListener('click', () => step(1));
   $('today').addEventListener('click', () => { anchor = new Date(); cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1); render(); });
   $('add').addEventListener('click', () => openEditor(null));
-  // The host draws the Add button in the module's action bar (in the room's bottom row when
+  // The host draws the Add button in the module's action bar (in the space's bottom row when
   // docked); the button in the header stays only for a host without one.
   if (tavern.bar) {
     $('add').classList.add('hosted');

@@ -1,6 +1,6 @@
 // To-do module. One file of code for every place it shows: the server's own page, a
 // room's docked pane or floating panel, and a window of its own. Each place has its own
-// list. On the server page the viewer's rooms' lists are shown too, read-only, each with
+// list. On the server page the viewer's spaces' lists are shown too, read-only, each with
 // its room's icon. The SDK (window.tavern) is injected by Tavern.
 (async function () {
   'use strict';
@@ -24,7 +24,7 @@
   const canEdit = tavern.can('edit');
   const DAY = 24 * 60 * 60 * 1000;
 
-  // Every task we know of, by key. `scope` is 'own' (this place's list) or 'rooms' (another room's, read-only).
+  // Every task we know of, by key. `scope` is 'own' (this place's list) or 'rooms' (another space's, read-only).
   const tasks = new Map();
   const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
   const hiddenRooms = new Set();
@@ -643,7 +643,7 @@
     submitQuick();
   });
   $('add').addEventListener('click', () => openEditor(null));
-  // The host draws Add task in the module's action bar (in the room's bottom row when docked);
+  // The host draws Add task in the module's action bar (in the space's bottom row when docked);
   // the button and the quick-add field at the top stay only for a host without one.
   if (tavern.bar) {
     // Then the quick-add field at the top is not needed either: there is one place to add a task, the bar.

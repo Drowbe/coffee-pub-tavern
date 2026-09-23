@@ -743,7 +743,7 @@ async function loadModules() {
 }
 
 function moduleCard(m) {
-  const scopes = m.scope.map((s) => (s === 'server' ? 'Server page' : 'Room panel')).join(' + ');
+  const scopes = m.scope.map((s) => (s === 'server' ? 'Server page' : 'Space panel')).join(' + ');
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
@@ -976,7 +976,7 @@ $('modules-list').addEventListener('click', async (event) => {
   const b = builtinModules.find((x) => x.id === button.dataset.builtinToggle);
   if (!b) return;
   const enable = !b.enabled;
-  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || 'It stops working in every room until you enable it again.'}`)) return;
+  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || 'It stops working in every space until you enable it again.'}`)) return;
   if (enable && !window.confirm(`Enable ${b.name}?\n\n${b.turnOn || b.description}`)) return;
   button.disabled = true;
   try {

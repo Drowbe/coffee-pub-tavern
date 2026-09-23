@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
   <link rel="icon" href="/img/site/icon">
-  <title>Coffee Pub Tavern - Room</title>
+  <title>Coffee Pub Tavern - Space</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/theme.css">
@@ -18,7 +18,7 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="room" type="button">Room</button>
+      <button class="subtab active" data-tab="room" type="button">Space</button>
       <button class="subtab" data-tab="members" type="button">Members</button>
       <button class="subtab" data-tab="modules" type="button" hidden>Modules</button>
     </nav>
@@ -29,12 +29,12 @@
           <div class="slot" id="room-image-slot" data-room-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="room-image" alt=""><span class="unset">not set</span><input type="file" id="room-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="room-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
             <h1 id="room-title"></h1>
-            <span class="tag" id="lobby-tag" hidden>Everyone's room</span>
+            <span class="tag" id="lobby-tag" hidden>Everyone's space</span>
             <p class="status" id="status"></p>
           </div>
         </div>
 
-        <h2>Room</h2>
+        <h2>Space</h2>
         <div class="fields">
           <label>Name<input id="e-name" type="text" maxlength="40"></label>
           <label class="wide">Description<textarea id="e-description" rows="3" maxlength="300"></textarea></label>
@@ -45,7 +45,7 @@
           </select></label>
           <label class="wide">Launch link<input id="e-link" type="url" placeholder="https://your-vtt-or-site.example" maxlength="500"></label>
         </div>
-        <p class="hint">Decides which image sections show up for this room on a member's own profile page,
+        <p class="hint">Decides which image sections show up for this space on a member's own profile page,
           and which ones Coffee Pub Studio offers to publish for it.</p>
 
         <div class="icon-pick-field">
@@ -60,7 +60,7 @@
         </div>
 
         <div class="row danger-row" id="danger-row">
-          <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete room</button>
+          <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete space</button>
         </div>
       </div>
     </section>
@@ -68,14 +68,14 @@
     <section class="tab-stack" id="tab-members" hidden>
       <div class="panel" id="section-members">
         <h2>Members</h2>
-        <p class="hint" id="members-hint">Click a player to add or remove them from this room -- saves as you click.</p>
+        <p class="hint" id="members-hint">Click a player to add or remove them from this space -- saves as you click.</p>
         <div class="member-checks" id="members"></div>
         <p class="status" id="members-status"></p>
       </div>
 
       <div class="panel" id="section-access">
         <h2>Invite to register</h2>
-        <p class="hint">A link that signs someone up with a real account and drops them straight into this room (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
+        <p class="hint">A link that signs someone up with a real account and drops them straight into this space (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
         <div class="row">
           <button class="btn btn-small" id="make-invite" type="button">Generate invite link</button>
           <span class="status" id="invite-status"></span>
@@ -86,11 +86,11 @@
         </div>
 
         <h2>Guest link</h2>
-        <p class="hint">Anyone with this link joins this room with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the room itself, not just here.</p>
+        <p class="hint">Anyone with this link joins this space with just a name -- no account, no invite needed. Anyone already at the table can also manage this from the space itself, not just here.</p>
         <div class="row">
           <label class="check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
         </div>
-        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this room -- turn it on above to use this.</p>
+        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this space -- turn it on above to use this.</p>
         <div class="row">
           <code class="key link" id="guest-link-value">off</code>
           <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
@@ -105,20 +105,20 @@
     <section class="tab-stack" id="tab-modules" hidden>
       <div class="panel" id="section-modules" hidden>
         <h2>Modules</h2>
-        <p class="hint">Modules with a room panel. Tick one to make it available to this room's members, in the Modules button on the call toolbar. A module marked on for every room is set on the Modules tab of Manage.</p>
+        <p class="hint">Modules with a space panel. Tick one to make it available to this space's members, in the Modules button on the call toolbar. A module marked on for every space is set on the Modules tab of Manage.</p>
         <div id="room-modules"></div>
         <span class="status" id="room-modules-status"></span>
       </div>
       <!-- shown once an AI service is set up (Manage > Modules > AI service) -->
       <div class="panel" id="section-ai" hidden>
         <h2><i class="fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i> AI</h2>
-        <p class="hint">Modules in this room can use the server's AI service to summarise, answer questions and write cards from what a person selects. Turn it off here to stop that in this room, whatever the roles allow.</p>
-        <label class="check"><input type="checkbox" id="e-ai-off"> Turn AI off in this room</label>
+        <p class="hint">Modules in this space can use the server's AI service to summarise, answer questions and write cards from what a person selects. Turn it off here to stop that in this space, whatever the roles allow.</p>
+        <label class="check"><input type="checkbox" id="e-ai-off"> Turn AI off in this space</label>
         <span class="status" id="ai-off-status" role="status"></span>
       </div>
       <div class="panel" id="section-module-settings" hidden>
         <h2>Module settings</h2>
-        <p class="hint">What each module does in this room. Room moderators can change these too.</p>
+        <p class="hint">What each module does in this space. Space moderators can change these too.</p>
         <div id="module-settings"></div>
       </div>
     </section>

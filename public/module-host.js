@@ -327,9 +327,9 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     if (requested === 'server' || requested === 'room' || requested === 'rooms' || requested === 'person') {
       // 'person' is the viewer's own data (their profile's), from a page anywhere; the module must have declared the scope.
       if (requested === 'person' && !module.scope?.includes('person')) throw Object.assign(new Error('this module has no personal scope'), { status: 400 });
-      if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a room'), { status: 400 });
+      if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a space'), { status: 400 });
       // 'rooms' is the server page reading every room the viewer belongs to (read-only)
-      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('room'))) throw Object.assign(new Error('only a module\'s server page can read across rooms'), { status: 400 });
+      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('room'))) throw Object.assign(new Error('only a module\'s server page can read across spaces'), { status: 400 });
       return requested;
     }
     throw Object.assign(new Error('bad scope'), { status: 400 });
@@ -490,7 +490,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     },
     // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
     // Empty on a module's server page, which is not in one room.
-    // What the module's settings are for this viewer here (server, this room and the person's own together).
+    // What the module's settings are for this viewer here (server, this space and the person's own together).
     // The address of a file an admin placed for this module (see the server's module files), in this module's place.
     async 'files.url'({ name }) {
       const n = String(name ?? '');
@@ -924,7 +924,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     frame.contentWindow?.postMessage({ tavern: 1, tk: secret, event, data }, '*');
   }
   // A room's pane hears that room and the server; a module's server page hears the server and
-  // the viewer's rooms (see the stream's scopes on the server).
+  // the viewer's spaces (see the stream's scopes on the server).
   const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
     if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });

@@ -1,4 +1,4 @@
-// The Places module's page: the room's saved places, listed by category, each with an address, an optional position, notes and
+// The Places module's page: the space's saved places, listed by category, each with an address, an optional position, notes and
 // owners. The places live in the module's store (see places-lib.js) and, with a position, give their card a `place` that a map
 // module draws. This page draws into the markup in places.html by cloning its templates and filling their [data-slot] and
 // [data-icon] hooks, and toggles the state classes and data attributes CONTRACT.md lists. It builds no markup from strings
@@ -233,13 +233,13 @@
     if (canShare) {
       items.push({
         id: 'share',
-        label: view === 'my' ? 'Share to this room' : 'Save to mine',
+        label: view === 'my' ? 'Share to this space' : 'Save to mine',
         icon: 'share-nodes',
         onClick: async () => {
           const target = view === 'my' ? stores.room : stores.my;
           try {
             await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: [info.user.key] });
-            say(view === 'my' ? 'Shared to this room.' : 'Saved to your places.');
+            say(view === 'my' ? 'Shared to this space.' : 'Saved to your places.');
             setTimeout(() => say(''), 2500);
           } catch (err) { say('It could not be copied: ' + ((err && err.message) || err)); }
         },
@@ -626,7 +626,7 @@
     });
   }
 
-  if (inRoom) stores.room.provide(info.user.key); // other modules' requests to add a place go to the room's list
+  if (inRoom) stores.room.provide(info.user.key); // other modules' requests to add a place go to the space's list
   if (tavern.refs && tavern.refs.onOpen) {
     tavern.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
@@ -638,11 +638,11 @@
   // --- start --------------------------------------------------------------------------------------------------------
 
   // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (a server-wide store).
-  const VIEW_NOTES = { my: 'Only you see these. They follow you into every room.', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
+  const VIEW_NOTES = { my: 'Only you see these. They follow you into every space.', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
   const allowed = { my: personal, room: inRoom, global: personal };
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'room', label: 'This room', icon: 'users' },
+    { id: 'room', label: 'This space', icon: 'users' },
     { id: 'global', label: 'Everyone', icon: 'globe' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? tavern.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;

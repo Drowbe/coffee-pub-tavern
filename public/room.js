@@ -39,9 +39,10 @@ subnav.innerHTML = `
   <span class="snap-tools" id="snap-tools"><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
-  <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
+  <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this space a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
+  <button class="icon-link" id="rejoin-call" type="button" title="Rejoin call" aria-label="Rejoin call" hidden><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>
   <span class="nav-divider"></span>
-  <button class="icon-link" id="leave-room" type="button" title="Leave room" aria-label="Leave room"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
+  <button class="icon-link" id="leave-room" type="button" title="Leave space" aria-label="Leave space"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
   </span>`;
 topbarEl.appendChild(subnav);
 // On a phone the room bar is a tab bar at the bottom of the page, in the flow after the stage, so
@@ -126,7 +127,7 @@ function imgUrl(key, slot, params = {}) {
   return `/img/${encodeURIComponent(urlKey)}/${urlSlot}${qs ? `?${qs}` : ''}`;
 }
 
-// A member's Online picture for the room we're in, when they've set one there
+// A member's Online picture for the space we're in, when they've set one there
 // (Use Default Profile Images off); otherwise the tile falls back to their
 // profile photo. Private asides count as their origin room.
 function roomPortraitUrl(key) {
@@ -1906,7 +1907,7 @@ room
     $('recall-overlay').hidden = true;
     // A guest has no session and no room to pick from -- back to their own
     // name-only form for the one room their link is for, not the real
-    // members' room list (which they can't do anything with anyway).
+    // members' space list (which they can't do anything with anyway).
     $('join').hidden = !!guestToken;
     $('guest-join').hidden = !guestToken;
     $('away').hidden = true;
@@ -2052,7 +2053,7 @@ async function returnToTable() {
 }
 
 // Leaving entirely (not "back to the table" -- I'm not going anywhere
-// myself). If I'm in a pulled-aside room, regular or private, whoever's
+// myself). If I'm in a pulled-aside space, regular or private, whoever's
 // still in there with me would otherwise be stranded -- an aside/private
 // room is normally just the two (or few) of us, so without me there's no
 // reason for them to still be off in a room by themselves. Applies to
@@ -2078,13 +2079,13 @@ async function leaveRoom() {
 // Rejoin is icon-only, styled like the header's other icon buttons
 // (settings, sign out) rather than a labeled pill -- title carries the
 // name for a screen reader or a hover, same as those. Leave is in the subnav.
-const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-crumb-action="rejoin" title="Rejoin call" aria-label="Rejoin call"><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>';
 // The label text hides at narrow widths (see .crumb-label in style.css),
 // leaving just the icon -- which is why every crumb-here needs one.
 const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
 
-// The space's name in the secondary nav's left zone (the crumb in the primary nav says the same; whether both should is open,
-// see plan-nav.md).
+// The space's name in the secondary nav's left zone. At the table the primary nav's crumb is empty: the secondary nav says
+// where you are, and saying it twice was noise (plan-nav.md). In an aside the name is the origin's plus the kind, and the
+// Rejoin call button (a space action) shows in the right zone.
 function setSpaceName(icon, text) {
   const el = $('space-name');
   if (!el) return;
@@ -2095,24 +2096,22 @@ function setSpaceName(icon, text) {
   if (t) t.textContent = text || '';
 }
 function updateCrumb() {
+  setTopbarLocation('');
+  const rejoin = $('rejoin-call');
   if (!currentRoom) {
-    setTopbarLocation('');
     setSpaceName('couch', '');
+    if (rejoin) rejoin.hidden = true;
     return;
   }
   if (currentRoom.ephemeral && currentRoom.origin) {
     const originRoom = tableRooms.find((r) => r.id === currentRoom.origin);
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
-    setTopbarLocation(
-      crumbHere(roomCrumbIcon(originRoom), originName) +
-      `<span class="crumb-sep">&rsaquo;</span>` +
-      crumbHere('people-arrows', kind) + REJOIN_BTN
-    );
     setSpaceName('people-arrows', `${originName} · ${kind}`);
+    if (rejoin) rejoin.hidden = false;
   } else {
-    setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName));
     setSpaceName(roomCrumbIcon(currentRoom), tableName);
+    if (rejoin) rejoin.hidden = true;
   }
 }
 
@@ -2509,6 +2508,8 @@ $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
   if (action === 'rejoin') returnToTable();
 });
+// Rejoin call now lives in the space's bar (an aside's way back); the crumb listener above is kept for any page that still draws it there.
+$('rejoin-call').addEventListener('click', () => returnToTable());
 // Leave is in the room's bar (the subnav), which is not the crumb, so it has its own listener.
 $('leave-room').addEventListener('click', leaveRoom);
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
@@ -2980,7 +2981,7 @@ function setUpPopoutWindow(win) {
     event.preventDefault();
     const href = link.getAttribute('href');
     closePopout();
-    if (link.matches('#rooms-link, .brand-home')) showRoomList();
+    if (link.matches('#spaces-link, .brand-home')) showRoomList();
     else if (href === '/logout') location.href = '/logout';
     else if (link.matches('[data-overlay-link]')) openOverlay(href);
   });
@@ -3071,7 +3072,7 @@ document.addEventListener('click', (event) => {
 });
 
 // --- the room list, without leaving the call ---------------------------------
-// "All rooms" (the server name/icon, and its twin in the nav) would otherwise
+// "All spaces" (the server name/icon, and its twin in the nav) would otherwise
 // be a real navigation to '/' -- same page, but a fresh load drops the
 // WebRTC connection entirely. The room list already lives right here on this
 // page (#join), so there's nothing to load: just swap views, the same "away"
@@ -3103,7 +3104,7 @@ function returnToStage() {
   setAway(false);
 }
 document.addEventListener('click', (event) => {
-  if (!event.target.closest('#rooms-link, .brand-home')) return;
+  if (!event.target.closest('#spaces-link, .brand-home')) return;
   if (guestToken || !document.body.classList.contains('at-table')) return; // a real navigation is fine here
   event.preventDefault();
   showRoomList();

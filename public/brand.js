@@ -90,7 +90,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   // system's actions (your profile, Manage, Install, Sign out) and information (the time, on the server's clock).
   header.innerHTML = `
     <div class="nav-left brand">
-      <a class="brand-home" href="/" target="_top" title="All rooms">
+      <a class="brand-home" href="/" target="_top" title="All spaces">
         <img data-brand="icon" alt="" class="icon">
         <i class="fa-solid fa-${initialIcon} fa-fw" data-icon-id="${escapeHtml(initialIcon)}" data-brand="home-icon" aria-hidden="true"></i>
         <span data-brand="serverName">${escapeHtml(initialName)}</span>
@@ -99,7 +99,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
     <nav class="nav-middle core-nav" id="core-nav" aria-label="Core navigation">
-      <a class="core-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i><span class="core-label">Rooms</span></a>
+      <a class="core-link" href="/" target="_top" id="rooms-link" title="All spaces" aria-label="All spaces"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i><span class="core-label">Spaces</span></a>
       <span class="module-nav" id="module-nav"></span>
     </nav>
     <nav class="nav-right links">
@@ -257,7 +257,7 @@ async function startNotifications() {
 }
 
 // Tell the server this page is open (every half minute, and when it comes back into view), so the dashboard's
-// Who's around can show who is online, not only who is in a room. Not in an overlay over a call: that page's
+// Who's around can show who is online, not only who is in a space. Not in an overlay over a call: that page's
 // own page is already doing it.
 function startPresence() {
   if (new URLSearchParams(window.location.search).get('from') === 'room') return;

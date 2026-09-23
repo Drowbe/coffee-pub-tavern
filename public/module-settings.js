@@ -1,6 +1,6 @@
 // The forms for the settings modules declare (module.json `settings`): one card per module that has settings of
-// a scope, one control per setting, a Save on each card. Used on the Modules tab (the server's), a room's page (the
-// room's), the page a room's moderators use (module-settings.html) and the profile page (a person's own). The
+// a scope, one control per setting, a Save on each card. Used on the Modules tab (the server's), a space's page (the
+// room's), the page a space's moderators use (module-settings.html) and the profile page (a person's own). The
 // server decides who may change what; this only draws what it is given.
 import { api, escapeHtml } from '/brand.js';
 
