@@ -1,6 +1,6 @@
 # Tenants: one host, many environments
 
-**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles); not started. The open decisions are at the end.
+**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles, and the ten questions at the end, answered by the author); not started.
 
 ## What it is for
 
@@ -29,7 +29,7 @@ A tenant is three things, and a folder of spaces is not one:
 
 **No base domain, no tenants.** With `BASE_DOMAIN` unset the deployment is one tenant, the "default", at whatever hostname it has: today's install, unchanged, and the self-hosted product. Setting a base domain turns the seam on; the existing data becomes the default tenant, so nothing moves. The same image serves both.
 
-**Roles.** Two things sit above "user", and they are not the same thing:
+**Roles.** Two things sit above "user", and they are not the same thing (the visible words: an *environment*, run by its *owner*):
 
 | Role | Scope | Who |
 |---|---|---|
@@ -62,15 +62,17 @@ Phase 1 is the large one and it is plumbing at the door; the rest is policy on t
 
 One store file per install, module data scoped to server, space or person, settings as one object, "no secrets in modules" (the AI key is above the seam by construction), the host not being the brand (the platform vocabulary has room for one more noun), and every module already blind to anything outside its own scope.
 
-## Open decisions
+## Decided September 23, 2026 (the author, asked one by one)
 
-- **The visible word for a tenant.** "Environment" is accurate and technical; "club" reads as a paid membership, which matches selling it; "circle" reads as a family or a group of friends. The code says tenant and never shows it.
-- **The visible word for the owner.** Owner, manager, or the customer's word.
-- **Slugs.** Letters, digits and hyphens, 3 to 30, chosen at sign-up and fixed after (a change is a redirect from the old one), reserved words (`www`, `api`, `host`, `admin`...).
-- **The host console's address.** `host.<base domain>` or the base domain itself with no tenant; and whether the host admin is a separate account kind (recommended) or a flag on an account in the default tenant.
-- **What the default tenant is called** when a base domain is set later on an install that had data (its slug, its address).
-- **Entitlement units.** Members as a count; storage as a size; AI as calls per month or tokens per month; calls as concurrent spaces in a call. And what a tenant sees when it is over: refused with a message, or degraded (AI off, uploads off) while the rest runs.
-- **The billing provider and the webhook's shape**, and the grace period's length.
-- **Backups.** Per tenant (a tenant's directory is its backup and its export) or the whole data directory; and whether an owner can download their tenant's export themselves.
-- **Email.** Invites and sign-up links need sending; SMTP is the host's, the sender name the tenant's.
-- **A tenant's own domain**, and who holds the certificate.
+- **The visible word for a tenant is "environment."** A customer buys an environment; the code says tenant and never shows it. The words for the tiers and the sign-up page follow from it ("your environment", "environment settings").
+- **The person who runs one is its "owner."** More than one owner is allowed. "Moderator" keeps its space-level meaning.
+- **Slugs** are letters, digits and hyphens, 3 to 30 characters, chosen once at sign-up and fixed; a change the host grants becomes a redirect from the old slug; `www`, `api`, `host`, `admin`, `mail` and the like are refused.
+- **The host console is `host.<base domain>`** with its own sign-in, and the host admin is a separate kind of account, a member of no tenant. A tenant can never see or reach the console. The bare base domain is the sign-up page.
+- **Switching a base domain on names the existing data.** The switch asks for the slug the existing install becomes ("stayingblonde"), and the data moves to that subdomain; nothing is called "default" for longer than the migration takes.
+- **Entitlements** are members as a count, storage as a size, AI as calls per month, calls as concurrent spaces in a call, and the module list. Over a cap, the one thing stops (no more invites, uploads or AI, with a plain message saying why) while everything else keeps running.
+- **Billing** is a payment provider's hosted pages and its webhook, which sets the plan on the registry entry. A lapse marks the tenant past due for **14 days**, with a banner for owners, then degrades it to the free caps. Billing never deletes anything.
+- **Backups are per tenant**: a tenant's directory is its backup; the host console backs up and restores one tenant; an owner can download their environment as a zip and ask for its deletion.
+- **Email is the host's SMTP with the tenant's sender name** ("<Environment name> via <product>", replies to an owner); tenants set nothing up.
+- **A tenant's own domain comes later, on the top plan**: a hostname-to-slug mapping in the registry, a CNAME at the base, a certificate the host obtains itself. Not in the first phases.
+
+Nothing is left open for phase 1.
