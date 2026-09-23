@@ -19,7 +19,7 @@
     $('msg').textContent = 'Places could not start: ' + err.message;
     return;
   }
-  // In a room (a pane) or on the module's own page: a room has its own list; the page has only mine and everyone's.
+  // In a room (a pane) or on the module's own page: a space has its own list; the page has only mine and everyone's.
   const inRoom = info.context.scope === 'room';
   if (!inRoom && info.context.scope !== 'server') {
     $('msg').textContent = 'Places could not open here.';

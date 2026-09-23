@@ -296,7 +296,7 @@ $('room-sections').addEventListener('click', (event) => {
   if (remove && editingKey) {
     const section = remove.closest('.room-section');
     const name = section.querySelector('.room-section-title').textContent;
-    if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the room's Members tab.`)) return;
+    if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the space's Members tab.`)) return;
     run(async () => {
       user = (await api('DELETE', `/api/rooms/${section.dataset.room}/members/${user.key}`)).user;
       render();

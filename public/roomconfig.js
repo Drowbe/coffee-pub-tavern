@@ -79,7 +79,7 @@ function render() {
 
   $('members-hint').textContent = room.isLobby
     ? 'Everyone belongs to the Lobby.'
-    : 'Click a player to add or remove them from this room -- saves as you click.';
+    : 'Click a player to add or remove them from this space -- saves as you click.';
 
   $('danger-row').hidden = room.isLobby;
 
@@ -171,7 +171,7 @@ async function loadRoomModules() {
   $('room-modules').innerHTML = roomModules.map((m) => {
     const everywhere = m.allRooms;
     const on = everywhere || m.rooms.includes(room.id);
-    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ' <span class="hint">(on for every room)</span>' : ''}</label>`;
+    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ' <span class="hint">(on for every space)</span>' : ''}</label>`;
   }).join('');
 }
 $('room-modules').addEventListener('change', async (event) => {
@@ -274,7 +274,7 @@ $('make-invite').addEventListener('click', async () => {
 $('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
 $('delete-btn').addEventListener('click', async () => {
-  if (!window.confirm(`Delete the room "${room.name}"? Its members stay in the Lobby.`)) return;
+  if (!window.confirm(`Delete the space "${room.name}"? Its members stay in the Lobby.`)) return;
   try {
     await api('DELETE', `/api/rooms/${room.id}`);
     location.href = '/admin#rooms';

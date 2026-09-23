@@ -321,7 +321,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     if (guestToken) p.set('guest', guestToken);
     return p;
   };
-  // 'context' means wherever this frame is showing; a room panel may also ask for 'server'.
+  // 'context' means wherever this frame is showing; a space panel may also ask for 'server'.
   const scopeOf = (requested) => {
     if (!requested || requested === 'context') return scope;
     if (requested === 'server' || requested === 'room' || requested === 'rooms' || requested === 'person') {
@@ -923,7 +923,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     }
     frame.contentWindow?.postMessage({ host: 1, tk: secret, event, data }, '*');
   }
-  // A room's pane hears that room and the server; a module's server page hears the server and
+  // A room's pane hears that space and the server; a module's server page hears the server and
   // the viewer's spaces (see the stream's scopes on the server).
   const leaveStream = joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;

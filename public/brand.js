@@ -448,7 +448,7 @@ export async function api(method, url, body, contentType) {
 
 // Your profile or Manage, opened from inside a call (room.js loads either
 // one in an iframe rather than navigating away, so the call underneath
-// keeps running). Adds a "Back to [room]" link to this page's own header,
+// keeps running). Adds a "Back to [space]" link to this page's own header,
 // which closes the overlay via the parent window -- same origin, so a
 // direct call, no postMessage plumbing needed. A page that isn't "about"
 // the room itself (Manage, say) can pass its own label instead of the
