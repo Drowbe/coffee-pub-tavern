@@ -602,23 +602,35 @@
       openEditor(null, entry || { kind: 'note' });
     });
   }
-  // Something from another module dropped on the pane starts a note about it, with its title, linked to it (a personal note is not
-  // linked: private items are not linked to or from).
+  // Something from another module dropped on the pane: what can be done with it is the shared decision
+  // (tavern.refs.dropMenu). Starting a note about it, with its title, linked to it, is this module's own offer (a
+  // personal note is not linked: private items are not linked to or from); a card carried by the drag (an answer)
+  // keeps its text as the note's body. The modules around add theirs.
   if (tavern.refs && tavern.refs.dropTarget) {
     const showDrop = (yes) => { $('app').classList.toggle('drop-target', yes); hide($('drop-hint'), !yes); };
-    const foreign = (ref) => ref && ref.module && ref.module !== info.module.id;
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
     tavern.refs.dropTarget({
-      over: (_point, ref) => showDrop(canEdit && foreign(ref)),
+      over: (_point, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
       leave: () => showDrop(false),
-      drop: async (ref) => {
+      drop: async (ref, pt, dragged) => {
         showDrop(false);
-        if (!canEdit || !foreign(ref)) return;
+        if (!canEdit || !foreign(ref, dragged)) return;
         try {
-          const card = await tavern.refs.resolve(ref);
-          const note = await research.save({ kind: 'note', title: geo.oneLine(card.title, 120) || 'Note', body: '', tags: [], date: '', by: me });
-          if (view !== 'my') tavern.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
-          openEditor(note.id);
-        } catch (err) { say('It could not start a note about that: ' + message(err), 4000); }
+          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+            context: {},
+            own: [{
+              id: 'note',
+              label: 'Start a note about it',
+              run: async (ctx) => {
+                const note = await research.save({ kind: 'note', title: geo.oneLine(ctx.card.title || '', 120) || 'Note', body: ref ? '' : String(ctx.card.text || ''), tags: [], date: '', by: me });
+                if (ref && view !== 'my') tavern.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
+                openEditor(note.id);
+              },
+            }],
+            remember: 'pane',
+          });
+          if (chosen && chosen.id !== 'note') say(`${chosen.label}: done`, 3000);
+        } catch (err) { say('It could not do that: ' + message(err), 4000); }
       },
     });
   }

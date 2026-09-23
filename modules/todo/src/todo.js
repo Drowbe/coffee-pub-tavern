@@ -476,21 +476,6 @@
     b.remove();
   });
 
-  // Dropping an event or poll from another module on the open editor links it.
-  const acceptsRef = (e) => tavern.refs && tavern.refs.accepts(e);
-  $('editor').addEventListener('dragover', (e) => {
-    if (!acceptsRef(e) || $('f-link-search').hidden) return;
-    e.preventDefault();
-    $('editor').classList.add('drop');
-  });
-  $('editor').addEventListener('dragleave', (e) => { if (e.target === $('editor')) $('editor').classList.remove('drop'); });
-  $('editor').addEventListener('drop', (e) => {
-    $('editor').classList.remove('drop');
-    if (!acceptsRef(e) || $('f-link-search').hidden) return;
-    e.preventDefault();
-    const ref = tavern.refs.parse(e);
-    if (ref) addEditorLink(ref);
-  });
   $('f-cancel').addEventListener('click', closeEditor);
   $('editor').addEventListener('click', (e) => { if (e.target === $('editor')) closeEditor(); });
 
@@ -581,8 +566,7 @@
       if (x) openEditor(x);
     }
   });
-  // A task can be dragged (to another module that links to tasks), and an event or a poll dragged from
-  // another module onto a task links to it.
+  // A task can be dragged to another module (one that links to tasks, or does something with one).
   if (tavern.refs && tavern.refs.draggable) {
     tavern.refs.draggable($('body'), (target) => {
       const row = target.closest('[data-task]');
@@ -590,17 +574,11 @@
       return x && x.scope === 'own' ? { kind: 'task', id: x.id, label: x.t.title } : null;
     });
   }
-  $('body').addEventListener('dragover', (e) => {
-    const row = e.target.closest('[data-task]');
-    const x = row && tasks.get(row.dataset.task);
-    if (!x || x.scope !== 'own' || !canEdit || !acceptsRef(e)) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'link';
-    row.classList.add('drop');
-  });
 
-  // A drag from another module on the same page is brokered by Tavern: it says where the pointer is
-  // and what was dropped, in this page's own coordinates.
+  // Something dropped here from another module (a drag Tavern brokers between panes on the same page): what can be
+  // done with it is the shared decision (tavern.refs.dropMenu). This module's own offers: link it to the task under
+  // the pointer, or start a task from it (linked to it when it is an item, titled and dated from it when it is a card
+  // carried by the drag, an answer say). Dropped on the open editor's link field, it is linked there and nothing is asked.
   const clearDrop = () => {
     for (const r of root.querySelectorAll('.task.drop')) r.classList.remove('drop');
     $('editor').classList.remove('drop');
@@ -612,45 +590,42 @@
   };
   if (tavern.refs && tavern.refs.dropTarget) {
     tavern.refs.dropTarget({
-      over: (pt, ref) => {
+      over: (pt, ref, dragged) => {
         clearDrop();
-        if (!ref || !linkable(ref) || !canEdit) return;
+        if (!(ref || dragged.card) || !canEdit) return;
         if (!$('editor').hidden) {
-          if (!$('f-link-search').hidden) $('editor').classList.add('drop');
+          if (ref && linkable(ref) && !$('f-link-search').hidden) $('editor').classList.add('drop');
           return;
         }
         const row = taskAt(pt);
         if (row) row.classList.add('drop');
       },
       leave: clearDrop,
-      drop: (ref, pt) => {
+      drop: async (ref, pt, dragged) => {
         clearDrop();
-        if (!ref || !linkable(ref) || !canEdit) {
-          tavern.refs.trace(`drop ignored: ${!ref ? 'no pointer' : !linkable(ref) ? ref.module + ':' + ref.kind + ' is not something this module may link to (' + [...consumable].join(', ') + ')' : 'cannot edit'}`);
-          return;
-        }
+        if (!(ref || dragged.card) || !canEdit) return tavern.refs.trace(`drop ignored: ${canEdit ? 'nothing valid was dropped' : 'cannot edit'}`);
         if (!$('editor').hidden) {
-          if (!$('f-link-search').hidden) addEditorLink(ref);
+          if (ref && linkable(ref) && !$('f-link-search').hidden) addEditorLink(ref);
           return;
         }
         const row = taskAt(pt);
-        tavern.refs.trace(row ? 'linking to the task under the drop' : 'drop ignored: no task under the pointer');
-        if (row) linkTo(row.dataset.task, ref);
+        const x = row && tasks.get(row.dataset.task);
+        try {
+          const own = [];
+          if (x && ref && linkable(ref)) own.push({ id: 'link', label: `Link it to "${x.t.title}"`, run: () => linkTo(row.dataset.task, ref) });
+          own.push({
+            id: 'create',
+            label: 'Start a task from it',
+            run: (ctx) => { openEditor(null, { title: ctx.card.title || '', date: ctx.card.date || null }); if (ref && linkable(ref)) addEditorLink(ref); },
+          });
+          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: x ? { target: myRef(x.id) } : {}, own, remember: x ? 'task' : 'list' });
+          if (chosen && chosen.id !== 'link' && chosen.id !== 'create') showNote(`${chosen.label}: done`);
+        } catch (err) {
+          showNote(err.message);
+        }
       },
     });
   }
-  $('body').addEventListener('dragleave', (e) => {
-    const row = e.target.closest('[data-task]');
-    if (row) row.classList.remove('drop');
-  });
-  $('body').addEventListener('drop', (e) => {
-    const row = e.target.closest('[data-task]');
-    for (const r of $('body').querySelectorAll('.drop')) r.classList.remove('drop');
-    if (!row || !acceptsRef(e)) return;
-    e.preventDefault();
-    const ref = tavern.refs.parse(e);
-    if (ref) linkTo(row.dataset.task, ref);
-  });
   $('body').addEventListener('change', (e) => {
     const box = e.target.closest('[data-tick]');
     if (box) tick(box.dataset.tick, box.checked);

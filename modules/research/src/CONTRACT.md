@@ -70,7 +70,7 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 ## Suggest tags, dropping onto Research, a missing photo (0.1.5)
 
 - **Suggest tags:** `button[data-action=suggest-tags]` beside the tags field (`.with-button`), hidden unless AI is available and the item is a saved note, link or answer. It puts suggested words into `#f-tags`; nothing is saved until Save.
-- **Drop onto the pane:** while something from another module is dragged over Research, `.rs.drop-target` draws a dashed accent frame round the pane and `#drop-hint` ("Drop to start a note about it") appears above the bottom bar; dropping starts a note linked to the item, with its title.
+- **Drop onto the pane:** while something from another module is dragged over Research, `.rs.drop-target` draws a dashed accent frame round the pane and `#drop-hint` ("Drop to start a note about it") appears above the bottom bar. Dropping opens the shared drop menu (`tavern.refs.dropMenu`, see `api-module-sdk.md`, "Dragging"): "Start a note about it" is this module's own offer (a note with the item's title, linked to it; a card carried by the drag keeps its text as the body), followed by whatever the modules around offer for an item of that kind.
 - **A photo whose file is gone:** the script sets `.missing` on `.thumb` when the picture fails to load; it shows a quiet hatched placeholder.
 
 ## Where a card is used (backlinks, 0.1.7)

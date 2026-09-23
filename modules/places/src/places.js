@@ -467,6 +467,35 @@
       return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : {}) } : null;
     });
   }
+  // Something from another module dropped here: what can be done with it is the shared decision (tavern.refs.dropMenu).
+  // This module's own offer, when the item has a position, is to save it as a place: the editor opens seeded from it,
+  // so the person finishes it rather than a copy landing unseen. The modules around add theirs.
+  if (tavern.refs && tavern.refs.dropTarget) {
+    const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
+    tavern.refs.dropTarget({
+      over: (_pt, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
+      leave: () => showDrop(false),
+      drop: async (ref, pt, dragged) => {
+        showDrop(false);
+        if (!canEdit || !foreign(ref, dragged)) return;
+        try {
+          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+            context: {},
+            own: [{
+              id: 'save',
+              label: 'Save it as a place',
+              run: (ctx) => openEditor(null, { title: ctx.card.title || '', point: ctx.card.place ? { lat: ctx.card.place.lat, lng: ctx.card.place.lng } : null, address: ctx.card.place && ctx.card.place.name && ctx.card.place.name !== ctx.card.title ? ctx.card.place.name : '' }),
+              // Only offered for an item that is somewhere: the shared menu drops an own offer whose `when` says no.
+              when: (ctx) => Boolean(ctx.card.place),
+            }],
+            remember: 'pane',
+          });
+          if (chosen && chosen.id !== 'save') say(`${chosen.label}: done`);
+        } catch (err) { say((err && err.message) || String(err)); }
+      },
+    });
+  }
   root.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       if (!$('editor').hidden) closeEditor(); else if (!$('found').hidden) closeFound();

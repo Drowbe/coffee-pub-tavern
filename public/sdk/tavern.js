@@ -29,6 +29,80 @@
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
   }
 
+  // What a drag carries, as one shape: { ref, card }. Takes what dropTarget hands a module, or a bare pointer.
+  function normalizeDragged(dragged) {
+    if (!dragged) return { ref: null, card: null };
+    if (typeof dragged.module === 'string' && typeof dragged.id === 'string') return { ref: cleanRef(dragged), card: null };
+    const ref = dragged.ref ? cleanRef(dragged.ref) : null;
+    const card = !ref && dragged.card && typeof dragged.card.title === 'string' ? dragged.card : null;
+    return { ref, card };
+  }
+
+  // The drop fill rules (see plan-drop.md, "The drop context"). For each `name: type` an action takes:
+  //   ref:<module>:<kind>  the dropped pointer, when it is that kind
+  //   ref                  the dropped pointer; a second one, or one named `target`, the target's own item under the pointer
+  //   date / datetime      the day (and time) under the pointer, else the card's own date
+  //   string  title/kind   the card's title / kind
+  //   text    notes/body/content/text   the card's text, when the drag carried one
+  //   number  lat/lng      the spot under the pointer (a map), else the card's own place
+  // Returns the input, or null: a required input could not be filled, or nothing of the dropped item was used.
+  const TEXT_FIELDS = ['notes', 'body', 'content', 'text'];
+  function fillFor(action, dragged, context) {
+    const d = normalizeDragged(dragged);
+    const ctx = context || {};
+    const card = ctx.card || d.card || {};
+    const place = ctx.place || card.place || null;
+    const input = {};
+    let used = false;
+    let refsGiven = 0;
+    for (const [field, type] of Object.entries((action && action.input) || {})) {
+      const t = String(type);
+      const optional = t.endsWith('?');
+      const base = optional ? t.slice(0, -1) : t;
+      let value;
+      if (base.startsWith('ref:')) {
+        if (d.ref && base === `ref:${d.ref.module}:${d.ref.kind}`) { value = d.ref; used = true; }
+      } else if (base === 'ref') {
+        if (d.ref && field !== 'target' && refsGiven === 0) { value = d.ref; used = true; refsGiven += 1; }
+        else if (ctx.target) value = ctx.target;
+      } else if (base === 'date') {
+        if (ctx.date) value = ctx.date;
+        else if (card.date) { value = card.date; used = true; }
+      } else if (base === 'datetime') {
+        if (ctx.date) value = ctx.time ? `${ctx.date}T${ctx.time}` : ctx.date;
+        else if (card.date) { value = card.date; used = true; }
+      } else if (base === 'string') {
+        if (field === 'title' && card.title) { value = String(card.title); used = true; }
+        else if (field === 'kind' && card.kind) { value = String(card.kind); used = true; }
+      } else if (base === 'text') {
+        if (TEXT_FIELDS.includes(field) && card.text) { value = String(card.text); used = true; }
+      } else if (base === 'number') {
+        if (place && field === 'lat') { value = place.lat; if (!ctx.place) used = true; }
+        else if (place && field === 'lng') { value = place.lng; if (!ctx.place) used = true; }
+      }
+      if (value === undefined) {
+        if (!optional) return null;
+        continue;
+      }
+      input[field] = value;
+    }
+    return used ? input : null;
+  }
+  // Why fillFor said no, for the drag trace.
+  function whyNot(action, dragged, context) {
+    const d = normalizeDragged(dragged);
+    const ctx = context || {};
+    for (const [field, type] of Object.entries((action && action.input) || {})) {
+      const t = String(type);
+      if (t.endsWith('?')) continue;
+      const one = fillFor({ input: { [field]: t + '?' } }, d, ctx);
+      const filledAlone = one && field in one;
+      // A required input fillFor could not fill on its own is the reason; a plain `ref` or `title` counts as "used" itself.
+      if (!filledAlone && !(t === 'ref' && ctx.target) ) return `needs ${field} (${t})`;
+    }
+    return 'nothing of the dropped item would be used';
+  }
+
   // Text made safe to put in HTML.
   function esc(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -706,7 +780,8 @@
       // The element of this module under a point given by dropTarget (its own coordinates), or null.
       elementAt: (pt) => env.elementAt(pt),
       // Make items draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
-      // element is: { kind, id, label, ...the options make() takes } for one of your items, or null. The drag
+      // element is: { kind, id, label, ...the options make() takes } for one of your items, or, for something
+      // you have not stored (an answer's card), { card: { title, kind?, content?, place?, date? }, label? }, or null. The drag
       // is driven by the pointer (press, move a few pixels, let go), not the browser's drag and drop, which is
       // unreliable between sandboxed frames; the host shows the label at the pointer and hands the drop to
       // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
@@ -733,8 +808,10 @@
             if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) return;
             dragging = true;
             say('moved far enough: telling the page a drag began');
-            const { kind, id, label, ...where } = down.item;
-            call('refs.ptrStart', { ref: tavern.refs.make(kind, id, where), label, ...local(e) }).catch(() => {});
+            // One of this module's items ({ kind, id, ... }), or a card it has not stored ({ card: { title, ... } }).
+            const { kind, id, card, label, ...where } = down.item;
+            const payload = card ? { card, label: label || card.title } : { ref: tavern.refs.make(kind, id, where), label };
+            call('refs.ptrStart', { ...payload, ...local(e) }).catch(() => {});
             return;
           }
           const now = Date.now();
@@ -763,17 +840,88 @@
       // this module, leave() when it goes, drop(ref, point) when it is let go; the point is { x, y } in
       // this module's own page, for document.elementFromPoint. Call this rather than (or as well as)
       // listening for dragover and drop yourself: a drag between two module frames reaches only this.
+      // `ref` is the pointer dragged, or null; the third argument is what was dragged in full, { ref } or
+      // { card } (a card carried by a module with nothing stored), for dropMenu.
       dropTarget: (handlers) => tavern.on('refsdrag', (e) => {
         const ref = e.ref && cleanRef(e.ref);
+        const dragged = { ref, card: (!ref && e.card && typeof e.card.title === 'string') ? e.card : null };
         const point = { x: e.x, y: e.y };
-        if (e.type !== 'over') tavern.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : 'no valid pointer'})`);
-        if (e.type === 'over') handlers.over && handlers.over(point, ref);
+        if (e.type !== 'over') tavern.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : dragged.card ? 'a card' : 'no valid pointer'})`);
+        if (e.type === 'over') handlers.over && handlers.over(point, ref, dragged);
         else if (e.type === 'leave') handlers.leave && handlers.leave();
         else if (e.type === 'drop') {
           handlers.leave && handlers.leave();
-          handlers.drop && handlers.drop(ref, point);
+          handlers.drop && handlers.drop(ref, point, dragged);
         }
       }),
+      // The fill rules: what a drop can fill of an action's inputs, from what was dragged and what is under
+      // the pointer (the drop context: { card, target?, date?, time?, place? }). Returns the input to request
+      // the action with, or null when a required input cannot be filled or nothing of the dropped item was
+      // used (an action unrelated to the item is never offered just because a day was under the pointer).
+      // Pure: tools/check-drop.mjs runs it against every case.
+      fillFor: (action, dragged, context) => fillFor(action, dragged, context),
+      // What the modules around this one can do with what was dropped: [{ id, label, hint, action, input }],
+      // each ready to request. `dragged` is what dropTarget gave ({ ref } or { card }); `context` is what
+      // this module says is under the pointer. Resolves the ref into a card unless context.card is given.
+      offersFor: async (dragged, context) => {
+        const d = normalizeDragged(dragged);
+        const ctx = { ...(context || {}) };
+        if (!ctx.card) {
+          if (d.ref) {
+            const card = await tavern.refs.resolve(d.ref);
+            if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
+            ctx.card = card;
+          } else ctx.card = d.card || {};
+        }
+        let list = [];
+        try { list = await tavern.actions.list(d.ref ? { accepts: `${d.ref.module}:${d.ref.kind}` } : {}); } catch (err) { list = []; }
+        const offers = [];
+        for (const a of list) {
+          // What the action says the item must have (a position, a date, text): declared as `needs` on the action.
+          const lacks = (a.needs || []).find((f) => !ctx.card[f]);
+          if (lacks) { tavern.refs.trace(`drop: ${a.action} not offered (the item has no ${lacks})`); continue; }
+          // An action of the module the item came from, taking it only as a plain ref, makes something of its own item
+          // elsewhere (a task from a task): not what a drop means. Taking it by its exact kind (link this task to...) is.
+          if (d.ref && a.module === d.ref.module && !Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === `ref:${d.ref.module}:${d.ref.kind}`)) {
+            tavern.refs.trace(`drop: ${a.action} not offered (its own module's, and it takes the item only as any ref)`);
+            continue;
+          }
+          const input = fillFor(a, d, ctx);
+          if (!input) { tavern.refs.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
+          offers.push({ id: a.action, label: a.label, hint: a.moduleName, action: a, input });
+        }
+        return offers;
+      },
+      // The one decision, shared by every module: what dropping this here can do. Shows the module's own
+      // offers (`own`, first: [{ id, label, hint?, run(ctx), when?(ctx) }], an offer whose `when` says no
+      // for this card is left out) and every action the modules around it can fill from the drop context,
+      // lets the person choose (actions.pick, with `remember` as its key alongside the dropped kind), and
+      // runs it. Resolves to the offer taken, or null if dismissed; throws when nothing can be done, or it failed.
+      dropMenu: async (dragged, point, { context, own, remember, wait } = {}) => {
+        const d = normalizeDragged(dragged);
+        const ctx = { ...(context || {}) };
+        // The card first, once, so the module's own offers and the actions' fill see the same one.
+        if (!ctx.card) {
+          if (d.ref) {
+            const card = await tavern.refs.resolve(d.ref);
+            if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
+            ctx.card = card;
+          } else ctx.card = d.card || {};
+        }
+        const offers = (own || []).filter((o) => o && (!o.when || o.when(ctx)));
+        offers.push(...await tavern.refs.offersFor(d, ctx));
+        tavern.refs.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
+        if (!offers.length) throw new Error('Nothing can be done with that here.');
+        const kind = d.ref ? `${d.ref.module}:${d.ref.kind}` : 'card';
+        const chosen = await tavern.actions.pick(offers, point, remember ? { remember: `${kind}:${remember}` } : undefined);
+        if (!chosen) return null;
+        if (chosen.run) await chosen.run(ctx);
+        else {
+          const out = await tavern.actions.request(chosen.action.action, chosen.input, { wait: wait !== false });
+          if (out.status === 'done' && out.result && out.result.ok === false) throw new Error(out.result.error || 'it could not be done');
+        }
+        return chosen;
+      },
       // Whether a drag over this module carries a pointer (call preventDefault on dragover to accept it).
       accepts: (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes(REF_MIME),
       // The pointer dropped, checked for shape, or null. It says nothing about whether the viewer may

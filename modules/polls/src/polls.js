@@ -692,19 +692,32 @@
     return x && mayManage(x) && !isClosed(x.p) ? { el: opt, key, id } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.opt.drop')) e.classList.remove('drop'); };
+  // What the drop can do is the shared decision (tavern.refs.dropMenu): linking the option to it is this module's
+  // own offer, and whatever the modules around offer for an item of that kind comes after, with this poll as the target.
   if (tavern.refs && tavern.refs.dropTarget) {
     tavern.refs.dropTarget({
       over: (pt, ref) => {
         clearDrop();
-        const at = ref && linkable(ref) ? optionAt(pt) : null;
+        const at = ref ? optionAt(pt) : null;
         if (at) at.el.classList.add('drop');
       },
       leave: clearDrop,
-      drop: (ref, pt) => {
+      drop: async (ref, pt, dragged) => {
         clearDrop();
-        const at = ref && linkable(ref) ? optionAt(pt) : null;
-        if (at) setOptionLink(at.key, at.id, ref);
-        else tavern.refs.trace('drop ignored: no option of yours under the pointer, or not linkable');
+        if (!ref) return tavern.refs.trace('drop ignored: only a pointer can be linked to an option');
+        const at = optionAt(pt);
+        if (!at) return tavern.refs.trace('drop ignored: no option of yours under the pointer');
+        const x = polls.get(at.key);
+        try {
+          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+            context: { target: tavern.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined) },
+            own: linkable(ref) ? [{ id: 'link', label: 'Link it to this option', run: () => setOptionLink(at.key, at.id, ref) }] : [],
+            remember: 'option',
+          });
+          if (chosen && chosen.id !== 'link') showNote(`${chosen.label}: done`);
+        } catch (err) {
+          showNote(err.message);
+        }
       },
     });
   }

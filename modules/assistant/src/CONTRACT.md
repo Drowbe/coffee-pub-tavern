@@ -44,7 +44,7 @@ Keeping a card asks whichever module offers a matching action, found by name and
 ## Conduits
 
 - **Provides** `askAssistant({ items?: ref[], question?: string })`: opens Assistant (wherever it already is, docked if it has never been opened) with `items` as starting context, and sends `question` at once if given.
-- **Consumes** `"*"`: anything with a card can be added as context or dropped onto Assistant to start a conversation about it.
+- **Consumes** `"*"`: anything with a card can be added as context, or dropped onto Assistant: the shared drop menu (`tavern.refs.dropMenu`, see `api-module-sdk.md`, "Dragging") offers **Use it as context** and **Ask about it** (Assistant's own), then whatever the modules around offer for an item of that kind. Assistant's own answer cards drag out as cards, not pointers (nothing here is stored): the module they land on makes of them what takes a title, a kind, text, a place or a date.
 - **Uses** `"*"`: to find a save action for a kept card.
 - **Hooks:** `ai`.
 

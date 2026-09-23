@@ -199,23 +199,28 @@
         // unrecognised or missing kind is an ordinary stop, the same as addStop. Found by name and input shape, never by
         // whoever asks for it.
         acceptSuggestion: async (input) => {
-          const title = clip(input.title, 120);
-          if (!title) throw new Error('that needs a title');
-          const date = isYmd(input.date) ? input.date : null;
-          const fields = { title, date, notes: clip(input.content, 2000), place: clip(input.place, 120) };
-          const kindWord = typeof input.kind === 'string' ? input.kind : '';
-          if (MODES.includes(kindWord)) { fields.kind = 'journey'; fields.mode = kindWord; }
-          else if (STAY_TYPES.includes(kindWord)) { fields.kind = 'stay'; fields.type = kindWord; }
-          else if (STOP_TYPES.includes(kindWord)) { fields.kind = 'stop'; fields.type = kindWord; }
-          else fields.kind = 'stop';
-          const item = await addItem(fields);
+          const item = await addItem(fromSuggestion(input));
           return { ref: tavern.refs.make('plan', item.id) };
         },
       });
     }
+    // The item a suggestion becomes ({ title, kind?, content?, place?, date? }, an AI's card or a card dropped here):
+    // the right kind when `kind` is one of the everyday words a journey, a stay or a stop already knows, else a stop.
+    function fromSuggestion(input) {
+      const title = clip(input.title, 120);
+      if (!title) throw new Error('that needs a title');
+      const date = isYmd(input.date) ? input.date : null;
+      const fields = { title, date, notes: clip(input.content, 2000), place: clip(input.place, 120) };
+      const kindWord = typeof input.kind === 'string' ? input.kind : '';
+      if (MODES.includes(kindWord)) { fields.kind = 'journey'; fields.mode = kindWord; }
+      else if (STAY_TYPES.includes(kindWord)) { fields.kind = 'stay'; fields.type = kindWord; }
+      else if (STOP_TYPES.includes(kindWord)) { fields.kind = 'stop'; fields.type = kindWord; }
+      else fields.kind = 'stop';
+      return fields;
+    }
 
     return {
-      refreshCards: () => resolveCards(true), load, list, lanes, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink,
+      refreshCards: () => resolveCards(true), load, list, lanes, sortable, days, byDay, dayOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, nudgeItem, addLink, fromSuggestion,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

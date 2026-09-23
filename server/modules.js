@@ -210,7 +210,10 @@ function cleanBus(rawEvents, rawActions, id) {
     }
     // `local`: a view, carried out only by the requesting person's own open page of the module and needing only read access
     // (showing something on a map), not something done for the room.
-    actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input, ...(p.local === true ? { local: true } : {}) });
+    // `needs`: what the item a `ref` input points at must have on its card for this action to make sense of it (a
+    // position, a date, text), so a drop menu leaves it out for an item without -- "Show on the map" for a task, say.
+    const needs = [...new Set((Array.isArray(p.needs) ? p.needs : []).filter((f) => ['place', 'date', 'text', 'subtitle'].includes(f)))];
+    actions.provides.push({ name, label: String(p.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name, input, ...(p.local === true ? { local: true } : {}), ...(needs.length ? { needs } : {}) });
   }
   for (const c of Array.isArray(rawActions?.uses) ? rawActions.uses.slice(0, 20) : []) {
     if (typeof c !== 'string' || (c !== '*' && !BUS_USE_RE.test(c))) throw new ModuleError(`module.json: actions.uses "${c}" must be "*" or look like "module:action"`);

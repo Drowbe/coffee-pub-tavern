@@ -507,30 +507,30 @@
     if (state.adding) setAdding(false); else if (hits.length || state.searchMessage) { hits = []; state.searchMessage = ''; state.candidates = []; drawPins(); drawResults(); } else if (state.selected) select(null);
   });
 
-  // An item dropped on the map: one that already has a place is shown; another gets a position through its own module's
-  // `setPlacePoint` action, when it offers one for that kind of item. Nothing else is done to it.
+  // An item dropped on the map: one that already has a pin is shown. Anything else goes to the shared decision
+  // (tavern.refs.dropMenu) with the map position under the pointer as the place: whichever module offers to put
+  // its item at a position, or to save a place there, is offered, by what it declares, not by name. The map has
+  // nothing of its own to offer.
   if (tavern.refs && tavern.refs.dropTarget) {
     tavern.refs.dropTarget({
       over: () => {},
       leave: () => {},
-      drop: async (ref, pt) => {
-        if (!ref || !canEdit || !state.map || !state.mapReady) return;
+      drop: async (ref, pt, dragged) => {
+        if (!(ref || dragged.card) || !canEdit || !state.map || !state.mapReady) return;
         const hr = tavern.rootElement.getBoundingClientRect();
         const mr = $('map').getBoundingClientRect();
         const at = state.map.unproject([pt.x + hr.left - mr.left, pt.y + hr.top - mr.top]);
-        const known = state.items.find((c) => cardId(c) === tavern.util.refKey(ref));
-        if (known) return select(cardId(known));
-        let offers = [];
-        try { offers = await tavern.actions.list({ accepts: `${ref.module}:${ref.kind}` }); } catch (err) { offers = []; }
-        const set = offers.find((a) => a.name === 'setPlacePoint' && a.input && a.input.lat && a.input.lng);
-        if (!set) return say('That item cannot be put on the map from here.');
+        if (ref) {
+          const known = state.items.find((c) => cardId(c) === tavern.util.refKey(ref));
+          if (known) return select(cardId(known));
+        }
         try {
-          const out = await tavern.actions.request(set.action, { place: ref, lat: round6(at.lat), lng: round6(at.lng) }, { wait: true });
-          if (out.status === 'done' && out.result && !out.result.ok) return say(out.result.error || 'It could not be placed.');
+          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { place: { lat: round6(at.lat), lng: round6(at.lng) } }, remember: 'map' });
+          if (!chosen) return;
           await loadItems();
           render();
         } catch (err) {
-          say('It could not be placed: ' + ((err && err.message) || err));
+          say((err && err.message) || String(err));
         }
       },
     });

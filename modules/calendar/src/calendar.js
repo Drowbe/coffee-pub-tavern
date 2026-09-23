@@ -549,13 +549,16 @@
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { $('note').hidden = true; }, 4000);
   }
-  async function createEventOn(title, date) {
+  async function createEventOn(title, date, ref) {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const ev = { id, title: String(title).slice(0, 120), allDay: true, start: date, end: null, desc: '', remind: null, repeat: null, by: info.user.name };
     const saved = await tavern.storage.set('event:' + id, ev, {});
     remember('room', { key: 'event:' + id, value: ev, version: saved.version });
+    const made = tavern.refs.make('event', id);
+    // Made from an item dropped or handed over: point at it, so the link shows from both ends.
+    if (ref && tavern.refs.setLinks) tavern.refs.setLinks(made, [ref]).catch(() => {});
     render();
-    return { ref: tavern.refs.make('event', id) };
+    return { ref: made };
   }
   const dropSpot = (pt) => {
     const el = tavern.refs.elementAt(pt);
@@ -567,64 +570,45 @@
     return cell ? { el: cell, event: null, day: cell.dataset.day } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.drop')) e.classList.remove('drop'); };
-  async function offersFor(ref, spot, card) {
-    const offers = [];
-    if (spot.day && !spot.event) offers.push({ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: () => createEventOn(card.title || ref.kind, spot.day) });
-    let list = [];
-    try { list = await tavern.actions.list({ accepts: ref.module + ':' + ref.kind }); } catch (err) { list = []; }
-    for (const a of list) {
-      const input = {};
-      let ok = true;
-      let dropped = false;
-      for (const [field, type] of Object.entries(a.input)) {
-        const optional = type.endsWith('?');
-        const base = optional ? type.slice(0, -1) : type;
-        if (base === 'ref:' + ref.module + ':' + ref.kind) { input[field] = ref; dropped = true; }
-        else if (base === 'ref' && spot.event) input[field] = tavern.refs.make('event', spot.event.id, whereFor(spot.event));
-        else if (base === 'date') input[field] = spot.day;
-        else if (!optional) ok = false;
-      }
-      if (ok && dropped) offers.push({ id: a.action, label: a.label, hint: a.moduleName, run: () => tavern.actions.request(a.action, input).then(() => ({})) });
-    }
-    return offers;
-  }
+  // What a drop can do is the one shared decision (tavern.refs.dropMenu): this module says what is under the
+  // pointer (the day, and the event when dropped on one) and offers its own (make an event of it); the SDK adds
+  // whatever the modules around offer for an item of that kind, filled from the same context.
   if (tavern.refs && tavern.refs.dropTarget && tavern.actions) {
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
     tavern.refs.dropTarget({
-      over: (pt, ref) => {
+      over: (pt, ref, dragged) => {
         clearDrop();
-        if (!ref || ref.module === info.module.id || !canEdit) return;
+        if (!foreign(ref, dragged) || !canEdit) return;
         const spot = dropSpot(pt);
         if (spot) spot.el.classList.add('drop');
       },
       leave: clearDrop,
-      drop: async (ref, pt) => {
+      drop: async (ref, pt, dragged) => {
         clearDrop();
-        if (!ref || !canEdit) return;
+        if (!foreign(ref, dragged) || !canEdit) return;
         const spot = dropSpot(pt);
         tavern.refs.trace(spot ? 'drop on ' + (spot.event ? 'event ' + spot.event.id : 'day ' + spot.day) : 'drop: nothing under the pointer');
         if (!spot) return;
         try {
-          const card = (await tavern.refs.resolve(ref)) || {};
-          if (card.error) return note(card.error, true);
-          const offers = await offersFor(ref, spot, card);
-          tavern.refs.trace('offers: ' + offers.map((o) => o.label).join(' | '));
-          if (!offers.length) return note('Nothing can be done with that here.', true);
-          const chosen = await tavern.actions.pick(offers, pt, { remember: ref.module + ':' + ref.kind + ':' + (spot.event ? 'event' : 'day') });
-          if (!chosen) return;
-          await chosen.run();
-          note(chosen.label + ': done');
+          const context = { date: spot.day, ...(spot.event ? { target: tavern.refs.make('event', spot.event.id, whereFor(spot.event)) } : {}) };
+          const chosen = await tavern.refs.dropMenu(dragged, pt, {
+            context,
+            own: spot.event ? [] : [{ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: (ctx) => createEventOn(ctx.card.title || (ref ? ref.kind : 'Event'), spot.day, ref) }],
+            remember: spot.event ? 'event' : 'day',
+          });
+          if (chosen) note(chosen.label + ': done');
         } catch (err) {
           note(err.message, true);
         }
       },
     });
   }
-  // What other modules may ask of this one: put something on the calendar.
+  // What other modules may ask of this one: put something on the calendar, pointing at `ref` when one is given.
   if (tavern.actions && tavern.actions.provide) {
     tavern.actions.provide({
       createEvent: async (input) => {
         if (!canEdit) throw new Error('this person cannot add events here');
-        return createEventOn(input.title, input.date);
+        return createEventOn(input.title, input.date, input.ref);
       },
     });
   }

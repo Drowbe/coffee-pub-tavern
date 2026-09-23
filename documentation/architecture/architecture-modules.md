@@ -89,7 +89,7 @@ The rooms page is a `.home` grid: a sticky sidebar, `#dashboard`, on the left an
 
 ### Shared tools
 
-The SDK carries what more than one module needs (the date picker, the drop menu, small helpers in `tavern.util`), so modules stay small and look and behave alike. The picker and menu draw their elements inside the module's own root, positioned by the page's coordinates, and add their styles once to that root in the theme's colours, so they work in a frame and in the page. The rule for the SDK: when a second module needs something a first one wrote for itself, it moves into the SDK and the first module uses it from there.
+The SDK carries what more than one module needs (the date picker, the action menu, the drop decision `tavern.refs.dropMenu` -- what dropping one module's item on another can do, one menu for every module, filled from what the modules around declare -- and small helpers in `tavern.util`), so modules stay small and look and behave alike. The picker and menu draw their elements inside the module's own root, positioned by the page's coordinates, and add their styles once to that root in the theme's colours, so they work in a frame and in the page. The rule for the SDK: when a second module needs something a first one wrote for itself, it moves into the SDK and the first module uses it from there.
 
 ### Settings
 

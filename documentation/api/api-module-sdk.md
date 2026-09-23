@@ -181,18 +181,35 @@ tavern.refs.draggable(document.body, (target) => {
 });
 ```
 
-The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. To see where a drag stops, open Tavern once with `?debug=1` (`?debug=0` turns it off): every step, in the module that starts the drag, in the page and in the module under it, adds a line to a box at the bottom left. `tavern.refs.trace(text)` adds your own. It works with a mouse or pen; on a touch screen, search is the way to link. A module that accepts drops calls `tavern.refs.dropTarget`:
+The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. To see where a drag stops, open Tavern once with `?debug=1` (`?debug=0` turns it off): every step, in the module that starts the drag, in the page and in the module under it, adds a line to a box at the bottom left. `tavern.refs.trace(text)` adds your own. It works with a mouse or pen; on a touch screen, search is the way to link.
+
+A module with nothing stored (the assistant's answers) drags the card itself instead of a pointer: `resolve` returns `{ card: { title, kind?, content?, place?, date? }, label? }`. The module it lands on can make of it whatever takes a title, a date, a place or text; it cannot be linked to, since there is nothing to point at.
+
+**What a drop does.** A module that accepts drops calls `tavern.refs.dropTarget` to know what is under the pointer, and hands the decision -- what can be done with it -- to `tavern.refs.dropMenu`, which is the same for every module. You say what is under the pointer (the drop context) and what you would offer of your own; the SDK adds every action the modules around you can fill from that context, shows one menu, and runs the choice. Nothing names a module: a module installed later appears in your menu with no change to you.
 
 ```js
 tavern.refs.dropTarget({
-  over: (point, ref) => { /* highlight what is at point; ref is the pointer being dragged, or null */ },
+  over: (point, ref, dragged) => { /* highlight what is at point; ref is the pointer being dragged (null for a card) */ },
   leave: () => { /* clear the highlight */ },
-  drop: (ref, point) => { /* link ref to whatever is at point */ },
+  drop: async (ref, point, dragged) => {
+    const spot = dayAt(point);                       // your own: what is under the pointer
+    if (!spot) return;
+    try {
+      const chosen = await tavern.refs.dropMenu(dragged, point, {
+        context: { date: spot.day, target: spot.event ? tavern.refs.make('event', spot.event.id) : undefined },
+        own: [{ id: 'create', label: 'Add to the calendar as an event', hint: 'Tue 3 Oct', run: (ctx) => createEventOn(ctx.card.title, spot.day, ref) }],
+        remember: 'day',                             // the last choice is offered first next time, per dropped kind
+      });
+      if (chosen) note(`${chosen.label}: done`);      // null: dismissed
+    } catch (err) { note(err.message); }             // "Nothing can be done with that here.", or what failed
+  },
 });
-// point is { x, y } in your own page: document.elementFromPoint(point.x, point.y)
+// point is { x, y } in your own page: tavern.refs.elementAt(point)
 ```
 
-Treat `ref` as untrusted: check the kind is one you consume, and `resolve` it, which is where Tavern checks what the viewer may see. Tavern brokers a drag between module frames in the same window (the page, or the popped-out app). `tavern.refs.drag(event, ...)`, called from a native `dragstart`, and `tavern.refs.accepts` / `tavern.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
+The **drop context** is `{ card, target?, date?, time?, place? }`: `card` is the dropped item's card (resolved for you, or the card the drag carried), `target` a pointer to your own item under the pointer, `date`/`time` the day and time there, `place` the `{ lat, lng }` there (a map). An action is offered when every required input can be filled from it: a `ref:module:kind` input takes the dropped pointer when it is that kind; a plain `ref` takes the dropped pointer (a second one, or one named `target`, takes `target`); `date`/`datetime` the day (else the card's own date); `string` named `title` the card's title, `kind` its kind; `text` named `notes`, `body`, `content` or `text` the card's text (only when the drag carried it); `number` named `lat`/`lng` the place. An action nothing of the dropped item filled is never offered; nor is one whose declared `needs` (a place, a date, text) the item's card lacks; nor is an action of the module the item came from that takes it only as any `ref` (it would make something of its own item somewhere else -- a task from a task), though one taking it by its exact kind ("set this task's due date") is. An own offer is `{ id, label, hint?, run(ctx), when?(ctx) }`; `when` leaves it out for a card it does not suit (a place needs a position). `tavern.refs.offersFor(dragged, context)` is the same list without the menu. `tools/check-drop.mjs` runs the fill rules.
+
+Treat `ref` as untrusted: `dropMenu` resolves it, which is where Tavern checks what the viewer may see, and shows its error if not. Tavern brokers a drag between module frames in the same window (the page, or the popped-out app). `tavern.refs.drag(event, ...)`, called from a native `dragstart`, and `tavern.refs.accepts` / `tavern.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
 
 ### Settings
 
@@ -331,9 +348,11 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `tavern.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `tavern.actions.request(action, input, { wait })` asks for one; Tavern checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `tavern.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })` (a handler may also return `data`, up to about 8 KB of plain data, which the requester reads from `out.result.data` when it waits; that is how a view asks a question): its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open; in a room, Tavern opens the pane of the module that carries the action when it is not open, so the request is carried out at once.
 
+**What the item must have.** An action that takes a pointer may say what the item behind it needs to have on its card for the action to make sense of it: `"needs": ["place"]` (or `date`, `text`, `subtitle`) on the entry in `actions.provides`. A drop menu then leaves the action out for an item without it ("Show on the map" for a task with no position), rather than offering it and failing. It is advice for the menu, not a check the server makes on the request.
+
 **Typed pointers.** A `ref` field may name the kind of item it takes: `"task": "ref:todo:task"` takes only a pointer to a To-do task, plain `"ref"` takes any. Tavern refuses a pointer of another kind. `tavern.actions.list({ accepts: "module:kind", self: true })` narrows the list to the actions that take a pointer to that kind (an action with plain `ref` counts), and `self` adds this module's own, marked `own: true`.
 
-**What a drop can do.** When another module's item is dropped on yours, ask what can be done with it rather than assuming: build your own choices (make an event of it, for example), add each action from `actions.list({ accepts })` whose required fields you can fill from where it landed (the day, the pointer to the event it landed on, its date), and let the person choose. `tavern.actions.pick(items, point)` shows a small menu at the point of the drop, `items` being `[{ label, hint? }]`, and resolves to the chosen item or `null` if it is dismissed (Escape, or a click elsewhere). One item resolves at once with nothing asked. Pass `{ remember: "key" }` as a third argument to keep the choice (in that browser, for your module) and list it first, marked "last used", the next time the same key is asked: the Calendar keys it by the kind of item dropped and whether it landed on a day or an event. Give each item an `id` so the choice survives a change of wording; the person still confirms, nothing runs on its own. Two choices that do different things (add it as an event, or set its date) are two items, so the person decides. Fill only what you know: a field you cannot fill that is required means the action is not offered.
+**What a drop can do.** When another module's item is dropped on yours, never decide on your own what can be done with it: hand it to `tavern.refs.dropMenu` (see "Dragging" under Refs), which builds your own choices plus every action the modules around you can fill from where it landed, and lets the person choose. Under it, `tavern.actions.pick(items, point)` is the menu: `items` are `[{ id, label, hint? }]`, it resolves to the chosen item or `null` if dismissed (Escape, or a click elsewhere), one item resolves at once with nothing asked, and `{ remember: "key" }` keeps the choice (in that browser, for your module) and lists it first, marked "last used", the next time the same key is asked. `pick` is also there for a choice that is not a drop. The person always confirms; nothing runs on its own, and two choices that do different things (add it as an event, or set its date) are two items.
 
 **Outcomes.** An event may carry `data` (at most 2 KB). By convention `data.summary` is one line, at most 200 characters, saying how it turned out ("Where to stay: Hotel Nova"). A module that follows an item can keep it: the To-do adds it to a linked task's notes when the task asks for that, and ticks the task when it is set to follow what it links to. Nothing in Tavern knows what a summary means.
 

@@ -1078,7 +1078,7 @@
       return { row, where: y < r.top + r.height / 2 ? 'before' : 'after' };
     };
     tavern.refs.dropTarget({
-      over: (pt, ref) => {
+      over: (pt, ref, dragged) => {
         clearDrop();
         if (ownRef(ref) && laneOf(ref)) {
           // A marker between days looks for the nearest joint on the line, and, over another marker there, before or after it.
@@ -1100,11 +1100,11 @@
           if (row && row.dataset.id !== ref.id) { row.dataset.drop = where; lastTarget = row; }
           return;
         }
-        const day = ref && ref.module !== info.module.id ? dayAt(pt) : null;
+        const day = (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card)) ? dayAt(pt) : null;
         if (day) day.classList.add('drop-target');
       },
       leave: clearDrop,
-      drop: (ref, pt) => {
+      drop: (ref, pt, dragged) => {
         if (ownRef(ref) && laneOf(ref)) {
           const spot = laneSpot(pt, ref.id);
           clearDrop();
@@ -1119,34 +1119,35 @@
           attempt(() => moveOwn(ref.id, day, row, where));
           return;
         }
-        const day = ref && ref.module !== info.module.id ? dayAt(pt) : null;
+        const isCard = !ref && Boolean(dragged && dragged.card);
+        const day = (ref ? ref.module !== info.module.id : isCard) ? dayAt(pt) : null;
         if (!day) return;
         const date = day.dataset.day || null;
         const over = tavern.refs.elementAt(pt);
         const li = over && over.closest ? over.closest('.row.entry') : null;
         const target = li && li.dataset.id ? planRef(li.dataset.id) : null;
         attempt(async () => {
-          // What can be done with it here: put it on the day, and (dropped on an item) whatever other modules offer to
-          // do with an item of that kind and this one, filled from what is under the drop (the day, the item).
-          // A private item (someone's own, in their profile) cannot be pointed at from a shared plan: only they could open it. So it
-          // is shared first, as a copy in the room, by whichever module offers to save a place, and the plan points at the copy.
-          const offers = [{ id: 'add', label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas', run: async () => plan.addLink(await sharedRef(ref), date) }];
-          let actions = [];
-          try { actions = await tavern.actions.list({ accepts: ref.module + ':' + ref.kind }); } catch (err) { actions = []; }
-          for (const a of ref.scope === 'person' ? [] : actions) {
-            const input = {};
-            let ok = true;
-            let dropped = false;
-            for (const [field, type] of Object.entries(a.input)) {
-              const optional = type.endsWith('?');
-              const base = optional ? type.slice(0, -1) : type;
-              if (base === 'ref:' + ref.module + ':' + ref.kind) { input[field] = ref; dropped = true; } else if (base === 'ref' && target) input[field] = target; else if (base === 'date' && date) input[field] = date; else if (!optional) ok = false;
-            }
-            if (ok && dropped && target) offers.push({ id: a.action, label: a.label, hint: a.moduleName, run: () => tavern.actions.request(a.action, input) });
+          // What can be done with it here is the shared decision (tavern.refs.dropMenu). This module's own offer puts it
+          // on the day: a pointer as a link, a card carried by the drag (an answer) as an item of its own kind. The modules
+          // around add whatever they offer for an item of that kind, filled from the day and the entry under the pointer.
+          // A private item (someone's own, in their profile) cannot be pointed at from a shared plan, nor handed to another
+          // module here: only they could open it. So it is shared first, as a copy in the room, by whichever module offers
+          // to save a place, and the plan points at the copy; nothing else is offered for it.
+          const own = [{
+            id: 'add',
+            label: date ? `Put it on ${dayShort(date)}` : 'Keep it with the ideas',
+            run: async (ctx) => (ref
+              ? plan.addLink(await sharedRef(ref), date)
+              : plan.addItem(plan.fromSuggestion({ title: ctx.card.title, kind: ctx.card.kind, content: ctx.card.text, place: ctx.card.place && ctx.card.place.name, date }))),
+          }];
+          if (ref && ref.scope === 'person') {
+            const card = await tavern.refs.resolve(ref);
+            if (!card || card.error) throw new Error('That private item could not be read.');
+            await own[0].run({ card });
+            return note('');
           }
-          const chosen = await tavern.actions.pick(offers, pt, { remember: `${ref.module}:${ref.kind}:${target ? 'item' : 'day'}` });
-          if (chosen) await chosen.run();
-          note('');
+          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: { ...(date ? { date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : 'day' });
+          note(chosen && chosen.id !== 'add' ? `${chosen.label}: done` : '');
         });
       },
     });

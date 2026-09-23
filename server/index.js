@@ -1751,7 +1751,7 @@ app.get('/api/bus/actions', busRoute((who, req) => {
           continue;
         }
       }
-      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input, ...(own ? { own: true } : {}) });
+      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input, ...(a.needs ? { needs: a.needs } : {}), ...(own ? { own: true } : {}) });
     }
   }
   return { actions };

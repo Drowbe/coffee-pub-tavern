@@ -109,6 +109,9 @@ body { margin: 0; overflow: hidden; }
 
 /* ---- whose places (mine, this room, everyone): tavern.ui.viewSwitch draws the switch itself in the toolbar ---- */
 .view-note { display: flex; align-items: center; gap: 6px; margin: -2px 0 0; color: var(--text-dim); font-size: 12px; }
+
+/* something from another module dragged over the pane (see the drop target in places.js) */
+.app.drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; }
 .view-note .ic { color: var(--accent); }
 
 /* ---- find a place: results over the bar at the bottom, when a search address is set ---- */

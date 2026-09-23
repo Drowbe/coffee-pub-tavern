@@ -152,7 +152,25 @@ function trace(text) {
 // the pointer is as it moves, and where it lets go, in its own coordinates; the host turns those into
 // the page's, finds the module frame under the pointer, and forwards over, leave and drop to it in
 // that frame's coordinates, drawing a small label at the pointer meanwhile.
-let ptrDrag = null; // { source, ref, label, ghost, over, timer, doc }
+let ptrDrag = null; // { source, ref, card, label, ghost, over, timer, doc }
+
+// A card carried by a drag instead of a pointer (a module with nothing stored, Assistant's answers): only the
+// fields a target can fill an action from, checked for shape and size, or null.
+function cleanCard(c) {
+  if (!c || typeof c !== 'object' || typeof c.title !== 'string' || !c.title.trim()) return null;
+  const card = { title: c.title.trim().slice(0, 200) };
+  if (typeof c.kind === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.kind)) card.kind = c.kind;
+  if (typeof c.content === 'string' && c.content.trim()) card.text = c.content.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000);
+  if (typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date)) card.date = c.date;
+  const p = c.place;
+  if (p && typeof p === 'object' && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180) {
+    card.place = { lat: p.lat, lng: p.lng, ...(typeof p.name === 'string' && p.name.trim() ? { name: p.name.trim().slice(0, 120) } : {}) };
+  }
+  return card;
+}
+
+// What a drag carries, as a target's refsdrag event gets it: a pointer, or a card.
+const dragged = () => ({ ref: ptrDrag.ref || null, card: ptrDrag.card || null });
 
 function ptrEnd() {
   if (!ptrDrag) return;
@@ -177,8 +195,8 @@ function ptrPoint(x, y) {
   return { px: r.left + x, py: r.top + y };
 }
 
-function ptrBegin(source, ref, label, x, y) {
-  trace(`host: drag begins from ${source.module.id} (${ref.kind} ${ref.id}) at ${x},${y}; ${[...mounted].filter((t) => t !== source).map((t) => t.module.id).join(', ') || 'no other module frames'} to drop on`);
+function ptrBegin(source, { ref = null, card = null }, label, x, y) {
+  trace(`host: drag begins from ${source.module.id} (${ref ? `${ref.kind} ${ref.id}` : `a card "${card.title.slice(0, 30)}"`}) at ${x},${y}; ${[...mounted].filter((t) => t !== source).map((t) => t.module.id).join(', ') || 'no other module frames'} to drop on`);
   ptrEnd();
   endDrag();
   const doc = source.frame.ownerDocument;
@@ -186,7 +204,7 @@ function ptrBegin(source, ref, label, x, y) {
   ghost.textContent = String(label || '').slice(0, 40);
   ghost.style.cssText = 'position:fixed;z-index:2147483001;pointer-events:none;padding:3px 9px;border-radius:6px;background:#c8873a;color:#1a1206;font:600 12px sans-serif;max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.4)';
   doc.body.appendChild(ghost);
-  ptrDrag = { source, ref, label, ghost, over: null, doc, timer: setTimeout(ptrEnd, 60000) };
+  ptrDrag = { source, ref, card, label, ghost, over: null, doc, timer: setTimeout(ptrEnd, 60000) };
   ptrMove(x, y);
 }
 
@@ -203,7 +221,7 @@ function ptrMove(x, y) {
   if (hit && ptrDrag.over !== hit.target) trace(`host: pointer is over ${hit.target.module.id} at ${hit.x},${hit.y}`);
   if (hit) {
     ptrDrag.over = hit.target;
-    hit.target.send('refsdrag', { type: 'over', x: hit.x, y: hit.y, ref: ptrDrag.ref });
+    hit.target.send('refsdrag', { type: 'over', x: hit.x, y: hit.y, ...dragged() });
   }
 }
 
@@ -215,7 +233,7 @@ function ptrDrop(x, y) {
   const { px, py } = ptrPoint(x, y);
   const hit = ptrTarget(px, py);
   trace(hit ? `host: released over ${hit.target.module.id} at ${hit.x},${hit.y}: dropping` : `host: released at page ${Math.round(px)},${Math.round(py)}, over no module frame`);
-  if (hit) hit.target.send('refsdrag', { type: 'drop', x: hit.x, y: hit.y, ref: ptrDrag.ref });
+  if (hit) hit.target.send('refsdrag', { type: 'drop', x: hit.x, y: hit.y, ...dragged() });
   ptrDrag.over = null; // the drop already ended it for the target
   ptrEnd();
 }
@@ -839,9 +857,13 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       return true;
     },
     // The pointer-driven drag (see tavern.refs.draggable): begin, move, and let go.
-    async 'refs.ptrStart'({ ref, label, x, y }) {
-      if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
-      ptrBegin(mine, { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }, label, Number(x) || 0, Number(y) || 0);
+    // What is dragged is a pointer to one of this module's items, or, for a module with nothing stored (an answer
+    // the assistant wrote), the card itself.
+    async 'refs.ptrStart'({ ref, card, label, x, y }) {
+      const carried = ref ? null : cleanCard(card);
+      if (ref && !REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
+      if (!ref && !carried) throw Object.assign(new Error('nothing valid to drag: a reference or a card with a title'), { status: 400 });
+      ptrBegin(mine, ref ? { ref: { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } } : { card: carried }, label, Number(x) || 0, Number(y) || 0);
       return true;
     },
     async 'refs.ptrMove'({ x, y }) {
@@ -988,7 +1010,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // For tests: start a brokered drag of `ref` from this module, as its SDK would.
     beginDragForTest: (ref) => beginDrag(mine, ref),
     // For tests: run the pointer-driven drag from this module as its SDK would (steps: start, move, drop).
-    ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
+    ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref && ref.card ? { card: cleanCard(ref.card) } : { ref }, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
     deliver,
     destroy() {
       if (!pageMode) hostWin.removeEventListener('message', onMessage);

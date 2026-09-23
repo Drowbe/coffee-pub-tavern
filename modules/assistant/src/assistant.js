@@ -361,6 +361,40 @@
   });
   root.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('ask-picker').hidden) hide($('ask-picker'), true); });
 
+  // A card the model wrote can be dragged onto another module. Assistant stores nothing, so there is no pointer to
+  // drag: the card itself travels (title, kind, content, place, date), and the module it lands on offers whatever
+  // it can make of that -- "Send all to plan", one card at a time, by hand.
+  if (tavern.refs && tavern.refs.draggable) {
+    tavern.refs.draggable(root, (target) => {
+      const el = target.closest && target.closest('.aicard');
+      if (!el || !el.keepCard || target.closest('button, a')) return null;
+      const c = el.keepCard;
+      return { card: { title: c.title, kind: c.kind || '', content: c.content || '', place: c.place || null, date: c.date || '' }, label: c.title };
+    });
+  }
+  // Something from another module dropped here: use it as context for the next question, or ask about it at once.
+  // A carried card (another answer) has no pointer and cannot be context; only the modules around can offer for it.
+  if (tavern.refs && tavern.refs.dropTarget) {
+    const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
+    tavern.refs.dropTarget({
+      over: (_pt, ref, dragged) => showDrop(state.ai && Boolean(ref || dragged.card)),
+      leave: () => showDrop(false),
+      drop: async (ref, pt, dragged) => {
+        showDrop(false);
+        if (!state.ai || !(ref || dragged.card)) return;
+        try {
+          const asContext = (ctx) => addContext({ ref, title: ctx.card.title, icon: (ctx.card.module && ctx.card.module.icon) || 'note' });
+          const own = ref ? [
+            { id: 'context', label: 'Use it as context', hint: 'for the next question', run: asContext },
+            { id: 'ask', label: 'Ask about it', run: (ctx) => { asContext(ctx); ask(`What should I know about ${ctx.card.title}?`); } },
+          ] : [];
+          const chosen = await tavern.refs.dropMenu(dragged, pt, { context: {}, own, remember: 'pane' });
+          if (chosen && chosen.id !== 'context' && chosen.id !== 'ask') say(`${chosen.label}: done`, 3000);
+        } catch (err) { say('It could not do that: ' + message(err), 4000); }
+      },
+    });
+  }
+
   if (tavern.actions && tavern.actions.provide) {
     tavern.actions.provide({
       // A local view: carried out only by the requester's own open Assistant, never someone else's (see module.json). Adds the
