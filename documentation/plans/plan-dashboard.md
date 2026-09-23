@@ -6,19 +6,19 @@
 
 ## What it is
 
-A dashboard on the rooms page, in a sidebar on the left with the room cards in two columns on the right under a Who is around strip, across all of a person's rooms: what is coming up, what is due, which polls need a vote, and who is around. It replaces the dedicated module pages in the header. It is made of widgets, small views that modules provide and Tavern hosts.
+A dashboard on the rooms page, in a sidebar on the left with the room cards in two columns on the right under a Who is around strip, across all of a person's rooms: what is coming up, what is due, which polls need a vote, and who is around. It replaces the dedicated module pages in the header. It is made of widgets, small views that modules provide and Magpie hosts.
 
 ## Decisions
 
 - **It replaces the module server pages in the header.** The header no longer lists a page per module. A widget can still open the module's full view: clicking the Calendar widget opens the full calendar view, as its server page does today. The pages stay; the header items go.
 - **Phase 1 is laid out by us.** A fixed order chosen in the code and the manifests, the same for everyone. Customising the layout (hide, reorder, or an admin layout) is a later step.
-- **First widgets:** Calendar "coming up", To-do "due soon", Polls "need your vote", and who is around (Tavern's own).
-- **Tavern names no module.** A widget is whatever a module says it is, hosted the same way for any module; a module installed later can provide one with no change to Tavern.
+- **First widgets:** Calendar "coming up", To-do "due soon", Polls "need your vote", and who is around (Magpie's own).
+- **Magpie names no module.** A widget is whatever a module says it is, hosted the same way for any module; a module installed later can provide one with no change to Magpie.
 
 ## The widget contract (proposed)
 
 - **Manifest.** `surfaces.widget: { entry, title, size, order }`: an HTML file like the other surfaces, a heading, a size (`small`, `medium` or `wide`, in columns of the dashboard grid) and where it sits relative to the others. Validated in `server/modules.js` like the other surfaces.
-- **Where it runs.** In the page for a module that ships with Tavern, in a sandboxed frame for an uploaded one, exactly as the other surfaces do; it uses the same SDK.
+- **Where it runs.** In the page for a module that ships with Magpie, in a sandboxed frame for an uploaded one, exactly as the other surfaces do; it uses the same SDK.
 - **What it reads.** The viewer's own rooms, through the read that already gives a module its data across rooms (`rooms-data`), checked by the module's read permission in each room. A widget also gets the server scope for a module that has server data.
 - **Listing.** `GET /api/modules/widgets` returns the enabled modules with a widget the viewer can see, in order, so the rooms page draws them.
 - **Live.** Widgets update from the same shared stream as every other module surface.

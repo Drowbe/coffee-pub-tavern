@@ -844,7 +844,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   // Show an item in the module that owns it, here: open its pane (if it is on in this room) and hand it
-  // the pointer, which its own code turns into showing the item. Tavern knows nothing about the item.
+  // the pointer, which its own code turns into showing the item. the host knows nothing about the item.
   function openRef(ref) {
     const m = available.find((x) => x.id === ref.module);
     if (!m) return false;

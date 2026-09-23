@@ -1,10 +1,10 @@
 // The dashboard on the rooms page: cards under the room list, across all of a person's rooms. Who is around is
-// Tavern's own; every other card is a widget a module provides (its manifest's surfaces.widget), hosted here
-// exactly as a module page is, so Tavern names no module. The section stays hidden while there is nothing to show.
+// the host's own; every other card is a widget a module provides (its manifest's surfaces.widget), hosted here
+// exactly as a module page is, so the host names no module. The section stays hidden while there is nothing to show.
 import { api, escapeHtml } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
-// What each module has unread (Tavern's notification counts): shown on its card's heading, since the header no
+// What each module has unread (the host's notification counts): shown on its card's heading, since the header no
 // longer has an item for a module with a widget. brand.js announces the counts; this keeps the latest.
 let unread = {};
 document.addEventListener('app:unread', (event) => {
@@ -88,7 +88,7 @@ function mountWidget(w) {
   });
 }
 
-// Who is around: a strip above the room cards of everyone online (signed in with Tavern open, in a room or not),
+// Who is around: a strip above the room cards of everyone online (signed in with the host open, in a room or not),
 // with where they are, and a button to ask them into a private conversation of two.
 let joinRoom = null;
 let whoNote = '';

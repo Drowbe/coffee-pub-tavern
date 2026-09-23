@@ -20,10 +20,10 @@ Looking at how trip planners lay out an itinerary, the useful ideas are few:
 - **Group decisions and money** are where most fall short: polls are missing or bolted on, and the budget split is often paid or absent.
 - **Getting details in:** many read them from forwarded confirmation emails.
 
-## How it fits Tavern
+## How it fits Magpie
 
 - **The trip is a room's plan.** A room has one trip (dates, destination, a heading); the travellers are the room's members. The server page and the dashboard show the viewer's trips across rooms, as the Calendar does.
-- **The itinerary is mostly other modules' items.** An item is either the Travel module's own (a stop, a stay, a journey, a note) or a pointer to something another module holds, drawn from its card. A Calendar event on a trip day appears on that day; a task due that day shows on it; a poll closing that day shows there. Tavern names no module: the itinerary takes any item whose card has a date.
+- **The itinerary is mostly other modules' items.** An item is either the Travel module's own (a stop, a stay, a journey, a note) or a pointer to something another module holds, drawn from its card. A Calendar event on a trip day appears on that day; a task due that day shows on it; a poll closing that day shows there. Magpie names no module: the itinerary takes any item whose card has a date.
 - **Its own item kinds** (declared as refs, so others can point at them and show backlinks): `stop` (title, address or place, notes, date, start time, length, category), `stay` (a stop that spans nights, with a check-in and check-out), `journey` (from, to, times, a reference code), and `note`.
 - **Actions it provides,** so other modules feed it without knowing it: `addStop` (title, date, optional pointer) and `addToDay` (a pointer to any item, a date). A closed poll can then add its winner to the plan the way it adds a task today.
 - **Drop targets.** Dragging any linkable item from another module onto a day offers, in the drop menu, to add it to that day, or to link it; the same menu the Calendar uses.

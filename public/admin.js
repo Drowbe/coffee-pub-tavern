@@ -713,7 +713,7 @@ $('save-reactions').addEventListener('click', async () => {
 // Upload a zip, review what it asks for, enable it. See docs/MODULES.md.
 let installedModules = [];
 let builtinModules = [];
-let bundledModules = []; // the modules that ship with this Tavern, and whether each is installed or has an update
+let bundledModules = []; // the modules that ship with this server, and whether each is installed or has an update
 
 async function loadModules() {
   const data = await api('GET', '/api/modules');
@@ -769,7 +769,7 @@ function moduleCard(m) {
     <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
-      <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this Tavern' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach Tavern through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
+      <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
       ${m.source === 'bundled' ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every room</label>` : ''}
@@ -780,12 +780,12 @@ function moduleCard(m) {
       ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
       <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
     </div>`;
-  // A newer version ships with this Tavern: offer it, no zip to upload.
+  // A newer version ships with this server: offer it, no zip to upload.
   const newer = bundledModules.find((b) => b.id === m.id && b.update);
   if (newer) {
     const note = document.createElement('div');
     note.className = 'module-update';
-    note.innerHTML = `<span class="pill warn">Update available</span> <strong>Version ${escapeHtml(newer.version)}</strong> comes with this Tavern. <button class="btn btn-primary btn-small" data-bundled-action="install" data-bundled-id="${escapeHtml(newer.id)}" type="button">Update to ${escapeHtml(newer.version)}</button> <span class="hint">Your data stays as it is, and you can switch back below. If it asks for anything new you approve it first.</span>`;
+    note.innerHTML = `<span class="pill warn">Update available</span> <strong>Version ${escapeHtml(newer.version)}</strong> comes with this the host. <button class="btn btn-primary btn-small" data-bundled-action="install" data-bundled-id="${escapeHtml(newer.id)}" type="button">Update to ${escapeHtml(newer.version)}</button> <span class="hint">Your data stays as it is, and you can switch back below. If it asks for anything new you approve it first.</span>`;
     el.querySelector('.module-head').after(note);
   }
   return el;
@@ -800,7 +800,7 @@ const activityWhen = (at) => {
   if (d.toDateString() === today.toDateString()) return time;
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
 };
-// Something Tavern refused or slowed shows as a warning (no colour alone: a small icon too).
+// Something the server refused or slowed shows as a warning (no colour alone: a small icon too).
 const activityLevel = (what) => (/slowed|too many|over the limit|refused|denied|failed|error/i.test(what || '') ? 'warn' : 'info');
 let activityKey = '';
 async function loadActivity() {
@@ -938,7 +938,7 @@ function renderModules() {
         <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
-      <p class="hint">It comes with Tavern and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>
+      <p class="hint">It comes with the server and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>
       ${b.switchable ? `<div class="row"><button class="btn ${b.enabled ? '' : 'btn-primary'}" type="button" data-builtin-toggle="${escapeHtml(b.id)}">${b.enabled ? 'Disable' : 'Approve and enable'}</button>${b.needs ? `<span class="hint">${escapeHtml(b.needs)}</span>` : ''}</div>` : ''}`;
     list.appendChild(el);
   }
@@ -949,12 +949,12 @@ function renderModules() {
     list.appendChild(none);
   }
   if (!showAvailableOnly) for (const m of installedModules) if (moduleMatches(m)) list.appendChild(moduleCard(m));
-  // Modules that ship with this Tavern and are not installed yet: shown under All, and on their own under Available.
+  // Modules that ship with this server and are not installed yet: shown under All, and on their own under Available.
   const available = updatesOnly ? [] : bundledModules.filter((b) => !b.installed);
   if (available.length) {
     const box = document.createElement('div');
     box.className = 'panel';
-    box.innerHTML = `<h2>Available with this Tavern</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
+    box.innerHTML = `<h2>Available with this server</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
       <div class="row module-available">
         <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
         <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div></div>
@@ -989,7 +989,7 @@ $('modules-list').addEventListener('click', async (event) => {
   }
 });
 
-// Install or update a module that ships with this Tavern, by building it here.
+// Install or update a module that ships with this server, by building it here.
 $('modules-list').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-bundled-action]');
   if (!button) return;
@@ -1027,7 +1027,7 @@ $('modules-list').addEventListener('click', async (event) => {
   const m = installedModules.find((x) => x.id === mode.closest('.module-card').dataset.id);
   const to = mode.dataset.moduleRunmode;
   try {
-    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\nA module in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. Tavern cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
+    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\nA module in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. the host cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
     await api('PATCH', `/api/modules/${m.id}`, { runMode: to, acceptRisk: to === 'page' });
     await loadModules();
     say($('modules-status'), `${m.name} now runs ${to === 'page' ? 'in the page' : 'sandboxed'}`);

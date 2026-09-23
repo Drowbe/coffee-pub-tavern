@@ -1,5 +1,5 @@
 // The AI service's configuration page (Manage > Modules > AI service > AI Configuration): /ai-config.html. Admins only.
-// The person picks a company by name and Tavern knows its address; the models are listed from the company's own list, not typed.
+// The person picks a company by name and the host knows its address; the models are listed from the company's own list, not typed.
 // The key is write-only: the page is told only whether one is set, and a typed key replaces it.
 import { loadBranding, api, renderTopbar, crumbLink, wireOverlayBack } from '/brand.js';
 
@@ -36,7 +36,7 @@ function syncAiPanel() {
   $('ai-key-replace').hidden = aiState.keyFromEnvironment;
   $('ai-key-replace').textContent = aiKeyMode === 'replace' ? 'Cancel' : aiState.keySet ? 'Replace the key' : 'Set a key';
   $('ai-key-clear').hidden = aiState.keyFromEnvironment || !aiState.keySet || aiKeyMode === 'clear';
-  $('ai-key-help').textContent = aiState.keyFromEnvironment ? 'The key comes from the server\'s environment (TAVERN_AI_KEY); change it there.' : 'The key is kept on the server and is never shown again.';
+  $('ai-key-help').textContent = aiState.keyFromEnvironment ? 'The key comes from the server\'s environment (AI_KEY); change it there.' : 'The key is kept on the server and is never shown again.';
   $('ai-model-select').hidden = aiManual;
   $('ai-model').hidden = !aiManual;
   $('ai-models-refresh').hidden = aiManual;

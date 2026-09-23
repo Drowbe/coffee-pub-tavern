@@ -93,7 +93,7 @@ async function loadBgImage() {
   render();
 }
 
-// The Tavern room the player is in right now (the Lobby while they are
+// The the host room the player is in right now (the Lobby while they are
 // away); this box follows them from room to room, and its own per-room
 // images (if that room has any) follow along too.
 let playerRoom = 'lobby';
@@ -222,7 +222,7 @@ function render() {
   // pair reads as "aside" the same as an ordinary one, on top of the
   // video being forced off). This is "camera off", not "doesn't exist" --
   // the two people actually in the private room still see each other
-  // completely normally, in Tavern itself; this page is what everyone
+  // completely normally, in the host itself; this page is what everyone
   // else (and Studio) sees, and that was always the only piece missing.
   const muted = (online && !micOn) || isPrivate;
   const talking = online && speaking && micOn && !isPrivate;

@@ -1,5 +1,5 @@
 {
-  "name": "coffee-pub-tavern",
+  "name": "coffee-pub-magpie",
   "version": "0.3.0",
   "description": "Self-hosted voice and video for the Coffee Pub table, with per-player OBS views.",
   "private": true,

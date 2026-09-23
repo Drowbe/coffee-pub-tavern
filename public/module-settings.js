@@ -78,8 +78,8 @@ function fileHint(def) {
   const where = def.folder ? `Looking in ${def.folder}` : 'Looking in the module\'s folder in the data folder';
   if (def.exists === false) return `${where}, which does not exist yet. Create it and copy the file in.`;
   const skipped = def.skipped || [];
-  if ((def.available || []).length) return `Tavern ignored ${skipped.length} other file${skipped.length === 1 ? '' : 's'} in ${def.folder || 'the folder'}: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;
-  if (skipped.length) return `${where}, which has ${skipped.length} file${skipped.length === 1 ? '' : 's'} Tavern ignored: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;
+  if ((def.available || []).length) return `The server ignored ${skipped.length} other file${skipped.length === 1 ? '' : 's'} in ${def.folder || 'the folder'}: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;
+  if (skipped.length) return `${where}, which has ${skipped.length} file${skipped.length === 1 ? '' : 's'} The server ignored: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;
   return `${where}, which is empty. Copy the file in.`;
 }
 

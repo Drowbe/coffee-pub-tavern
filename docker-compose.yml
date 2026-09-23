@@ -1,20 +1,20 @@
-# Coffee Pub Tavern - paste this into QNAP Container Station (Applications >
+# Coffee Pub Magpie - paste this into QNAP Container Station (Applications >
 # Create) or run with `docker compose up -d` anywhere. No files to edit on the
 # NAS: everything is set below. Replace the CHANGE_ME values.
 #
 # Before starting:
-#   DNS:    tavern.<domain> and livekit.<domain> -> your public IP (DNS only, not proxied)
-#           (for several environments, also *.tavern.<domain>, and a wildcard certificate: see the guide)
+#   DNS:    magpie.<domain> and livekit.<domain> -> your public IP (DNS only, not proxied)
+#           (for several environments, also *.magpie.<domain>, and a wildcard certificate: see the guide)
 #   Router: forward 7881/tcp, 7882/udp and 3478/udp to the NAS
 #   Proxy:  Nginx Proxy Manager hosts with TLS:
 #             livekit.<domain> -> NAS:7880 (Websockets Support ON)
-#             tavern.<domain>  -> NAS:3000
+#             magpie.<domain>  -> NAS:3000
 version: "3.7"
 
 services:
   livekit:
     image: livekit/livekit-server:latest # 1.12 or newer
-    container_name: tavern-livekit
+    container_name: magpie-livekit
     restart: unless-stopped
     network_mode: bridge
     ports:
@@ -38,9 +38,9 @@ services:
         logging:
           level: info
 
-  tavern:
+  magpie:
     image: ghcr.io/drowbe/coffee-pub-tavern:latest
-    container_name: tavern-app
+    container_name: magpie-app
     restart: unless-stopped
     network_mode: bridge
     ports:
@@ -51,10 +51,10 @@ services:
       LIVEKIT_API_SECRET: "CHANGE_ME_API_SECRET"
       # The game master's account. Created on first start; if you ever forget
       # the password, change it here and restart the container.
-      TAVERN_ADMIN_USER: "gm"
-      TAVERN_ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
+      ADMIN_USER: "gm"
+      ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
       # Several environments on one server (see the getting-started guide, "Environments"): set the base
-      # domain, drop the two TAVERN_ADMIN_ lines above, and add the next three for ONE start only.
+      # domain, drop the two ADMIN_ lines above, and add the next three for ONE start only.
       # BASE_DOMAIN: "magpie.CHANGE_ME_DOMAIN"
       # MIGRATE_TENANT_SLUG: "thepub"
       # HOST_ADMIN_LOGIN: "CHANGE_ME"
@@ -63,4 +63,4 @@ services:
       # CONTACT_EMAIL: "you@example.com" # optional: where the product page's "ask" writes to
       PORT: "3000"
     volumes:
-      - /share/appdata/tavern:/app/data # users, settings and images
+      - /share/appdata/magpie:/app/data # users, settings and images

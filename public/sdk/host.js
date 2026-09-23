@@ -1,10 +1,10 @@
 /*
- * Tavern module SDK. A module includes this from its own pages:
+ * the host module SDK. A module includes this from its own pages:
  *
  *   <script src="/sdk/host.js"></script>
  *
- * A module runs either in a sandboxed frame, with no access to Tavern's pages, cookies or network, or
- * (when the admin has chosen that for it, and for the modules that ship with Tavern) in the page itself,
+ * A module runs either in a sandboxed frame, with no access to the host's pages, cookies or network, or
+ * (when the admin has chosen that for it, and for the modules that ship with this server) in the page itself,
  * in a container of its own. Either way everything it can do goes through the calls here; the page
  * hosting it (public/module-host.js) makes the real requests on its behalf and the server checks every
  * one. A module in the page is not confined: it could bypass this. See documentation/api/api-module-sdk.md.
@@ -720,7 +720,7 @@
     },
 
     // The module's settings, as chosen for this viewer here: { key: value }, with the module's own default for what
-    // nobody has chosen. Declared in module.json (`settings`); Tavern draws the forms (an admin's for the server, a
+    // nobody has chosen. Declared in module.json (`settings`); the host draws the forms (an admin's for the server, a
     // room's moderators' for a room, each person's own) and keeps the values. `onChange(fn)` calls fn(values) when any of
     // them changes.
     settings: {
@@ -742,7 +742,7 @@
     // Refs: pointing at another module's items without reaching into its data. A module lists what
     // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
     // the latter. A pointer is { module, kind, id, scope: 'room' | 'server', room? }: store it, never
-    // a copy of the item. resolve() asks Tavern for the item's card (title, subtitle, when, end,
+    // a copy of the item. resolve() asks the host for the item's card (title, subtitle, when, end,
     // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
     // a pointer is only ever as revealing as the viewer's own access.
     // The module's own page. `open(hash)` asks the host to open it at a place in it ("day=2026-09-24": letters,
@@ -768,7 +768,7 @@
       // One pointer, or a list, to cards. A list keeps its order.
       resolve: async (refs) => {
         const list = Array.isArray(refs) ? refs : [refs];
-        // Tavern answers up to 50 at a time.
+        // the host answers up to 50 at a time.
         const cards = [];
         for (let i = 0; i < list.length; i += 50) cards.push(...await call('refs.resolve', { refs: list.slice(i, i + 50) }));
         return Array.isArray(refs) ? cards : cards[0];
@@ -794,7 +794,7 @@
         }
         return off;
       },
-      // Tell Tavern what one of your items points at (`from` is a pointer to it, from make(); `to` is the
+      // Tell the host what one of your items points at (`from` is a pointer to it, from make(); `to` is the
       // list of pointers it now points at, replacing the last), so the items pointed at can ask what points
       // at them. Only pointers are kept, and only what the viewer may see is ever shown.
       setLinks: (from, to) => call('refs.setLinks', { from, to }),
@@ -816,7 +816,7 @@
         event.target.addEventListener('dragend', () => call('refs.dragEnd', {}).catch(() => {}), { once: true });
         return ref;
       },
-      // A line on the page's drag trace, when tracing is on (open Tavern with ?debug=1); does nothing otherwise.
+      // A line on the page's drag trace, when tracing is on (open the host with ?debug=1); does nothing otherwise.
       trace: (msg) => {
         if (info && info.debug) call('refs.trace', { msg: String(msg).slice(0, 160) }).catch(() => {});
       },
@@ -1061,7 +1061,7 @@
       },
     },
 
-    // Actions: one module asks another to do something, without either naming the other in Tavern. A module
+    // Actions: one module asks another to do something, without either naming the other in the host. A module
     // lists what it can do in module.json (actions.provides: [{ name, label, input: { title: 'string',
     // due: 'date?' } }]; field types are string, text, date, datetime, boolean, number and ref, and a
     // trailing ? means optional) and what it wants to ask for (actions.uses: ["*"] or ["module:name"],
@@ -1130,7 +1130,7 @@
         const first = menu.querySelector('button');
         if (first) first.focus();
       }),
-      // Ask for one. Tavern checks the input against what the action takes and queues it for the module
+      // Ask for one. the host checks the input against what the action takes and queues it for the module
       // that owns it, which carries it out the next time a person has it open (or at once if one does).
       // With { wait: true } this waits a few seconds for the answer: { status, result: { ok, ref?, error? } }.
       request: async (action, input, o) => {
@@ -1176,7 +1176,7 @@
       },
     },
 
-    // Ask Tavern to run something later, on your behalf. Needs "schedule" (and
+    // Ask the host to run something later, on your behalf. Needs "schedule" (and
     // "notify" for a notification) in the manifest's hooks. `at` is a time
     // (ms since 1970 or an ISO string); `key` names the schedule so setting it
     // again replaces it. When it fires the module is told (event "schedule")
@@ -1277,7 +1277,7 @@
   return { host, emit };
   }
 
-  // A Tavern page that hosts modules includes this file with data-host-sdk, to build SDKs for modules
+  // A the host page that hosts modules includes this file with data-host-sdk, to build SDKs for modules
   // that run in the page; anywhere else, inside a frame, it boots for the module in that frame.
   const hostPage = Boolean(document.currentScript && document.currentScript.hasAttribute('data-host-sdk'));
   if (!hostPage && global.parent !== global) {
@@ -1290,7 +1290,7 @@
       global.parent.postMessage({ host: 1, id, method, params }, '*');
       setTimeout(() => {
         if (!pending.delete(id)) return;
-        reject(new Error('Tavern did not answer'));
+        reject(new Error('the host did not answer'));
       }, 30000);
     });
     // The theme arrives as CSS custom properties; setting them on :root lets a module's plain CSS follow
@@ -1337,5 +1337,5 @@
   // `esc` and `markdown` need no per-module env, so the room page (which loads this file directly for the modules
   // it hosts in the page, not as a module itself) can use the very same rendering Chat and every module share,
   // rather than a second copy. See host.util.markdown above for what this covers.
-  global.tavernText = { esc, markdown };
+  global.hostText = { esc, markdown };
 })(window);

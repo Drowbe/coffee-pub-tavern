@@ -26,7 +26,7 @@ Today's instruction asks for "at least one card, at most three." For a request t
 
 **For a card with a `kind`, a plan can do more than keep a note about it.** A plan (Planner) is the obvious thing that wants a typed suggestion turned into a real stop, journey or stay on the right day, not a linked note about one. This needs a **new generic action Planner provides** — a shape like `acceptSuggestion({ kind?, title, content?, place?, date?, links? })` — found by Assistant the same way it already finds a note-saving action, by name and input shape, never by naming Planner. Given a `kind` it recognises, Planner adds a properly typed item, placed on the day the card's `date` names (or the next open day, if none); given no `kind`, or if nothing offers `acceptSuggestion`, it falls back to the existing note-save behaviour. **Send all** simply calls whichever it finds, once per card.
 
-**The person still decides.** Sending all is a shortcut for accepting every card in one reply, not a silent bulk write: it shows what it is about to add (a short list: "3 stays, 6 sights, 1 flight") and confirms once, the same care every other one-click bulk action in Tavern already takes.
+**The person still decides.** Sending all is a shortcut for accepting every card in one reply, not a silent bulk write: it shows what it is about to add (a short list: "3 stays, 6 sights, 1 flight") and confirms once, the same care every other one-click bulk action in Magpie already takes.
 
 ## Order of work
 

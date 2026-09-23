@@ -72,7 +72,7 @@ await test('a request: the frame, the numbered items, the key as a header, the t
   assert.equal(ai.usageView().byTask.ask, 50);
   const b = new Ai(dir, {}, { anthropic: address });
   b.set({ enabled: true, provider: 'anthropic', address: 'https://ignored.example', model: 'c', key: 'ak' });
-  assert.equal(b.view().address, ''); // a company's address is Tavern's, never typed
+  assert.equal(b.view().address, ''); // a company's address is the host's, never typed
   await b.run('summarise', items);
   assert.equal(sent.at(-1).url, '/v1/messages');
   assert.equal(sent.at(-1).key, 'ak');
@@ -80,7 +80,7 @@ await test('a request: the frame, the numbered items, the key as a header, the t
 });
 
 await test('companies, migration and the model lists', async () => {
-  // OpenAI itself: its address is Tavern's; the request uses the newer token field.
+  // OpenAI itself: its address is the host's; the request uses the newer token field.
   const o = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, { openai: `${address}/v1` });
   o.set({ enabled: true, provider: 'openai', address: 'https://typed.example', model: 'gpt-5', key: 'sk-o' });
   assert.equal(o.view().address, '');

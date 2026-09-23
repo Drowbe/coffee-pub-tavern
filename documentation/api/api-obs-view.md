@@ -1,7 +1,7 @@
 # OBS View Links
 
 **Audience:** someone building an integration, or adding a player to OBS by hand, who needs the exact
-form of a Coffee Pub Tavern view URL.
+form of a Coffee Pub Magpie view URL.
 
 Every player has two view pages, each on a transparent background, meant to be loaded as an OBS
 Browser Source. Coffee Pub Studio builds and maintains them automatically; this is the contract it and

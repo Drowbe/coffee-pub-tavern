@@ -1,6 +1,6 @@
 # Optional Conference Plan
 
-**Audience:** the author deciding how a Tavern server can run without a video conference (and without LiveKit), and whoever builds it afterwards.
+**Audience:** the author deciding how a Magpie server can run without a video conference (and without LiveKit), and whoever builds it afterwards.
 
 **Status:** Direction set by the author; nothing built. The findings below are from reading the server and the room page.
 
@@ -23,7 +23,7 @@ So switching off the conference alone is not enough: the chat, presence and asid
 ## The stages
 
 1. **A switch for the conference, LiveKit still there** (small, safe). A server setting turns the Conference pane off: no camera or microphone, no video tiles, no "join the call", and it disappears from the room bar and the modules menu. Chat, presence and asides keep working over LiveKit. This gives the Modules-tab cards and the enable step now.
-2. **Chat and presence without LiveKit** (the real work). The server delivers chat messages, presence (who is where, online), reactions and away notices itself, over a server-sent-events stream (Tavern already uses one for modules, presence beat and notifications), with the same history. The room page stops connecting to LiveKit unless the conference is on. Asides and private conversations become chat-only when there is no conference.
+2. **Chat and presence without LiveKit** (the real work). The server delivers chat messages, presence (who is where, online), reactions and away notices itself, over a server-sent-events stream (Magpie already uses one for modules, presence beat and notifications), with the same history. The room page stops connecting to LiveKit unless the conference is on. Asides and private conversations become chat-only when there is no conference.
 3. **LiveKit becomes optional.** The server starts without the two LiveKit keys, says so once in the log, and treats the conference as unavailable. The install docs and the compose file show the no-conference setup first; LiveKit is the option you add for video. The OBS pages and the guest link say "no conference" where they need one.
 4. **Conference on later.** An admin can add LiveKit afterwards and turn the conference on; nothing else changes.
 

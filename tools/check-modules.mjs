@@ -15,7 +15,7 @@ const base = () => ({ id: 'thing', name: 'Thing', version: '1.0.0', scope: ['ser
 const files = new Set(['page.html']);
 
 test('a setting keeps a help paragraph longer than a one-line hint', () => {
-  const long = 'A world PMTiles file to cut a region from with "Add a region", below. Tavern reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for todays, or point this at your own stable copy. Left empty, cutting a region is off.';
+  const long = 'A world PMTiles file to cut a region from with "Add a region", below. the host reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for todays, or point this at your own stable copy. Left empty, cutting a region is off.';
   assert.ok(long.length > 200 && long.length <= 600, 'the fixture itself must sit between the old and new ceilings');
   const m = cleanManifest({ ...base(), settings: [{ key: 'worldSource', label: 'World file', type: 'url', scope: 'server', default: '', help: long }] }, files);
   assert.equal(m.settings[0].help, long); // not cut off mid-sentence

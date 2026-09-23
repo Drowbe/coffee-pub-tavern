@@ -1,16 +1,16 @@
 # Places
 
-**Audience:** a player or game master keeping a room's places with the Places module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master keeping a room's places with the Places module on a Coffee Pub Magpie server, and an admin setting it up.
 
 The Places module keeps the places your room cares about: where you are staying, where to eat, what to see. Each has a name, a category, an address, an optional position, notes and the people it belongs to. It needs no map. Other modules link to a place (a trip stop, an event, a task), and a place with a position shows on the map when the Maps module is installed. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Places under **Available with this Tavern**, then **Approve and enable**. It asks to link to other modules' items.
+1. On the Modules tab, choose **Install** beside Places under **Available with this Magpie**, then **Approve and enable**. It asks to link to other modules' items.
 2. Tick **Available in every room**, or tick it per room on the room's own page.
-3. **Search (optional).** Under Places' settings (**Module Configuration** on its card), **Place search** chooses where a search for a place by name is asked, and Tavern sends nothing out unless you choose one:
+3. **Search (optional).** Under Places' settings (**Module Configuration** on its card), **Place search** chooses where a search for a place by name is asked, and Magpie sends nothing out unless you choose one:
    - **None** (the default): no search.
-   - **Photon, the public service**: searches the server cannot answer from its own saved places are sent to the public Photon service at photon.komoot.io. Its terms are "reasonable limits": extensive use may be throttled or banned, and there is no availability guarantee. Results come from OpenStreetMap data, so "© OpenStreetMap contributors" applies (Tavern already shows that credit on the map, and the results say "Search by Photon").
+   - **Photon, the public service**: searches the server cannot answer from its own saved places are sent to the public Photon service at photon.komoot.io. Its terms are "reasonable limits": extensive use may be throttled or banned, and there is no availability guarantee. Results come from OpenStreetMap data, so "© OpenStreetMap contributors" applies (Magpie already shows that credit on the map, and the results say "Search by Photon").
    - **My own address**: a Photon-compatible service you run or may use, over https, whose address you enter. A server that already had a search address before this choice existed keeps working, as "My own address".
    - **Save places to the server** (shown once a search is chosen, off until you turn it on): the server keeps every place a search returns (its OpenStreetMap type and number, name, address, position, category, when it was first and last returned, how often, and whether anyone picked it), and answers later searches from those first, asking the outside service only when fewer than five saved places match. What was searched for, and by whom, is never kept. Each result says whether it came from the server's saved places or from the service. The saved places are OpenStreetMap data: keep them for this server's own use, keep the credit, and check the terms of the service you use before you keep or share what it returns. Turn the setting off and nothing new is kept.
    - **Saved search results** (on the same page): how many places are saved, picked and unpicked, and when the oldest was first seen, with buttons to remove the unpicked ones, the unpicked ones older than a number of days, or everything. Each button asks twice. A place someone picked is kept unless you remove everything.

@@ -4536,7 +4536,7 @@ body.at-table .module-nav {
   display: none;
 }
 
-/* A newer version of a module ships with this Tavern. */
+/* A newer version of a module ships with this server. */
 .module-update {
   display: flex;
   flex-wrap: wrap;

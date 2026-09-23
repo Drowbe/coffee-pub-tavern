@@ -20,7 +20,7 @@ const m = data && data.modules.find((x) => x.id === id);
 if (!m) {
   $('cfg-missing').hidden = false;
 } else {
-  document.title = `Coffee Pub Tavern - ${m.name} configuration`;
+  document.title = `${document.title.split(' - ')[0]} - ${m.name} configuration`; // the environment's name is in front once branding has loaded
   $('config').hidden = false;
   $('cfg-icon').classList.add(`fa-${m.icon}`);
   $('cfg-name').textContent = `${m.name} configuration`;

@@ -1,12 +1,12 @@
 # Place Search Cache Plan
 
-**Audience:** the author deciding how Tavern builds its own place data from use, and whoever builds it afterwards.
+**Audience:** the author deciding how Magpie builds its own place data from use, and whoever builds it afterwards.
 
 **Status:** Decided by the author; nothing here is built.
 
 ## The idea
 
-When a place search goes to an outside service (Photon, or an address the admin chose), Tavern keeps what comes back on the server. A later search looks on the server first and asks the outside service only when the server has too little. Over time the server builds its own place data from use, and the outside service is asked less and less. A later hosted Tavern service becomes one more source, and this collection can seed it.
+When a place search goes to an outside service (Photon, or an address the admin chose), Magpie keeps what comes back on the server. A later search looks on the server first and asks the outside service only when the server has too little. Over time the server builds its own place data from use, and the outside service is asked less and less. A later hosted Magpie service becomes one more source, and this collection can seed it.
 
 ## Decisions (author)
 
@@ -26,7 +26,7 @@ When a place search goes to an outside service (Photon, or an address the admin 
 
 ## Licence and terms (to settle before this can be on by default; for now it is off and the admin turns it on)
 
-- The data is OpenStreetMap's, under the ODbL. Keeping a private copy is fine. If Tavern (or a hosted edition) serves the saved collection to other people, the ODbL requires the collection to remain open under the same licence and to credit OpenStreetMap. The credit "© OpenStreetMap contributors" stays wherever results are shown.
+- The data is OpenStreetMap's, under the ODbL. Keeping a private copy is fine. If Magpie (or a hosted edition) serves the saved collection to other people, the ODbL requires the collection to remain open under the same licence and to credit OpenStreetMap. The credit "© OpenStreetMap contributors" stays wherever results are shown.
 - Photon's public service asks for reasonable use and says nothing about storing results; read their terms before turning this on by default. A hosted edition should not be built on a public demo service.
 
 ## Order of work

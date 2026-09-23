@@ -1,7 +1,7 @@
 /*
  * Optional base styles for a module's pages: include with
  *   <link rel="stylesheet" href="/sdk/host.css">
- * Everything reads Tavern's theme tokens (set on :root by the SDK), so a
+ * Everything reads the host's theme tokens (set on :root by the SDK), so a
  * module built on these follows whatever theme the admin picks. See
  * documentation/designsystem/design-theme.md.
  */

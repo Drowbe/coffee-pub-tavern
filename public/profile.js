@@ -24,7 +24,7 @@ let roomsById = new Map(); // every real room (not the Lobby), for the per-room 
 // call to pick up the change now instead of waiting for a camera toggle.
 function notifyLiveCallPrefs(patch) {
   if (editingKey || window.parent === window) return;
-  window.parent.tavernApplyCallPrefs?.(patch)?.catch?.(() => {});
+  window.parent.appApplyCallPrefs?.(patch)?.catch?.(() => {});
 }
 
 function say(text, error = false) {

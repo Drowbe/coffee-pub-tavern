@@ -1,9 +1,9 @@
 # Architecture Overview
 
-**Audience:** a developer changing Coffee Pub Tavern, who needs the shape of the whole system and
+**Audience:** a developer changing Coffee Pub Magpie, who needs the shape of the whole system and
 where each part lives.
 
-Tavern is a small Node web app plus a LiveKit media server. There is no build step and no front-end
+Magpie is a small Node web app plus a LiveKit media server. There is no build step and no front-end
 framework: the pages are plain HTML, CSS and JavaScript served as they are.
 
 ## The pieces
@@ -16,21 +16,21 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
         ^                                             ^
         | pages and API                               | access tokens
 +--------------------------------------------------------------+
-| Tavern web app (Node/Express): pages, accounts, images, API  |
+| Magpie web app (Node/Express): pages, accounts, images, API  |
 +--------------------------------------------------------------+
 ```
 
 - **LiveKit server** is open source and runs as its own container. It is a selective forwarding unit:
   each player uploads once and the server fans the stream out. It has a built-in TURN relay for players
-  behind strict routers. Tavern calls its server API for the participant list, kick and mute.
-- **Tavern web app** serves the pages, mints LiveKit access tokens, and keeps accounts, rooms, images and
+  behind strict routers. Magpie calls its server API for the participant list, kick and mute.
+- **Magpie web app** serves the pages, mints LiveKit access tokens, and keeps accounts, rooms, images and
   settings. It never touches media.
 - **Coffee Pub Studio** signs in as an admin and creates one OBS Browser Source per player, pointing at
   that player's view page.
 
 ## Technology
 
-- **LiveKit** on both sides, with `livekit-client` served by Tavern itself from `/lib/`. It was chosen
+- **LiveKit** on both sides, with `livekit-client` served by Magpie itself from `/lib/`. It was chosen
   over a hand-rolled mesh, whose upload cost grows with the table, and over Jitsi, where per-participant
   OBS views would need low-level work.
 - **Node 22 and Express 5.** One app serves every page and the JSON API.
@@ -79,7 +79,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 
 ## Rooms and the table
 
-Each Tavern room is one LiveKit room. Chat, reactions and away status travel over the LiveKit data
+Each Magpie room is one LiveKit room. Chat, reactions and away status travel over the LiveKit data
 channel between participants and are never stored. Stepping aside creates an ephemeral room that holds
 its origin room's id and is removed when empty; the server tells each moved participant to switch.
 Presence for the Manage page and for OBS views comes from LiveKit's participant list, polled by
@@ -89,7 +89,7 @@ Presence for the Manage page and for OBS views comes from LiveKit's participant 
 
 `docker-compose.yml` has two services, meant to be pasted into Container Station: `livekit` from the
 official image, configured entirely through an environment variable (keys, TURN, ports 7880 for
-signaling, 7881 TCP and 7882 UDP for media, 3478 for TURN), and `tavern`, the Node app from
+signaling, 7881 TCP and 7882 UDP for media, 3478 for TURN), and `magpie`, the Node app from
 `ghcr.io/drowbe/coffee-pub-tavern`, built by GitHub Actions. A reverse proxy terminates TLS for both
 hostnames, because browsers only allow camera access over HTTPS.
 
@@ -101,7 +101,7 @@ eight times seven times 1.5 Mbps out at the server. Player quality is capped by 
 ```bash
 npm install
 LIVEKIT_HOST=localhost:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=... \
-TAVERN_ADMIN_USER=gm TAVERN_ADMIN_PASSWORD=secret npm run dev
+ADMIN_USER=gm ADMIN_PASSWORD=secret npm run dev
 ```
 
 Data goes to `./data` unless `DATA_DIR` says otherwise. `LIVEKIT_API_URL` overrides the HTTP address used

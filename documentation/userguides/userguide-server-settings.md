@@ -1,6 +1,6 @@
 # Server Settings
 
-**Audience:** an admin running a Coffee Pub Tavern server, working through the Manage page.
+**Audience:** an admin running a Coffee Pub Magpie server, working through the Manage page.
 
 Open the Manage page with the gear icon in the header. It has six tabs, in this order: **Server**,
 **Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only admins see it.
@@ -14,7 +14,7 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
   choose from the Font Awesome list on the Theme tab.
 - **Call features.** Turns screen sharing, asides, private conversations and reactions on or off for
   everyone, and sets the highest video quality anyone can pick.
-- **Sign-in page.** A background picture behind the sign-in box, and the text under the password field. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Tavern (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
+- **Sign-in page.** A background picture behind the sign-in box, and the text under the password field. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Magpie (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
 - **Sign-up.** Self-service `/register` on or off, and invite links into specific rooms. See
   [Accounts, roles and permissions](userguide-accounts.md).
 - **Participant video defaults.** The talking border, its color and width; the name plate, with its
@@ -49,11 +49,11 @@ On the Server tab. **Language** is the interface language (English, until transl
   **1** to **6**.
 - **Font Awesome.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example
   `<i class="fa-solid fa-dice"></i>`, and the preview shows it. These icons are the choices offered for a
-  room's launch link and the home icon. Only the Free icons that ship with Tavern will draw, unless you
+  room's launch link and the home icon. Only the Free icons that ship with Magpie will draw, unless you
   have added your own Pro package (below).
 - **Font Awesome Pro (optional).** If you have a Pro licence, drop your own "Web" download from your
   Font Awesome account (the folder with `css/`, `webfonts/` and `svgs/` in it, the Classic style) at
-  `DATA_DIR/fontawesome-pro/` on the server and restart it. Tavern serves and draws from it ahead of
+  `DATA_DIR/fontawesome-pro/` on the server and restart it. Magpie serves and draws from it ahead of
   the bundled Free set, falling back to Free for any style or icon it does not have. Nothing about your
   licence or your package ever leaves your own server: it is never built into the shared image, never
   uploaded, and no token for it lives in this repository.
@@ -73,4 +73,4 @@ Upload and manage add-on features. See [Modules](userguide-modules.md).
 
 ## About
 
-The version, the licence, and the credits for the open-source software Tavern is built on.
+The version, the licence, and the credits for the open-source software Magpie is built on.

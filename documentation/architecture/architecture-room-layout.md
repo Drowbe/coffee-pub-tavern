@@ -1,6 +1,6 @@
 # Room Layout Architecture
 
-**Audience:** developers changing the room page in Coffee Pub Tavern: the conference, the chat, or anything that docks beside them.
+**Audience:** developers changing the room page in Coffee Pub Magpie: the conference, the chat, or anything that docks beside them.
 
 How the table's layout is built and the rules that keep it predictable. What a player sees is in [userguide-table](../userguides/userguide-table.md); colors are in [design-theme](../designsystem/design-theme.md).
 

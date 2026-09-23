@@ -1,6 +1,6 @@
 # Assistant
 
-**Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Magpie server, and an admin setting it up.
 
 Assistant is a place for an open-ended conversation with the AI the admin set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add anything with a card as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
 

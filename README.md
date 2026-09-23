@@ -1,4 +1,4 @@
-# Coffee Pub Tavern
+# Coffee Pub Magpie
 
 Voice and video for your tabletop game, on a server you run yourself. Each player signs in once, allows
 camera and microphone, and is at the table, with nothing to install. Every player is also an OBS
@@ -55,6 +55,6 @@ If the idea of AI-assisted development keeps you up at night or just isn't your 
 
 ## Licence and credits
 
-MIT. Tavern is built on [LiveKit](https://livekit.io) (Apache-2.0), Font Awesome Free (icons CC BY 4.0,
+MIT. Magpie is built on [LiveKit](https://livekit.io) (Apache-2.0), Font Awesome Free (icons CC BY 4.0,
 fonts SIL OFL 1.1, code MIT), MediaPipe through LiveKit's track processors, Express and Node.js. The
 Manage page's About tab carries the full credits.

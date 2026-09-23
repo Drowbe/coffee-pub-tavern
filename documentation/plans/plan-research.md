@@ -6,7 +6,7 @@
 
 ## What it is for
 
-A place to keep what a group finds out while it plans, and after: a note, a link with the part that mattered, a photo with what it shows. It is not about travel. A trip is the first user; a house purchase, a wedding or a project is the same shape. What is kept can be found again by tag, linked from anywhere in Tavern, put on the map or on a day when it has a place or a date, and questioned or summarised by an AI the admin chose.
+A place to keep what a group finds out while it plans, and after: a note, a link with the part that mattered, a photo with what it shows. It is not about travel. A trip is the first user; a house purchase, a wedding or a project is the same shape. What is kept can be found again by tag, linked from anywhere in Magpie, put on the map or on a day when it has a place or a date, and questioned or summarised by an AI the admin chose.
 
 ## Principles (the ones we already hold)
 
@@ -21,7 +21,7 @@ A place to keep what a group finds out while it plans, and after: a note, a link
 2. **Snippet** (a link). A web address, a title, the site, and the person's own excerpt (what to remember from the page), tags. With the admin's "fetch link previews" turned on, the server reads the page's title, description and image so the person does not type them; off by default, because it is a request from the server to a site the person named.
 3. **Photo.** An image, a caption and tags. On upload the server reads the file's own facts: when it was taken, the camera, and where. **The position is dropped by default** (a shared photo must not give away a home address by accident); a per-photo choice keeps it, and a photo with a position shows on the map and one with a date shows on its day. The file is re-encoded by the server (a size limit, a maximum edge of about 2000 px, a thumbnail), which also removes anything hidden in it.
 
-All of them (and the answer cards the AI writes, below) are cards for the rest of Tavern: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
+All of them (and the answer cards the AI writes, below) are cards for the rest of Magpie: a title, a subtitle, a date (`when`), a `place` if it has one, and a category naming its kind. That is what lets a note be dragged onto a plan's day, a photo appear on the map, and a place list "3 notes about this place".
 
 ## Photos as a shared album while a trip happens
 
@@ -82,7 +82,7 @@ The module asks the server (a hook, `host.ai.ask`, next to `notify` and `schedul
 
 - **An OpenAI-compatible chat endpoint** (an address, an optional key, a model name). This one adapter reaches the hosted services that offer the interface and, just as well, **a local model server** (Ollama, LM Studio, llama.cpp's server, vLLM), which all speak it. So "a local model" is not a second feature: it is the same choice pointed at an address on the admin's own network.
 - **The Anthropic API** as a second, native adapter (a key and a model).
-- Later, Tavern's own hosted service is one more entry in the same list.
+- Later, Magpie's own hosted service is one more entry in the same list.
 
 The setting is a choice, as Place search is: **None** (the default), the two above, with a plain notice under each. With a hosted service the notice says the items a person selected are sent to that company. With a local model it says nothing leaves the admin's network. A room can switch AI off for itself.
 
@@ -90,7 +90,7 @@ The setting is a choice, as Place search is: **None** (the default), the two abo
 
 - Only what the person selected is sent, never another room, and never someone's Mine unless it is their own request. Photos are sent only for a vision task, only if the admin allowed images.
 - A monthly token cap and a per-person rate limit, and a usage panel on Module Configuration (tokens used, by task), so a bill is not a surprise.
-- Tavern ships no model and no key. The admin brings them, and the terms of the service or the model are the admin's.
+- Magpie ships no model and no key. The admin brings them, and the terms of the service or the model are the admin's.
 
 ## Order of work
 

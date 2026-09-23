@@ -1,6 +1,6 @@
 # Accounts, Roles and Permissions
 
-**Audience:** a game master or admin adding players to a Coffee Pub Tavern server and deciding what
+**Audience:** a game master or admin adding players to a Coffee Pub Magpie server and deciding what
 each of them can do.
 
 ## Add people

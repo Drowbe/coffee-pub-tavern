@@ -65,7 +65,7 @@ function joinStream(room, guest, onEvent) {
 // layer over every other module frame on the page for the length of the drag, and the layer, being in
 // the host's own page, receives the drag. It tells the frame under it where the pointer is and, on a
 // drop, which pointer was dropped, in the frame's own coordinates. The frame decides what that means
-// (and Tavern still checks the pointer when it is resolved). Nothing else crosses.
+// (and the host still checks the pointer when it is resolved). Nothing else crosses.
 const mounted = new Set(); // every module frame the host has on this page: { frame, module, send }
 let activeDrag = null; // { source, ref, layers, timer }
 
@@ -114,7 +114,7 @@ function beginDrag(source, ref) {
   activeDrag = { source, ref, layers, timer: setTimeout(endDrag, 20000) };
 }
 
-// A trace of a drag on screen, for finding out where one stops: open Tavern once with ?debug=1 (?debug=0
+// A trace of a drag on screen, for finding out where one stops: open the host once with ?debug=1 (?debug=0
 // turns it off). Every step, in the module that starts the drag, in the host and in the module under it,
 // adds a line at the bottom left of the page.
 try {
@@ -431,7 +431,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (!onOpenPage) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
       return Boolean(await onOpenPage(h));
     },
-    // Tell Tavern what one of this module's items points at (all of it: the list replaces the last).
+    // Tell the host what one of this module's items points at (all of it: the list replaces the last).
     async 'refs.setLinks'({ from, to }) {
       if (!REF_SHAPE(from)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
@@ -940,7 +940,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
   });
 
-  // No same-origin: an opaque origin, no cookies, no Tavern DOM. allow-forms lets a
+  // No same-origin: an opaque origin, no cookies, no host DOM. allow-forms lets a
   // module's own <form> fire its submit event (a sandboxed frame without it
   // swallows the submit, so a Save button appears to do nothing); the frame's
   // policy sets form-action 'none', so nothing can actually be submitted anywhere.

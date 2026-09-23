@@ -6,7 +6,7 @@
 
 ## Decided
 
-- **One way, Google to Tavern.** Each person links their own Google account and chooses which of its calendars to show. Their events appear in the Calendar for them only, read only. Nothing is written back to Google, and nobody sees another person's Google events.
+- **One way, Google to Magpie.** Each person links their own Google account and chooses which of its calendars to show. Their events appear in the Calendar for them only, read only. Nothing is written back to Google, and nobody sees another person's Google events.
 - **Server side.** Modules run only in the browser and never hold a credential (a module in the page could take one). So the connection, the tokens and the fetching live on the server, and a module only ever asks for the events.
 - **No secrets in modules.** The Google client id and secret are server settings (environment), never anything a module or a page can read.
 
@@ -16,11 +16,11 @@
 2. **Connect (each person).** On their profile page, **Connect Google Calendar** sends them to Google to allow read-only access, and back. The server keeps the refresh token, encrypted with a key derived from the server's session secret, in its data folder. **Disconnect** deletes it.
 3. **Choose calendars.** The profile lists the account's calendars with a tick for each; only ticked ones are read.
 4. **Sync.** The server refreshes each connected person's events every 15 minutes (and on a button) for a window of 30 days back to 180 days ahead, expanding repeating events, and keeps them per person.
-5. **Show.** The Calendar asks Tavern for the viewer's own external events (a generic "feed of dated items", so a later source needs no change to the Calendar) and draws them among its own, marked with the calendar's name and read only. The dashboard's Coming up and the Travel suggestions can use the same feed.
+5. **Show.** The Calendar asks Magpie for the viewer's own external events (a generic "feed of dated items", so a later source needs no change to the Calendar) and draws them among its own, marked with the calendar's name and read only. The dashboard's Coming up and the Travel suggestions can use the same feed.
 
 ## The feed conduit
 
-Tavern names no module and no provider. A provider registers a per-person feed of dated items (title, start, end, all day, source name); a module that declares it may read that kind of feed (approved by an admin, as reading events is) can ask for the viewer's items between two dates. Google is the first provider.
+Magpie names no module and no provider. A provider registers a per-person feed of dated items (title, start, end, all day, source name); a module that declares it may read that kind of feed (approved by an admin, as reading events is) can ask for the viewer's items between two dates. Google is the first provider.
 
 ## Phases
 

@@ -1,12 +1,12 @@
 # Polls
 
-**Audience:** a player or game master using the Polls module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master using the Polls module on a Coffee Pub Magpie server, and an admin setting it up.
 
 Polls lets a group decide something together: where to go on a trip, where to stay, what to do on Saturday. There is one set of polls for the whole server and one for each room. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Polls under **Available with this Tavern**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add three permissions to the Roles tab and to send notifications.
+1. On the Modules tab, choose **Install** beside Polls under **Available with this Magpie**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add three permissions to the Roles tab and to send notifications.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**. By default users and moderators can do all three, and guests can only see. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
 

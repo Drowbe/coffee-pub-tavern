@@ -1,12 +1,12 @@
 # Planner
 
-**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Magpie server, and an admin setting it up.
 
 The Planner module plans one trip for a room, day by day. The room's Calendar events, to-dos and polls that fall on the trip's days join the plan, and the module adds what a trip needs on top: stops, stays, journeys and notes. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside Planner under **Available with this Tavern**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
+1. On the Modules tab, choose **Install** beside Planner under **Available with this Magpie**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
 2. Tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Planner**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, users and moderators can plan, and guests can see but not plan.
 

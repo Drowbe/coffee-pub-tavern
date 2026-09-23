@@ -17,13 +17,13 @@ export function iconClasses(id) {
 }
 
 // Fills in the server name and icon on every page from /api/branding.
-// What a page keeps in the browser was keyed by the product's name once (tavern.panels..., tavern:chat...); it is keyed by
+// What a page keeps in the browser was keyed by the product's old name once; it is keyed by
 // "app" now (the host is not the brand, see plans/plan-modules.md). Old keys are moved the first time any page loads, so
 // nobody's layout, chat history or remembered choices are lost.
 function migrateStoredKeys() {
   try {
     for (const key of Object.keys(localStorage)) {
-      const m = /^tavern([.:])(.*)$/.exec(key);
+      const m = /^tavern([.:])(.*)$/.exec(key); // the old product name, read only to move the key
       if (!m) continue;
       const next = `app${m[1]}${m[2]}`;
       if (localStorage.getItem(next) === null) localStorage.setItem(next, localStorage.getItem(key));
@@ -36,7 +36,7 @@ function migrateStoredKeys() {
 migrateStoredKeys();
 
 export async function loadBranding() {
-  let b = { serverName: 'Coffee Pub Tavern', tableName: 'The Table', loginText: '', hasIcon: false };
+  let b = { serverName: 'Coffee Pub', tableName: 'The Table', loginText: '', hasIcon: false };
   try {
     const res = await fetch('/api/branding');
     if (res.ok) b = await res.json();
@@ -101,7 +101,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   // flight (barely noticeable on a real navigation, jarring in an iframe
   // that appears almost instantly).
   const handoff = new URLSearchParams(window.location.search);
-  const initialName = handoff.get('serverName') || 'Coffee Pub Tavern';
+  const initialName = handoff.get('serverName') || 'Coffee Pub';
   const initialIcon = handoff.get('homeIcon') || 'couch';
   // The primary nav is about the system, in three zones (see documentation/plans/plan-nav.md and architecture-navigation.md):
   // left, the logo (home) and where you are; middle, the core navigation (the rooms, each module's own page); right, the
@@ -189,7 +189,7 @@ function wireNavMenu(header) {
 
 // --- module notifications ----------------------------------------------------
 // A module can notify people (its reminders, say). They arrive as a toast
-// while you are in Tavern and as an unread count on the module's nav item and
+// while you are in the host and as an unread count on the module's nav item and
 // on the call's Modules button; opening the module clears them. Overlay pages
 // opened over a call (?from=room) leave this to the call page underneath.
 const unreadByModule = {};
@@ -317,7 +317,7 @@ function showInvite(invite) {
   setTimeout(dismiss, 60000);
 }
 
-// A count on the settings gear when modules that ship with this Tavern have a newer version than the one
+// A count on the settings gear when modules that ship with this server have a newer version than the one
 // installed, so an admin sees it without opening Manage. Only an admin can ask (anyone else gets a refusal
 // and no badge); the Manage page calls setUpdateBadge again when it installs an update.
 export function setUpdateBadge(count) {

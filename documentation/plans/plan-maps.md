@@ -1,28 +1,28 @@
 # Maps Plan
 
-**Audience:** the author deciding whether and how Tavern gets maps, and whoever builds it afterwards.
+**Audience:** the author deciding whether and how Magpie gets maps, and whoever builds it afterwards.
 
 **Status:** Places (a module that owns the places) now exists beside Maps, and Maps 0.2.0 is a view of every card that has a `place` that saves new places through the `addPlace` action. Earlier status: Direction agreed by the author (see Decisions). Phases 1 to 5 are built (Maps 0.1.0): the core pieces, the module, places on other modules' items, and search. Phase 6 (a helper to cut a region) is not built. Glyphs: Noto Sans Regular and Medium, Latin, Latin Extended and general punctuation, from the Protomaps assets repository (SIL OFL 1.1, licence file shipped beside them), served from `public/maps-glyphs/`.
 
 ## What it is for
 
-Places belong to things people already plan in Tavern: a trip's stops and stays, a calendar event's location, a task that has to be done somewhere. A map lets a group see where the things are and how far apart, pick a place by clicking instead of typing an address, and open a place in their own maps app. It must work for an operator who runs Tavern on one small machine (a NAS, a mini PC) with no account with anyone, and it must not send a group's places to a service the operator did not choose.
+Places belong to things people already plan in Magpie: a trip's stops and stays, a calendar event's location, a task that has to be done somewhere. A map lets a group see where the things are and how far apart, pick a place by clicking instead of typing an address, and open a place in their own maps app. It must work for an operator who runs Magpie on one small machine (a NAS, a mini PC) with no account with anyone, and it must not send a group's places to a service the operator did not choose.
 
 ## Decisions
 
-- **Scope:** self-hosted Tavern now, with a hosted edition designed in: every map setting is a value on the server, so a hosted edition sets the same values to services it runs. Nothing else in the design assumes a hosted edition.
-- **Maps are their own module.** A bundled Maps module, not a core pane and not part of Travel. It owns the map, the places and its settings, and reaches other modules only through the generic conduits (a place on a card, actions, links, the drop menu), so Tavern and the other modules name no one.
-- **Tiles:** the admin supplies one map file (a PMTiles archive, a region or the world) and picks it in the Maps module's server settings. Tavern serves it and the map reads it with range requests; there is no tile server.
+- **Scope:** self-hosted Magpie now, with a hosted edition designed in: every map setting is a value on the server, so a hosted edition sets the same values to services it runs. Nothing else in the design assumes a hosted edition.
+- **Maps are their own module.** A bundled Maps module, not a core pane and not part of Travel. It owns the map, the places and its settings, and reaches other modules only through the generic conduits (a place on a card, actions, links, the drop menu), so Magpie and the other modules name no one.
+- **Tiles:** the admin supplies one map file (a PMTiles archive, a region or the world) and picks it in the Maps module's server settings. Magpie serves it and the map reads it with range requests; there is no tile server.
 - **Search yes, directions no.** Place search is an optional endpoint the admin sets; directions and routing are not built (a place opens in the person's own maps app for directions).
 
-## What the proposed stack gets right, and where Tavern differs
+## What the proposed stack gets right, and where Magpie differs
 
-The proposal read: MapLibre GL JS for the map, Martin serving locally stored tiles, Valhalla for directions, Photon for search, PostgreSQL for the data, and a WebSocket for live edits, with a shared worldwide service for a hosted edition and a regional or worldwide edition for self-hosting. It is a sound design for a hosted platform. Tavern is a different shape: one Node container, files on a volume, no database server, live changes already delivered by the module store. So:
+The proposal read: MapLibre GL JS for the map, Martin serving locally stored tiles, Valhalla for directions, Photon for search, PostgreSQL for the data, and a WebSocket for live edits, with a shared worldwide service for a hosted edition and a regional or worldwide edition for self-hosting. It is a sound design for a hosted platform. Magpie is a different shape: one Node container, files on a volume, no database server, live changes already delivered by the module store. So:
 
-| Piece | For Tavern |
+| Piece | For Magpie |
 |---|---|
-| MapLibre GL JS (BSD 3-clause) | **Yes.** The map in the browser. Ship it, its style, fonts and icons from Tavern's own server. |
-| Martin tile server | **Not needed.** Serve one PMTiles file: a single static archive the browser reads with HTTP range requests, so there is no tile server, database or key. Tavern's static server already handles range requests. |
+| MapLibre GL JS (BSD 3-clause) | **Yes.** The map in the browser. Ship it, its style, fonts and icons from Magpie's own server. |
+| Martin tile server | **Not needed.** Serve one PMTiles file: a single static archive the browser reads with HTTP range requests, so there is no tile server, database or key. Magpie's static server already handles range requests. |
 | Worldwide tiles | **Possible but the operator's choice.** The world is one file of about 107 GB. An extract of a region is far smaller (a city can be a few MB), cut with the `pmtiles extract` command from a bounding box. |
 | Photon (search) | **Optional endpoint, not shipped.** The Maps module's server setting takes the address of a Photon-compatible search service the operator runs or is licensed to use. A planet index is about 95 GB of disk and 64 GB of RAM is recommended, which is not a NAS; a regional index is much smaller. |
 | Valhalla (directions) | **Not part of this plan.** Directions are a link out to the person's maps app. It can be added later behind another optional endpoint. |
@@ -31,20 +31,20 @@ The proposal read: MapLibre GL JS for the map, Martin serving locally stored til
 
 ## Licences: free for commercial use, like LiveKit
 
-Everything Tavern ships or depends on must be free for commercial use and redistribution under a permissive licence (MIT, BSD, Apache 2.0, ISC, CC0, CC BY, SIL OFL), as LiveKit (Apache 2.0) and Font Awesome Free already are. Checked against the proposal:
+Everything Magpie ships or depends on must be free for commercial use and redistribution under a permissive licence (MIT, BSD, Apache 2.0, ISC, CC0, CC BY, SIL OFL), as LiveKit (Apache 2.0) and Font Awesome Free already are. Checked against the proposal:
 
 | Piece | Licence | Verdict |
 |---|---|---|
 | MapLibre GL JS | BSD 3-clause | Ship. |
 | PMTiles reader and the `pmtiles` tool | BSD 3-clause | Ship the reader; the operator runs the tool. |
-| Protomaps basemap styles and build code | BSD 3-clause (the map design itself is CC0) | Use as the base of Tavern's own themed style. If Tavern distributes a modified fork of the styles or tiles it must not be named "Protomaps". |
-| Map data (OpenStreetMap) and the tiles built from it | ODbL | Free for commercial use. Visible attribution "© OpenStreetMap contributors" is required on every map. Share-alike applies to a *database* made by adding to OpenStreetMap data and distributing it; a map drawn from it is a produced work and only needs the attribution. Tavern adds no data to it. |
+| Protomaps basemap styles and build code | BSD 3-clause (the map design itself is CC0) | Use as the base of Magpie's own themed style. If Magpie distributes a modified fork of the styles or tiles it must not be named "Protomaps". |
+| Map data (OpenStreetMap) and the tiles built from it | ODbL | Free for commercial use. Visible attribution "© OpenStreetMap contributors" is required on every map. Share-alike applies to a *database* made by adding to OpenStreetMap data and distributing it; a map drawn from it is a produced work and only needs the attribution. Magpie adds no data to it. |
 | Glyph fonts (Noto Sans) | SIL Open Font License | Free to redistribute and use commercially; confirm the exact files when the style is chosen. |
 | Photon (search) | Apache 2.0 | An optional endpoint the operator runs; permissive. |
 | Valhalla (directions) | MIT | Same. OSRM (BSD 2-clause) is an equal alternative. |
-| Nominatim (search) | GPL 2 and later | **Not shipped and not linked.** Tavern may speak its query format to an endpoint the operator runs, which is a protocol, not code. |
+| Nominatim (search) | GPL 2 and later | **Not shipped and not linked.** Magpie may speak its query format to an endpoint the operator runs, which is a protocol, not code. |
 
-**Ruled out** because they are not free for commercial use or not free at all: Mapbox GL JS from version 2 (proprietary; MapLibre is its open fork), Google, Apple and other proprietary map, geocoding or routing services, hosted tile services with paid or per-request terms, satellite and aerial imagery (proprietary), and the public OpenStreetMap tile servers as an application default (their usage policy forbids it). The operator may point Tavern at any service they hold the right to use; Tavern ships none of them.
+**Ruled out** because they are not free for commercial use or not free at all: Mapbox GL JS from version 2 (proprietary; MapLibre is its open fork), Google, Apple and other proprietary map, geocoding or routing services, hosted tile services with paid or per-request terms, satellite and aerial imagery (proprietary), and the public OpenStreetMap tile servers as an application default (their usage policy forbids it). The operator may point Magpie at any service they hold the right to use; Magpie ships none of them.
 
 The About page lists every one of these under "Built on", with its licence, as it does for LiveKit.
 
@@ -53,13 +53,13 @@ The About page lists every one of these under "Built on", with its licence, as i
 **The experience**
 
 - **For a group:** a Maps view opens like any other module, from the room bar as a pane beside the call (a tab on a phone) or as a page of its own. It shows a map with a pin for every place the room has: places added in Maps itself, and places that other modules' items carry (a trip stop, a stay, a calendar event with a location), each pin showing the item's card and its open action. Clicking the map adds a place (a name, notes, who it is for). If the admin set up search, a search box finds a place by name and drops a pin; if not, clicking, or pasting a coordinate or a map link, does the same. A place has an "Open in my maps app" action for directions.
-- **For other modules:** a card may carry an optional `place` (`{ lat, lng, name }`) next to `when`; the Maps module shows every item whose card has one. Dropping an item on the map, or a Maps action ("Put this on the map", asked through the actions conduit), gives an item a place. Travel and the Calendar decide for themselves whether to offer it; nothing in Tavern names Maps.
+- **For other modules:** a card may carry an optional `place` (`{ lat, lng, name }`) next to `when`; the Maps module shows every item whose card has one. Dropping an item on the map, or a Maps action ("Put this on the map", asked through the actions conduit), gives an item a place. Travel and the Calendar decide for themselves whether to offer it; nothing in Magpie names Maps.
 - **For the admin:** Manage > Modules > Maps > server settings (the module-settings mechanism): the map file, and optionally a search address. Both empty means Maps says so and shows nothing to configure for the group. Attribution "© OpenStreetMap contributors" is on every map and cannot be turned off.
 - **For the operator's disk and RAM:** a regional file is megabytes to a few gigabytes; the worldwide file is about 107 GB of disk and no extra RAM, read by range. No tile server, database or extra process.
 
 **Parts, and who builds them**
 
-1. **Tavern core (server):** a generic way to serve a file an admin placed in the data folder, with range requests, to modules (the map file), and a place for a module's own large assets. Not Maps-specific.
+1. **Magpie core (server):** a generic way to serve a file an admin placed in the data folder, with range requests, to modules (the map file), and a place for a module's own large assets. Not Maps-specific.
 2. **The Maps module (front-end, bundled):** MapLibre GL JS and the PMTiles reader inlined in its page, a style themed with the theme tokens (light and dark), the pins, the place list, the add and edit forms, the search box. Its data (places) is in the module store like any other module's.
 3. **The conduits:** the optional `place` on a card (the cards contract), and the Maps module's actions. Both generic.
 4. **The look:** the interface side designs the map page, the pins, the place cards and the phone layout, with a static mock and a short contract first, as for Travel.
@@ -69,7 +69,7 @@ The About page lists every one of these under "Built on", with its licence, as i
 - The map's worker needs `worker-src blob:`. A bundled module runs inside the page and shares its policy, so the room page and the module page allow blob workers for every module rather than for Maps alone; same-origin reads were already allowed.
 - A bundled module runs in the page and its build inlines its script and CSS into one file; MapLibre is large (several hundred kilobytes), so the Maps page is heavier than the others and loads only when Maps is opened.
 - The style's fonts (glyph files) are many small files and the largest part of what would ship; a Latin-only set keeps the image small, more scripts can be an optional add-on.
-- The style is Tavern's own and follows the theme tokens, so a light theme gets a light map.
+- The style is Magpie's own and follows the theme tokens, so a light theme gets a light map.
 - Map libraries need WebGL. A device without it gets a plain list of places with the open-in-maps-app action.
 
 ## Phases
@@ -96,4 +96,4 @@ None open. Two things to confirm later, not now: the exact glyph font files and 
 
 ## Addendum: a map source, local or hosted (decided by the author)
 
-The map file setting becomes a choice, as Place search did: **My own map file** (on this server; the default, private, works offline), **A map file at a web address** (an `https://` link to a PMTiles file hosted elsewhere, such as the admin's own cloud storage or content delivery network, read in pieces over the web with no tile server) and, later, Tavern's own hosted map (the hosted edition slot). The web-address choice states plainly what it costs: every viewer's browser contacts that host directly, which sees their address and roughly the area they look at; the page's security policy must allow the host; the host must allow requests from Tavern's pages and support range requests; terms and reliability are the admin's; the credit "© OpenStreetMap contributors" stays. Proprietary tile and map services (Google, Mapbox and the like) are not offered as choices, because they are not free for commercial use (see Licences); anyone who wants one can host a PMTiles copy themselves. Whether the public daily build files of the Protomaps project may be used straight from browsers is not settled and is not offered until their terms are read.
+The map file setting becomes a choice, as Place search did: **My own map file** (on this server; the default, private, works offline), **A map file at a web address** (an `https://` link to a PMTiles file hosted elsewhere, such as the admin's own cloud storage or content delivery network, read in pieces over the web with no tile server) and, later, Magpie's own hosted map (the hosted edition slot). The web-address choice states plainly what it costs: every viewer's browser contacts that host directly, which sees their address and roughly the area they look at; the page's security policy must allow the host; the host must allow requests from Magpie's pages and support range requests; terms and reliability are the admin's; the credit "© OpenStreetMap contributors" stays. Proprietary tile and map services (Google, Mapbox and the like) are not offered as choices, because they are not free for commercial use (see Licences); anyone who wants one can host a PMTiles copy themselves. Whether the public daily build files of the Protomaps project may be used straight from browsers is not settled and is not offered until their terms are read.

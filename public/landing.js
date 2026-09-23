@@ -2,7 +2,7 @@
 // host (GET /api/product, public), so the page never hard-codes a name while the name is still being chosen.
 const fill = (sel, text) => { for (const el of document.querySelectorAll(sel)) el.textContent = text; };
 
-let product = { name: 'Coffee Pub Tavern', contact: null, baseDomain: '', version: '' };
+let product = { name: 'Coffee Pub', contact: null, baseDomain: '', version: '' };
 try {
   const res = await fetch('/api/product');
   if (res.ok) product = { ...product, ...(await res.json()) };

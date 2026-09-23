@@ -1,9 +1,9 @@
 # Getting Started
 
-**Audience:** someone setting up a Coffee Pub Tavern server for the first time and signing in as its
+**Audience:** someone setting up a Coffee Pub Magpie server for the first time and signing in as its
 admin.
 
-Tavern is two services: the Tavern web app and a LiveKit media server that carries the video and
+Magpie is two services: the Magpie web app and a LiveKit media server that carries the video and
 audio. This guide sets both up on a QNAP NAS with Container Station and Nginx Proxy Manager, then
 signs in. Any machine that runs Docker works the same way; only the router and proxy steps differ.
 
@@ -19,35 +19,41 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
    openssl rand -hex 8    # your admin password
    ```
 2. **DNS.** Add two records at your DNS provider pointing at your public IP, the same address your
-   Foundry hostname uses: `tavern.<domain>` and `livekit.<domain>`. If the provider offers proxying
+   Foundry hostname uses: `magpie.<domain>` and `livekit.<domain>`. If the provider offers proxying
    (Cloudflare's orange cloud), turn it off for these two: media has to reach the NAS directly.
 3. **Router.** Forward to the NAS's LAN address: `7881` TCP, `7882` UDP, `3478` UDP. Ports 80 and 443
    already reach Nginx Proxy Manager.
-4. **Container Station.** Applications, Create, give it the name `tavern`, paste the contents of
+4. **Container Station.** Applications, Create, give it the name `magpie`, paste the contents of
    `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, admin
    password), and click Create. Both containers should show green within a minute.
 5. **Nginx Proxy Manager.** Two proxy hosts, each with a Let's Encrypt certificate and Force SSL:
    - `livekit.<domain>` to scheme http, forward host = NAS LAN address, port `7880`, **Websockets
      Support on**.
-   - `tavern.<domain>` to scheme http, NAS LAN address, port `3000`.
+   - `magpie.<domain>` to scheme http, NAS LAN address, port `3000`.
 
 Camera access requires HTTPS, which the proxy provides. Players need nothing but a browser. LiveKit
 1.12 or newer is required; the compose file pulls the latest release.
 
 ## Sign in as the admin
 
-Open `https://tavern.<domain>/`, sign in as `gm` with the admin password from the compose file, and
+Open `https://magpie.<domain>/`, sign in as `gm` with the admin password from the compose file, and
 choose the gear icon to open the Manage page. Add your players under **Users** and send each of them
 a login and password, or a personal link; see [Accounts, roles and permissions](userguide-accounts.md).
 
 The admin account named in the compose file is checked on every start: it is created if missing, and
 its password is reset to the compose value if it differs. If you forget the admin password, change
-`TAVERN_ADMIN_PASSWORD` in Container Station and restart the container.
+`ADMIN_PASSWORD` in Container Station and restart the container.
 
 ## Update it later
 
-In Container Station, pull the new image for the `tavern` application and recreate it. Users,
-images and settings live in `/share/appdata/tavern`, so nothing is lost.
+An install made before the product's rename keeps its old names: the containers `tavern-app` and
+`tavern-livekit`, the data path `/share/appdata/tavern` and the `TAVERN_ADMIN_*` variables all still work
+(the old variable names are honoured, and the old session cookie and data file are carried over on start).
+Do not change the volume path of an existing install: the data lives there.
+
+
+In Container Station, pull the new image for the `magpie` application and recreate it. Users,
+images and settings live in `/share/appdata/magpie`, so nothing is lost.
 
 ## Environments: one server, several groups
 
@@ -68,8 +74,8 @@ To switch environments on, with the server already running as above:
    is not in the list, name each environment explicitly on the certificate instead (`admin.<base>`,
    `<slug>.<base>`, one per environment) with the ordinary challenge, and add a name whenever you create one.
    Force SSL and HTTP/2 as before.
-3. **The container, for one start.** Take a copy of `/share/appdata/tavern` first. Remove
-   `TAVERN_ADMIN_USER` and `TAVERN_ADMIN_PASSWORD` (they apply only to a server without a base domain) and
+3. **The container, for one start.** Take a copy of `/share/appdata/magpie` first. Remove
+   `ADMIN_USER` and `ADMIN_PASSWORD` (they apply only to a server without a base domain) and
    add:
    ```yaml
    BASE_DOMAIN: "magpie.example.com"

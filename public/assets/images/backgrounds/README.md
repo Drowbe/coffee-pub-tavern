@@ -1,6 +1,6 @@
 # Backgrounds
 
-Pre-made background images that people can choose in place of uploading their own (the sign-in background on Manage > Server, and a person's own background on their profile). Files in this folder ship with Tavern and are served as `/assets/images/backgrounds/<file>`.
+Pre-made background images that people can choose in place of uploading their own (the sign-in background on Manage > Server, and a person's own background on their profile). Files in this folder ship with Magpie and are served as `/assets/images/backgrounds/<file>`.
 
 ## Format
 
@@ -18,7 +18,7 @@ WebP. A full background is up to 2560 px wide and about 250 KB; a pattern that r
 | name | its colour or subject, one word | `orange`, `forest` |
 | index | which one of that name, two digits | `01` |
 
-Each part is lower-case letters and digits with no hyphen inside it ("deepblue", not "deep-blue"), so the hyphens between parts are unambiguous. Tavern reads this folder and builds the list from the file names; a file that does not match is skipped and the server's log says why.
+Each part is lower-case letters and digits with no hyphen inside it ("deepblue", not "deep-blue"), so the hyphens between parts are unambiguous. Magpie reads this folder and builds the list from the file names; a file that does not match is skipped and the server's log says why.
 
 ## Licence
 

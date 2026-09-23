@@ -19,7 +19,7 @@ environment the current request resolved.
 `buildEnvironment(dataDir, { slug, admin })` is the whole of what server startup used to do at module scope:
 constructs `Store`, `ModuleManager`, `ModuleHooks` and the rest from one directory, wires the event listeners
 that turn a change into an activity-log line, starts that environment's own `ModuleHooks` 10-second poll, and
-(for the default environment only) bootstraps the admin from `TAVERN_ADMIN_PASSWORD`. It returns a plain object
+(for the default environment only) bootstraps the admin from `ADMIN_PASSWORD`. It returns a plain object
 with one property per service. Nothing here is a Proxy -- these are the real instances.
 
 Two things it does **not** build, because they are the host's, not any one environment's: the LiveKit
@@ -67,7 +67,7 @@ The "door" is one middleware, registered right after `express.json()`, before an
   `public/assets/images/brand/brandmark-color.png` -- the one file a rebrand replaces, not a copy of it);
   `<slug>.<base>` resolves that tenant's environment the same way the no-base-domain case resolves the default
   one; anything else is a plain 404. A hostname matching `PREVIOUS_BASE_DOMAINS` 301s to the same path at the
-  current base first. `PRODUCT_NAME` (default "Coffee Pub Tavern") and `CONTACT_EMAIL` (default none) are
+  current base first. `PRODUCT_NAME` (default "Coffee Pub Magpie") and `CONTACT_EMAIL` (default none) are
   configuration, never code, since the product's own name is not settled yet -- `GET /api/product` (registered on
   both the main app and `hostRouter`, never behind a session) answers `{ name, contact, baseDomain, version }`
   wherever it is reached.

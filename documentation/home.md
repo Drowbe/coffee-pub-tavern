@@ -1,6 +1,6 @@
-# Coffee Pub Tavern
+# Coffee Pub Magpie
 
-**Audience:** anyone deciding whether to run Coffee Pub Tavern, or looking for where to read more
+**Audience:** anyone deciding whether to run Coffee Pub Magpie, or looking for where to read more
 about it.
 
 Self-hosted voice and video for the table. Each player signs in once with a login and password, or
@@ -22,7 +22,7 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Rooms](userguides/userguide-rooms.md) -- the Lobby, room settings, members, and stepping aside.
 - [Participant and Character images](userguides/userguide-images.md) -- the pictures OBS shows for
   each player.
-- [Tavern in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
+- [Magpie in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
 - [Server settings](userguides/userguide-server-settings.md) -- every tab of the Manage page.
 - [Modules](userguides/userguide-modules.md) -- adding features with a module zip.
 - [Calendar](userguides/userguide-calendar.md) -- events and reminders, for the server and for each room.

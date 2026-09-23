@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * build-module.mjs -- build a Tavern module zip from a source folder.
+ * build-module.mjs -- build a the host module zip from a source folder.
  *
  *   node tools/build-module.mjs modules/calendar
  *

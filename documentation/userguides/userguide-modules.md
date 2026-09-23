@@ -1,16 +1,16 @@
 # Modules
 
-**Audience:** an admin adding, approving and removing add-on modules on a Coffee Pub Tavern server, and the people who use them.
+**Audience:** an admin adding, approving and removing add-on modules on a Coffee Pub Magpie server, and the people who use them.
 
-A module is a zip file that adds a feature to Tavern, such as the [Calendar](userguide-calendar.md). The **Modules** tab on the Manage page installs them. Modules that come with Tavern run in the page. A module you upload runs in a sandbox, so it can only reach Tavern through what it asks for; it never runs code on your server. Each card says "In the page" or "Sandboxed". You can switch an uploaded module to run in the page, which lets it work with drag and drop between modules, but such a module can read and change everything on the page and act as you, so do it only for a module you trust. The tab also lists recent activity, which is kept when the server restarts, and shows when a module was slowed for doing something too often (the limits are generous; only a module that loops or floods reaches them). If you are writing one, read [api-module-sdk](../api/api-module-sdk.md).
+A module is a zip file that adds a feature to Magpie, such as the [Calendar](userguide-calendar.md). The **Modules** tab on the Manage page installs them. Modules that come with Magpie run in the page. A module you upload runs in a sandbox, so it can only reach Magpie through what it asks for; it never runs code on your server. Each card says "In the page" or "Sandboxed". You can switch an uploaded module to run in the page, which lets it work with drag and drop between modules, but such a module can read and change everything on the page and act as you, so do it only for a module you trust. The tab also lists recent activity, which is kept when the server restarts, and shows when a module was slowed for doing something too often (the limits are generous; only a module that loops or floods reaches them). If you are writing one, read [api-module-sdk](../api/api-module-sdk.md).
 
 Chat and Conference are listed first on the Modules tab as built-in modules; they cannot be removed, and their permissions are the ones already on the Roles tab. Chat is always on. Conference has a switch: **Disable** stops video and audio for everyone in every room (chat, presence and modules keep working), and **Approve and enable** turns it back on. It needs a LiveKit server while it is on. Turned off, nobody has the "See and join the conference" permission, whatever the Roles tab says, and the Roles tab keeps their ticks for when it is turned on again.
 
-## Modules that come with Tavern
+## Modules that come with Magpie
 
 A module can need another: Maps needs Places. Its card says what it needs and its Enable button waits until that is installed and on; turning off a module others need asks first and turns them off too, and uninstalling one turns them off as well.
 
-The Calendar, To-do, Polls, Planner, Places and Maps modules ship with the server, so there is no zip to upload. The Modules tab lists the ones you have not installed under **Available with this Tavern**, each with an **Install** button. When you update the server and a module it carries has a newer version than the one you have installed, the module's card shows **Update available** with an **Update to** button, the Modules tab itself shows the count in a small bubble, and the settings gear in the header shows the same count as a small badge on every page (admins only), so you see it without opening Manage. The badge goes away once the updates are applied. The update keeps the module's data, keeps the old version so you can switch back, and, if it asks for anything new (a permission, a hook, a link to another module), stays off until you approve it. A module you upload yourself is updated by uploading a newer zip.
+The Calendar, To-do, Polls, Planner, Places and Maps modules ship with the server, so there is no zip to upload. The Modules tab lists the ones you have not installed under **Available with this Magpie**, each with an **Install** button. When you update the server and a module it carries has a newer version than the one you have installed, the module's card shows **Update available** with an **Update to** button, the Modules tab itself shows the count in a small bubble, and the settings gear in the header shows the same count as a small badge on every page (admins only), so you see it without opening Manage. The badge goes away once the updates are applied. The update keeps the module's data, keeps the old version so you can switch back, and, if it asks for anything new (a permission, a hook, a link to another module), stays off until you approve it. A module you upload yourself is updated by uploading a newer zip.
 
 ## Install a module
 
@@ -18,7 +18,7 @@ The Calendar, To-do, Polls, Planner, Places and Maps modules ship with the serve
 2. Read the card that appears. It lists what the module asks for: permissions that will appear on the Roles tab, and whether it wants to run things on a schedule or send notifications.
 3. Click **Enable** (or **Approve and enable**), which records that you approved exactly what is listed. A new module always starts disabled.
 
-The zip can be up to 10 MB. Tavern refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. (The modules that ship with Tavern can also be built into a zip with `node tools/build-module.mjs modules/<name>`, which writes it to `modules/dist/`.) The Calendar zip, if you build it, is at `modules/dist/calendar-1.5.0.zip`.
+The zip can be up to 10 MB. Magpie refuses a zip that holds files it does not allow, links, unsafe paths, too many or too large files, or a missing or invalid `module.json`, and says which. (The modules that ship with Magpie can also be built into a zip with `node tools/build-module.mjs modules/<name>`, which writes it to `modules/dist/`.) The Calendar zip, if you build it, is at `modules/dist/calendar-1.5.0.zip`.
 
 ## Where a module shows up
 
@@ -40,7 +40,7 @@ An enabled module adds its permissions to the **Roles** tab, in a group named fo
 
 ## Upgrade and roll back
 
-Upload a newer version of the same module and it replaces the active one. Tavern keeps the newest three versions. The card has a version picker with the running one selected; choose another and **Switch to this version** goes back, or forward again. The module's saved data stays as it is either way. An upgrade or switch that asks for something you have not yet approved comes back disabled, and shows **Approve and enable**.
+Upload a newer version of the same module and it replaces the active one. Magpie keeps the newest three versions. The card has a version picker with the running one selected; choose another and **Switch to this version** goes back, or forward again. The module's saved data stays as it is either way. An upgrade or switch that asks for something you have not yet approved comes back disabled, and shows **Approve and enable**.
 
 ## Disable and uninstall
 
@@ -52,16 +52,16 @@ At the top of the Modules tab, **All**, **Updates available** and **Configurable
 
 ## Recent activity
 
-Under the filters, **Recent activity** lists what modules have done lately, newest first, in a box that scrolls: the time, the module, what it did and who for. A line about something Tavern refused or slowed is tinted and has a warning mark.
+Under the filters, **Recent activity** lists what modules have done lately, newest first, in a box that scrolls: the time, the module, what it did and who for. A line about something Magpie refused or slowed is tinted and has a warning mark.
 
 ## The AI service
 
-Some modules can ask an AI to summarise, answer a question, or write a card from what a person selects. The **AI service** card on the Modules tab shows whether it is on, which service and model, and this month's use. Its **AI Configuration** button opens the page where you set it up, once for the whole server. Nothing works until you do, and Tavern ships no model and no key.
+Some modules can ask an AI to summarise, answer a question, or write a card from what a person selects. The **AI service** card on the Modules tab shows whether it is on, which service and model, and this month's use. Its **AI Configuration** button opens the page where you set it up, once for the whole server. Nothing works until you do, and Magpie ships no model and no key.
 
-- **Service:** None (the default), **OpenAI**, **Anthropic**, or **Other (OpenAI-compatible)**. For OpenAI and Anthropic you only choose the company: Tavern knows where to send the request. Other is for a model you run yourself (Ollama, LM Studio, llama.cpp, vLLM) or another company's service that speaks the OpenAI interface, and asks for its address. Each choice says under it what is sent and to whom: with a hosted service, the items a person selects and their question go to that company under its terms; with your own model, nothing leaves your network. Only what a person selects is sent, never another room.
+- **Service:** None (the default), **OpenAI**, **Anthropic**, or **Other (OpenAI-compatible)**. For OpenAI and Anthropic you only choose the company: Magpie knows where to send the request. Other is for a model you run yourself (Ollama, LM Studio, llama.cpp, vLLM) or another company's service that speaks the OpenAI interface, and asks for its address. Each choice says under it what is sent and to whom: with a hosted service, the items a person selects and their question go to that company under its terms; with your own model, nothing leaves your network. Only what a person selects is sent, never another room.
 - **Model:** chosen from a list, not typed. Once the key is set (or the address, for Other), the panel asks the company which models it offers and lists them; **Refresh** asks again. If the list can't be loaded, the panel says why and offers **Type a model name instead**.
 - **Enable:** setting a service up does not turn the AI on. On the **AI service** card of the Modules tab (as on any module), **Approve and enable** turns it on for every module that uses it, after saying what will be sent and to whom; **Disable** turns it off again and keeps your setup. The card on the Modules tab says On, Not enabled or Off.
-- **Key:** kept on the server and never shown again. The panel says only whether one is set. **Set a key** or **Replace the key** takes a new one; **Remove the key** deletes it. If the key comes from the server's environment (`TAVERN_AI_KEY`), the panel says so and it is changed there.
+- **Key:** kept on the server and never shown again. The panel says only whether one is set. **Set a key** or **Replace the key** takes a new one; **Remove the key** deletes it. If the key comes from the server's environment (`AI_KEY`), the panel says so and it is changed there.
 - **Monthly allowance:** a number of tokens for the month, or 0 for no limit. The panel shows how many were used this month, in how many calls and for which tasks.
 - **Who may use it:** the Roles tab has **Use AI in modules** under AI. It is off for every role until you tick it, admins always may, and guests never can (the tick is greyed out for them).
 - **Per room:** on a room's settings, in its **Modules** tab under **AI**, **Turn AI off in this room** stops it there whatever the roles say.

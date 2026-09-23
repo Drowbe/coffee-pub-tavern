@@ -52,6 +52,6 @@ Maps has no list panel. Maps requires Places, so Places is the list: it already 
 
 ## Decisions (author)
 
-- **My places are private to the person, including from administrators.** As Tavern grows this is the right default for privacy. The `person` scope is owner-only.
+- **My places are private to the person, including from administrators.** As Magpie grows this is the right default for privacy. The `person` scope is owner-only.
 - **No list panel in Maps.** See above.
 - **A phone on the web is not a mirror of the website.** The web version on a phone is a focused subset of what the site does, and a native app is planned once the web experience is settled. So phone layouts are designed for what people do on the move (see the day, open a booking, find a place, show it on the map), not for everything the site can do. The Maps and Places designs do not add phone-only panels to make up for missing features.

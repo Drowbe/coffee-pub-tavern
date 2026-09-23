@@ -1,6 +1,6 @@
 # The Table
 
-**Audience:** a player using Coffee Pub Tavern in a browser: joining a room, talking, chatting, and
+**Audience:** a player using Coffee Pub Magpie in a browser: joining a room, talking, chatting, and
 stepping away.
 
 ## Join and leave
@@ -88,7 +88,7 @@ for when something else needs the room quiet for a minute. Only you are affected
 ## Away
 
 The moon button pauses your microphone and camera and marks your tile so everyone knows. When you
-click it, Tavern asks for an optional **away message** (up to 200 characters, several lines allowed).
+click it, Magpie asks for an optional **away message** (up to 200 characters, several lines allowed).
 Ctrl or Cmd plus Enter, or **Go away**, confirms. Everyone else sees your message on your tile in
 place of "Away"; leave it empty to show plain "Away". Click the button again to come back, and only
 the microphone and camera that were on before come back on.

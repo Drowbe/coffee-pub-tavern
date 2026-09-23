@@ -6,7 +6,7 @@
 
 ## Decisions that still apply
 
-- Front-end only, in a sandbox, plus declarative hooks Tavern runs. No module code on the server.
+- Front-end only, in a sandbox, plus declarative hooks Magpie runs. No module code on the server.
 - Room modules are off in a room until an admin turns them on there.
 - A module's permissions appear in the Roles grid; the server enforces them on every call.
 - The admin trusts what they upload; the install step shows what a module asks for.
@@ -23,7 +23,7 @@
 
 ## Module interoperability
 
-**Status:** built, and documented in [api-module-sdk](../api/api-module-sdk.md) and [architecture-modules](../architecture/architecture-modules.md): refs (pointers resolved into cards), opening an item in the module that owns it, links and backlinks, events, and actions, all declared in `module.json`, approved by an admin where a module reaches for another's, and carried by Tavern without any module named in Tavern's code. The Calendar, Polls and To-do use them (a poll closing ticks a task that follows it; a finished poll offers "Add a task" from whatever module provides it). What is left:
+**Status:** built, and documented in [api-module-sdk](../api/api-module-sdk.md) and [architecture-modules](../architecture/architecture-modules.md): refs (pointers resolved into cards), opening an item in the module that owns it, links and backlinks, events, and actions, all declared in `module.json`, approved by an admin where a module reaches for another's, and carried by Magpie without any module named in Magpie's code. The Calendar, Polls and To-do use them (a poll closing ticks a task that follows it; a finished poll offers "Add a task" from whatever module provides it). What is left:
 
 - **Audit and limits.** Built: the activity list is kept across restarts and the API is rate limited per module and person. Left: show a module's own recent activity on its card on the Modules tab.
 - **More of the same, to prove it.** The Calendar could provide a `createEvent` action and take part in the To-do's due dates; each new provider should appear in other modules' buttons with no change to them, which is the test.
@@ -32,11 +32,11 @@
 
 ## Google Calendar sync
 
-Decided and planned in [plan-google-sync](plan-google-sync.md): one way, Google into Tavern, each person connecting their own account, kept and fetched on the server. It needs a Google Cloud OAuth client from the admin before it can be built and run.
+Decided and planned in [plan-google-sync](plan-google-sync.md): one way, Google into Magpie, each person connecting their own account, kept and fetched on the server. It needs a Google Cloud OAuth client from the admin before it can be built and run.
 
 ## The host is not the brand (decided September 23, 2026)
 
-The object a module talks to -- the thing that mounts it, keeps its data, brokers its pointers and actions, draws its titlebar, toolbar and menus, and delivers drags to it -- has been called `tavern` in code since the first module, because `window.host` was the obvious global on day one. That bound an API contract to a brand: renaming the product would have broken every module. The architecture documents always called this thing **the host**, and the code now does too.
+The object a module talks to -- the thing that mounts it, keeps its data, brokers its pointers and actions, draws its titlebar, toolbar and menus, and delivers drags to it -- has been called `magpie` in code since the first module, because `window.host` was the obvious global on day one. That bound an API contract to a brand: renaming the product would have broken every module. The architecture documents always called this thing **the host**, and the code now does too.
 
 **Decided.**
 - The platform vocabulary is *host*: `host.refs`, `host.storage`, `host.toolbar.set`, `host.ready()`, `/sdk/host.js` and `/sdk/host.css`, `createHost(env)`, `window.hostModules` for tests, `data-host-sdk` on the page's script tag, `[host]` in the trace. A module reads its SDK as `document.currentScript.host || window.host`.

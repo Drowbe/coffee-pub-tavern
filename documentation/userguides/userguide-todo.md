@@ -1,12 +1,12 @@
 # To-do
 
-**Audience:** a player or game master using the To-do module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master using the To-do module on a Coffee Pub Magpie server, and an admin setting it up.
 
 The To-do module keeps a shared task list. There is one for the whole server and one for each room. A task can have notes, a due date and a reminder. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (admin)
 
-1. On the Modules tab, choose **Install** beside To-do under **Available with this Tavern**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add two permissions to the Roles tab and to run reminders.
+1. On the Modules tab, choose **Install** beside To-do under **Available with this Magpie**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add two permissions to the Roles tab and to run reminders.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: To-do**, choose who can **See the to-do list** and who can **Add, change and tick off tasks**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
 

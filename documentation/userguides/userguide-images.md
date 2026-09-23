@@ -1,6 +1,6 @@
 # Participant and Character Images
 
-**Audience:** a game master or player setting the pictures that Coffee Pub Tavern and OBS show for
+**Audience:** a game master or player setting the pictures that Coffee Pub Magpie and OBS show for
 each player.
 
 Each user has two things the recording can show, and both react to the same live signal: who is
@@ -19,7 +19,7 @@ anything for anyone. Everyone else can change only what their role allows: by de
 profile photo and call background, and nothing else. An admin widens that on the **Roles** tab, under
 **Images**, one picture at a time.
 
-The call background can be a picture you upload or one of the pre-made backgrounds that ship with Tavern: choose **Choose from the library** under it, filter by theme and style, and pick one. It is saved as your own picture, so you can replace or remove it like an upload.
+The call background can be a picture you upload or one of the pre-made backgrounds that ship with Magpie: choose **Choose from the library** under it, filter by theme and style, and pick one. It is saved as your own picture, so you can replace or remove it like an upload.
 
 ## Participant
 

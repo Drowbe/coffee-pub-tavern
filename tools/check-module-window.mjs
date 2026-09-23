@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * check-module-window.mjs -- the module window's rules that can be checked mechanically (see
- * documentation/architecture/architecture-module-window.md, "Rules"). Today: every "..." in Tavern is the one
+ * documentation/architecture/architecture-module-window.md, "Rules"). Today: every "..." in the host is the one
  * icon, Font Awesome's `ellipsis-vertical` -- the host's overflow buttons, a card's own menu, a day's, the call's
  * More. Not the horizontal `ellipsis`, and not a text glyph standing in for it. Drift here was found by hand once
  * (a vertical glyph on a poll, a horizontal icon everywhere else); this keeps it from coming back.

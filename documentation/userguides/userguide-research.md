@@ -1,6 +1,6 @@
 # Research
 
-**Audience:** a player or game master keeping notes, links and photos with the Research module on a Coffee Pub Tavern server, and an admin setting it up.
+**Audience:** a player or game master keeping notes, links and photos with the Research module on a Coffee Pub Magpie server, and an admin setting it up.
 
 The Research module keeps what a group finds out while it plans: a note, a link with the part that mattered, a photo with a caption. Each one is a card you can tag, search, link from other modules (drag it onto a day of a plan) and, when it has a place or a date, show on the map or on its day. It is not only for travel: a house purchase or a project has the same shape. Install and enable it first; see [Modules](userguide-modules.md).
 

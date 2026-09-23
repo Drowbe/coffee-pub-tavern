@@ -1,12 +1,12 @@
 # Module SDK
 
-**Audience:** someone writing a Coffee Pub Tavern module: what a module is made of, what it can ask Tavern to do, and what it is not allowed to.
+**Audience:** someone writing a Coffee Pub Magpie module: what a module is made of, what it can ask Magpie to do, and what it is not allowed to.
 
 To install and manage modules as an admin, read [userguide-modules](../userguides/userguide-modules.md). The server routes behind all of this are in [api-modules](api-modules.md), and how it is built is in [architecture-modules](../architecture/architecture-modules.md).
 
 ## What a module is
 
-A module is a zip of static files that runs in the browser, inside a sandboxed frame. It never runs code on the server. It reaches Tavern only through the calls in this document, and the server checks every one.
+A module is a zip of static files that runs in the browser, inside a sandboxed frame. It never runs code on the server. It reaches Magpie only through the calls in this document, and the server checks every one.
 
 A module has one or two **surfaces**:
 
@@ -49,12 +49,12 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 - `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A room opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
 - `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role. Admins can always do everything.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
-- `hooks` names what the module may ask Tavern to do: `schedule` and `notify`. The admin approves them when enabling the module.
+- `hooks` names what the module may ask Magpie to do: `schedule` and `notify`. The admin approves them when enabling the module.
 - `refs` lets modules point at each other's items without reaching into each other's data; see [Refs](#refs-pointing-at-another-modules-items). `refs.produces` lists the kinds of item this module lets others point at, and `refs.consumes` the other modules' kinds it wants to point at, which the admin approves when enabling the module.
 
 ## Pages and the SDK
 
-Tavern adds the SDK and a base stylesheet to each of your HTML pages when it serves them, so a page needs no `<script>` or `<link>` for them. To keep the base styles out, add `<meta name="sdk-base" content="none">`. The SDK defines `window.host`.
+Magpie adds the SDK and a base stylesheet to each of your HTML pages when it serves them, so a page needs no `<script>` or `<link>` for them. To keep the base styles out, add `<meta name="sdk-base" content="none">`. The SDK defines `window.host`.
 
 ```js
 const t = await host.ready();
@@ -111,14 +111,14 @@ host.on('schedule', ({ key, payload }) => {});   // when one fires, if the modul
 
 - A schedule can be at most a year away, and a time already more than five minutes past is refused. If the server is off when a schedule is due, it fires on the next start unless it is more than six hours late.
 - A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's dashboard card or header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
-- `repeat` makes Tavern schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
+- `repeat` makes Magpie schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
 - `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
 
 ### Refs: pointing at another module's items
 
-Modules cannot read each other's storage, and that does not change. Refs are the one narrow door between them: a module stores a **pointer** to another module's item, never a copy, and asks Tavern for a small **card** whenever it draws it.
+Modules cannot read each other's storage, and that does not change. Refs are the one narrow door between them: a module stores a **pointer** to another module's item, never a copy, and asks Magpie for a small **card** whenever it draws it.
 
-Tavern names no module in any of this. A module says what it can do in `module.json`, and Tavern is only the conduit; a module written tomorrow takes part by declaring, with no change to Tavern or to the modules around it.
+Magpie names no module in any of this. A module says what it can do in `module.json`, and Magpie is only the conduit; a module written tomorrow takes part by declaring, with no change to Magpie or to the modules around it.
 
 A module that lets others point at its items lists them in `module.json`. Each entry names a `kind`, its `name` (what a person sees it called), the stored key its items live under (a fixed prefix then `{id}`) and which of its stored fields fill the card. Only the fields named here ever leave the module, so a record's other fields stay private. Two optional flags say what else the module can do with its items: `"open": true` (it can show one when asked, see `onOpen`) and `"backlinks": true` (it shows what links to its items, see `linksTo`).
 
@@ -143,7 +143,7 @@ const ref = host.refs.make('event', 'e1');           // { module: 'calendar', ki
 //   host.refs.make('event', 'e1', { scope: 'server' })   an item in the server's scope, from a room
 //   host.refs.make('event', 'e1', { room: roomId })      another room's item, from a module's server page
 
-// Later, ask Tavern what to show. One pointer gives a card, a list gives cards in the same order:
+// Later, ask Magpie what to show. One pointer gives a card, a list gives cards in the same order:
 const card = await host.refs.resolve(ref);
 // { ref, kind, module: { id, name, icon }, title, subtitle?, when?, end?, allDay?, done?, place? }
 // or { ref, error, status, state } when the item is gone or the viewer may not see it (404, 403): `state` is 'gone' or 'hidden'.
@@ -155,14 +155,14 @@ const cards = await host.refs.resolve([refA, refB]);
 // Find items to link to, in this place (or from a room, { scope: 'server' }): every kind this module consumes.
 const found = await host.refs.search('retreat');     // cards, each with its pointer in card.ref
 
-// What can I link to? Whatever other modules share and Tavern says this module may, so never name modules in your code.
+// What can I link to? Whatever other modules share and Magpie says this module may, so never name modules in your code.
 const kinds = await host.refs.kinds();               // [{ module, moduleName, icon, kind, name, open }]
 
 // Show an item in the module that owns it. Its pane opens (or its page) and it is handed the pointer.
 await host.refs.open(card.ref);                      // only useful when card.open is true
 host.refs.onOpen((ref) => { /* you own ref: show it (select it, scroll to it, open it) */ });
 
-// Tell Tavern what one of your items points at (the whole list, replacing the last), so what is pointed at can ask.
+// Tell Magpie what one of your items points at (the whole list, replacing the last), so what is pointed at can ask.
 await host.refs.setLinks(host.refs.make('task', id), [refA, refB]);
 // What points at one of your items (kind has "backlinks": true), and what one points at: cards.
 const from = await host.refs.linksTo(ref);
@@ -170,9 +170,9 @@ const to = await host.refs.linksFrom(ref);
 host.on('links', (e) => { /* e.ref: one of your items whose links changed: ask again */ });
 ```
 
-Tavern answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
+Magpie answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
 
-**Dragging.** A module can offer its items to be dragged onto another module. The browser's own drag and drop is unreliable between sandboxed frames, so this is driven by the pointer and brokered by Tavern: press an item, move a few pixels, and Tavern shows the item's label at the pointer and tells the module frame under it where the pointer is and, on release, what was dropped. A module offers items with `host.refs.draggable(root, resolve)`, where `resolve(target)` says what the pressed element is (`{ kind, id, label, ...options for make() }`, or `null`):
+**Dragging.** A module can offer its items to be dragged onto another module. The browser's own drag and drop is unreliable between sandboxed frames, so this is driven by the pointer and brokered by Magpie: press an item, move a few pixels, and Magpie shows the item's label at the pointer and tells the module frame under it where the pointer is and, on release, what was dropped. A module offers items with `host.refs.draggable(root, resolve)`, where `resolve(target)` says what the pressed element is (`{ kind, id, label, ...options for make() }`, or `null`):
 
 ```js
 host.refs.draggable(document.body, (target) => {
@@ -181,7 +181,7 @@ host.refs.draggable(document.body, (target) => {
 });
 ```
 
-The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. To see where a drag stops, open Tavern once with `?debug=1` (`?debug=0` turns it off): every step, in the module that starts the drag, in the page and in the module under it, adds a line to a box at the bottom left. `host.refs.trace(text)` adds your own. It works with a mouse or pen; on a touch screen, search is the way to link.
+The press is followed even when the pointer leaves your frame at once, and the click that would follow the release is swallowed. To see where a drag stops, open Magpie once with `?debug=1` (`?debug=0` turns it off): every step, in the module that starts the drag, in the page and in the module under it, adds a line to a box at the bottom left. `host.refs.trace(text)` adds your own. It works with a mouse or pen; on a touch screen, search is the way to link.
 
 A module with nothing stored (the assistant's answers) drags the card itself instead of a pointer: `resolve` returns `{ card: { title, kind?, content?, place?, date? }, label? }`. The module it lands on can make of it whatever takes a title, a date, a place or text; it cannot be linked to, since there is nothing to point at.
 
@@ -209,7 +209,7 @@ host.refs.dropTarget({
 
 The **drop context** is `{ card, target?, date?, time?, place? }`: `card` is the dropped item's card (resolved for you, or the card the drag carried), `target` a pointer to your own item under the pointer, `date`/`time` the day and time there, `place` the `{ lat, lng }` there (a map). An action is offered when every required input can be filled from it: a `ref:module:kind` input takes the dropped pointer when it is that kind; a plain `ref` takes the dropped pointer (a second one, or one named `target`, takes `target`); `date`/`datetime` the day (else the card's own date); `string` named `title` the card's title, `kind` its kind; `text` named `notes`, `body`, `content` or `text` the card's text (only when the drag carried it); `number` named `lat`/`lng` the place. Of the actions that fill, a drop offers only the dropped item's own module's, taking the item by its exact kind (`ref:todo:task`, never plain `ref` alone) and using something from under the pointer (the target item, the day, the spot); and not one whose declared `needs` (a place, a date, text) the item's card lacks. `offersFor` is what applies that; the fill rules themselves also serve the finished-poll buttons and "Send all to plan", where a plain `ref` input taking the item is right. An own offer is `{ id, label, hint?, icon?, run(ctx), when?(ctx) }`; `when` leaves it out for a card it does not suit (a place needs a position); it wears your module's own icon unless `icon` names another, and each action offered wears its module's, in the same look as `host.menu.show`. `host.refs.offersFor(dragged, context)` is the same list without the menu. `tools/check-drop.mjs` runs the fill rules.
 
-Treat `ref` as untrusted: `dropMenu` resolves it, which is where Tavern checks what the viewer may see, and shows its error if not. Tavern brokers a drag between module frames in the same window (the page, or the popped-out app). `host.refs.drag(event, ...)`, called from a native `dragstart`, and `host.refs.accepts` / `host.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
+Treat `ref` as untrusted: `dropMenu` resolves it, which is where Magpie checks what the viewer may see, and shows its error if not. Magpie brokers a drag between module frames in the same window (the page, or the popped-out app). `host.refs.drag(event, ...)`, called from a native `dragstart`, and `host.refs.accepts` / `host.refs.parse` for a native drop remain for a drag that does not come from a module, but a module offering items should use `draggable`. Search is the way to link without dragging at all.
 
 ### Settings
 
@@ -222,7 +222,7 @@ host.settings.onChange((prefs) => { ... });       // called when any of them cha
 
 A `file` setting (with `"folder": "map-tiles"`, lowercase letters, digits and dashes) names a file the operator copied into that folder inside the module's own folder in the data folder (`modules/<module id>/<folder>/`; uninstalling and updating never delete it) (too large to upload through a page, such as a map archive); the admin picks it in the form, and a module running in the page reads it, range requests included, from `await host.files.url(name)`. A `url` setting holds an http or https address the admin chose.
 
-Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Tavern's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
+Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Magpie's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
 
 ### Place search
 
@@ -347,21 +347,21 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Events.** `host.events.publish(name, { ref, data })` says something happened (`ref` an optional pointer to one of your own items, `data` a small plain object under 2 KB). `host.events.subscribe(handler)` hears the events your module was approved for (`"*"`, or `"module:name"`), about modules the person can see here, in order, including those that happened while your module was not open (from where it last got to; a module hears nothing from before its first subscribe). An event has `{ id, at, module, name, ref, data }`. By convention an event named `closed`, `done`, `completed` or `finished` means the item it points at is finished. More than one person may have your module open, so make handling an event safe to do twice.
 
-**Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `host.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `host.actions.request(action, input, { wait })` asks for one; Tavern checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `host.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })` (a handler may also return `data`, up to about 8 KB of plain data, which the requester reads from `out.result.data` when it waits; that is how a view asks a question): its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open; in a room, Tavern opens the pane of the module that carries the action when it is not open, so the request is carried out at once.
+**Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `host.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `host.actions.request(action, input, { wait })` asks for one; Magpie checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `host.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })` (a handler may also return `data`, up to about 8 KB of plain data, which the requester reads from `out.result.data` when it waits; that is how a view asks a question): its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open; in a room, Magpie opens the pane of the module that carries the action when it is not open, so the request is carried out at once.
 
 **What the item must have.** An action that takes a pointer may say what the item behind it needs to have on its card for the action to make sense of it: `"needs": ["place"]` (or `date`, `text`, `subtitle`) on the entry in `actions.provides`. A drop menu then leaves the action out for an item without it ("Show on the map" for a task with no position), rather than offering it and failing. It is advice for the menu, not a check the server makes on the request.
 
-**Typed pointers.** A `ref` field may name the kind of item it takes: `"task": "ref:todo:task"` takes only a pointer to a To-do task, plain `"ref"` takes any. Tavern refuses a pointer of another kind. `host.actions.list({ accepts: "module:kind", self: true })` narrows the list to the actions that take a pointer to that kind (an action with plain `ref` counts), and `self` adds this module's own, marked `own: true`.
+**Typed pointers.** A `ref` field may name the kind of item it takes: `"task": "ref:todo:task"` takes only a pointer to a To-do task, plain `"ref"` takes any. Magpie refuses a pointer of another kind. `host.actions.list({ accepts: "module:kind", self: true })` narrows the list to the actions that take a pointer to that kind (an action with plain `ref` counts), and `self` adds this module's own, marked `own: true`.
 
 **What a drop can do.** When another module's item is dropped on yours, never decide on your own what can be done with it: hand it to `host.refs.dropMenu` (see "Dragging" under Refs), which builds your own choices plus every action the modules around you can fill from where it landed, and lets the person choose. Under it, `host.actions.pick(items, point)` is the menu: `items` are `[{ id, label, hint? }]`, it resolves to the chosen item or `null` if dismissed (Escape, or a click elsewhere), one item resolves at once with nothing asked, and `{ remember: "key" }` keeps the choice (in that browser, for your module) and lists it first, marked "last used", the next time the same key is asked. `pick` is also there for a choice that is not a drop. The person always confirms; nothing runs on its own, and two choices that do different things (add it as an event, or set its date) are two items.
 
-**Outcomes.** An event may carry `data` (at most 2 KB). By convention `data.summary` is one line, at most 200 characters, saying how it turned out ("Where to stay: Hotel Nova"). A module that follows an item can keep it: the To-do adds it to a linked task's notes when the task asks for that, and ticks the task when it is set to follow what it links to. Nothing in Tavern knows what a summary means.
+**Outcomes.** An event may carry `data` (at most 2 KB). By convention `data.summary` is one line, at most 200 characters, saying how it turned out ("Where to stay: Hotel Nova"). A module that follows an item can keep it: the To-do adds it to a linked task's notes when the task asks for that, and ticks the task when it is set to follow what it links to. Nothing in Magpie knows what a summary means.
 
-**Rules on links.** An event declares the data it carries (`events.publishes[].data`, for example `{ "summary": "string", "pick": "ref?" }`), and `host.refs.kinds()` returns, for each kind, the events it can report with their data. A module that links to items can then let the person choose, per link, what to do when the item reports something, offering only what the event's data supports. The To-do does this: for a linked poll's close it offers to tick the task, add the `summary` to its notes, use it as the title, or link the item in `pick`. By convention `summary` is one line about the outcome and `pick` is a pointer to the item the outcome chose; neither means anything to Tavern. Treat `pick` as untrusted: check the kind is one you may link to.
+**Rules on links.** An event declares the data it carries (`events.publishes[].data`, for example `{ "summary": "string", "pick": "ref?" }`), and `host.refs.kinds()` returns, for each kind, the events it can report with their data. A module that links to items can then let the person choose, per link, what to do when the item reports something, offering only what the event's data supports. The To-do does this: for a linked poll's close it offers to tick the task, add the `summary` to its notes, use it as the title, or link the item in `pick`. By convention `summary` is one line about the outcome and `pick` is a pointer to the item the outcome chose; neither means anything to Magpie. Treat `pick` as untrusted: check the kind is one you may link to.
 
 **Rules that ask other modules.** A rule can also ask another module to do something with what an item reports. The To-do offers, for each action another module provides (from `host.actions.list()`), "Module: what it does" whenever every required field can be filled from the event: a `date` field from the event's `date`, a `string` or `text` field from its `summary`, a plain `ref` field from the item that reported. So a poll that declares a `date` (its winning option's date) and a Calendar that provides `createEvent` are enough for a closed poll to put the winning date on the calendar, with neither module naming the other. The module that follows asks under the person's own rights. The first page to save the rule as fired asks, so however many people have the To-do open the request is made once; that needs `actions.uses` approved by an admin.
 
-**Links on parts of an item.** An item can hold links of its own for its parts. A poll option takes a link (drop an item on it) and the poll passes the winning option's link out as `pick` when it closes. Tell Tavern what the whole item points at with `host.refs.setLinks`, so those items list it under what links to them.
+**Links on parts of an item.** An item can hold links of its own for its parts. A poll option takes a link (drop an item on it) and the poll passes the winning option's link out as `pick` when it closes. Tell Magpie what the whole item points at with `host.refs.setLinks`, so those items list it under what links to them.
 
 ### A dashboard widget
 
@@ -380,7 +380,7 @@ Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome
 
 **Overflow.** `header.set`, `bar.set` and `toolbar.set` each show at most five items before folding the rest into a "..." the host draws and opens (an item marked `overflow: true` goes there regardless of how many you set, for something you always want tucked away, like Delete). It is drawn by the host, not `host.menu.show` -- that one draws inside your own module, and a titlebar or bar button is the host's own chrome. You never build it yourself; it is just what setting more items than fit does. See [architecture-module-window](../architecture/architecture-module-window.md) for the shape all four zones follow.
 
-**Text nobody here wrote.** `host.util.esc(text)` makes text safe to put in HTML. `host.util.markdown(text)` turns a small, safe subset of Markdown into HTML: `#`/`##`/`###` headings, `**bold**`, `*italic*`/`_italic_`, `` `code` ``, fenced ` ``` ` code blocks, `-`/`*` and `1.` lists, `> ` quotes, `[text](https://...)` and bare `https://` links (nothing else is ever a link), paragraphs on a blank line. Everything is escaped first, so raw HTML in the text can never reach the page. It is the one place a module may set `innerHTML` from text a person or an AI wrote, because the safety already happened inside it; everywhere else, text still goes in with `textContent`. Use it for an AI's replies, and anywhere else people's own words might use it. The room page uses the very same function for chat (`window.tavernText.markdown`, exposed once for the host page itself, since Chat is not a module).
+**Text nobody here wrote.** `host.util.esc(text)` makes text safe to put in HTML. `host.util.markdown(text)` turns a small, safe subset of Markdown into HTML: `#`/`##`/`###` headings, `**bold**`, `*italic*`/`_italic_`, `` `code` ``, fenced ` ``` ` code blocks, `-`/`*` and `1.` lists, `> ` quotes, `[text](https://...)` and bare `https://` links (nothing else is ever a link), paragraphs on a blank line. Everything is escaped first, so raw HTML in the text can never reach the page. It is the one place a module may set `innerHTML` from text a person or an AI wrote, because the safety already happened inside it; everywhere else, text still goes in with `textContent`. Use it for an AI's replies, and anywhere else people's own words might use it. The room page uses the very same function for chat (`window.hostText.markdown`, exposed once for the host page itself, since Chat is not a module).
 
 **Places on the earth.** `host.util.geo` holds what a module with places needs, so none carries its own copy: `inRange(lat, lng)`, `round6(n)`, `oneLine(text, max)` (one line, no control characters), `coord(text, 90 | 180)` (a latitude or longitude typed in a field, or null), `parsePoint(text)` (`{ lat, lng }` from a pair of coordinates or a map link, or null), `coordsText(lat, lng)`, `mapsLink(lat, lng, name, apple)` and `mapsSearch(text, apple)` (for a place with only a name or address), the links that open the spot in the person's own maps app: the platform's own link on Apple devices, a `geo:` link on Android, and an ordinary web link (OpenStreetMap) everywhere else, because a desktop browser has nothing registered for `geo:` and would open a blank page.
 
@@ -399,7 +399,7 @@ The SDK applies the theme to your page as CSS custom properties on `:root`, so p
 
 ## Running in the page
 
-A module runs in one of two ways. Modules that ship with Tavern run **in the page**: in a container of their own with a shadow root, so their styles and elements stay apart from the page's but they share its window, and can take part in drag and drop between modules. A module an admin uploads runs **sandboxed** (below) unless the admin switches it to run in the page, after a warning that a module in the page is not walled off: it can read and change everything on the page, act as the signed-in person, and is no longer held to its approved permissions, because it can bypass the SDK. Only allow that for a module you trust.
+A module runs in one of two ways. Modules that ship with Magpie run **in the page**: in a container of their own with a shadow root, so their styles and elements stay apart from the page's but they share its window, and can take part in drag and drop between modules. A module an admin uploads runs **sandboxed** (below) unless the admin switches it to run in the page, after a warning that a module in the page is not walled off: it can read and change everything on the page, act as the signed-in person, and is no longer held to its approved permissions, because it can bypass the SDK. Only allow that for a module you trust.
 
 To work either way:
 
@@ -410,4 +410,4 @@ To work either way:
 
 ## The sandbox
 
-A module frame has an opaque origin. From inside it you cannot read Tavern's page, its cookies or storage, call `fetch` or open sockets (`connect-src 'none'`), open windows or dialogs, or send a form anywhere. A `<form>` and its `submit` event work (so `preventDefault()` and handle it yourself), but the form goes nowhere. So use in-page UI, not `alert`, `confirm` or `prompt`. You can use inline scripts and styles, and load your own images and fonts as data URLs or from your own files. Module files are public to anyone who can reach the server, so put nothing secret in them.
+A module frame has an opaque origin. From inside it you cannot read Magpie's page, its cookies or storage, call `fetch` or open sockets (`connect-src 'none'`), open windows or dialogs, or send a form anywhere. A `<form>` and its `submit` event work (so `preventDefault()` and handle it yourself), but the form goes nowhere. So use in-page UI, not `alert`, `confirm` or `prompt`. You can use inline scripts and styles, and load your own images and fonts as data URLs or from your own files. Module files are public to anyone who can reach the server, so put nothing secret in them.

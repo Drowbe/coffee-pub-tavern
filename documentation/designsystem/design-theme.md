@@ -1,9 +1,9 @@
 # Theme and Design Tokens
 
-**Audience:** anyone styling a page, a panel or a module against Coffee Pub Tavern, who needs the
+**Audience:** anyone styling a page, a panel or a module against Coffee Pub Magpie, who needs the
 colors to follow whatever theme the admin has chosen.
 
-Admins can re-theme Tavern from the Theme tab of the Manage page, including light themes. A theme
+Admins can re-theme Magpie from the Theme tab of the Manage page, including light themes. A theme
 changes colors only, never layout. Anything drawn with a fixed color will be unreadable on some
 server, so every color must come from the tokens below.
 
@@ -66,4 +66,4 @@ default theme and unreadable on a light one.
 
 ## Modules
 
-A module runs in a sandboxed frame, so it cannot see Tavern's stylesheet. The host reads the current theme from the page's computed style and hands it to the module on start, and the module SDK sets it on the frame's `:root` as CSS custom properties. A module written to the rules above follows the theme with no code. Tavern also adds a small base stylesheet to each module page (`.btn`, `.btn-primary`, `.card`, styled inputs) built from the same tokens. The rules apply to module authors too; see [api-module-sdk](../api/api-module-sdk.md).
+A module runs in a sandboxed frame, so it cannot see Magpie's stylesheet. The host reads the current theme from the page's computed style and hands it to the module on start, and the module SDK sets it on the frame's `:root` as CSS custom properties. A module written to the rules above follows the theme with no code. Magpie also adds a small base stylesheet to each module page (`.btn`, `.btn-primary`, `.card`, styled inputs) built from the same tokens. The rules apply to module authors too; see [api-module-sdk](../api/api-module-sdk.md).

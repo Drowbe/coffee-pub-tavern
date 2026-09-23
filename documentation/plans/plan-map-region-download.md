@@ -10,7 +10,7 @@ An admin gets a map by hand: install the `pmtiles` command-line tool, run `pmtil
 
 ## What the author wants
 
-Type "Mexico" in Maps' Module Configuration, and have Tavern find it, cut it, and add it to the Map files list, with a progress bar.
+Type "Mexico" in Maps' Module Configuration, and have Magpie find it, cut it, and add it to the Map files list, with a progress bar.
 
 ## Is it doable? Yes, in two parts, one clean and one with a real trade-off
 
@@ -24,7 +24,7 @@ This runs into the choice the server was built around: every dependency is pure 
 
 1. **Module Configuration (Maps), a new field beside the file list:** "Add a region" — a text box ("Mexico", "Lisbon", "the Algarve") and a **Find it** button.
 2. **Confirm before anything downloads.** A found box shows the place's name and roughly how big the cut will be (estimated from its area and the chosen zoom), with **Cut and add** to confirm. Nothing is fetched on a keystroke.
-3. **Progress**, since a country-sized cut can take a while: a bar with a state line ("Reading the world file...", "Writing italy.pmtiles..."), delivered the way Tavern already streams other long-running things (server-sent events), not by polling.
+3. **Progress**, since a country-sized cut can take a while: a bar with a state line ("Reading the world file...", "Writing italy.pmtiles..."), delivered the way Magpie already streams other long-running things (server-sent events), not by polling.
 4. **On success**, the new file appears in Map files, ticked, ready to use; on failure, a plain reason (the source was unreachable, the box was too large, disk was short) and nothing half-written is left behind.
 5. **A source setting**, since "the world file" has to come from somewhere: default to the Protomaps daily build's address (documented today), with the address itself as a setting an admin could point elsewhere.
 6. **A sane top end.** A box the size of a small country at a modest zoom is fine; the whole world, or continent-sized boxes at a high zoom, should be refused or clearly warned about, since the point is to avoid exactly that.

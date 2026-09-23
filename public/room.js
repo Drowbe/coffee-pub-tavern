@@ -1296,7 +1296,7 @@ function escapeHtml(s) {
 // (what replyToEntry() quotes with), [text](url) and bare links. The one shared implementation every module
 // (and now Chat) uses, in /sdk/host.js -- loaded on this page already for the modules it hosts in the page.
 function renderMarkup(text) {
-  return window.tavernText.markdown(text);
+  return window.hostText.markdown(text);
 }
 
 function iconButton(icon, title, onClick) {
@@ -3045,7 +3045,7 @@ window.closeProfileOverlay = closeOverlay; // called directly by the (same-origi
 // `patch` is whatever fields actually changed (e.g. {background: 'blur'},
 // {mirror: true}, {quality: 720}); a bare call with no patch just means
 // "the background image itself changed, nothing in prefs did".
-window.tavernApplyCallPrefs = async function (patch) {
+window.appApplyCallPrefs = async function (patch) {
   if (patch) {
     Object.assign(prefs, patch);
     savePrefs();

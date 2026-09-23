@@ -37,10 +37,10 @@ exhaustively rather than sit where they were put.
 
 Collected, none started:
 
-- A module for Foundry that carries communication and commands between Tavern and Foundry.
+- A module for Foundry that carries communication and commands between Magpie and Foundry.
 - An LLM module.
 - A module for WhatsApp or SMS hooks.
-- Updating modules that do not ship with Tavern without uploading a zip: a module could name an update address (a GitHub release, say) that the server checks and installs from, with the same approval. Bundled modules already update from Manage.
+- Updating modules that do not ship with Magpie without uploading a zip: a module could name an update address (a GitHub release, say) that the server checks and installs from, with the same approval. Bundled modules already update from Manage.
 - The dashboard: built (see plans/plan-dashboard.md). Left: customising the layout, and checking it with two people and in a real call.
 - Module interoperability is built (refs, opening, backlinks, events, actions). What is left is in plans/plan-modules.md: a module's own activity on its card, and verifying with two people. Also verify in a real browser: dragging an event or a poll from one pane onto a task in another, and between windows.
 - Storage and transport of sensitive data such as passwords: to discuss before any module handles it.
@@ -126,19 +126,19 @@ name, a status line, a link. Keep new admin surfaces to this shape rather than g
 another inline editor on a list -- it is why the two existing ones scaled badly enough to
 need rebuilding.
 
-## One-container install: Tavern runs LiveKit itself
+## One-container install: Magpie runs LiveKit itself
 
-Tavern is meant to be sold or given away as a self-hosted product, and today an install is
-two services (Tavern plus a separate `livekit-server` in `docker-compose.yml`) with a
+Magpie is meant to be sold or given away as a self-hosted product, and today an install is
+two services (Magpie plus a separate `livekit-server` in `docker-compose.yml`) with a
 LiveKit config, matching API keys on both sides, and four ports to forward. The goal is
-"install Tavern" as one thing, with LiveKit an implementation detail.
+"install Magpie" as one thing, with LiveKit an implementation detail.
 
-Shape agreed on: bundle the open-source `livekit-server` binary in the Tavern image and have
-Tavern start it as a child process. It generates its own API key/secret on first run (kept in
-the data volume), writes the LiveKit config from Tavern's own settings, and Tavern points at
+Shape agreed on: bundle the open-source `livekit-server` binary in the Magpie image and have
+Magpie start it as a child process. It generates its own API key/secret on first run (kept in
+the data volume), writes the LiveKit config from Magpie's own settings, and Magpie points at
 it over localhost, so `LIVEKIT_HOST`/`KEY`/`SECRET` stop being something an installer
-touches. Proxy LiveKit's signaling through Tavern's own HTTP port so the only web port to
-expose is Tavern's. LiveKit can't go away -- the SFU is what makes more than a handful of
+touches. Proxy LiveKit's signaling through Magpie's own HTTP port so the only web port to
+expose is Magpie's. LiveKit can't go away -- the SFU is what makes more than a handful of
 people work, and kick/mute and the OBS views call its server API -- so the media ports
 (UDP/TCP, plus TURN if the install is behind strict NAT) still need forwarding; a
 first-run check that says whether they're reachable would earn its keep.
@@ -212,7 +212,7 @@ can only create a new one) and the operator-switch capability above.
 "Run it" in the README is currently one specific recipe: Docker on a QNAP NAS (Container
 Station) behind Nginx Proxy Manager, with port-forwarding on a home router. Nothing in the
 app itself is known to be Unix-only (paths go through Node's `path` module, `docker-compose`
-is itself platform-agnostic under Docker Desktop), but nobody has actually run the Tavern +
+is itself platform-agnostic under Docker Desktop), but nobody has actually run the Magpie +
 LiveKit containers on someone's own Windows or Mac machine, or written down what that setup
 looks like -- useful for a GM without a NAS, or for testing without touching the shared
 production instance. Needs a docker-compose variant (or documented tweaks) that doesn't
