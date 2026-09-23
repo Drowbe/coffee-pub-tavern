@@ -129,13 +129,15 @@ a:hover {
   color: var(--accent-hover);
 }
 
+/* Three zones: left (the logo, where you are), middle (the core navigation, centred on the row whatever the other two
+   hold), right (the system's actions and information). See architecture-navigation.md. */
 .topbar {
   position: sticky; /* stays at the top while the page scrolls */
   top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   /* Installed to the home screen, a page runs under the status bar (black-translucent), so the
      header starts below it; the inset is 0 in a browser tab. */
@@ -167,6 +169,64 @@ a:hover {
   align-items: center;
   gap: 10px;
   font-weight: 700;
+}
+
+.topbar .nav-left {
+  min-width: 0;
+  justify-self: start;
+}
+
+.topbar .nav-middle {
+  justify-self: center;
+}
+
+.topbar .nav-right {
+  justify-self: end;
+}
+
+/* The core navigation: icon and name, the same for the rooms link and each module's own page. */
+.core-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.core-link,
+.core-nav .module-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.core-link:hover,
+.core-nav .module-nav-link:hover {
+  color: var(--icon-hover);
+  background: color-mix(in srgb, var(--icon-hover) 14%, transparent);
+  text-decoration: none;
+}
+
+.core-nav .module-nav-label {
+  display: inline;
+}
+
+/* The time, on the server's clock: information, not an action, so it is text among the icons. */
+.topbar-clock {
+  color: var(--text-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.topbar-clock:empty {
+  display: none;
 }
 
 /* The server icon, its own small configurable icon, and the server name
@@ -819,15 +879,50 @@ body.at-table .page-scroll {
   border-top: 1px solid var(--border);
 }
 
+/* Three zones, like the primary nav: left (the room's name, the pane switches), middle (space information and navigation),
+   right (space actions); the middle is centred on the row, whatever the other two hold. See architecture-navigation.md. */
 body.at-table .subnav {
+  display: grid;
+  grid-column: 1 / -1; /* the header is a grid too: the second row spans all three of its columns */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.subnav .nav-left {
   display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  justify-self: start;
+}
+
+.subnav .nav-middle {
+  justify-self: center;
+}
+
+.subnav .nav-right {
+  justify-self: end;
+}
+
+.space-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.space-name i {
+  color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
 }
 
 .subnav-tools {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin-left: auto;
 }
 
 .subnav .nav-divider {
@@ -915,6 +1010,8 @@ body.at-table .topbar {
   .subnav #fullscreen-toggle,
   .subnav #popout,
   .subnav #snap-tools,
+  .subnav .space-name,
+  .subnav .nav-middle,
   .subnav .nav-divider {
     display: none;
   }
@@ -4453,6 +4550,7 @@ body.at-table .module-nav {
   /* room.js moves the bar out of the header, after the stage, so it is the last thing in the
      page's column: the toolbar sits right above it with no padding to calculate. */
   body.at-table .subnav {
+    display: flex; /* the tab bar: the pane switches are the bar; the room's name and the middle zone are not drawn */
     flex: none;
     width: auto;
     margin: 0;
@@ -4569,6 +4667,16 @@ body.at-table .module-nav {
 }
 
 @media (max-width: 640px) {
+  /* a row again: the logo and the crumb, then the menu button; the middle zone's links are in the menu (brand.js moves them) */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .topbar .nav-middle {
+    display: none;
+  }
+
   .topbar .nav-toggle {
     display: inline-flex;
     flex: none;
@@ -4576,6 +4684,31 @@ body.at-table .module-nav {
     height: 36px;
     margin-left: auto;
     font-size: 18px;
+  }
+
+  .topbar.menu-open .links .core-link {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: auto;
+    height: auto;
+    min-height: 44px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  .topbar.menu-open .links .core-link i {
+    width: 22px;
+    font-size: 18px;
+    color: var(--icon, var(--text-dim));
+  }
+
+  .topbar.menu-open .links .topbar-clock {
+    padding: 6px 12px;
   }
 
   .topbar nav.links {

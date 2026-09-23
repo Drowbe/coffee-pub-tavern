@@ -26,6 +26,8 @@ export async function loadBranding() {
     // keep the defaults
   }
   ICONS = Array.isArray(b.icons) ? b.icons : [];
+  clockHour12 = b.clock !== '24';
+  if (byId('topbar-clock')) startClock();
   qsa('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
   qsa('[data-brand="home-icon"]').forEach((el) => {
     el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
@@ -83,25 +85,30 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   const handoff = new URLSearchParams(window.location.search);
   const initialName = handoff.get('serverName') || 'Coffee Pub Tavern';
   const initialIcon = handoff.get('homeIcon') || 'couch';
+  // The primary nav is about the system, in three zones (see documentation/plans/plan-nav.md and architecture-navigation.md):
+  // left, the logo (home) and where you are; middle, the core navigation (the rooms, each module's own page); right, the
+  // system's actions (your profile, Manage, Install, Sign out) and information (the time, on the server's clock).
   header.innerHTML = `
-    <div class="brand">
+    <div class="nav-left brand">
       <a class="brand-home" href="/" target="_top" title="All rooms">
         <img data-brand="icon" alt="" class="icon">
         <i class="fa-solid fa-${initialIcon} fa-fw" data-icon-id="${escapeHtml(initialIcon)}" data-brand="home-icon" aria-hidden="true"></i>
         <span data-brand="serverName">${escapeHtml(initialName)}</span>
       </a>
       <nav class="crumb" id="topbar-crumb"></nav>
-      <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
-    <nav class="links">
+    <nav class="nav-middle core-nav" id="core-nav" aria-label="Core navigation">
+      <a class="core-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i><span class="core-label">Rooms</span></a>
+      <span class="module-nav" id="module-nav"></span>
+    </nav>
+    <nav class="nav-right links">
       <a class="whoami" href="/profile" id="whoami-link" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
       <span class="nav-divider"></span>
-      <span class="module-nav" id="module-nav"></span>
-      <a class="icon-link" href="/" target="_top" id="rooms-link" title="All rooms" aria-label="All rooms"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i></a>
       <a class="icon-link" href="${adminHref}" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
       <button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
       <span class="nav-divider"></span>
+      <span class="topbar-clock" id="topbar-clock" title="The time"></span>
       <a class="icon-link" href="/logout" id="logout-link" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
     </nav>
     <button class="icon-link nav-toggle" id="nav-toggle" type="button" title="Menu" aria-label="Menu" aria-expanded="false"><i class="fa-solid fa-bars fa-fw" aria-hidden="true"></i></button>
@@ -110,15 +117,42 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   setTopbarLocation(location);
   wireInstall();
   loadModuleNav();
+  startClock();
   loadUpdateBadge();
   startPresence();
   startNotifications();
 }
 
+// The time, in the primary nav's right zone, on the server's clock (12- or 24-hour: Manage > Settings > Language, time and
+// money, which loadBranding() reads). Kept to the minute.
+let clockTimer = null;
+let clockHour12 = true;
+function startClock() {
+  const draw = () => {
+    const el = byId('topbar-clock');
+    if (el) el.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: clockHour12 });
+  };
+  draw();
+  clearInterval(clockTimer);
+  clockTimer = setInterval(draw, 15000);
+}
+
 // On a phone the header's links are a menu (see the phone header rules in style.css): the button
-// opens them, and a tap anywhere else or Escape closes them.
+// opens them, and a tap anywhere else or Escape closes them. The core navigation (the middle zone) has no
+// room on a phone, so its links move into the menu there, and back to the middle when the window widens.
 function wireNavMenu(header) {
   const toggle = header.querySelector('#nav-toggle');
+  const phone = window.matchMedia('(max-width: 640px)');
+  const core = header.querySelector('#core-nav');
+  const links = header.querySelector('nav.links');
+  const placeCore = () => {
+    if (!core || !links) return;
+    const items = [header.querySelector('#rooms-link'), header.querySelector('#module-nav')].filter(Boolean);
+    if (phone.matches) links.prepend(...items);
+    else core.append(...items);
+  };
+  placeCore();
+  phone.addEventListener('change', placeCore);
   const setOpen = (on) => {
     header.classList.toggle('menu-open', on);
     toggle.setAttribute('aria-expanded', String(on));

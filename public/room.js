@@ -25,12 +25,21 @@ if (new URLSearchParams(location.search).has('layout')) import('/layout-debug.js
 const subnav = document.createElement('div');
 subnav.className = 'subnav';
 subnav.id = 'subnav';
+// The secondary nav is about the space (the room), in three zones (see documentation/plans/plan-nav.md and
+// architecture-navigation.md): left, the room's name and the module selector; middle, the space's own information and
+// navigation (nothing yet); right, the space's actions: the stage-level snap, full screen, pop out, pulling people back
+// from an aside, and leaving.
 subnav.innerHTML = `
-  <div class="subnav-panes" id="modules-menu"></div>
-  <span class="subnav-tools">
+  <div class="nav-left subnav-left">
+    <span class="space-name" id="space-name" hidden><i class="fa-solid fa-fw" id="space-icon" aria-hidden="true"></i><span id="space-name-text"></span></span>
+    <div class="subnav-panes" id="modules-menu"></div>
+  </div>
+  <div class="nav-middle subnav-middle" id="subnav-middle"></div>
+  <span class="nav-right subnav-tools">
   <span class="snap-tools" id="snap-tools"><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
   <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
   <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
+  <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this room a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
   <span class="nav-divider"></span>
   <button class="icon-link" id="leave-room" type="button" title="Leave room" aria-label="Leave room"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
   </span>`;
@@ -2074,9 +2083,21 @@ const REJOIN_BTN = '<button class="icon-link crumb-action" type="button" data-cr
 // leaving just the icon -- which is why every crumb-here needs one.
 const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
 
+// The space's name in the secondary nav's left zone (the crumb in the primary nav says the same; whether both should is open,
+// see plan-nav.md).
+function setSpaceName(icon, text) {
+  const el = $('space-name');
+  if (!el) return;
+  el.hidden = !text;
+  const i = $('space-icon');
+  if (i) i.className = `${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw`;
+  const t = $('space-name-text');
+  if (t) t.textContent = text || '';
+}
 function updateCrumb() {
   if (!currentRoom) {
     setTopbarLocation('');
+    setSpaceName('couch', '');
     return;
   }
   if (currentRoom.ephemeral && currentRoom.origin) {
@@ -2088,8 +2109,10 @@ function updateCrumb() {
       `<span class="crumb-sep">&rsaquo;</span>` +
       crumbHere('people-arrows', kind) + REJOIN_BTN
     );
+    setSpaceName('people-arrows', `${originName} · ${kind}`);
   } else {
     setTopbarLocation(crumbHere(roomCrumbIcon(currentRoom), tableName));
+    setSpaceName(roomCrumbIcon(currentRoom), tableName);
   }
 }
 
