@@ -12,7 +12,7 @@ A normal bundled module (`panel: { dock, float }`, poppable into its own window 
 
 ```
 <div id="app" class="ask [narrow]">
-  <header class="ask-head">           an icon, h1 "Assistant", #new-chat (clears the conversation)
+  <header class="ask-head">           #new-chat (clears the conversation) -- a titlebar icon wherever there is one; this is the fallback for the module's own page when it isn't popped out
   <div id="ask-context" class="ask-context">   "Use as context", #ask-chips, #add-context
   <div id="ask-picker" class="ask-picker" [hidden]>   #ask-picker-list, #picker-count, #picker-done
   <div id="thread" class="thread">    the conversation; #ask-empty shows until the first message

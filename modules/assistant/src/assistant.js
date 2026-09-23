@@ -292,7 +292,28 @@
   }
   $('ask-form').addEventListener('submit', (ev) => { ev.preventDefault(); const q = $('ask-input').value.trim(); $('ask-input').value = ''; ask(q); });
   $('ask-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); $('ask-form').requestSubmit(); } });
-  $('new-chat').addEventListener('click', () => { thread().replaceChildren(emptyNode); });
+  const newChat = () => thread().replaceChildren(emptyNode);
+  $('new-chat').addEventListener('click', newChat);
+
+  // New conversation is a titlebar icon wherever there is a titlebar (a pane, or the module's own window);
+  // on the server page there is none, and the fallback button in .ask-head stays.
+  let headerSig = '';
+  async function syncHeader() {
+    if (!tavern.header) return;
+    const sig = state.ai ? '1' : '0';
+    if (sig === headerSig) return;
+    headerSig = sig;
+    let hosted = false;
+    try {
+      hosted = await tavern.header.set(state.ai ? [{ id: 'new-chat', icon: 'rotate-left', title: 'New conversation' }] : []);
+    } catch (err) {
+      hosted = false;
+    }
+    $('app').classList.toggle('hosted-header', Boolean(hosted));
+  }
+  if (tavern.header) {
+    tavern.on('header', (e) => { if (e.id === 'new-chat') newChat(); });
+  }
 
   // --- availability: whether this person may use the AI here, and what can save a kept card ---------------------------------
 
@@ -308,6 +329,7 @@
     hide($('ask-context'), !state.ai);
     hide($('ask-form'), !state.ai);
     hide($('new-chat'), !state.ai);
+    syncHeader();
     if (!state.ai) {
       const st = clone('tpl-state-unavailable');
       fill(st, { why: state.aiWhy });

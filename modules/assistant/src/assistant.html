@@ -17,9 +17,9 @@
   style. The reference rendering is design/assistant.html (this file, in its harness).
 -->
 <div id="app" class="ask" hidden>
+  <!-- New conversation is a titlebar icon (tavern.header.set) wherever there is a titlebar to draw it in; this
+       stays only as the fallback for the module's own page when it is not popped out (no titlebar there). -->
   <header class="ask-head">
-    <span class="ic" data-icon="wand-magic-sparkles"></span>
-    <h1>Assistant</h1>
     <button class="icon-btn" id="new-chat" type="button" title="New conversation" aria-label="New conversation"><span class="ic" data-icon="rotate-left"></span></button>
   </header>
   <p class="error" id="note" hidden></p>

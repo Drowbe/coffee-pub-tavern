@@ -430,7 +430,7 @@
       label: `Add ${t.label.toLowerCase()}`,
       icon: t.icon,
       iconColor: t.color || undefined,
-      onClick: () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: '', after })),
+      onClick: () => attempt(() => plan.addItem({ kind: 'lane', type: t.id, title: t.label, after })),
     }));
     if (gap) {
       items.push({
@@ -1362,6 +1362,12 @@
       } else {
         const t = fromTile(ed.tile, item);
         if (t.kind === 'lane') { common.date = null; common.travelMode = null; common.travelMinutes = null; common.owners = []; common.cost = null; common.paidBy = ''; }
+        // A time block or a marker between days can be left untitled in the form (the type's own label is its
+        // placeholder, shown greyed until someone types over it): store that label as the real title rather than
+        // leaving the field empty, so the item has a real name anywhere it is shown generically (Assistant's
+        // context picker, a ref search, a backlink), not just in this module's own rendering, which already
+        // falls back to the type's label on its own.
+        if ((t.kind === 'lane' || t.kind === 'block') && !common.title) common.title = markerType(t.type).label;
         fields = { ...common, ...t, ...(t.kind === 'lane' ? { after: item && item.kind === 'lane' ? item.after : null } : {}), time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : num('f-minutes') };
         if (t.kind === 'journey') {
           for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);

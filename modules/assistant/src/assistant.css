@@ -21,10 +21,10 @@ body { margin: 0; overflow: hidden; }
 
 /* ---- the pane itself ---- */
 .ask { display: flex; flex-direction: column; height: 100%; background: var(--bg); color: var(--text); font-size: 14px; }
-.ask-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.ask-head > .ic { color: var(--accent); font-size: 15px; }
-.ask-head h1 { margin: 0; font-size: 16px; }
-.ask-head .scope { margin-left: auto; color: var(--text-dim); font-size: 12px; }
+/* Only the fallback New-conversation button for a titlebar-less context (see assistant.html); the titlebar
+   already carries the module's name and icon everywhere else, so this row hides there entirely. */
+.ask-head { display: flex; align-items: center; justify-content: flex-end; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.hosted-header .ask-head { display: none; }
 
 /* ---- what the answer may use: context chips and the picker ---- */
 .ask-context { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
