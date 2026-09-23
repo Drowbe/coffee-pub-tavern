@@ -12,7 +12,13 @@ try {
 
 fill('[data-product]', product.name);
 document.title = product.name;
-for (const img of document.querySelectorAll('[data-product-alt]')) img.alt = product.name;
+for (const img of document.querySelectorAll('[data-product-alt]')) {
+  img.alt = product.name;
+  // the name in text if the logo cannot load (a host that does not serve the brand folder at its base)
+  const showName = () => { img.hidden = true; const name = img.nextElementSibling; if (name) name.classList.remove('sr-only'); };
+  if (img.complete && img.naturalWidth === 0) showName();
+  img.addEventListener('error', showName);
+}
 fill('[data-version]', product.version ? String(product.version) : '');
 const example = document.querySelector('[data-example-host]');
 if (example && product.baseDomain) example.textContent = `yourname.${product.baseDomain}`;
