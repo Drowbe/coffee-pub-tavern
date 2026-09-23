@@ -45,8 +45,8 @@
      is --header-bg itself, its left and right zones a shade darker, and the secondary nav (the space) its own,
      between the header and the page. Derived from --header-bg until a theme sets them. */
   --nav-primary-bg: var(--header-bg);
-  --nav-primary-edge-bg: color-mix(in srgb, var(--header-bg) 86%, black);
-  --nav-secondary-bg: color-mix(in srgb, var(--header-bg) 70%, var(--bg));
+  --nav-primary-edge-bg: rgba(0, 0, 0, 0.03); /* a whisper over the header colour, light or dark */
+  --nav-secondary-bg: rgba(0, 0, 0, 0.02);
   /* --icon has no default here: where it is used, var(--icon, <fallback>) picks
      the fallback that suits the surface (dim text in the page, the header
      text color in the header) until a theme sets it. */

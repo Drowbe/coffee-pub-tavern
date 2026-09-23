@@ -33,8 +33,8 @@ working. The rest are derived with `color-mix`.
 | `--header-bg` | header background, drawn as a soft gradient from this color; Auto is `--bg` |
 | `--header-text` | header text, the server name, breadcrumb and signed-in name; Auto is `--text` |
 | `--nav-primary-bg` | the primary nav's middle zone (the core navigation); Auto is `--header-bg` |
-| `--nav-primary-edge-bg` | the primary nav's left and right zones (the logo and where you are; the system's actions and the time), a shade darker; Auto is `--header-bg` mixed 14% with black |
-| `--nav-secondary-bg` | the secondary nav (the space's bar at the table); Auto is `--header-bg` mixed 30% with `--bg` |
+| `--nav-primary-edge-bg` | the primary nav's left and right zones (the logo and where you are; the system's actions and the time), a whisper darker; Auto is a 3% black overlay on the header colour |
+| `--nav-secondary-bg` | the secondary nav (the space's bar at the table); Auto is a 2% black overlay on the header colour |
 | `--icon` | icons in the page, chat and header; Auto is dim text on the page and a softened header text in the header |
 | `--icon-hover` | icon hover; Auto is `--accent` |
 | `--primary-hover` | Primary buttons on hover; Auto is a lighter `--accent` |
