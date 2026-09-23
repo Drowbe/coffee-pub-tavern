@@ -176,7 +176,7 @@ async function askService(address, q, near) {
   u.searchParams.set('q', String(q).slice(0, 200));
   u.searchParams.set('limit', '10');
   if (near && inRange(Number(near.lat), Number(near.lon))) { u.searchParams.set('lat', String(round6(Number(near.lat)))); u.searchParams.set('lon', String(round6(Number(near.lon)))); }
-  const res = await fetch(u.href, { headers: { Accept: 'application/json', 'User-Agent': 'CoffeePubTavern' }, signal: AbortSignal.timeout(FETCH_MS), redirect: 'follow' });
+  const res = await fetch(u.href, { headers: { Accept: 'application/json', 'User-Agent': 'CoffeePubApp' }, signal: AbortSignal.timeout(FETCH_MS), redirect: 'follow' });
   if (!res.ok) throw new Error(`search answered ${res.status}`);
   const text = await res.text();
   if (text.length > MAX_BODY) throw new Error('search answered too much');

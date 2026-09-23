@@ -31,6 +31,14 @@ synchronously on every change (`chatHistory`, `ai`, `geocodeCache`, the activity
 (every built environment) and before a backup or a restore (that one environment, so nothing recent is missing
 from the zip, or overwritten by a stale in-memory copy right after).
 
+An environment's own name is its server name (the author's call). `environmentFor()` in `index.js` runs one
+check every time it builds an environment, not just the first: still on the shipped sentinel default ("Coffee
+Pub Tavern", from before an install's name was ever set, or before `serverName` existed at all) means the
+default environment gets `PRODUCT_NAME` and a tenant gets `hostRegistry.findTenant(slug).name`, written with
+`store.updateSettings`. The same check covers a brand new environment (still on the sentinel right after
+`buildEnvironment`) and an old one catching up on its next start after skipping a few versions -- one code path,
+not two.
+
 ## `server/index.js`: the Proxy and the door
 
 ```js
@@ -141,6 +149,17 @@ sessionSecret` instead of any tenant's `store.sessionSecret`, `hostRegistry.find
 tenant's `store.userByKey`) -- see `currentHostAdmin`/`requireHostAdmin` in `server/index.js`. The two cookies
 can never be confused for one another even if somehow set on the same browser, because nothing ever reads one
 where it expects the other.
+
+The person running the whole deployment can still sign into any one environment, without a second account to
+remember: `resolveLoginUser(login, password)` in `index.js`, used by both `POST /api/login` and the product
+page's `POST /login`, checks the environment's own users first (as always) and only then, when that fails and
+there is a host registry, `hostRegistry.findAdminByLogin`. A match there never touches that environment's own
+data for the password: it only ensures a user record exists for that login (`hostAdmin: true`, `passwordHash`
+always `null`, so nothing inside the environment can authenticate as it directly -- `PATCH /api/users/:key`
+refuses a password change for one), created once and reused after. Gated on `(!user || user.hostAdmin)`, so a
+login that already belongs to a *different*, ordinary user in that environment never matches the registry --
+a name collision just means the host admin cannot sign in with that particular login there, never that they
+take over someone else's account.
 
 ## LiveKit room names
 

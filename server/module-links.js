@@ -1,6 +1,6 @@
 // The links between modules' items: "this task points at that event". A module stores its own
-// pointers; this registry is where Tavern learns of them, so that the item pointed at can ask what
-// points at it (backlinks) without Tavern knowing anything about tasks, events or polls. It holds
+// pointers; this registry is where the host learns of them, so that the item pointed at can ask what
+// points at it (backlinks) without the host knowing anything about tasks, events or polls. It holds
 // only pointers ({ module, kind, id, scope, room? }), never an item's content, and every answer is
 // filtered to what the asking person may see. Persists to DATA_DIR/modules/links.json.
 

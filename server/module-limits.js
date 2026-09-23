@@ -1,8 +1,8 @@
-// How often a module may do things through Tavern for one person: saved data, published events, asked actions,
+// How often a module may do things through the host for one person: saved data, published events, asked actions,
 // notifications and schedules, each a count per minute per module and person. A module that is busy for a good
 // reason (moving twenty items) stays well under these; one that loops or floods is told to slow down (429). In memory,
-// so a restart clears it. It limits what goes through Tavern's API; a module running in the page can also do things
-// Tavern never hears of, which is why running one there is the admin's warned choice.
+// so a restart clears it. It limits what goes through the host's API; a module running in the page can also do things
+// the host never hears of, which is why running one there is the admin's warned choice.
 
 'use strict';
 

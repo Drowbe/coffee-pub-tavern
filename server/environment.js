@@ -43,7 +43,7 @@ function moduleCan(manifest, perms, need) {
 // run once, globally, at server startup now runs here -- once per environment, whether that is the single
 // default environment (no BASE_DOMAIN) or one tenant's own directory.
 //
-// `admin`, when given `{ login, password }`, bootstraps the first admin the same way TAVERN_ADMIN_USER/PASSWORD
+// `admin`, when given `{ login, password }`, bootstraps the first admin the same way ADMIN_USER/PASSWORD
 // always has (updates an existing admin's password to match, or creates one, or -- with no password given at
 // all -- makes a random one the first time there is no admin yet). This only ever runs for the default
 // environment; a tenant's first admin comes from the host API's own tenant-creation flow instead (its password

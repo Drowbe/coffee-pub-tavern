@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// none; openai and anthropic are those companies (Tavern knows their addresses, so nobody types them); compatible is any other
+// none; openai and anthropic are those companies (the host knows their addresses, so nobody types them); compatible is any other
 // service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
 const PROVIDERS = ['none', 'openai', 'anthropic', 'compatible'];
 const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
@@ -28,7 +28,7 @@ const MAX_QUESTION = 1000;
 const MAX_ANSWER_TOKENS = 1200;
 const FETCH_MS = 90000;
 const MAX_BODY = 1024 * 1024;
-// The icons a card may name (Font Awesome names, as the rest of Tavern uses); the first is the fallback.
+// The icons a card may name (Font Awesome names, as the rest of the app uses); the first is the fallback.
 const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins'];
 
 const oneLine = (s, n) => String(s == null ? '' : s).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -64,15 +64,20 @@ class Ai {
     this.timer = null;
   }
 
-  // The key: from the environment when it is set there (TAVERN_AI_KEY), otherwise the one the admin saved.
+  // The key set on the environment (AI_KEY; TAVERN_AI_KEY still honoured), or none set there at all.
+  envKey() {
+    return this.env.AI_KEY || this.env.TAVERN_AI_KEY || '';
+  }
+
+  // The key: from the environment when it is set there, otherwise the one the admin saved.
   key() {
-    return this.env.TAVERN_AI_KEY || this.config.key || '';
+    return this.envKey() || this.config.key || '';
   }
 
   // What the admin's page may see: never the key, only whether there is one.
   view() {
     const c = this.config;
-    return { provider: c.provider, address: c.address, model: c.model, monthlyTokens: c.monthlyTokens, keySet: !!this.key(), keyFromEnvironment: !!this.env.TAVERN_AI_KEY, enabled: c.enabled };
+    return { provider: c.provider, address: c.address, model: c.model, monthlyTokens: c.monthlyTokens, keySet: !!this.key(), keyFromEnvironment: !!this.envKey(), enabled: c.enabled };
   }
 
   // Change the setting. `key` is replaced only when a non-empty string is sent (a page that shows "set" sends nothing); `clearKey`
@@ -103,9 +108,9 @@ class Ai {
     }
     if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
     if (p.clearKey === true) next.key = '';
-    if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, known to Tavern
+    if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, already known here
     if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
-    if ((next.provider === 'openai' || next.provider === 'anthropic') && !(this.env.TAVERN_AI_KEY || next.key)) throw new AiError('this service needs a key');
+    if ((next.provider === 'openai' || next.provider === 'anthropic') && !(this.envKey() || next.key)) throw new AiError('this service needs a key');
     if (next.provider !== 'none' && !next.model) throw new AiError('say which model to use');
     if (p.enabled !== undefined) {
       if (p.enabled === true && next.provider === 'none') throw new AiError('choose a service and save it before enabling AI');

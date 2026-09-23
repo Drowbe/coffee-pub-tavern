@@ -1,7 +1,7 @@
 'use strict';
 
 // Users, rooms, settings and images live in DATA_DIR (a Docker volume in production):
-//   tavern.json          users, rooms, settings, secrets
+//   app.json             users, rooms, settings, secrets
 //   images/<key>/<slot>  one image per user slot (player, character, talking, muted...)
 //   images/site/<name>   the server icon and the sign-in background
 //   images/rooms/<id>    a room's picture
@@ -141,10 +141,10 @@ const DEFAULT_CALL_PREFS = {
 // The languages the interface comes in (a setting; only English so far).
 const LANGUAGES = ['en'];
 const DEFAULT_SETTINGS = {
-  serverName: 'Coffee Pub Tavern',
+  serverName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
   homeIcon: DEFAULT_HOME_ICON,
   tableName: 'The Table',
-  room: 'tavern',
+  room: 'table',
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
   // Self-service sign-up at /register, off by default. A self-registered
   // account is a normal user, added automatically like everyone is to the
@@ -353,7 +353,11 @@ function cleanRoomLink(value) {
 class Store {
   constructor(dir) {
     this.dir = dir;
-    this.file = path.join(dir, 'tavern.json');
+    this.file = path.join(dir, 'app.json');
+    // A rename from before this file was called app.json: move it once, so nobody's data goes missing under the
+    // new name and nobody needs to touch anything by hand.
+    const legacyFile = path.join(dir, 'tavern.json');
+    if (!fs.existsSync(this.file) && fs.existsSync(legacyFile)) fs.renameSync(legacyFile, this.file);
     this.imagesDir = path.join(dir, 'images');
     fs.mkdirSync(this.imagesDir, { recursive: true });
     this.data = this.load();
@@ -500,6 +504,10 @@ class Store {
       displayName: cleanText(u.displayName, 40) || cleanLogin(u.login) || key,
       role: ROLES.includes(u.role) ? u.role : 'user',
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
+      // A user record that stands in for a host admin signed in here (see resolveLoginUser in index.js): its own
+      // passwordHash is always null, so nothing inside the environment can ever authenticate as it directly -- the
+      // check always goes back to the host registry.
+      hostAdmin: Boolean(u.hostAdmin),
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       images,
       rooms,
@@ -783,7 +791,7 @@ class Store {
     return key;
   }
 
-  addUser({ login, displayName, role, passwordHash }) {
+  addUser({ login, displayName, role, passwordHash, hostAdmin }) {
     const cleaned = cleanLogin(login);
     if (!cleaned) throw new StoreError('username is required');
     if (this.userByLogin(cleaned)) throw new StoreError('that username is taken');
@@ -793,6 +801,7 @@ class Store {
       displayName: displayName || cleaned,
       role,
       passwordHash: passwordHash || null,
+      hostAdmin,
       images: {},
       createdAt: new Date().toISOString(),
     });

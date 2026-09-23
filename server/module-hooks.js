@@ -1,4 +1,4 @@
-// The hooks a module may ask Tavern to run for it: schedules (do something
+// The hooks a module may ask the host to run for it: schedules (do something
 // later) and notifications (tell people). A module never runs code on the
 // server; it declares the hooks in its manifest, the admin approves them, and
 // this file does the work. See documentation/architecture/architecture-modules.md.

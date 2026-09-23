@@ -1,4 +1,4 @@
-// What Tavern does to a photo a person uploads, without decoding it: find out what it is (from its own bytes, never from what the
+// What the app does to a photo a person uploads, without decoding it: find out what it is (from its own bytes, never from what the
 // sender says), read the few facts it carries (when it was taken, the camera, where), and take out everything else that rides along
 // (text chunks, thumbnails, maker notes, editing history, the position unless the person keeps it). The picture's own data is
 // untouched, so this is fast, adds no dependency and cannot make a picture worse. Resizing and a thumbnail are made by the page

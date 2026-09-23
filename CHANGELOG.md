@@ -507,6 +507,31 @@ logo is 43px in a 44px bar. Not checked on the room page or in a call.
   `node tools/wiki-sync.mjs build` (builds 14 pages, Home and a sidebar); the guides themselves have
   not been walked in a running server.
 
+### Added
+- The person running the whole deployment can sign into any one environment with their own host-console
+  login, server side: `POST /api/login` and the product page's `POST /login` fall back to the host
+  registry when an environment's own users don't match, ensuring a user record for that login there
+  (`hostAdmin: true`, no password of its own -- `PATCH /api/users/:key` refuses to change one) rather
+  than asking for a second account per environment. Never applied when a different, ordinary user
+  already owns that login in that environment. Verified live: signing in at a tenant with the host
+  admin's own login and password (JSON and the form route both), a wrong password still refused, the
+  ensured user's password change refused with a plain message while its other fields stay editable.
+
+### Changed
+- The word "tavern" is out of the server's own code (the author: the product isn't named that).
+  `PRODUCT_NAME` now defaults to "Coffee Pub Magpie"; an environment's own name is its server name,
+  migrated once on start for any environment still on the old shipped default (the default environment
+  to `PRODUCT_NAME`, a tenant to its registry name) so an environment created before this never needs
+  retyping. The session cookie is `app_session` now (`tavern_session` still read, so nobody is signed
+  out); the settings file is `app.json` now (`tavern.json` renamed on start, per environment);
+  `ADMIN_USER`/`ADMIN_PASSWORD`/`ADMIN_KEY` and `AI_KEY` replace `TAVERN_ADMIN_USER`/
+  `TAVERN_ADMIN_PASSWORD`/`TAVERN_ADMIN_KEY`/`TAVERN_AI_KEY`, the old names still honoured (a compose
+  file in the wild keeps working) and documented here as deprecated. A brand new install's default
+  LiveKit room name is `table` now, not `tavern` -- an existing install's own value is never touched.
+  Verified live: an old `tavern_session` cookie still signs a request in, a `tavern.json` install
+  renames to `app.json` and starts, `TAVERN_ADMIN_PASSWORD` alone still bootstraps the admin, a new
+  environment's `serverName` is its own name and a pre-existing one's migrates on start.
+
 ## [0.3.0]
 
 ### Added

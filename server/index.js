@@ -1,6 +1,6 @@
 'use strict';
 
-// Coffee Pub Tavern server: accounts, pages, images and LiveKit tokens.
+// The app's own server: accounts, pages, images and LiveKit tokens.
 
 const fs = require('fs');
 const path = require('path');
@@ -38,18 +38,27 @@ const {
   LIVEKIT_API_URL = '',
   LIVEKIT_API_KEY = '',
   LIVEKIT_API_SECRET = '',
-  TAVERN_ADMIN_USER = 'admin',
-  TAVERN_ADMIN_PASSWORD = '',
-  TAVERN_ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
+  ADMIN_USER = '',
+  ADMIN_PASSWORD = '',
+  ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
+  TAVERN_ADMIN_USER = '', // deprecated: use ADMIN_USER
+  TAVERN_ADMIN_PASSWORD = '', // deprecated: use ADMIN_PASSWORD
+  TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_KEY
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
   MIGRATE_TENANT_SLUG = '',
   HOST_ADMIN_LOGIN = '',
   HOST_ADMIN_PASSWORD = '',
-  PRODUCT_NAME = 'Coffee Pub Tavern', // the product's own name, still being chosen -- configuration, never code
+  PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
 } = process.env;
+
+// The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
+// name always winning when both are set.
+const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
+const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
+const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 
 const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
 
@@ -123,12 +132,14 @@ if (hostRegistry) {
   hostRegistry.setPreviousBaseDomains(PREVIOUS_BASE_DOMAINS);
 }
 
-// First start with BASE_DOMAIN set and data at DATA_DIR/tavern.json (a pre-tenant install): refuses to start
+// First start with BASE_DOMAIN set and data still at DATA_DIR's own root (a pre-tenant install -- its settings
+// file is app.json now, or still tavern.json if it has not been started since that rename): refuses to start
 // until told which environment that data becomes.
 function migrateIfNeeded() {
-  if (!BASE_DOMAIN || !fs.existsSync(path.join(DATA_DIR, 'tavern.json'))) return;
+  const preTenant = fs.existsSync(path.join(DATA_DIR, 'app.json')) || fs.existsSync(path.join(DATA_DIR, 'tavern.json'));
+  if (!BASE_DOMAIN || !preTenant) return;
   if (!MIGRATE_TENANT_SLUG) {
-    console.error(`BASE_DOMAIN is set and ${path.join(DATA_DIR, 'tavern.json')} is a pre-tenant install. Set MIGRATE_TENANT_SLUG=<slug> for one start to move it to that environment, then remove it.`);
+    console.error(`BASE_DOMAIN is set and ${DATA_DIR} is a pre-tenant install. Set MIGRATE_TENANT_SLUG=<slug> for one start to move it to that environment, then remove it.`);
     process.exit(1);
   }
   const slug = cleanSlug(MIGRATE_TENANT_SLUG);
@@ -153,8 +164,15 @@ function environmentFor(slug) {
   const dataDir = slug ? path.join(DATA_DIR, 'tenants', slug) : DATA_DIR;
   env = buildEnvironment(dataDir, {
     slug: slug || null,
-    admin: slug ? null : { login: TAVERN_ADMIN_USER, password: TAVERN_ADMIN_PASSWORD || TAVERN_ADMIN_KEY },
+    admin: slug ? null : { login: adminUser, password: adminPassword || adminKey },
   });
+  // An environment's own name is its server name (the author's call). Still on the shipped sentinel default --
+  // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
+  // right here: the default environment gets the product's own name, a tenant its registry name. Runs on every
+  // build, not just the first, so an install that skipped a few versions catches up on its next start too.
+  if (env.store.settings.serverName === 'Coffee Pub Tavern') {
+    env.store.updateSettings({ serverName: slug ? (hostRegistry.findTenant(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
+  }
   environments.set(key, env);
   return env;
 }
@@ -211,7 +229,7 @@ async function mintToken({ identity, name, room, publisher, media = publisher, i
   return token.toJwt();
 }
 
-// Each Tavern room is its own LiveKit room: the Lobby keeps the base name
+// Each room here is its own LiveKit room: the Lobby keeps the base name
 // (so links and the Studio from before rooms still work), the others hang
 // their id off it. One LiveKit behind every environment (plan-tenants.md): with BASE_DOMAIN set, the base name
 // is prefixed with the environment's own slug, so two environments with the same "room" setting never collide --
@@ -325,6 +343,23 @@ function setEnvHint(req, res) {
   res.cookie('env_hint', slugs.join(','), { domain: BASE_DOMAIN, path: '/', sameSite: 'lax', secure: auth.isSecure(req), maxAge: 365 * 86400000, httpOnly: false });
 }
 
+// A login and password checked against this environment's own users first, same as always; when that fails and
+// there is a host registry, checked against the host admins there too -- the person running the whole deployment
+// should be able to sign into any one of them. A match against the registry never touches that user's password
+// inside the environment: it only ensures a user record exists for that login (hostAdmin: true, passwordHash
+// always null, so nothing here can ever authenticate as it directly -- see PATCH /api/users/:key's refusal), so
+// the check always goes back to the registry, every time. Never applied when a *different*, ordinary user
+// already owns that login here: a name collision just means the host admin cannot sign in with that particular
+// login at this one environment, never that they take over someone else's account.
+function resolveLoginUser(login, password) {
+  const user = store.userByLogin(login);
+  if (user && user.passwordHash && auth.verifyPassword(password, user.passwordHash)) return user;
+  if (!hostRegistry || (user && !user.hostAdmin)) return null;
+  const admin = hostRegistry.findAdminByLogin(login);
+  if (!admin || !auth.verifyPassword(password, admin.passwordHash)) return null;
+  return user || store.addUser({ login, displayName: login, role: 'admin', passwordHash: null, hostAdmin: true });
+}
+
 function hasStreamKey(req) {
   const given = String(req.query.s || req.get('x-stream-key') || '');
   const wanted = store.streamKey;
@@ -386,6 +421,7 @@ function publicUser(req, u) {
     login: u.login,
     displayName: u.displayName,
     role: u.role,
+    hostAdmin: u.hostAdmin, // signs in through the host console, not a password of its own -- see resolveLoginUser
     hasPassword: !!u.passwordHash,
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
@@ -423,7 +459,7 @@ function escapeXml(text) {
 function initialsSvg(name) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">` +
     `<rect width="400" height="400" rx="24" fill="#241c16"/>` +
-    `<text x="200" y="222" text-anchor="middle" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="150" font-weight="700" fill="#c8873a">${escapeXml(initials(name))}</text>` +
+    `<text x="200" y="200" text-anchor="middle" dominant-baseline="central" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="140" font-weight="700" fill="#c8873a">${escapeXml(initials(name))}</text>` +
     `</svg>`;
 }
 
@@ -756,9 +792,8 @@ app.post('/login', loginForm, (req, res) => {
   const login = String(req.body?.login || '');
   const fail = () => res.redirect(303, `/login?error=1&login=${encodeURIComponent(login)}`);
   if (limiter.blocked(ip)) return fail();
-  const user = store.userByLogin(login);
-  const ok = user && user.passwordHash && auth.verifyPassword(String(req.body?.password || ''), user.passwordHash);
-  if (!ok) {
+  const user = resolveLoginUser(login, String(req.body?.password || ''));
+  if (!user) {
     limiter.fail(ip);
     return fail();
   }
@@ -929,7 +964,7 @@ app.get('/manifest.webmanifest', (_req, res) => {
   icons.push({ src: '/assets/images/brand/brandmark-color.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' });
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
     name: s.serverName,
-    short_name: s.serverName.length > 12 ? 'Tavern' : s.serverName,
+    short_name: s.serverName.length > 12 ? s.serverName.slice(0, 12) : s.serverName,
     description: `${s.serverName}: voice and video for the table`,
     start_url: '/',
     scope: '/',
@@ -1014,9 +1049,8 @@ app.get('/api/config', (req, res) => res.json({ livekitUrl: livekitWsUrl(req), .
 app.post('/api/login', (req, res) => {
   const ip = req.ip || 'unknown';
   if (limiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a few minutes' });
-  const user = store.userByLogin(req.body?.login);
-  const ok = user && user.passwordHash && auth.verifyPassword(req.body?.password || '', user.passwordHash);
-  if (!ok) {
+  const user = resolveLoginUser(req.body?.login, req.body?.password || '');
+  if (!user) {
     limiter.fail(ip);
     return res.status(401).json({ error: 'wrong username or password' });
   }
@@ -1089,8 +1123,8 @@ app.get('/api/me', requireUser, (req, res) => {
 // and must belong to the room; OBS viewers need the stream key.
 app.post('/api/token', async (req, res) => {
   const roomId = typeof req.body?.room === 'string' && req.body.room ? req.body.room : LOBBY;
-  const tavernRoom = store.roomById(roomId);
-  if (!tavernRoom) return res.status(404).json({ error: 'no such room' });
+  const theRoom = store.roomById(roomId);
+  if (!theRoom) return res.status(404).json({ error: 'no such room' });
   const room = livekitRoomName(roomId);
   if (req.body?.role === 'viewer') {
     if (!hasStreamAccess(req)) return res.status(403).json({ error: 'stream key required' });
@@ -1099,7 +1133,7 @@ app.post('/api/token', async (req, res) => {
   }
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
-  if (!tavernRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
+  if (!theRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
   const media = Boolean(store.roomPermissions(user.key, roomId).conference);
   const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
   res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId, conference: media });
@@ -1108,20 +1142,20 @@ app.post('/api/token', async (req, res) => {
 // Guests: no account, just a name and a room's guest link (see the
 // guest-link routes above). Public -- there's nothing to sign in with.
 app.get('/api/guest-link/:token', (req, res) => {
-  const tavernRoom = store.roomByGuestToken(req.params.token);
-  if (!tavernRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
-  res.json({ roomId: tavernRoom.id, roomName: tavernRoom.name });
+  const theRoom = store.roomByGuestToken(req.params.token);
+  if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  res.json({ roomId: theRoom.id, roomName: theRoom.name });
 });
 app.post('/api/guest-join', async (req, res) => {
-  const tavernRoom = store.roomByGuestToken(req.body?.token);
-  if (!tavernRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  const theRoom = store.roomByGuestToken(req.body?.token);
+  if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
   const name = cleanText(req.body?.name, 40);
   if (!name) return res.status(400).json({ error: 'a name is required' });
   const identity = `guest-${randomToken(8)}`;
-  const room = livekitRoomName(tavernRoom.id);
+  const room = livekitRoomName(theRoom.id);
   const permissions = store.roleSet('guest');
   const token = await mintToken({ identity, name, room, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: tavernRoom.id, roomName: tavernRoom.name, guestToken: req.body.token, permissions });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: theRoom.id, roomName: theRoom.name, guestToken: req.body.token, permissions });
 });
 
 // A user may replace or clear their own profile photo. This is separate from
@@ -1198,7 +1232,7 @@ app.post('/api/presence', requireUser, (req, res) => {
 });
 
 // An invitation to a conversation of two: a private room (off the record, like an aside) for the inviter and the
-// person invited, who is told wherever they have Tavern open (the notification stream) and can join or decline.
+// person invited, who is told wherever they have the app open (the notification stream) and can join or decline.
 // It lives a couple of minutes; the room is swept away when nobody is in it, as any aside is.
 const INVITE_MS = 2 * 60 * 1000;
 app.post('/api/table/invite', requireUser, (req, res) => {
@@ -1438,6 +1472,9 @@ app.post('/api/users', requireAdmin, (req, res) => {
 
 app.patch('/api/users/:key', requireAdmin, (req, res) => {
   const { login, displayName, role, password, player } = req.body || {};
+  if (password !== undefined && store.userByKey(req.params.key)?.hostAdmin) {
+    throw new StoreError('this account signs in through the host console; its password cannot be changed here');
+  }
   const patch = {};
   if (login !== undefined) patch.login = login;
   if (displayName !== undefined) patch.displayName = displayName;
@@ -1547,13 +1584,13 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 // Settings > Roles: the permission list and every role's grid of on/off.
 // Modules (Manage > Modules): upload a zip, approve what it asks for, turn it
 // on, roll back, uninstall. See docs/MODULES.md.
-// The two panes that ship with Tavern, listed beside the installed modules. They are always on and
+// The two panes that ship with the app, listed beside the installed modules. They are always on and
 // cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
 const BUILTIN_MODULES = [
   { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the room: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every room. Chat, presence and modules keep working.', turnOn: 'Voice and video for the room. It needs a LiveKit server.' },
   { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the room, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
 ];
-// Modules that ship with this Tavern (the modules/ folder of the deployment), and where each stands:
+// Modules that ship with this deployment (the modules/ folder), and where each stands:
 // not installed, installed and current, or installed with a newer version available. Installing or
 // updating one builds its zip on the server, so nothing has to be uploaded; it then goes through the
 // same approval as any zip (an update that asks for something new waits for the admin).
@@ -1571,7 +1608,7 @@ function bundledList() {
 app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => (b.setting ? { ...b, enabled: store.settings[b.setting] !== false } : b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
 app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
   const id = req.params.id;
-  if (!bundledModules(BUNDLED_DIR).some((m) => m.id === id)) return res.status(404).json({ error: 'that module does not ship with this Tavern' });
+  if (!bundledModules(BUNDLED_DIR).some((m) => m.id === id)) return res.status(404).json({ error: 'that module does not ship with this deployment' });
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
   res.status(201).json({ module: await modules.install(zip, { source: 'bundled' }) });
 });
@@ -1767,13 +1804,13 @@ app.get('/api/modules/:id/rooms-data', (req, res) => {
 });
 
 // --- refs: one module pointing at another's items ---------------------------
-// Modules cannot reach each other's storage, and that stays. Tavern knows nothing about any module's
+// Modules cannot reach each other's storage, and that stays. The host knows nothing about any module's
 // items; it offers conduits. A module declares in its manifest the kinds of item it lets others point
 // at (`refs.produces`: a kind, the stored key its items live under, which stored fields make up a
 // small card, and whether it can open one or show what links to it) and which kinds it wants to point
 // at (`refs.consumes`: named kinds, or "*" for whatever other modules share; approved by an admin).
-// The consumer stores only a pointer ({ module, kind, id, scope, room }) and asks Tavern for the card
-// whenever it draws it. Tavern answers only what the viewer could already see in the producing
+// The consumer stores only a pointer ({ module, kind, id, scope, room }) and asks the host for the card
+// whenever it draws it. The host answers only what the viewer could already see in the producing
 // module: it must be enabled, the viewer must hold its read permission in that scope (and be in the
 // room), and the consumer must have been approved for that kind. What comes back is the card, never
 // the stored record. Nothing here names a module: a module installed tomorrow takes part by declaring.
@@ -1955,7 +1992,7 @@ app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
   res.status(out.status || 200).json(out);
 });
 
-// Links: a module tells Tavern which items one of its items points at, so the items pointed at can
+// Links: a module tells the host which items one of its items points at, so the items pointed at can
 // ask what points at them. `module` is the asking module, `from` one of its own items, `to` the items
 // it now points at (the whole list: it replaces the last). Each target must be something the viewer
 // can see and the module is approved to link to, and the viewer must be able to write to the module.
@@ -2032,7 +2069,7 @@ app.get('/api/refs/links', (req, res) => {
 });
 
 // --- events and actions: modules reacting to and asking things of each other -------------------
-// Like refs, Tavern is only the conduit. A module declares in module.json the events it publishes and
+// Like refs, the host is only the conduit. A module declares in module.json the events it publishes and
 // the ones it wants to hear (`events`), and the actions it provides and the ones it wants to ask
 // for (`actions`); an admin approves what a module hears and asks for; this code checks who may do
 // what and carries the messages, and knows nothing of what any of them mean. An event is delivered
@@ -2250,14 +2287,14 @@ app.get('/api/bus/actions/status', busRoute((who, req) => {
 }));
 
 // --- what modules have been doing ------------------------------------------------------------
-// The last things modules did through Tavern (data they saved, events they published, actions they asked
+// The last things modules did through the host (data they saved, events they published, actions they asked
 // for), so an admin can see, above all for a module running in the page, what it has been up to. Only
-// what passes through Tavern is seen: a module in the page can also do things Tavern never hears of.
+// what passes through the host is seen: a module in the page can also do things the host never hears of.
 // Kept across a restart (DATA_DIR/modules/activity.json, written a few seconds after a change and on exit).
 // Built per environment in server/environment.js (moduleActivity, noteActivity); the event wiring below it
 // (a change, a published event, an action asked for -> a line in the activity list) is wired there too.
 
-// How often a module may do things through Tavern (see server/module-limits.js). Over the limit is a 429 and, the
+// How often a module may do things through the host (see server/module-limits.js). Over the limit is a 429 and, the
 // first time in a while, a line in the activity list so an admin can see which module is being slowed.
 function overLimit(moduleId, by, kind) {
   const r = moduleLimits.take(moduleId, by || 'guest', kind);
@@ -2273,7 +2310,7 @@ app.get('/api/modules/activity', requireAdmin, (_req, res) => {
 });
 
 // Modules with a page of their own that this viewer can open: the header nav.
-// The pre-made backgrounds that ship with Tavern (see server/backgrounds.js), for the picker beside an image slot.
+// The pre-made backgrounds that ship with the app (see server/backgrounds.js), for the picker beside an image slot.
 const backgrounds = new Backgrounds(path.join(publicDir, 'assets', 'images', 'backgrounds'));
 app.get('/api/backgrounds', (req, res) => {
   if (!currentUser(req)) return res.status(401).json({ error: 'sign in first' });
@@ -2312,7 +2349,7 @@ app.get('/api/modules/widgets', (req, res) => {
 
 // --- module settings -------------------------------------------------------------------------------------
 // What a module declares (module.json `settings`) and what people choose (server/module-settings.js). A module reads
-// the values that apply to the viewer; the forms that change them are drawn by Tavern on the Modules tab (the server's),
+// the values that apply to the viewer; the forms that change them are drawn by the host on the Modules tab (the server's),
 // a room's own page (the room's) and the profile page (a person's own). Who may change what: the server's, an admin; a
 // room's, an admin or one of that room's moderators; a person's own, that person.
 
@@ -2344,7 +2381,7 @@ app.put('/api/ai', requireAdmin, (req, res) => {
     }
     const after = ai.set(req.body || {});
     if (before.enabled && !after.enabled) for (const m of modules.aiDependents()) modules.update(m.id, { enabled: false, force: true });
-    noteActivity('tavern', `changed the AI setting (${after.provider}${after.keySet && !before.keySet ? ', key set' : ''})`, currentUser(req)?.key, null);
+    noteActivity('host', `changed the AI setting (${after.provider}${after.keySet && !before.keySet ? ', key set' : ''})`, currentUser(req)?.key, null);
     res.json({ ai: after, usage: ai.usageView(), dependents: modules.aiDependents() });
   } catch (err) {
     sendAiError(err, res);
@@ -2609,7 +2646,7 @@ app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
   }
 });
 // Progress, in words and a percentage, over server-sent events; a late subscriber gets the job's current state first, and
-// one already finished (or one Tavern has never heard of) is told so at once rather than hanging.
+// one already finished (or one the host has never heard of) is told so at once rather than hanging.
 app.get('/api/modules/:id/region-cut/:jobId/stream', requireAdmin, (req, res) => {
   const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const found = modules.enabled(req.params.id);
@@ -2693,7 +2730,7 @@ function describeModuleFiles(id, sub) {
   const f = inspectModuleFiles(id, sub);
   if (!f.exists) return `${f.folder} does not exist yet`;
   const skipped = f.skipped.map((s) => `${s.name} (${s.reason})`).join('; ');
-  return `${f.folder} has ${f.files.length} usable file${f.files.length === 1 ? '' : 's'}${f.files.length ? ': ' + f.files.join(', ') : ''}${f.skipped.length ? `; Tavern ignored ${f.skipped.length}: ${skipped}` : ''}`;
+  return `${f.folder} has ${f.files.length} usable file${f.files.length === 1 ? '' : 's'}${f.files.length ? ': ' + f.files.join(', ') : ''}${f.skipped.length ? `; ignored ${f.skipped.length}: ${skipped}` : ''}`;
 }
 // A file for a module page, with range requests (what a map archive is read with). Needs the same access as reading
 // the module's data in that place.
@@ -2827,7 +2864,7 @@ app.get('/modules/:id', (req, res) => {
 });
 
 // The module's own files. Sandboxed by header, so even opened directly they
-// run with no access to Tavern's pages or cookies, and can only load their own files.
+// run with no access to the app's pages or cookies, and can only load their own files.
 app.get('/m/:id/:version/*path', (req, res) => {
   const rel = [].concat(req.params.path).join('/');
   const file = modules.resolveFile(req.params.id, req.params.version, rel);
@@ -3184,11 +3221,11 @@ app.listen(Number(PORT), () => {
   if (!BASE_DOMAIN) {
     envContext.run(environmentFor(DEFAULT_SLUG), () => {
       console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
-      // A module that takes a file the operator supplies: say where Tavern looks and what it found, once.
+      // A module that takes a file the operator supplies: say where it looks and what it found, once.
       for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m.id, d.folder)}`);
       if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
     });
     return;
   }
-  console.log(`Coffee Pub Tavern ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at admin.${BASE_DOMAIN}`);
+  console.log(`${PRODUCT_NAME} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at admin.${BASE_DOMAIN}`);
 });

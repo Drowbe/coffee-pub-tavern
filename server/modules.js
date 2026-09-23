@@ -164,7 +164,7 @@ function cleanRefs(rawRefs, id) {
   return refs;
 }
 
-// Events and actions: how modules react to and ask things of each other, carried by Tavern without
+// Events and actions: how modules react to and ask things of each other, carried by the host without
 // naming any module. A module lists the events it `publishes` and the ones it wants to hear
 // (`subscribes`), and the actions it `provides` (a name, a label, the input it takes) and the ones it
 // wants to ask for (`uses`). What a module subscribes to or uses is approved by an admin, like refs.
@@ -607,7 +607,7 @@ class ModuleManager {
     return Object.keys(this.registry.modules).map((id) => this.view(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  // Where a module runs. A module that ships with Tavern is the server's own code and runs in the page;
+  // Where a module runs. A module that ships with the app is the server's own code and runs in the page;
   // an uploaded one runs in a sandboxed frame, unless an admin chose otherwise for it and accepted what
   // that means (see update). `sandbox`: a frame that can reach only what the SDK lets it. `page`: in
   // the page in a container of its own, with the page's own power.
@@ -661,7 +661,7 @@ class ModuleManager {
     entry.versions.push(manifest.version);
     entry.version = manifest.version;
     entry.updatedAt = now;
-    entry.source = source; // 'bundled' (shipped with this Tavern) or 'upload'
+    entry.source = source; // 'bundled' (shipped with this deployment) or 'upload'
     // An upgrade that asks for anything new goes back to waiting for approval.
     if (this.hasPending(this.pendingFor(entry, manifest))) entry.enabled = false;
     this.registry.modules[manifest.id] = entry;
@@ -708,7 +708,7 @@ class ModuleManager {
       }
     }
     // Running in the page gives a module the page's own power, so for an uploaded module the admin has to
-    // say they understand (`acceptRisk`); one that ships with Tavern already does. Sandboxed is always allowed.
+    // say they understand (`acceptRisk`); one that ships with the app already does. Sandboxed is always allowed.
     if (patch.runMode !== undefined) {
       if (patch.runMode === 'sandbox') {
         entry.runMode = 'sandbox';

@@ -1,6 +1,6 @@
 // The settings a module declares (module.json `settings`) and the values people choose for them. A setting has a
 // scope that says who chooses it and where it is kept: the whole `server` (an admin), one `room` (an admin or that
-// room's moderators), or each `person` (themselves). Tavern draws the forms and keeps the values; a module only
+// room's moderators), or each `person` (themselves). The host draws the forms and keeps the values; a module only
 // reads them. Values are plain data (a yes/no, a choice, a number or a short text), never secrets. Persists to
 // DATA_DIR/modules/settings.json.
 

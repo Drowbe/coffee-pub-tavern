@@ -1,5 +1,5 @@
 // What passes between modules besides pointers: events (a module says something happened) and
-// actions (a module asks another to do something). Tavern is only the transport. It does not know
+// actions (a module asks another to do something). The host is only the transport. It does not know
 // what any event or action means: modules declare them in module.json, an admin approves who may
 // hear and who may ask, and this file keeps them until someone can act on them.
 //

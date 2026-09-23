@@ -1,4 +1,4 @@
-// The pre-made background images that ship with Tavern (public/assets/images/backgrounds), read from the file names:
+// The pre-made background images that ship with the app (public/assets/images/backgrounds), read from the file names:
 //   background-<theme>-<style>-<name>-<index>.webp   e.g. background-fantasy-pattern-orange-01.webp
 // Each part is lower-case letters and digits (no hyphen inside a part), the index is two digits. A file that does not match is
 // skipped and named once in the log, so a mistyped name is found. The list is read again when the folder changes.

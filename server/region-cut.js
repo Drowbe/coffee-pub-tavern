@@ -37,7 +37,7 @@ function validBox(b) {
 }
 const bboxArg = (b) => `--bbox=${[b.minLon, b.minLat, b.maxLon, b.maxLat].map((n) => Math.round(n * 1e6) / 1e6).join(',')}`;
 
-// The source address: https only, no embedded credentials (the same rule every other url setting in Tavern holds to).
+// The source address: https only, no embedded credentials (the same rule every other url setting in the app holds to).
 function validSource(url) {
   try {
     const u = new URL(String(url || ''));
@@ -142,7 +142,7 @@ class RegionCutJobs extends EventEmitter {
     if (!validBox(box)) throw new RegionCutError('that is not a sensible area');
     if (!Number.isInteger(maxZoom) || maxZoom < 0 || maxZoom > MAX_ZOOM) throw new RegionCutError(`the zoom must be 0 to ${MAX_ZOOM}`);
     if (minZoom !== undefined && (!Number.isInteger(minZoom) || minZoom < 0 || minZoom > maxZoom)) throw new RegionCutError('the minimum zoom must be 0 or more, and no higher than the maximum');
-    const tmp = path.join(os.tmpdir(), `tavern-region-estimate-${crypto.randomBytes(6).toString('hex')}.pmtiles`);
+    const tmp = path.join(os.tmpdir(), `app-region-estimate-${crypto.randomBytes(6).toString('hex')}.pmtiles`);
     const args = ['extract', source, tmp, bboxArg(box), `--maxzoom=${maxZoom}`, '--dry-run'];
     if (Number.isInteger(minZoom)) args.push(`--minzoom=${minZoom}`);
     const { code, output } = await this.run(args, { timeoutMs: ESTIMATE_TIMEOUT_MS });

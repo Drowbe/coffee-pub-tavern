@@ -1,7 +1,7 @@
 // Builds a module's zip from its source folder (modules/<id>/): module.json plus src/<id>.html,
 // .css and .js, with the CSS and JS inlined into the HTML (a module page loads nothing else; see
 // documentation/api/api-module-sdk.md). Used by tools/build-module.mjs to write a zip to upload,
-// and by the server to install or update a module that ships with Tavern without uploading one.
+// and by the server to install or update a module that ships with the app without uploading one.
 'use strict';
 
 const fs = require('fs');
@@ -90,7 +90,7 @@ function buildModule(dir) {
   return { manifest, fileCount: files.length, zip: zipFiles(files) };
 }
 
-// The modules that ship with this Tavern: a folder under modules/ with a module.json and a src/.
+// The modules that ship with this deployment: a folder under modules/ with a module.json and a src/.
 function bundledModules(rootDir) {
   const out = [];
   let names = [];
