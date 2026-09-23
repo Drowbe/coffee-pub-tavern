@@ -88,6 +88,16 @@ host ever learning who anyone is (accounts live inside each environment, not in 
   the page's own dropdown: every `active` or `pastDue` tenant, sorted by name, suspended ones left out entirely
   (not even a slug -- unlike the single lookup above, there is no address a visitor already has here to confirm).
   `{ environments: [] }` when there is no `hostRegistry` at all.
+- `POST /login` (form-encoded, `login`/`password`/`next`; each environment's own, registered on the main app like
+  `POST /api/login`) is the page's actual sign-in: a top-level form post from `https://<slug>.<base>/login`, so
+  the session cookie is set first-party with no cross-origin request involved. Same check as the JSON route
+  (`store.userByLogin`, `auth.verifyPassword`, the environment's own `limiter`, a `LoginLimiter` shared with
+  `POST /api/login` since it is the same `proxyFor('limiter')`), but a redirect instead of a JSON body: success
+  sets the session and `env_hint` exactly as `POST /api/login` does, then `303`s to `next` when it is a path on
+  this environment (`safeNextPath` requires a single leading `/` -- a second one, as in `//evil.com`, is a
+  protocol-relative URL to a browser, not a path), `/` otherwise; blocked-by-the-limiter or a wrong login/password
+  both `303` to `/login?error=1&login=<login>`, indistinguishable from each other, same as the JSON route's own
+  single "wrong username or password".
 
 Because `AsyncLocalStorage` context follows the real async causality chain (promises, `await`, timers,
 `EventEmitter.emit`), a route handler can `await` anything, register a `setInterval`, or call `moduleBus.on(...)`

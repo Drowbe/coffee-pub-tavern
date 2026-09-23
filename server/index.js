@@ -741,6 +741,34 @@ app.get('/login', (req, res) => {
   res.sendFile(page('login.html'));
 });
 
+// The product page's own Sign in ends here: a plain top-level form post (never JSON, so nothing crosses
+// origins), on success a session exactly like POST /api/login, then a redirect rather than a JSON body -- a
+// path on this environment, never off it (so a scheme, a host or even a second leading slash, which a browser
+// reads as scheme-relative, falls back to "/"). A wrong login and password looks the same as a wrong password,
+// same as the JSON route.
+const loginForm = express.urlencoded({ extended: false, limit: '8kb' });
+function safeNextPath(next) {
+  const value = String(next || '');
+  return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/';
+}
+app.post('/login', loginForm, (req, res) => {
+  const ip = req.ip || 'unknown';
+  const login = String(req.body?.login || '');
+  const fail = () => res.redirect(303, `/login?error=1&login=${encodeURIComponent(login)}`);
+  if (limiter.blocked(ip)) return fail();
+  const user = store.userByLogin(login);
+  const ok = user && user.passwordHash && auth.verifyPassword(String(req.body?.password || ''), user.passwordHash);
+  if (!ok) {
+    limiter.fail(ip);
+    return fail();
+  }
+  limiter.clear(ip);
+  const token = auth.issueSession(store.sessionSecret, user);
+  auth.setSessionCookie(req, res, token);
+  setEnvHint(req, res);
+  res.redirect(303, safeNextPath(req.body?.next));
+});
+
 // Self sign-up (only does anything once an admin turns it on in Settings)
 // and accepting an invite (always works, whether or not sign-up is open --
 // an admin handed it out on purpose) share the same page; register.js tells
