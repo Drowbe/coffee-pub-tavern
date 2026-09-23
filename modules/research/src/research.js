@@ -38,6 +38,7 @@
   const scopeOf = () => (view === 'my' ? 'person' : 'room');
   const allowed = { my: personal, room: inRoom };
 
+  let tagsButton = null; // the toolbar's Tags chooser, made at start (render sets its label)
   const state = {
     people: [],
     filter: '',
@@ -215,7 +216,11 @@
     }
     for (const b of $('kinds').querySelectorAll('.rs-chip')) b.classList.toggle('on', b.dataset.kind === state.kind);
     const counts = tagCounts(all);
-    $('tag-chips').replaceChildren(...counts.map(({ tag }) => { const c = tagNode(tag, 'tpl-chip-tag'); c.dataset.tag = tag; c.classList.toggle('on', state.tags.includes(tag)); return c; }));
+    // Only the tags chosen as filters show here, each with an x; every tag in use is in the toolbar's Tags chooser.
+    state.tags = state.tags.filter((t) => counts.some((c) => c.tag === t)); // a tag no item carries any more drops out
+    $('tag-chips').replaceChildren(...state.tags.map((tag) => { const c = tagNode(tag, 'tpl-chip-tag'); c.dataset.tag = tag; return c; }));
+    hide($('tag-chips'), !state.tags.length);
+    if (tagsButton) tagsButton.set({ label: state.tags.length ? `Tags ${state.tags.length}` : 'Tags', on: state.tags.length > 0 });
     const dl = $('tag-list');
     dl.replaceChildren(...counts.map(({ tag }) => { const o = document.createElement('option'); o.value = tag; return o; }));
     const shown = visible();
@@ -260,12 +265,34 @@
 
   $('filter').addEventListener('input', () => { state.filter = $('filter').value; render(); });
   $('kinds').addEventListener('click', (ev) => { const b = ev.target.closest('.rs-chip'); if (b) { state.kind = b.dataset.kind; render(); } });
+  // A chosen tag's chip drops that tag from the filter; choosing one is the toolbar's Tags menu (openTagMenu).
   $('tag-chips').addEventListener('click', (ev) => {
     const b = ev.target.closest('.rs-chip');
     if (!b) return;
-    state.tags = state.tags.includes(b.dataset.tag) ? state.tags.filter((t) => t !== b.dataset.tag) : [...state.tags, b.dataset.tag];
+    state.tags = state.tags.filter((t) => t !== b.dataset.tag);
     render();
   });
+  // The tag chooser: every tag in use with its count, the chosen ones ticked; a pick adds or drops one and closes, and the
+  // chip row under the kinds shows what is chosen. Opens at the top right of the pane, under the toolbar's button.
+  function openTagMenu() {
+    const counts = tagCounts(research.list());
+    const items = counts.map(({ tag, count }) => {
+      const on = state.tags.includes(tag);
+      const color = colorOf(tag);
+      return {
+        id: `tag:${tag}`,
+        label: tag,
+        hint: `${count} item${count === 1 ? '' : 's'}${on ? ' · filtering' : ''}`,
+        icon: on ? 'square-check' : 'square',
+        regular: !on,
+        ...(color ? { iconColor: color } : {}),
+        onClick: () => { state.tags = on ? state.tags.filter((t) => t !== tag) : [...state.tags, tag]; render(); },
+      };
+    });
+    if (!items.length) items.push({ id: 'none', label: 'No tags yet', hint: 'Tags are added when you edit an item', disabled: true });
+    if (state.tags.length) items.unshift({ id: 'clear', label: 'Clear tags', icon: 'xmark', onClick: () => { state.tags = []; render(); } }, { separator: true });
+    host.menu.show({ id: 'tags', at: { x: 100000, y: 4 }, items });
+  }
 
   // --- the item menu ------------------------------------------------------------------------------------------------
 
@@ -689,6 +716,7 @@
       render();
     },
   });
+  tagsButton = host.ui.toolbarButton({ id: 'tags', label: 'Tags', icon: 'tag', onClick: openTagMenu });
   async function showView(next) {
     if (!allowed[next]) next = inRoom ? 'room' : 'my';
     view = next;

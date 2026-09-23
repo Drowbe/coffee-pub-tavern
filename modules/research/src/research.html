@@ -70,7 +70,7 @@
 
 <!-- ============================ templates ============================ -->
 
-<template id="tpl-chip-tag"><button class="rs-chip tag" type="button"><span data-slot="label"></span></button></template>
+<template id="tpl-chip-tag"><button class="rs-chip tag on" type="button" title="Stop filtering by this tag"><span data-slot="label"></span><span class="x" aria-hidden="true">&times;</span></button></template>
 <!-- someone changed the item while it is open (as in Places) -->
 <template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
 <!-- a source of an answer, and anything else that points at another item: a small pill; .gone when the item is no longer there -->

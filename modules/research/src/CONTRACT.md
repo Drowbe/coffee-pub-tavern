@@ -11,7 +11,7 @@
   <header class="rs-head">                    h1 "Research", .count (the Mine/This room switch is in the toolbar, not here)
   <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
-  <div class="rs-chips">                      tag chips (.rs-chip.tag[style=--tag], .on)
+  <div class="rs-chips">                      the tags chosen as filters, only those (.rs-chip.tag[style=--tag], each with an .x to drop it); the chooser itself is the toolbar's Tags button (host.ui.toolbarButton), a menu of every tag in use with a count
   <main class="rs-body">                      .upload and .pos-ask when needed, then .rs-grid (cards, packed like masonry) or .rs-list (one row each) of .rcard, or .rs-empty
   <div class="rs-bar">                        the host's bottom bar is the quick add (see below)
 ```
@@ -61,7 +61,7 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 
 - `tpl-card` (`article.rcard`, the script sets `data-kind`, `data-id`): slots `thumb` (an `img`, its `src`), `kind`, `ai` (shown for an answer), `title`, `site`, `excerpt`, `tags` (holds `tpl-tag` clones, each with `--tag`), `when`, `place`, `by`; `button[data-action=menu]`.
 - `tpl-conflict` (as in Places: `text`, `use-theirs`, `keep-mine`), `tpl-source` (a pill for an answer's source; `.gone` when it is no longer there).
-- `tpl-chip-tag` (a tag chip in `#tag-chips`, `--tag`, `.on`), `tpl-tag`.
+- `tpl-chip-tag` (a chosen tag in `#tag-chips`, `--tag`, always `.on`, with its `.x`), `tpl-tag`. Chips are small rounded rectangles (5px), never pills.
 - `tpl-upload` (`.upload`: `name`, `progress`, `step`, `[data-action=retry-upload]`), `tpl-pos-ask` (`text`, `[data-action=keep-position]`, `[data-action=drop-position]`).
 - The dialog is one form, `#form.editor-card[data-kind=note|link|photo|answer]`; each row lists the kinds that show it in `data-kinds`, and the stylesheet hides the rest. Fields: `f-title`, `f-caption` (a photo), `f-url`, `f-body`, `f-excerpt`, `f-tags` (with `#tag-list`), `f-point` and `f-date`, `#f-asked` (an answer kept from Assistant: `asked`, `sources`), `f-by`, `f-error`, `f-save`, `f-cancel`, `f-delete`.
 - `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` ("Research this", hidden unless a module offers `askAssistant`), `delete`.

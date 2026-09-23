@@ -656,6 +656,30 @@
           },
         };
       },
+      // A button in the same toolbar row as the view switches (a chooser that opens a menu, say: Research's Tags),
+      // drawn after the switches made before it. { id, label?, icon?, iconOnly?, on?, onClick }. Returns
+      // { set({ label?, icon?, on? }), destroy() }; set() redraws only when something changed.
+      toolbarButton: ({ id, label, icon, iconOnly, on, onClick }) => {
+        let state = { label, icon, iconOnly: Boolean(iconOnly), on: Boolean(on) };
+        const off = host.on('toolbar', (e) => {
+          if (e.id === id && typeof onClick === 'function') onClick();
+        });
+        const mine = { item: () => ({ type: 'button', id, label: state.label, icon: state.icon, iconOnly: state.iconOnly, on: state.on }) };
+        switches.push(mine);
+        drawSwitches();
+        return {
+          set(next) {
+            state = { ...state, ...(next || {}) };
+            drawSwitches();
+          },
+          destroy: () => {
+            off();
+            const at = switches.indexOf(mine);
+            if (at >= 0) switches.splice(at, 1);
+            drawSwitches();
+          },
+        };
+      },
     },
 
     // Whether the viewer has one of this module's own permissions (by its

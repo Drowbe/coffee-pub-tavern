@@ -25,7 +25,7 @@ The Research module keeps what a group finds out while it plans: a note, a link 
 
 ## Find things
 
-The search box matches the title, the text, the site and the tags. The chips filter by kind (notes, links, photos, answers) and by tag; pick several tags to narrow further.
+The search box matches the title, the text, the site and the tags. The row under it filters by kind (notes, links, photos, answers). Tags are chosen from the **Tags** button in the toolbar: it lists every tag in use with how many items carry it; pick one and it appears beside the kinds as a filter, with an x to drop it. Pick several to narrow further (an item must carry all of them), and **Clear tags** at the top of the menu drops them all.
 
 ## Research this
 
