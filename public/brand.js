@@ -54,8 +54,10 @@ export async function loadBranding() {
   document.querySelectorAll('[data-brand="tableName"]').forEach((el) => (el.textContent = b.tableName));
   document.querySelectorAll('[data-brand="loginText"]').forEach((el) => (el.textContent = b.loginText));
   document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
-  const suffix = document.title.split(' - ').slice(1).join(' - ');
-  document.title = suffix ? `${b.serverName} - ${suffix}` : b.serverName;
+  // The page's own title ("Sign in", "Manage", or "<old server name> - Manage" on a second load) gets the server's name in front.
+  const parts = document.title.split(' - ');
+  const page = parts.length > 1 ? parts.slice(1).join(' - ') : ['Coffee Pub', b.serverName].includes(document.title.trim()) ? '' : document.title.trim();
+  document.title = page ? `${b.serverName} - ${page}` : b.serverName;
   let icon = document.querySelector('link[rel="icon"]');
   if (!icon) {
     icon = document.createElement('link');
