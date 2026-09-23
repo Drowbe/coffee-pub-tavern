@@ -2861,8 +2861,10 @@ function idleStages() {
   if (theirs) out.push(theirs);
   return out;
 }
-function wake() {
-  for (const s of idleStages()) s.classList.remove('idle');
+// `doc`: the document the movement happened in, so a pointer on the page does not bring the popped-out window's chrome
+// back (or the other way round); with none given, every stage wakes.
+function wake(doc = null) {
+  for (const s of idleStages()) if (!doc || s.ownerDocument === doc) s.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     // The settings popover, the reaction tray and the floating toolbar live inside the conference section, so they are in
@@ -2879,9 +2881,10 @@ function wake() {
   }, 2500);
 }
 function watchPointer(doc) {
-  doc.addEventListener('mousemove', wake);
-  doc.addEventListener('touchstart', wake, { passive: true });
-  doc.addEventListener('keydown', wake);
+  const here = () => wake(doc);
+  doc.addEventListener('mousemove', here);
+  doc.addEventListener('touchstart', here, { passive: true });
+  doc.addEventListener('keydown', here);
 }
 watchPointer(document);
 
