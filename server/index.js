@@ -705,7 +705,7 @@ if (BASE_DOMAIN) {
     if (host === BASE_DOMAIN) {
       if (req.path === '/') return res.sendFile(page('landing.html'));
       const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/api/product', '/api/product/environment', '/api/product/environments'];
-      if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/')) return next();
+      if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/') || req.path.startsWith('/assets/images/brand/')) return next();
       return res.status(404).type('text').send('not found');
     }
     if (host.endsWith(`.${BASE_DOMAIN}`)) {
@@ -848,7 +848,7 @@ function siteIcon(_req, res) {
   const env = envContext.getStore();
   const file = env && env.store.iconPath();
   if (file) return sendImage(res, file);
-  res.set('Cache-Control', 'no-cache').sendFile(path.join(publicDir, 'icon.png'));
+  res.set('Cache-Control', 'no-cache').sendFile(path.join(publicDir, 'assets', 'images', 'brand', 'brandmark-color.png'));
 }
 app.get('/img/site/icon', siteIcon);
 app.get('/favicon.ico', siteIcon);
@@ -926,7 +926,7 @@ app.get('/manifest.webmanifest', (_req, res) => {
   const custom = store.iconPath();
   const icons = [];
   if (custom && /\.png$/.test(custom)) icons.push({ src: '/img/site/icon', sizes: 'any', type: 'image/png' });
-  icons.push({ src: '/icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' });
+  icons.push({ src: '/assets/images/brand/brandmark-color.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' });
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
     name: s.serverName,
     short_name: s.serverName.length > 12 ? 'Tavern' : s.serverName,
