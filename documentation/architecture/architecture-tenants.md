@@ -56,7 +56,7 @@ The "door" is one middleware, registered right after `express.json()`, before an
 - **No `BASE_DOMAIN`:** `app.use((req, res, next) => envContext.run(environmentFor(''), next))`. Every request
   gets the one environment. This is the whole of the multi-tenant machinery's effect on a self-hosted install:
   one extra `AsyncLocalStorage.run` wrapping every request, resolving to the same environment every time.
-- **`BASE_DOMAIN` set:** the hostname picks a branch -- `host.<base>` dispatches to `hostRouter` (a separate
+- **`BASE_DOMAIN` set:** the hostname picks a branch -- `admin.<base>` dispatches to `hostRouter` (a separate
   `express.Router()`, never mounted on `app` directly, so a request there can never fall through to a route that
   needs an environment); the bare base domain gets a static placeholder; `<slug>.<base>` resolves that tenant's
   environment the same way the no-base-domain case resolves the default one; anything else is a plain 404. A
@@ -112,7 +112,7 @@ before phase 4's fuller scheme.
 
 ## The console
 
-`public/host.html` and `public/host.js`, served for `/` at `host.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; Delete arms on the first click and acts on the second. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; Delete arms on the first click and acts on the second. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
 
 ## Adding a new module-level singleton
 

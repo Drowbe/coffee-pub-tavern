@@ -442,7 +442,7 @@ const rawZip = express.raw({ type: ['application/zip', 'application/x-zip-compre
 const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES + 1024 });
 
 // --- the host console and its API (documentation/plans/plan-tenants.md) ----------------------------------------
-// A separate mini-app, reached only at host.<base>: never mounted on the main app directly, so a request routed
+// A separate mini-app, reached only at admin.<base>: never mounted on the main app directly, so a request routed
 // here can never fall through to a tenant's own routes below (which need an environment resolved, and none is,
 // for the host admin -- see requireHostAdmin, its own session, auth.HOST_COOKIE, never a tenant's).
 const hostRouter = express.Router();
@@ -627,7 +627,7 @@ hostRouter.use((_req, res) => res.status(404).json({ error: 'not found' }));
 
 // --- the door: resolve an environment for this request, or route to the host console -----------------------
 // With no BASE_DOMAIN every request is the one environment (today's behaviour, unchanged). With BASE_DOMAIN set:
-// host.<base> is the console above; <base> alone is a plain "this is the host" page (sign-up is phase 5, not
+// admin.<base> is the console above; <base> alone is a plain "this is the host" page (sign-up is phase 5, not
 // this); <slug>.<base> resolves that environment; anything else is a plain 404. A request at an old base domain
 // (PREVIOUS_BASE_DOMAINS) is redirected (301) to the same path at the current one, before any of that -- see
 // "Previous base domains" in plan-tenants.md. The resolver never reads a path, only the hostname.
@@ -645,7 +645,7 @@ if (BASE_DOMAIN) {
       const port = requestHost.includes(':') ? requestHost.slice(requestHost.lastIndexOf(':')) : '';
       return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}${req.originalUrl}`);
     }
-    if (host === `host.${BASE_DOMAIN}`) return hostRouter(req, res, next);
+    if (host === `admin.${BASE_DOMAIN}`) return hostRouter(req, res, next);
     if (host === BASE_DOMAIN) return res.type('html').send('<!doctype html><title>Coffee Pub Tavern</title><p>This is a Coffee Pub Tavern host.</p>');
     if (host.endsWith(`.${BASE_DOMAIN}`)) {
       const slug = host.slice(0, host.length - BASE_DOMAIN.length - 1);
@@ -3089,5 +3089,5 @@ app.listen(Number(PORT), () => {
     });
     return;
   }
-  console.log(`Coffee Pub Tavern ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at host.${BASE_DOMAIN}`);
+  console.log(`Coffee Pub Tavern ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at admin.${BASE_DOMAIN}`);
 });
