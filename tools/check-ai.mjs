@@ -44,11 +44,35 @@ await test('the setting: the key is kept and never shown', () => {
   assert.throws(() => ai.set({ enabled: true, provider: 'anthropic', model: 'm' }), /needs a key/);
   assert.throws(() => ai.set({ enabled: true, provider: 'openai', model: 'gpt-4o' }), /needs a key/);
   const v = ai.set({ enabled: true, provider: 'compatible', address: `${address}/`, model: 'local', key: 'sk-secret' });
-  assert.deepEqual(v, { provider: 'compatible', address, model: 'local', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
+  // The view: the custom slot's fields, whether a key is set (never the key), and the source with the host's offer.
+  const { source, managed, ...custom } = v;
+  assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
+  assert.equal(source, 'custom'); // no host offer: an environment can only be custom
+  assert.deepEqual(managed, { available: false, provider: '', model: '' });
   assert.ok(!JSON.stringify(ai.view()).includes('sk-secret'));
   assert.equal(ai.set({ model: 'local2' }).keySet, true); // a page that sends no key keeps the one saved
   assert.equal(ai.set({ clearKey: true }).keySet, false);
-  assert.equal(new Ai(dir, { TAVERN_AI_KEY: 'from-env' }).view().keyFromEnvironment, true);
+  // An environment's own Ai no longer reads a key from the environment variables: that key is the host's managed service now.
+  assert.equal(new Ai(dir, { AI_KEY: 'from-env', TAVERN_AI_KEY: 'from-env' }).view().keyFromEnvironment, false);
+});
+
+await test('the source: the host\'s managed service, or the environment\'s own', () => {
+  const offer = { provider: 'openai', address: '', model: 'gpt-4o', key: 'host-key' };
+  const fresh = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, undefined, () => offer);
+  assert.equal(fresh.view().source, 'managed'); // a fresh environment starts on the host's offer
+  assert.deepEqual(fresh.view().managed, { available: true, provider: 'openai', model: 'gpt-4o' });
+  assert.equal(fresh.key(), 'host-key'); // the call goes out with the host's key
+  assert.ok(!JSON.stringify(fresh.view()).includes('host-key'));
+  assert.equal(fresh.view().enabled, false); // enabling stays the environment's own step
+  assert.equal(fresh.set({ enabled: true }).enabled, true);
+  assert.equal(fresh.ready(), true);
+  assert.equal(fresh.set({ source: 'custom' }).enabled, false); // a different company receives what people select
+  assert.equal(fresh.view().source, 'custom');
+  assert.equal(fresh.ready(), false); // custom with nothing set up
+  assert.equal(fresh.set({ source: 'managed' }).source, 'managed');
+  const none = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, undefined, () => null);
+  assert.equal(none.view().source, 'custom');
+  assert.throws(() => none.set({ source: 'managed' }), /managed|host/i); // nothing to choose
 });
 
 await test('a request: the frame, the numbered items, the key as a header, the tokens counted', async () => {

@@ -8,6 +8,7 @@ The Maps module shows a map of every place your room has: the places saved in [P
 
 **What you need:** the current Magpie (Maps and its map library ship inside it, so update the server the way you always do), and one map file. Nothing else is installed: no tile server, no database, no extra container, no account and no key.
 
+**On a host with environments,** the map is the host's: one folder of map files that every environment shows, all the files together. Only a host admin puts files there (`DATA_DIR/shared/maps/map-tiles/`) or cuts a region, on the host console's **Maps** panel, which has the same **Add a region** as below and the world map address. An environment's Maps configuration shows those files under **Provided by the host** and sets nothing of its own. On a single server the admin is the operator and the steps below apply as written.
 
 1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world well over 100 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
 

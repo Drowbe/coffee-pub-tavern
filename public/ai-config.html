@@ -23,10 +23,17 @@
         <div class="grow"><h1>AI configuration</h1><div class="hint">For every module that asks for it</div></div>
         <span class="pill" id="ai-state">Off</span>
       </div>
-      <p class="hint">Lets modules summarise, answer questions and write cards from what a person selects. It stays off until you set it up here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). the host ships no model and no key.</p>
+      <p class="hint">Lets modules summarise, answer questions and write cards from what a person selects. It stays off until you choose a source here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). <strong>Managed</strong> uses the service the host runs, with its key; <strong>Custom</strong> is a service and key of this environment's own.</p>
         <p class="hint" id="ai-enable-note">Setting a service up does not turn the AI on. Enable or disable it on its card on the Modules tab.</p>
         <div class="ai-fields">
-          <label>Service
+          <label>Source
+            <select id="ai-source">
+              <option value="managed">Managed: this host's service</option>
+              <option value="custom">Custom: this environment's own service and key</option>
+            </select>
+          </label>
+          <div class="option-help" id="ai-managed-note" hidden></div>
+          <label data-ai-custom>Service
             <select id="ai-provider">
               <option value="none">None (AI is off)</option>
               <option value="openai">OpenAI</option>
@@ -34,7 +41,7 @@
               <option value="compatible">Other (OpenAI-compatible)</option>
             </select>
           </label>
-          <div class="option-help" id="ai-notice"></div>
+          <div class="option-help" id="ai-notice" data-ai-custom></div>
           <label data-ai-for="compatible" id="ai-address-row">Address <span class="hint">Your own server's address (for example http://localhost:11434 for Ollama), or another company's service that speaks the OpenAI interface. It should be the server's root or end in /v1.</span>
             <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
           </label>
@@ -58,7 +65,7 @@
             <p class="hint" id="ai-models-hint"></p>
             <button class="linklike" type="button" id="ai-model-manual" hidden>Type a model name instead</button>
           </div>
-          <label data-ai-for="openai anthropic compatible">Monthly allowance <span class="hint">(tokens; 0 for no limit)</span>
+          <label>Monthly allowance <span class="hint">(tokens; 0 for no limit)</span>
             <input id="ai-cap" type="number" min="0" step="1000" value="0">
           </label>
         </div>

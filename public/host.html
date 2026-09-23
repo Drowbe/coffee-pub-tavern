@@ -74,6 +74,97 @@
         </form>
       </section>
 
+      <section class="panel module-config" id="ai-panel">
+        <div class="section-head">
+          <h2>Managed AI</h2>
+          <span class="pill" id="ai-state">Off</span>
+        </div>
+        <p class="hint">The one AI service this host offers every environment. An environment chooses it (<strong>Managed</strong>) or sets up its own on its AI configuration page, and enables it there either way. The key stays here and is never shown to an environment. With no service here, environments can only use their own.</p>
+        <div class="ai-fields">
+          <label>Service
+            <select id="ai-provider">
+              <option value="none">None (no managed service)</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="compatible">Other (OpenAI-compatible)</option>
+            </select>
+          </label>
+          <div class="option-help" id="ai-notice"></div>
+          <label data-ai-for="compatible" id="ai-address-row">Address <span class="hint">Your own server's address, or another company's service that speaks the OpenAI interface. The server's root or ending in /v1.</span>
+            <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
+          </label>
+          <div class="ai-key" data-ai-for="openai anthropic compatible">
+            <div class="ai-label">Key <span class="hint" id="ai-key-optional" hidden>(optional for a model on your own network)</span></div>
+            <div class="ai-key-row">
+              <span class="pill" id="ai-key-state">not set</span>
+              <input id="ai-key" type="password" maxlength="300" placeholder="paste a new key" autocomplete="new-password" hidden>
+              <button class="btn btn-small" type="button" id="ai-key-replace">Set a key</button>
+              <button class="btn btn-small btn-danger" type="button" id="ai-key-clear" hidden>Remove the key</button>
+            </div>
+            <p class="hint" id="ai-key-help">The key is kept on the host and is never shown again.</p>
+          </div>
+          <div class="ai-model" data-ai-for="openai anthropic compatible">
+            <div class="ai-label">Model</div>
+            <div class="ai-model-row">
+              <select id="ai-model-select" aria-label="Model"></select>
+              <input id="ai-model" type="text" maxlength="100" placeholder="the model's name" autocomplete="off" hidden>
+              <button class="btn btn-small" type="button" id="ai-models-refresh" title="Load the list of models again"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button>
+            </div>
+            <p class="hint" id="ai-models-hint"></p>
+            <button class="linklike" type="button" id="ai-model-manual" hidden>Type a model name instead</button>
+          </div>
+        </div>
+        <div class="row"><button class="btn btn-primary" type="button" id="ai-save">Save</button><span class="status" id="ai-status" role="status"></span></div>
+      </section>
+
+      <section class="panel module-config" id="shared-panel" hidden>
+        <div class="section-head">
+          <h2 id="shared-title">Maps</h2>
+          <span class="status" id="shared-status"></span>
+        </div>
+        <p class="hint" id="shared-hint">The map every environment shows: the files in the host's own folder, all of them together. Only a host admin puts files here or cuts a region. Copy a PMTiles file into the folder below, or cut one from a world file.</p>
+        <p class="hint"><code id="shared-folder"></code></p>
+        <div id="shared-files"></div>
+        <form class="row" id="shared-address-form">
+          <label class="grow">World map address <span class="hint">(the PMTiles file regions are cut from; Protomaps publishes a daily build)</span>
+            <input id="shared-address" type="url" maxlength="500" placeholder="https://" autocomplete="off">
+          </label>
+          <button class="btn btn-small" type="submit">Save address</button>
+        </form>
+        <!-- the same region-cut block as module-config.html, driven by public/region-cut.js -->
+        <div class="region-section" id="cfg-region" hidden>
+          <h3>Add a region</h3>
+          <p class="hint">Type a place — a country, a city, a region — and the host will find it, show roughly how large the cut would be, and add it to the files above once you confirm. Nothing downloads until you say so. For basic coverage everywhere, skip the search and <button type="button" class="linklike" id="region-world-btn">cover the whole world</button> instead, at a low zoom — meant to sit underneath detailed regional cuts, not replace them.</p>
+          <form class="row" id="region-find-form">
+            <input type="text" id="region-q" placeholder="Mexico, Lisbon, the Algarve..." maxlength="200" autocomplete="off">
+            <button class="btn btn-primary btn-small" type="submit" id="region-find-btn">Find it</button>
+            <span class="status" id="region-find-status" role="status"></span>
+          </form>
+          <div class="region-confirm" id="region-confirm" hidden>
+            <p id="region-confirm-name"></p>
+            <div class="row">
+              <label>Minimum zoom <input type="number" id="region-min-zoom" min="0" max="15" value="0" step="1"></label>
+              <label>Maximum zoom <input type="number" id="region-zoom" min="0" max="15" value="14" step="1"></label>
+              <label>File name <input type="text" id="region-filename" maxlength="100"></label>
+            </div>
+            <p class="hint">Maximum zoom is how much detail the cut keeps, not how far it covers. 10 or below shows towns and the roads between them, not individual streets; 14, the default, shows streets and buildings; 15 is the most detail this can offer. Higher means a far bigger file for the same area. Minimum zoom trims the shallow end: leave it at 0 for a file meant to stand alone, or raise it when a wider, lower-zoom file already covers those zooms. Check size shows the real cost before anything downloads.</p>
+            <div class="row">
+              <button class="btn btn-small" type="button" id="region-estimate-btn">Check size</button>
+              <span class="status" id="region-estimate-status" role="status"></span>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary btn-small" type="button" id="region-cut-btn" disabled>Cut and add</button>
+              <button class="btn btn-small" type="button" id="region-cancel-btn">Cancel</button>
+            </div>
+          </div>
+          <div class="region-progress" id="region-progress" hidden>
+            <p id="region-progress-name"></p>
+            <progress max="100" value="0" id="region-progress-bar"></progress>
+            <p class="hint" id="region-progress-message"></p>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>The host</h2>
         <dl class="facts" id="host-facts"></dl>

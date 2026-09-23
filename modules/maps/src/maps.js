@@ -590,14 +590,10 @@
   });
 
   function applySettings(next) {
-    // The map files chosen (a list; a single name from before is one file).
-    // From this server's files (a list; a single name from before is one file), or one file at an https web address.
-    let files = (Array.isArray(next.map) ? next.map : next.map ? [next.map] : []).slice(0, 20);
-    let web = false;
-    if (next.mapSource === 'web') {
-      web = true;
-      files = typeof next.mapUrl === 'string' && /^https:\/\//i.test(next.mapUrl) ? [next.mapUrl] : [];
-    }
+    // The map files (a list; a single name from before is one file): the host's, all of them, where there are
+    // environments; this server's own, the ticked ones, on a single server. Both arrive as the `map` setting's value.
+    const files = (Array.isArray(next.map) ? next.map : next.map ? [next.map] : []).slice(0, 20);
+    const web = false; // a map at a web address is not offered in this phase (the host's files or nothing)
     const mapChanged = files.join('|') !== state.settings.maps.join('|') || web !== state.settings.web;
     state.settings = { maps: files, web };
     if (mapChanged && state.started) startMap();

@@ -2,6 +2,8 @@
 // settings and modules), their plans against their use, the host admins, the host itself. It shows no environment's
 // data beyond the counts. The API is /api/host/ (documentation/plans/plan-tenants.md, "Phase 1 in detail").
 import { loadBranding, api, renderTopbar } from '/brand.js';
+import { mountAiForm } from '/ai-form.js';
+import { wireRegionCut } from '/region-cut.js';
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -37,7 +39,65 @@ async function load() {
   renderTenants();
   renderAdmins();
   renderFacts();
+  await aiForm.load();
+  await loadShared();
 }
+
+// --- the managed AI service: the same form as an environment's page, against the host's own endpoints -------------
+const aiForm = mountAiForm({ get: '/api/host/ai', put: '/api/host/ai', models: '/api/host/ai/models' });
+
+// --- the host's shared files (the map every environment shows) -------------------------------------------------
+// GET /api/host/shared lists every bundled module's shared folder; phase 1 has one (Maps' map-tiles), so the panel
+// is that one folder: its files, the world address regions are cut from, and the region cut itself.
+let shared = null;
+let regionWired = false;
+const size = (b) => (b === undefined || b === null ? '' : b > 1e9 ? `${(b / 1e9).toFixed(1)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1e3))} KB`);
+async function loadShared() {
+  let folders = [];
+  try {
+    folders = (await api('GET', '/api/host/shared')).folders || [];
+  } catch (err) {
+    $('shared-panel').hidden = true;
+    return;
+  }
+  shared = folders[0] || null;
+  $('shared-panel').hidden = !shared;
+  if (!shared) return;
+  $('shared-title').textContent = shared.name || shared.module;
+  $('shared-folder').textContent = `DATA_DIR/shared/${shared.module}/${shared.folder}/${shared.exists === false ? ' (not there yet: it is made on the first cut, or make it and copy a file in)' : ''}`;
+  $('shared-address').value = shared.address || '';
+  const files = shared.files || [];
+  const hasZooms = files.some((f) => f.zoom);
+  $('shared-files').innerHTML = files.length
+    ? `<table class="files-table"><thead><tr><th>File</th>${hasZooms ? '<th>Zoom</th>' : ''}<th>Size</th><th></th></tr></thead><tbody>${files.map((f) => `<tr><td>${escapeHtml(f.name)}</td>${hasZooms ? `<td class="hint">${f.zoom ? (f.zoom.minZoom === f.zoom.maxZoom ? f.zoom.maxZoom : `${f.zoom.minZoom}–${f.zoom.maxZoom}`) : ''}</td>` : ''}<td class="hint">${size(f.size)}</td><td><button type="button" class="btn btn-small btn-danger" data-delete-file="${escapeHtml(f.name)}" title="Delete ${escapeHtml(f.name)}" aria-label="Delete ${escapeHtml(f.name)}"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></td></tr>`).join('')}</tbody></table>`
+    : '<p class="hint">No map files yet. Every environment shows an empty map until one is here.</p>';
+  if (!regionWired) {
+    regionWired = true;
+    wireRegionCut({ base: `/api/host/shared/${encodeURIComponent(shared.module)}/${encodeURIComponent(shared.folder)}/region-cut`, onDone: loadShared });
+  }
+}
+$('shared-address-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!shared) return;
+  try {
+    await api('PUT', `/api/host/shared/${encodeURIComponent(shared.module)}/${encodeURIComponent(shared.folder)}`, { address: $('shared-address').value.trim() });
+    say($('shared-status'), 'saved');
+    await loadShared();
+  } catch (err) { say($('shared-status'), err.message, true); }
+});
+const armedFiles = new Map();
+$('shared-files').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-delete-file]');
+  if (!b || !shared) return;
+  const name = b.dataset.deleteFile;
+  if (armedFiles.get(name) !== b) { armedFiles.set(name, b); b.textContent = 'Really delete?'; setTimeout(() => { if (armedFiles.get(name) === b) { armedFiles.delete(name); b.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i>'; } }, 4000); return; }
+  armedFiles.delete(name);
+  try {
+    await api('DELETE', `/api/host/shared/${encodeURIComponent(shared.module)}/${encodeURIComponent(shared.folder)}/files/${encodeURIComponent(name)}`);
+    say($('shared-status'), `${name} deleted`);
+    await loadShared();
+  } catch (err) { say($('shared-status'), err.message, true); }
+});
 
 function renderFacts() {
   $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${tenants.length}</dd>`;

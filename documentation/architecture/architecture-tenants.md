@@ -173,6 +173,15 @@ before phase 4's fuller scheme.
 
 `public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; Delete arms on the first click and acts on the second. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
 
+## The host's managed AI and shared files
+
+Two things are the host's, above every environment, decided in the plan's "Managed AI" and "Shared files" sections.
+
+- **Managed AI.** The host registry keeps one AI service (`host.json`'s `ai`: provider, address, model, key), set on the console's Managed AI panel (`GET`/`PUT /api/host/ai`, `POST /api/host/ai/models`, the key never in a view) or seeded from `AI_PROVIDER`, `AI_ADDRESS`, `AI_MODEL` and `AI_KEY` when nothing is saved. Each environment's `Ai` is built with a `managed()` function that answers with the host's service, and its own `ai.json` carries `source: 'managed' | 'custom'`: managed calls go out with the host's provider, model and key, custom ones with the environment's own; the enable step, the monthly allowance and the usage stay the environment's. `AI_KEY` was an environment's own key before this; an `ai.json` that only ever worked through it becomes `managed` on first start and seeds the host's service from its provider and model.
+- **Shared files.** A `files` setting a module declares `"shared": "host"` (Maps' `map`) lives in `DATA_DIR/shared/<module>/<folder>/` for every environment, or in the module's own folder as before when there is no `BASE_DOMAIN`. The environment's settings view marks it `shared: true` and lists the host's files, its values answer every file, its file and region-cut routes refuse for that folder, and the host router carries the folder's own API (`/api/host/shared`, files, the region source address, the region cut). On the first start with `BASE_DOMAIN`, a missing shared folder takes the files of the one environment that has any.
+
+The console page for both is `public/host.js` with the form and the region cut shared with the environment's pages (`public/ai-form.js`, `public/region-cut.js`), so a host admin and an environment admin see the same controls where they overlap.
+
 ## Adding a new module-level singleton
 
 If you add a thirteenth thing like `store` -- built once from a data directory, read throughout the route

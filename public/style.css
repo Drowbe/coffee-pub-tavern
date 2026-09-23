@@ -5214,6 +5214,8 @@ body.at-table .module-nav {
 .module-config .module-settings-card { border: 0; padding: 0; margin-top: 12px; }
 
 /* a table of files to tick (a module setting that takes several) */
+.shared-files { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.shared-files li { margin: 2px 0; }
 .files-table { width: 100%; border-collapse: collapse; margin: 6px 0; }
 .files-table th, .files-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
 .files-table th { color: var(--text-dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
