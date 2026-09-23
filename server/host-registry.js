@@ -66,6 +66,17 @@ function cleanHostAi(raw) {
       ...(provider === 'compatible' ? { address: typeof s.address === 'string' ? s.address : '' } : {}),
     };
   }
+  // A host.json saved under the single-service shape from before per-company ({ provider, address, model, key }
+  // at the top level, not keyed by company -- live only briefly): carried into that company's own slot here,
+  // every load, so a server that never restarted between the two shapes does not silently lose what it saved.
+  // Never overwrites a slot the new shape already filled.
+  if (!out[r.provider] && MANAGED_PROVIDERS.includes(r.provider)) {
+    out[r.provider] = {
+      model: typeof r.model === 'string' ? r.model : '',
+      key: typeof r.key === 'string' ? r.key : '',
+      ...(r.provider === 'compatible' ? { address: typeof r.address === 'string' ? r.address : '' } : {}),
+    };
+  }
   return out;
 }
 
