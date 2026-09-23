@@ -1768,6 +1768,7 @@ body.at-table .topbar {
    with its own action buttons (Leave, Rejoin Call) right alongside
    whatever it's naming -- see setTopbarLocation()/updateCrumb(). */
 .crumb {
+  white-space: nowrap; /* the left zone shares the row with two others; a long crumb must not wrap into a second line */
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
@@ -5210,10 +5211,11 @@ body.at-table .module-nav {
 .icon-pick { position: relative; flex: none; }
 .icon-pick summary { display: flex; align-items: center; justify-content: center; width: 34px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input, var(--bg-card)); cursor: pointer; list-style: none; }
 .icon-pick summary::-webkit-details-marker { display: none; }
-.icon-grid { position: absolute; z-index: 20; top: 36px; left: 0; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-section); box-shadow: 0 10px 28px color-mix(in srgb, black 35%, transparent); }
-.icon-grid button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
-.icon-grid button:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
-@media (max-width: 640px) { .list-row { flex-wrap: wrap; } .icon-grid { grid-template-columns: repeat(6, 36px); } }
+/* the popover form of the grid, only inside a list row's icon picker; the plain .icon-grid above stays a static grid */
+.icon-pick .icon-grid { position: absolute; z-index: 20; top: 36px; left: 0; display: grid; grid-template-columns: repeat(8, 32px); gap: 2px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-section); box-shadow: 0 10px 28px color-mix(in srgb, black 35%, transparent); }
+.icon-pick .icon-grid button { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
+.icon-pick .icon-grid button:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+@media (max-width: 640px) { .list-row { flex-wrap: wrap; } .icon-pick .icon-grid { grid-template-columns: repeat(6, 36px); } }
 
 /* the saved search results of a module (Module Configuration): counts and purge buttons */
 .cache-section { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
