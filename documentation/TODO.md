@@ -165,20 +165,38 @@ Not started; the Calendar module in the modules plan is the intended home. A way
 recurrence) and let members see it -- session logistics currently live outside the app
 entirely.
 
+## Environments: what is left after phases 2 to 5
+
+Built (September 24, 2026; plans/plan-tenants.md, "Phases 2 to 5 in detail"): the owner
+role, the caps enforced, the calls cap, the plan catalog, sign-up, the billing webhook and the
+grace, an owner's export and deletion request. Left, and unverified:
+
+- The calls cap and the live call count were only checked for graceful degradation, never
+  against a real LiveKit call; try starting a second call on a plan capped at one.
+- Billing has no relay yet: the webhook takes the app's own JSON, signed with `BILLING_SECRET`,
+  and a payment provider's own webhook format is meant to be adapted to it by a small relay
+  outside the app. Nothing is sold online until `BILLING_CHECKOUT_<PLAN>` points at a checkout
+  page and that relay exists.
+- A tenant's own domain on the top plan, and one identity across environments, stay later
+  steps as the plan says.
+- The past-due sweep runs hourly inside the server; a server that is never up for an hour
+  never degrades anyone.
+
 ## Desktop sharing has no OBS side
 
 Screen sharing (the monitor icon at the table) works live -- a shared screen gets its
-own tile, camera stays up alongside it -- but `/view/<key>` (the OBS Participant box)
-only ever draws the camera or a picture, never a screen-share track. Someone sharing
-their screen doesn't show up on stream unless OBS is separately capturing the app
-window itself. Not attempted here; would need its own view.js/Studio work if wanted.
+own tile, camera stays up alongside it -- but the Stream module's view page (`/view/<key>`,
+the OBS Participant box) only ever draws the camera or a picture, never a screen-share
+track. Someone sharing their screen doesn't show up on stream unless OBS is separately
+capturing the app window itself. Not attempted here; would need its own work in the Stream
+module and in Studio if wanted.
 
 ## Studio/OBS needs to know about guests
 
 Guests (join with just a name, no account -- see the "Guests" section in a room's own
 Settings popover, and Guest images under Manage > Settings) show up fine at the table and in
-chat, but only there: there's no `/view/<key>` OBS source for a guest, since that's keyed by
-a real user's key and guests don't have one. Nobody asked for OBS boxes for guests yet, but
+chat, but only there: there's no `/view/<key>` OBS source (the Stream module's view page) for
+a guest, since that's keyed by a real user's key and guests don't have one. Nobody asked for OBS boxes for guests yet, but
 if that changes it's a bigger cross-repo feature (Studio would need to build a source for an
 identity it never configured in advance).
 

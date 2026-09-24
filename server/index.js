@@ -1245,7 +1245,13 @@ app.post('/api/product/signup', (req, res) => {
     const free = hostRegistry.plansCatalog().free;
     const tenant = hostRegistry.addTenant({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
     environmentFor(tenant.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
-    res.status(201).json({ url: `${auth.isSecure(req) ? 'https' : 'http'}://${tenant.slug}.${BASE_DOMAIN}/` });
+    // The new environment's own port, carried through the same way the PREVIOUS_BASE_DOMAINS redirect above
+    // does: invisible behind a real proxy (the port is implicit there), but wrong in local development, where
+    // BASE_DOMAIN is often "localhost" at some other port than 80/443.
+    const newHost = `${tenant.slug}.${BASE_DOMAIN}`;
+    const requestHost = req.get('host') || '';
+    const port = requestHost.includes(':') ? requestHost.slice(requestHost.lastIndexOf(':')) : '';
+    res.status(201).json({ url: `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}/` });
   } catch (err) {
     sendHostError(err, res);
   }
