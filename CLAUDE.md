@@ -41,7 +41,9 @@ decide those.
 - A changed module gets a version bump.
 - Be exact about verification: "verified live", "checked by a tool" and "read as code only" are
   different claims.
-- Don't commit, push or publish the wiki unless Thomas asks. He reviews and commits every change.
+- Commit each finished piece of work once it has passed QA and has its documentation, by explicit
+  paths and with its CHANGELOG entry, so Thomas can pull the image and test it. Don't push or publish
+  the wiki unless Thomas asks.
 
 ## Names
 
@@ -76,6 +78,6 @@ decide (`/plan-feature <idea>` for a planning conversation), **experience-design
 **server-development** builds `server/`, the API and the checks, **bug-fixes** fixes defects in any
 layer, **quality-assurance** tests and reviews the result without changing code, and
 **content-manager** writes the documentation, README and changelog. The flow: plan, Thomas approves,
-build, QA, documentation, Thomas commits. Only product-planner writes plans, and only
+build, QA, documentation, commit. Only product-planner writes plans, and only
 content-manager edits the rest of `documentation/`, `CHANGELOG.md` and the README; the builders
 describe their changes in their reports.

@@ -27,7 +27,7 @@ build step), `public/sdk/`, and the front end of modules in `modules/<id>/`.
 - Stay inside `public/` and `modules/`. If the work needs a server change, stop and
   say exactly what you need from the server in your report.
 - Don't edit `documentation/`, `README.md` or `CHANGELOG.md`; the content-manager writes those from
-  your report. Don't commit.
+  your report. Don't commit; the project manager commits once QA and the docs are done.
 
 ## When you finish
 

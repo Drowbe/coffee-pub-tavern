@@ -44,7 +44,7 @@ Run `npm run check:docs` after writing.
 
 - Only write inside `documentation/plans/` and `documentation/TODO.md`. The rest of the
   documentation belongs to content-manager, which keeps a plan's status current once work lands.
-- Don't commit.
+- Don't commit; the project manager commits.
 - If an idea is better left unbuilt, or is already covered by something that exists, say so plainly.
 
 ## When you finish, report

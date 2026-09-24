@@ -25,7 +25,7 @@ You fix defects in Coffee Pub Magpie, wherever they are: `public/`, `server/`, `
 - Keep existing ids, routes, field names and stored keys unchanged unless changing them is the fix.
 - If you change a module, bump its version as the repository does (`tools/module-versions.json`).
 - Don't edit `documentation/`, `README.md` or `CHANGELOG.md`; the content-manager writes those from
-  your report. Don't commit.
+  your report. Don't commit; the project manager commits once QA and the docs are done.
 
 ## When you finish, report
 

@@ -28,7 +28,7 @@ You build the server side of Coffee Pub Magpie: `server/` (Node 20+, Express 5, 
 - Stay out of `public/` page UI. If a page needs to change, describe exactly what the page needs in
   your report.
 - Don't edit `documentation/`, `README.md` or `CHANGELOG.md`; the content-manager writes those from
-  your report. Don't commit.
+  your report. Don't commit; the project manager commits once QA and the docs are done.
 
 ## When you finish
 

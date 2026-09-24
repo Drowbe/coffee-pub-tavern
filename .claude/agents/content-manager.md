@@ -57,7 +57,7 @@ And the house style, from the existing documents:
 
 ## When you finish
 
-Run `npm run check:docs`. Don't commit. Report:
+Run `npm run check:docs`. Don't commit; the project manager commits. Report:
 
 1. **Changed:** each document and what changed.
 2. **Mismatches:** anywhere the code, the reports and the documents disagreed, and what you did.

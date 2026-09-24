@@ -67,7 +67,8 @@ planner (when needed) -> Thomas approves -> builders -> quality-assurance -> con
    documents you expect to change. Then run `npm run check:docs`.
 8. **Report.** What changed and where; QA's verdict; what was verified and how (live, by a check, or
    read as code only); what wasn't and why; what is left open, including QA's proposed check cases.
-   Don't commit or push; Thomas reviews and commits.
+   Then commit it yourself (git by explicit paths, never `git add -A`, the CHANGELOG entry in the
+   same commit); the agents are told not to commit. Don't push unless Thomas asks.
 
 ## Rules
 
