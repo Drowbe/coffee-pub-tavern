@@ -85,3 +85,6 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 .signup-form .row { display: flex; align-items: center; gap: 10px; }
 .signup-form .status { font-size: 13px; color: var(--text-dim); }
 .signup-form .status.error, .signup-form .hint.error { color: #e07a5f; }
+
+/* A call to action while sign-up from this page is off: reads "Coming soon", looks like a button, does nothing. */
+.btn.coming-soon { opacity: 0.55; cursor: default; pointer-events: none; }

@@ -103,8 +103,9 @@ second factor** with the password, and Manage and the console show a banner unti
 makes, and what a lapsed environment goes back to) and any named plans, each with its caps (members,
 storage, assistant calls a month, calls at once, modules). An environment is put on a plan from its card,
 which fills its caps from the catalog to adjust on its own. The product page at the base domain lists the
-plans and, unless `SIGNUP` is `off`, makes a free environment for anyone who asks (an address, a name, an
-owner account). Selling a plan is the payment provider's own hosted page: set `BILLING_CHECKOUT_<PLAN>`
+plans and, only when the server has `SIGNUP: "on"`, makes a free environment for anyone who asks (an
+address, a name, an owner account); without it the page offers no sign-up form, just the plans and a way to
+write to you. Selling a plan is the payment provider's own hosted page: set `BILLING_CHECKOUT_<PLAN>`
 (the plan id in capitals, `BILLING_CHECKOUT_STANDARD`, say) to that page's address, and the product page's
 plan buttons and an owner's Upgrade go there with `?environment=<slug>`. The provider tells the server
 what happened through the webhook at `https://admin.<base>/api/host/billing`: a JSON body

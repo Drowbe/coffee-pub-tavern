@@ -23,16 +23,23 @@ fill('[data-version]', product.version ? String(product.version) : '');
 const example = document.querySelector('[data-example-host]');
 if (example && product.baseDomain) example.textContent = `yourname.${product.baseDomain}`;
 
-// The calls to action: a mail link when the host has given a contact address; otherwise the section itself, which says how.
+// Whether anyone can make an environment from this page (the host's SIGNUP switch, on a host with a base domain). Off,
+// every call to action reads "Coming soon" and does nothing (the author: not ready for this), and the Get started band
+// says so; a contact address, when the host has given one, is still offered as the way to ask.
+const signupOpen = Boolean(product.signup && product.baseDomain);
+const comingSoon = (el) => { el.textContent = 'Coming soon'; el.classList.add('coming-soon'); el.removeAttribute('href'); el.setAttribute('aria-disabled', 'true'); };
+
+// The calls to action go to the Get started band (the form, when sign-up is open); the band's own "Ask" link is a mail link.
 for (const a of document.querySelectorAll('[data-contact-link]')) {
-  if (product.contact) {
-    a.href = `mailto:${product.contact}?subject=${encodeURIComponent(`An environment on ${product.name}`)}`;
-  }
+  const isAsk = Boolean(a.closest('#start-ask')); // the one link that stays a way to ask while sign-up is off, given an address
+  if (!signupOpen && !(isAsk && product.contact)) comingSoon(a);
+  else if (isAsk && product.contact) a.href = `mailto:${product.contact}?subject=${encodeURIComponent(`An environment on ${product.name}`)}`;
 }
 const hint = document.querySelector('[data-contact-hint]');
 if (hint) {
   hint.hidden = false;
-  hint.textContent = product.contact ? `Or write to ${product.contact}.` : 'Sign-up from this page is coming; for now, ask whoever runs this host.';
+  hint.textContent = product.contact ? `Or write to ${product.contact}.` : (signupOpen ? '' : 'Sign-up from this page is coming; for now, ask whoever runs this host.');
+  hint.hidden = !hint.textContent;
 }
 
 // --- Sign in: which environment? ---------------------------------------------------------------------------------
@@ -121,7 +128,9 @@ if (Array.isArray(product.plans) && product.plans.length) {
     ul.className = 'plan-caps';
     for (const line of capLine(p.caps)) { const li = document.createElement('li'); li.textContent = line; ul.append(li); }
     box.append(h, ul);
-    if (p.id === 'free') {
+    if (!signupOpen) {
+      const a = document.createElement('a'); a.className = 'btn btn-small'; comingSoon(a); box.append(a);
+    } else if (p.id === 'free') {
       const a = document.createElement('a'); a.className = 'btn btn-small'; a.href = '#start'; a.textContent = 'Start free'; box.append(a);
     } else if (p.checkoutUrl) {
       const a = document.createElement('a'); a.className = 'btn btn-primary btn-small'; a.href = p.checkoutUrl; a.rel = 'noopener'; a.textContent = `Choose ${p.name || p.id}`; box.append(a);
@@ -139,7 +148,7 @@ if (Array.isArray(product.plans) && product.plans.length) {
 const signup = document.getElementById('signup-form');
 const ask = document.getElementById('start-ask');
 const startLede = document.getElementById('start-lede');
-if (product.signup && product.baseDomain) {
+if (signupOpen) {
   signup.hidden = false;
   document.querySelector('[data-signup-domain]').textContent = `.${product.baseDomain}`;
   const slugInput = document.getElementById('signup-slug');
@@ -183,6 +192,8 @@ if (product.signup && product.baseDomain) {
     }
   });
 } else {
-  ask.hidden = false;
-  startLede.textContent = product.baseDomain ? 'Environments are made by hand on this host: ask, and you will have one the same day.' : 'This host is one environment at its own address; there is nothing to sign up for here.';
+  document.getElementById('start-title').textContent = 'Coming soon';
+  ask.hidden = !product.contact; // the mail link is the one way to ask; without an address there is nothing to press
+  if (product.contact) ask.querySelector('a').textContent = 'Ask for an environment';
+  startLede.textContent = product.baseDomain ? 'Making your own environment from this page is not open yet.' : 'This host is one environment at its own address; there is nothing to sign up for here.';
 }
