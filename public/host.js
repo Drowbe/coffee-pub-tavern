@@ -19,7 +19,7 @@ const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
 const tenantUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}${location.port ? `:${location.port}` : ''}`; // the port only in development
 
-let hostMe = null; // the signed-in host admin: mfaEnrolled, mfaRequired, mfaOff
+let hostMe = null; // the signed-in host admin: mfaEnrolled, mfaRequired, mfaOffered, mfaBypass
 async function load() {
   try {
     hostMe = await api('GET', '/api/host/me');
@@ -501,23 +501,32 @@ $('host-verify').addEventListener('submit', async (e) => {
 });
 $('host-verify-back').addEventListener('click', () => { $('host-verify').hidden = true; $('login-form').hidden = false; });
 
-// The host admin's own second factor (the Host tab), and the server's MFA_OFF banner.
+// The host admin's own second factor (the Host tab): hidden when the server does not offer two-step sign-in, and under
+// the admin lockout bypass no code is asked and their own reset (the password) is offered, with a banner until it is off.
 function renderHostMfa() {
   const me = hostMe || {};
+  const offered = me.mfaOffered !== false;
+  $('host-mfa-panel').hidden = !offered;
+  if (!offered) return;
   const on = Boolean(me.mfaEnrolled);
-  $('host-mfa-state').textContent = me.mfaOff ? 'switched off by the server' : on ? 'on' : 'off';
-  $('host-mfa-state').classList.toggle('on', on && !me.mfaOff);
+  $('host-mfa-state').textContent = on ? (me.mfaBypass ? 'on, bypassed' : 'on') : 'off';
+  $('host-mfa-state').classList.toggle('on', on && !me.mfaBypass);
   $('host-mfa-on').hidden = on;
-  $('host-mfa-off').hidden = !on || (me.mfaRequired && !me.mfaOff);
-  if (me.mfaOff && !document.querySelector('.env-page-banner[data-mfa-off]')) {
+  $('host-mfa-off').hidden = !on || me.mfaRequired || me.mfaBypass;
+  $('host-mfa-reset').hidden = !on || !me.mfaBypass;
+  if (me.mfaBypass && !document.querySelector('.env-page-banner[data-mfa-bypass]')) {
     const b = document.createElement('div');
     b.className = 'env-page-banner';
-    b.dataset.mfaOff = '1';
-    b.textContent = 'Two-step sign-in is switched off by the server\'s MFA_OFF; remove it from the server\'s settings once you are back in.';
+    b.dataset.mfaBypass = '1';
+    b.setAttribute('role', 'status');
+    b.textContent = 'The admin lockout bypass is on: host admins are not asked for their two-step code. Reset your factor on the Host tab if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
     const topbar = document.querySelector('.topbar');
     if (topbar) topbar.after(b); else document.body.prepend(b);
   }
 }
+$('host-mfa-reset').addEventListener('click', () => {
+  mountDisable($('host-mfa-block'), { disable: '/api/host/me/mfa/reset', label: 'Reset', password: true, onDone: async () => { say($('host-mfa-status'), 'reset'); await load(); } });
+});
 $('host-mfa-on').addEventListener('click', () => {
   if (!$('host-mfa-block').hidden) return;
   mountEnrolment($('host-mfa-block'), { start: '/api/host/me/mfa/start', enable: '/api/host/me/mfa/enable', onDone: async () => { say($('host-mfa-status'), 'on'); await load(); } });

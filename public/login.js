@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 loadBranding().then((b) => {
   $('register-note').hidden = !b.allowRegistration;
   // The policy says everyone signs in in two steps: say so before the password is typed.
-  if (b.mfa === 'everyone') { $('mfa-note').textContent = 'You will be asked for a code from your authenticator app after this.'; $('mfa-note').hidden = false; }
+  if (b.mfaRequired && b.mfaOffered !== false) { $('mfa-note').textContent = 'You will be asked for a code from your authenticator app after this.'; $('mfa-note').hidden = false; }
 });
 
 // Sent back here by the product page's own sign-in form (a form post to this environment's /login that was refused):

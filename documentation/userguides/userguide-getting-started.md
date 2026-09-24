@@ -87,16 +87,17 @@ To switch environments on, with the server already running as above:
    volume and the environment is recorded; everyone's accounts, spaces and layouts come with it, at
    `https://<slug>.<base>`.
 
-**Two-step sign-in, and getting back in.** People set up an authenticator app on their profile and admins set
-the rule on Manage > Server; host admins set theirs up on the console's Host tab, and `HOST_MFA: "required"`
-makes it mandatory for them. The secrets are encrypted with a key the server makes on first start
-(`secrets.key` beside the data on a single server, inside `host.json` with environments), so an
-environment's export carries nothing readable. If you lock yourself out, two settings on the server get
-you back in, for one start: `MFA_RESET` clears the second factor of the accounts it names, comma-separated
-(`gm` on a single server, `thepub:gm` on a host with environments, `host:yourlogin` for a host admin), and
-`MFA_OFF: "1"` skips the code step at every door while it is set (the server warns in its log, and Manage
-and the console show a banner). Remove either once you are in; leaving `MFA_RESET` set clears those
-accounts on every start, which the log says too.
+**Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
+compose file, `"true"` by default) says whether the server offers a second step at all; with it off nobody is
+asked and nobody can set one up. When it is offered, each environment's admin chooses on Manage > Server
+whether to **require** it of everyone, and otherwise each person chooses on their own profile. Host admins
+set theirs up on the console's Host tab, and `HOST_MFA_REQUIRED: "true"` makes it mandatory for them. The
+secrets are encrypted with a key the server makes on first start (`secrets.key` beside the data on a single
+server, inside `host.json` with environments), so an environment's export carries nothing readable. If an
+admin is locked out, set `ADMIN_MFA_LOCKOUT_BYPASS: "true"` and recreate the container: admins and host
+admins are then signed in on the password alone (members are still asked), their profile offers **Reset my
+second factor** with the password, and Manage and the console show a banner until you set it back to
+`"false"`. Nothing is deleted by either switch.
 
 **Plans, sign-up and billing.** The host console's **Plans** panel is the catalog: `free` (what sign-up
 makes, and what a lapsed environment goes back to) and any named plans, each with its caps (members,

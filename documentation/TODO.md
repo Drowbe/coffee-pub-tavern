@@ -7,7 +7,7 @@ for that app's side of things (Windows OBS capture work, mainly).
 
 Built (September 24, 2026; plans/plan-mfa.md): codes from an authenticator app, recovery codes, the
 policy per environment and for host admins, the remembered browser, the encrypted secrets, resets by
-an owner or a host admin, and `MFA_RESET` and `MFA_OFF` for getting back in. Left: passkeys as the
+an owner or a host admin, and the server's `ENABLE_MFA` and `ADMIN_MFA_LOCKOUT_BYPASS` switches. Left: passkeys as the
 second phase (the plan names the shape), and the Studio app's own change to ask for the code when
 `POST /api/login` answers `mfaRequired` (it has been told).
 

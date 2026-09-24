@@ -355,14 +355,10 @@
         </div>
         <div class="fields grow">
           <label class="wide"><textarea id="set-login-text" rows="3" maxlength="1000" aria-label="Text on the sign-in page" placeholder="A note under the password field"></textarea></label>
-          <label>Two-step sign-in
-            <select id="set-mfa">
-              <option value="off">Off: nobody is asked for a code</option>
-              <option value="optional">Optional: anyone may set up an authenticator app, and is then asked</option>
-              <option value="owners">Required for admins, optional for everyone else</option>
-              <option value="everyone">Required for everyone</option>
-            </select>
-          </label>
+          <div class="wide" id="set-mfa-row">
+            <label class="check"><input type="checkbox" id="set-mfa-required"> Require two-step sign-in for everyone</label>
+            <p class="hint">Off: anyone may set up an authenticator app on their profile, and is then asked for its code. On: everyone must, from their next sign-in.</p>
+          </div>
         </div>
       </div>
       <div class="row">

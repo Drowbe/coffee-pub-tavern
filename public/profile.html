@@ -52,13 +52,15 @@
           <span class="status" id="account-status"></span>
         </div>
         <!-- Two-step sign-in: a code from an authenticator app after the password (plans/plan-mfa.md). Your own to turn on
-             and off; an admin editing someone can only reset theirs. -->
-        <div class="row" id="mfa-row">
+             and off; an admin editing someone can only reset theirs; an admin under the server's lockout bypass can reset
+             their own with the password. The whole row is hidden when the server does not offer it. -->
+        <div class="row" id="mfa-row" hidden>
           <span class="field-label">Two-step sign-in</span>
           <span class="pill" id="mfa-state">off</span>
           <button class="btn btn-small btn-primary" id="mfa-on" type="button" hidden>Turn on</button>
           <button class="btn btn-small" id="mfa-off" type="button" hidden>Turn off</button>
           <button class="btn btn-small btn-danger" id="mfa-reset" type="button" hidden>Reset their second factor</button>
+          <button class="btn btn-small btn-danger" id="mfa-self-reset" type="button" hidden>Reset my second factor</button>
           <span class="hint" id="mfa-hint"></span>
         </div>
         <div class="mfa-block" id="mfa-block" hidden></div>

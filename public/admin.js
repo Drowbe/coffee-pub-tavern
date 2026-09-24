@@ -335,7 +335,7 @@ $('save-features').addEventListener('click', () => saveSettings({
   allowPrivate: $('set-allow-private').checked,
   allowReactions: $('set-allow-reactions').checked,
 }, $('features-status')));
-$('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value, mfa: $('set-mfa').value }, $('login-status')));
+$('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value, mfaRequired: $('set-mfa-required').checked }, $('login-status')));
 
 // --- theme -------------------------------------------------------------------
 // A chooser (Strong Coffee, the default, + every saved theme) and a
@@ -1285,14 +1285,14 @@ $('stream-regen').addEventListener('click', async () => {
   }
 });
 
-// The server's MFA_OFF switch is set: say so on Manage until it is removed (plans/plan-mfa.md, "Regaining access").
-function mfaOffBanner() {
-  if (document.querySelector('.env-page-banner[data-mfa-off]')) return;
+// The server's admin lockout bypass is on: say so on Manage until it is turned off (plans/plan-mfa.md, "The server's two switches").
+function mfaBypassBanner() {
+  if (document.querySelector('.env-page-banner[data-mfa-bypass]')) return;
   const b = document.createElement('div');
   b.className = 'env-page-banner';
-  b.dataset.mfaOff = '1';
+  b.dataset.mfaBypass = '1';
   b.setAttribute('role', 'status');
-  b.textContent = 'Two-step sign-in is switched off by the server\'s MFA_OFF; remove it from the server\'s settings once you are back in.';
+  b.textContent = 'The admin lockout bypass is on: admins are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.after(b); else document.body.prepend(b);
 }
@@ -1414,7 +1414,8 @@ async function init() {
     streamKey = info.streamKey;
     environment = { ...environment, ...(info.environment || {}) };
     applyHosted();
-    if (info.mfaOff) mfaOffBanner();
+    if (info.mfaBypass) mfaBypassBanner();
+    $('set-mfa-row').hidden = info.mfaOffered === false;
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
     $('set-language').value = settings.language || 'en';
@@ -1431,7 +1432,7 @@ async function init() {
     $('set-allow-private').checked = settings.allowPrivate !== false;
     $('set-allow-reactions').checked = settings.allowReactions !== false;
     $('set-login-text').value = settings.loginText;
-    $('set-mfa').value = ['off', 'optional', 'owners', 'everyone'].includes(settings.mfa) ? settings.mfa : 'optional';
+    $('set-mfa-required').checked = Boolean(settings.mfaRequired);
     $('set-allow-registration').checked = Boolean(settings.allowRegistration);
     renderReactionRows(settings.reactions);
     renderIconRows(settings.icons);

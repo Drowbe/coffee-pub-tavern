@@ -26,7 +26,7 @@ If a payment lapses, a banner on every page says so, with the date the environme
 
 ## Two-step sign-in
 
-The rule for your environment is yours to set (Manage > Server), and you reset a member's second factor from their profile when their app is gone. If an owner is locked out, the host admin resets theirs from the console (an environment's card takes the owner's login).
+Whether your environment requires it of everyone is yours to set (Manage > Server, when the host offers two-step sign-in at all), and you reset a member's second factor from their profile when their app is gone. If an owner is locked out, the host admin resets theirs from the console (an environment's card takes the owner's login).
 
 ## A copy, and leaving
 

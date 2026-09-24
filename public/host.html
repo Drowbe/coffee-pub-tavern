@@ -60,16 +60,17 @@
         <dl class="facts" id="host-facts"></dl>
         <div class="row"><button class="btn" id="host-logout" type="button">Sign out of the host</button></div>
       </section>
-      <section class="panel">
+      <section class="panel" id="host-mfa-panel" hidden>
         <div class="section-head">
           <h2>Your two-step sign-in</h2>
           <span class="pill" id="host-mfa-state">off</span>
           <span class="status" id="host-mfa-status"></span>
         </div>
-        <p class="hint" id="host-mfa-hint">A code from an authenticator app after the password, for this host admin account. HOST_MFA=required on the server makes it mandatory for every host admin.</p>
+        <p class="hint" id="host-mfa-hint">A code from an authenticator app after the password, for this host admin account. HOST_MFA_REQUIRED on the server makes it mandatory for every host admin.</p>
         <div class="row">
           <button class="btn btn-primary btn-small" id="host-mfa-on" type="button" hidden>Turn on</button>
           <button class="btn btn-small" id="host-mfa-off" type="button" hidden>Turn off</button>
+          <button class="btn btn-danger btn-small" id="host-mfa-reset" type="button" hidden>Reset my second factor</button>
         </div>
         <div class="mfa-block" id="host-mfa-block" hidden></div>
       </section>

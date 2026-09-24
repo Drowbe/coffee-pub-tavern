@@ -79,12 +79,15 @@ export async function mountEnrolment(root, { start, enable, onDone, who = 'you' 
   form.querySelector('input').focus();
 }
 
-// Turning it off, or resetting someone's: a code is asked inline, never with a browser prompt.
-export function mountDisable(root, { disable, onDone, label = 'Turn off' }) {
+// Turning it off, or resetting your own under the admin lockout bypass: a code (or, with `password: true`, the
+// password, since the bypass is for someone whose app is gone) is asked inline, never with a browser prompt.
+export function mountDisable(root, { disable, onDone, label = 'Turn off', password = false }) {
   root.hidden = false;
   root.innerHTML = `
     <form class="row" data-disable>
-      <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="a code from the app, or a recovery code" required aria-label="A code">
+      ${password
+        ? '<input type="password" autocomplete="current-password" placeholder="your password" required aria-label="Your password">'
+        : '<input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="a code from the app, or a recovery code" required aria-label="A code">'}
       <button class="btn btn-danger btn-small" type="submit">${esc(label)}</button>
       <button class="btn btn-small" type="button" data-cancel>Cancel</button>
       <span class="status" data-status role="status"></span>
@@ -97,7 +100,8 @@ export function mountDisable(root, { disable, onDone, label = 'Turn off' }) {
     status.classList.remove('error');
     status.textContent = 'checking...';
     try {
-      await api('POST', disable, { code: form.querySelector('input').value.trim() });
+      const value = form.querySelector('input').value;
+      await api('POST', disable, password ? { password: value } : { code: value.trim() });
       root.hidden = true;
       root.replaceChildren();
       if (onDone) onDone();

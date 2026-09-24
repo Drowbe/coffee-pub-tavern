@@ -17,8 +17,9 @@ const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || 
 let me = null; // the signed-in admin, only used for the "last admin" check
 let user = null; // whose profile this is: me, or the person being edited
 let hosted = false; // a host with environments: an admin is the environment's owner in every word a person reads
-let mfaRequired = false; // the policy requires a second factor of the signed-in person (their own profile only)
-let mfaOff = false; // the server's MFA_OFF switch: the step is skipped everywhere until it is removed
+let mfaRequired = false; // the environment requires a second factor of the signed-in person (their own profile only)
+let mfaOffered = true; // the server offers two-step sign-in at all (ENABLE_MFA)
+let mfaBypass = false; // the server's admin lockout bypass applies to the signed-in person: no code asked, own reset offered
 let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
 
 // If this page is open as the overlay on top of an active call (same
@@ -62,7 +63,8 @@ async function reload() {
     user = res.user;
     hosted = Boolean(res.environment && res.environment.hosted);
     mfaRequired = Boolean(res.mfaRequired);
-    mfaOff = Boolean(res.mfaOff);
+    mfaOffered = res.mfaOffered !== false;
+    mfaBypass = Boolean(res.mfaBypass);
   }
 }
 
@@ -465,23 +467,30 @@ for (const [id, prefKey] of [['cp-mute-key', 'muteKey'], ['cp-ptt-key', 'pttKey'
 
 // Two-step sign-in on the account: your own to turn on (the enrolment block: scan, confirm, keep the recovery codes) and
 // off (a code); an admin editing someone can reset theirs, which signs them out everywhere. A required factor cannot be
-// turned off, and one not yet set up is asked for here with the block open.
+// turned off, and one not yet set up is asked for here with the block open. Under the server's admin lockout bypass an
+// admin is not asked for a code and can reset their own with the password. Not offered by the server: no row at all.
 function renderMfa(editing) {
+  $('mfa-row').hidden = !mfaOffered;
+  if (!mfaOffered) { $('mfa-block').hidden = true; return; }
   const on = Boolean(user.mfaEnrolled);
-  $('mfa-state').textContent = mfaOff ? 'switched off by the server' : on ? 'on' : 'off';
-  $('mfa-state').classList.toggle('on', on && !mfaOff);
+  $('mfa-state').textContent = on ? (mfaBypass && !editing ? 'on, bypassed' : 'on') : 'off';
+  $('mfa-state').classList.toggle('on', on && !mfaBypass);
   $('mfa-on').hidden = editing || on;
-  $('mfa-off').hidden = editing || !on || (mfaRequired && !mfaOff);
+  $('mfa-off').hidden = editing || !on || mfaRequired || mfaBypass;
   $('mfa-reset').hidden = !editing || !on;
-  $('mfa-hint').textContent = mfaOff
-    ? 'MFA_OFF is set on the server; remove it once you are back in.'
-    : editing
-      ? (on ? `${user.displayName} signs in with a code from an authenticator app. Reset it if the app is gone; they are signed out everywhere and asked nothing until they set it up again.` : `${user.displayName} signs in with a password only.`)
+  $('mfa-self-reset').hidden = editing || !on || !mfaBypass;
+  $('mfa-hint').textContent = editing
+    ? (on ? `${user.displayName} signs in with a code from an authenticator app. Reset it if the app is gone; they are signed out everywhere and asked nothing until they set it up again.` : `${user.displayName} signs in with a password only.`)
+    : mfaBypass
+      ? (on ? 'The admin lockout bypass is on, so you are not asked for a code. Reset your factor here if the app is gone, then turn the bypass off on the server.' : 'The admin lockout bypass is on; turn it off on the server once you are back in.')
       : on
-        ? (mfaRequired ? 'A code from your authenticator app, after the password. Your role requires it.' : 'A code from your authenticator app, after the password.')
-        : (mfaRequired ? 'Your role requires a second step. Set it up now.' : 'A code from an authenticator app after the password, if you want one.');
-  if (!editing && !on && mfaRequired && !mfaOff && $('mfa-block').hidden) $('mfa-on').click();
+        ? (mfaRequired ? 'A code from your authenticator app, after the password. This environment requires it.' : 'A code from your authenticator app, after the password.')
+        : (mfaRequired ? 'This environment requires a second step. Set it up now.' : 'A code from an authenticator app after the password, if you want one.');
+  if (!editing && !on && mfaRequired && !mfaBypass && $('mfa-block').hidden) $('mfa-on').click();
 }
+$('mfa-self-reset').addEventListener('click', () => {
+  mountDisable($('mfa-block'), { disable: '/api/me/mfa/reset', label: 'Reset', password: true, onDone: async () => { await reload(); render(); say('your second factor is reset; set it up again when you are ready'); } });
+});
 $('mfa-on').addEventListener('click', () => {
   if (!$('mfa-block').hidden) return;
   mountEnrolment($('mfa-block'), { start: '/api/me/mfa/start', enable: '/api/me/mfa/enable', onDone: async () => { await reload(); render(); say('two-step sign-in is on'); } });
