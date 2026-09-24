@@ -63,12 +63,13 @@ const {
   TAVERN_AI_KEY = '', // deprecated: use AI_KEY (used to be an environment's own key; it is the host's now)
   AI_OPENAI_KEY = '',
   AI_ANTHROPIC_KEY = '',
-  // Self-serve and billing (plan-tenants.md, "Phase 5"): SIGNUP gates POST /api/product/signup ('on' by default
-  // wherever there is a BASE_DOMAIN to sign up an environment at); BILLING_SECRET signs the billing webhook
-  // (x-billing-signature, HMAC-SHA256 of the raw body) -- unset, the webhook route answers 404, same as a
-  // feature that was never turned on. A plan's own checkout URL is BILLING_CHECKOUT_<PLAN ID>, read directly off
-  // process.env where it is used (the plan id is dynamic, host-configured, so it can't be named here).
-  SIGNUP = 'on',
+  // Self-serve and billing (plan-tenants.md, "Phase 5"): SIGNUP gates POST /api/product/signup -- off unless a
+  // host explicitly opts in with SIGNUP=on, so a freshly upgraded host never offers public self-service by
+  // surprise. BILLING_SECRET signs the billing webhook (x-billing-signature, HMAC-SHA256 of the raw body) --
+  // unset, the webhook route answers 404, same as a feature that was never turned on. A plan's own checkout URL
+  // is BILLING_CHECKOUT_<PLAN ID>, read directly off process.env where it is used (the plan id is dynamic,
+  // host-configured, so it can't be named here).
+  SIGNUP = '',
   BILLING_SECRET = '',
   // Two-step sign-in (documentation/plans/plan-mfa.md, "Regaining access"): ENABLE_MFA turns the whole feature
   // on or off, server-wide (default on); ADMIN_MFA_LOCKOUT_BYPASS lets an admin -- an environment's own or a
@@ -88,7 +89,7 @@ const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
 const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
-const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP !== 'off';
+const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP === 'on';
 const mfaOffered = ENABLE_MFA !== 'false';
 const adminMfaLockoutBypass = ADMIN_MFA_LOCKOUT_BYPASS === 'true';
 const hostMfaRequired = HOST_MFA_REQUIRED === 'true' || HOST_MFA === 'required';
