@@ -5271,6 +5271,9 @@ body.at-table .module-nav {
 .env-cap-bar span { display: block; height: 100%; background: var(--accent); }
 .env-cap-bar.warn span { background: var(--danger); }
 .env-banner { padding: 8px 12px; border: 1px solid var(--danger); border-radius: 8px; background: color-mix(in srgb, var(--danger) 12%, var(--bg-card)); color: var(--text); }
+/* The same banner across the top of every page, for an owner, while the environment is past due or suspended. */
+.env-page-banner { padding: 6px 16px; background: color-mix(in srgb, var(--danger) 18%, var(--bg)); border-bottom: 1px solid var(--danger); color: var(--text); font-size: 13px; text-align: center; }
+.env-page-banner a { color: var(--text); font-weight: 600; margin-left: 6px; }
 /* The host console's plans catalog: one row per plan. */
 .plans-editor { display: grid; gap: 10px; margin: 8px 0; }
 .plan-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); align-items: end; }
