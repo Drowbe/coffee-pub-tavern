@@ -1417,7 +1417,10 @@ if (BASE_DOMAIN) {
       const port = requestHost.includes(':') ? requestHost.slice(requestHost.lastIndexOf(':')) : '';
       return res.redirect(301, `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}${req.originalUrl}`);
     }
-    if (host === `admin.${BASE_DOMAIN}`) return hostRouter(req, res, next);
+    // Font Awesome is asked for by every page including the console's own, but the icon set itself lives
+    // outside hostRouter (mounted on `app`, below, since the bare base domain needs it too) -- let through to
+    // there rather than into hostRouter, whose own catch-all would otherwise 404 it before it ever arrived.
+    if (host === `admin.${BASE_DOMAIN}`) return req.path.startsWith('/fa/') ? next() : hostRouter(req, res, next);
     // The bare base domain: the product's own landing page (public/landing.html), never any one environment's
     // page -- no store is ever resolved here (see the "no environment" fallback in /theme.css and siteIcon
     // above). Only the handful of paths that page actually needs are let through; anything else is a plain 404,
