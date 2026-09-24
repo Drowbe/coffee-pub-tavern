@@ -3,13 +3,13 @@
 Things agreed on but not built yet, roughly in order. See the Studio repo's own TODO.md
 for that app's side of things (Windows OBS capture work, mainly).
 
-## Two-step sign-in
+## Two-step sign-in: what is left
 
-Planned (September 24, 2026; plans/plan-mfa.md), not built: codes from an authenticator app as a
-second factor, recovery codes, a policy per environment (off, optional, owners, everyone) and for
-host admins, a remembered browser, secrets encrypted with a key the host keeps, resets by an owner
-or a host admin, and the Studio app told about the `mfaRequired` answer when it ships. Passkeys are
-the named second phase.
+Built (September 24, 2026; plans/plan-mfa.md): codes from an authenticator app, recovery codes, the
+policy per environment and for host admins, the remembered browser, the encrypted secrets, resets by
+an owner or a host admin, and `MFA_RESET` and `MFA_OFF` for getting back in. Left: passkeys as the
+second phase (the plan names the shape), and the Studio app's own change to ask for the code when
+`POST /api/login` answers `mfaRequired` (it has been told).
 
 ## Room layout: walk it in a real call
 
