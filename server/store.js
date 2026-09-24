@@ -132,6 +132,18 @@ function sanitizeMfa(raw) {
     pending,
   };
 }
+// The old policy, a four-way string (documentation/plans/plan-mfa.md, before "Regaining access" was redesigned
+// around the switches), becomes a plain boolean: 'everyone' meant mandatory for everyone, so that is the only
+// case that carries forward as true; 'owners' (mandatory for admins only) has no boolean equivalent and reads
+// as false, same as 'optional' and 'off' always did (the old 'off' is now the server's own ENABLE_MFA instead,
+// not a per-environment setting at all). Read once, on load; the old key is dropped from what comes back, so
+// the very next save leaves it out of the file for good.
+function migrateMfaSettings(raw) {
+  const settings = raw && typeof raw === 'object' ? raw : {};
+  const { mfa, ...rest } = settings;
+  if (typeof rest.mfaRequired !== 'boolean') rest.mfaRequired = mfa === 'everyone';
+  return rest;
+}
 const IMAGE_TYPES = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -148,7 +160,6 @@ const LOBBY = 'lobby';
 // stays in the browser's own localStorage) so they follow the account
 // wherever it signs in, not just the browser that last set them.
 const QUALITY_OPTIONS = [360, 540, 720];
-const MFA_POLICIES = ['off', 'optional', 'owners', 'everyone'];
 const BACKGROUND_MODES = ['none', 'blur', 'image'];
 // "Mod+KeyD" style strings (see public/hotkeys.js): Mod is Cmd on a Mac,
 // Ctrl elsewhere, same as Google Meet's own mute/camera shortcuts.
@@ -171,10 +182,10 @@ const DEFAULT_SETTINGS = {
   // account is a normal user, added automatically like everyone is to the
   // Lobby, with no password requirement beyond what they pick.
   allowRegistration: false,
-  // Two-step sign-in policy (documentation/plans/plan-mfa.md): off (nobody is asked), optional (the default:
-  // anyone may enrol, and is then asked), owners (every admin must enrol; a user may), everyone. Bites at the
-  // next sign-in, never an already-open session.
-  mfa: 'optional',
+  // Two-step sign-in policy (documentation/plans/plan-mfa.md): off by default (anyone may still enrol and is
+  // then asked; this only makes it mandatory). Whether the feature is offered at all is the server's own
+  // ENABLE_MFA, not a per-environment setting. Bites at the next sign-in, never an already-open session.
+  mfaRequired: false,
   // Call features, on by default -- an admin can turn any of these off
   // server-wide. maxQuality caps the "Quality" picker (see QUALITY_OPTIONS)
   // rather than adding a new tier of its own.
@@ -444,7 +455,7 @@ class Store {
         session: raw.secrets?.session || randomToken(32),
         stream: raw.secrets?.stream || randomToken(18),
       },
-      settings: { ...DEFAULT_SETTINGS, ...(raw.settings || {}) },
+      settings: { ...DEFAULT_SETTINGS, ...migrateMfaSettings(raw.settings) },
       users: Array.isArray(raw.users) ? raw.users.map((u) => this.sanitizeUser(u)).filter(Boolean) : [],
       rooms: Array.isArray(raw.rooms) ? raw.rooms.map((r) => this.sanitizeRoom(r)).filter(Boolean) : [],
       invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
@@ -677,10 +688,7 @@ class Store {
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
-    if (patch.mfa !== undefined) {
-      if (!MFA_POLICIES.includes(patch.mfa)) throw new StoreError(`mfa must be one of ${MFA_POLICIES.join(', ')}`);
-      s.mfa = patch.mfa;
-    }
+    if (patch.mfaRequired !== undefined) s.mfaRequired = Boolean(patch.mfaRequired);
     if (patch.maxQuality !== undefined && QUALITY_OPTIONS.includes(Number(patch.maxQuality))) s.maxQuality = Number(patch.maxQuality);
     if (patch.allowScreenShare !== undefined) s.allowScreenShare = Boolean(patch.allowScreenShare);
     if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);

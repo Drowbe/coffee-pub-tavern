@@ -70,12 +70,16 @@ const {
   // process.env where it is used (the plan id is dynamic, host-configured, so it can't be named here).
   SIGNUP = 'on',
   BILLING_SECRET = '',
-  // Two-step sign-in (documentation/plans/plan-mfa.md): HOST_MFA makes it mandatory for host admins ('required')
-  // rather than merely offered ('optional', the default) -- an environment's own policy is settings.mfa instead,
-  // set through Manage. MFA_RESET and MFA_OFF are "regaining access": see the startup block near app.listen.
-  HOST_MFA = 'optional',
-  MFA_RESET = '',
-  MFA_OFF = '',
+  // Two-step sign-in (documentation/plans/plan-mfa.md, "Regaining access"): ENABLE_MFA turns the whole feature
+  // on or off, server-wide (default on); ADMIN_MFA_LOCKOUT_BYPASS lets an admin -- an environment's own or a
+  // host admin -- back in without the code step or the enrol requirement, at the cost of that account's own
+  // second factor being nothing to lean on while it is set. An environment's own policy is settings.mfaRequired
+  // instead, a plain on/off through Manage. HOST_MFA_REQUIRED is the host console's; HOST_MFA=required still
+  // works too, from before the switches were renamed.
+  ENABLE_MFA = 'true',
+  ADMIN_MFA_LOCKOUT_BYPASS = 'false',
+  HOST_MFA_REQUIRED = 'false',
+  HOST_MFA = '',
 } = process.env;
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
@@ -85,8 +89,9 @@ const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP !== 'off';
-const mfaOff = MFA_OFF === '1';
-const hostMfaRequired = HOST_MFA === 'required';
+const mfaOffered = ENABLE_MFA !== 'false';
+const adminMfaLockoutBypass = ADMIN_MFA_LOCKOUT_BYPASS === 'true';
+const hostMfaRequired = HOST_MFA_REQUIRED === 'true' || HOST_MFA === 'required';
 // BILLING_CHECKOUT_<PLAN ID>, e.g. BILLING_CHECKOUT_PRO for the plan "pro"; none set means that plan is not
 // sold online (plan-tenants.md, "Phase 5").
 function checkoutUrlFor(planId) {
@@ -548,26 +553,32 @@ function secretsKeyBuf() {
   return _secretsKeyBuf;
 }
 
-// Whether the environment's policy requires this particular person to have a second factor: 'everyone'
-// always, 'owners' for an admin, 'optional'/'off' never. The host admin's own cross sign-in user is never
-// required here -- their own factor lives at the host console, under HOST_MFA, a separate account entirely.
+// Whether the admin lockout bypass applies to this particular person: an environment's own admin (the owner,
+// on a hosted server) -- never the host admin's own cross sign-in pseudo-account, which has no real factor of
+// its own to be locked out of (documentation/plans/plan-mfa.md, "Regaining access").
+function mfaBypassApplies(user) {
+  return adminMfaLockoutBypass && user.role === 'admin' && !user.hostAdmin;
+}
+
+// Whether the environment's policy requires this particular person to have a second factor: settings.mfaRequired,
+// a plain on/off, unless the whole feature is not offered or the lockout bypass excuses this person from it. The
+// host admin's own cross sign-in user is never required here -- their own factor lives at the host console,
+// under HOST_MFA_REQUIRED, a separate account entirely.
 function mfaPolicyRequires(user) {
-  if (user.hostAdmin) return false;
-  const policy = store.settings.mfa || 'optional';
-  if (policy === 'everyone') return true;
-  if (policy === 'owners') return user.role === 'admin';
-  return false;
+  if (!mfaOffered || user.hostAdmin || mfaBypassApplies(user)) return false;
+  return Boolean(store.settings.mfaRequired);
 }
 
 // The pending step: called right after the first factor succeeds, before any session is issued. Returns null
-// when nothing more is owed (MFA_OFF, the host admin's own cross sign-in, no factor and the policy does not
-// require one, or a valid mfa_trust cookie for this exact person -- readSession's own stamp check already
-// busts it on a reset or a fresh enrolment, since userStamp folds in mfa.version); otherwise { enrol, pending }
-// for the caller to answer or redirect with instead of a session.
+// when nothing more is owed (the feature is not offered at all, the host admin's own cross sign-in, the
+// lockout bypass excusing an admin from both the step and the enrol requirement, no factor and the policy
+// does not require one, or a valid mfa_trust cookie for this exact person -- readSession's own stamp check
+// already busts it on a reset or a fresh enrolment, since userStamp folds in mfa.version); otherwise
+// { enrol, pending } for the caller to answer or redirect with instead of a session.
 function mfaGate(req, user) {
-  if (mfaOff || user.hostAdmin) return null;
+  if (!mfaOffered || user.hostAdmin || mfaBypassApplies(user)) return null;
   const enrolled = Boolean(user.mfa);
-  if (!enrolled && !mfaPolicyRequires(user)) return null;
+  if (!enrolled && !store.settings.mfaRequired) return null;
   const trust = auth.readSession(store.sessionSecret, auth.sessionToken(req, auth.TRUST_COOKIE), (key) => (key === user.key ? user : null));
   if (trust) return null;
   const purpose = enrolled ? 'verify' : 'enrol';
@@ -583,6 +594,13 @@ function mfaSubject(req) {
   const token = req.body?.pending || auth.parseCookies(req.get('cookie'))[auth.PENDING_COOKIE] || null;
   const pend = token && auth.readPending(store.sessionSecret, token, { env: currentEnvironment().slug || '', purpose: 'enrol' });
   return pend ? store.userByKey(pend.u) : null;
+}
+
+// Every enrolment and reset route refuses outright while the feature is turned off server-wide: enrolments
+// already made are kept either way, nothing here deletes anything (documentation/plans/plan-mfa.md).
+function requireMfaOffered(req, res, next) {
+  if (!mfaOffered) return res.status(403).json({ error: 'two-step sign-in is not offered on this server' });
+  next();
 }
 
 // Checks a code against this person's own factor: a TOTP code (recording the step used, so it cannot be
@@ -689,7 +707,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfa: s.mfa || 'optional', mfaOff, maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -765,12 +783,13 @@ function sendHostError(err, res) {
 hostRouter.use(express.static(publicDir, { index: false }));
 hostRouter.get('/', (_req, res) => res.sendFile(page('host.html')));
 
-// The host admins' own second step (documentation/plans/plan-mfa.md): HOST_MFA=required makes it mandatory,
+// The host admins' own second step (documentation/plans/plan-mfa.md): HOST_MFA_REQUIRED makes it mandatory,
 // same shape as a tenant's own gate but keyed on hostRegistry's session secret and its own admin records,
 // never a tenant's -- 'host' is a reserved slug (see RESERVED_SLUGS), so it can never collide with a real
-// environment's own pending tokens even though the cookie names are shared.
+// environment's own pending tokens even though the cookie names are shared. Every host admin is eligible for
+// the lockout bypass (there is no separate role to check, unlike a tenant's own admins).
 function hostMfaGate(req, admin) {
-  if (mfaOff) return null;
+  if (!mfaOffered || adminMfaLockoutBypass) return null;
   const enrolled = Boolean(admin.mfa);
   if (!enrolled && !hostMfaRequired) return null;
   const trust = auth.readSession(hostRegistry.sessionSecret, auth.sessionToken(req, auth.TRUST_COOKIE), (key) => (key === admin.key ? admin : null));
@@ -825,9 +844,9 @@ hostRouter.post('/api/host/logout', (req, res) => { auth.clearSessionCookie(req,
 hostRouter.get('/api/host/me', (req, res) => {
   const found = currentHostAdmin(req);
   if (!found) return res.status(401).json({ error: 'sign in first' });
-  res.json({ admin: { key: found.key, login: found.login }, mfaEnrolled: Boolean(found.mfa), mfaRequired: !mfaOff && !found.mfa && hostMfaRequired, mfaOff });
+  res.json({ admin: { key: found.key, login: found.login }, mfaEnrolled: Boolean(found.mfa), mfaRequired: mfaOffered && !adminMfaLockoutBypass && !found.mfa && hostMfaRequired, mfaOffered, mfaBypass: adminMfaLockoutBypass });
 });
-hostRouter.post('/api/host/me/mfa/start', async (req, res) => {
+hostRouter.post('/api/host/me/mfa/start', requireMfaOffered, async (req, res) => {
   const admin = hostMfaSubject(req);
   if (!admin) return res.status(401).json({ error: 'sign in first' });
   const secret = auth.totpSecret();
@@ -836,7 +855,7 @@ hostRouter.post('/api/host/me/mfa/start', async (req, res) => {
   const qr = await QRCode.toString(otpauth, { type: 'svg' });
   res.json({ otpauth, qr, secret });
 });
-hostRouter.post('/api/host/me/mfa/enable', (req, res) => {
+hostRouter.post('/api/host/me/mfa/enable', requireMfaOffered, (req, res) => {
   const admin = hostMfaSubject(req);
   if (!admin) return res.status(401).json({ error: 'sign in first' });
   const pending = admin.mfa?.pending;
@@ -857,14 +876,25 @@ hostRouter.post('/api/host/me/mfa/enable', (req, res) => {
   const out = { recoveryCodes, admin: { key: fresh.key, login: fresh.login }, token };
   res.json(out);
 });
-hostRouter.post('/api/host/me/mfa/disable', requireHostAdmin, (req, res) => {
+hostRouter.post('/api/host/me/mfa/disable', requireMfaOffered, requireHostAdmin, (req, res) => {
   const admin = currentHostAdmin(req);
   if (!admin.mfa) return res.status(400).json({ error: 'no second factor to disable' });
-  if (hostMfaRequired) return res.status(403).json({ error: 'this deployment requires a second factor for host admins' });
+  if (hostMfaRequired && !adminMfaLockoutBypass) return res.status(403).json({ error: 'this deployment requires a second factor for host admins' });
   const ok = verifyMfaCode(admin.mfa, req.body?.code, { onStep: () => {}, onRecovery: () => {} });
   if (!ok) return res.status(401).json({ error: 'wrong code' });
   hostRegistry.hostAdminMfaDisable(admin.key);
   // Same reissue as /api/me/mfa/disable, and for the same reason.
+  const token = auth.issueSession(hostRegistry.sessionSecret, hostRegistry.findAdminByKey(admin.key));
+  auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
+  res.json({ ok: true, token });
+});
+// The lockout bypass's own way back in for a host admin: no code, just the account's own password (mirrors
+// POST /api/me/mfa/reset).
+hostRouter.post('/api/host/me/mfa/reset', requireMfaOffered, requireHostAdmin, (req, res) => {
+  const admin = currentHostAdmin(req);
+  if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the admin lockout bypass is not turned on' });
+  if (!auth.verifyPassword(req.body?.password || '', admin.passwordHash)) return res.status(401).json({ error: 'wrong password' });
+  hostRegistry.hostAdminMfaDisable(admin.key);
   const token = auth.issueSession(hostRegistry.sessionSecret, hostRegistry.findAdminByKey(admin.key));
   auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
   res.json({ ok: true, token });
@@ -1863,9 +1893,11 @@ app.get('/api/me', requireUser, (req, res) => {
     streamKey: user.role === 'admin' ? store.streamKey : undefined,
     // documentation/plans/plan-mfa.md: mfaEnrolled also rides along inside `user` (publicUser, for everyone
     // else's own account too); mfaRequired is this session's own -- the policy asks something of this person
-    // that they have not met yet, so the profile page can show the inline enrolment banner.
+    // that they have not met yet, so the profile page can show the inline enrolment banner -- and overrides
+    // branding()'s own environment-wide mfaRequired above. mfaBypass is only ever true for this exact caller.
     mfaEnrolled: Boolean(user.mfa),
-    mfaRequired: !mfaOff && !user.mfa && mfaPolicyRequires(user),
+    mfaRequired: !user.mfa && mfaPolicyRequires(user),
+    mfaBypass: mfaBypassApplies(user),
   });
 });
 
@@ -1873,7 +1905,7 @@ app.get('/api/me', requireUser, (req, res) => {
 // holds a valid 'enrol' pending token (mfaSubject covers both). start makes a new secret, kept unconfirmed
 // until enable; another start simply replaces it. enable confirms it, makes the recovery codes (shown once,
 // never again), and -- when there was no session to begin with -- signs the person in with the same answer.
-app.post('/api/me/mfa/start', async (req, res) => {
+app.post('/api/me/mfa/start', requireMfaOffered, async (req, res) => {
   const user = mfaSubject(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
   const secret = auth.totpSecret();
@@ -1882,7 +1914,7 @@ app.post('/api/me/mfa/start', async (req, res) => {
   const qr = await QRCode.toString(otpauth, { type: 'svg' });
   res.json({ otpauth, qr, secret });
 });
-app.post('/api/me/mfa/enable', (req, res) => {
+app.post('/api/me/mfa/enable', requireMfaOffered, (req, res) => {
   const user = mfaSubject(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
   const pending = user.mfa?.pending;
@@ -1911,7 +1943,7 @@ app.post('/api/me/mfa/enable', (req, res) => {
 });
 // Refused when the policy requires a factor for this person -- they may only replace it (start, then
 // enable), never go without one while it is required.
-app.post('/api/me/mfa/disable', requireUser, (req, res) => {
+app.post('/api/me/mfa/disable', requireMfaOffered, requireUser, (req, res) => {
   const user = currentUser(req);
   if (!user.mfa) return res.status(400).json({ error: 'no second factor to disable' });
   if (mfaPolicyRequires(user)) return res.status(403).json({ error: 'this environment requires a second factor for your account' });
@@ -1924,6 +1956,23 @@ app.post('/api/me/mfa/disable', requireUser, (req, res) => {
   // Disabling changes this account's own userStamp too (mfa.version was folded in, now gone entirely), which
   // would otherwise silently sign this very request's own session out along with the factor -- reissued so
   // disabling stays a smooth, in-session action rather than an accidental sign-out.
+  const token = auth.issueSession(store.sessionSecret, store.userByKey(user.key));
+  auth.setSessionCookie(req, res, token);
+  res.json({ ok: true, token });
+});
+// The lockout bypass's own way back in: no code needed, just the account's own password -- for an admin who
+// has a second factor but lost the means to produce a code at all. Only while ADMIN_MFA_LOCKOUT_BYPASS is on,
+// and only for an admin (documentation/plans/plan-mfa.md, "Regaining access"); the host admin's own cross
+// sign-in has no real factor of its own, so it is excluded the same way mfaBypassApplies excludes it.
+app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
+  const user = currentUser(req);
+  if (!adminMfaLockoutBypass || user.role !== 'admin' || user.hostAdmin) {
+    return res.status(403).json({ error: 'the admin lockout bypass is not turned on' });
+  }
+  if (!user.passwordHash || !auth.verifyPassword(req.body?.password || '', user.passwordHash)) {
+    return res.status(401).json({ error: 'wrong password' });
+  }
+  store.mfaDisable(user.key);
   const token = auth.issueSession(store.sessionSecret, store.userByKey(user.key));
   auth.setSessionCookie(req, res, token);
   res.json({ ok: true, token });
@@ -4222,30 +4271,10 @@ app.use((err, _req, res, _next) => {
 // (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no tenants to sweep.
 if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 
-// Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): for the operator locked out of
-// their own server. Applied every start while set, never tracked as "already done" -- the variable is meant
-// to be removed again once they are back in, and the log says so every time it still fires.
-if (mfaOff) console.warn("Two-step sign-in is switched off by the server's MFA_OFF. Remove it once you are back in.");
-if (MFA_RESET) {
-  for (const raw of MFA_RESET.split(',').map((s) => s.trim()).filter(Boolean)) {
-    let label = null;
-    if (raw.startsWith('host:')) {
-      const admin = hostRegistry?.findAdminByLogin(raw.slice(5));
-      if (admin) { hostRegistry.hostAdminMfaDisable(admin.key); label = `the host admin "${admin.login}"`; }
-    } else if (BASE_DOMAIN) {
-      const [slug, login] = raw.split(':');
-      const env = login && hostRegistry?.findTenant(slug) ? environmentFor(slug) : null;
-      const user = env?.store.userByLogin(login);
-      if (user) { env.store.mfaDisable(user.key); label = `"${login}" at "${slug}"`; }
-    } else {
-      const env = environmentFor(DEFAULT_SLUG);
-      const user = env.store.userByLogin(raw);
-      if (user) { env.store.mfaDisable(user.key); label = `"${raw}"`; }
-    }
-    if (label) console.log(`Second factor cleared for ${label} (MFA_RESET).`);
-    else console.warn(`MFA_RESET named "${raw}", but no matching account was found.`);
-  }
-}
+// Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): the lockout bypass excuses every
+// admin from the code step and the enrol requirement for as long as it is set -- worth a loud warning on
+// every start, the same way a server running with no LiveKit secret or an open registration would be.
+if (adminMfaLockoutBypass) console.warn('The admin lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every admin skips two-step sign-in entirely. Turn it off once you are back in.');
 
 app.listen(Number(PORT), () => {
   if (!BASE_DOMAIN) {
