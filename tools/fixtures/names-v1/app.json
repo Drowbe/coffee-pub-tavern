@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "secrets": {
+    "session": "fixture-session-secret-not-a-real-one-00",
+    "stream": "fixture-stream-key-0"
+  },
+  "settings": {
+    "serverName": "Fixture Table",
+    "tableName": "The Table",
+    "room": "table",
+    "roles": {
+      "moderator": { "chat": true },
+      "user": { "chat": true },
+      "guest": { "chat": false }
+    }
+  },
+  "users": [
+    {
+      "key": "ownerkey01",
+      "login": "admin",
+      "displayName": "Owner",
+      "role": "admin",
+      "passwordHash": "fixture-not-a-hash",
+      "rooms": {}
+    },
+    {
+      "key": "memberkey1",
+      "login": "sam",
+      "displayName": "Sam",
+      "role": "user",
+      "passwordHash": "fixture-not-a-hash",
+      "rooms": {
+        "keep01": { "useDefaultImages": true, "permissions": { "moderator": true } }
+      }
+    }
+  ],
+  "rooms": [
+    { "id": "lobby", "name": "Lobby", "description": "Everyone at the table.", "members": [], "createdAt": "2026-01-01T00:00:00.000Z" },
+    { "id": "keep01", "name": "The Keep", "description": "", "members": ["memberkey1"], "createdAt": "2026-01-02T00:00:00.000Z" },
+    { "id": "aside1", "name": "Aside", "ephemeral": true, "origin": "keep01", "private": false, "members": ["ownerkey01", "memberkey1"], "createdAt": "2026-01-03T00:00:00.000Z" }
+  ],
+  "invites": [
+    { "id": "invite01", "role": "user", "rooms": ["keep01"], "createdAt": "2026-01-04T00:00:00.000Z" }
+  ]
+}

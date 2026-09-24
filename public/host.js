@@ -213,9 +213,16 @@ function renderFacts() {
   $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${tenants.length}</dd><dt>Sign-up</dt><dd>${settings.signup === false ? 'off (SIGNUP=off)' : 'on, at the base domain, on the free plan'}</dd><dt>Billing webhook</dt><dd>${webhook ? `<code>${escapeHtml(webhook)}</code>, a JSON body { slug, plan, event: paid | lapsed | cancelled } signed with <code>BILLING_SECRET</code> (x-billing-signature, HMAC-SHA256 of the body, hex)${settings.billingSecretSet === false ? '; <strong>BILLING_SECRET is not set</strong>, so the webhook refuses everything' : ''}` : 'needs a base domain'}</dd>`;
 }
 
+// Why a refused environment won't open (GET /api/host/tenants' `refused.reason`).
+const REFUSED_WORDS = {
+  newer: "Won't open: its data is from a newer version of Magpie.",
+  failed: "Won't open: its data could not be updated.",
+};
+
 function renderTenants() {
   const box = $('tenants');
   box.replaceChildren();
+  restoreFiles.clear(); // a fresh card has no zip chosen
   if (!tenants.length) { box.innerHTML = '<p class="hint">No environments yet.</p>'; return; }
   for (const t of tenants) {
     const el = clone('tpl-tenant');
@@ -227,26 +234,43 @@ function renderTenants() {
     status.textContent = t.status === 'pastDue' ? 'past due' : t.status || 'active';
     status.dataset.status = t.status || 'active';
     el.querySelector('[data-action="suspend"]').textContent = t.status === 'suspended' ? 'Restore' : 'Suspend';
-    const u = t.usage || {};
+    // Refused (its data is from a newer Magpie, or its data update could not finish): it answers its visitors with
+    // a 503 until a good backup is restored, so the card says so and why, and has nothing to count.
+    const refused = t.refused || null;
+    if (refused) {
+      status.textContent = "won't open";
+      status.dataset.status = 'refused';
+      const box = slot(el, 'refused');
+      const when = refused.at ? new Date(refused.at) : null;
+      box.innerHTML = `<p class="refused-what">${escapeHtml(REFUSED_WORDS[refused.reason] || REFUSED_WORDS.failed)}</p>`
+        + `<p class="hint refused-where">${refused.file ? `<code>${escapeHtml(refused.file)}</code>` : ''}${refused.file && when ? ', ' : ''}${when ? `since ${escapeHtml(when.toLocaleString())}` : ''}</p>`
+        + `<p class="hint">${refused.reason === 'newer' ? 'Restore a good backup, or run a newer version of Magpie.' : 'Restore a good backup. The server log has the details.'}</p>`;
+      box.title = refused.message || '';
+      box.hidden = false;
+    }
+    const u = refused ? {} : t.usage || {};
     const p = t.plan || {};
     const mods = p.modules === 'all' || !p.modules ? 'all installed' : `${p.modules.length} allowed`;
     const graceEnds = t.graceEndsAt ? new Date(t.graceEndsAt) : t.pastDueSince ? new Date(new Date(t.pastDueSince).getTime() + 14 * 86400000) : null;
     // The facts as tiles: what the plan allows against what is used, a bar where there is a cap, and the states that
     // need a host admin's eye (past due, degraded, a deletion asked for) marked.
-    el.dataset.status = t.status || 'active';
+    el.dataset.status = refused ? 'refused' : t.status || 'active';
     const pctOf = (used, limit) => (limit ? Math.min(100, Math.round((used / limit) * 100)) : null);
     const tile = (key, value, pct = null, warn = false) => `<div class="fact${warn || (pct !== null && pct >= 90) ? ' fact-warn' : ''}"><span class="fact-key">${escapeHtml(key)}</span><span class="fact-value">${escapeHtml(value)}</span>${pct === null ? '' : `<span class="env-cap-bar${pct >= 90 ? ' warn' : ''}"><span style="width:${pct}%"></span></span>`}</div>`;
-    const storageText = u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`;
+    const none = '\u2014'; // a refused environment has nothing to count
+    const storageText = refused ? none : u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`;
     slot(el, 'facts').innerHTML = [
       tile('Plan', p.name ? (settings.plans && settings.plans[p.name] ? settings.plans[p.name].name || p.name : p.name) : 'no plan named'),
       ...(t.status === 'pastDue' ? [tile('Past due', `since ${t.pastDueSince ? new Date(t.pastDueSince).toLocaleDateString() : '?'}; free plan on ${graceEnds ? graceEnds.toLocaleDateString() : '?'}`, null, true)] : []),
       ...(t.degradedAt ? [tile('Degraded to free', new Date(t.degradedAt).toLocaleDateString(), null, true)] : []),
       ...(t.deleteRequestedAt ? [tile('Deletion asked for', `${new Date(t.deleteRequestedAt).toLocaleDateString()}${t.deleteRequestReason || t.deleteReason ? ': ' + (t.deleteRequestReason || t.deleteReason) : ''}`, null, true)] : []),
-      tile('Members', cap(u.members ?? 0, p.members), pctOf(u.members ?? 0, p.members)),
-      tile('Spaces', String(u.spaces ?? 0)),
-      tile('Storage', storageText, u.storageBytes == null ? null : pctOf(u.storageBytes, p.storageBytes)),
-      tile('AI this month', cap(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth, ' calls'), pctOf(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth)),
-      tile('Calls at once', p.calls ? `${u.callsNow ?? 0} of ${p.calls}` : 'no cap', pctOf(u.callsNow ?? 0, p.calls)),
+      ...(refused ? [tile('Members', none), tile('Spaces', none), tile('Storage', none), tile('AI this month', none), tile('Calls at once', none)] : [
+        tile('Members', cap(u.members ?? 0, p.members), pctOf(u.members ?? 0, p.members)),
+        tile('Spaces', String(u.spaces ?? 0)),
+        tile('Storage', storageText, u.storageBytes == null ? null : pctOf(u.storageBytes, p.storageBytes)),
+        tile('AI this month', cap(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth, ' calls'), pctOf(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth)),
+        tile('Calls at once', p.calls ? `${u.callsNow ?? 0} of ${p.calls}` : 'no cap', pctOf(u.callsNow ?? 0, p.calls)),
+      ]),
       tile('Modules', mods),
       tile('Since', t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''),
     ].join('');
@@ -311,6 +335,21 @@ $('tenants').addEventListener('click', async (e) => {
     b.disabled = false;
     return;
   }
+  if (action === 'restore') {
+    // Choosing the zip is the first step; the button then arms, like Delete, since a restore replaces all its data.
+    const file = restoreFiles.get(slug);
+    if (!file) { slot(card, 'restore-file').value = ''; slot(card, 'restore-file').click(); return; }
+    restoreFiles.delete(slug);
+    b.disabled = true;
+    b.textContent = 'Restoring\u2026';
+    try {
+      const res = await api('POST', `/api/host/tenants/${encodeURIComponent(slug)}/restore`, file, 'application/zip');
+      if (res.refused) say($('tenants-status'), `${slug} was restored, but still won't open: ${(REFUSED_WORDS[res.refused.reason] || REFUSED_WORDS.failed).replace(/^Won't open: /, '')} Try an older backup.`, true);
+      else say($('tenants-status'), `${slug} was restored from ${file.name}.`);
+    } catch (err) { say($('tenants-status'), `${slug} was not restored: ${err.message}`, true); }
+    await load();
+    return;
+  }
   if (action === 'delete') {
     if (armed.get(slug) !== b) { armed.set(slug, b); b.textContent = 'Really delete?'; setTimeout(() => { if (armed.get(slug) === b) { armed.delete(slug); b.textContent = 'Delete'; } }, 4000); return; }
     armed.delete(slug);
@@ -320,6 +359,28 @@ $('tenants').addEventListener('click', async (e) => {
       await load();
     } catch (err) { say($('tenants-status'), err.message, true); }
   }
+});
+// The zip chosen for a restore, by slug, until the armed button is clicked again (or it disarms).
+const restoreFiles = new Map();
+$('tenants').addEventListener('change', (e) => {
+  if (e.target.dataset.slot !== 'restore-file') return;
+  const card = e.target.closest('.tenant');
+  const slug = card.dataset.slug;
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const b = card.querySelector('[data-action="restore"]');
+  restoreFiles.set(slug, file);
+  b.textContent = 'Replace its data?';
+  b.title = `Replace everything in ${slug} with ${file.name}`;
+  b.classList.add('danger');
+  b.focus();
+  setTimeout(() => {
+    if (restoreFiles.get(slug) !== file) return; // already restored, or another zip chosen since
+    restoreFiles.delete(slug);
+    b.textContent = 'Restore backup';
+    b.title = '';
+    b.classList.remove('danger');
+  }, 8000);
 });
 $('tenants').addEventListener('change', (e) => {
   const form = e.target.closest('form');

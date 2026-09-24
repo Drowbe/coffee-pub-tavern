@@ -3,5 +3,5 @@ dist/
 .env
 *.log
 .DS_Store
-data/
+/data/
 .claude/worktrees/

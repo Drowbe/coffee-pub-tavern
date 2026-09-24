@@ -3,6 +3,40 @@
 Things agreed on but not built yet, roughly in order. See the Studio repo's own TODO.md
 for that app's side of things (Windows OBS capture work, mainly).
 
+## Names: renaming the code
+
+Decided (September 24, 2026; plans/plan-names.md): the code, routes, API fields, stored keys and documents
+take the architecture's names (host, environment, space, aside, canvas, module, object; admin, owner,
+moderator, member, guest), with a recorded data migration and redirects for saved links. Ten steps, in
+order:
+
+1. The check and the migration's frame. **Built** (September 24, 2026).
+2. Environment: the host-level migration part, `/api/host/environments`, the console's code names.
+3. Table out, and the call's name.
+4. Roles: `owner`, `member` and the host's stand-in `admin`.
+5. Space and the environment scope: the server and data (5a), the pages (5b), the SDK, the manifest and the
+   bundled modules (5c).
+6. Canvas and module.
+7. Object.
+8. Asides.
+9. The documentation: renamed files and wiki pages, and the text.
+10. The aliases go, once a Coffee Pub Studio release reads the new names.
+
+Carried from step 1 into step 2:
+
+- A folder move that fails and cannot be put back still ends its message with "Nothing was changed."
+  (`commit()` in `server/migrate-names.js`); it should say which folders are left where.
+- After a part fails late and runs again on the next start, its record's `moved` lists only the second
+  attempt's moves, not the folders the first attempt already moved.
+- On the console, keyboard focus is lost after a restore (the list is drawn again).
+- The start's log line for a skipped environment runs two sentences together.
+- A refused environment's card still offers **Reset their second factor**, which answers 503.
+- Checks for the above, as quality-assurance proposed them, plus a `check-host-registry.mjs` group for
+  hand-made restore zips and a group for a refused environment on a hosted server.
+
+Waiting on this plan: [environment templates](plans/plan-environment-templates.md) is reworked on top of it
+and builds after step 5.
+
 ## Two-step sign-in: what is left
 
 Built (September 24, 2026; plans/plan-mfa.md): codes from an authenticator app, recovery codes, the
@@ -57,7 +91,7 @@ Collected, none started:
 
 ## Spaces: the documentation, and the internals
 
-Decided (September 23, 2026): rooms are **spaces** in everything a person reads. The pages and modules say so now; the code, routes, API fields and stored data keep `room` on purpose (nothing stored or linked changes). Left: the user guides and the architecture documents still say "room" throughout, and should follow in one pass, keeping code identifiers (`roomId`, `/rooms/:id`, `scope: 'room'`) as they are and changing only the prose; and whether the internals ever follow (a rename of routes and fields is a compatibility question, not a wording one: only with a migration and only if it earns it). "The table" and "the Lobby" stay as they are.
+Replaced by the Names plan above (September 24, 2026): the internals do follow, and the documents are its step 9. Kept for the record: decided (September 23, 2026): rooms are **spaces** in everything a person reads. The pages and modules say so now; the code, routes, API fields and stored data keep `room` on purpose (nothing stored or linked changes). Left: the user guides and the architecture documents still say "room" throughout, and should follow in one pass, keeping code identifiers (`roomId`, `/rooms/:id`, `scope: 'room'`) as they are and changing only the prose; and whether the internals ever follow (a rename of routes and fields is a compatibility question, not a wording one: only with a migration and only if it earns it). "The table" and "the Lobby" stay as they are.
 
 ## The theme editor: the nav colours
 

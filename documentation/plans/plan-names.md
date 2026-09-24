@@ -1,0 +1,237 @@
+# Names Plan
+
+**Audience:** Thomas, who decided the names and what this plan commits to, and the sessions that build it: server-development (`server/`, the API, the stored data, the migration, the checks), experience-design (the pages, the SDK, the bundled modules) and content-manager (the documentation, once each phase lands).
+
+**Status:** decided 2026-09-24; step 1 built (2026-09-24), steps 2 to 10 left. Thomas has asked many times for the code to use the architecture's names, and has been told each time that "the code will still say room". This plan ends that. His rule (CLAUDE.md, "Names"): "The level or role name and the code name are the same word and never change: code, routes, API fields and stored keys use them. Only the word a person reads can change, per environment template." This plan does the rename; [plan-environment-templates](plan-environment-templates.md) is reworked on top of it and builds after step 5.
+
+## Why
+
+The code names things by words the product no longer uses: a space is a `room`, an environment is a `tenant`, the canvas is the `stage`, a module on the canvas is a `pane`, a thing a module holds is an `item` or a `card`, the whole call is "the table", and the environment's runner is an `admin` while the host's runner is also an `admin`. Every new piece of work either copies the old words or translates at the edges, and every plan has had to carry an open question about keeping them. The rename is real: code, routes, API fields, stored keys, file and folder names, CSS classes, element ids and the documentation, with a recorded data migration and redirects for links people have saved.
+
+## The names
+
+Levels, top down, and roles, exactly as in CLAUDE.md's Names section:
+
+| Level or role | Code | Was |
+|---|---|---|
+| Host | `host` | the main admin host (already `host` in the console and `host.json`) |
+| Environment | `environment` | `tenant`, `tenants/`, `host.json` `tenants`; also the `server` scope, the Server tab and `serverName` |
+| Space | `space` | `room`, `rooms`, `roomId`, `room.html`, `roomconfig.html`, `/api/rooms`; the Lobby is a space |
+| Aside | `aside` | a pull-aside or private conversation: an `ephemeral` row in `rooms` |
+| Canvas | `canvas` | `stage`, `#stage`, `.stage`, "the table" as a place |
+| Module | `module` | `pane` (the docked or floating thing), including the built-in Conference and Chat |
+| Object | `object` | `item`, `card`, `refs`: a thing a module holds, and its summary |
+| Admin | `admin` | the host admin; inside an environment, only the host admin's stand-in account |
+| Owner | `owner` | `admin` on an environment (shown as "Owner" only when hosted) |
+| Moderator | `moderator` | unchanged: a per-space grant |
+| Member | `member` | `user`, as a role value only |
+| Guest | `guest` | unchanged |
+
+"Table" is removed entirely: `tableName` ("The Table"), `settings.room = 'table'` (the call's base name), `/api/table/*`, the `host.table` browser key, `userguide-table.md`, and every sentence that says it.
+
+## What it is today
+
+Counts are occurrences from a search on 2026-09-24; `public` includes `public/sdk`. The `item` and `card` counts include plain English (menu items, `align-items`, card-shaped styles), which stay.
+
+| Old name | server | public (sdk) | modules | tools | documentation | Mostly in |
+|---|---|---|---|---|---|---|
+| room, rooms | 674 | 958 (48) | 315 | 58 | 969 | `server/index.js` (411 lines), `server/store.js` (191), `public/room.js` (404), `roomconfig.js`, `module-host.js`, `style.css`; calendar, polls, todo, travel |
+| `roomId` and other camel-case | 412 | 439 (8) | 214 | 1 | | modules read `.roomId` 47 times |
+| tenant | 280 | 50 | 0 | 50 | 162 | `server/index.js`, `server/host-registry.js`, `public/host.js`, `tools/check-host-registry.mjs` |
+| stage | 0 | 233 | 21 | 1 | 107 | `style.css`, `room-modules.js`, `room.js`, `#stage` and `#stage-empty` in `room.html`; Maps' own `.stage` |
+| pane, panel | 3 | 402 (4) | 87 | 0 | 303 | `room-modules.js`, `room.js`, `nav-bar.js`; manifest `surfaces.panel`; the "Panes" permission group |
+| table | 50 | 233 (3) | 15 | 0 | 118 | `room.js`, `style.css`, `/api/table/*`, `tableName`, `settings.room` |
+| aside | 74 | 221 (2) | 29 | 2 | 73 | `room.js`, `store.js` (`addAsideRoom`, `ephemeral`, `origin`, `private`), `stream-keyed.js` |
+| item, card (objects) | | 157 / 93 in the SDK | travel 886 / 386 | | 575 / 419 | `host.refs`, `refs.resolve` answering cards, manifest `kinds[].card`, `ai.ask({ items })` answering `cards`, travel's `item:` keys |
+| role `admin` in an environment | 89 checks in `index.js` | `room.js` 13, `profile.js` 5 | research, maps, stream, polls read `info.user.role === 'admin'` | | | `ROLES = ['admin', 'user']` (`store.js:62`) |
+
+### By layer
+
+- **Routes.** `/api/rooms`, `/api/rooms/:id`, `/api/rooms/order`, `/api/rooms/:id/{chat,guest-link,image,members/:key}`, `/api/me/rooms/:roomId[/images/:slot]`, `/api/users/:key/rooms/:roomId[...]`, `/img/room/:id`, `/rooms/:id` (the space's settings page), `/api/modules/for-room`, `/api/modules/:id/rooms-data`, `/api/table`, `/api/table/{invite,invite/:id/decline,pull-aside,recall,return}`, `/api/host/tenants[/:slug[/backup|/restore|/owners/:login/mfa]]`, `/api/roles/:role` (`user`).
+- **API fields.** `GET /api/status` (`index.js:2253`): `rooms`, `table`, `activeRoom`, `adminOnline`. `branding()` (`index.js:711`): `room`, `tableName`, `serverName`. A space: `ephemeral`, `origin`, `private`, `isLobby`, `mine`. A module's registry entry: `allRooms`, `rooms` (`modules.js:638`). Queries: `/img/:key/:slot?room=&roomOnly=1` (the OBS contract, [api-obs-view](../api/api-obs-view.md)), `?room=` on the call page, `?moduleRoom=` on a pop-out (`public/module.js:15`).
+- **Stored data, per environment.** `app.json`: `rooms[]` (the Lobby's id `lobby`, asides among them), `users[].role` (`admin`, `user`), `users[].rooms{}`, `settings.roles.{moderator,user,guest}`, `settings.tableName`, `settings.room`, `settings.serverName`, `invites[].rooms`. `chat.json` `{ rooms }`. `images/rooms/<id>.*` and `images/<key>/rooms/<roomId>/`. `modules/registry.json` `allRooms`, `rooms`. `modules/settings.json` `{ server, rooms, people }`. `modules/<id>/data/server.json` and `room-<id>.json` (`module-data.js:36`); `modules/<id>/uploads/room-<id>/` (`module-uploads.js:31`). `modules/links.json`, `bus.json`, `schedules.json`, `notifications.json`: pointers with `scope: 'room'` and `room`, `roomId`, scope keys `room:<id>` and `server`.
+- **Stored data, the host.** `DATA_DIR/tenants/<slug>/`, `DATA_DIR/tenants-deleted/`, `host.json` `tenants[]`. The pre-tenant move (`index.js:186`, `MIGRATE_TENANT_SLUG`).
+- **The browser.** `localStorage`: `app.panels` and `app.panels.<roomId>` (with `__open`, `__snap`), `host.table` (call preferences), `app:chat:<roomId>:<who>`, `app:chatclear:<roomId>:<who>`. `sessionStorage`: `host.room`.
+- **Pages.** `room.html`, `room.js`, `room-modules.js`, `roomconfig.html`, `roomconfig.js`. Element ids: 22 with room (`tab-rooms`, `room-card`, `add-room`, ...), 2 with stage, 8 with aside, 3 with tenant. CSS classes: 18 with room, 3 with stage, 12 with pane or panel, 5 with aside.
+- **The call service.** Call names `table`, `table-<id>`, and `<slug>-table[-<id>]` when hosted (`livekitBase()`, `livekitRoomName()`, `roomIdOfLivekit()`, `index.js:413-425`). Data topics `pull-aside`, `aside-started`, `recall`, `return-to-table`. The LiveKit SDK's own `room` names (`RoomServiceClient`, `addGrant({ room })`, `Room`, `RoomEvent`) are not ours and stay.
+- **The SDK and manifests.** `info.context = { scope: 'room', roomId }` (`module-host.js:533`); scopes `'server'`, `'room'`, `'rooms'`, `'person'`; `host.rooms()`; `'change'` events with `roomId`; `storage.list(prefix, { scope: 'rooms' })` answering `roomId`; `host.images.get(key, slot, { room })`; `host.media.watch(key, { room })` and `follow(roomId)`; `host.presence` answering `people[].room`, `isAdmin`, `rooms[]` with `ephemeral`, `origin`, `private`, `activeRoom`, `adminOnline`; pointers `{ module, kind, id, scope: 'room', room }` (`public/sdk/host.js:28`) and `host.util.refKey`; `host.refs.*` answering cards; `host.ai.ask({ items })` answering `cards`; manifest `scope: ["room"]`, a setting's `scope: "room"` or `"server"`, `surfaces.panel`, `kinds[].card`; modules reading `info.user.role`.
+- **The checks.** `tools/check-room-layout.mjs` (its file name), and old names inside `check-uploads`, `check-travel`, `check-nav`, `check-drop`, `check-places`, `check-research`, `check-host-registry`.
+- **Documentation file names.** `architecture-room-layout.md`, `architecture-tenants.md`, `userguide-rooms.md`, `userguide-table.md`, `userguide-server-settings.md`, `plan-tenants.md`, `plan-linked-items.md`, `plan-smart-cards.md`. These are wiki page names too.
+
+### What outside things see
+
+- **Coffee Pub Studio** (its own repository) signs in with a bearer token and reads `GET /api/me`, `GET /api/status` and `/img/room/<id>`; the exact list is under "What Studio reads" below.
+- **OBS sources** use `/view/<key>?s=&kind=` (the Stream module's keyed page). No old name is in the link, but the view page reads presence and pictures through the renamed SDK.
+- **Installed third-party modules** use everything in the SDK and manifest list above.
+- **Saved links.** `/rooms/<id>`, a pop-out's `/modules/<id>?moduleRoom=<id>&popout=1`, `/img/room/<id>` and `/img/<key>/<slot>?room=`. `/guest/:token`, `/j/:token` and `/invite/:token` carry no old name and are untouched.
+
+### Asides today
+
+An aside is an `ephemeral` row in `rooms` with `members`, `origin` (the space it came out of) and `private` (`store.js:530-542`, `addAsideRoom` at `1079`). Two kinds: an **aside** (`startAside`, an admin pulls people aside, part of the recording) and a **private conversation** (`privateCall`, by invite or from the call, off the record; Studio hides it). In an aside a person has the conference (tiles, microphone, camera, screen share, reactions, away), a live chat over the call's data channel that is never stored (`index.js:2635-2642`), chat pictures, the Aside and Private pictures for OBS, recall, "Back to the table" and the Rejoin call tool. It already has no modules (`room.js:2138`), no remembered layout (`room-modules.js:127`) and no card on the Spaces list.
+
+### Roles today
+
+`ROLES = ['admin', 'user']` on each account; `moderator` is a per-space grant (`users[].rooms[id].permissions.moderator`) that gives the whole Moderator column in that space; `guest` is anyone in by a guest link. The host admin signs in to an environment through a stand-in account with `role: 'admin'` and `hostAdmin: true` (`store.js:602-606`, `resolveLoginUser` in `index.js`). On a hosted server the pages show "Owner" for `admin` (`admin.js:1305`, `profile.js:140`); on a single-environment install they show "Admin".
+
+## Decisions
+
+1. **The names are CLAUDE.md's**, levels and roles, and the code name never changes after this plan. Only the word a person reads changes, per template ([plan-environment-templates](plan-environment-templates.md)).
+2. **Installed modules: a hard break.** The SDK and the manifest take the new names only. There is no alias period for modules. Every bundled module moves to the new names and gets a version bump; a third-party module has to be updated by its author.
+3. **Coffee Pub Studio updates together, and is the one alias.** Whatever Studio reads is sent under both the old and new names until a Studio release uses the new ones; then the old names go.
+4. **`server` as a module scope, the Server tab and `serverName` are the environment**, and are renamed to it in the same SDK change as the space.
+5. **Asides keep the conference only**: microphone, camera, screen share, reactions and away. They lose the chat and chat pictures. Private conversations are asides with a `private` flag. Asides get their own record, not rows in the spaces list.
+6. **Object covers the things modules hold and their summaries**: `host.refs` becomes `host.objects`, the resolved "card" becomes an object's summary, and the manifest's `kinds[].card` and the AI's `items` and `cards` follow. Menu and toolbar items and card-shaped styles are not objects and stay as they are.
+7. **A single-environment install has an owner and no host admin.** The account `ADMIN_PASSWORD` makes is an `owner`, shown as Owner.
+8. **`user` becomes `member` only as a role value.** Accounts stay "user" in the code (`users`, `/api/users`, `requireUser`, `currentUser`), since an account can hold any role.
+9. **The SDK global stays `host.*`.**
+10. **Table goes entirely.** The call's base name is no longer a stored setting; the old base is still recognised for one release, for people in a call during the upgrade.
+11. **Stored data is really renamed**: keys, files and folders, by a migration that runs once per environment, is recorded, and keeps a copy of what it changed (`pre-names/`). Links people saved (`/rooms/<id>`, pop-out addresses, image addresses) redirect.
+12. **Pointers inside a module's own data are rewritten.** The migration rewrites any stored value with exactly the pointer's shape, generically, in every module's data: by shape, never by module.
+13. **`surfaces.panel` becomes `surfaces.canvas`.** A module's docked or floating surface is on the canvas, not the space.
+14. **Call names.** A space's call is its id (`lobby` for the Lobby), an aside's is `aside-<id>`, and on a hosted server each is prefixed `<slug>-`. Nothing is stored. The old names are recognised for one release.
+15. **The configuration is renamed, and the old names still read.** `ADMIN_PASSWORD` becomes `OWNER_PASSWORD` and `MIGRATE_TENANT_SLUG` becomes `MIGRATE_ENVIRONMENT_SLUG`. This is a second alias beside Studio's. The old names are read, with a log line on start saying to change them, until they go (decision 20).
+
+Recommended, accepted unless Thomas changes it at approval:
+
+16. **`slug` stays.** It is the environment's identifier (its subdomain), not a level.
+17. **The redirects stay for good.** They are small, and people keep links.
+18. **`pre-names/` is kept until the Studio alias is removed** (step 10); a later migration part then deletes it.
+19. **The Travel module renames its own `item:` keys on first load**, recorded in its own storage; the host does nothing module-specific.
+20. **The old configuration names go in step 10**, with the Studio alias (decision 15).
+21. **The Studio alias answers Studio's requests only.** Studio signs in with a bearer token (`server/auth.js:152`); the pages use the cookie. Old names are added only to answers to bearer requests, so the pages never see them.
+
+Decided later:
+
+22. **Data from a newer build is refused.** A server started on data that records a migration part it does not know refuses it, the way restore refuses a newer backup. An unknown part in `host.json`, or in the one environment of a single-environment install, stops the start with a plain sentence naming the file and the part. On a hosted server, an environment refused at startup (its data is from a newer version, or its migration cannot finish) is skipped instead: it answers 503 with a plain sentence, the log names the file, and the other environments and the console keep running so the admin can restore it. An environment built later, on its first request, is refused the same way, with 503.
+
+## The contract
+
+### The migration
+
+- **Where it runs.** `server/migrate-names.js`, called by `buildEnvironment()` (`server/environment.js`) before `Store` reads `app.json`, so it runs the first time each environment is built after the upgrade, including an environment restored from an old backup. The host-level part runs once at startup, before any environment is built.
+- **Recorded, once, in parts.** The migration lands with the steps below, one part per step (`names-environment`, `names-table`, `names-roles`, `names-spaces`, `names-objects`, `names-asides`), so each step's data changes with its code. `app.json` goes from `version: 1` to `version: 2` with the first part and gains `migrations: [{ id, at, moved: [...] }]`, one entry per part run, listing every file and folder it moved. A part already recorded never runs again. The host records its parts in `host.json`'s own `migrations` the same way; `host.json` has no `version`. A brand-new data directory (no `app.json` yet) records every part as run, each with `moved: []`, since there is nothing old to rename.
+- **The copy.** Before a part writes anything, it copies every JSON file it will rewrite into `<environment>/pre-names/<part>/`, keeping their paths. Folders it only moves (images, uploads) are listed in `moved` so the move can be reversed by hand. The host's copies go in `DATA_DIR/pre-names-host/<part>/`, apart from any environment's; on a single-environment install `DATA_DIR/pre-names/` is that environment's own. `pre-names/` is kept until the Studio alias is removed (decision 18).
+- **Idempotent and safe.** A failure leaves the originals untouched and names the file. On a single-environment install, or in the host's part, it stops the start; on a hosted server it refuses only that environment, as below. `tools/check-names.mjs --migration` runs it twice on a copy of an old-format directory and compares. The fixture, `tools/fixtures/names-v1/`, grows with each part: each step adds the old-format files its part rewrites.
+- **The host.** `DATA_DIR/tenants/` becomes `DATA_DIR/environments/`, `tenants-deleted/` becomes `environments-deleted/`, and `host.json`'s `tenants` becomes `environments`. The pre-tenant move writes to `environments/` from now on.
+- **An environment's `app.json`.**
+  - `rooms` becomes `spaces`. In step 8, rows with `ephemeral: true` are dropped rather than moved: they are asides, which live only while someone is in them, and anyone still in one is back in a space after the upgrade's reload.
+  - `users[].rooms` becomes `users[].spaces`. `users[].role`: `admin` becomes `owner`, except the host admin's stand-in (`hostAdmin: true`), which becomes `admin`; `user` becomes `member`.
+  - `settings.roles.user` becomes `settings.roles.member`. `settings.serverName` becomes `settings.environmentName`. `settings.tableName` and `settings.room` are removed. `invites[].rooms` becomes `invites[].spaces`.
+- **The rest of an environment.** `chat.json` `rooms` becomes `spaces`. `images/rooms/` becomes `images/spaces/`, and `images/<key>/rooms/` becomes `images/<key>/spaces/`. `modules/registry.json`: `allRooms` becomes `allSpaces`, `rooms` becomes `spaces`. `modules/settings.json`: `{ server, rooms, people }` becomes `{ environment, spaces, people }`. `modules/<id>/data/server.json` becomes `environment.json`, `room-<id>.json` becomes `space-<id>.json`; `modules/<id>/uploads/room-<id>/` becomes `space-<id>/` and `server/` (if present) becomes `environment/`. In `links.json`, `bus.json`, `schedules.json` and `notifications.json`, scope `room` becomes `space`, `server` becomes `environment`, `room` and `roomId` become `space` and `spaceId`, and scope keys `room:<id>` become `space:<id>`.
+- **Pointers inside a module's own data.** A module stores pointers to objects inside its own values, which the host cannot read by meaning. Under the hard break the host stops accepting `scope: 'room'`, so any such pointer left behind would stop resolving. The migration therefore rewrites, in every module's data files, any value that has exactly the pointer's shape (an object with string `module`, `kind`, `id`, `scope: 'room'` or `'server'`, and `room` when the scope is `room`) to the new shape. This is by shape, never by module, so the host stays a conduit (decision 12).
+- **A module's own words in its own keys** (the Travel module's `item:` keys, a field a module named `roomId` in its own values) belong to the module. A bundled module that renames its own stored keys does it in its own code on first load and records that it has, in its own storage.
+- **Installed module code is never rewritten.** `DATA_DIR/modules/<id>/versions/` is left as it is; under the hard break a module with an old manifest is refused (see "Modules" below).
+- **Which part does what.** The host's folders and `host.json`: `names-environment` (step 2). `tableName` and `settings.room`: `names-table` (step 3). The role values and `settings.roles`: `names-roles` (step 4). Everything else in `app.json`, `chat.json`, the images and the module files: `names-spaces` (step 5a). The pointer rewrite in module data: `names-objects` (step 7). Dropping aside rows from `spaces` into their own record: `names-asides` (step 8); until then asides stay rows in `spaces` with `ephemeral`, as today.
+- **Data from a newer build, or a migration that cannot finish** (decision 22). If `app.json` or `host.json` records a part this server does not know, the server refuses it rather than run on data it cannot read. `host.json`, or the environment of a single-environment install: the start stops with a plain sentence naming the file and the part, for example: "`/data/app.json` records the migration names-objects, which this version of Magpie does not know. Start a newer version." A hosted environment, whether refused at startup or when first built on a later request, or whose migration cannot finish: it is not built and answers every request with 503 and a plain sentence ("This environment's data is from a newer version of Magpie.", or "This environment's data could not be updated. The host admin has been told."); the log names the file and the part or the failure; the other environments and the console keep running, so the admin can restore it from a backup.
+- **Backups and restore.** A backup made before the upgrade restores and migrates on its next build. A backup made after it cannot be restored on a build from before it; the restore answers 400 "This backup is from a newer version of Magpie." when it records a part the server does not know.
+- **The browser.** Each page, on load, moves its old keys once: `app.panels` and `app.panels.<id>` to `app.canvas` and `app.canvas.<id>`, `host.table` to `app.call`, `host.room` to `app.space`, `app:chat:` and `app:chatclear:` to the same with the space's id. Old keys are deleted after the copy.
+
+### The server
+
+- **Routes, renamed.** `/api/rooms...` to `/api/spaces...`; `/api/me/rooms/:roomId...` to `/api/me/spaces/:spaceId...`; `/api/users/:key/rooms/:roomId...` to `/api/users/:key/spaces/:spaceId...`; `/api/rooms/:id/chat` to `/api/spaces/:id/chat`; `/api/modules/for-room` to `/api/modules/for-space`; `/api/modules/:id/rooms-data` to `/api/modules/:id/spaces-data`; `/api/host/tenants...` to `/api/host/environments...` (`/owners/:login/mfa` stays under it); `/api/roles/user` to `/api/roles/member`. The module settings routes take `environment`, `space` and `person` as scopes.
+- **The call and asides.** `GET /api/table` becomes `GET /api/presence` (who is online and where; `POST /api/presence` stays the heartbeat). `POST /api/table/pull-aside` becomes `POST /api/asides`; `/api/table/invite` becomes `POST /api/asides/invite`, with `/api/asides/invite/:id/decline`; `/api/table/recall` becomes `POST /api/asides/recall`; `/api/table/return` becomes `POST /api/asides/return`. The data topics become `aside-pull`, `aside-started`, `aside-recall` and `aside-return`.
+- **Pages, renamed, with redirects.** The call page is `space.html` (still served at `/` and `/guest/:token`). The space's settings page is `space-settings.html` at `/spaces/:id`; `/rooms/:id` answers 301 to it. `/img/room/:id` answers 301 to `/img/space/:id`. `/img/:key/:slot?room=` answers 301 to the same with `space=` (and `roomOnly=1` to `spaceOnly=1`). `/modules/:id?moduleRoom=<id>` answers 301 to `?space=<id>`. The redirects stay for good (decision 17).
+- **Fields.** Spaces answer `{ id, name, ..., isLobby, mine }` with no `ephemeral`, `origin` or `private`. `branding()` answers `environmentName` and no `room`, `tableName` or `serverName`. `GET /api/presence` answers `{ users: [{ ..., space, inCall }], spaces, asides, activeSpace, ownerOnline }`.
+- **Roles.** `ROLES = ['admin', 'owner', 'member']`; `EDITABLE_ROLES = ['moderator', 'member', 'guest']`. `requireAdmin` in an environment becomes `requireOwner`, admitting `owner` and `admin` (the host's stand-in). "Keep at least one admin" becomes "keep at least one owner" (`store.js:1017`). `mfaBypassApplies` applies to owners (`index.js:557`). The hosted and single-environment word swap (`admin.js:1305`, `profile.js:140`) is removed: an owner reads "Owner" everywhere. On a single-environment install the `OWNER_PASSWORD` account (or `ADMIN_PASSWORD`, still read until step 10) is created as an owner, and there is no host admin. `MIGRATE_ENVIRONMENT_SLUG` (or `MIGRATE_TENANT_SLUG`, likewise) names the environment a pre-environment install moves to. Either old name logs once on start: "ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release."
+- **The call's base name.** `livekitBase()` no longer reads a setting (decision 14): a space's call is its id (the Lobby's is `lobby`), an aside's is `aside-<id>`, and on a hosted server each is prefixed `<slug>-`. For one release, `roomIdOfLivekit()` (renamed `spaceIdOfCall()`) also recognises the old names (`table`, `table-<id>`, `<slug>-table[-<id>]`), so people already in a call when the server upgrades are still found and placed; after that release, the old names are dropped.
+- **Asides.** `app.json` keeps `asides: [{ id, members, origin, private, createdAt }]`, pruned when nobody is in one, as today (`pruneAsideRooms` becomes `pruneAsides`). An aside is not a space: it has no modules, no chat (live or stored), no chat pictures, no layout and no settings. `POST /api/spaces/:id/chat` and `GET` on an aside's id answer 404. The Aside and Private pictures for OBS stay. `allowAsides` and `allowPrivate` stay as settings. `startAside` and `privateCall` stay as permissions.
+- **The Studio alias.** `server/studio-alias.js`, one file, applied to the answers of `GET /api/me` and `GET /api/status` when the request signed in with a bearer token (decision 21). It adds exactly the old names in "What Studio reads" below, beside the new ones, and nothing more. Each step that renames something Studio reads adds that field to the file in the same step. It is removed in step 10, when a Studio release reads the new names.
+
+### What Studio reads
+
+From Coffee Pub Studio's code (its own repository, read on 2026-09-24; paths below are in it). Only what this plan touches; `POST /api/login`, `/view/<key>?s=&kind=` and `/img/<key>/<slot>?s=` are used too and do not change.
+
+| What Studio reads | Where in Studio | Old name, new name | The alias sends | Added in step |
+|---|---|---|---|---|
+| `GET /api/me` `user.role`, refused unless `'admin'` | `src/tavern.js:135` | `admin` is `owner` | `role: 'admin'` for an owner (the host's stand-in is `admin` already) | 4 |
+| `GET /api/me` `streamKey`, which the server sends only to `role === 'admin'` (`server/index.js`, `/api/me`) | `src/tavern.js:137` | the check becomes owner or admin | nothing: the new check already covers an owner | 4 |
+| `GET /api/me` and `GET /api/status` `serverName` | `src/tavern.js:138`, `189`; shown at `src/control/control.js:1837` | `environmentName` | `serverName` | 5a |
+| `GET /api/me` and `GET /api/status` `tableName` (kept, not shown) | `src/tavern.js:55`, `138`, `189` | removed | `tableName`, set to the environment's name | 3 |
+| `GET /api/status` `users[].role`, compared with `'admin'` to know whether the game's runner is online | `src/tavern.js:183`; `src/main.js:423`; `src/control/control.js:1853` | `admin` is `owner`, `user` is `member` | the old values: `admin` for an owner or the host's stand-in, `user` for a member | 4 |
+| `GET /api/status` `users[].online.room` (and `micOn`, `cameraOn`, unchanged) | `src/main.js:428`, `431`; `src/control/control.js:1911`, `1939` | `space` (an aside's id when in one) | `room`, the same value | 5a |
+| `GET /api/status` `rooms[]`: `id`, `name`, `description`, `members`, `isLobby`, `hasImage`, `profile` | `src/tavern.js:192-194`, `233-239`; `src/control/control.js:1815-1870`; `src/main.js:288-291` | `spaces[]` | `rooms`, the spaces with these fields | 5a |
+| `GET /api/status` `rooms[]` rows for asides: `ephemeral`, `private` | `src/main.js:429`; `src/control/control.js:1823`, `1942` | `asides[]` with `private` | aside rows in `rooms` with `ephemeral: true`, `private`, `members` and `name: 'Aside'`, as today | 8 |
+| `GET /api/status` `activeRoom` | `src/tavern.js:195`; `src/main.js:431`; `src/control/control.js:1939` | `activeSpace` | `activeRoom` | 5a |
+| `/img/room/<id>?s=`, the space's picture | `src/control/control.js:1840` | `/img/space/<id>` | nothing: the 301 redirect covers it (decision 17) | 5a |
+
+Studio does not read `table`, `adminOnline`, `origin`, `GET /api/rooms`, or the `room` and `roomOnly` queries on `/img/<key>/<slot>`, so the alias does not send them. Studio's own stored setting `tavern.room` (`src/main.js:2759`) is Studio's, and its release renames it. A Studio release that reads the new names must accept `role` as either `admin` or `owner` during the alias period, since the alias sends the old value.
+
+### Modules and the SDK
+
+The hard break: an installed module whose manifest uses an old name (`scope` containing `room` or `server`, a setting's scope `room` or `server`, `surfaces.panel`, `kinds[].card`) is refused at install and switched off with a sentence saying why ("This module was built for an older Magpie and needs an update from its author."). The Modules tab shows that sentence on its card.
+
+- **Manifest.** `scope: ["environment", "space", "person"]`; a setting's `scope: "environment" | "space" | "person"` (the `note` setting type's scope is `"environment"`); `surfaces.panel` becomes `surfaces.canvas` (decision 13); `kinds[].card` becomes `kinds[].summary`.
+- **Context.** `info.context = { scope: 'environment' | 'space' | 'keyed', spaceId }`. `info.user.role` is `admin`, `owner`, `member` or `guest`; bundled modules stop reading it and use `host.can()`.
+- **Scopes.** `'context'` (the default), `'environment'`, `'space'`, `'spaces'` (an environment page reading across the viewer's spaces), `'person'`. Answers and `'change'` events carry `spaceId`.
+- **Calls.** `host.rooms()` becomes `host.spaces()`. `host.images.get(key, slot, { space })`. `host.media.watch(key, { space })`, `follow(spaceId)`. `host.presence` answers `{ people: [{ key, name, online, space, inCall, isOwner }], spaces, asides: [{ id, origin, private }], activeSpace, ownerOnline, reactions }`.
+- **Objects.** `host.refs` becomes `host.objects`, with the same members (`make`, `resolve`, `kinds`, `open`, `onOpen`, `setLinks`, `linksTo`, `linksFrom`, `search`, `drag`, `draggable`, `dropTarget`, `fillFor`, `offersFor`, `dropMenu`, `accepts`, `parse`, `trace`, `elementAt`). A pointer is `{ module, kind, id, scope: 'environment' | 'space' | 'person', space? }`. `resolve()` answers an object's **summary** (`{ title, subtitle, when, end, ... }`, what was a card). A drag carries `{ ref, summary }`. `host.util.refKey` becomes `host.util.objectKey`. `host.ai.ask({ task, question, objects })` answers `{ text, summaries, used, tags, tokens }`, with `{{summary:0}}` markers in the text. The drag's data type (`REF_MIME`) changes to an object type. The server's `/api/refs/*` routes become `/api/objects/*`, and `/api/modules/:id/refs/:kind/:refId` becomes `/api/modules/:id/objects/:kind/:objectId`.
+- **Not objects:** `host.menu.show({ items })`, `host.toolbar.set(items)`, `host.bar.set(items)`, `host.header.set(items)`, `host.ui.pick(items)` and card-shaped styles keep their names.
+- **Bundled modules.** All nine move to the new names in their code, manifests and own words, and each gets a version bump (`tools/module-versions.json`). The Travel module is the largest (its things are objects; its `item:` keys are its own, see "The migration"). Maps' own `.stage` class is renamed with the rest.
+
+### The pages
+
+- **Files.** `room.html` and `room.js` become `space.html` and `space.js`; `roomconfig.*` becomes `space-settings.*`; `room-modules.js` becomes `canvas.js`.
+- **The canvas.** `#stage` becomes `#canvas`, `#stage-empty` becomes `#canvas-empty`, `.stage` becomes `.canvas`, `.module-stage` becomes `.module-canvas`. The page's `stage` variable and the pane manager's words (`panes`, `openNativeIn`, `.pane-lifted`, `.subnav-panes`, `.conference-panel`, `.module-panel-*`) become canvas and module words. Conference and Chat are built-in modules. The Roles grid's "Panes" group becomes "Modules".
+- **Ids and classes.** Every id and class with room, stage, pane, panel (for a module), aside (for the old ephemeral room), table (for the call) or tenant is renamed; `tools/check-names.mjs` lists them. Styles for HTML tables (`.roles-table`, `.files-table`) are not the call and stay.
+- **Words.** "The table" and "room" leave every sentence (with [plan-environment-templates](plan-environment-templates.md) step 1). An owner reads "Owner" on every install. In an aside, the chat module is not offered and the chat pictures are not sent; the rest of the call's controls stay.
+
+### The console
+
+`public/host.js` and `host.html` say environment in code as they already do in words: `/api/host/environments`, `tenants` variables and ids (`tenants-status`, `tenants`, `tpl-tenant`) renamed.
+
+### `tools/check-names.mjs`
+
+- **What it checks.** Every file under `server/`, `public/` (not `public/lib/` or vendored files), `modules/*/src/`, `modules/*/module.json` and `tools/` for the old names as code: identifiers, strings used as keys, routes, CSS classes, element ids and file names. The patterns: `room`, `Room`, `ROOM`, `tenant`, `stage`, `pane`, `panel` (for modules), `table`, `tableName`, `serverName`, `ephemeral`, the scope values `'room'`, `'rooms'` and `'server'`, the role values `'user'` and `'admin'` where an environment role is meant, and `refs`, `card`, `cards` and `items` in the object sense (a fixed list of SDK, manifest and AI names).
+- **The allow-list.** `tools/check-names-allow.json`, each entry a file, a pattern and a reason: the migration (`server/migrate-names.js`), the Studio alias (`server/studio-alias.js`), the old configuration names, the redirects, the one-release call-name fallback, the LiveKit SDK's own names (`RoomServiceClient`, `addGrant({ room })`, `Room`, `RoomEvent`), HTML and CSS tables and `fa-table-*` icons, `<canvas>` elements, plain English in a module's text ("Table for 4"), and menu or toolbar `items`. An entry without a reason fails.
+- **Levels switch on as they land.** The tool holds the list of levels, and each is either `report` (listed, never fails) or `enforce` (fails). Step 1 ships every level as `report`; each later step switches its levels to `enforce`. After step 10, everything is `enforce` and the allow-list holds no alias.
+- **Words mode.** `--words` scans what a person reads (the pages' text, the SDK's words, the server's messages) for "room", "rooms" and "table" as words. This replaces the `check-words.mjs` planned in [plan-environment-templates](plan-environment-templates.md).
+- **Migration mode.** `--migration` runs `server/migrate-names.js` twice against a copy of a fixture old-format data directory (`tools/fixtures/names-v1/`) under `/tmp`, and checks the result against the expected new shape.
+- `npm run check` runs it.
+
+## Left to build, in order
+
+Each step leaves the app working. "Live" means on a local server; there is no LiveKit server locally, so anything that needs a real call is read as code only and says so.
+
+1. **The check and the migration's frame** (server-development). `tools/check-names.mjs` in report mode with its allow-list, `--words` and `--migration`; `tools/fixtures/names-v1/`; `server/migrate-names.js` with the version, the record of parts, `pre-names/`, the refusal of a newer backup, and no parts yet; `server/studio-alias.js` wired to bearer requests on `GET /api/me` and `GET /api/status`, adding nothing yet.
+   - Done when: `npm run check` runs the tool and passes; the report lists every level.
+   - Verify: checked by the tool; live, a throwaway `DATA_DIR` under `/tmp` started twice shows the record written once and `pre-names/` made once.
+   - **Built (2026-09-24).** `server/migrate-names.js` (the frame, with `HOST_PARTS` and `ENVIRONMENT_PARTS` empty), the refusal of newer data at startup, per hosted environment (503) and on restore, `refused` on `GET /api/host/tenants`, `server/studio-alias.js` with no entries, `tools/check-names.mjs` with its allow-list, `--words`, `--migration` and `--list`, and `tools/fixtures/names-v1/`. The console gained a card for an environment that won't open and a **Restore backup** button on every card. Documented in [architecture-tenants](../architecture/architecture-tenants.md), "The Names migration" and "Refused environments". Verified live on throwaway servers under `/tmp`, single-environment and hosted, with the console in a headless browser; checked by `npm run check`. With no part yet, a real start writes no record and makes no `pre-names/`, so the "record written once" check above was run only with stand-in parts in the tool, not on a real start. Carried into step 2: see [TODO](../TODO.md), "Names: renaming the code".
+2. **Environment** (server-development, then experience-design for the console). The host-level migration; `server/host-registry.js`, `environment.js` and `index.js` identifiers; `/api/host/environments`; `public/host.js` and `host.html`; `check-host-registry.mjs`; `MIGRATE_ENVIRONMENT_SLUG`, with `MIGRATE_TENANT_SLUG` still read and logged.
+   - Done when: no `tenant` outside the allow-list (the level is `enforce`).
+   - Verify: checked by the tools; live with `BASE_DOMAIN=localhost` on a `/tmp` copy of an old-format hosted directory: it migrates, every environment opens, the console lists, creates, backs up and restores, and restoring a backup made before the upgrade works.
+3. **Table out, and the call's name** (server-development, then experience-design). `tableName` and `settings.room` removed; `livekitBase()` replaced by the constant shape with the one-release fallback; `branding()` without `room` and `tableName`; the Studio alias's `tableName`; "the table" out of every sentence (plan-environment-templates' step 1 lands here, with `--words`).
+   - Done when: `table` is `enforce` in both modes.
+   - Verify: checked by the tool; live, every page reads right without a call, and a bearer-token `GET /api/me` still answers `tableName`. The new call names, the fallback for someone mid-call, and moving between calls are read as code only.
+4. **Roles** (server-development, then experience-design; bundled modules bumped). `owner`, `member` and the stand-in `admin` in `store.js`, the middleware, `/api/roles`, the pages (Roles grid, profile, Manage) and the module context; research, maps, stream and polls move to `host.can()`; `OWNER_PASSWORD`, with `ADMIN_PASSWORD` still read and logged; the Studio alias's old role values.
+   - Done when: the role values are `enforce`.
+   - Verify: `check-auth` and `check-modules`; live, on a single-environment install (the `OWNER_PASSWORD` account, and an install still setting `ADMIN_PASSWORD`, is an owner and reads "Owner"), with a bearer token (`GET /api/me` and `GET /api/status` answer `role: 'admin'` for the owner, and the pages' cookie requests answer `owner`), and on `BASE_DOMAIN=localhost` (the host admin's sign-in to an environment still has every right), each role's Manage and profile checked.
+5. **Space and environment scope.** Split in three, each working on its own:
+   - **5a. The server and stored data** (server-development). The per-environment migration, `store.js`, the routes and fields, the redirects, `server` scope to `environment`, `serverName` to `environmentName`, the Studio alias's `serverName`, `rooms`, `activeRoom` and `users[].online.room`. The pages are changed in the same step only where they call a renamed route, so the app keeps working.
+     - Verify: `check-uploads`, `check-travel`, `check-places`, `check-research`, `check-drop` updated and passing; live on a `/tmp` copy of old-format data: every space, member's space settings, image, chat history and module's data is where it was; `/rooms/<id>`, an old pop-out address and an old image address redirect; a bearer-token `GET /api/status` answers every row of "What Studio reads" up to this step beside the new fields, and a cookie request answers only the new ones.
+   - **5b. The pages** (experience-design). File names, ids, classes, the browser keys moved on load, the Server tab to the Environment tab.
+     - Verify: checked by the tool; live, every page loads and works without a call, and a browser with old keys keeps its layout and preferences. Anything shown only in a call is read as code only.
+   - **5c. The SDK, the manifest and the bundled modules** (experience-design, with server-development for manifest parsing). New names only; an old-manifest module refused with its sentence; all nine bundled modules moved and bumped.
+     - Verify: `check-modules`, `check-module-versions`, `check-drop`, `check-module-window`; live, each bundled module on its environment page and in a space's canvas without a call, and a hand-made module with an old manifest refused.
+   - Done when: `room`, `rooms`, `roomId` and the `server` scope are `enforce`.
+6. **Canvas and module** (experience-design; Maps bumped). `#stage` to `#canvas`, the pane manager's words, the built-in modules, the "Modules" permission group, `surfaces.canvas`.
+   - Done when: `stage`, `pane` and `panel` are `enforce`.
+   - Verify: `check-room-layout.mjs` renamed `check-canvas.mjs` and passing, `check-module-window`; live without a call: docking, floating, snapping and popping out a module.
+7. **Object** (server-development for `/api/objects/*` and the AI answer, experience-design for the SDK and modules; bundled modules bumped). `host.objects`, summaries, the drag type, `kinds[].summary`, `ai.ask({ objects })`, the pointer rewrite in module data, Travel's own keys.
+   - Done when: the object names are `enforce`.
+   - Verify: `check-drop`, `check-research`, `check-assistant`, `check-travel`; live, a drag from one module to another, a link and its backlink, and a Research answer's summaries, all without a call.
+8. **Asides** (server-development, then experience-design). The `asides` record, `/api/asides/*`, the new data topics, no chat or chat pictures in an aside, the Studio alias's aside rows in `rooms`.
+   - Done when: `ephemeral` and the old topics are `enforce`.
+   - Verify: checked by the tool, and the routes' answers live (a pull-aside without a call answers its refusal). Everything else (being pulled aside, recall, return, the chat not being offered, OBS pictures while in an aside) needs a real call with two people and is read as code only until then.
+9. **Documentation** (content-manager). Renamed files and wiki pages (`architecture-canvas.md`, `architecture-environments.md`, `userguide-spaces.md`, `userguide-environment-settings.md`, the call guide in place of `userguide-table.md`, and the plans' names), the text, the SDK and OBS documents, TODO's "Spaces: the documentation, and the internals" entry marked replaced, the CHANGELOG entry for a breaking change to modules.
+   - Verify: `npm run check:docs`, `npm run docs:build`, and every old wiki page name checked for a link left pointing at it.
+10. **The aliases go** (server-development). When Studio's release reads the new names: `server/studio-alias.js`, `ADMIN_PASSWORD` and `MIGRATE_TENANT_SLUG` removed, and a migration part deletes `pre-names/`. The call-name fallback goes after its one release, which may be sooner.
+    - Done when: the allow-list holds no alias and every level is `enforce`.
+    - Verify: checked by the tool; live, a bearer-token `GET /api/status` answers only the new fields, an install setting only `ADMIN_PASSWORD` refuses to start with a sentence naming `OWNER_PASSWORD`, and `pre-names/` is gone after one start.
+
+## Verify
+
+Summarised from the steps: each level is done when `tools/check-names.mjs` enforces it; the migration is checked by the tool twice over a fixture and live on a copy of real old-format data, single-environment and hosted; pages are checked live without a call. Nothing that needs the call service can be checked here: the call names, the fallback for someone mid-call, asides, recall and return, and the OBS pictures in an aside are read as code only until a real call with two people. Studio's side is checked in Studio's repository against a local server: once before its release (the alias) and once after (the new names).
+
+## Open questions
+
+None left that block the build. Decisions 16 to 21 are recommendations Thomas accepted unless he changes them at approval. Studio's own release (reading the new names, accepting `role` as `admin` or `owner`, renaming its `tavern.room` setting) is planned in Studio's repository, not here; step 10 waits for it.

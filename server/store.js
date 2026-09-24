@@ -450,7 +450,10 @@ class Store {
       raw = {};
     }
     const data = {
-      version: 1,
+      // 1 until the Names migration's first part runs (server/migrate-names.js), which records itself here as
+      // `migrations`; both are kept exactly as found, so the record survives every later save.
+      version: Number.isInteger(raw.version) && raw.version > 1 ? raw.version : 1,
+      ...(Array.isArray(raw.migrations) ? { migrations: raw.migrations } : {}),
       secrets: {
         session: raw.secrets?.session || randomToken(32),
         stream: raw.secrets?.stream || randomToken(18),

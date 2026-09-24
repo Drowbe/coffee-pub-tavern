@@ -31,6 +31,8 @@ const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFI
 const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
+const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError } = require('./migrate-names');
+const studioAlias = require('./studio-alias');
 
 const {
   PORT = 3000,
@@ -171,6 +173,17 @@ function noteActivity(...args) { return currentEnvironment().noteActivity(...arg
 
 // The registry of environments (DATA_DIR/host.json): which tenants exist, their plans, the host admins. Only
 // built when BASE_DOMAIN is set -- a self-hosted install with no base domain never has this file.
+// The host's Names migration part (documentation/plans/plan-names.md, "The migration") runs first, before
+// host.json is read and before any environment is built; a failure stops the start with the file named.
+if (BASE_DOMAIN) {
+  try {
+    migrateHost(DATA_DIR);
+  } catch (err) {
+    if (!(err instanceof MigrationError)) throw err;
+    console.error(err.message);
+    process.exit(1);
+  }
+}
 const hostRegistry = BASE_DOMAIN ? new HostRegistry(DATA_DIR) : null;
 if (hostRegistry) {
   hostRegistry.setBaseDomain(BASE_DOMAIN);
@@ -197,7 +210,7 @@ function migrateIfNeeded() {
   if (fs.existsSync(dest)) throw new Error(`${dest} already exists; migration already ran`);
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(DATA_DIR)) {
-    if (['host.json', 'fontawesome-pro', 'tenants', 'tenants-deleted'].includes(entry)) continue;
+    if (['host.json', 'fontawesome-pro', 'tenants', 'tenants-deleted', 'pre-names-host'].includes(entry)) continue;
     fs.renameSync(path.join(DATA_DIR, entry), path.join(dest, entry));
   }
   hostRegistry.addTenant({ slug, name: slug, plan: { modules: 'all' } });
@@ -289,16 +302,53 @@ function hostAiServices() {
 
 // Build (or fetch the already-built) environment for a slug, from its own data directory. Only ever called for
 // a slug the caller already knows is real (the default, or one host.json names) -- the resolver 404s before this.
+// Environments whose data the Names migration refused (server/migrate-names.js), by slug: { reason ('newer' or
+// 'failed'), file (from DATA_DIR), message (the full sentence the log has), sentence (what a person asking is
+// told), at, logged }. An entry stays until that environment builds; each request tries again (so a restore
+// brings it back), and the full message is logged once per refusal, not on every request.
+const refusals = new Map();
+function noteRefusal(key, err) {
+  const prior = refusals.get(key);
+  if (prior && prior.message === err.message) return prior;
+  const refusal = {
+    reason: err.reason === 'newer' ? 'newer' : 'failed',
+    file: err.file ? path.relative(DATA_DIR, err.file).split(path.sep).join('/') : null,
+    message: err.message,
+    sentence: refusalSentence(err),
+    at: new Date().toISOString(),
+    logged: false,
+  };
+  refusals.set(key, refusal);
+  return refusal;
+}
+function logRefusalOnce(key) {
+  const refusal = refusals.get(key);
+  if (!refusal || refusal.logged) return;
+  refusal.logged = true;
+  console.error(refusal.message);
+}
+// What the host console shows for a refused environment (null when it is not refused).
+function refusalView(slug) {
+  const r = refusals.get(slug);
+  return r ? { reason: r.reason, file: r.file, message: r.message, at: r.at } : null;
+}
+
 function environmentFor(slug) {
   const key = slug || DEFAULT_SLUG;
   let env = environments.get(key);
   if (env) return env;
   const dataDir = slug ? path.join(DATA_DIR, 'tenants', slug) : DATA_DIR;
-  env = buildEnvironment(dataDir, {
-    slug: slug || null,
-    admin: slug ? null : { login: adminUser, password: adminPassword || adminKey },
-    managed: managedAi,
-  });
+  try {
+    env = buildEnvironment(dataDir, {
+      slug: slug || null,
+      admin: slug ? null : { login: adminUser, password: adminPassword || adminKey },
+      managed: managedAi,
+    });
+  } catch (err) {
+    if (err instanceof MigrationError) { noteRefusal(key, err); err.slug = key; }
+    throw err;
+  }
+  refusals.delete(key);
   // An environment's own name is its server name (the author's call). Still on the shipped sentinel default --
   // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
   // right here: the default environment gets the product's own name, a tenant its registry name. Runs on every
@@ -357,10 +407,23 @@ async function autoInstallBundled(env) {
   }
 }
 
+// An environment whose data the Names migration refuses (buildEnvironment throws a MigrationError; see
+// server/migrate-names.js): a single-environment install stops, with the file named; on a hosted server that one
+// environment is skipped and answers 503 when asked for, while the rest and the console run.
+function buildAtStartup(slug) {
+  try {
+    return environmentFor(slug);
+  } catch (err) {
+    refusedAtStartup(err, { hosted: Boolean(BASE_DOMAIN) });
+    const refusal = refusals.get(slug || DEFAULT_SLUG);
+    if (refusal) refusal.logged = true; // refusedAtStartup has just logged it
+    return null;
+  }
+}
 if (!BASE_DOMAIN) {
-  environmentFor(DEFAULT_SLUG); // the one environment, built eagerly, exactly as today
+  buildAtStartup(DEFAULT_SLUG); // the one environment, built eagerly, exactly as today
 } else {
-  for (const t of hostRegistry.listTenants()) environmentFor(t.slug); // every existing tenant, built at startup
+  for (const t of hostRegistry.listTenants()) buildAtStartup(t.slug); // every existing tenant, built at startup
   if (HOST_ADMIN_LOGIN && HOST_ADMIN_PASSWORD && hostRegistry.listAdmins().length === 0) {
     hostRegistry.addAdmin({ login: HOST_ADMIN_LOGIN, passwordHash: auth.hashPassword(HOST_ADMIN_PASSWORD) });
     console.log(`Host admin "${HOST_ADMIN_LOGIN}" created from the environment.`);
@@ -920,11 +983,21 @@ hostRouter.delete('/api/host/tenants/:slug/owners/:login/mfa', requireHostAdmin,
 // admin looking at the list is reason enough to have it up). Storage isn't walked here (a real figure needs
 // reading the whole directory); left null until that is worth the cost.
 function tenantUsage(slug) {
-  const env = environmentFor(slug);
+  let env;
+  try {
+    env = environmentFor(slug);
+  } catch (err) {
+    // An environment refused by the Names migration (server/migrate-names.js) still lists, with nothing to count,
+    // so the console stays usable to back it up or restore it.
+    if (!(err instanceof MigrationError)) throw err;
+    logRefusalOnce(slug);
+    return { members: null, storageBytes: null, aiCallsThisMonth: null, spaces: null };
+  }
   return { members: env.store.users.length, storageBytes: null, aiCallsThisMonth: env.ai.usageView?.().callsThisMonth ?? null, spaces: env.store.rooms.length };
 }
 hostRouter.get('/api/host/tenants', requireHostAdmin, (_req, res) => {
-  res.json({ tenants: hostRegistry.listTenants().map((t) => ({ ...t, usage: tenantUsage(t.slug) })) });
+  // `refused`: null, or why this environment is not opening (see refusalView), for the console to show.
+  res.json({ tenants: hostRegistry.listTenants().map((t) => { const usage = tenantUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug) }; }) });
 });
 hostRouter.post('/api/host/tenants', requireHostAdmin, (req, res) => {
   try {
@@ -1129,6 +1202,11 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'choose a zip file to restore' });
   try {
     const files = await readTenantZip(req.body);
+    // A backup whose app.json (or older tavern.json) records a Names migration part this server does not know was
+    // made by a newer Magpie, and would be read here in a shape this server does not understand. Checked on what
+    // would actually land: names as written to disk, the last of any repeated entry.
+    const refusal = backupRefusal(files);
+    if (refusal) return res.status(400).json({ error: refusal });
     const env = environments.get(req.params.slug);
     if (env) { flushEnvironment(env); environments.delete(req.params.slug); } // rebuilt fresh from the restored files, next asked for
     const dir = path.join(DATA_DIR, 'tenants', req.params.slug);
@@ -1138,6 +1216,15 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
       const full = path.join(dir, name);
       fs.mkdirSync(path.dirname(full), { recursive: true });
       fs.writeFileSync(full, data);
+    }
+    // Built now, so the console (and the sign-in list) knows at once whether the restored data opens.
+    refusals.delete(req.params.slug);
+    try {
+      environmentFor(req.params.slug);
+    } catch (err) {
+      if (!(err instanceof MigrationError)) throw err;
+      logRefusalOnce(req.params.slug);
+      return res.json({ ok: true, refused: refusalView(req.params.slug) });
     }
     res.json({ ok: true });
   } catch (err) {
@@ -1272,7 +1359,13 @@ async function findRegionBoxAcrossEnvironments(q) {
   // configured would be pure waste.
   const slugs = hostRegistry.listTenants().map((t) => t.slug);
   for (const slug of slugs) {
-    const env = environmentFor(slug);
+    let env;
+    try {
+      env = environmentFor(slug);
+    } catch (err) {
+      if (!(err instanceof MigrationError)) throw err;
+      continue; // refused by the Names migration (logged when it was refused): searched past, like one with no geocoder
+    }
     const setup = envContext.run(env, () => {
       for (const { manifest } of env.modules.enabledAll()) {
         if (manifest.geocoder) { const s = geocodeSetup(manifest); if (s) return s; }
@@ -1397,7 +1490,7 @@ function productEnvironments(_req, res) {
   if (!hostRegistry) return res.json({ environments: [] });
   const environments = hostRegistry
     .listTenants()
-    .filter((t) => t.status === 'active' || t.status === 'pastDue')
+    .filter((t) => (t.status === 'active' || t.status === 'pastDue') && !refusals.has(t.slug)) // a refused one cannot be signed in to
     .map((t) => ({ slug: t.slug, name: t.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
   res.json({ environments });
@@ -1893,7 +1986,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', requireUser, (req, res) => {
   const user = currentUser(req);
-  res.json({
+  res.json(studioAlias.me(req, {
     user: publicUser(req, user),
     ...branding(),
     // Owner is a page word, not a stored role: inside an environment role: 'admin' is the owner (see
@@ -1909,7 +2002,7 @@ app.get('/api/me', requireUser, (req, res) => {
     mfaEnrolled: Boolean(user.mfa),
     mfaRequired: !user.mfa && mfaPolicyRequires(user),
     mfaBypass: mfaBypassApplies(user),
-  });
+  }, { signedIn: user, role: user.role, hostAdmin: Boolean(user.hostAdmin), environmentName: store.settings.serverName }));
 });
 
 // Enrolment (documentation/plans/plan-mfa.md): for the signed-in person, or -- with no session yet -- whoever
@@ -2260,7 +2353,7 @@ app.get('/api/status', requireStream, async (req, res) => {
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
   store.pruneAsideRooms(byKey);
-  res.json({
+  res.json(studioAlias.status(req, {
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u), online: byKey.get(u.key) || null })),
     table: store.users.map(tableUser),
@@ -2268,7 +2361,7 @@ app.get('/api/status', requireStream, async (req, res) => {
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
-  });
+  }, { signedIn: currentUser(req), environmentName: store.settings.serverName }));
 });
 
 // What a keyed page (public/keyed.html) needs to mount the module that claims its path: the surface's own entry
@@ -4269,6 +4362,18 @@ app.get('/:path/:key', (req, res, next) => {
 
 app.use((err, _req, res, _next) => {
   if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
+  // An environment built after startup whose Names migration could not finish, or whose data is from a newer
+  // Magpie (see server/migrate-names.js): that environment is refused until its data is seen to; the file and
+  // the reason go to the log, never to the person asking.
+  if (err instanceof MigrationError) {
+    if (err.slug !== undefined) logRefusalOnce(err.slug); else console.error(err.message);
+    const sentence = refusalSentence(err);
+    // A browser asking for a page gets a plain page with the sentence; everything else the JSON answer.
+    if (!_req.path.startsWith('/api/') && _req.accepts(['json', 'html']) === 'html') {
+      return res.status(503).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Magpie</title></head><body style="font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; padding: 0 1rem;"><p>${sentence}</p></body></html>`);
+    }
+    return res.status(503).json({ error: sentence });
+  }
   if (err.type === 'entity.too.large') {
     if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });
     const limit = _req.path.startsWith('/api/modules') ? MODULE_LIMITS.zipBytes : MAX_IMAGE_BYTES;

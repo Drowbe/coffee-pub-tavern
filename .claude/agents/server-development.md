@@ -1,6 +1,6 @@
 ---
 name: server-development
-description: Server work on Coffee Pub Magpie. Use for server/ (Express routes, the API, module host contracts, storage, tenants, auth, LiveKit tokens), docker-compose.yml and the tools/check-*.mjs checks. Not for page UI, documentation or fixing defects.
+description: Server work on Coffee Pub Magpie. Use for server/ (Express routes, the API, module host contracts, storage, environments, auth, LiveKit tokens), docker-compose.yml and the tools/check-*.mjs checks. Not for page UI, documentation or fixing defects.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
@@ -14,7 +14,7 @@ You build the server side of Coffee Pub Magpie: `server/` (Node 20+, Express 5, 
   `documentation/architecture/` and `documentation/api/`. The plan is the contract; if the code needs
   to differ from it, say so in your report instead of quietly changing the design.
 - Route handlers read per-environment services (`store`, `modules`, `moduleData`...) through the
-  tenant context. Keep it that way, and keep single-environment installs (no `BASE_DOMAIN`) behaving
+  environment context. Keep it that way, and keep single-environment installs (no `BASE_DOMAIN`) behaving
   exactly as before.
 
 ## While you work

@@ -32,6 +32,13 @@ Whether your environment requires it of everyone is yours to set (Manage > Serve
 
 **Download a copy** on the Environment panel gives you the whole environment as a zip: every setting, account, space, picture and module's data, the same file the host's own backup makes. **Ask for deletion** sends the host a request (with a reason, if you like); a host admin carries it out, which moves the environment aside rather than destroying it at once. You can withdraw the request until then.
 
+## If your environment won't open
+
+If your environment shows only a page saying its data is from a newer version of Magpie, or could not be
+updated, nothing in it has been lost, but it cannot be used until the host puts it right, usually by
+restoring a backup. The host console shows the host admin that it won't open, and why. Other environments on the
+same host are not affected.
+
 ## Signing up
 
 On the host's product page, **Get started** makes an environment on the free plan in a minute: an address (letters, digits and hyphens, three to thirty, checked as you type, and fixed once chosen), a name, and the owner's login, display name and password. It takes you straight to the new environment's sign-in.

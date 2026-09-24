@@ -1,7 +1,7 @@
 # Tenants Architecture
 
-**Audience:** developers changing `server/index.js`, `server/environment.js` or `server/host-registry.js`, or
-adding a new module-level singleton to the server.
+**Audience:** developers changing `server/index.js`, `server/environment.js`, `server/host-registry.js`,
+`server/migrate-names.js` or `server/studio-alias.js`, or adding a new module-level singleton to the server.
 
 What this is for and the decisions behind it are [plan-tenants](../plans/plan-tenants.md) (phase 1 is built;
 later phases are still a plan). This document is what you can only learn from the code: how the seam actually
@@ -96,7 +96,8 @@ host ever learning who anyone is (accounts live inside each environment, not in 
   already a public address (it is the tenant's own subdomain), so confirming one exists reveals nothing a browser
   couldn't already see by just visiting it.
 - `GET /api/product/environments` (same registration pattern) answers `{ environments: [{ slug, name }] }` for
-  the page's own dropdown: every `active` or `pastDue` tenant, sorted by name, suspended ones left out entirely
+  the page's own dropdown: every `active` or `pastDue` tenant that is not refused (see "Refused environments"),
+  sorted by name, suspended ones left out entirely
   (not even a slug -- unlike the single lookup above, there is no address a visitor already has here to confirm).
   `{ environments: [] }` when there is no `hostRegistry` at all.
 - `POST /login` (form-encoded, `login`/`password`/`next`; each environment's own, registered on the main app like
@@ -171,7 +172,92 @@ before phase 4's fuller scheme.
 
 ## The console
 
-`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; Delete arms on the first click and acts on the second. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; **Restore backup** opens a file picker, then arms as **Replace its data?** for eight seconds and posts the zip to `POST /api/host/tenants/:slug/restore` on the second click (the chosen files are held in `restoreFiles`, by slug, and dropped whenever the list is drawn again); Delete arms on the first click and acts on the second. A card whose `refused` is set (see "Refused environments" below) shows the tag "won't open" (`data-status="refused"`), the reason, the file and the time, what to do, and a dash for every usage count. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+
+## The Names migration
+
+`server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
+files and folders renamed from the old words to the new, one recorded part per step of that plan. Step 1
+built the frame only; `HOST_PARTS` and `ENVIRONMENT_PARTS` are empty, and each later step adds its part to the
+end of its list.
+
+- **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
+  so every service sees the data in its current shape, including an environment restored from an old backup.
+  With `BASE_DOMAIN` set, `migrateHost(DATA_DIR)` runs once at startup, before `host.json` is read and before
+  any environment is built; a single-environment install has no `host.json` and never runs it.
+- **A part.** `{ id, files(dir), run(ctx) }`. `files()` answers the paths (from the directory) of the JSON
+  files it will rewrite; `ctx` has `dir`, `read(rel)`, `write(rel, value)` and `move(fromRel, toRel)`. `write`
+  refuses a path `files()` did not list, since only those were copied first. Writes and moves are staged and
+  applied after `run` returns. A part must change nothing when run over data it has already changed.
+- **The record.** Parts run in list order, and a part the record names never runs again. An environment's
+  record is `app.json`: `version` goes from 1 to 2 (`NAMES_VERSION`) only when a part runs, and
+  `migrations: [{ id, at, moved: [{ from, to }] }]` gains one entry per part. The host's is `host.json`'s
+  `migrations`, with no `version`. `Store.load()` and `HostRegistry` keep `version` (when above 1) and
+  `migrations` exactly as found, so the record survives every later save. A directory with no record yet is
+  new: every due part is recorded as run with `moved: []`, since there is nothing old to rename.
+- **The copy.** Before a part writes, every file it listed and the record file are copied to
+  `<environment>/pre-names/<part>/`, keeping their paths; the host's go to `DATA_DIR/pre-names-host/<part>/`,
+  which the pre-environment move (`migrateIfNeeded()`) leaves where it is. A copy already there, from an
+  attempt that stopped part-way, is kept. Folders a part only moves are listed in `moved`, not copied.
+- **The commit.** Everything is checked first: each value serialises, no write lands on a folder, no move's
+  target exists or is shared. Each write goes to a `.names-tmp` file beside its target. Then the folders move
+  (a failed move puts back the moves already made and removes the staged files), then the writes are renamed
+  into place, the record last. A failure this late leaves the originals in `pre-names/` and no record entry, so
+  the part runs again on the next start.
+- **The error.** Every failure is a `MigrationError` with `file` and `reason`: `newer` (the record names a
+  part this server does not know) or `failed` (a part could not finish). The newer check runs whether or not a
+  part is due, and reads the record leniently: an `app.json` that is not valid JSON is not refused here, and
+  `Store` reads it as empty, as it always has. With no parts yet, only `newer` can happen.
+
+`tools/check-names.mjs` (in `npm run check`) holds the frame to this: `--migration` copies
+`tools/fixtures/names-v1/` to the system's temporary folder and runs the frame twice over it with stand-in
+parts. Its other modes report the old names left in the code, level by level (environment, table, role,
+space, canvas, module, object, aside); in step 1 every level only reports, and each later step switches its
+own to fail. `--words` reports "room", "rooms" and "table" in what people read, and `--list[=level]` lists
+every hit. The allow-list is `tools/check-names-allow.json`: `{ file, level, pattern, line?, reason }`, the
+pattern tested against the hit's own name; an entry with no reason fails, `level: "*"` or a pattern that
+matches anything is allowed only for one exact file or under `tools/fixtures/`, and unused entries are listed.
+
+## Refused environments
+
+Data that records a migration part this server does not know is from a newer Magpie, and is refused rather
+than read in a shape this server does not understand (plan-names decision 22).
+
+- **At startup, when nothing else can run.** An unknown part in `host.json`, or in the one environment of a
+  single-environment install, logs one line and exits with code 1. The line names the file and the part:
+  `<file> records the migration part "<id>", which this version of Magpie does not know: this data is from a
+  newer version of Magpie, so it will not be opened here.`
+- **On a hosted server, one environment.** `buildAtStartup()` in `index.js` skips an environment whose build
+  throws a `MigrationError`; the others and the console keep running. `environmentFor()` keeps the refusal in
+  `refusals` (by slug: `reason`, `file` relative to `DATA_DIR`, the full `message`, the sentence, `at`), logs
+  the message once per refusal, and tries to build again on every request, so a fixed or restored environment
+  opens without a restart. Until it builds, the error handler answers 503 with
+  `{ error: "This environment's data is from a newer version of Magpie." }` (`newer`) or
+  `{ error: "This environment's data could not be updated. The host admin has been told." }` (`failed`), or a
+  plain HTML page with the same sentence for a browser asking for a page. The file and the detail go to the log
+  and the console only. A refused environment is left out of `GET /api/product/environments`, and the console's
+  map-region search skips it.
+- **The console's list.** `GET /api/host/tenants` gives each environment
+  `refused: null | { reason: 'newer' | 'failed', file, message, at }`, and every `usage` count is `null` while
+  it is refused.
+- **Restore.** `POST /api/host/tenants/:slug/restore` checks the zip before touching anything: when the
+  `app.json` or `tavern.json` that would land (names normalised, the last of a repeated entry) records an
+  unknown part, it answers 400 `{ error: "This backup is from a newer version of Magpie." }` and the
+  environment is unchanged. Otherwise it replaces the environment's folder, builds it at once, and answers
+  `{ ok: true }`, or `{ ok: true, refused: { reason, file, message, at } }` when the restored data is itself
+  refused. The other answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
+  400 with the zip reader's message.
+
+## The Studio alias
+
+`server/studio-alias.js` is where the old names Coffee Pub Studio still reads are added back while the code
+moves to the new ones (plan-names, "What Studio reads" and decision 21). `GET /api/me` and `GET /api/status`
+pass their answer through `studioAlias.me()` and `studioAlias.status()`, which change it only when a bearer
+token actually signed the request in, the way Studio signs in; the pages use the cookie and never see an old
+name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receives only
+`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. Both lists are empty
+in step 1, so the answers are unchanged; the later steps add the fields they rename, and step 10 removes the
+file.
 
 ## The host's managed AI and shared files
 

@@ -20,9 +20,8 @@ build step), `public/sdk/`, and the front end of modules in `modules/<id>/`.
 
 ## While you work
 
-- The words a person reads are plain and short. Rooms are "spaces" in anything a person reads; the
-  code keeps `room`.
-- Check narrow widths (a phone and a narrow pane) and keyboard use for anything you add.
+- The words a person reads are plain and short. Use the names in `CLAUDE.md` (Names), in code and in words.
+- Check narrow widths (a phone and a narrow module) and keyboard use for anything you add.
 - If you change a module, bump its version as the repository does (see `tools/module-versions.json`
   and `tools/check-module-versions.mjs`).
 - Stay inside `public/` and `modules/`. If the work needs a server change, stop and

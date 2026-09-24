@@ -202,6 +202,8 @@ class HostRegistry {
       ai: cleanHostAi(raw.ai),
       shared: cleanSharedFolders(raw.shared),
       plans: cleanPlansCatalog(raw.plans),
+      // The Names migration's record of the host's own parts (server/migrate-names.js), kept exactly as found.
+      ...(Array.isArray(raw.migrations) ? { migrations: raw.migrations } : {}),
     };
   }
 

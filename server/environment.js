@@ -30,6 +30,7 @@ const { GeocodeCache } = require('./geocode');
 const { RegionCutJobs } = require('./region-cut');
 const { ModuleLimits } = require('./module-limits');
 const auth = require('./auth');
+const { migrateEnvironment } = require('./migrate-names');
 
 // The same read-access guard index.js's route handlers use (its own moduleCan), needed here only for
 // ModuleHooks' resolveRecipients. Duplicated rather than shared, since it is three lines and pure, and this file
@@ -54,6 +55,10 @@ function moduleCan(manifest, perms, need) {
 // registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
 // need it.
 function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null } = {}) {
+  // The Names migration (documentation/plans/plan-names.md, "The migration") runs before Store reads app.json, so
+  // every service below reads this environment's data in its current shape. Throws a MigrationError naming the
+  // file when a part cannot finish, and nothing is built.
+  migrateEnvironment(dataDir, { log });
   const store = new Store(dataDir);
   const modules = new ModuleManager(dataDir);
   const moduleData = new ModuleData(modules.dir);

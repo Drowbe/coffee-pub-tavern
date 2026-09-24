@@ -267,9 +267,12 @@
         <span class="grow"></span>
         <button class="btn btn-small" data-action="plan" type="button">Edit</button>
         <button class="btn btn-small" data-action="backup" type="button">Backup</button>
+        <button class="btn btn-small" data-action="restore" type="button">Restore backup</button>
+        <input type="file" accept=".zip,application/zip" data-slot="restore-file" hidden>
         <button class="btn btn-small" data-action="suspend" type="button">Suspend</button>
         <button class="btn btn-small danger" data-action="delete" type="button">Delete</button>
       </div>
+      <div class="refused" data-slot="refused" role="status" hidden></div>
       <dl class="facts" data-slot="facts"></dl>
       <form class="row owner-reset" data-slot="owner-reset" autocomplete="off">
         <span class="hint">An owner locked out of their authenticator app:</span>

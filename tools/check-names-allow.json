@@ -1,0 +1,12 @@
+[
+  { "file": "server/migrate-names.js", "level": "*", "pattern": ".", "reason": "The Names migration reads and writes the old names by design (plan-names, The migration)." },
+  { "file": "server/studio-alias.js", "level": "*", "pattern": ".", "reason": "The Studio alias sends the old names Coffee Pub Studio still reads, until step 10 removes it." },
+  { "file": "tools/check-names.mjs", "level": "*", "pattern": ".", "reason": "The check holds the old names it searches for." },
+  { "file": "tools/fixtures/names-v1/**", "level": "*", "pattern": ".", "reason": "An old-format data directory, kept old on purpose for the --migration check." },
+  { "file": "**", "level": "space", "pattern": "^(\\w+\\.)?(Room|RoomEvent|RoomServiceClient)(\\.\\w+)?$", "reason": "The LiveKit SDK's own names (Room, RoomEvent, RoomServiceClient), not ours." },
+  { "file": "server/index.js", "level": "space", "pattern": "^roomJoin$", "reason": "The LiveKit grant's own roomJoin field in mintToken's addGrant." },
+  { "file": "server/index.js", "level": "space", "pattern": "^room$", "line": "^\\s*room,\\s*$", "reason": "The LiveKit grant's own room field in mintToken's addGrant({ room, ... })." },
+  { "file": "**", "level": "table", "pattern": "^fa-table(-[a-z-]+)?$", "reason": "Font Awesome's own icon names (fa-table-columns, fa-table-cells-large)." },
+  { "file": "**", "level": "table", "pattern": "^(table|thead|tbody|tfoot)$", "line": "</?(table|thead|tbody|tfoot)\\b", "reason": "HTML table elements, not the call." },
+  { "file": "**", "level": "table", "pattern": "^(table\\.)?(files|roles)-table$", "reason": "The styles of HTML tables (files, roles), not the call." }
+]

@@ -55,6 +55,10 @@ Do not change the volume path of an existing install: the data lives there.
 In Container Station, pull the new image for the `magpie` application and recreate it. Users,
 images and settings live in `/share/appdata/magpie`, so nothing is lost.
 
+Take a copy of `/share/appdata/magpie` before you update. An update can bring the data up to date for the
+new version, and an older version then refuses to open it rather than misread it: going back to an older
+image means putting back that copy as well.
+
 ## Environments: one server, several groups
 
 One server can serve several groups, each with its own address, people, spaces, settings and modules: an
@@ -119,11 +123,51 @@ deletion out from the console.
 4. **Then** remove the last three variables, keep `BASE_DOMAIN`, and recreate again. They were read once.
 
 From there: `https://admin.<base>` is the host console (create an environment with its first owner, set its
-plan, back it up, suspend or delete it aside), `https://<slug>.<base>` each environment, and the bare
+plan, back it up and restore it, suspend or delete it aside), `https://<slug>.<base>` each environment, and the bare
 `https://<base>` the product page. Two optional variables feed that page: `PRODUCT_NAME` (the name it shows;
 the default is the app's own) and `CONTACT_EMAIL` (where "ask for an environment" writes to). If the base
 domain ever changes, set the new one as `BASE_DOMAIN` and list the old one in `PREVIOUS_BASE_DOMAINS`;
 every old address redirects to the new.
+
+## Back up and restore an environment
+
+A host admin does this from the host console's **Environments** tab. Each environment's card has
+**Backup** and **Restore backup**.
+
+To back one up, click **Backup** on its card. The browser saves the whole environment as a zip named
+`<slug>-<date>.zip`: every setting, account, space, picture and module's data.
+
+To restore one from a backup:
+
+1. Click **Restore backup** on the environment's card, and choose the zip.
+2. The button now reads **Replace its data?**. Click it again within eight seconds to go ahead; after that
+   it goes back to **Restore backup** and nothing happens.
+3. Everything in that environment is replaced by what is in the zip. The message beside the **Environments** heading says
+   "<slug> was restored from <file>." when it worked, or "<slug> was not restored:" and the reason when it
+   did not, in which case nothing was changed.
+
+A backup made by a newer version of Magpie than the one running is refused ("This backup is from a newer
+version of Magpie."), and the environment is left as it was.
+
+## An environment that won't open
+
+An environment's card can carry the tag **won't open**, with a red edge and a dash for every count. Its
+people see a page saying the environment's data is from a newer version of Magpie, or could not be updated;
+every other environment keeps working. The card says which, and names the file and when it happened:
+
+- **Won't open: its data is from a newer version of Magpie.** A newer version of Magpie has run on this
+  environment's data, and this one cannot read it. Run the newer version again, or restore a backup made
+  before it.
+- **Won't open: its data could not be updated.** The data could not be brought up to date on this start.
+  Restore a good backup. The server's log has the details.
+
+After a restore the environment opens straight away, with no restart. If the restored data won't open
+either, the message says "<slug> was restored, but still won't open", and an older backup is the next thing
+to try.
+
+A server with no base domain is one environment, and has no console: if its data is from a newer version,
+the server does not start, and its log says so and names the file. Run the newer version again, or put back
+the copy of the data folder you took before the update.
 
 ## Run it on another machine
 

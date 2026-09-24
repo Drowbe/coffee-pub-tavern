@@ -36,8 +36,8 @@ Follow the existing plans (`plan-mfa.md` and `plan-drop.md` are good examples):
 - **Verify**: how each step will be checked, and what can't be checked without a real LiveKit call.
 - **What is not decided** / **Open questions**.
 
-Keep to the documentation standard: plain sentences, no emoji, rooms are "spaces" in anything a person
-reads, code names in code format. Add the plan to `TODO.md` under a short heading once it is agreed.
+Keep to the documentation standard: plain sentences, no emoji, the names in `CLAUDE.md` (Names) in
+code and in words, code names in code format. Add the plan to `TODO.md` under a short heading once it is agreed.
 Run `npm run check:docs` after writing.
 
 ## Rules

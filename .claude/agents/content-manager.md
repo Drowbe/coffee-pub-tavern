@@ -33,8 +33,9 @@ full text lives in the hub repository. What it holds you to:
 And the house style, from the existing documents:
 
 - Plain, direct sentences in a calm voice. Say what something does and why, not how impressive it is.
-- In anything a person reads, rooms are "spaces"; the product's name is Coffee Pub Magpie. The code's
-  names (`room`, `host.*`, routes and fields) appear only in developer documents, in code format.
+- In anything a person reads, the product's name is Coffee Pub Magpie, and levels and roles use the
+  names in `CLAUDE.md` (Names). Code names (`host.*`, routes and fields) appear only in developer
+  documents, in code format.
 - User guides are about doing things: numbered steps, the exact labels on screen in bold, who is
   allowed to do it. Architecture documents explain the shape, the reasons and where the code lives.
   API documents are exact contracts: every field, status code and error.
