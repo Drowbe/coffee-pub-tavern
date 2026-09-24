@@ -18,12 +18,20 @@ const test = async (name, fn) => { await fn(); n += 1; };
 
 const sent = [];
 let reply = 'x';
+// A non-2xx response for the next call only (checkAiError below): status plus the body a provider would send.
+let failNext = null;
 const server = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
     sent.push({ url: req.url, auth: req.headers.authorization, key: req.headers['x-api-key'], body: body ? JSON.parse(body) : null });
     res.setHeader('content-type', 'application/json');
+    if (failNext && (req.url.startsWith('/v1/messages') || req.url.includes('/chat/completions'))) {
+      const { status, body: errBody } = failNext;
+      failNext = null;
+      res.statusCode = status;
+      return res.end(JSON.stringify(errBody));
+    }
     if (req.url.startsWith('/v1/models')) return res.end(JSON.stringify(req.headers['x-api-key'] === 'bad' || req.headers.authorization === 'Bearer bad' ? { data: [] } : { data: [{ id: 'gpt-4o', created: 5, display_name: 'GPT 4o' }, { id: 'gpt-5', created: 9 }, { id: 'text-embedding-3', created: 7 }, { id: 'whisper-1', created: 8 }, { id: 'o3-mini', created: 6 }, { id: 'claude-x', display_name: 'Claude X' }] }));
     if (req.url.startsWith('/v1/messages')) res.end(JSON.stringify({ content: [{ type: 'text', text: reply }], usage: { input_tokens: 30, output_tokens: 12 } }));
     else res.end(JSON.stringify({ choices: [{ message: { content: reply } }], usage: { total_tokens: 50 } }));
@@ -238,6 +246,38 @@ await test('limits and refusals', async () => {
   await assert.rejects(ai.run('ask', items, 'third?'), (e) => e instanceof AiError && e.status === 429);
   assert.match(buildPrompt('ask', [{ title: 'a"b', text: 'x'.repeat(20000) }], 'q').prompt, /title="a'b"/);
   assert.ok(buildPrompt('ask', [{ title: 'a', text: 'x'.repeat(20000) }], 'q').prompt.length < 10500);
+});
+
+await test('a non-ok answer: the status and the service\'s own message reach the caller, never the key or the prompt', async () => {
+  const ai = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {});
+  ai.set({ enabled: true, provider: 'compatible', address, model: 'local', key: 'sk-should-never-leak' });
+  const logs = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => logs.push(args.join(' '));
+  try {
+    // A 404 with an OpenAI-shaped body: folded into the AiError, trimmed to a sentence, and logged too.
+    failNext = { status: 404, body: { error: { message: 'The model `gpt-bogus` does not exist' } } };
+    await assert.rejects(
+      ai.run('ask', items, 'a question'),
+      (e) => e instanceof AiError && e.status === 502 && /404.*does not exist/.test(e.message),
+    );
+    assert.ok(logs.some((l) => /404/.test(l) && /does not exist/.test(l)));
+    assert.ok(!logs.some((l) => l.includes('sk-should-never-leak')), 'the key never reaches the log');
+    assert.ok(!logs.some((l) => l.includes('a question')), 'the prompt never reaches the log');
+
+    // 401 and 429 keep their own plain wording, not the provider's raw text appended.
+    logs.length = 0;
+    failNext = { status: 401, body: { error: { message: 'Incorrect API key provided' } } };
+    await assert.rejects(ai.run('ask', items, 'why?'), (e) => e instanceof AiError && e.message === 'the AI service refused the key');
+    failNext = { status: 429, body: { error: { message: 'rate limited' } } };
+    await assert.rejects(ai.run('ask', items, 'why?'), (e) => e instanceof AiError && e.message === 'the AI service is busy; try again in a moment');
+
+    // A body with nothing useful in it: no crash, just the status.
+    failNext = { status: 500, body: {} };
+    await assert.rejects(ai.run('ask', items, 'why?'), (e) => e instanceof AiError && e.message === 'the AI service could not answer (500)');
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 server.close();

@@ -410,12 +410,34 @@ class Ai {
     let res;
     try {
       res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(FETCH_MS), redirect: 'error' });
-    } catch {
-      throw new AiError('the AI service did not answer', 502);
+    } catch (err) {
+      // Never the key or the prompt -- err.name/err.message tell a timeout from a DNS failure from a TLS one,
+      // which the generic "did not answer" on its own never could.
+      console.warn(`[ai] ${c.provider}/${c.model}: request failed (${err.name}: ${oneLine(err.message, 200)})`);
+      throw new AiError(`the AI service did not answer (${err.name}: ${oneLine(err.message, 150)})`, 502);
     }
     const raw = await res.text();
     if (raw.length > MAX_BODY) throw new AiError('the AI service answered too much', 502);
-    if (!res.ok) throw new AiError(res.status === 401 || res.status === 403 ? 'the AI service refused the key' : res.status === 429 ? 'the AI service is busy; try again in a moment' : 'the AI service could not answer', 502);
+    if (!res.ok) {
+      // The service's own reason, if it gave one as JSON (Anthropic: { error: { type, message } }; OpenAI and
+      // an OpenAI-compatible one: { error: { message } }) -- logged in full server-side (never the key or the
+      // prompt), and folded into the answer for the else case below, trimmed to a sentence, so a 404 (an
+      // account without that model), a 400 (a bad field) and a 529 (overloaded) no longer all look the same.
+      let providerMessage = '';
+      try {
+        const errJson = JSON.parse(raw);
+        providerMessage = String(errJson?.error?.message || errJson?.message || '');
+      } catch {
+        // not JSON -- nothing more specific to show or log than the status itself
+      }
+      console.warn(`[ai] ${c.provider}/${c.model}: ${res.status}${providerMessage ? ` ${oneLine(providerMessage, 300)}` : ''}`);
+      throw new AiError(
+        res.status === 401 || res.status === 403 ? 'the AI service refused the key'
+          : res.status === 429 ? 'the AI service is busy; try again in a moment'
+            : `the AI service could not answer (${res.status}${providerMessage ? `: ${oneLine(providerMessage, 100)}` : ''})`,
+        502,
+      );
+    }
     let json;
     try { json = JSON.parse(raw); } catch { throw new AiError('the AI service answered something unreadable', 502); }
     const text = isAnthropic ? (Array.isArray(json.content) ? json.content.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n') : '') : json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content : '';
