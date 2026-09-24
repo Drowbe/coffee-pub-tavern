@@ -225,19 +225,25 @@ function renderTenants() {
     const p = t.plan || {};
     const mods = p.modules === 'all' || !p.modules ? 'all installed' : `${p.modules.length} allowed`;
     const graceEnds = t.graceEndsAt ? new Date(t.graceEndsAt) : t.pastDueSince ? new Date(new Date(t.pastDueSince).getTime() + 14 * 86400000) : null;
+    // The facts as tiles: what the plan allows against what is used, a bar where there is a cap, and the states that
+    // need a host admin's eye (past due, degraded, a deletion asked for) marked.
+    el.dataset.status = t.status || 'active';
+    const pctOf = (used, limit) => (limit ? Math.min(100, Math.round((used / limit) * 100)) : null);
+    const tile = (key, value, pct = null, warn = false) => `<div class="fact${warn || (pct !== null && pct >= 90) ? ' fact-warn' : ''}"><span class="fact-key">${escapeHtml(key)}</span><span class="fact-value">${escapeHtml(value)}</span>${pct === null ? '' : `<span class="env-cap-bar${pct >= 90 ? ' warn' : ''}"><span style="width:${pct}%"></span></span>`}</div>`;
+    const storageText = u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`;
     slot(el, 'facts').innerHTML = [
-      ['Plan', p.name ? p.name : 'no plan named'],
-      ...(t.status === 'pastDue' ? [['Past due', `since ${t.pastDueSince ? new Date(t.pastDueSince).toLocaleDateString() : '?'}; the free plan on ${graceEnds ? graceEnds.toLocaleDateString() : '?'}`]] : []),
-      ...(t.degradedAt ? [['Degraded to free', new Date(t.degradedAt).toLocaleDateString()]] : []),
-      ...(t.deleteRequestedAt ? [['Deletion asked for', `${new Date(t.deleteRequestedAt).toLocaleDateString()}${t.deleteReason ? ': ' + t.deleteReason : ''} (Delete below carries it out)`]] : []),
-      ['Members', cap(u.members ?? 0, p.members)],
-      ['Spaces', String(u.spaces ?? 0)],
-      ['Storage', u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`],
-      ['AI this month', cap(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth, ' calls')],
-      ['Calls', p.calls ? `up to ${p.calls} at once` : 'no cap'],
-      ['Modules', mods],
-      ['Since', t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''],
-    ].map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`).join('');
+      tile('Plan', p.name ? (settings.plans && settings.plans[p.name] ? settings.plans[p.name].name || p.name : p.name) : 'no plan named'),
+      ...(t.status === 'pastDue' ? [tile('Past due', `since ${t.pastDueSince ? new Date(t.pastDueSince).toLocaleDateString() : '?'}; free plan on ${graceEnds ? graceEnds.toLocaleDateString() : '?'}`, null, true)] : []),
+      ...(t.degradedAt ? [tile('Degraded to free', new Date(t.degradedAt).toLocaleDateString(), null, true)] : []),
+      ...(t.deleteRequestedAt ? [tile('Deletion asked for', `${new Date(t.deleteRequestedAt).toLocaleDateString()}${t.deleteRequestReason || t.deleteReason ? ': ' + (t.deleteRequestReason || t.deleteReason) : ''}`, null, true)] : []),
+      tile('Members', cap(u.members ?? 0, p.members), pctOf(u.members ?? 0, p.members)),
+      tile('Spaces', String(u.spaces ?? 0)),
+      tile('Storage', storageText, u.storageBytes == null ? null : pctOf(u.storageBytes, p.storageBytes)),
+      tile('AI this month', cap(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth, ' calls'), pctOf(u.aiCallsThisMonth ?? 0, p.aiCallsPerMonth)),
+      tile('Calls at once', p.calls ? `${u.callsNow ?? 0} of ${p.calls}` : 'no cap', pctOf(u.callsNow ?? 0, p.calls)),
+      tile('Modules', mods),
+      tile('Since', t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''),
+    ].join('');
     // the plan form, filled from the plan
     const form = slot(el, 'plan-form');
     form.elements.name.value = t.name || '';
@@ -365,6 +371,23 @@ $('create-form').addEventListener('submit', async (e) => {
     await load();
   } catch (err) { say($('create-error'), err.message, true); }
 });
+
+// --- the tabs ----------------------------------------------------------------------------------------------------------
+// Host (the facts, the host admins), Plans, Environments (the list and the new-environment form), AI, Maps: the same
+// bar and the same hash routing as the Manage page. Environments is the default, being what a host admin comes for.
+const TABS = ['host', 'plans', 'environments', 'ai', 'maps'];
+function selectTab(name) {
+  const tab = TABS.includes(name) ? name : 'environments';
+  for (const t of TABS) { const el = $(`tab-${t}`); if (el) el.hidden = tab !== t; }
+  for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
+  if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+}
+$('subtabs').addEventListener('click', (event) => {
+  const b = event.target.closest('.subtab');
+  if (b) selectTab(b.dataset.tab);
+});
+window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
+selectTab(location.hash.slice(1));
 
 // --- the plans catalog ----------------------------------------------------------------------------------------------
 // One row per plan (free first and never removed); Save plans sends the whole catalog (PUT /api/host/plans).

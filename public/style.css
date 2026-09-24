@@ -266,20 +266,106 @@ body.host-console .tenant .section-head h2 code {
   font-weight: 400;
 }
 
-body.host-console .facts {
+body.host-console #host-facts {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 4px 14px;
+  gap: 6px 16px;
   margin: 8px 0 0;
 }
 
-body.host-console .facts dt {
+body.host-console #host-facts dt {
   color: var(--text-dim);
   font-size: 12px;
+  padding-top: 2px;
 }
 
-body.host-console .facts dd {
+body.host-console #host-facts dd {
   margin: 0;
+  line-height: 1.5;
+}
+
+/* The environments: spaced cards, each with an edge in its status's colour, the facts as tiles with a bar
+   where the plan has a cap, and the plan form opening under a rule. */
+body.host-console .tenants {
+  display: grid;
+  gap: 16px;
+}
+
+body.host-console .tenant {
+  border-left: 4px solid var(--ok);
+}
+
+body.host-console .tenant[data-status="pastDue"] {
+  border-left-color: var(--danger);
+}
+
+body.host-console .tenant[data-status="suspended"] {
+  border-left-color: var(--text-dim);
+}
+
+body.host-console .tenant .section-head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.host-console .tenant .section-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+body.host-console .tenant .section-head h2 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+body.host-console .tenant .section-head h2 a:hover {
+  color: var(--accent);
+}
+
+body.host-console .tenant .facts {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+body.host-console .fact-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.host-console .fact .env-cap-bar {
+  margin-top: 6px;
+  max-width: none;
+}
+
+body.host-console .fact-warn {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg-card));
+}
+
+body.host-console .plan-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+body.host-console .plan-form > .hint {
+  margin: 0 0 12px;
+}
+
+body.host-console .plan-form .fields + .fields,
+body.host-console .plan-form .fields + .row {
+  margin-top: 12px;
+}
+
+body.host-console .subtabs {
+  margin-bottom: 6px;
+}
+
+body.host-console #tab-host .list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
 }
 
 body.host-console .tag {
@@ -891,9 +977,14 @@ body.at-table .page-scroll {
 
 .panel input[type="text"],
 .panel input[type="password"],
+.panel input[type="number"],
+.panel input[type="email"],
+.panel input[type="url"],
 .panel textarea,
 .fields input[type="text"],
 .fields input[type="password"],
+.fields input[type="number"],
+.fields input[type="email"],
 .fields input[type="url"],
 .fields select,
 .fields textarea {
@@ -5260,10 +5351,9 @@ body.at-table .topbar.menu-open .links .module-nav-link {
 /* The same banner across the top of every page, for an owner, while the environment is past due or suspended. */
 .env-page-banner { padding: 6px 16px; background: color-mix(in srgb, var(--danger) 18%, var(--bg)); border-bottom: 1px solid var(--danger); color: var(--text); font-size: 13px; text-align: center; }
 .env-page-banner a { color: var(--text); font-weight: 600; margin-left: 6px; }
-/* The host console's plans catalog: one row per plan. */
-.plans-editor { display: grid; gap: 10px; margin: 8px 0; }
-.plan-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); align-items: end; }
-.plan-row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-dim); }
+/* The host console's plans catalog: one card per plan, the design system's fields grid inside it. */
+.plans-editor { display: grid; gap: 12px; margin: 8px 0; }
+.plan-row { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); }
 .plan-row .plan-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* The host console's managed AI: one company per row, its own small form. */
 .ai-services { display: grid; gap: 12px; margin-top: 8px; }
