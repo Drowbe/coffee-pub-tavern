@@ -34,6 +34,10 @@
 - **Resets:** `DELETE /api/users/:key/mfa` (an admin of the environment, not on themselves), and on the host router `DELETE /api/host/tenants/:slug/owners/:key/mfa` (a host admin, for an owner of that environment) and the host admins' own enrolment mirrored under `/api/host/me/mfa/*` and `POST /api/host/login/verify`.
 - **Policy:** `settings.mfa` (`off | optional | owners | everyone`, default `optional`) through `PATCH /api/settings` as any setting; `branding()` carries it so the sign-in page can say a code will be asked. `HOST_MFA` (`optional | required`) for the console.
 - **The key:** `secrets.key` (32 random bytes, hex, mode 0600) beside the store on a single server; `host.json`'s `secretsKey` on a host with environments; AES-256-GCM with a random nonce per secret, the nonce and tag stored with it.
+- **Regaining access (the author, 2026-09-24: "a flag in the server yml or something").** Two environment variables, read at start, for the operator who is locked out of their own server:
+  - `MFA_RESET` names accounts whose second factor is cleared on that start, comma-separated: a login on a single server (`MFA_RESET=gm`), `<slug>:<login>` on a host with environments (`MFA_RESET=thepub:gm,stayingblonde:owner`), and `host:<login>` for a host admin. Each is cleared once, the server logs "Second factor cleared for <who> (MFA_RESET)", and the variable is meant to be removed again; leaving it set clears them on every start, which the log says too.
+  - `MFA_OFF=1` skips the second step at every door while it is set, whatever the policy and whoever has enrolled: the server logs a warning on start and Manage and the console show a banner ("Two-step sign-in is switched off by the server's MFA_OFF; remove it once you are back in"). Nothing is deleted: enrolments stay and work again the moment the variable goes.
+  Both are documented in the getting-started guide beside the other one-start variables, and the compose sample carries them commented out.
 
 ### Pages
 

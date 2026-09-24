@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1410">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
+  <link rel="icon" href="/img/site/icon">
+  <title>Sign in</title>
+  <link rel="stylesheet" href="/fa/css/all.min.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css">
+</head>
+<body data-brand="background">
+  <!-- The second step of signing in: a code from the authenticator app (/login/verify), or, for an account the policy
+       requires to have one and that has none yet, enrolling first (/login/enrol). The first step (the password, or a
+       personal link) already happened; a short-lived pending token in a cookie says who this is. -->
+  <form class="panel login login-step" id="verify" hidden>
+    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub</span></div>
+    <p class="hint" id="verify-lede">One more step: the six digits your authenticator app shows.</p>
+    <label id="code-label">Code<input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus></label>
+    <label class="check"><input id="remember" type="checkbox"> Remember this browser for 30 days</label>
+    <button class="btn btn-primary" type="submit">Sign in</button>
+    <p class="status error" id="error" hidden></p>
+    <p class="hint"><button class="linklike" type="button" id="use-recovery">Use a recovery code instead</button></p>
+    <p class="hint"><a href="/login">Start over</a></p>
+    <span class="version" data-brand="version"></span>
+  </form>
+
+  <section class="panel login login-step wide" id="enrol" hidden>
+    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub</span></div>
+    <p class="hint">This account must sign in in two steps. Set up an authenticator app now; it takes a minute, once.</p>
+    <div id="enrol-block"></div>
+    <p class="hint"><a href="/login">Start over</a></p>
+  </section>
+  <script type="module" src="/login-step.js"></script>
+</body>
+</html>

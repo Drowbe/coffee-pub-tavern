@@ -24,6 +24,10 @@ Over a cap, that one thing stops and everything else keeps running. **Upgrade** 
 
 If a payment lapses, a banner on every page says so, with the date the environment goes back to the free plan: fourteen days. Nothing is deleted; the caps shrink to the free plan's, and the same rule applies (the things over the cap stop, the rest keeps working). Paying again restores the plan.
 
+## Two-step sign-in
+
+The rule for your environment is yours to set (Manage > Server), and you reset a member's second factor from their profile when their app is gone. If an owner is locked out, the host admin resets theirs from the console (an environment's card takes the owner's login).
+
 ## A copy, and leaving
 
 **Download a copy** on the Environment panel gives you the whole environment as a zip: every setting, account, space, picture and module's data, the same file the host's own backup makes. **Ask for deletion** sends the host a request (with a reason, if you like); a host admin carries it out, which moves the environment aside rather than destroying it at once. You can withdraw the request until then.

@@ -86,3 +86,14 @@ An admin opens someone's profile and chooses the **Rooms** tab to see one sectio
 belong to. In each, **Moderator** makes them a moderator in that room only, so they get everything
 the Moderator role has there and nothing extra elsewhere. **Use Default Profile Images** decides
 whether the room's own pictures replace their defaults, and **Remove** takes them out of the room.
+
+## Two-step sign-in
+
+A second step after the password, if you or your admin want one: a six-digit code from an authenticator app on your phone, the standard kind that any such app makes.
+
+- **Turning it on.** On your profile, under **Two-step sign-in**, choose **Turn on**: scan the square with the app (or type the key under it into the app), then type the six digits the app shows. The page then shows ten **recovery codes**, once: keep them somewhere safe. Each one signs you in a single time if the app is ever gone.
+- **Signing in.** After your password, a page asks for the app's code. Tick **Remember this browser for 30 days** and that browser is not asked again for a month. **Use a recovery code instead** takes one of the saved codes, which is then spent.
+- **A personal link** still gets the code step once you have one; it is the first step, not a way around the second.
+- **Turning it off** asks for a code. If your role is required to have one (below), it cannot be turned off.
+- **Locked out.** Ask an admin: on your profile they can **Reset your second factor**, which signs you out everywhere and lets you set it up again. An admin locked out of their own account on a hosted server asks the host; on a single server, the operator uses the `MFA_RESET` or `MFA_OFF` setting on the server itself (see the getting-started guide).
+- **The rule for the whole server** is on Manage > Server, under the sign-in page: off, optional (the default: anyone may set it up and is then asked), required for admins, or required for everyone. A requirement bites at the next sign-in, which lands on the set-up page first; a session already open keeps working.

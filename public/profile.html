@@ -51,6 +51,17 @@
           <button class="btn btn-small" id="account-clear-password" type="button">Remove password</button>
           <span class="status" id="account-status"></span>
         </div>
+        <!-- Two-step sign-in: a code from an authenticator app after the password (plans/plan-mfa.md). Your own to turn on
+             and off; an admin editing someone can only reset theirs. -->
+        <div class="row" id="mfa-row">
+          <span class="field-label">Two-step sign-in</span>
+          <span class="pill" id="mfa-state">off</span>
+          <button class="btn btn-small btn-primary" id="mfa-on" type="button" hidden>Turn on</button>
+          <button class="btn btn-small" id="mfa-off" type="button" hidden>Turn off</button>
+          <button class="btn btn-small btn-danger" id="mfa-reset" type="button" hidden>Reset their second factor</button>
+          <span class="hint" id="mfa-hint"></span>
+        </div>
+        <div class="mfa-block" id="mfa-block" hidden></div>
         <div class="row" id="link-row">
           <span class="field-label">Personal link</span>
           <code class="key link" id="link-value">off</code>

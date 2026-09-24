@@ -27,6 +27,21 @@
           <span class="status error" id="login-error" hidden></span>
         </div>
       </form>
+      <!-- the second step, when this host admin has an authenticator app (or must set one up) -->
+      <form id="host-verify" class="fields" hidden>
+        <p class="hint" id="host-verify-lede">One more step: the six digits your authenticator app shows, or a recovery code.</p>
+        <label>Code<input id="host-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required></label>
+        <label class="check"><input id="host-remember" type="checkbox"> Remember this browser for 30 days</label>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Sign in</button>
+          <button class="btn" type="button" id="host-verify-back">Start over</button>
+          <span class="status error" id="host-verify-error" hidden></span>
+        </div>
+      </form>
+      <div id="host-enrol" hidden>
+        <p class="hint">This host admin account must sign in in two steps. Set up an authenticator app now.</p>
+        <div id="host-enrol-block"></div>
+      </div>
     </section>
 
     <div id="host-main" hidden>
@@ -44,6 +59,19 @@
         <h2>The host</h2>
         <dl class="facts" id="host-facts"></dl>
         <div class="row"><button class="btn" id="host-logout" type="button">Sign out of the host</button></div>
+      </section>
+      <section class="panel">
+        <div class="section-head">
+          <h2>Your two-step sign-in</h2>
+          <span class="pill" id="host-mfa-state">off</span>
+          <span class="status" id="host-mfa-status"></span>
+        </div>
+        <p class="hint" id="host-mfa-hint">A code from an authenticator app after the password, for this host admin account. HOST_MFA=required on the server makes it mandatory for every host admin.</p>
+        <div class="row">
+          <button class="btn btn-primary btn-small" id="host-mfa-on" type="button" hidden>Turn on</button>
+          <button class="btn btn-small" id="host-mfa-off" type="button" hidden>Turn off</button>
+        </div>
+        <div class="mfa-block" id="host-mfa-block" hidden></div>
       </section>
       <section class="panel">
         <div class="section-head">
@@ -232,6 +260,12 @@
         <button class="btn btn-small danger" data-action="delete" type="button">Delete</button>
       </div>
       <dl class="facts" data-slot="facts"></dl>
+      <form class="row owner-reset" data-slot="owner-reset" autocomplete="off">
+        <span class="hint">An owner locked out of their authenticator app:</span>
+        <input name="login" type="text" maxlength="40" placeholder="their login" autocapitalize="off" required>
+        <button class="btn btn-small danger" type="submit">Reset their second factor</button>
+        <span class="status" data-slot="owner-reset-status"></span>
+      </form>
       <form class="plan-form" data-slot="plan-form" hidden>
         <h3>Edit</h3>
         <p class="hint">The name is what the environment calls itself and what the product page lists; the slug (its address) is fixed. Choosing a plan fills the caps from the catalog; adjust them here for this environment alone. Empty caps mean no cap.</p>

@@ -15,7 +15,7 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
   choose from the Font Awesome list on the Theme tab.
 - **Call features.** Turns screen sharing, asides, private conversations and reactions on or off for
   everyone, and sets the highest video quality anyone can pick.
-- **Sign-in page.** A background picture behind the sign-in box, and the text under the password field. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Magpie (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
+- **Sign-in page.** A background picture behind the sign-in box, the text under the password field, and **Two-step sign-in**: off, optional (the default), required for admins, or required for everyone; see "Two-step sign-in" in [Accounts, roles and permissions](userguide-accounts.md). A requirement applies at the next sign-in, never to a session already open. The Users tab marks accounts that have set it up. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Magpie (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
 - **Sign-up.** Self-service `/register` on or off, and invite links into specific rooms. See
   [Accounts, roles and permissions](userguide-accounts.md).
 - **Access key.** The key that a keyed page's link carries in place of a sign-in (the Stream module's

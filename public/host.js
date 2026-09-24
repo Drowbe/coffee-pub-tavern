@@ -3,6 +3,7 @@
 // data beyond the counts. The API is /api/host/ (documentation/plans/plan-tenants.md, "Phase 1 in detail").
 import { loadBranding, api, renderTopbar } from '/brand.js';
 import { wireRegionCut } from '/region-cut.js';
+import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -18,14 +19,16 @@ const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
 const tenantUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}${location.port ? `:${location.port}` : ''}`; // the port only in development
 
+let hostMe = null; // the signed-in host admin: mfaEnrolled, mfaRequired, mfaOff
 async function load() {
   try {
-    await api('GET', '/api/host/me');
+    hostMe = await api('GET', '/api/host/me');
   } catch (err) {
     $('host-login').hidden = false;
     $('host-main').hidden = true;
     return;
   }
+  renderHostMfa();
   $('host-login').hidden = true;
   $('host-main').hidden = false;
   try {
@@ -468,10 +471,73 @@ $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   say($('login-error'), '');
   try {
-    await api('POST', '/api/host/login', { login: $('login-name').value.trim(), password: $('login-password').value });
+    const res = await api('POST', '/api/host/login', { login: $('login-name').value.trim(), password: $('login-password').value });
     $('login-password').value = '';
+    // The second step: a code, or enrolment first for a host admin who must have one and has none yet.
+    if (res && res.mfaRequired) {
+      $('login-form').hidden = true;
+      if (res.enrol) {
+        $('host-enrol').hidden = false;
+        mountEnrolment($('host-enrol-block'), { start: '/api/host/me/mfa/start', enable: '/api/host/me/mfa/enable', onDone: async () => { $('host-enrol').hidden = true; $('login-form').hidden = false; await load(); } });
+      } else {
+        $('host-verify').hidden = false;
+        $('host-code').focus();
+      }
+      return;
+    }
     await load();
   } catch (err) { say($('login-error'), err.message, true); }
+});
+$('host-verify').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  say($('host-verify-error'), '');
+  try {
+    await api('POST', '/api/host/login/verify', { code: $('host-code').value.trim(), remember: $('host-remember').checked });
+    $('host-code').value = '';
+    $('host-verify').hidden = true;
+    $('login-form').hidden = false;
+    await load();
+  } catch (err) { say($('host-verify-error'), err.message, true); }
+});
+$('host-verify-back').addEventListener('click', () => { $('host-verify').hidden = true; $('login-form').hidden = false; });
+
+// The host admin's own second factor (the Host tab), and the server's MFA_OFF banner.
+function renderHostMfa() {
+  const me = hostMe || {};
+  const on = Boolean(me.mfaEnrolled);
+  $('host-mfa-state').textContent = me.mfaOff ? 'switched off by the server' : on ? 'on' : 'off';
+  $('host-mfa-state').classList.toggle('on', on && !me.mfaOff);
+  $('host-mfa-on').hidden = on;
+  $('host-mfa-off').hidden = !on || (me.mfaRequired && !me.mfaOff);
+  if (me.mfaOff && !document.querySelector('.env-page-banner[data-mfa-off]')) {
+    const b = document.createElement('div');
+    b.className = 'env-page-banner';
+    b.dataset.mfaOff = '1';
+    b.textContent = 'Two-step sign-in is switched off by the server\'s MFA_OFF; remove it from the server\'s settings once you are back in.';
+    const topbar = document.querySelector('.topbar');
+    if (topbar) topbar.after(b); else document.body.prepend(b);
+  }
+}
+$('host-mfa-on').addEventListener('click', () => {
+  if (!$('host-mfa-block').hidden) return;
+  mountEnrolment($('host-mfa-block'), { start: '/api/host/me/mfa/start', enable: '/api/host/me/mfa/enable', onDone: async () => { say($('host-mfa-status'), 'on'); await load(); } });
+});
+$('host-mfa-off').addEventListener('click', () => {
+  mountDisable($('host-mfa-block'), { disable: '/api/host/me/mfa/disable', onDone: async () => { say($('host-mfa-status'), 'off'); await load(); } });
+});
+// An environment's owner, reset from its card (by login: the console never learns an environment's keys).
+$('tenants').addEventListener('submit', async (e) => {
+  const form = e.target.closest('.owner-reset');
+  if (!form) return;
+  e.preventDefault();
+  const slug = form.closest('.tenant').dataset.slug;
+  const login = form.elements.login.value.trim();
+  const status = slot(form, 'owner-reset-status');
+  try {
+    await api('DELETE', `/api/host/tenants/${encodeURIComponent(slug)}/owners/${encodeURIComponent(login)}/mfa`);
+    form.reset();
+    say(status, `${login}'s second factor is reset`);
+  } catch (err) { say(status, err.message, true); }
 });
 $('host-logout').addEventListener('click', async () => {
   try { await api('POST', '/api/host/logout'); } catch (err) { /* the cookie is gone either way */ }
