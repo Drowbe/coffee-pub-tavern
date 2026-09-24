@@ -6,6 +6,11 @@ const cards = new Map(); // key -> card element
 let me = null;
 let streamKey = '';
 let streamShown = false;
+// The environment this Manage page runs in, on a host with several (GET /api/me's `environment`): hosted says the host has
+// environments, owner that the viewer is this one's admin (its owner), hostAdmin that the viewer is the host's own cross
+// sign-in. What only the host may do is hidden from an owner; the Environment panel shows the plan and its use.
+let environment = { hosted: false, owner: false, hostAdmin: false, slug: '', name: '' };
+const hostOnlyHidden = () => environment.hosted && !environment.hostAdmin;
 let users = [];
 
 // The choices come from the Font Awesome list on the Theme tab.
@@ -165,7 +170,7 @@ async function loadUsers() {
 // A grid: one row per permission, one column per role. Admin is always all
 // on and disabled; the other three save the moment a box is clicked.
 
-const ROLE_COLUMNS = [['admin', 'Admin'], ['moderator', 'Moderator'], ['user', 'User'], ['guest', 'Guest']];
+const ROLE_COLUMNS = [['admin', 'Admin'], ['moderator', 'Moderator'], ['user', 'User'], ['guest', 'Guest']]; // 'Admin' reads 'Owner' on a hosted environment (applyHosted)
 
 function renderRoles({ permissions, roles }) {
   const rows = ['<thead><tr><th></th>' + ROLE_COLUMNS.map(([, label]) => `<th>${label}</th>`).join('') + '</tr></thead><tbody>'];
@@ -714,7 +719,7 @@ function moduleCard(m) {
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
       <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
-      ${m.source === 'bundled' ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
+      ${m.source === 'bundled' || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
     ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every space</label>` : ''}
     <div class="row">
@@ -901,8 +906,8 @@ function renderModules() {
     box.innerHTML = `<h2>Available with this server</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
       <div class="row module-available">
         <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
-        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${bundledNeeds(b)}</div>
-        <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button">Install</button>
+        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${b.notInPlan ? '<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Not in your plan.</div>' : bundledNeeds(b)}</div>
+        <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button" ${b.notInPlan ? 'disabled title="Your plan does not include this module"' : ''}>Install</button>
       </div>`).join('')}`;
     list.appendChild(box);
   } else if (showAvailableOnly) {
@@ -1256,6 +1261,102 @@ $('stream-regen').addEventListener('click', async () => {
   }
 });
 
+// --- the environment on a hosted server -----------------------------------------------------------------------------
+// Words and controls: an environment's admin is its owner, and what only the host does (uploading a module zip, running a
+// module in the page) is not offered to an owner. The host's own cross sign-in sees everything.
+function applyHosted() {
+  if (!environment.hosted) return;
+  ROLE_COLUMNS[0][1] = 'Owner';
+  const opt = $('new-role').querySelector('option[value="admin"]');
+  if (opt) opt.textContent = 'Owner';
+  for (const el of document.querySelectorAll('[data-host-only]')) el.hidden = hostOnlyHidden();
+}
+
+// The plan and its use (GET /api/environment): each cap as a bar, the past-due banner with its date, the way to a bigger
+// plan (the product page's plans), a copy of the environment, and a request to delete it.
+let envInfo = null;
+const gb = (bytes) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(bytes < 1e10 ? 1 : 0)} GB` : `${Math.max(1, Math.round(bytes / 1e6))} MB`);
+async function loadEnvironment() {
+  const panel = $('env-panel');
+  if (!environment.hosted) { panel.hidden = true; return; }
+  try {
+    envInfo = await api('GET', '/api/environment');
+  } catch (err) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  renderEnvironment();
+}
+function renderEnvironment() {
+  const e = envInfo;
+  const plan = e.plan || {};
+  const use = e.usage || {};
+  $('env-plan-pill').textContent = plan.name ? `${plan.name} plan` : 'no plan';
+  $('env-hint').textContent = `${e.name || environment.name} is at ${environment.slug}: its people, spaces, settings and modules are its own. What the plan allows, and what is used:`;
+  const rows = [
+    ['Members', use.members ?? 0, plan.members, (n) => `${n}`],
+    ['Storage', use.storageBytes ?? 0, plan.storageBytes, gb],
+    ['Assistant calls this month', use.aiCallsThisMonth ?? 0, plan.aiCallsPerMonth, (n) => `${n}`],
+    ['Calls at once', use.callsNow ?? 0, plan.calls, (n) => `${n}`],
+    ['Modules', Array.isArray(plan.modules) ? plan.modules.length : null, null, (n) => (n === null ? 'every module' : `${n} allowed`)],
+  ];
+  $('env-caps').innerHTML = rows.map(([label, used, cap, fmt]) => {
+    const pct = cap ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+    const text = label === 'Modules' ? fmt(used) : cap ? `${fmt(used)} of ${fmt(cap)}` : `${fmt(used)}, no cap`;
+    return `<dt>${escapeHtml(label)}</dt><dd><span class="env-cap-text">${escapeHtml(text)}</span>${cap ? `<span class="env-cap-bar${pct >= 90 ? ' warn' : ''}"><span style="width:${pct}%"></span></span>` : ''}</dd>`;
+  }).join('');
+  const banner = $('env-banner');
+  if (e.status === 'pastDue') {
+    const until = e.graceEndsAt ? new Date(e.graceEndsAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'soon';
+    banner.textContent = `Payment for this environment is overdue. It goes to the free plan on ${until}; nothing is deleted.`;
+    banner.hidden = false;
+  } else if (e.status === 'suspended') {
+    banner.textContent = 'This environment is suspended by the host.';
+    banner.hidden = false;
+  } else banner.hidden = true;
+  const up = $('env-upgrade');
+  if (e.baseDomain) { up.href = `${location.protocol}//${e.baseDomain}${location.port ? ':' + location.port : ''}/#plans`; up.hidden = false; } else up.hidden = true;
+  const requested = Boolean(e.deleteRequestedAt);
+  $('env-delete').hidden = requested;
+  $('env-delete-cancel').hidden = !requested;
+  if (requested) say($('env-status'), `Deletion asked for on ${new Date(e.deleteRequestedAt).toLocaleDateString()}; the host carries it out.`);
+}
+$('env-export').addEventListener('click', async () => {
+  const b = $('env-export');
+  b.disabled = true;
+  say($('env-status'), 'packing...');
+  try {
+    const res = await fetch('/api/environment/export');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `could not export (${res.status})`);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${environment.slug || 'environment'}-${new Date().toISOString().slice(0, 10)}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    say($('env-status'), 'downloaded');
+  } catch (err) { say($('env-status'), err.message, true); }
+  b.disabled = false;
+});
+$('env-delete').addEventListener('click', () => { $('env-delete-form').hidden = false; $('env-delete-reason').focus(); });
+$('env-delete-back').addEventListener('click', () => { $('env-delete-form').hidden = true; });
+$('env-delete-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    await api('POST', '/api/environment/delete-request', { reason: $('env-delete-reason').value.trim() });
+    $('env-delete-form').hidden = true;
+    await loadEnvironment();
+  } catch (err) { say($('env-status'), err.message, true); }
+});
+$('env-delete-cancel').addEventListener('click', async () => {
+  try {
+    await api('DELETE', '/api/environment/delete-request');
+    say($('env-status'), 'request withdrawn');
+    await loadEnvironment();
+  } catch (err) { say($('env-status'), err.message, true); }
+});
+
 async function init() {
   renderTopbar({ location: crumbLink('gear', 'Server Settings', '/admin') });
   buildHomeIconGrid();
@@ -1273,6 +1374,8 @@ async function init() {
     $('whoami-img').hidden = false;
     $('admin-link').hidden = false;
     streamKey = info.streamKey;
+    environment = { ...environment, ...(info.environment || {}) };
+    applyHosted();
     const { settings } = await api('GET', '/api/settings');
     $('set-server').value = settings.serverName;
     $('set-language').value = settings.language || 'en';
@@ -1297,6 +1400,7 @@ async function init() {
     renderDefaultImages(settings);
     showStreamKey();
     await loadUsers();
+    await loadEnvironment();
     setInterval(refreshLive, 5000);
   } catch (err) {
     location.href = '/login?next=/admin';

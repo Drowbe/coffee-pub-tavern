@@ -74,6 +74,30 @@
         </form>
       </section>
 
+      <section class="panel" id="plans-panel">
+        <div class="section-head">
+          <h2>Plans</h2>
+          <span class="status" id="plans-status"></span>
+          <button class="btn btn-small" id="plan-add" type="button">Add a plan</button>
+        </div>
+        <p class="hint">What an environment may use, by plan: the caps an environment takes when it is put on the plan (and may then be adjusted on its own card). <code>free</code> is what sign-up makes and what a past-due environment goes back to after 14 days; it cannot be removed. Empty caps mean no cap. A plan is sold online when the server has <code>BILLING_CHECKOUT_&lt;PLAN&gt;</code> set to the provider's checkout page for it.</p>
+        <div class="plans-editor" id="plans-editor"></div>
+        <div class="row"><button class="btn btn-primary btn-small" id="plans-save" type="button">Save plans</button></div>
+      </section>
+
+      <template id="tpl-plan-row">
+        <div class="plan-row">
+          <label>Id<input name="id" type="text" class="plan-id" maxlength="20" pattern="[a-z0-9-]+" required></label>
+          <label>Name<input name="name" type="text" maxlength="40" required></label>
+          <label>Members<input name="members" type="number" min="1" placeholder="no cap"></label>
+          <label>Storage (GB)<input name="storageGb" type="number" min="0.5" step="0.5" placeholder="no cap"></label>
+          <label>AI calls a month<input name="aiCallsPerMonth" type="number" min="0" placeholder="no cap"></label>
+          <label>Calls at once<input name="calls" type="number" min="1" placeholder="no cap"></label>
+          <label>Modules<input name="modules" type="text" placeholder="all, or ids separated by spaces"></label>
+          <button class="btn btn-small danger" data-action="plan-remove" type="button">Remove</button>
+        </div>
+      </template>
+
       <section class="panel module-config" id="ai-panel">
         <div class="section-head">
           <h2>Managed AI</h2>
@@ -187,6 +211,7 @@
       <form class="plan-form fields" data-slot="plan-form" hidden>
         <p class="hint plan-hint">The name is what the environment calls itself and what the product page lists; the slug (its address) is fixed. Empty caps mean no cap.</p>
         <label>Name<input name="name" type="text" maxlength="60" required></label>
+        <label>Plan<select name="planName"></select><span class="hint">Choosing one fills the caps below from the catalog; adjust them here for this environment alone.</span></label>
         <label>Modules<select name="modules"><option value="all">All installed</option><option value="list">Only these</option></select></label>
         <label class="modules-list" data-slot="modules-list" hidden><span>Allowed modules (ids, one per line)</span><textarea name="moduleIds" rows="3"></textarea></label>
         <label>Members (cap)<input name="members" type="number" min="1" placeholder="no cap"></label>

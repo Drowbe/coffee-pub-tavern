@@ -7,6 +7,7 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 
 ## Server
 
+- **Environment** (a hosted server only). The plan's name, each cap with what is used, the overdue banner when a payment has lapsed, **Upgrade**, **Download a copy** and **Ask for deletion**. See [Your environment](userguide-environments.md). On a hosted server the Manage page calls its admin the **owner** everywhere.
 - **Server name and icon.** The name shows in the header and the browser tab. The icon is any image;
   it is used in the header, as the favicon, and on the sign-in page. Click it to change it, and the
   small **x** over its corner to clear it.

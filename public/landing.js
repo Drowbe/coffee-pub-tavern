@@ -95,3 +95,94 @@ form.addEventListener('submit', (e) => {
   if (!slugOk(slug) || !product.baseDomain) { e.preventDefault(); sayNote('Choose an environment first.'); return; }
   form.action = envUrl(slug); // and let the browser post it there
 });
+
+// --- Plans, from the host's catalog ---------------------------------------------------------------------------------
+// GET /api/product lists the plans (id, name, caps, checkoutUrl). The free plan is what sign-up makes; a plan with a
+// checkout address is bought on the provider's own page (the app never sees a card); one without is not sold online.
+const capLine = (caps) => {
+  const c = caps || {};
+  const gb = (b) => (b >= 1e9 ? `${Math.round(b / 1e9)} GB` : `${Math.round(b / 1e6)} MB`);
+  return [
+    c.members ? `${c.members} people` : 'unlimited people',
+    c.storageBytes ? `${gb(c.storageBytes)} of storage` : 'unlimited storage',
+    c.aiCallsPerMonth ? `${c.aiCallsPerMonth} assistant calls a month` : 'the assistant without a cap',
+    c.calls ? `${c.calls} call${c.calls === 1 ? '' : 's'} at once` : 'calls without a cap',
+    Array.isArray(c.modules) ? `${c.modules.length} modules` : 'every module',
+  ];
+};
+if (Array.isArray(product.plans) && product.plans.length) {
+  const grid = document.getElementById('plans-grid');
+  grid.replaceChildren(...product.plans.map((p) => {
+    const box = document.createElement('div');
+    box.className = 'plan';
+    const h = document.createElement('h3');
+    h.textContent = p.name || p.id;
+    const ul = document.createElement('ul');
+    ul.className = 'plan-caps';
+    for (const line of capLine(p.caps)) { const li = document.createElement('li'); li.textContent = line; ul.append(li); }
+    box.append(h, ul);
+    if (p.id === 'free') {
+      const a = document.createElement('a'); a.className = 'btn btn-small'; a.href = '#start'; a.textContent = 'Start free'; box.append(a);
+    } else if (p.checkoutUrl) {
+      const a = document.createElement('a'); a.className = 'btn btn-primary btn-small'; a.href = p.checkoutUrl; a.rel = 'noopener'; a.textContent = `Choose ${p.name || p.id}`; box.append(a);
+      const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'Start free, then upgrade from inside your environment.'; box.append(note);
+    } else {
+      const note = document.createElement('p'); note.className = 'hint'; note.textContent = product.contact ? `Ask at ${product.contact}.` : 'Ask whoever runs this host.'; box.append(note);
+    }
+    return box;
+  }));
+}
+
+// --- Sign-up: an environment of your own ---------------------------------------------------------------------------
+// POST /api/product/signup makes it on the free plan and answers its address. Off (SIGNUP=off, or no base domain), the
+// section falls back to asking. The slug is checked as it is typed against the public environment lookup.
+const signup = document.getElementById('signup-form');
+const ask = document.getElementById('start-ask');
+const startLede = document.getElementById('start-lede');
+if (product.signup && product.baseDomain) {
+  signup.hidden = false;
+  document.querySelector('[data-signup-domain]').textContent = `.${product.baseDomain}`;
+  const slugInput = document.getElementById('signup-slug');
+  const slugNote = document.getElementById('signup-slug-note');
+  const status = document.getElementById('signup-status');
+  let checkToken = 0;
+  slugInput.addEventListener('input', async () => {
+    slugInput.value = slugInput.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const slug = slugInput.value;
+    if (!slugOk(slug)) { slugNote.textContent = 'Letters, digits and hyphens, 3 to 30; it cannot be changed later.'; slugNote.classList.remove('error'); return; }
+    const mine = ++checkToken;
+    try {
+      const res = await fetch(`/api/product/environment?slug=${encodeURIComponent(slug)}`);
+      if (mine !== checkToken) return;
+      if (res.ok) { slugNote.textContent = `${slug}.${product.baseDomain} is taken.`; slugNote.classList.add('error'); }
+      else { slugNote.textContent = `${slug}.${product.baseDomain} is free.`; slugNote.classList.remove('error'); }
+    } catch (err) {
+      // the server says on submit
+    }
+  });
+  signup.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = {
+      slug: slugInput.value.trim(),
+      name: document.getElementById('signup-name').value.trim(),
+      owner: { login: document.getElementById('signup-login').value.trim(), displayName: document.getElementById('signup-display').value.trim(), password: document.getElementById('signup-password').value },
+    };
+    status.classList.remove('error');
+    status.textContent = 'Making it...';
+    document.getElementById('signup-submit').disabled = true;
+    try {
+      const res = await fetch('/api/product/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `could not create it (${res.status})`);
+      status.textContent = 'Made. Taking you there...';
+      location.href = data.url || envUrl(body.slug, '/login');
+    } catch (err) {
+      status.classList.add('error');
+      status.textContent = err.message;
+      document.getElementById('signup-submit').disabled = false;
+    }
+  });
+} else {
+  ask.hidden = false;
+  startLede.textContent = product.baseDomain ? 'Environments are made by hand on this host: ask, and you will have one the same day.' : 'This host is one environment at its own address; there is nothing to sign up for here.';
+}

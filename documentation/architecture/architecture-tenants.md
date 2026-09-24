@@ -182,6 +182,10 @@ Two things are the host's, above every environment, decided in the plan's "Manag
 
 The console page for both is `public/host.js` with the form and the region cut shared with the environment's pages (`public/ai-form.js`, `public/region-cut.js`), so a host admin and an environment admin see the same controls where they overlap.
 
+## Phases 2 to 5: the owner, the caps, the calls, self-serve and billing
+
+Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `admin` role under another name on a hosted server (`GET /api/me`'s `environment.hosted`; the pages read Owner, the Roles grid's fixed column included), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the tenant directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and a tenant's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, off with `SIGNUP=off`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades a tenant past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the tenant's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
+
 ## Adding a new module-level singleton
 
 If you add a thirteenth thing like `store` -- built once from a data directory, read throughout the route

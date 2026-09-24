@@ -10,7 +10,8 @@ const say = (el, text, error = false) => { el.textContent = text; el.classList.t
 const clone = (id) => $(id).content.firstElementChild.cloneNode(true);
 const slot = (el, name) => el.querySelector(`[data-slot="${name}"]`);
 
-let settings = { baseDomain: '', version: '', hostAdmins: [] };
+let settings = { baseDomain: '', version: '', hostAdmins: [], plans: {} };
+const PLAN_ORDER = (plans) => Object.keys(plans || {}).sort((a, b) => (a === 'free' ? -1 : b === 'free' ? 1 : a.localeCompare(b)));
 let tenants = [];
 
 const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB` : '0');
@@ -38,6 +39,7 @@ async function load() {
   renderTenants();
   renderAdmins();
   renderFacts();
+  renderPlans();
   await loadAiServices();
   await loadShared();
 }
@@ -201,7 +203,8 @@ $('shared-files').addEventListener('click', async (e) => {
 });
 
 function renderFacts() {
-  $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${tenants.length}</dd>`;
+  const webhook = settings.baseDomain ? `${location.protocol}//admin.${settings.baseDomain}${location.port ? ':' + location.port : ''}/api/host/billing` : '';
+  $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${tenants.length}</dd><dt>Sign-up</dt><dd>${settings.signup === false ? 'off (SIGNUP=off)' : 'on, at the base domain, on the free plan'}</dd><dt>Billing webhook</dt><dd>${webhook ? `<code>${escapeHtml(webhook)}</code>, a JSON body { slug, plan, event: paid | lapsed | cancelled } signed with <code>BILLING_SECRET</code> (x-billing-signature, HMAC-SHA256 of the body, hex)${settings.billingSecretSet === false ? '; <strong>BILLING_SECRET is not set</strong>, so the webhook refuses everything' : ''}` : 'needs a base domain'}</dd>`;
 }
 
 function renderTenants() {
@@ -221,7 +224,12 @@ function renderTenants() {
     const u = t.usage || {};
     const p = t.plan || {};
     const mods = p.modules === 'all' || !p.modules ? 'all installed' : `${p.modules.length} allowed`;
+    const graceEnds = t.graceEndsAt ? new Date(t.graceEndsAt) : t.pastDueSince ? new Date(new Date(t.pastDueSince).getTime() + 14 * 86400000) : null;
     slot(el, 'facts').innerHTML = [
+      ['Plan', p.name ? p.name : 'no plan named'],
+      ...(t.status === 'pastDue' ? [['Past due', `since ${t.pastDueSince ? new Date(t.pastDueSince).toLocaleDateString() : '?'}; the free plan on ${graceEnds ? graceEnds.toLocaleDateString() : '?'}`]] : []),
+      ...(t.degradedAt ? [['Degraded to free', new Date(t.degradedAt).toLocaleDateString()]] : []),
+      ...(t.deleteRequestedAt ? [['Deletion asked for', `${new Date(t.deleteRequestedAt).toLocaleDateString()}${t.deleteReason ? ': ' + t.deleteReason : ''} (Delete below carries it out)`]] : []),
       ['Members', cap(u.members ?? 0, p.members)],
       ['Spaces', String(u.spaces ?? 0)],
       ['Storage', u.storageBytes == null ? (p.storageBytes ? `not measured yet, cap ${gb(p.storageBytes)}` : 'not measured yet') : p.storageBytes ? `${gb(u.storageBytes)} of ${gb(p.storageBytes)}` : `${gb(u.storageBytes)}, no cap`],
@@ -233,6 +241,9 @@ function renderTenants() {
     // the plan form, filled from the plan
     const form = slot(el, 'plan-form');
     form.elements.name.value = t.name || '';
+    const pick = form.elements.planName;
+    pick.replaceChildren(new Option('(none named)', ''), ...PLAN_ORDER(settings.plans).map((id) => new Option(settings.plans[id].name || id, id)));
+    pick.value = p.name && settings.plans[p.name] ? p.name : '';
     form.elements.modules.value = p.modules === 'all' || !p.modules ? 'all' : 'list';
     form.elements.moduleIds.value = Array.isArray(p.modules) ? p.modules.join('\n') : '';
     slot(el, 'modules-list').hidden = form.elements.modules.value !== 'list';
@@ -299,8 +310,20 @@ $('tenants').addEventListener('click', async (e) => {
   }
 });
 $('tenants').addEventListener('change', (e) => {
-  if (e.target.name !== 'modules') return;
   const form = e.target.closest('form');
+  if (e.target.name === 'planName') {
+    const caps = (settings.plans[e.target.value] || {}).caps;
+    if (!caps) return;
+    form.elements.modules.value = Array.isArray(caps.modules) ? 'list' : 'all';
+    form.elements.moduleIds.value = Array.isArray(caps.modules) ? caps.modules.join('\n') : '';
+    slot(form, 'modules-list').hidden = form.elements.modules.value !== 'list';
+    form.elements.members.value = caps.members || '';
+    form.elements.storageGb.value = caps.storageBytes ? String(caps.storageBytes / 1e9) : '';
+    form.elements.aiCallsPerMonth.value = caps.aiCallsPerMonth ?? '';
+    form.elements.calls.value = caps.calls || '';
+    return;
+  }
+  if (e.target.name !== 'modules') return;
   slot(form, 'modules-list').hidden = e.target.value !== 'list';
 });
 $('tenants').addEventListener('submit', async (e) => {
@@ -311,6 +334,7 @@ $('tenants').addEventListener('submit', async (e) => {
   const f = form.elements;
   const num = (el) => (el.value === '' ? null : Number(el.value));
   const plan = {
+    name: f.planName.value || null,
     modules: f.modules.value === 'all' ? 'all' : f.moduleIds.value.split(/\s+/).map((s) => s.trim()).filter(Boolean),
     members: num(f.members),
     storageBytes: f.storageGb.value === '' ? null : Math.round(Number(f.storageGb.value) * 1e9),
@@ -340,6 +364,60 @@ $('create-form').addEventListener('submit', async (e) => {
     $('create-form').hidden = true;
     await load();
   } catch (err) { say($('create-error'), err.message, true); }
+});
+
+// --- the plans catalog ----------------------------------------------------------------------------------------------
+// One row per plan (free first and never removed); Save plans sends the whole catalog (PUT /api/host/plans).
+function planRow(id, plan) {
+  const row = clone('tpl-plan-row');
+  const f = row.querySelector.bind(row);
+  f('[name="id"]').value = id;
+  f('[name="id"]').readOnly = id === 'free';
+  f('[name="name"]').value = plan.name || id;
+  const c = plan.caps || {};
+  f('[name="members"]').value = c.members || '';
+  f('[name="storageGb"]').value = c.storageBytes ? String(c.storageBytes / 1e9) : '';
+  f('[name="aiCallsPerMonth"]').value = c.aiCallsPerMonth ?? '';
+  f('[name="calls"]').value = c.calls || '';
+  f('[name="modules"]').value = Array.isArray(c.modules) ? c.modules.join(' ') : 'all';
+  if (id === 'free') f('[data-action="plan-remove"]').disabled = true;
+  return row;
+}
+function renderPlans() {
+  const box = $('plans-editor');
+  const plans = settings.plans && Object.keys(settings.plans).length ? settings.plans : { free: { name: 'Free', caps: {} } };
+  box.replaceChildren(...PLAN_ORDER(plans).map((id) => planRow(id, plans[id])));
+}
+$('plan-add').addEventListener('click', () => { $('plans-editor').appendChild(planRow('', { name: '', caps: {} })); $('plans-editor').lastElementChild.querySelector('[name="id"]').focus(); });
+$('plans-editor').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-action="plan-remove"]');
+  if (b && !b.disabled) b.closest('.plan-row').remove();
+});
+$('plans-save').addEventListener('click', async () => {
+  const plans = {};
+  for (const row of $('plans-editor').querySelectorAll('.plan-row')) {
+    const v = (name) => row.querySelector(`[name="${name}"]`).value.trim();
+    const id = v('id').toLowerCase();
+    if (!id) continue;
+    const num = (name) => (v(name) === '' ? null : Number(v(name)));
+    const mods = v('modules');
+    plans[id] = {
+      name: v('name') || id,
+      caps: {
+        modules: !mods || mods === 'all' ? 'all' : mods.split(/[\s,]+/).filter(Boolean),
+        members: num('members'),
+        storageBytes: v('storageGb') === '' ? null : Math.round(Number(v('storageGb')) * 1e9),
+        aiCallsPerMonth: num('aiCallsPerMonth'),
+        calls: num('calls'),
+      },
+    };
+  }
+  if (!plans.free) plans.free = { name: 'Free', caps: { modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null } };
+  try {
+    await api('PUT', '/api/host/plans', { plans });
+    say($('plans-status'), 'saved');
+    await load();
+  } catch (err) { say($('plans-status'), err.message, true); }
 });
 
 // --- the host admins -------------------------------------------------------------------------------------------

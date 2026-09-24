@@ -86,6 +86,23 @@ To switch environments on, with the server already running as above:
    Recreate the container. On that start the existing data moves into `tenants/<slug>/` on the same
    volume and the environment is recorded; everyone's accounts, spaces and layouts come with it, at
    `https://<slug>.<base>`.
+
+**Plans, sign-up and billing.** The host console's **Plans** panel is the catalog: `free` (what sign-up
+makes, and what a lapsed environment goes back to) and any named plans, each with its caps (members,
+storage, assistant calls a month, calls at once, modules). An environment is put on a plan from its card,
+which fills its caps from the catalog to adjust on its own. The product page at the base domain lists the
+plans and, unless `SIGNUP` is `off`, makes a free environment for anyone who asks (an address, a name, an
+owner account). Selling a plan is the payment provider's own hosted page: set `BILLING_CHECKOUT_<PLAN>`
+(the plan id in capitals, `BILLING_CHECKOUT_STANDARD`, say) to that page's address, and the product page's
+plan buttons and an owner's Upgrade go there with `?environment=<slug>`. The provider tells the server
+what happened through the webhook at `https://admin.<base>/api/host/billing`: a JSON body
+`{ "slug", "plan", "event" }` with `event` one of `paid`, `lapsed` and `cancelled`, signed with
+`BILLING_SECRET` as an `x-billing-signature` header (HMAC-SHA256 of the raw body, in hex). A provider's
+own webhook shape is adapted to that outside the app, by a small relay, which is what keeps every
+provider's card handling out of it. A lapsed environment is past due for fourteen days, with a banner
+for its owners, then goes to the free plan's caps; nothing is ever deleted by billing. An owner can
+download a copy of their environment and ask for its deletion from Manage; a host admin carries the
+deletion out from the console.
 4. **Then** remove the last three variables, keep `BASE_DOMAIN`, and recreate again. They were read once.
 
 From there: `https://admin.<base>` is the host console (create an environment with its first owner, set its

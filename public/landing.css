@@ -71,3 +71,17 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
   .hero { padding: 48px 0 36px; }
   .hero-actions { flex-direction: column; align-items: stretch; }
 }
+/* The plans from the catalog, and the sign-up form. */
+.plan-caps { margin: 0 0 12px; padding-left: 18px; color: var(--text-dim); font-size: 14px; line-height: 1.6; }
+.plan .btn { margin-top: 4px; }
+.plan .hint { margin: 8px 0 0; font-size: 12px; color: var(--text-dim); }
+.signup-form { max-width: 520px; margin: 0 auto; display: grid; gap: 12px; text-align: left; }
+.signup-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-dim); }
+.signup-form input { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text); }
+.signup-slug { display: flex; align-items: center; gap: 4px; }
+.signup-slug input { flex: 1; min-width: 0; }
+.signup-domain { color: var(--text-dim); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.signup-owner { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.signup-form .row { display: flex; align-items: center; gap: 10px; }
+.signup-form .status { font-size: 13px; color: var(--text-dim); }
+.signup-form .status.error, .signup-form .hint.error { color: #e07a5f; }

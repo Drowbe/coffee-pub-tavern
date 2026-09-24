@@ -20,7 +20,9 @@ Nobody changes their own password; an admin sets it. Sessions last 30 days. Chan
 password or regenerating their link signs them out everywhere.
 
 There is always at least one admin. The last admin cannot be demoted or deleted, and an admin cannot
-change their own role or delete themselves; another admin has to.
+change their own role or delete themselves; another admin has to. On a hosted server, where the server is
+one environment among several, an admin is called the environment's **owner** in every page (see
+[Your environment](userguide-environments.md)); it is the same role.
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a login or

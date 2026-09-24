@@ -5262,6 +5262,20 @@ body.at-table .module-nav {
 .module-config .module-settings-card { border: 0; padding: 0; margin-top: 12px; }
 
 /* a table of files to tick (a module setting that takes several) */
+/* Manage > Server > Environment: each cap as a bar, and the past-due banner. */
+.env-caps { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 8px 0 12px; align-items: center; }
+.env-caps dt { color: var(--text-dim); font-size: 13px; }
+.env-caps dd { margin: 0; display: flex; align-items: center; gap: 10px; }
+.env-cap-text { font-size: 13px; min-width: 9em; }
+.env-cap-bar { flex: 1; max-width: 260px; height: 8px; border-radius: 4px; background: var(--bg-section); overflow: hidden; }
+.env-cap-bar span { display: block; height: 100%; background: var(--accent); }
+.env-cap-bar.warn span { background: var(--danger); }
+.env-banner { padding: 8px 12px; border: 1px solid var(--danger); border-radius: 8px; background: color-mix(in srgb, var(--danger) 12%, var(--bg-card)); color: var(--text); }
+/* The host console's plans catalog: one row per plan. */
+.plans-editor { display: grid; gap: 10px; margin: 8px 0; }
+.plan-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); align-items: end; }
+.plan-row label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-dim); }
+.plan-row .plan-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 /* The host console's managed AI: one company per row, its own small form. */
 .ai-services { display: grid; gap: 12px; margin-top: 8px; }
 .ai-service { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card, var(--bg)); }

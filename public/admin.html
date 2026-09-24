@@ -199,8 +199,8 @@
         <h2>Modules</h2>
         <p class="hint">Add features by uploading a module zip. A module runs in the browser, in a sandbox, and only reaches the server through what it asks for below. Upload it, look over what it asks for, then turn it on.</p>
         <div class="row">
-          <input type="file" id="module-file" accept=".zip,application/zip">
-          <button class="btn btn-primary" id="module-install" type="button">Install</button>
+          <span data-host-only><input type="file" id="module-file" accept=".zip,application/zip">
+          <button class="btn btn-primary" id="module-install" type="button">Install</button></span>
           <span class="status" id="modules-status"></span>
         </div>
         <div class="module-filters" id="module-filters" role="group" aria-label="Show">
@@ -257,6 +257,28 @@
     </section>
 
     <section class="tab-stack" id="tab-server">
+      <!-- The environment on a host with several: its plan, what it has used, and the two things an owner may ask of the host. -->
+      <div class="panel" id="env-panel" hidden>
+        <div class="section-head">
+          <h2>Environment</h2>
+          <span class="pill" id="env-plan-pill"></span>
+          <span class="status" id="env-status"></span>
+        </div>
+        <p class="hint env-banner" id="env-banner" hidden></p>
+        <p class="hint" id="env-hint"></p>
+        <dl class="env-caps" id="env-caps"></dl>
+        <div class="row">
+          <a class="btn btn-primary" id="env-upgrade" target="_blank" rel="noopener" hidden>Upgrade</a>
+          <button class="btn" id="env-export" type="button">Download a copy</button>
+          <button class="btn btn-danger" id="env-delete" type="button">Ask for deletion</button>
+          <button class="btn" id="env-delete-cancel" type="button" hidden>Withdraw the deletion request</button>
+        </div>
+        <form class="row" id="env-delete-form" hidden>
+          <input id="env-delete-reason" type="text" maxlength="200" placeholder="Why, in a few words (optional)">
+          <button class="btn btn-danger btn-small" type="submit">Send the request</button>
+          <button class="btn btn-small" type="button" id="env-delete-back">Never mind</button>
+        </form>
+      </div>
       <div class="panel">
       <h2>Server</h2>
       <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>

@@ -15,6 +15,7 @@ const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
 let me = null; // the signed-in admin, only used for the "last admin" check
 let user = null; // whose profile this is: me, or the person being edited
+let hosted = false; // a host with environments: an admin is the environment's owner in every word a person reads
 let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
 
 // If this page is open as the overlay on top of an active call (same
@@ -51,7 +52,13 @@ function imgUrl(slot) {
 }
 
 async function reload() {
-  user = editingKey ? (await api('GET', `/api/users/${editingKey}`)).user : (await api('GET', '/api/me')).user;
+  if (editingKey) {
+    user = (await api('GET', `/api/users/${editingKey}`)).user;
+  } else {
+    const res = await api('GET', '/api/me');
+    user = res.user;
+    hosted = Boolean(res.environment && res.environment.hosted);
+  }
 }
 
 // An admin editing someone can change anything; on your own profile it's
@@ -122,10 +129,12 @@ function render() {
   $('account-fields').hidden = !editing;
   $('account-save-row').hidden = !editing;
   $('account-hint').hidden = editing;
+  const adminOpt = $('e-role').querySelector('option[value="admin"]');
+  if (adminOpt) adminOpt.textContent = hosted ? 'Owner' : 'Admin';
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
-    $('f-role').textContent = user.role === 'admin' ? 'Admin: runs the table' : 'Player';
+    $('f-role').textContent = user.role === 'admin' ? (hosted ? 'Owner: runs the environment' : 'Admin: runs the table') : 'Player';
     $('f-password').textContent = user.hasPassword ? 'Set. Only an admin can change it.' : 'None. You sign in with your personal link.';
   } else if (document.activeElement?.closest?.('#account-fields') == null) {
     $('e-name').value = user.displayName;
@@ -210,7 +219,7 @@ function fillRoomSection(section, room, roomImages) {
     box.disabled = !editing || user.role === 'admin';
   }
   section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
-    ? 'Admins can always do all of this, in every space.'
+    ? `${hosted ? 'Owners' : 'Admins'} can always do all of this, in every space.`
     : editing
       ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
       : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
@@ -555,6 +564,7 @@ async function init() {
     if (editingKey) {
       const mine = await api('GET', '/api/me');
       me = mine.user;
+      hosted = Boolean(mine.environment && mine.environment.hosted);
       if (me.role !== 'admin') { location.href = '/'; return; }
     }
     const [, { rooms }] = await Promise.all([reload(), api('GET', '/api/rooms')]);
