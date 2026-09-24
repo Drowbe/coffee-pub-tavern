@@ -1315,6 +1315,7 @@ hostRouter.post('/api/host/shared/:module/:folder/region-cut', requireHostAdmin,
       minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined,
       maxZoom: Number(req.body?.maxZoom),
       by: currentHostAdmin(req)?.key,
+      replace: Boolean(req.body?.replace),
     });
     res.status(202).json(out);
   } catch (err) {
@@ -3568,6 +3569,7 @@ app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
       minZoom: req.body?.minZoom !== undefined ? Number(req.body.minZoom) : undefined,
       maxZoom: Number(req.body?.maxZoom),
       by: currentUser(req)?.key,
+      replace: Boolean(req.body?.replace),
     });
     res.status(202).json(out);
   } catch (err) {

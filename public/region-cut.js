@@ -23,6 +23,7 @@ export function wireRegionCut({ base, onDone, sourceHint = 'the world map addres
   const confirmBox = $('region-confirm');
   const confirmName = $('region-confirm-name');
   const minZoomEl = $('region-min-zoom');
+  const replaceEl = $('region-replace'); // overwrite a file of the same name, sent as `replace` (off again for each new region)
   const zoomEl = $('region-zoom');
   const nameEl = $('region-filename');
   const estimateBtn = $('region-estimate-btn');
@@ -63,12 +64,15 @@ export function wireRegionCut({ base, onDone, sourceHint = 'the world map addres
     estimateBtn.disabled = false; // a finished cut leaves it disabled (see the cut handler below); the next region needs it back
   };
 
-  // What to confirm before anything downloads, shared by a named-place find and the whole-world shortcut.
-  const showConfirm = (name, box, defaultZoom) => {
+  // What to confirm before anything downloads, shared by a named-place find and the whole-world shortcut. The file is
+  // named after what was typed ("thailand"), not the name the place search answers with, which is often in the
+  // place's own script and would slug to nothing.
+  const showConfirm = (name, box, defaultZoom, typed) => {
     found = { name, box };
     findStatus.textContent = '';
     confirmName.textContent = name;
-    nameEl.value = `${slug(name)}.pmtiles`;
+    nameEl.value = `${slug(typed || name)}.pmtiles`;
+    replaceEl.checked = false;
     minZoomEl.value = '0';
     zoomEl.value = String(defaultZoom);
     setEstimateStatus('', false);
@@ -87,7 +91,7 @@ export function wireRegionCut({ base, onDone, sourceHint = 'the world map addres
     try {
       const res = await api('GET', `${base}/find?q=${encodeURIComponent(text)}`);
       if (!res.found) findStatus.textContent = `No place called "${text}" was found.`;
-      else showConfirm(res.name, res.box, 14);
+      else showConfirm(res.name, res.box, 14, text);
     } catch (err) {
       findStatus.textContent = err.message;
       findStatus.classList.add('error');
@@ -148,7 +152,7 @@ export function wireRegionCut({ base, onDone, sourceHint = 'the world map addres
     estimateBtn.disabled = true;
     const { minZoom, maxZoom } = readZoomRange();
     try {
-      const out = await api('POST', base, { ...found.box, minZoom, maxZoom, name });
+      const out = await api('POST', base, { ...found.box, minZoom, maxZoom, name, replace: replaceEl.checked });
       confirmBox.hidden = true;
       progress.hidden = false;
       progressName.textContent = `Cutting ${name}…`;

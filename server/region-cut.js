@@ -159,7 +159,7 @@ class RegionCutJobs extends EventEmitter {
 
   // Start the real cut. Returns the job id at once; the job itself runs in the background (see runJob) and is followed
   // over `progress`/`done`/`error` events, or a fresh view(id) for whoever asks late.
-  async start({ moduleId, scopeKey, source, folder, name, box, minZoom, maxZoom, by }) {
+  async start({ moduleId, scopeKey, source, folder, name, box, minZoom, maxZoom, by, replace }) {
     this.sweep();
     if (this.runningFor(moduleId, scopeKey)) throw new RegionCutError('a cut is already running here; wait for it to finish first');
     if (!FILE_NAME_RE.test(name)) throw new RegionCutError('the file name must end in .pmtiles and use only letters, digits, dot, dash and underscore');
@@ -169,7 +169,7 @@ class RegionCutJobs extends EventEmitter {
     if (minZoom !== undefined && (!Number.isInteger(minZoom) || minZoom < 0 || minZoom > maxZoom)) throw new RegionCutError('the minimum zoom must be 0 or more, and no higher than the maximum');
     const destDir = path.resolve(this.dir, this.under, moduleId, folder);
     const dest = path.join(destDir, name);
-    if (fs.existsSync(dest)) throw new RegionCutError(`${name} already exists here; choose a different name, or remove it first`);
+    if (!replace && fs.existsSync(dest)) throw new RegionCutError(`${name} already exists here; choose a different name, or remove it first`);
     const id = crypto.randomBytes(8).toString('hex');
     // Same volume as `dest` (never the system's own /tmp, which is its own filesystem in a container -- renaming across
     // filesystems fails), and outside any module's own file folder, so a job in progress never shows up as a stray file
