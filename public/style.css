@@ -3397,6 +3397,48 @@ a.crumb-here:hover {
   font-weight: 700;
 }
 
+/* The Light/Dark switch beside the theme chooser: sun, a track, moon; on (aria-checked) is dark. */
+.theme-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--icon, var(--text-dim));
+  cursor: pointer;
+  font: inherit;
+}
+
+.theme-mode-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--border);
+}
+
+.theme-mode-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  transition: transform 0.15s;
+}
+
+.theme-mode[aria-checked="true"] .theme-mode-knob {
+  transform: translateX(16px);
+}
+
+.theme-mode[aria-checked="false"] .fa-sun,
+.theme-mode[aria-checked="true"] .fa-moon {
+  color: var(--accent);
+}
+
 .theme-optional {
   align-items: end;
 }

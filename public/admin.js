@@ -338,11 +338,12 @@ $('save-features').addEventListener('click', () => saveSettings({
 $('save-login').addEventListener('click', () => saveSettings({ loginText: $('set-login-text').value, mfa: $('set-mfa').value }, $('login-status')));
 
 // --- theme -------------------------------------------------------------------
-// A chooser (Default + every saved theme) plus the same seven color inputs,
-// now used to create/edit whichever one is picked rather than a single live
-// override. "Default" has no stored colors at all -- its inputs come from
-// getComputedStyle, which already knows the real effective value of each
-// custom property (style.css's own built-in default, nothing else in play).
+// A chooser (Strong Coffee, the default, + every saved theme) and a
+// Light/Dark switch, plus the same seven color inputs, used to create/edit
+// whichever theme and mode is picked rather than a single live override.
+// Every theme holds a light and a dark set (either may be missing: the
+// other then stands in); Strong Coffee's two come from the server and
+// can't be edited.
 const THEME_FIELDS = [
   ['theme-bg', '--bg', 'bg'],
   ['theme-bg-section', '--bg-section', 'bgSection'],
@@ -392,19 +393,25 @@ function resolvedVar(cssVar) {
   return toHex(color);
 }
 let themes = [];
+let defaultTheme = null; // Strong Coffee: { name, light, dark }
 let activeThemeId = null; // what's actually live right now (persisted)
+let activeMode = 'dark';
 let selectedThemeId = null; // whatever the dropdown/editor is showing -- may not be applied yet
+let selectedMode = 'dark';
 
-function currentThemeColor(cssVar) {
-  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
+const selectedTheme = () => themes.find((t) => t.id === selectedThemeId) || null;
+// The colors the editor shows: the picked theme's set for the picked mode, or its other set when it has no such one yet.
+function selectedColors() {
+  const theme = selectedTheme() || defaultTheme;
+  return theme[selectedMode] || theme.light || theme.dark;
 }
-function loadThemeInputsFrom(theme) {
-  for (const [id, cssVar, key] of THEME_FIELDS) $(id).value = theme ? theme[key] : currentThemeColor(cssVar);
+function loadThemeInputsFrom(colors) {
+  for (const [id, , key] of THEME_FIELDS) $(id).value = colors[key];
   for (const [id, , key] of THEME_OPTIONAL_FIELDS) {
-    const auto = !theme || !theme[key];
+    const auto = !colors[key];
     autoBox(id).checked = auto;
     $(id).disabled = auto;
-    if (!auto) $(id).value = theme[key];
+    if (!auto) $(id).value = colors[key];
   }
 }
 // Sets these straight on :root (not just a scoped preview box) -- several
@@ -466,37 +473,51 @@ function reloadThemeStylesheet() {
 }
 function renderThemeChooser() {
   const select = $('theme-select');
-  select.innerHTML = '<option value="">Default</option>' + themes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  select.innerHTML = `<option value="">${escapeHtml(defaultTheme.name)} (Default)</option>` + themes.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   select.value = selectedThemeId || '';
-  const selected = themes.find((t) => t.id === selectedThemeId);
-  $('theme-update-name').textContent = selected ? selected.name : '';
+  const selected = selectedTheme();
+  $('theme-mode').setAttribute('aria-checked', String(selectedMode === 'dark'));
+  $('theme-update-name').textContent = selected ? `${selected.name}, ${selectedMode}` : '';
   $('theme-update').hidden = !selected;
   $('theme-delete').hidden = !selected;
-  $('theme-apply').disabled = selectedThemeId === activeThemeId;
+  $('theme-apply').disabled = selectedThemeId === activeThemeId && selectedMode === activeMode;
+}
+// Picking a theme or a mode: into the editor and the preview, not live until Apply.
+function showSelectedTheme() {
+  renderThemeChooser();
+  // A theme with only one set shows it in both modes until Update saves the other.
+  const missing = selectedTheme() && !selectedTheme()[selectedMode];
+  say($('theme-status'), missing ? `no ${selectedMode} version yet -- Update saves one` : '');
+  loadThemeInputsFrom(selectedColors());
+  updateThemePreview();
 }
 async function loadThemes() {
   const data = await api('GET', '/api/themes');
   themes = data.themes;
+  defaultTheme = data.defaultTheme;
   activeThemeId = data.activeThemeId;
+  activeMode = data.themeMode === 'light' ? 'light' : 'dark';
   selectedThemeId = activeThemeId;
-  renderThemeChooser();
-  loadThemeInputsFrom(themes.find((t) => t.id === activeThemeId) || null);
-  updateThemePreview();
+  selectedMode = activeMode;
+  showSelectedTheme();
 }
 // Browsing the dropdown only previews -- it takes an explicit Apply to
 // actually persist and go live, rather than every click through the list
 // changing what everyone else sees.
 $('theme-select').addEventListener('change', () => {
   selectedThemeId = $('theme-select').value || null;
-  renderThemeChooser();
-  loadThemeInputsFrom(themes.find((t) => t.id === selectedThemeId) || null);
-  updateThemePreview();
+  showSelectedTheme();
+});
+$('theme-mode').addEventListener('click', () => {
+  selectedMode = selectedMode === 'dark' ? 'light' : 'dark';
+  showSelectedTheme();
 });
 $('theme-apply').addEventListener('click', async () => {
-  await saveSettings({ activeThemeId: selectedThemeId }, $('theme-status'));
+  await saveSettings({ activeThemeId: selectedThemeId, themeMode: selectedMode }, $('theme-status'));
   await reloadThemeStylesheet();
   clearThemePreview();
   activeThemeId = selectedThemeId;
+  activeMode = selectedMode;
   renderThemeChooser();
 });
 $('theme-save-new').addEventListener('click', async () => {
@@ -504,7 +525,7 @@ $('theme-save-new').addEventListener('click', async () => {
   if (!name) return;
   const colors = themeColors();
   try {
-    const { theme } = await api('POST', '/api/themes', { name, ...colors });
+    const { theme } = await api('POST', '/api/themes', { name, mode: selectedMode, ...colors });
     themes.push(theme);
     selectedThemeId = theme.id;
     renderThemeChooser();
@@ -517,12 +538,12 @@ $('theme-update').addEventListener('click', async () => {
   if (!selectedThemeId) return;
   const colors = themeColors();
   try {
-    const { theme } = await api('PATCH', `/api/themes/${selectedThemeId}`, colors);
+    const { theme } = await api('PATCH', `/api/themes/${selectedThemeId}`, { mode: selectedMode, ...colors });
     themes = themes.map((t) => (t.id === theme.id ? theme : t));
     renderThemeChooser();
-    // Only reapplies for real if this is the theme actually live right now
-    // -- editing a theme you're just browsing shouldn't make it live.
-    if (selectedThemeId === activeThemeId) {
+    // Only reapplies for real if this is the theme and mode actually live
+    // right now -- editing one you're just browsing shouldn't make it live.
+    if (selectedThemeId === activeThemeId && selectedMode === activeMode) {
       await reloadThemeStylesheet();
       clearThemePreview();
     }
@@ -538,14 +559,14 @@ $('theme-delete').addEventListener('click', async () => {
   try {
     await api('DELETE', `/api/themes/${selected.id}`);
     themes = themes.filter((t) => t.id !== selected.id);
-    // The server already fell back activeThemeId to Default if this was
+    // The server already fell back activeThemeId to the default if this was
     // the live one -- mirror that here rather than leaving a dangling
     // reference to a theme that no longer exists.
     const wasActive = activeThemeId === selected.id;
     if (wasActive) activeThemeId = null;
     selectedThemeId = activeThemeId;
     renderThemeChooser();
-    loadThemeInputsFrom(themes.find((t) => t.id === selectedThemeId) || null);
+    loadThemeInputsFrom(selectedColors());
     if (wasActive) {
       await reloadThemeStylesheet();
       clearThemePreview();

@@ -1494,7 +1494,8 @@ app.use('/lib/tasks-vision.mjs', express.static(path.join(visionDir, 'vision_bun
 app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { maxAge: '30d' }));
 
 // A server-rendered stylesheet, not a static one: whatever theme colors an
-// admin has set (Manage > Settings > Theme), as :root overrides -- linked
+// admin has set (Manage > Settings > Theme), in the light or dark set the
+// server's mode picks, as :root overrides -- linked
 // after style.css on every page, so the cascade lets it win without
 // touching style.css itself. Nothing set yet means an empty file, so an
 // untouched server looks exactly like style.css's own built-in defaults.
@@ -1507,7 +1508,7 @@ app.get('/theme.css', (_req, res) => {
   res.set('Cache-Control', 'no-cache');
   // No environment at the bare base domain (the landing page): no theme there either, same as one that has not set one.
   const env = envContext.getStore();
-  const theme = env && env.store.activeTheme();
+  const theme = env && env.store.activeThemeColors();
   if (!theme) return res.send('');
   const vars = [
     ['--bg', theme.bg],
@@ -3826,7 +3827,7 @@ app.delete('/api/environment/delete-request', requireAdmin, (req, res) => {
 // Saved themes: named sets of the same seven colors /theme.css can render --
 // switching just repoints activeThemeId (see PATCH /api/settings above),
 // no re-picking needed. See store.js's "themes" section for the shape.
-app.get('/api/themes', requireAdmin, (_req, res) => res.json({ themes: store.themes, activeThemeId: store.settings.activeThemeId || null }));
+app.get('/api/themes', requireAdmin, (_req, res) => res.json({ themes: store.themes, defaultTheme: store.defaultTheme, activeThemeId: store.settings.activeThemeId || null, themeMode: store.settings.themeMode }));
 app.post('/api/themes', requireAdmin, (req, res) => res.json({ theme: store.addTheme(req.body || {}) }));
 app.patch('/api/themes/:id', requireAdmin, (req, res) => res.json({ theme: store.updateTheme(req.params.id, req.body || {}) }));
 app.delete('/api/themes/:id', requireAdmin, (req, res) => {

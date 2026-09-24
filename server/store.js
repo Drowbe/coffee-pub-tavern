@@ -167,16 +167,17 @@ const DEFAULT_SETTINGS = {
   clock: '12',
   currency: 'USD',
   // Saved color themes (see /theme.css and the :root comment in style.css)
-  // -- each one the same seven colors, named and kept around so an admin
-  // can switch back without re-picking them. activeThemeId null means "use
-  // style.css's own built-in default" (also what "Default" in the chooser
-  // resolves to), so a server that's never touched this looks exactly like
-  // it always has, byte for byte, rather than round-tripping the same
-  // colors back through an extra stylesheet. The two below ship pre-made
-  // (see BUILTIN_THEMES/seedBuiltinThemes below for how) -- an admin can
-  // edit or delete either exactly like one of their own.
+  // -- each one a light and a dark set of the same seven colors, named and
+  // kept around so an admin can switch back without re-picking them.
+  // activeThemeId null means Strong Coffee, the built-in default (see
+  // DEFAULT_THEME): dark, it is style.css's own palette byte for byte,
+  // rather than round-tripping the same colors back through an extra
+  // stylesheet. The two in BUILTIN_THEMES ship pre-made -- an admin can
+  // edit or delete either exactly like one of their own. themeMode picks
+  // the light or the dark set of whichever theme is live.
   themes: [],
   activeThemeId: null,
+  themeMode: 'dark',
   // Overrides to ROLE_DEFAULTS per editable role -- only what an admin has
   // actually changed, so a permission added later starts at its default.
   roles: {},
@@ -248,10 +249,52 @@ const DEFAULT_SETTINGS = {
 // stylesheet derives it from the base colors (style.css :root), so a theme
 // that never touches one keeps following its accent, background and so on.
 const THEME_OPTIONAL = ['card', 'headerBg', 'headerText', 'icon', 'iconHover', 'primaryHover', 'secondary', 'secondaryText', 'secondaryHover'];
+const THEME_BASE = ['bg', 'bgSection', 'border', 'text', 'textDim', 'accent', 'onAccent'];
+// Every theme has a light and a dark set of those colors (either may be
+// missing; the other then shows in both modes), and the server's themeMode
+// picks which one is live.
+// Strong Coffee is the built-in default ("Default" in the chooser, no
+// stored theme): its dark set is style.css's own :root, so /theme.css sends
+// nothing for it, and its light set is this one.
+const DEFAULT_THEME = {
+  name: 'Strong Coffee',
+  dark: { bg: '#1a1410', bgSection: '#241c16', border: '#3b2e24', text: '#f1e6d8', textDim: '#a8998a', accent: '#c8873a', onAccent: '#1a1206' },
+  light: { bg: '#faf6f1', bgSection: '#f1e9df', border: '#ded0bf', text: '#2b2119', textDim: '#76675a', accent: '#a8692a', onAccent: '#ffffff' },
+};
 const BUILTIN_THEMES = [
-  { id: 'staying-blonde', name: 'Staying Blonde', bg: '#ffffff', bgSection: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
-  { id: 'willhavebeen', name: 'willhavebeen', bg: '#ffffff', bgSection: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
+  {
+    id: 'staying-blonde',
+    name: 'Calming Teal',
+    light: { bg: '#ffffff', bgSection: '#f7f9fa', border: '#e1e8e8', text: '#333333', textDim: '#767676', accent: '#0dc9ca', onAccent: '#ffffff' },
+    dark: { bg: '#111a1b', bgSection: '#182325', border: '#2a3b3d', text: '#e4eeee', textDim: '#8ea3a4', accent: '#0dc9ca', onAccent: '#062021' },
+  },
+  {
+    id: 'willhavebeen',
+    name: 'Burnt Orange',
+    light: { bg: '#ffffff', bgSection: '#f7f7f7', border: '#e0e0e0', text: '#333333', textDim: '#767676', accent: '#e45628', onAccent: '#ffffff' },
+    dark: { bg: '#1a1512', bgSection: '#241d19', border: '#3c302a', text: '#eee8e3', textDim: '#a69a91', accent: '#e45628', onAccent: '#ffffff' },
+  },
 ];
+// What the built-ins were called before they had a light and a dark set:
+// renamed once, unless an admin had already renamed them.
+const BUILTIN_OLD_NAMES = { 'staying-blonde': 'Staying Blonde', willhavebeen: 'willhavebeen' };
+
+// One mode's colors: the seven required, the optional ones null on Auto.
+function cleanThemeColors(c) {
+  if (!c || typeof c !== 'object') return null;
+  const base = Object.fromEntries(THEME_BASE.map((key) => [key, cleanColor(c[key])]));
+  base.bgSection ||= cleanColor(c.bgCard); // bgCard is the old name
+  if (THEME_BASE.some((key) => !base[key])) return null;
+  return { ...base, ...Object.fromEntries(THEME_OPTIONAL.map((key) => [key, cleanColor(c[key]) || null])) };
+}
+
+// Light or dark, by how bright a background is.
+function colorMode(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.5 ? 'light' : 'dark';
+}
+
+const cleanMode = (mode) => (mode === 'light' ? 'light' : 'dark');
 
 function cleanWidth(value) {
   const n = Math.round(Number(value));
@@ -389,23 +432,41 @@ class Store {
     // decides they don't want it) sticks instead of it reappearing on the
     // next restart.
     let seededThemes = false;
+    // A copy, never DEFAULT_SETTINGS' own array, which every store shares.
+    data.settings.themes = Array.isArray(data.settings.themes) ? [...data.settings.themes] : [];
     if (!data.settings.builtinThemesSeeded) {
       for (const builtin of BUILTIN_THEMES) {
-        if (!data.settings.themes.some((t) => t.id === builtin.id)) data.settings.themes.push(builtin);
+        if (!data.settings.themes.some((t) => t.id === builtin.id)) data.settings.themes.push(structuredClone(builtin));
       }
       data.settings.builtinThemesSeeded = true;
       seededThemes = true;
     }
+    // Themes saved before light and dark hold one set of colors at the top
+    // level (the oldest calling the section color bgCard): that set becomes
+    // the mode its background reads as.
+    data.settings.themes = data.settings.themes.map((theme) => {
+      if (theme.light !== undefined || theme.dark !== undefined) return theme;
+      seededThemes = true;
+      return this.sanitizeTheme(theme);
+    }).filter(Boolean);
+    // Once: the built-ins take their new names and gain the mode they were
+    // missing, and the mode starts as whatever the live theme already was,
+    // so nothing changes by itself.
+    if (!data.settings.themeModesSeeded) {
+      const active = data.settings.themes.find((t) => t.id === data.settings.activeThemeId);
+      data.settings.themeMode = active && !active.dark ? 'light' : 'dark';
+      for (const builtin of BUILTIN_THEMES) {
+        const theme = data.settings.themes.find((t) => t.id === builtin.id);
+        if (!theme) continue;
+        if (theme.name === BUILTIN_OLD_NAMES[builtin.id]) theme.name = builtin.name;
+        theme.light ||= this.sanitizeTheme(builtin).light;
+        theme.dark ||= this.sanitizeTheme(builtin).dark;
+      }
+      data.settings.themeModesSeeded = true;
+      seededThemes = true;
+    }
     // Same once-only idea for the starter Font Awesome icons: a list saved
     // before they existed keeps what it has and gains the starters up front.
-    // Themes saved before "Card background" existed call the section color bgCard.
-    for (const theme of data.settings.themes || []) {
-      if (theme.bgCard !== undefined && theme.bgSection === undefined) {
-        theme.bgSection = theme.bgCard;
-        delete theme.bgCard;
-        seededThemes = true; // just to persist the rename
-      }
-    }
     let seededIcons = false;
     if (!data.settings.iconsSeeded) {
       const have = Array.isArray(raw.settings?.icons) ? raw.settings.icons : [];
@@ -610,6 +671,7 @@ class Store {
       else if (s.themes.some((t) => t.id === patch.activeThemeId)) s.activeThemeId = patch.activeThemeId;
       else throw new StoreError('no such theme');
     }
+    if (patch.themeMode !== undefined) s.themeMode = cleanMode(patch.themeMode);
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
@@ -670,53 +732,68 @@ class Store {
 
   // --- themes ---------------------------------------------------------------
   // Same seven colors as the :root comment in style.css, named and saved so
-  // an admin can switch back to one without re-picking every color. Every
-  // field is required (a half-specified theme would fall back to whatever
-  // stale value style.css's own default carries for the rest, which reads
-  // as a bug once it's a named, switchable thing rather than a single
-  // live override).
+  // an admin can switch back to one without re-picking every color, in a
+  // light and a dark set. Every one of the seven is required in a set (a
+  // half-specified one would fall back to whatever stale value style.css's
+  // own default carries for the rest, which reads as a bug once it's a
+  // named, switchable thing rather than a single live override).
   sanitizeTheme(t) {
-    const bg = cleanColor(t?.bg);
-    const bgSection = cleanColor(t?.bgSection) || cleanColor(t?.bgCard); // bgCard is the old name
-    const border = cleanColor(t?.border);
-    const text = cleanColor(t?.text);
-    const textDim = cleanColor(t?.textDim);
-    const accent = cleanColor(t?.accent);
-    const onAccent = cleanColor(t?.onAccent);
-    if (!bg || !bgSection || !border || !text || !textDim || !accent || !onAccent) return null;
-    const optional = Object.fromEntries(THEME_OPTIONAL.map((key) => [key, cleanColor(t?.[key]) || null]));
-    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', bg, bgSection, border, text, textDim, accent, onAccent, ...optional };
+    let light = cleanThemeColors(t?.light);
+    let dark = cleanThemeColors(t?.dark);
+    if (!light && !dark) {
+      // One set at the top level: a caller, or a theme saved before light and dark.
+      const colors = cleanThemeColors(t);
+      if (!colors) return null;
+      if (colorMode(colors.bg) === 'light') light = colors;
+      else dark = colors;
+    }
+    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', light, dark };
   }
 
   get themes() {
     return this.data.settings.themes;
   }
 
+  // Strong Coffee, the built-in default: its name and both sets, for the chooser.
+  get defaultTheme() {
+    return this.sanitizeTheme({ ...DEFAULT_THEME, id: null });
+  }
+
+  // fields: a name, the mode these colors are for, and the colors.
   addTheme(fields) {
     let id;
     do id = randomKey();
     while (this.data.settings.themes.some((t) => t.id === id));
-    const theme = this.sanitizeTheme({ ...fields, id });
-    if (!theme) throw new StoreError('every color is required');
+    const colors = cleanThemeColors(fields);
+    if (!colors) throw new StoreError('every color is required');
+    const theme = { id, name: cleanText(fields.name, 40) || 'Theme', light: null, dark: null, [cleanMode(fields.mode)]: colors };
     this.data.settings.themes.push(theme);
     this.save();
     return theme;
   }
 
+  // Colors in the patch go to its mode's set; a set the theme did not have
+  // yet starts from the other one.
   updateTheme(id, patch) {
     const theme = this.data.settings.themes.find((t) => t.id === id);
     if (!theme) throw new StoreError('no such theme', 404);
     if (patch.name !== undefined) theme.name = cleanText(patch.name, 40) || theme.name;
     if (patch.bgSection === undefined && patch.bgCard !== undefined) patch = { ...patch, bgSection: patch.bgCard }; // the old name
-    for (const key of ['bg', 'bgSection', 'border', 'text', 'textDim', 'accent', 'onAccent']) {
+    const mode = cleanMode(patch.mode);
+    const set = { ...(theme[mode] || theme.light || theme.dark) };
+    let changed = false;
+    for (const key of THEME_BASE) {
       if (patch[key] === undefined) continue;
       const c = cleanColor(patch[key]);
-      if (c) theme[key] = c;
+      if (c) set[key] = c;
+      changed = true;
     }
     for (const key of THEME_OPTIONAL) {
       if (patch[key] === undefined) continue;
-      theme[key] = cleanColor(patch[key]) || null; // null puts it back on Auto
+      set[key] = cleanColor(patch[key]) || null; // null puts it back on Auto
+      changed = true;
     }
+    if (changed) theme[mode] = set;
     this.save();
     return theme;
   }
@@ -730,11 +807,15 @@ class Store {
     return theme;
   }
 
-  // The colors /theme.css should actually render, or null for "Default"
+  // The colors /theme.css should actually render: the live theme's set for
+  // the live mode (or its only set), or null for Strong Coffee dark
   // (style.css's own built-in palette, no override needed).
-  activeTheme() {
-    const id = this.data.settings.activeThemeId;
-    return id ? this.data.settings.themes.find((t) => t.id === id) || null : null;
+  activeThemeColors() {
+    const s = this.data.settings;
+    const mode = cleanMode(s.themeMode);
+    const theme = s.activeThemeId ? s.themes.find((t) => t.id === s.activeThemeId) : null;
+    if (!theme) return mode === 'light' ? this.defaultTheme.light : null;
+    return theme[mode] || theme.light || theme.dark;
   }
 
   // A user's video-box settings with the server defaults filled in.
