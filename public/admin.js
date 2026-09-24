@@ -839,17 +839,19 @@ const AI_NAMES = { openai: 'OpenAI', anthropic: 'Anthropic', compatible: 'Other 
 async function loadAi() {
   try {
     const { ai, usage, dependents } = await api('GET', '/api/ai');
-    const provider = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : ai.provider;
+    // The service in use: the host's managed one or this environment's own (ai.provider is only the latter).
+    const custom = ai.source !== 'managed';
+    const provider = custom && ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : ai.active.provider;
     const saved = provider !== 'none';
     const on = saved && ai.enabled !== false;
-    aiCard = { saved, on, provider, model: ai.model, dependents: dependents || [] };
+    aiCard = { saved, on, provider, model: ai.active.model, dependents: dependents || [] };
     $('ai-state').textContent = on ? 'Enabled' : saved ? 'Disabled' : 'Off';
     $('ai-state').classList.toggle('on', on);
     $('ai-toggle').textContent = on ? 'Disable' : 'Approve and enable';
     $('ai-toggle').classList.toggle('btn-primary', !on && saved);
     $('ai-toggle').disabled = !saved;
     $('ai-toggle-hint').textContent = saved ? '' : 'Set up a service first (AI Configuration).';
-    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${ai.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up, and switched off.'}` : 'Not set up.';
+    $('ai-summary').textContent = on ? `${AI_NAMES[provider] || provider}, ${aiCard.model || 'no model chosen'}. ${on ? `${Number(usage.tokens || 0).toLocaleString()} tokens this month${usage.monthlyTokens ? ' of ' + usage.monthlyTokens.toLocaleString() : ''}.` : 'Set up, and switched off.'}` : 'Not set up.';
     aiAvailable = true;
   } catch {
     aiAvailable = false;

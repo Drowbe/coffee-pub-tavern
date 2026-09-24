@@ -45,7 +45,8 @@ await test('the setting: the key is kept and never shown', () => {
   assert.throws(() => ai.set({ enabled: true, provider: 'openai', model: 'gpt-4o' }), /needs a key/);
   const v = ai.set({ enabled: true, provider: 'compatible', address: `${address}/`, model: 'local', key: 'sk-secret' });
   // The view: the custom slot's fields, whether a key is set (never the key), and the source with the host's offer.
-  const { source, managed, managedProvider, ...custom } = v;
+  const { source, managed, managedProvider, active, ...custom } = v;
+  assert.deepEqual(active, { provider: 'compatible', model: 'local' }); // custom: the service in use is the custom slot
   assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
   assert.equal(managedProvider, '');
   assert.equal(source, 'custom'); // no host offer: an environment can only be custom
@@ -63,6 +64,9 @@ await test('the source: the host\'s managed service, or the environment\'s own',
   const fresh = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, undefined, () => offers);
   assert.equal(fresh.view().source, 'managed'); // a fresh environment starts on the first offered company
   assert.equal(fresh.view().managedProvider, 'openai');
+  // The service in use, for a page deciding whether AI is set up: the managed one, though the custom slot is empty.
+  assert.equal(fresh.view().provider, 'none');
+  assert.deepEqual(fresh.view().active, { provider: 'openai', model: 'gpt-4o-mini' });
   assert.deepEqual(fresh.view().managed, { available: true, services: [{ provider: 'openai', model: 'gpt-4o-mini' }, { provider: 'anthropic', model: 'claude' }] });
   assert.equal(fresh.key(), 'host-key'); // the call goes out with the host's key for that company
   assert.ok(!JSON.stringify(fresh.view()).includes('host-key'));
@@ -74,6 +78,7 @@ await test('the source: the host\'s managed service, or the environment\'s own',
   assert.equal(fresh.set({ source: 'custom' }).enabled, false);
   assert.equal(fresh.view().source, 'custom');
   assert.equal(fresh.ready(), false); // custom with nothing set up
+  assert.equal(fresh.view().active.provider, 'none');
   assert.equal(fresh.set({ source: 'managed', managedProvider: 'openai' }).source, 'managed');
   assert.throws(() => fresh.set({ managedProvider: 'compatible' }), /offer|host/i); // not offered
   const none = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, undefined, () => null);

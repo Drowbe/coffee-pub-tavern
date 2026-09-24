@@ -237,12 +237,15 @@ class Ai {
   // switching back to custom does not lose it); `managed` describes the host's offer (every company it has,
   // never a key); `managedProvider` is which one this environment has chosen. `keyFromEnvironment` is always
   // false now: AI_KEY (and AI_OPENAI_KEY/AI_ANTHROPIC_KEY) seed the host's managed service, not an
-  // environment's own custom one.
+  // environment's own custom one. `active` is the service actually in use, whichever the source: provider
+  // 'none' when nothing is (a page deciding "set up or not" reads this, not the custom slot's provider).
   view() {
     const c = this.config;
     const offers = this.managed() || [];
+    const active = this.effective();
     return {
       source: c.source,
+      active: { provider: active.provider, model: active.model },
       managedProvider: c.managedProvider,
       managed: { available: offers.length > 0, services: offers.map((o) => ({ provider: o.provider, model: o.model })) },
       provider: c.provider,

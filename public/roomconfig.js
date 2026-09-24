@@ -330,7 +330,7 @@ async function init() {
     await loadRoomModules();
     syncModulesTab();
     // The AI switch is for a server that has an AI service set up.
-    api('GET', '/api/ai').then((d) => { $('section-ai').hidden = !d.ai || d.ai.provider === 'none'; syncModulesTab(); }).catch(() => {});
+    api('GET', '/api/ai').then((d) => { $('section-ai').hidden = !d.ai || d.ai.active.provider === 'none'; syncModulesTab(); }).catch(() => {});
     renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; syncModulesTab(); });
   } catch (err) {
     location.href = '/admin#rooms';
