@@ -268,7 +268,8 @@
   // --- search (only when the admin set an address) ------------------------------------------------------------------
 
   // What someone sees when they search and no search has been chosen in Places' settings.
-  const NO_SEARCH = 'Search is not available. It has not been configured for this space.';
+  // The search is another module's (found by what it offers, below): say whose, and where it is switched on.
+  const noSearch = () => `Search is not set up. It is the ${state.searcher && state.searcher.moduleName ? state.searcher.moduleName : 'place search'} module's: choose a place search in its configuration (Manage, Modules).`;
   let searchToken = 0;
   let hits = [];
   let hit = -1;
@@ -305,7 +306,7 @@
       const out = await host.actions.request(state.searcher.action, { q, ...(near ? { lat: round6(near.lat), lon: round6(near.lng) } : {}) }, { wait: true });
       if (mine !== searchToken) return;
       if (out.status !== 'done' || !out.result || !out.result.ok) {
-        state.searchMessage = out.result && /not set up|not configured/.test(out.result.error || '') ? NO_SEARCH : 'Search is not available right now';
+        state.searchMessage = out.result && /not set up|not configured/.test(out.result.error || '') ? noSearch() : 'Search is not available right now';
       } else {
         const list = out.result.data && Array.isArray(out.result.data.results) ? out.result.data.results : [];
         hits = list.filter((h) => h && geo.inRange(Number(h.lat), Number(h.lng)) && typeof h.title === 'string').slice(0, 6).map((h) => ({ title: oneLine(h.title, 120), sub: oneLine(h.sub, 160), lat: Number(h.lat), lng: Number(h.lng), key: oneLine(h.key, 60) }));

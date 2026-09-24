@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.11",
+  "version": "0.7.12",
   "icon": "map-location-dot",
   "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -62,6 +62,13 @@
       "httpsOnly": true,
       "pathEnds": ".pmtiles",
       "help": "A world PMTiles file to cut a region from with \"Add a region\". The server reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://build.protomaps.com/YYYYMMDD.pmtiles, where YYYYMMDD is the build's date (https://build.protomaps.com/20260924.pmtiles, say); any recent date works, or point this at your own stable copy. Left empty, cutting a region is off. With environments this is the host's, on the host console."
+    },
+    {
+      "key": "searchNote",
+      "type": "note",
+      "scope": "server",
+      "label": "Search on the map",
+      "help": "The field at the bottom of the map searches through whichever module offers a place search (the Places module does), and that module's own configuration is where the search is chosen and switched on; Maps has no search of its own. Until one is chosen there, the field still takes pasted coordinates or a map link."
     }
   ],
   "access": {
