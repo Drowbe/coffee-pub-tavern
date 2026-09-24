@@ -1,4 +1,5 @@
 import { nav } from '/nav-bar.js';
+import { mountEnvironmentBanner } from '/environment-banner.js';
 
 // Escapes text going into innerHTML -- a room or server name is an admin-set
 // string, not something we generated, so it isn't safe to trust verbatim.
@@ -137,6 +138,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   loadUpdateBadge();
   startPresence();
   startNotifications();
+  mountEnvironmentBanner(); // an owner's past-due line under the header, on a hosted environment only
 }
 
 // The system's own tools, in the bands plan-nav.md sets out (1-10 core, 11-50 secondary, 51-100 utility, 999 last), so a
