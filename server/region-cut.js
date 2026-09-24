@@ -69,8 +69,8 @@ function parseSize(text) {
 // A plain reason for an admin from the CLI's own output, without dumping a stack of Go log lines at them.
 function reason(output) {
   const text = String(output || '');
-  if (/no such host|dial tcp|connection refused|context deadline exceeded|i\/o timeout/i.test(text)) return 'the world file address could not be reached';
-  if (/\b404\b|NoSuchKey|not found/i.test(text)) return 'the world file address answered "not found"; check it in Module Configuration';
+  if (/no such host|dial tcp|connection refused|context deadline exceeded|i\/o timeout/i.test(text)) return 'the world map address could not be reached';
+  if (/\b404\b|NoSuchKey|not found/i.test(text)) return 'the world map address answered "not found"; check the address';
   if (/Region tiles 0\b/.test(text)) return 'that area has no tiles at this zoom (it may be over open water, or the area may be wrong)';
   const lines = text.trim().split('\n').filter(Boolean);
   return lines.length ? oneLine(lines[lines.length - 1].replace(/^\S+ \S+ \S+:\d+:\s*/, ''), 200) : 'the cut failed for an unknown reason';
