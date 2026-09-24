@@ -828,6 +828,26 @@ function refuseModuleNotInPlan(res, id, name) {
   res.status(403).json({ error: `This environment's plan does not include ${name}.` });
   return true;
 }
+// The calls cap (plan-tenants.md, "Phase 4"): joining a room already in a call is never refused, so this only
+// stops opening a *new* one once the plan's concurrent-call limit is already spent on other spaces. Asked at
+// join time, in both the places that mint a real (publishing) token -- /api/token and guest-join alike, since
+// a guest link would otherwise be an unmetered way around the same cap.
+async function refuseOverCalls(res, room) {
+  const cap = planCap('calls');
+  if (cap === null) return false;
+  let active;
+  try {
+    active = await roomService.listRooms();
+  } catch {
+    return false; // can't ask LiveKit -- fail open, same as liveCallCount()
+  }
+  const live = active.filter((lk) => roomIdOfLivekit(lk.name) && lk.numParticipants > 0);
+  if (live.some((lk) => lk.name === room)) return false;
+  if (live.length < cap) return false;
+  const runningName = store.roomById(roomIdOfLivekit(live[0].name))?.name || 'another space';
+  res.status(403).json({ error: `This environment's plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
+  return true;
+}
 function readTenantZip(buffer) {
   return new Promise((resolve, reject) => {
     const MAX_FILES = 20000;
@@ -1541,6 +1561,7 @@ app.post('/api/token', async (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
   if (!theRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
+  if (req.body?.call !== false && (await refuseOverCalls(res, room))) return;
   const media = Boolean(store.roomPermissions(user.key, roomId).conference);
   const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
   res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId, conference: media });
@@ -1558,8 +1579,9 @@ app.post('/api/guest-join', async (req, res) => {
   if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
   const name = cleanText(req.body?.name, 40);
   if (!name) return res.status(400).json({ error: 'a name is required' });
-  const identity = `guest-${randomToken(8)}`;
   const room = livekitRoomName(theRoom.id);
+  if (req.body?.call !== false && (await refuseOverCalls(res, room))) return;
+  const identity = `guest-${randomToken(8)}`;
   const permissions = store.roleSet('guest');
   const token = await mintToken({ identity, name, room, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
   res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: theRoom.id, roomName: theRoom.name, guestToken: req.body.token, permissions });
