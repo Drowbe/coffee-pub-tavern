@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { cleanText, cleanLogin, randomToken } = require('./store');
+const { cleanText, cleanLogin, randomToken, sanitizeMfa } = require('./store');
 const { applyManagedFields, MANAGED_PROVIDERS } = require('./ai');
 
 class HostError extends Error {
@@ -183,8 +183,18 @@ class HostRegistry {
       // documentation/plans/plan-tenants.md.
       previousBaseDomains: Array.isArray(raw.previousBaseDomains) ? [...new Set(raw.previousBaseDomains.filter((d) => typeof d === 'string' && d))] : [],
       // Signs a host admin's own session cookie (never a tenant's own secret, kept in that tenant's own store).
-      secrets: { session: raw.secrets?.session || randomToken(32) },
-      hostAdmins: Array.isArray(raw.hostAdmins) ? raw.hostAdmins.filter((a) => a && typeof a.key === 'string' && typeof a.login === 'string' && typeof a.passwordHash === 'string') : [],
+      // `key` encrypts every environment's own TOTP secret at rest (documentation/plans/plan-mfa.md): one key
+      // for the whole host, shared across every tenant, since the host already has admin access to all of
+      // them -- never inside any one tenant's own exportable directory, so an owner's export or the console's
+      // backup carries only the ciphertext, useless without it.
+      secrets: {
+        session: raw.secrets?.session || randomToken(32),
+        key: typeof raw.secrets?.key === 'string' && /^[0-9a-f]{64}$/.test(raw.secrets.key) ? raw.secrets.key : crypto.randomBytes(32).toString('hex'),
+      },
+      hostAdmins: Array.isArray(raw.hostAdmins)
+        ? raw.hostAdmins.filter((a) => a && typeof a.key === 'string' && typeof a.login === 'string' && typeof a.passwordHash === 'string')
+          .map((a) => ({ key: a.key, login: a.login, passwordHash: a.passwordHash, mfa: sanitizeMfa(a.mfa) }))
+        : [],
       tenants: Array.isArray(raw.tenants) ? raw.tenants.map(cleanTenantRecord).filter(Boolean) : [],
       ai: cleanHostAi(raw.ai),
       shared: cleanSharedFolders(raw.shared),
@@ -215,6 +225,10 @@ class HostRegistry {
 
   get sessionSecret() {
     return this.data.secrets.session;
+  }
+
+  get secretsKey() {
+    return this.data.secrets.key;
   }
 
   // ai ----------------------------------------------------------------------------------------------------
@@ -418,7 +432,7 @@ class HostRegistry {
 
   // host admins -----------------------------------------------------------------------------------------------
   listAdmins() {
-    return this.data.hostAdmins.map((a) => ({ key: a.key, login: a.login }));
+    return this.data.hostAdmins.map((a) => ({ key: a.key, login: a.login, mfaEnrolled: Boolean(a.mfa) }));
   }
 
   findAdminByLogin(login) {
@@ -434,16 +448,59 @@ class HostRegistry {
     const clean = cleanLogin(login);
     if (!clean) throw new HostError('a login is required');
     if (this.data.hostAdmins.some((a) => a.login === clean)) throw new HostError('that login is already a host admin', 409);
-    const admin = { key: randomKey(), login: clean, passwordHash };
+    const admin = { key: randomKey(), login: clean, passwordHash, mfa: null };
     this.data.hostAdmins.push(admin);
     this.save();
-    return { key: admin.key, login: admin.login };
+    return { key: admin.key, login: admin.login, mfaEnrolled: false };
   }
 
   removeAdmin(key) {
     if (!this.data.hostAdmins.some((a) => a.key === key)) throw new HostError('no such host admin', 404);
     if (this.data.hostAdmins.length <= 1) throw new HostError('the last host admin cannot be removed');
     this.data.hostAdmins = this.data.hostAdmins.filter((a) => a.key !== key);
+    this.save();
+  }
+
+  // --- the host admins' own second factor (documentation/plans/plan-mfa.md) -- the same five operations as
+  // Store's, mirrored here since a host admin is not a tenant's user record at all (see /api/host/me/mfa/*,
+  // POST /api/host/login/verify, and the owner reset below).
+  hostAdminMfaStart(key, secretCipher) {
+    const admin = this.findAdminByKey(key);
+    if (!admin) throw new HostError('no such host admin', 404);
+    admin.mfa = admin.mfa || { secret: null, enrolledAt: null, recovery: [], version: 0, lastStep: null, pending: null };
+    admin.mfa.pending = { secret: secretCipher, startedAt: new Date().toISOString() };
+    this.save();
+    return admin.mfa;
+  }
+
+  hostAdminMfaEnable(key, recoveryHashes) {
+    const admin = this.findAdminByKey(key);
+    if (!admin) throw new HostError('no such host admin', 404);
+    if (!admin.mfa?.pending) throw new HostError('start enrolment first');
+    admin.mfa = { secret: admin.mfa.pending.secret, enrolledAt: new Date().toISOString(), recovery: recoveryHashes, version: (admin.mfa.version || 0) + 1, lastStep: null, pending: null };
+    this.save();
+    return admin.mfa;
+  }
+
+  hostAdminMfaDisable(key) {
+    const admin = this.findAdminByKey(key);
+    if (!admin) throw new HostError('no such host admin', 404);
+    admin.mfa = null;
+    this.save();
+  }
+
+  hostAdminMfaRecordStep(key, step) {
+    const admin = this.findAdminByKey(key);
+    if (!admin?.mfa) return;
+    admin.mfa.lastStep = step;
+    this.save();
+  }
+
+  hostAdminMfaSpendRecovery(key, hash) {
+    const admin = this.findAdminByKey(key);
+    if (!admin?.mfa) return;
+    admin.mfa.recovery = admin.mfa.recovery.filter((h) => h !== hash);
+    admin.mfa.version = (admin.mfa.version || 0) + 1;
     this.save();
   }
 }

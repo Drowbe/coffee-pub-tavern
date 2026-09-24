@@ -9,6 +9,7 @@ const express = require('express');
 const yauzl = require('yauzl');
 const { AsyncLocalStorage } = require('async_hooks');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
+const QRCode = require('qrcode');
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
 const { buildModule, bundledModules, zipFiles } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
@@ -69,6 +70,12 @@ const {
   // process.env where it is used (the plan id is dynamic, host-configured, so it can't be named here).
   SIGNUP = 'on',
   BILLING_SECRET = '',
+  // Two-step sign-in (documentation/plans/plan-mfa.md): HOST_MFA makes it mandatory for host admins ('required')
+  // rather than merely offered ('optional', the default) -- an environment's own policy is settings.mfa instead,
+  // set through Manage. MFA_RESET and MFA_OFF are "regaining access": see the startup block near app.listen.
+  HOST_MFA = 'optional',
+  MFA_RESET = '',
+  MFA_OFF = '',
 } = process.env;
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
@@ -78,6 +85,8 @@ const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP !== 'off';
+const mfaOff = MFA_OFF === '1';
+const hostMfaRequired = HOST_MFA === 'required';
 // BILLING_CHECKOUT_<PLAN ID>, e.g. BILLING_CHECKOUT_PRO for the plan "pro"; none set means that plan is not
 // sold online (plan-tenants.md, "Phase 5").
 function checkoutUrlFor(planId) {
@@ -520,6 +529,82 @@ function resolveLoginUser(login, password) {
   return user || store.addUser({ login, displayName: login, role: 'admin', passwordHash: null, hostAdmin: true });
 }
 
+// --- two-step sign-in (documentation/plans/plan-mfa.md) -----------------------------------------------------
+
+// The key that encrypts every TOTP secret at rest: the host's own, shared across every tenant, on a host with
+// environments (host.json's secretsKey -- an owner's export or the console's backup never carries host.json
+// at all); a single file beside the store on a self-hosted install (there is no host.json), made on first use.
+// Cached after the first call -- neither source ever changes once the server is up.
+let _secretsKeyBuf = null;
+function secretsKeyBuf() {
+  if (_secretsKeyBuf) return _secretsKeyBuf;
+  if (hostRegistry) {
+    _secretsKeyBuf = Buffer.from(hostRegistry.secretsKey, 'hex');
+    return _secretsKeyBuf;
+  }
+  const file = path.join(DATA_DIR, 'secrets.key');
+  if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+  _secretsKeyBuf = Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'hex');
+  return _secretsKeyBuf;
+}
+
+// Whether the environment's policy requires this particular person to have a second factor: 'everyone'
+// always, 'owners' for an admin, 'optional'/'off' never. The host admin's own cross sign-in user is never
+// required here -- their own factor lives at the host console, under HOST_MFA, a separate account entirely.
+function mfaPolicyRequires(user) {
+  if (user.hostAdmin) return false;
+  const policy = store.settings.mfa || 'optional';
+  if (policy === 'everyone') return true;
+  if (policy === 'owners') return user.role === 'admin';
+  return false;
+}
+
+// The pending step: called right after the first factor succeeds, before any session is issued. Returns null
+// when nothing more is owed (MFA_OFF, the host admin's own cross sign-in, no factor and the policy does not
+// require one, or a valid mfa_trust cookie for this exact person -- readSession's own stamp check already
+// busts it on a reset or a fresh enrolment, since userStamp folds in mfa.version); otherwise { enrol, pending }
+// for the caller to answer or redirect with instead of a session.
+function mfaGate(req, user) {
+  if (mfaOff || user.hostAdmin) return null;
+  const enrolled = Boolean(user.mfa);
+  if (!enrolled && !mfaPolicyRequires(user)) return null;
+  const trust = auth.readSession(store.sessionSecret, auth.sessionToken(req, auth.TRUST_COOKIE), (key) => (key === user.key ? user : null));
+  if (trust) return null;
+  const purpose = enrolled ? 'verify' : 'enrol';
+  return { enrol: !enrolled, pending: auth.issuePending(store.sessionSecret, { userKey: user.key, env: currentEnvironment().slug || '', purpose }) };
+}
+
+// Who is enrolling: the signed-in person, or -- with no session yet -- whoever holds a valid 'enrol' pending
+// token (a required account with no factor lands here straight from the first factor, with nothing else to
+// prove who they are). Null when neither is true.
+function mfaSubject(req) {
+  const user = currentUser(req);
+  if (user) return user;
+  const token = req.body?.pending || auth.parseCookies(req.get('cookie'))[auth.PENDING_COOKIE] || null;
+  const pend = token && auth.readPending(store.sessionSecret, token, { env: currentEnvironment().slug || '', purpose: 'enrol' });
+  return pend ? store.userByKey(pend.u) : null;
+}
+
+// Checks a code against this person's own factor: a TOTP code (recording the step used, so it cannot be
+// replayed) or a recovery code (spending it, which bumps mfa.version and so signs out every other session and
+// trusted browser -- using one means the normal device is unavailable, a security-relevant event in its own
+// right). `onStep`/`onRecovery` persist the outcome; this function only decides whether the code is good.
+function verifyMfaCode(mfa, code, { onStep, onRecovery }) {
+  if (!mfa) return false;
+  const plain = auth.decryptSecret(mfa.secret, secretsKeyBuf());
+  const step = plain ? auth.totpVerify(plain, code, mfa.lastStep) : null;
+  if (step !== null && step !== undefined) {
+    onStep(step);
+    return true;
+  }
+  const hash = mfa.recovery.find((h) => auth.verifyPassword(String(code || '').trim(), h));
+  if (hash) {
+    onRecovery(hash);
+    return true;
+  }
+  return false;
+}
+
 function hasStreamKey(req) {
   const given = String(req.query.s || req.get('x-stream-key') || '');
   const wanted = store.streamKey;
@@ -583,6 +668,7 @@ function publicUser(req, u) {
     role: u.role,
     hostAdmin: u.hostAdmin, // signs in through the host console, not a password of its own -- see resolveLoginUser
     hasPassword: !!u.passwordHash,
+    mfaEnrolled: Boolean(u.mfa), // the only mfa field a person other than the account itself ever sees
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
     rooms,
@@ -603,7 +689,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfa: s.mfa || 'optional', mfaOff, maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -679,6 +765,26 @@ function sendHostError(err, res) {
 hostRouter.use(express.static(publicDir, { index: false }));
 hostRouter.get('/', (_req, res) => res.sendFile(page('host.html')));
 
+// The host admins' own second step (documentation/plans/plan-mfa.md): HOST_MFA=required makes it mandatory,
+// same shape as a tenant's own gate but keyed on hostRegistry's session secret and its own admin records,
+// never a tenant's -- 'host' is a reserved slug (see RESERVED_SLUGS), so it can never collide with a real
+// environment's own pending tokens even though the cookie names are shared.
+function hostMfaGate(req, admin) {
+  if (mfaOff) return null;
+  const enrolled = Boolean(admin.mfa);
+  if (!enrolled && !hostMfaRequired) return null;
+  const trust = auth.readSession(hostRegistry.sessionSecret, auth.sessionToken(req, auth.TRUST_COOKIE), (key) => (key === admin.key ? admin : null));
+  if (trust) return null;
+  const purpose = enrolled ? 'verify' : 'enrol';
+  return { enrol: !enrolled, pending: auth.issuePending(hostRegistry.sessionSecret, { userKey: admin.key, env: 'host', purpose }) };
+}
+function hostMfaSubject(req) {
+  const admin = currentHostAdmin(req);
+  if (admin) return admin;
+  const token = req.body?.pending || auth.parseCookies(req.get('cookie'))[auth.PENDING_COOKIE] || null;
+  const pend = token && auth.readPending(hostRegistry.sessionSecret, token, { env: 'host', purpose: 'enrol' });
+  return pend ? hostRegistry.findAdminByKey(pend.u) : null;
+}
 hostRouter.post('/api/host/login', (req, res) => {
   const ip = req.ip || 'unknown';
   if (hostLimiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a few minutes' });
@@ -686,15 +792,92 @@ hostRouter.post('/api/host/login', (req, res) => {
   const ok = found && auth.verifyPassword(req.body?.password || '', found.passwordHash);
   if (!ok) { hostLimiter.fail(ip); return res.status(401).json({ error: 'wrong username or password' }); }
   hostLimiter.clear(ip);
+  const gate = hostMfaGate(req, found);
+  if (gate) {
+    auth.setPendingCookie(req, res, gate.pending);
+    return res.json({ mfaRequired: true, enrol: gate.enrol, pending: gate.pending });
+  }
   const token = auth.issueSession(hostRegistry.sessionSecret, found);
   auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
   res.json({ admin: { key: found.key, login: found.login } });
+});
+hostRouter.post('/api/host/login/verify', (req, res) => {
+  const ip = req.ip || 'unknown';
+  if (hostLimiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a few minutes' });
+  const pendingToken = req.body?.pending || auth.parseCookies(req.get('cookie'))[auth.PENDING_COOKIE] || null;
+  const pend = pendingToken && auth.readPending(hostRegistry.sessionSecret, pendingToken, { env: 'host', purpose: 'verify' });
+  const admin = pend && hostRegistry.findAdminByKey(pend.u);
+  if (!admin || !admin.mfa) { hostLimiter.fail(ip); return res.status(401).json({ error: 'sign in again' }); }
+  const ok = verifyMfaCode(admin.mfa, req.body?.code, {
+    onStep: (step) => hostRegistry.hostAdminMfaRecordStep(admin.key, step),
+    onRecovery: (hash) => hostRegistry.hostAdminMfaSpendRecovery(admin.key, hash),
+  });
+  if (!ok) { hostLimiter.fail(ip); return res.status(401).json({ error: 'wrong code' }); }
+  hostLimiter.clear(ip);
+  const fresh = hostRegistry.findAdminByKey(admin.key);
+  const token = auth.issueSession(hostRegistry.sessionSecret, fresh);
+  auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
+  auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
+  if (req.body?.remember) auth.setSessionCookie(req, res, auth.issueSession(hostRegistry.sessionSecret, fresh), auth.TRUST_COOKIE);
+  res.json({ admin: { key: fresh.key, login: fresh.login } });
 });
 hostRouter.post('/api/host/logout', (req, res) => { auth.clearSessionCookie(req, res, auth.HOST_COOKIE); res.json({ ok: true }); });
 hostRouter.get('/api/host/me', (req, res) => {
   const found = currentHostAdmin(req);
   if (!found) return res.status(401).json({ error: 'sign in first' });
-  res.json({ admin: { key: found.key, login: found.login } });
+  res.json({ admin: { key: found.key, login: found.login }, mfaEnrolled: Boolean(found.mfa), mfaRequired: !mfaOff && !found.mfa && hostMfaRequired, mfaOff });
+});
+hostRouter.post('/api/host/me/mfa/start', async (req, res) => {
+  const admin = hostMfaSubject(req);
+  if (!admin) return res.status(401).json({ error: 'sign in first' });
+  const secret = auth.totpSecret();
+  hostRegistry.hostAdminMfaStart(admin.key, auth.encryptSecret(secret, secretsKeyBuf()));
+  const otpauth = auth.otpauthUrl(PRODUCT_NAME, admin.login, secret);
+  const qr = await QRCode.toString(otpauth, { type: 'svg' });
+  res.json({ otpauth, qr, secret });
+});
+hostRouter.post('/api/host/me/mfa/enable', (req, res) => {
+  const admin = hostMfaSubject(req);
+  if (!admin) return res.status(401).json({ error: 'sign in first' });
+  const pending = admin.mfa?.pending;
+  if (!pending || Date.now() - new Date(pending.startedAt).getTime() > 3600000) return res.status(400).json({ error: 'start enrolment again' });
+  const plain = auth.decryptSecret(pending.secret, secretsKeyBuf());
+  const step = plain ? auth.totpVerify(plain, req.body?.code) : null;
+  if (step === null || step === undefined) return res.status(401).json({ error: 'wrong code' });
+  const recoveryCodes = auth.recoveryCodes();
+  hostRegistry.hostAdminMfaEnable(admin.key, recoveryCodes.map((c) => auth.hashPassword(c)));
+  hostRegistry.hostAdminMfaRecordStep(admin.key, step);
+  const fresh = hostRegistry.findAdminByKey(admin.key);
+  // Same reissue as /api/me/mfa/enable, and for the same reason: enabling bumps mfa.version, changing this
+  // admin's own userStamp, which would otherwise silently sign an already-signed-in caller out of the very
+  // enrolment they just finished.
+  const token = auth.issueSession(hostRegistry.sessionSecret, fresh);
+  auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
+  auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
+  const out = { recoveryCodes, admin: { key: fresh.key, login: fresh.login }, token };
+  res.json(out);
+});
+hostRouter.post('/api/host/me/mfa/disable', requireHostAdmin, (req, res) => {
+  const admin = currentHostAdmin(req);
+  if (!admin.mfa) return res.status(400).json({ error: 'no second factor to disable' });
+  if (hostMfaRequired) return res.status(403).json({ error: 'this deployment requires a second factor for host admins' });
+  const ok = verifyMfaCode(admin.mfa, req.body?.code, { onStep: () => {}, onRecovery: () => {} });
+  if (!ok) return res.status(401).json({ error: 'wrong code' });
+  hostRegistry.hostAdminMfaDisable(admin.key);
+  // Same reissue as /api/me/mfa/disable, and for the same reason.
+  const token = auth.issueSession(hostRegistry.sessionSecret, hostRegistry.findAdminByKey(admin.key));
+  auth.setSessionCookie(req, res, token, auth.HOST_COOKIE);
+  res.json({ ok: true, token });
+});
+// A host admin resets an owner's factor from the console -- by login, never a key, since the console never
+// learns an environment's own user keys (a peer session's amendment to the contract).
+hostRouter.delete('/api/host/tenants/:slug/owners/:login/mfa', requireHostAdmin, (req, res) => {
+  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+  const env = environmentFor(req.params.slug);
+  const owner = env.store.userByLogin(req.params.login);
+  if (!owner || owner.role !== 'admin' || owner.hostAdmin) return res.status(404).json({ error: 'no owner with that login there' });
+  env.store.mfaDisable(owner.key);
+  res.json({ ok: true });
 });
 
 // What a tenant is using, from its own already-built environment (building it if it is not running yet -- an
@@ -1276,6 +1459,18 @@ app.get('/login', (req, res) => {
   res.sendFile(page('login.html'));
 });
 
+// The pending step's own page, one file for both (the path says which -- documentation/plans/plan-mfa.md):
+// /login/verify for an account with a factor already, /login/enrol for one the policy requires but has none
+// yet. Already fully signed in (a real session, not just a pending one) redirects away, same as /login.
+app.get('/login/verify', (req, res) => {
+  if (currentUser(req)) return res.redirect(String(req.query.next || '/').startsWith('/') ? String(req.query.next || '/') : '/');
+  res.sendFile(page('login-step.html'));
+});
+app.get('/login/enrol', (req, res) => {
+  if (currentUser(req)) return res.redirect(String(req.query.next || '/').startsWith('/') ? String(req.query.next || '/') : '/');
+  res.sendFile(page('login-step.html'));
+});
+
 // The product page's own Sign in ends here: a plain top-level form post (never JSON, so nothing crosses
 // origins), on success a session exactly like POST /api/login, then a redirect rather than a JSON body -- a
 // path on this environment, never off it (so a scheme, a host or even a second leading slash, which a browser
@@ -1297,6 +1492,12 @@ app.post('/login', loginForm, (req, res) => {
     return fail();
   }
   limiter.clear(ip);
+  const gate = mfaGate(req, user);
+  if (gate) {
+    auth.setPendingCookie(req, res, gate.pending);
+    const next = encodeURIComponent(safeNextPath(req.body?.next));
+    return res.redirect(303, `/login/${gate.enrol ? 'enrol' : 'verify'}?next=${next}`);
+  }
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
@@ -1320,6 +1521,13 @@ app.get('/invite/:token', (req, res) => {
 app.get('/j/:token', (req, res) => {
   const user = store.userByLinkToken(req.params.token);
   if (!user) return res.status(404).sendFile(page('bad-link.html'));
+  // A personal link is a first factor, not a bypass: someone with a second factor still gets the code step
+  // (documentation/plans/plan-mfa.md, "A personal link is a first factor, not a bypass").
+  const gate = mfaGate(req, user);
+  if (gate) {
+    auth.setPendingCookie(req, res, gate.pending);
+    return res.redirect(`/login/${gate.enrol ? 'enrol' : 'verify'}`);
+  }
   auth.setSessionCookie(req, res, auth.issueSession(store.sessionSecret, user));
   setEnvHint(req, res);
   res.redirect('/');
@@ -1549,10 +1757,47 @@ app.post('/api/login', (req, res) => {
     return res.status(401).json({ error: 'wrong username or password' });
   }
   limiter.clear(ip);
+  const gate = mfaGate(req, user);
+  if (gate) {
+    auth.setPendingCookie(req, res, gate.pending);
+    return res.json({ mfaRequired: true, enrol: gate.enrol, pending: gate.pending });
+  }
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
   res.json({ user: publicUser(req, user), token });
+});
+
+// The second step, for an account with a factor already: a TOTP code or a recovery code, checked against
+// whoever the pending token (the cookie, or the body for a caller that cannot rely on one) names. On success
+// the real session, plus a trusted-browser cookie when asked -- same shape and cookie handling as a plain
+// sign-in from here on. Rate-limited the same way a wrong password is.
+app.post('/api/login/verify', (req, res) => {
+  const ip = req.ip || 'unknown';
+  if (limiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a few minutes' });
+  const pendingToken = req.body?.pending || auth.parseCookies(req.get('cookie'))[auth.PENDING_COOKIE] || null;
+  const pend = pendingToken && auth.readPending(store.sessionSecret, pendingToken, { env: currentEnvironment().slug || '', purpose: 'verify' });
+  const user = pend && store.userByKey(pend.u);
+  if (!user || !user.mfa) {
+    limiter.fail(ip);
+    return res.status(401).json({ error: 'sign in again' });
+  }
+  const ok = verifyMfaCode(user.mfa, req.body?.code, {
+    onStep: (step) => store.mfaRecordStep(user.key, step),
+    onRecovery: (hash) => store.mfaSpendRecovery(user.key, hash),
+  });
+  if (!ok) {
+    limiter.fail(ip);
+    return res.status(401).json({ error: 'wrong code' });
+  }
+  limiter.clear(ip);
+  const fresh = store.userByKey(user.key);
+  const token = auth.issueSession(store.sessionSecret, fresh);
+  auth.setSessionCookie(req, res, token);
+  auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
+  if (req.body?.remember) auth.setSessionCookie(req, res, auth.issueSession(store.sessionSecret, fresh), auth.TRUST_COOKIE);
+  setEnvHint(req, res);
+  res.json({ user: publicUser(req, fresh), token });
 });
 
 // Self sign-up: only works while an admin has it turned on. A self-signed
@@ -1616,7 +1861,80 @@ app.get('/api/me', requireUser, (req, res) => {
     environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.serverName, owner: user.role === 'admin' && !user.hostAdmin, hostAdmin: Boolean(user.hostAdmin) },
     livekitUrl: livekitWsUrl(req),
     streamKey: user.role === 'admin' ? store.streamKey : undefined,
+    // documentation/plans/plan-mfa.md: mfaEnrolled also rides along inside `user` (publicUser, for everyone
+    // else's own account too); mfaRequired is this session's own -- the policy asks something of this person
+    // that they have not met yet, so the profile page can show the inline enrolment banner.
+    mfaEnrolled: Boolean(user.mfa),
+    mfaRequired: !mfaOff && !user.mfa && mfaPolicyRequires(user),
   });
+});
+
+// Enrolment (documentation/plans/plan-mfa.md): for the signed-in person, or -- with no session yet -- whoever
+// holds a valid 'enrol' pending token (mfaSubject covers both). start makes a new secret, kept unconfirmed
+// until enable; another start simply replaces it. enable confirms it, makes the recovery codes (shown once,
+// never again), and -- when there was no session to begin with -- signs the person in with the same answer.
+app.post('/api/me/mfa/start', async (req, res) => {
+  const user = mfaSubject(req);
+  if (!user) return res.status(401).json({ error: 'sign in first' });
+  const secret = auth.totpSecret();
+  store.mfaStart(user.key, auth.encryptSecret(secret, secretsKeyBuf()));
+  const otpauth = auth.otpauthUrl(store.settings.serverName, user.login, secret);
+  const qr = await QRCode.toString(otpauth, { type: 'svg' });
+  res.json({ otpauth, qr, secret });
+});
+app.post('/api/me/mfa/enable', (req, res) => {
+  const user = mfaSubject(req);
+  if (!user) return res.status(401).json({ error: 'sign in first' });
+  const pending = user.mfa?.pending;
+  if (!pending || Date.now() - new Date(pending.startedAt).getTime() > 3600000) {
+    return res.status(400).json({ error: 'start enrolment again' });
+  }
+  const plain = auth.decryptSecret(pending.secret, secretsKeyBuf());
+  const step = plain ? auth.totpVerify(plain, req.body?.code) : null;
+  if (step === null || step === undefined) return res.status(401).json({ error: 'wrong code' });
+  const recoveryCodes = auth.recoveryCodes();
+  store.mfaEnable(user.key, recoveryCodes.map((c) => auth.hashPassword(c)));
+  store.mfaRecordStep(user.key, step);
+  const fresh = store.userByKey(user.key);
+  // Enabling bumps mfa.version, which changes this very account's own userStamp -- an already-signed-in
+  // caller's session cookie was issued under the old stamp and would otherwise silently stop working the
+  // moment this answers, logging them out of the enrolment they just finished. Always reissued, whether or
+  // not there was a session to begin with (the pending-enrol-token caller had none at all).
+  const token = auth.issueSession(store.sessionSecret, fresh);
+  auth.setSessionCookie(req, res, token);
+  auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
+  const out = { recoveryCodes, user: publicUser(req, fresh), token };
+  if (!currentUser(req)) {
+    setEnvHint(req, res);
+  }
+  res.json(out);
+});
+// Refused when the policy requires a factor for this person -- they may only replace it (start, then
+// enable), never go without one while it is required.
+app.post('/api/me/mfa/disable', requireUser, (req, res) => {
+  const user = currentUser(req);
+  if (!user.mfa) return res.status(400).json({ error: 'no second factor to disable' });
+  if (mfaPolicyRequires(user)) return res.status(403).json({ error: 'this environment requires a second factor for your account' });
+  const ok = verifyMfaCode(user.mfa, req.body?.code, {
+    onStep: () => {}, // about to be disabled outright -- recording the step used is pointless
+    onRecovery: () => {},
+  });
+  if (!ok) return res.status(401).json({ error: 'wrong code' });
+  store.mfaDisable(user.key);
+  // Disabling changes this account's own userStamp too (mfa.version was folded in, now gone entirely), which
+  // would otherwise silently sign this very request's own session out along with the factor -- reissued so
+  // disabling stays a smooth, in-session action rather than an accidental sign-out.
+  const token = auth.issueSession(store.sessionSecret, store.userByKey(user.key));
+  auth.setSessionCookie(req, res, token);
+  res.json({ ok: true, token });
+});
+// An environment admin resets a member's factor -- never their own (use disable instead) -- signing them out
+// everywhere and asking nothing until they enrol again.
+app.delete('/api/users/:key/mfa', requireAdmin, (req, res) => {
+  if (currentUser(req).key === req.params.key) return res.status(400).json({ error: 'reset your own from your profile instead' });
+  if (!store.userByKey(req.params.key)) return res.status(404).json({ error: 'no such user' });
+  store.mfaDisable(req.params.key);
+  res.json({ ok: true });
 });
 
 // LiveKit token for a room (the Lobby unless asked): players need a session
@@ -3903,6 +4221,31 @@ app.use((err, _req, res, _next) => {
 // The grace: a tenant pastDue for 14 days is degraded to the free plan once an hour, never deleted
 // (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no tenants to sweep.
 if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
+
+// Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): for the operator locked out of
+// their own server. Applied every start while set, never tracked as "already done" -- the variable is meant
+// to be removed again once they are back in, and the log says so every time it still fires.
+if (mfaOff) console.warn("Two-step sign-in is switched off by the server's MFA_OFF. Remove it once you are back in.");
+if (MFA_RESET) {
+  for (const raw of MFA_RESET.split(',').map((s) => s.trim()).filter(Boolean)) {
+    let label = null;
+    if (raw.startsWith('host:')) {
+      const admin = hostRegistry?.findAdminByLogin(raw.slice(5));
+      if (admin) { hostRegistry.hostAdminMfaDisable(admin.key); label = `the host admin "${admin.login}"`; }
+    } else if (BASE_DOMAIN) {
+      const [slug, login] = raw.split(':');
+      const env = login && hostRegistry?.findTenant(slug) ? environmentFor(slug) : null;
+      const user = env?.store.userByLogin(login);
+      if (user) { env.store.mfaDisable(user.key); label = `"${login}" at "${slug}"`; }
+    } else {
+      const env = environmentFor(DEFAULT_SLUG);
+      const user = env.store.userByLogin(raw);
+      if (user) { env.store.mfaDisable(user.key); label = `"${raw}"`; }
+    }
+    if (label) console.log(`Second factor cleared for ${label} (MFA_RESET).`);
+    else console.warn(`MFA_RESET named "${raw}", but no matching account was found.`);
+  }
+}
 
 app.listen(Number(PORT), () => {
   if (!BASE_DOMAIN) {

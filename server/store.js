@@ -112,6 +112,26 @@ const ROLE_DEFAULTS = {
 function cleanRoomPermissions(p) {
   return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
 }
+// A user's own second factor (documentation/plans/plan-mfa.md), or null. `secret` and `pending.secret` are
+// already encrypted by the time they reach here -- this only checks the shape, never the plaintext, which
+// this class never sees. A pending-only enrolment (no confirmed secret yet, `start` called but not `enable`)
+// is a real, legitimate on-disk state, kept as its own thing rather than folded into "no factor at all".
+function sanitizeMfa(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const hasSecret = typeof raw.secret === 'string' && raw.secret;
+  const pending = raw.pending && typeof raw.pending === 'object' && typeof raw.pending.secret === 'string' && typeof raw.pending.startedAt === 'string'
+    ? { secret: raw.pending.secret, startedAt: raw.pending.startedAt }
+    : null;
+  if (!hasSecret && !pending) return null;
+  return {
+    secret: hasSecret ? raw.secret : null,
+    enrolledAt: typeof raw.enrolledAt === 'string' ? raw.enrolledAt : null,
+    recovery: Array.isArray(raw.recovery) ? raw.recovery.filter((h) => typeof h === 'string') : [],
+    version: Number.isFinite(raw.version) ? raw.version : 0,
+    lastStep: Number.isFinite(raw.lastStep) ? raw.lastStep : null,
+    pending,
+  };
+}
 const IMAGE_TYPES = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -128,6 +148,7 @@ const LOBBY = 'lobby';
 // stays in the browser's own localStorage) so they follow the account
 // wherever it signs in, not just the browser that last set them.
 const QUALITY_OPTIONS = [360, 540, 720];
+const MFA_POLICIES = ['off', 'optional', 'owners', 'everyone'];
 const BACKGROUND_MODES = ['none', 'blur', 'image'];
 // "Mod+KeyD" style strings (see public/hotkeys.js): Mod is Cmd on a Mac,
 // Ctrl elsewhere, same as Google Meet's own mute/camera shortcuts.
@@ -150,6 +171,10 @@ const DEFAULT_SETTINGS = {
   // account is a normal user, added automatically like everyone is to the
   // Lobby, with no password requirement beyond what they pick.
   allowRegistration: false,
+  // Two-step sign-in policy (documentation/plans/plan-mfa.md): off (nobody is asked), optional (the default:
+  // anyone may enrol, and is then asked), owners (every admin must enrol; a user may), everyone. Bites at the
+  // next sign-in, never an already-open session.
+  mfa: 'optional',
   // Call features, on by default -- an admin can turn any of these off
   // server-wide. maxQuality caps the "Quality" picker (see QUALITY_OPTIONS)
   // rather than adding a new tier of its own.
@@ -570,6 +595,7 @@ class Store {
       // check always goes back to the host registry.
       hostAdmin: Boolean(u.hostAdmin),
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
+      mfa: sanitizeMfa(u.mfa),
       images,
       rooms,
       player: {}, // borders and the plate are server-wide now; older per-user values are dropped
@@ -651,6 +677,10 @@ class Store {
     if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
+    if (patch.mfa !== undefined) {
+      if (!MFA_POLICIES.includes(patch.mfa)) throw new StoreError(`mfa must be one of ${MFA_POLICIES.join(', ')}`);
+      s.mfa = patch.mfa;
+    }
     if (patch.maxQuality !== undefined && QUALITY_OPTIONS.includes(Number(patch.maxQuality))) s.maxQuality = Number(patch.maxQuality);
     if (patch.allowScreenShare !== undefined) s.allowScreenShare = Boolean(patch.allowScreenShare);
     if (patch.allowAsides !== undefined) s.allowAsides = Boolean(patch.allowAsides);
@@ -913,6 +943,64 @@ class Store {
     if (patch.linkToken !== undefined) user.linkToken = patch.linkToken || null;
     this.save();
     return user;
+  }
+
+  // --- two-step sign-in (documentation/plans/plan-mfa.md) -------------------------------------------------
+  // The secret and the recovery codes arrive already encrypted/hashed (server/index.js, server/auth.js) --
+  // this class only ever stores and returns exactly what it is given, the same separation passwordHash
+  // already keeps.
+
+  // Kept unconfirmed until mfaEnable; another start simply replaces it (server/index.js drops one over an
+  // hour old rather than sweeping it here).
+  mfaStart(key, secretCipher) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    user.mfa = user.mfa || { secret: null, enrolledAt: null, recovery: [], version: 0, lastStep: null, pending: null };
+    user.mfa.pending = { secret: secretCipher, startedAt: new Date().toISOString() };
+    this.save();
+    return user.mfa;
+  }
+
+  // Confirms the pending secret as the real one and replaces the recovery codes; version always goes up, so
+  // re-enrolling (over an existing factor, e.g. a lost device replaced without an admin's help) signs out
+  // every session and trusted browser under the old one, the same as a reset does.
+  mfaEnable(key, recoveryHashes) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    if (!user.mfa?.pending) throw new StoreError('start enrolment first');
+    user.mfa = { secret: user.mfa.pending.secret, enrolledAt: new Date().toISOString(), recovery: recoveryHashes, version: (user.mfa.version || 0) + 1, lastStep: null, pending: null };
+    this.save();
+    return user.mfa;
+  }
+
+  // Removes the factor entirely -- by the person themselves (a correct code) or an admin's reset. Nulling it
+  // out is itself what signs that person out everywhere: userStamp folds in mfa.version, which only exists
+  // on a non-null mfa, so the stamp changes the moment this runs (documentation/plans/plan-mfa.md, "Resetting").
+  mfaDisable(key) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    user.mfa = null;
+    this.save();
+  }
+
+  // The step just used, so it (and anything at or before it) is refused next time -- the one-time part of a
+  // one-time code.
+  mfaRecordStep(key, step) {
+    const user = this.userByKey(key);
+    if (!user?.mfa) return;
+    user.mfa.lastStep = step;
+    this.save();
+  }
+
+  // A spent recovery code is gone, and -- since using one means the normal device is unavailable, a
+  // security-relevant event in its own right -- version goes up too, signing out every other session and
+  // trusted browser this person has, not just resuming this one.
+  mfaSpendRecovery(key, hash) {
+    const user = this.userByKey(key);
+    if (!user?.mfa) return;
+    user.mfa.recovery = user.mfa.recovery.filter((h) => h !== hash);
+    user.mfa.version = (user.mfa.version || 0) + 1;
+    this.save();
   }
 
   removeUser(key) {
@@ -1433,4 +1521,5 @@ class StoreError extends Error {
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+  sanitizeMfa,
 };

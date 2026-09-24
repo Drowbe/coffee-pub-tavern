@@ -227,4 +227,44 @@ test('the grace: a tenant pastDue past 14 days is degraded to free, one still wi
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('a host admin has a secretsKey from the start, 32 random bytes hex, stable across a reload', () => {
+  const dir = freshDir();
+  const key = new HostRegistry(dir).secretsKey;
+  assert.match(key, /^[0-9a-f]{64}$/);
+  assert.equal(new HostRegistry(dir).secretsKey, key);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a host admin's own second factor: start, enable, a step and a recovery code spent, disable", () => {
+  const dir = freshDir();
+  const r = new HostRegistry(dir);
+  const a = r.addAdmin({ login: 'boss', passwordHash: 'x' });
+  assert.equal(a.mfaEnrolled, false);
+  assert.equal(r.listAdmins()[0].mfaEnrolled, false);
+
+  r.hostAdminMfaStart(a.key, 'cipher-1');
+  assert.equal(r.findAdminByKey(a.key).mfa.pending.secret, 'cipher-1');
+  assert.equal(r.findAdminByKey(a.key).mfa.secret, null, 'unconfirmed until enable');
+
+  const enabled = r.hostAdminMfaEnable(a.key, ['hash-1', 'hash-2']);
+  assert.equal(enabled.secret, 'cipher-1');
+  assert.equal(enabled.version, 1);
+  assert.deepEqual(enabled.recovery, ['hash-1', 'hash-2']);
+  assert.equal(r.listAdmins()[0].mfaEnrolled, true);
+  assert.throws(() => r.hostAdminMfaEnable(a.key, []), HostError, 'nothing pending the second time');
+
+  r.hostAdminMfaRecordStep(a.key, 42);
+  assert.equal(r.findAdminByKey(a.key).mfa.lastStep, 42);
+
+  r.hostAdminMfaSpendRecovery(a.key, 'hash-1');
+  const afterSpend = r.findAdminByKey(a.key);
+  assert.deepEqual(afterSpend.mfa.recovery, ['hash-2']);
+  assert.equal(afterSpend.mfa.version, 2, 'spending a recovery code bumps version too');
+
+  r.hostAdminMfaDisable(a.key);
+  assert.equal(r.findAdminByKey(a.key).mfa, null);
+  assert.equal(r.listAdmins()[0].mfaEnrolled, false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 console.log(`check-host-registry: ${n} groups OK`);
