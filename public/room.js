@@ -2284,11 +2284,11 @@ function hangUp() {
   setNoCall(true);
 }
 function setNoCall(off) {
-  $('conference').classList.toggle('no-call', off);
+  $('conference').classList.toggle('call-off', off); // the section's state; .no-call is the note laid over the tiles
   $('no-call').hidden = !off;
   const h = $('hangup');
   h.classList.toggle('danger', !off);
-  h.classList.toggle('join', off);
+  h.classList.toggle('dial', off);
   h.title = off ? 'Rejoin the call' : 'Leave the call (you stay in the space)';
   h.querySelector('i').className = off ? 'fa-solid fa-phone fa-fw' : 'fa-solid fa-phone-slash fa-fw';
 }

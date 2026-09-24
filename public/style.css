@@ -2161,7 +2161,7 @@ a.crumb-here:hover {
 }
 
 /* After Hang up: the phone turns green to dial back in, the pane says so, and the rest of the toolbar waits. */
-.fbtn.join {
+.fbtn.dial {
   background: var(--ok);
   border-color: var(--ok);
   color: #fff;
@@ -2185,7 +2185,7 @@ a.crumb-here:hover {
   opacity: 0.7;
 }
 
-.module-video.no-call .fbtn:not(#hangup):not(#floatbar-more) {
+.module-video.call-off .fbtn:not(#hangup):not(#floatbar-more) {
   opacity: 0.4;
   pointer-events: none;
 }
