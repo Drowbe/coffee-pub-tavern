@@ -62,6 +62,13 @@ const {
   TAVERN_AI_KEY = '', // deprecated: use AI_KEY (used to be an environment's own key; it is the host's now)
   AI_OPENAI_KEY = '',
   AI_ANTHROPIC_KEY = '',
+  // Self-serve and billing (plan-tenants.md, "Phase 5"): SIGNUP gates POST /api/product/signup ('on' by default
+  // wherever there is a BASE_DOMAIN to sign up an environment at); BILLING_SECRET signs the billing webhook
+  // (x-billing-signature, HMAC-SHA256 of the raw body) -- unset, the webhook route answers 404, same as a
+  // feature that was never turned on. A plan's own checkout URL is BILLING_CHECKOUT_<PLAN ID>, read directly off
+  // process.env where it is used (the plan id is dynamic, host-configured, so it can't be named here).
+  SIGNUP = 'on',
+  BILLING_SECRET = '',
 } = process.env;
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
@@ -70,6 +77,12 @@ const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
 const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
+const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP !== 'off';
+// BILLING_CHECKOUT_<PLAN ID>, e.g. BILLING_CHECKOUT_PRO for the plan "pro"; none set means that plan is not
+// sold online (plan-tenants.md, "Phase 5").
+function checkoutUrlFor(planId) {
+  return process.env[`BILLING_CHECKOUT_${String(planId).toUpperCase().replace(/[^A-Z0-9]/g, '_')}`] || null;
+}
 
 const VERSION = `v${require('../package.json').version} (${String(TAVERN_REVISION).slice(0, 7)})`;
 
@@ -631,7 +644,10 @@ function guestSvg() {
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
-app.use(express.json({ limit: '64kb' }));
+// verify stashes the exact bytes received, alongside the parsed req.body -- the billing webhook's signature
+// (plan-tenants.md, "Phase 5") is an HMAC over those bytes, not a re-serialization of the parsed object, which
+// would not reliably reproduce what the sender actually signed (key order, whitespace).
+app.use(express.json({ limit: '64kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 const publicDir = path.join(__dirname, '..', 'public');
 const clientDist = path.join(__dirname, '..', 'node_modules', 'livekit-client', 'dist');
@@ -911,7 +927,34 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
 });
 
 hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
-  res.json({ baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null });
+  res.json({
+    baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null,
+    plans: hostRegistry.plansCatalog(), signup: signupEnabled, billingSecretSet: Boolean(BILLING_SECRET),
+  });
+});
+// The plan catalog (plan-tenants.md, "Phase 5"): the console's Plans panel edits a plan's name and its five caps;
+// PUT replaces the whole catalog (the same shape GET's own `plans` field is), free always kept present regardless
+// of what is sent.
+hostRouter.put('/api/host/plans', requireHostAdmin, (req, res) => {
+  res.json({ plans: hostRegistry.setPlansCatalog(req.body || {}) });
+});
+// Provider-agnostic billing webhook: a provider's own format is adapted into this shape outside the app (a
+// small relay), which is what keeps every provider's own card handling out of it (plan-tenants.md, "Phase 5").
+// No host-admin session -- the sender is never signed in here -- so this route sits outside requireHostAdmin
+// entirely and authenticates by signature alone, over the exact bytes received (req.rawBody, see express.json's
+// verify above), never a re-serialization of the parsed body.
+hostRouter.post('/api/host/billing', (req, res) => {
+  if (!BILLING_SECRET) return res.status(404).json({ error: 'not found' });
+  const expected = crypto.createHmac('sha256', BILLING_SECRET).update(req.rawBody || Buffer.alloc(0)).digest('hex');
+  const given = Buffer.from(String(req.get('x-billing-signature') || ''), 'hex');
+  const wanted = Buffer.from(expected, 'hex');
+  if (given.length !== wanted.length || !crypto.timingSafeEqual(given, wanted)) return res.status(401).json({ error: 'bad signature' });
+  try {
+    const tenant = hostRegistry.applyBillingEvent(String(req.body?.slug || ''), String(req.body?.plan || ''), String(req.body?.event || ''));
+    res.json({ tenant });
+  } catch (err) {
+    sendHostError(err, res);
+  }
 });
 
 // The host's own managed AI service (documentation/plans/plan-tenants.md, "Managed AI, per company"), above
@@ -1107,7 +1150,8 @@ hostRouter.delete('/api/host/admins/:key', requireHostAdmin, (req, res) => {
 // ever reaches it through here anyway); the main app's own copy is registered after the resolver below, not
 // here, so an old-base-domain request still 301s instead of this one route quietly bypassing that.
 function productInfo(_req, res) {
-  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION });
+  const plans = hostRegistry ? Object.entries(hostRegistry.plansCatalog()).map(([id, p]) => ({ id, name: p.name, caps: p.caps, checkoutUrl: checkoutUrlFor(id) })) : [];
+  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION, signup: signupEnabled, plans });
 }
 hostRouter.get('/api/product', productInfo);
 // One environment's public name, for the product page's own Sign in (a slug is an address already, so confirming
@@ -1167,7 +1211,7 @@ if (BASE_DOMAIN) {
     // same as an unknown subdomain.
     if (host === BASE_DOMAIN) {
       if (req.path === '/') return res.sendFile(page('landing.html'));
-      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/favicon.ico', '/api/product', '/api/product/environment', '/api/product/environments'];
+      const BARE_BASE_PATHS = ['/landing.css', '/landing.js', '/style.css', '/theme.css', '/img/site/icon', '/favicon.ico', '/api/product', '/api/product/environment', '/api/product/environments', '/api/product/signup'];
       if (BARE_BASE_PATHS.includes(req.path) || req.path.startsWith('/fa/') || req.path.startsWith('/assets/images/brand/')) return next();
       return res.status(404).type('text').send('not found');
     }
@@ -1184,6 +1228,28 @@ if (BASE_DOMAIN) {
 app.get('/api/product', productInfo);
 app.get('/api/product/environment', productEnvironment);
 app.get('/api/product/environments', productEnvironments);
+// Sign-up at the bare base domain (plan-tenants.md, "Phase 5"): always the free plan -- any other named plan
+// needs billing first, so the sign-up form only ever offers it as the plan to move to afterwards, through the
+// checkout link, never straight from this route. Rate-limited (five an hour per address) the same way a login
+// is, just counting every attempt rather than only failed ones.
+const signupLimiter = new auth.LoginLimiter(5, 3600000);
+app.post('/api/product/signup', (req, res) => {
+  if (!BASE_DOMAIN) return res.status(404).json({ error: 'not found' });
+  if (!signupEnabled) return res.status(403).json({ error: CONTACT_EMAIL ? `sign-up is off; write to ${CONTACT_EMAIL} instead` : 'sign-up is off' });
+  const ip = req.ip || 'unknown';
+  if (signupLimiter.blocked(ip)) return res.status(429).json({ error: 'too many attempts, try again in a bit' });
+  signupLimiter.fail(ip);
+  try {
+    const owner = req.body?.owner;
+    if (!owner?.login || !owner?.password) throw new HostError('an owner login and password are required');
+    const free = hostRegistry.plansCatalog().free;
+    const tenant = hostRegistry.addTenant({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
+    environmentFor(tenant.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
+    res.status(201).json({ url: `${auth.isSecure(req) ? 'https' : 'http'}://${tenant.slug}.${BASE_DOMAIN}/` });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
 
 // Pages ----------------------------------------------------------------------
 
@@ -3826,6 +3892,10 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'server error' });
 });
+
+// The grace: a tenant pastDue for 14 days is degraded to the free plan once an hour, never deleted
+// (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no tenants to sweep.
+if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 
 app.listen(Number(PORT), () => {
   if (!BASE_DOMAIN) {

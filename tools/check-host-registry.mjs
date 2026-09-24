@@ -51,7 +51,7 @@ test('tenants: add, find, update, remove', () => {
   const t = r.addTenant({ slug: 'Acme', name: 'Acme Adventures' });
   assert.equal(t.slug, 'acme'); // cleaned
   assert.equal(t.status, 'active');
-  assert.deepEqual(t.plan, { modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null });
+  assert.deepEqual(t.plan, { name: null, modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null });
   assert.throws(() => r.addTenant({ slug: 'acme', name: 'Again' }), (e) => e instanceof HostError && e.status === 409);
   assert.deepEqual(r.findTenant('acme'), t);
   assert.equal(r.findTenant('nope'), null);
@@ -167,6 +167,63 @@ test('previousBaseDomains: set from a comma-separated string or an array, dedupl
   assert.deepEqual(r.previousBaseDomains(), ['fresh.example.com']);
   r.setPreviousBaseDomains('');
   assert.deepEqual(r.previousBaseDomains(), []);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the plan catalog always has a free entry, even from nothing or a bad one', () => {
+  const dir = freshDir();
+  const r = new HostRegistry(dir);
+  assert.deepEqual(r.plansCatalog(), { free: { name: 'Free', caps: { modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null } } });
+  const set = r.setPlansCatalog({ pro: { name: 'Pro', caps: { modules: 'all', members: 50, storageBytes: 1000, aiCallsPerMonth: 500, calls: 5 } } });
+  assert.ok(set.free, 'free is synthesized back in even when left out of a PUT');
+  assert.deepEqual(set.pro.caps, { modules: 'all', members: 50, storageBytes: 1000, aiCallsPerMonth: 500, calls: 5 });
+  assert.deepEqual(r.setPlansCatalog(null), { free: { name: 'Free', caps: { modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null } } });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('billing: paid takes the named plan from the catalog, lapsed/cancelled start the grace once', () => {
+  const dir = freshDir();
+  const r = new HostRegistry(dir);
+  r.addTenant({ slug: 'acme', name: 'Acme' });
+  r.setPlansCatalog({ pro: { name: 'Pro', caps: { modules: 'all', members: 50, storageBytes: null, aiCallsPerMonth: null, calls: 5 } } });
+
+  const paid = r.applyBillingEvent('acme', 'pro', 'paid');
+  assert.equal(paid.status, 'active');
+  assert.deepEqual(paid.plan, { name: 'pro', modules: 'all', members: 50, storageBytes: null, aiCallsPerMonth: null, calls: 5 });
+
+  const lapsed = r.applyBillingEvent('acme', 'pro', 'lapsed');
+  assert.equal(lapsed.status, 'pastDue');
+  assert.ok(lapsed.pastDueSince);
+  const again = r.applyBillingEvent('acme', 'pro', 'lapsed');
+  assert.equal(again.pastDueSince, lapsed.pastDueSince, 'a second lapsed event does not restart the grace clock');
+
+  assert.throws(() => r.applyBillingEvent('acme', 'nope', 'paid'), HostError);
+  assert.throws(() => r.applyBillingEvent('acme', 'pro', 'bogus'), HostError);
+  assert.throws(() => r.applyBillingEvent('nope', 'pro', 'paid'), (e) => e instanceof HostError && e.status === 404);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the grace: a tenant pastDue past 14 days is degraded to free, one still within it is left alone', () => {
+  const dir = freshDir();
+  const r = new HostRegistry(dir);
+  r.addTenant({ slug: 'stale', name: 'Stale' });
+  r.addTenant({ slug: 'fresh', name: 'Fresh' });
+  r.setPlansCatalog({ free: { name: 'Free', caps: { modules: 'all', members: 3, storageBytes: null, aiCallsPerMonth: null, calls: null } } });
+  r.applyBillingEvent('stale', 'free', 'lapsed');
+  r.applyBillingEvent('fresh', 'free', 'lapsed');
+  const staleTenant = r.data.tenants.find((t) => t.slug === 'stale');
+  staleTenant.pastDueSince = new Date(Date.now() - 15 * 86400000).toISOString();
+  r.save();
+
+  r.degradeStalePastDue();
+  const stale = r.findTenant('stale');
+  assert.equal(stale.status, 'active');
+  assert.equal(stale.plan.name, 'free');
+  assert.equal(stale.pastDueSince, null);
+  assert.ok(stale.degradedAt);
+  const fresh = r.findTenant('fresh');
+  assert.equal(fresh.status, 'pastDue', 'still inside its 14-day grace, untouched');
+  assert.equal(fresh.degradedAt, null);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

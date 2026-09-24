@@ -40,14 +40,43 @@ function cleanSlug(value) {
 // capped yet). The rest are caps a later phase enforces; null means uncapped. Nothing here is billing -- just what
 // is stored and shown in phase 1.
 const STATUSES = ['active', 'pastDue', 'suspended'];
-const defaultPlan = () => ({ modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null });
+const defaultCaps = () => ({ modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null });
+const defaultPlan = () => ({ name: null, ...defaultCaps() });
 
+// The five caps alone -- shared between a tenant's own plan (cleanPlan, below) and a plans-catalog entry
+// (cleanPlansCatalog, "Phase 5: self-serve, plans and billing"), which carries the same caps under its own name.
+function cleanCaps(raw, fallback) {
+  const base = fallback || defaultCaps();
+  if (!raw || typeof raw !== 'object') return base;
+  const modules = raw.modules === 'all' ? 'all' : Array.isArray(raw.modules) ? [...new Set(raw.modules.filter((m) => typeof m === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(m)))].slice(0, 200) : base.modules;
+  const cap = (n, was) => (n === null ? null : Number.isFinite(n) && n >= 0 ? Math.round(n) : was);
+  return { modules, members: cap(raw.members, base.members), storageBytes: cap(raw.storageBytes, base.storageBytes), aiCallsPerMonth: cap(raw.aiCallsPerMonth, base.aiCallsPerMonth), calls: cap(raw.calls, base.calls) };
+}
+
+// A tenant's own plan: the catalog key it was copied from (`name`, null for one hand-set rather than assigned
+// from the catalog) beside its own caps, which may since have been adjusted per tenant (plan-tenants.md,
+// "Phase 5": "copied from the catalog at assignment and may be adjusted per tenant").
 function cleanPlan(raw, fallback) {
   if (!raw || typeof raw !== 'object') return fallback || defaultPlan();
-  const modules = raw.modules === 'all' ? 'all' : Array.isArray(raw.modules) ? [...new Set(raw.modules.filter((m) => typeof m === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(m)))].slice(0, 200) : (fallback || defaultPlan()).modules;
-  const cap = (n, was) => (n === null ? null : Number.isFinite(n) && n >= 0 ? Math.round(n) : was);
   const base = fallback || defaultPlan();
-  return { modules, members: cap(raw.members, base.members), storageBytes: cap(raw.storageBytes, base.storageBytes), aiCallsPerMonth: cap(raw.aiCallsPerMonth, base.aiCallsPerMonth), calls: cap(raw.calls, base.calls) };
+  const name = raw.name === undefined ? base.name : typeof raw.name === 'string' ? cleanText(raw.name, 40) || null : null;
+  return { name, ...cleanCaps(raw, base) };
+}
+
+// The host's own plan catalog (plan-tenants.md, "Phase 5"): { <id>: { name, caps } }, free always present so a
+// self-serve sign-up and the degrade sweep always have somewhere to land. Lenient, like cleanHostAi: a bad
+// entry just drops that one plan rather than crashing the registry.
+const PLAN_ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
+function cleanPlansCatalog(raw) {
+  const out = {};
+  if (raw && typeof raw === 'object') {
+    for (const [id, entry] of Object.entries(raw)) {
+      if (!PLAN_ID_RE.test(id) || !entry || typeof entry !== 'object') continue;
+      out[id] = { name: cleanText(entry.name, 40) || id, caps: cleanCaps(entry.caps) };
+    }
+  }
+  if (!out.free) out.free = { name: 'Free', caps: defaultCaps() };
+  return out;
 }
 
 // The host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per company"):
@@ -112,6 +141,9 @@ function cleanTenantRecord(raw) {
     plan: cleanPlan(raw.plan),
     status: STATUSES.includes(raw.status) ? raw.status : 'active',
     pastDueSince: typeof raw.pastDueSince === 'string' ? raw.pastDueSince : null,
+    // Set once, by the hourly sweep, the moment a pastDue tenant is degraded to the free plan's caps
+    // (plan-tenants.md, "Phase 5: the grace") -- never cleared except by a fresh "paid" billing event.
+    degradedAt: typeof raw.degradedAt === 'string' ? raw.degradedAt : null,
     // Asked for by the environment's own admin (POST /api/environment/delete-request), carried out by a host
     // admin on the console -- never by itself (plan-tenants.md, "Phase 2").
     deleteRequestedAt: typeof raw.deleteRequestedAt === 'string' ? raw.deleteRequestedAt : null,
@@ -156,6 +188,7 @@ class HostRegistry {
       tenants: Array.isArray(raw.tenants) ? raw.tenants.map(cleanTenantRecord).filter(Boolean) : [],
       ai: cleanHostAi(raw.ai),
       shared: cleanSharedFolders(raw.shared),
+      plans: cleanPlansCatalog(raw.plans),
     };
   }
 
@@ -318,6 +351,60 @@ class HostRegistry {
     const tenant = this.data.tenants.find((t) => t.slug === slug);
     if (!tenant) return 0;
     return tenant.usage.aiMonth === new Date().toISOString().slice(0, 7) ? tenant.usage.aiCalls : 0;
+  }
+
+  // the plan catalog and billing (plan-tenants.md, "Phase 5: self-serve, plans and billing") -------------------
+  plansCatalog() {
+    return Object.fromEntries(Object.entries(this.data.plans).map(([id, p]) => [id, { name: p.name, caps: { ...p.caps } }]));
+  }
+
+  setPlansCatalog(raw) {
+    this.data.plans = cleanPlansCatalog(raw);
+    this.save();
+    return this.plansCatalog();
+  }
+
+  // The webhook's three events (POST /api/host/billing, signature checked by the caller): "paid" takes the
+  // named plan's caps from the catalog (a snapshot, same as any assignment -- the catalog may move on without
+  // touching an already-paid tenant until its next event); "lapsed" and "cancelled" both start the same 14-day
+  // grace (the sweep below degrades it once that runs out), the grace clock only starting once, not restarted
+  // by a second webhook call for a tenant already pastDue.
+  applyBillingEvent(slug, planId, event) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) throw new HostError('no such environment', 404);
+    if (event === 'paid') {
+      const entry = this.data.plans[planId];
+      if (!entry) throw new HostError(`no such plan: ${planId}`);
+      tenant.plan = { name: planId, ...entry.caps };
+      tenant.status = 'active';
+      tenant.pastDueSince = null;
+      tenant.degradedAt = null;
+    } else if (event === 'lapsed' || event === 'cancelled') {
+      if (tenant.status !== 'pastDue') tenant.pastDueSince = new Date().toISOString();
+      tenant.status = 'pastDue';
+    } else {
+      throw new HostError(`event must be paid, lapsed or cancelled`);
+    }
+    this.save();
+    return { ...tenant, plan: { ...tenant.plan } };
+  }
+
+  // The grace: a tenant pastDue for 14 days is degraded to the free plan's caps rather than left capped at
+  // whatever it lapsed from -- nothing about billing ever deletes anything. Called once an hour by index.js.
+  degradeStalePastDue(graceMs = 14 * 86400000) {
+    const now = Date.now();
+    let changed = false;
+    for (const tenant of this.data.tenants) {
+      if (tenant.status !== 'pastDue' || !tenant.pastDueSince) continue;
+      if (now - new Date(tenant.pastDueSince).getTime() < graceMs) continue;
+      const free = this.data.plans.free;
+      tenant.plan = { name: 'free', ...free.caps };
+      tenant.status = 'active';
+      tenant.pastDueSince = null;
+      tenant.degradedAt = new Date().toISOString();
+      changed = true;
+    }
+    if (changed) this.save();
   }
 
   // Only the registry entry -- the directory move (to tenants-deleted/) is the caller's job, since this class
