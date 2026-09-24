@@ -12,7 +12,7 @@ const { EventEmitter } = require('events');
 
 const SCOPES = ['server', 'room', 'person'];
 const { cleanRows } = require('./setting-list');
-const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color'];
+const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color', 'note'];
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 
 class SettingError extends Error {
@@ -110,7 +110,9 @@ class ModuleSettings extends EventEmitter {
   values(manifest, scope, ctx) {
     const stored = this.bucket(manifest.id, scope, ctx);
     const out = {};
-    for (const def of manifest.settings || []) if (def.scope === scope) out[def.key] = def.key in stored ? stored[def.key] : def.default;
+    // A note carries no value at all -- left out of `out` entirely, so it answers with no `value` wherever
+    // this feeds a page (the def itself still comes through separately, for the label and the hint).
+    for (const def of manifest.settings || []) if (def.scope === scope && def.type !== 'note') out[def.key] = def.key in stored ? stored[def.key] : def.default;
     for (const def of manifest.settings || []) {
       // A choice that grew out of another setting starts as the option that keeps what was already set.
       const dif = def.scope === scope && def.type === 'choice' && def.defaultIfSet;
@@ -137,6 +139,7 @@ class ModuleSettings extends EventEmitter {
     for (const [key, raw] of Object.entries(values && typeof values === 'object' ? values : {})) {
       const def = defs.find((d) => d.key === key);
       if (!def) throw new SettingError(`${manifest.name} has no ${scope} setting "${key}"`);
+      if (def.type === 'note') continue; // carries no value -- nothing to validate or store
       clean[key] = cleanValue(def, raw);
     }
     const bucket = this.bucket(manifest.id, scope, ctx, true);

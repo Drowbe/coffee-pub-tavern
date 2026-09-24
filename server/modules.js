@@ -224,7 +224,7 @@ function cleanBus(rawEvents, rawActions, id) {
 }
 
 // The settings a module declares: up to 40, each with a scope (who chooses it), a type and a default.
-const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color'];
+const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color', 'note'];
 const SETTING_SCOPES = ['server', 'room', 'person'];
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 // A path a keyed surface (surfaces.keyed.path) may not claim: the host's own top-level routes, kept here so a
@@ -331,6 +331,12 @@ function cleanSettings(raw) {
       def.default = type === 'files' ? [] : '';
     } else if (type === 'color') {
       def.default = typeof r.default === 'string' && COLOR_RE.test(r.default.trim()) ? r.default.trim().toLowerCase() : '#000000';
+    } else if (type === 'note') {
+      // A label and a hint among the other settings, with no control and no value of its own -- a way for a
+      // module to say where something is set up (a search a sibling module owns, e.g.) without a value to read,
+      // validate or store. Always server-level display, whatever scope the manifest asks for or none at all.
+      if (r.scope !== undefined && r.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a note, so its scope must be "server"`);
+      def.scope = 'server';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
       def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';
