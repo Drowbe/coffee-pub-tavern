@@ -10,8 +10,9 @@ import { api } from '/brand.js';
 const $ = (id) => document.getElementById(id);
 
 export function wireRegionCut({ base, onDone, sourceHint = 'the world map address is not set: fill it in above and save it first' }) {
-  // A failure that is really the missing address, in either of the server's wordings, told the page's way.
-  const explain = (message) => (/world (map|file) address/i.test(message || '') ? sourceHint : message || 'the cut failed');
+  // A failure that is really the missing address (not one unreachable or answering "not found"), in either of the
+  // server's wordings, told the page's way.
+  const explain = (message) => (/world (map|file) address is not set/i.test(message || '') ? sourceHint : message || 'the cut failed');
   const box = $('cfg-region');
   box.hidden = false;
   const form = $('region-find-form');
