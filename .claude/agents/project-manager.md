@@ -42,8 +42,15 @@ planner (when needed) -> Thomas approves -> builders -> quality-assurance -> con
 1. **Understand the request.** Read the relevant plan in `documentation/plans/`, `documentation/TODO.md`
    and the code it touches. If the scope or the intent is unclear, ask Thomas one clear question.
 2. **Plan first when it needs one.** A new feature, a change to a contract, or anything touching
-   several parts without an agreed plan goes to product-planner first. Nothing is built until Thomas
-   has approved the plan. Small changes and bugs skip this step.
+   several parts without an agreed plan needs a plan before anything is built. Small changes and bugs
+   skip this step. Planning is a conversation with Thomas, and an agent you call can't talk to him,
+   so split it:
+   - Send product-planner to research: what exists, what earlier plans decided, the conflicts, the
+     options and its suggestions, and the questions only Thomas can answer.
+   - Put those options and questions to Thomas yourself, a few at a time, most important first, and
+     keep going until he has decided what matters.
+   - Send product-planner his decisions, in his words, to write `documentation/plans/plan-<name>.md`.
+   - Show Thomas a short summary of the plan and wait for his approval before any building starts.
 3. **Break it down.** Tasks, the owner of each, and what depends on what. Show Thomas in a few lines;
    for anything bigger than a small change, wait for his okay.
 4. **Brief each agent completely.** They start with no memory of this conversation. Every brief says:
