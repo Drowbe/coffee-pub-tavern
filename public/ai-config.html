@@ -44,6 +44,9 @@
           <label data-ai-for="compatible" id="ai-address-row">Address <span class="hint">Your own server's address (for example http://localhost:11434 for Ollama), or another company's service that speaks the OpenAI interface. It should be the server's root or end in /v1.</span>
             <input id="ai-address" type="url" maxlength="300" placeholder="https://" autocomplete="off">
           </label>
+          <label data-ai-for="anthropic" id="ai-workspace-row">Workspace id <span class="hint">Only for a key made at the organisation level, which Anthropic then asks to name a workspace: the id from the Anthropic console. A key made inside a workspace needs nothing here.</span>
+            <input id="ai-workspace" type="text" maxlength="100" placeholder="wrkspc_..." autocomplete="off" spellcheck="false">
+          </label>
           <div class="ai-key" data-ai-for="openai anthropic compatible">
             <div class="ai-label">Key <span class="hint" id="ai-key-optional" hidden>(optional for a model on your own network)</span></div>
             <div class="ai-key-row">

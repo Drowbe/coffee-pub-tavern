@@ -93,7 +93,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     sel.replaceChildren(new Option('Loading models...', ''));
     $('ai-models-hint').textContent = '';
     try {
-      const body = { provider, address: $('ai-address').value.trim() };
+      const body = { provider, address: $('ai-address').value.trim(), workspace: provider === 'anthropic' ? $('ai-workspace').value.trim() : '' };
       if (aiKeyMode === 'replace' && $('ai-key').value) body.key = $('ai-key').value;
       const { models: list = [] } = await api('POST', models, body);
       if (mine !== aiModelsToken) return;
@@ -123,6 +123,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     }
     $('ai-provider').value = ai.provider === 'openai' && ai.address && !/api\.openai\.com/.test(ai.address) ? 'compatible' : (ai.provider || 'none');
     $('ai-address').value = ai.address || '';
+    $('ai-workspace').value = ai.workspace || ''; // an organisation-level Anthropic key must name its workspace
     $('ai-model').value = ai.model || '';
     if (cap) $('ai-cap').value = String(ai.monthlyTokens || 0);
     $('ai-key').value = '';
@@ -165,6 +166,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
   if (source) $('ai-source').addEventListener('change', () => { syncAiPanel(); loadAiModels(); syncAiEnable(); });
   $('ai-provider').addEventListener('change', () => { aiManual = false; $('ai-model-select').replaceChildren(); syncAiPanel(); loadAiModels(); });
   $('ai-address').addEventListener('change', loadAiModels);
+  $('ai-workspace').addEventListener('change', loadAiModels);
   $('ai-models-refresh').addEventListener('click', loadAiModels);
   $('ai-key').addEventListener('change', loadAiModels);
   $('ai-model-manual').addEventListener('click', () => { aiManual = true; $('ai-model').value = $('ai-model-select').value || aiState.model || ''; $('ai-model-manual').hidden = true; syncAiPanel(); $('ai-model').focus(); });
@@ -177,7 +179,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     } else {
       const provider = $('ai-provider').value;
       const model = aiManual ? $('ai-model').value.trim() : $('ai-model-select').value;
-      body = { provider, address: provider === 'compatible' ? $('ai-address').value.trim() : '', model: provider === 'none' ? '' : model };
+      body = { provider, address: provider === 'compatible' ? $('ai-address').value.trim() : '', workspace: provider === 'anthropic' ? $('ai-workspace').value.trim() : '', model: provider === 'none' ? '' : model };
       if (source) body.source = 'custom';
       if (aiKeyMode === 'replace' && $('ai-key').value) body.key = $('ai-key').value;
       if (aiKeyMode === 'clear') body.clearKey = true;

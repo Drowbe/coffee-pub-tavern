@@ -80,6 +80,8 @@ function aiServiceRow(c, s) {
   offered.classList.toggle('on', Boolean(s.offered));
   slot(form, 'address-row').hidden = c.id !== 'compatible';
   form.elements.address.value = s.address || '';
+  slot(form, 'workspace-row').hidden = c.id !== 'anthropic'; // an organisation-level key must name its workspace
+  form.elements.workspace.value = s.workspace || '';
   // The key: keep what is saved, replace it, or clear it; the page never sees the key itself.
   let keyMode = 'keep';
   const keyState = slot(form, 'key-state');
@@ -114,7 +116,7 @@ function aiServiceRow(c, s) {
     sel.replaceChildren(new Option('Loading models...', ''));
     hint.textContent = '';
     try {
-      const body = { provider: c.id, address: form.elements.address.value.trim() };
+      const body = { provider: c.id, address: form.elements.address.value.trim(), workspace: c.id === 'anthropic' ? form.elements.workspace.value.trim() : '' };
       if (keyMode === 'replace' && keyInput.value) body.key = keyInput.value;
       const { models: list = [] } = await api('POST', '/api/host/ai/models', body);
       sel.replaceChildren(...list.map((m) => new Option(m.name || m.id, m.id)));
@@ -132,11 +134,12 @@ function aiServiceRow(c, s) {
   manualBtn.addEventListener('click', () => { manual = true; text.value = sel.value || s.model || ''; manualBtn.hidden = true; syncModel(); text.focus(); });
   refreshBtn.addEventListener('click', loadModels);
   form.elements.address.addEventListener('change', loadModels);
+  form.elements.workspace.addEventListener('change', loadModels);
   keyInput.addEventListener('change', loadModels);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const model = manual ? text.value.trim() : sel.value;
-    const body = { provider: c.id, model, address: c.id === 'compatible' ? form.elements.address.value.trim() : '' };
+    const body = { provider: c.id, model, address: c.id === 'compatible' ? form.elements.address.value.trim() : '', workspace: c.id === 'anthropic' ? form.elements.workspace.value.trim() : '' };
     if (keyMode === 'replace' && keyInput.value) body.key = keyInput.value;
     if (keyMode === 'clear') body.clearKey = true;
     say(slot(form, 'status'), 'saving...');

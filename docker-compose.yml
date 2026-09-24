@@ -66,6 +66,7 @@ services:
       # enough, the model is chosen for you and can be changed on the host console. Either or both.
       # AI_OPENAI_KEY: "sk-..."
       # AI_ANTHROPIC_KEY: "sk-ant-..."
+      # AI_ANTHROPIC_WORKSPACE: "wrkspc_..." # only for a key made at the organisation level; Anthropic then asks which workspace
       # Two-step sign-in (a code from an authenticator app). ENABLE_MFA says whether the server offers it at all;
       # each environment's admin then chooses to require it, and each person chooses to use it. If an admin is
       # locked out, turn the bypass on, sign in, reset the factor on the profile, turn the bypass off again.

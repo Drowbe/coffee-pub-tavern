@@ -167,9 +167,16 @@
             <strong data-slot="name"></strong>
             <span class="pill" data-slot="offered"></span>
           </div>
-          <label class="ai-service-address" data-slot="address-row" hidden>Address <span class="hint">the server's root or ending in /v1</span>
-            <input name="address" type="url" maxlength="300" placeholder="https://">
-          </label>
+          <div class="ai-key" data-slot="address-row" hidden>
+            <label class="ai-label" for="ai-address-compatible">Address</label>
+            <input id="ai-address-compatible" name="address" type="url" maxlength="300" placeholder="https://">
+            <p class="hint">The server's root, or ending in /v1.</p>
+          </div>
+          <div class="ai-key" data-slot="workspace-row" hidden>
+            <label class="ai-label" for="ai-workspace-anthropic">Workspace id</label>
+            <input id="ai-workspace-anthropic" name="workspace" type="text" maxlength="100" placeholder="wrkspc_..." autocomplete="off" spellcheck="false">
+            <p class="hint">Only for a key made at the organisation level in the Anthropic console, which Anthropic then asks to name a workspace. A key made inside a workspace needs nothing here.</p>
+          </div>
           <div class="ai-key">
             <div class="ai-label">Key</div>
             <div class="ai-key-row">

@@ -5539,3 +5539,6 @@ body.at-table .topbar.menu-open .links .module-nav-link {
 .shared-address input { flex: 1; min-width: 0; }
 .shared-address .btn { flex: none; }
 .shared-address .hint { margin: 2px 0 0; }
+
+/* A managed AI service's address or workspace id on the host console: the field takes the row, like the key does. */
+.ai-key > input[type="text"], .ai-key > input[type="url"] { width: 100%; box-sizing: border-box; }
