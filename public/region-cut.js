@@ -3,11 +3,15 @@
 // where the module's folder is the admin's own) and the host console (a host with environments, where the folder is the
 // host's and only a host admin cuts). Both pages carry the same markup with the same ids (module-config.html's
 // #cfg-region block). `base` is the region-cut API root (`.../region-cut`); `onDone(name)` runs once a cut has landed.
+// The server's own sentence for a missing world map address says only that it is not set; the page says where to set
+// it, since on both pages the address field sits above the cutter.
 import { api } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 
-export function wireRegionCut({ base, onDone }) {
+export function wireRegionCut({ base, onDone, sourceHint = 'the world map address is not set: fill it in above and save it first' }) {
+  // A failure that is really the missing address, in either of the server's wordings, told the page's way.
+  const explain = (message) => (/world (map|file) address/i.test(message || '') ? sourceHint : message || 'the cut failed');
   const box = $('cfg-region');
   box.hidden = false;
   const form = $('region-find-form');
@@ -124,7 +128,7 @@ export function wireRegionCut({ base, onDone }) {
       setEstimateStatus(`About ${est.tiles} tile${est.tiles === 1 ? '' : 's'}, ${size}.`, false);
       cutBtn.disabled = false;
     } catch (err) {
-      setEstimateStatus(err.message, true);
+      setEstimateStatus(explain(err.message), true);
       cutBtn.disabled = true;
     }
     estimateBtn.disabled = false;
@@ -151,7 +155,7 @@ export function wireRegionCut({ base, onDone }) {
       progressMessage.textContent = 'Starting…';
       follow(out.id, name);
     } catch (err) {
-      setEstimateStatus(err.message, true);
+      setEstimateStatus(explain(err.message), true);
       cutBtn.disabled = false;
       estimateBtn.disabled = false;
     }
@@ -181,7 +185,7 @@ export function wireRegionCut({ base, onDone }) {
       try { message = JSON.parse(ev.data).error || message; } catch (err) { /* a connection error, not a server one */ }
       progress.hidden = true;
       confirmBox.hidden = false;
-      setEstimateStatus(message, true);
+      setEstimateStatus(explain(message), true);
       cutBtn.disabled = false;
       estimateBtn.disabled = false;
     });
