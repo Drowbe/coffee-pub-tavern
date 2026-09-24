@@ -414,7 +414,7 @@ $('plans-save').addEventListener('click', async () => {
   }
   if (!plans.free) plans.free = { name: 'Free', caps: { modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null } };
   try {
-    await api('PUT', '/api/host/plans', { plans });
+    await api('PUT', '/api/host/plans', plans); // the body is the catalog itself
     say($('plans-status'), 'saved');
     await load();
   } catch (err) { say($('plans-status'), err.message, true); }
