@@ -63,6 +63,8 @@ const {
   TAVERN_AI_KEY = '', // deprecated: use AI_KEY (used to be an environment's own key; it is the host's now)
   AI_OPENAI_KEY = '',
   AI_ANTHROPIC_KEY = '',
+  // An organisation-level Anthropic key needs its workspace id sent with every call (an id, not a secret).
+  AI_ANTHROPIC_WORKSPACE = '',
   // Self-serve and billing (plan-tenants.md, "Phase 5"): SIGNUP gates POST /api/product/signup -- off unless a
   // host explicitly opts in with SIGNUP=on, so a freshly upgraded host never offers public self-service by
   // surprise. BILLING_SECRET signs the billing webhook (x-billing-signature, HMAC-SHA256 of the raw body) --
@@ -237,6 +239,7 @@ function envSlot(provider) {
     key: (provider === 'openai' ? AI_OPENAI_KEY : provider === 'anthropic' ? AI_ANTHROPIC_KEY : '') || (fromOneCompanyForm ? aiKeyFromEnv : ''),
     model: fromOneCompanyForm ? AI_MODEL : '',
     address: provider === 'compatible' && fromOneCompanyForm ? AI_ADDRESS : '',
+    workspace: provider === 'anthropic' ? AI_ANTHROPIC_WORKSPACE : '',
   };
 }
 // One company's managed slot, combining what is saved (host.json, when there is one -- a single-environment
@@ -250,6 +253,7 @@ function managedSlot(provider) {
     model: (saved && saved.model) || env.model || '',
     key: (saved && saved.key) || '',
     address: provider === 'compatible' ? ((saved && saved.address) || env.address || '') : '',
+    workspace: provider === 'anthropic' ? ((saved && saved.workspace) || env.workspace || '') : '',
     envKey: env.key,
   };
 }
@@ -265,8 +269,8 @@ function managedAi() {
   }
   return offers.length ? offers : null;
 }
-// The same, for the host console: { provider, model, address, keySet, keyFromEnvironment, offered }, one row
-// per company, never a key.
+// The same, for the host console: { provider, model, address, workspace, keySet, keyFromEnvironment, offered },
+// one row per company, never a key.
 function hostAiServices() {
   return MANAGED_PROVIDERS.map((provider) => {
     const slot = managedSlot(provider);
@@ -275,6 +279,7 @@ function hostAiServices() {
       provider,
       model: offer ? offer.model : slot.model,
       address: slot.address,
+      workspace: slot.workspace, // an id, not a secret -- fine to show
       keySet: !!(slot.envKey || slot.key),
       keyFromEnvironment: !!slot.envKey,
       offered: !!offer,
@@ -1193,7 +1198,8 @@ hostRouter.post('/api/host/ai/models', requireHostAdmin, async (req, res) => {
     const provider = String(req.body?.provider || '');
     const slot = managedSlot(provider);
     const key = (typeof req.body?.key === 'string' && req.body.key.trim()) || slot.envKey || slot.key;
-    res.json({ models: await listModelsFor({ provider, address: req.body?.address ?? slot.address, key }) });
+    const workspace = typeof req.body?.workspace === 'string' ? req.body.workspace : slot.workspace;
+    res.json({ models: await listModelsFor({ provider, address: req.body?.address ?? slot.address, key, workspace }) });
   } catch (err) {
     sendAiError(err, res);
   }
@@ -3284,7 +3290,7 @@ function sendAiError(err, res) {
 app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView(), dependents: modules.aiDependents() }));
 app.post('/api/ai/models', requireAdmin, async (req, res) => {
   try {
-    res.json({ models: await ai.listModels({ provider: String(req.body?.provider || ''), address: req.body?.address, key: req.body?.key }) });
+    res.json({ models: await ai.listModels({ provider: String(req.body?.provider || ''), address: req.body?.address, key: req.body?.key, workspace: req.body?.workspace }) });
   } catch (err) {
     sendAiError(err, res);
   }

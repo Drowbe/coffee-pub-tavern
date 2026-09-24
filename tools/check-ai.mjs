@@ -11,7 +11,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const { Ai, AiError, buildPrompt, parseCards, cleanCard, parseTags, citedItems, ICONS, KINDS, MAX_CARDS } = createRequire(import.meta.url)('../server/ai.js');
+const { Ai, AiError, applyManagedFields, buildPrompt, parseCards, cleanCard, parseTags, citedItems, ICONS, KINDS, MAX_CARDS } = createRequire(import.meta.url)('../server/ai.js');
 
 let n = 0;
 const test = async (name, fn) => { await fn(); n += 1; };
@@ -24,7 +24,7 @@ const server = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
   req.on('end', () => {
-    sent.push({ url: req.url, auth: req.headers.authorization, key: req.headers['x-api-key'], body: body ? JSON.parse(body) : null });
+    sent.push({ url: req.url, auth: req.headers.authorization, key: req.headers['x-api-key'], workspace: req.headers['anthropic-workspace-id'], body: body ? JSON.parse(body) : null });
     res.setHeader('content-type', 'application/json');
     if (failNext && (req.url.startsWith('/v1/messages') || req.url.includes('/chat/completions'))) {
       const { status, body: errBody } = failNext;
@@ -55,7 +55,7 @@ await test('the setting: the key is kept and never shown', () => {
   // The view: the custom slot's fields, whether a key is set (never the key), and the source with the host's offer.
   const { source, managed, managedProvider, active, ...custom } = v;
   assert.deepEqual(active, { provider: 'compatible', model: 'local' }); // custom: the service in use is the custom slot
-  assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
+  assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', workspace: '', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
   assert.equal(managedProvider, '');
   assert.equal(source, 'custom'); // no host offer: an environment can only be custom
   assert.deepEqual(managed, { available: false, services: [] });
@@ -81,13 +81,18 @@ await test('the source: the host\'s managed service, or the environment\'s own',
   assert.equal(fresh.view().enabled, false); // enabling stays the environment's own step
   assert.equal(fresh.set({ enabled: true }).enabled, true);
   assert.equal(fresh.ready(), true);
-  assert.equal(fresh.set({ managedProvider: 'anthropic' }).enabled, false); // another company receives what people select
+  // Switching to another company that is also offered and ready stays enabled -- the author's own report:
+  // Managed Anthropic to Managed OpenAI, say, should not need re-enabling, only a company that ends up
+  // unready (nothing offered, no key) turns it off.
+  assert.equal(fresh.set({ managedProvider: 'anthropic' }).enabled, true);
   assert.equal(fresh.key(), 'host-key-2');
-  assert.equal(fresh.set({ source: 'custom' }).enabled, false);
+  assert.equal(fresh.set({ source: 'custom' }).enabled, false); // custom has nothing saved yet -- not ready
   assert.equal(fresh.view().source, 'custom');
   assert.equal(fresh.ready(), false); // custom with nothing set up
   assert.equal(fresh.view().active.provider, 'none');
-  assert.equal(fresh.set({ source: 'managed', managedProvider: 'openai' }).source, 'managed');
+  assert.equal(fresh.set({ source: 'managed', managedProvider: 'openai' }).enabled, false); // was off going in, ready or not it stays off -- "setting up does not turn AI on"
+  assert.equal(fresh.set({ enabled: true }).enabled, true);
+  assert.equal(fresh.set({ managedProvider: 'anthropic' }).enabled, true); // now on and switching between two ready companies again: stays on
   assert.throws(() => fresh.set({ managedProvider: 'compatible' }), /offer|host/i); // not offered
   const none = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {}, undefined, () => null);
   assert.equal(none.view().source, 'custom');
@@ -119,7 +124,31 @@ await test('a request: the frame, the numbered items, the key as a header, the t
   await b.run('summarise', items);
   assert.equal(sent.at(-1).url, '/v1/messages');
   assert.equal(sent.at(-1).key, 'ak');
+  assert.equal(sent.at(-1).workspace, undefined); // no workspace set: no header sent at all
   assert.equal(b.usageView().tokens, 42);
+
+  // An organisation-level Anthropic key needs its workspace id sent too; an id, not a secret, so it comes back
+  // from view() plainly. Other providers never send the header, whatever the setting holds.
+  assert.throws(() => b.set({ workspace: 'a workspace with spaces' }), /letters, digits/);
+  b.set({ workspace: 'ws_01ABCxyz' });
+  assert.equal(b.view().workspace, 'ws_01ABCxyz');
+  await b.run('summarise', items);
+  assert.equal(sent.at(-1).workspace, 'ws_01ABCxyz');
+  const openaiAgain = new Ai(fs.mkdtempSync(path.join(os.tmpdir(), 'ai-')), {});
+  openaiAgain.set({ enabled: true, provider: 'compatible', address, model: 'm', key: 'k', workspace: 'ignored-for-compatible' });
+  reply = 'ok';
+  await openaiAgain.run('summarise', items);
+  assert.equal(sent.at(-1).workspace, undefined); // never sent for a non-Anthropic provider
+});
+
+await test('the host\'s managed slot: a workspace id only for anthropic, kept and validated the same way', () => {
+  const anthropic = applyManagedFields('anthropic', { model: '', key: '' }, { model: 'c', key: 'ak', workspace: 'ws_01ABC' });
+  assert.equal(anthropic.workspace, 'ws_01ABC');
+  assert.throws(() => applyManagedFields('anthropic', { model: '', key: '' }, { workspace: 'has spaces' }), /letters, digits/);
+  const kept = applyManagedFields('anthropic', anthropic, { model: 'c2' }); // an unrelated change keeps it
+  assert.equal(kept.workspace, 'ws_01ABC');
+  const openai = applyManagedFields('openai', { model: '', key: '' }, { model: 'gpt-5', key: 'sk', workspace: 'ignored' });
+  assert.ok(!('workspace' in openai)); // no such field for a company that never uses it
 });
 
 await test('companies, migration and the model lists', async () => {
@@ -172,7 +201,7 @@ await test('the enable step', () => {
   assert.equal(a.set({ enabled: true }).enabled, true);
   assert.equal(a.ready(), true);
   assert.equal(a.set({ model: 'm2' }).enabled, true); // changing the model keeps it on
-  assert.equal(a.set({ provider: 'openai', key: 'k', model: 'gpt-4o' }).enabled, false); // another company: off again
+  assert.equal(a.set({ provider: 'openai', key: 'k', model: 'gpt-4o' }).enabled, true); // another company, ready at once (key and model given together): stays on
   assert.equal(a.set({ enabled: false }).enabled, false);
   // A setting from before the step, with a service chosen, counts as enabled.
   fs.writeFileSync(path.join(d, 'ai.json'), JSON.stringify({ provider: 'compatible', address, model: 'm', key: '' }));

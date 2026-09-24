@@ -42,6 +42,15 @@ const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'st
 
 const oneLine = (s, n) => String(s == null ? '' : s).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 const month = () => new Date().toISOString().slice(0, 7);
+// An organisation-level Anthropic key needs an anthropic-workspace-id header naming the workspace (an id, not a
+// secret -- fine to show on a page). Other providers ignore it.
+const WORKSPACE_RE = /^[A-Za-z0-9_-]{1,100}$/;
+function cleanWorkspace(raw) {
+  const w = String(raw ?? '').trim().slice(0, 100);
+  if (!w) return '';
+  if (!WORKSPACE_RE.test(w)) throw new AiError('a workspace id is letters, digits, underscore and dash only');
+  return w;
+}
 
 class AiError extends Error {
   constructor(message, status = 400) {
@@ -56,7 +65,7 @@ class AiError extends Error {
 // non-empty string is sent (a page that shows "set" sends nothing); `clearKey` removes it.
 function applyAiFields(current, patch) {
   const p = patch && typeof patch === 'object' ? patch : {};
-  const next = { provider: current.provider, address: current.address, model: current.model, key: current.key };
+  const next = { provider: current.provider, address: current.address, model: current.model, key: current.key, workspace: current.workspace || '' };
   if (p.provider !== undefined) {
     if (!PROVIDERS.includes(p.provider)) throw new AiError('choose none, an OpenAI-compatible service or Anthropic');
     next.provider = p.provider;
@@ -73,6 +82,7 @@ function applyAiFields(current, patch) {
   if (p.model !== undefined) next.model = oneLine(p.model, 100);
   if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
   if (p.clearKey === true) next.key = '';
+  if (p.workspace !== undefined) next.workspace = cleanWorkspace(p.workspace);
   if (next.provider === 'openai' || next.provider === 'anthropic') next.address = ''; // the company's own address, already known here
   if (next.provider === 'compatible' && !next.address) throw new AiError('another service needs its address');
   if ((next.provider === 'openai' || next.provider === 'anthropic') && !next.key) throw new AiError('this service needs a key');
@@ -88,7 +98,7 @@ function applyAiFields(current, patch) {
 function applyManagedFields(provider, current, patch) {
   if (!MANAGED_PROVIDERS.includes(provider)) throw new AiError('choose openai, anthropic or compatible');
   const p = patch && typeof patch === 'object' ? patch : {};
-  const next = { model: current.model || '', key: current.key || '', ...(provider === 'compatible' ? { address: current.address || '' } : {}) };
+  const next = { model: current.model || '', key: current.key || '', ...(provider === 'compatible' ? { address: current.address || '' } : {}), ...(provider === 'anthropic' ? { workspace: current.workspace || '' } : {}) };
   if (provider === 'compatible' && p.address !== undefined) {
     const a = String(p.address || '').trim();
     if (a) {
@@ -101,6 +111,7 @@ function applyManagedFields(provider, current, patch) {
   if (p.model !== undefined) next.model = oneLine(p.model, 100);
   if (typeof p.key === 'string' && p.key.trim()) next.key = p.key.trim().slice(0, 300);
   if (p.clearKey === true) next.key = '';
+  if (provider === 'anthropic' && p.workspace !== undefined) next.workspace = cleanWorkspace(p.workspace);
   return next;
 }
 
@@ -116,14 +127,14 @@ function managedOffer(provider, slot, envKey) {
   if (provider === 'compatible' ? !address : !key) return null;
   const model = (slot && slot.model) || DEFAULT_MODELS[provider] || '';
   if (!model) return null;
-  return { provider, model, address, key };
+  return { provider, model, address, key, workspace: provider === 'anthropic' ? ((slot && slot.workspace) || '') : '' };
 }
 
 // The models a service offers, from its own list: [{ id, name }]. A module-level function (not a method) so
 // both an environment's own Ai.listModels (its own saved key as the fallback) and the host's managed-service
 // listing (server/index.js's POST /api/host/ai/models, the host's own saved key as the fallback) can call it
 // the same way, each already having resolved which key to try. Plain errors: no key, unreachable, refused.
-async function listModelsFor({ provider, address, key }, hosts = HOSTS) {
+async function listModelsFor({ provider, address, key, workspace }, hosts = HOSTS) {
   if (!['openai', 'anthropic', 'compatible'].includes(provider)) throw new AiError('choose a service first');
   let base = hosts[provider];
   if (provider === 'compatible') {
@@ -134,7 +145,11 @@ async function listModelsFor({ provider, address, key }, hosts = HOSTS) {
     base = u.href.replace(/\/$/, '');
   } else if (!key) throw new AiError('enter the key first');
   const headers = { Accept: 'application/json' };
-  if (provider === 'anthropic') { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01'; } else if (key) headers.Authorization = `Bearer ${key}`;
+  if (provider === 'anthropic') {
+    headers['x-api-key'] = key;
+    headers['anthropic-version'] = '2023-06-01';
+    if (workspace) headers['anthropic-workspace-id'] = workspace;
+  } else if (key) headers.Authorization = `Bearer ${key}`;
   const root = base.replace(/\/chat\/completions$/, '');
   const url = provider === 'anthropic' ? `${base}/v1/models?limit=100` : `${root}${/\/v1$/.test(root) ? '' : '/v1'}/models`;
   let res;
@@ -166,7 +181,7 @@ class Ai {
     this.file = path.join(dataDir, 'ai.json');
     this.usageFile = path.join(dataDir, 'ai-usage.json');
     this.env = env;
-    this.config = { source: undefined, managedProvider: '', provider: 'none', address: '', model: '', key: '', monthlyTokens: 0 };
+    this.config = { source: undefined, managedProvider: '', provider: 'none', address: '', model: '', key: '', workspace: '', monthlyTokens: 0 };
     this.usage = { month: month(), tokens: 0, calls: 0, byTask: {} };
     let loaded = false;
     try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); loaded = true; } catch { /* not set up */ }
@@ -211,20 +226,34 @@ class Ai {
     return this._migrationSeed;
   }
 
-  // Whichever the host currently offers for the chosen managedProvider, or null.
-  managedOffer() {
-    return (this.managed() || []).find((o) => o.provider === this.config.managedProvider) || null;
+  // Whichever the host currently offers for the chosen managedProvider, or null. Takes a company to check
+  // instead of this.config's own when given, so set()/previewEnabled() can ask "would this candidate config
+  // have an offer" before committing to it.
+  managedOffer(managedProvider = this.config.managedProvider) {
+    return (this.managed() || []).find((o) => o.provider === managedProvider) || null;
   }
 
   // The active provider, address, model and key: the host's chosen managed offer when that is the source, this
   // environment's own custom slot otherwise. { provider: 'none', ... } when managed is chosen but the host no
   // longer offers that company (an admin turned it off, or removed its key, after this environment chose it).
-  effective() {
-    if (this.config.source === 'managed') {
-      const o = this.managedOffer();
-      return o ? { provider: o.provider, address: o.address || '', model: o.model, key: o.key || '' } : { provider: 'none', address: '', model: '', key: '' };
+  // Takes a candidate config instead of this.config's own for the same reason managedOffer does.
+  effective(config = this.config) {
+    if (config.source === 'managed') {
+      const o = this.managedOffer(config.managedProvider);
+      return o ? { provider: o.provider, address: o.address || '', model: o.model, key: o.key || '', workspace: o.workspace || '' } : { provider: 'none', address: '', model: '', key: '', workspace: '' };
     }
-    return { provider: this.config.provider, address: this.config.address, model: this.config.model, key: this.config.key };
+    return { provider: config.provider, address: config.address, model: config.model, key: config.key, workspace: config.workspace || '' };
+  }
+
+  // Whether a config names an active, key-ready service -- same as ready() minus the enabled flag itself,
+  // since set() needs to know this about a candidate config before deciding what its own enabled should
+  // become (see set()'s own comment: a source/company/provider change only turns AI off when the result
+  // would not be ready, not on every change).
+  hasActiveService(config = this.config) {
+    const c = this.effective(config);
+    if (c.provider === 'none') return false;
+    if (c.provider === 'anthropic' || c.provider === 'openai') return !!c.key;
+    return true; // another service may need no key (a local model)
   }
 
   // The active key: whichever source is chosen, resolved through effective().
@@ -251,6 +280,7 @@ class Ai {
       provider: c.provider,
       address: c.address,
       model: c.model,
+      workspace: c.workspace || '', // an id, not a secret -- fine to show
       monthlyTokens: c.monthlyTokens,
       keySet: !!c.key,
       keyFromEnvironment: false,
@@ -265,14 +295,16 @@ class Ai {
   set(patch) {
     const p = patch || {};
     const next = { ...this.config };
+    // Whether this patch changes source, company or provider at all -- used below to decide what happens to
+    // `enabled`, not to force it off on the spot the way this used to (the author's testing: switching between
+    // two already-working services, Managed Anthropic to Managed OpenAI say, should not need re-enabling).
+    const sourceOrProviderChanged = (p.source !== undefined && p.source !== next.source) || (p.managedProvider !== undefined && p.managedProvider !== next.managedProvider) || (p.provider !== undefined && p.provider !== next.provider);
     if (p.source !== undefined) {
       if (!SOURCES.includes(p.source)) throw new AiError('source must be "managed" or "custom"');
-      if (p.source !== next.source) next.enabled = false;
       next.source = p.source;
     }
     if (p.managedProvider !== undefined) {
       if (!MANAGED_PROVIDERS.includes(p.managedProvider)) throw new AiError('choose openai, anthropic or compatible');
-      if (p.managedProvider !== next.managedProvider) next.enabled = false;
       next.managedProvider = p.managedProvider;
     }
     // Choosing managed with a company -- naming the source, or the company, while managed -- needs that company
@@ -282,16 +314,19 @@ class Ai {
     if (next.source === 'managed' && (p.source !== undefined || p.managedProvider !== undefined) && !(this.managed() || []).some((o) => o.provider === next.managedProvider)) {
       throw new AiError('the host does not offer that company');
     }
-    if (p.provider !== undefined && p.provider !== next.provider) next.enabled = false;
     Object.assign(next, applyAiFields(next, p));
     if (p.monthlyTokens !== undefined) {
       const n = Number(p.monthlyTokens);
       if (!Number.isFinite(n) || n < 0 || n > 1e10) throw new AiError('the monthly limit must be a number of tokens, 0 for none');
       next.monthlyTokens = Math.floor(n);
     }
+    // A source/company/provider change keeps `enabled` as it was whenever the result is ready to answer with
+    // (a managed company the host offers, or a custom provider with its key); it only turns `enabled` off when
+    // the result is not ready (provider none, an unoffered managed company, a keyless custom provider).
+    // "Setting a service up does not turn AI on" still holds: an environment that has never enabled stays off.
+    if (sourceOrProviderChanged && !this.hasActiveService(next)) next.enabled = false;
     if (p.enabled !== undefined) {
-      const activeProvider = next.source === 'managed' ? ((this.managed() || []).find((o) => o.provider === next.managedProvider)?.provider || 'none') : next.provider;
-      if (p.enabled === true && activeProvider === 'none') throw new AiError('choose a service and save it before enabling AI');
+      if (p.enabled === true && !this.hasActiveService(next)) throw new AiError('choose a service and save it before enabling AI');
       next.enabled = p.enabled === true;
     }
     if (next.source === 'custom' && next.provider === 'none') next.enabled = false;
@@ -312,33 +347,32 @@ class Ai {
   }
 
   // Whether a patch, if applied, would leave AI enabled: for a caller (a module's enable check, the cascade when the admin turns
-  // AI off) that needs to know before committing to it. Mirrors set()'s own enabled rules without changing anything.
+  // AI off) that needs to know before committing to it. Mirrors set()'s own enabled rules without changing anything -- built the
+  // same way, over a candidate config, rather than duplicating the rule by hand; applyAiFields may throw on a bad patch, which
+  // previews as "would not end up ready" here rather than raising, since set() itself is what actually refuses it.
   previewEnabled(patch) {
     const p = patch || {};
-    let enabled = this.config.enabled;
-    let source = this.config.source;
-    let managedProvider = this.config.managedProvider;
-    let provider = this.config.provider;
-    if (p.source !== undefined && p.source !== source) { enabled = false; source = p.source; }
-    if (p.managedProvider !== undefined && p.managedProvider !== managedProvider) { enabled = false; managedProvider = p.managedProvider; }
-    if (p.provider !== undefined) {
-      if (p.provider !== provider) enabled = false;
-      provider = p.provider;
+    const next = { ...this.config };
+    const sourceOrProviderChanged = (p.source !== undefined && p.source !== next.source) || (p.managedProvider !== undefined && p.managedProvider !== next.managedProvider) || (p.provider !== undefined && p.provider !== next.provider);
+    if (p.source !== undefined && SOURCES.includes(p.source)) next.source = p.source;
+    if (p.managedProvider !== undefined && MANAGED_PROVIDERS.includes(p.managedProvider)) next.managedProvider = p.managedProvider;
+    try {
+      Object.assign(next, applyAiFields(next, p));
+    } catch {
+      // A patch set() would actually refuse (openai with no key, say) never saves at all -- conservatively
+      // not ready, rather than judging readiness by whatever the untouched, pre-patch fields still say.
+      return false;
     }
-    if (p.enabled !== undefined) enabled = p.enabled === true;
-    const activeProvider = source === 'managed' ? ((this.managed() || []).find((o) => o.provider === managedProvider)?.provider || 'none') : provider;
-    if (activeProvider === 'none') enabled = false;
-    return enabled;
+    if (sourceOrProviderChanged && !this.hasActiveService(next)) next.enabled = false;
+    if (p.enabled !== undefined) next.enabled = p.enabled === true;
+    if (!this.hasActiveService(next)) next.enabled = false;
+    return next.enabled;
   }
 
   // Ready to answer: the active source has a provider chosen, this environment has it enabled, and, for a
   // hosted provider, there is a key.
   ready() {
-    if (!this.config.enabled) return false;
-    const c = this.effective();
-    if (c.provider === 'none') return false;
-    if (c.provider === 'anthropic' || c.provider === 'openai') return !!c.key;
-    return true; // another service may need no key (a local model)
+    return this.config.enabled && this.hasActiveService();
   }
 
   usageView() {
@@ -391,9 +425,10 @@ class Ai {
   // The models a service offers, from its own list, for the admin's choice: [{ id, name }]. Uses the typed key
   // when given, otherwise the saved one on this environment's own custom slot (never the managed key -- the
   // host lists the managed service's own models itself, via listModelsFor directly).
-  async listModels({ provider, address, key }) {
+  async listModels({ provider, address, key, workspace }) {
     const useKey = (typeof key === 'string' && key.trim()) || this.config.key;
-    return listModelsFor({ provider, address: address || this.config.address, key: useKey }, this.hosts);
+    const useWorkspace = (typeof workspace === 'string' && workspace.trim()) || this.config.workspace || '';
+    return listModelsFor({ provider, address: address || this.config.address, key: useKey, workspace: useWorkspace }, this.hosts);
   }
 
   async complete(system, prompt) {
@@ -402,8 +437,11 @@ class Ai {
     const base = c.provider === 'compatible' ? c.address : this.hosts[c.provider];
     const url = isAnthropic ? `${base}/v1/messages` : `${base}${/\/v1$|\/chat\/completions$/.test(base) ? (base.endsWith('/completions') ? '' : '/chat/completions') : '/v1/chat/completions'}`;
     const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    if (isAnthropic) { headers['x-api-key'] = c.key; headers['anthropic-version'] = '2023-06-01'; }
-    else if (c.key) headers.Authorization = `Bearer ${c.key}`;
+    if (isAnthropic) {
+      headers['x-api-key'] = c.key;
+      headers['anthropic-version'] = '2023-06-01';
+      if (c.workspace) headers['anthropic-workspace-id'] = c.workspace;
+    } else if (c.key) headers.Authorization = `Bearer ${c.key}`;
     const body = isAnthropic
       ? { model: c.model, max_tokens: MAX_ANSWER_TOKENS, system, messages: [{ role: 'user', content: prompt }] }
       : { model: c.model, [c.provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: MAX_ANSWER_TOKENS, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };

@@ -93,6 +93,9 @@ function cleanHostAi(raw) {
       model: typeof s.model === 'string' ? s.model : '',
       key: typeof s.key === 'string' ? s.key : '',
       ...(provider === 'compatible' ? { address: typeof s.address === 'string' ? s.address : '' } : {}),
+      // An organisation-level Anthropic key needs its workspace id sent with every call -- an id, not a
+      // secret (server/ai.js's cleanWorkspace validates the shape; this is just the load-time sanitizer).
+      ...(provider === 'anthropic' ? { workspace: typeof s.workspace === 'string' ? s.workspace : '' } : {}),
     };
   }
   // A host.json saved under the single-service shape from before per-company ({ provider, address, model, key }
@@ -239,7 +242,7 @@ class HostRegistry {
   // (empty when nothing is saved for it), so a caller never has to guard against a missing key.
   get managedAi() {
     const out = {};
-    for (const provider of MANAGED_PROVIDERS) out[provider] = { model: '', key: '', ...(provider === 'compatible' ? { address: '' } : {}), ...(this.data.ai[provider] || {}) };
+    for (const provider of MANAGED_PROVIDERS) out[provider] = { model: '', key: '', ...(provider === 'compatible' ? { address: '' } : {}), ...(provider === 'anthropic' ? { workspace: '' } : {}), ...(this.data.ai[provider] || {}) };
     return out;
   }
 
