@@ -1021,14 +1021,8 @@ body.at-table .subnav {
   height: 14px;
 }
 
-/* the stage-level snap: the switch, and, while it is on, the grid-size slider beside it */
-.snap-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.snap-tools input[type="range"] {
+/* the stage-level snap's grid-size slider, beside its switch while the switch is on (the nav-bar registry places it) */
+.subnav-tools input[type="range"] {
   width: 84px;
   margin: 0;
   accent-color: var(--accent);
@@ -1101,7 +1095,9 @@ body.at-table .topbar {
 @media (max-width: 560px) {
   .subnav #fullscreen-toggle,
   .subnav #popout,
-  .subnav #snap-tools,
+  .subnav #dock-all,
+  .subnav #snap-all,
+  .subnav #snap-size,
   .subnav .space-name,
   .subnav .nav-middle,
   .subnav .nav-divider {
@@ -4580,8 +4576,10 @@ body.chat-window {
 }
 
 /* In a room the Modules menu is the way to a module; the header's links to the global pages would be
-   a second, confusing way to the same thing. */
-body.at-table .module-nav {
+   a second, confusing way to the same thing. The links are tools the nav-bar registry draws straight into the
+   zone (and, on a phone, into the menu), so this names the link, not a wrapper, at both places. */
+body.at-table .topbar .module-nav-link,
+body.at-table .topbar.menu-open .links .module-nav-link {
   display: none;
 }
 
@@ -4947,18 +4945,6 @@ body.at-table .module-nav {
   .topbar.menu-open .links .whoami img {
     width: 28px;
     height: 28px;
-  }
-
-  .topbar.menu-open .links .module-nav {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-  }
-
-  /* In a room the modules are tabs, not menu items. */
-  body.at-table .topbar.menu-open .links .module-nav {
-    display: none;
   }
 
   .topbar.menu-open .links .nav-divider {

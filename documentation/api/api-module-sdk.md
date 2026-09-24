@@ -315,6 +315,33 @@ host.on('toolbar', ({ id, value }) => { /* a tabs or slider item's click/move al
 
 Only `button` items count toward the five-item cap and collapse into the "..." (text, tabs, progress and slider items always show, since they say something, or are themselves the control, rather than being one more action). Resolves `true`/`false` the same way `header.set` does.
 
+### Registering into the nav bars
+
+The header is two bars of three zones each (see the navigation architecture): the primary nav is about the system and the secondary, at the table, about the space. Both are drawn from one registry, and a module registers tools into it the same way the host's own controls are registered: one registration, not markup, and the host draws the tool in its own look. This is for a space action the module adds while its pane is open (a quick "add" for the space, a switch for the space's view of the module), not for the module's own state, which is the toolbar's, and not for its primary inputs, which are the action bar's.
+
+```js
+await host.nav.set([
+  { id: 'add', icon: 'plus', label: 'Add a task', order: 101 },
+  { id: 'mine', icon: 'user', label: 'Only mine', toggleable: true, active: onlyMine, group: 'views' },
+  { id: 'plan', icon: 'map', label: 'Open the plan', href: '/modules/planner' },
+]);
+host.on('nav', ({ id }) => { /* 'add', 'mine' or 'plan': the module's own id */ });
+host.nav.setActive('mine', true); // a toggle's state, in place
+host.nav.setBadge('add', 3); // a count on a tool; 0 takes it off
+```
+
+A tool is `{ id, zone?, icon, label, title?, order?, group?, groupOrder?, href?, visible?, toggleable?, active?, badge? }`:
+
+- `id` is letters, digits and hyphens, the module's own; the host puts it under the module's namespace, so a module can neither touch another's tools nor the system's, and the `nav` event carries the module's own id back.
+- `zone` is `left`, `middle` or `right` (the default) of the secondary bar; `icon` a Font Awesome name; `label` what a screen reader and the tooltip say (`title` a longer tooltip).
+- `order` and `groupOrder` sort tools in a group and groups in a zone. The bands are 1-10 for the system's core tools, 11-50 secondary, 51-100 utility, 101-998 a module's own, 999 last: a module's numbers are clamped into 101-998, so the system's tools stay ahead of every module's with nobody coordinating numbers. A module's tools form their own group (or groups, with `group`), with a divider from the system's.
+- `href` makes the tool a real link (a path on this server, or an https address); otherwise a click arrives as the `nav` event.
+- `visible` is a boolean (the default is shown); `toggleable` tools carry `active`, which `setActive` changes in place, and `badge` is a count, which `setBadge` changes in place. Never call `set` again for either.
+
+The set replaces the last one; it is drawn while the module's pane is open in that space and taken out when the pane closes or the module is unmounted. It resolves `true` when the host drew the tools and `false` when there is no space bar here (the module's own page, its own window), so keep such a control in the page in that case.
+
+**The primary bar.** A module's tools go in the secondary bar. The primary bar takes a registration from a module only for a system-wide tool: the tool says `system: true` and `bar: 'primary'`, the module's manifest has `surfaces.page.nav: true` (the admin allowed it into the primary nav), and it goes into the right zone, with the system's own actions. Anything else for the primary bar is refused with an error that says which rule it broke. A module's own page link is already there, from the manifest; this is not for that.
+
 ### An action menu
 
 A menu of things to do — a row's "..." button, a right-click, the + on a joint between two days — is `host.menu.show({ id, items, at, anchor })`. This is different from `host.actions.pick` (below): `pick` asks one question and resolves once ("what should this dropped item become?"); `menu.show` draws a reusable menu of independent actions, each with its own handler, that stays around across many opens.

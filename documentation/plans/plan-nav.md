@@ -1,6 +1,6 @@
 # Navigation: two rows, six zones
 
-**Status:** decided September 23, 2026 (the author's sketch); the frame is built, what fills each zone is being worked out zone by zone.
+**Status:** decided September 23, 2026 (the author's sketch); the frame is built, the registry the bars draw from is built (September 24), what fills each zone is being worked out zone by zone.
 
 ## The model
 
@@ -29,7 +29,9 @@ The header is two rows, and each row is three zones: **left** (left-justified), 
 - The markup is the same on every page: `public/brand.js` builds the primary nav (`.topbar` with `.nav-left`, `.nav-middle`, `.nav-right`), `public/room.js` builds the secondary (`.subnav` with the same three). Nothing else adds to the header; a page that wants a control in it asks one of these two.
 - On a phone (below 640px) the primary nav keeps the logo, the crumb and a menu button; the middle and right zones fold into the menu. The secondary nav is the tab bar at the bottom of the page: the left zone (the pane switches) is the bar, the right zone keeps only Leave. The zones do not change meaning, only where they are drawn.
 
-## Modules register into the bars (next; from the author's Blacksmith menubar)
+## Modules register into the bars (built September 24, 2026; from the author's Blacksmith menubar)
+
+**Built 2026-09-24:** `public/nav-bar.js` is the registry both bars draw from; the primary nav's middle and right zones and the secondary nav's right zone are registrations of the shape below; `host.nav.set`, `setActive` and `setBadge` are in the SDK with the `nav` event; `tools/check-nav.mjs` holds the ordering, band, visibility and namespace rules. The contract is "Registering into the nav bars" in `api-module-sdk.md`, the structure in `architecture-navigation.md`. Two things the plan left open and the build decided: a module's tools always form their own group (a divider from the system's), and the primary bar's rule is kept simple, a `system: true` tool from a module whose manifest has `surfaces.page.nav: true`, into the right zone only.
 
 The author's Blacksmith module (its `api-menubar` wiki page) has the same idea, a bar in three zones that modules register tools into, and its shape is adopted here where it fits:
 

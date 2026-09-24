@@ -3219,7 +3219,9 @@ app.get('/api/modules/:id/context', (req, res) => {
   res.json({
     user: who.keyed ? { key: 'viewer', name: 'Viewer', role: 'viewer' } : who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
     permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
-    module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon },
+    // `nav`: the admin allowed this module into the primary nav (surfaces.page.nav), which is what lets a system-wide
+    // tool of its own into that bar (host.nav.set; see api-module-sdk.md, "Registering into the nav bars").
+    module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, nav: Boolean(manifest.surfaces.page && manifest.surfaces.page.nav) },
     // How the server shows language, time and money (Manage > Settings), for every module to follow.
     locale: { language: store.settings.language || 'en', clock: store.settings.clock === '24' ? '24' : '12', currency: store.settings.currency || 'USD' },
   });
