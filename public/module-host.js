@@ -5,6 +5,7 @@
 // room's floating panels (room.js).
 
 import { api, accessKeyHeaders } from '/brand.js';
+import { nav as navBar } from '/nav-bar.js';
 
 // The design tokens a module's frame receives (see design-theme.md).
 const THEME_TOKENS = [
@@ -509,6 +510,9 @@ export function mountModule({ module, frame = null, container = null, scope, roo
   // `frame` in the drag brokering below is whichever element holds the module: its frame, or its container.
   const mine = { frame: pageMode ? container : frame, module, send: (event, data) => send(event, data) };
 
+  // The nav-bar tools this mount registered (their namespaced ids), so destroy() takes exactly those out.
+  const navIds = new Set();
+
   // Events for the module before its page has said hello wait until it has.
   let ready = false;
   const queued = [];
@@ -996,6 +1000,33 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (onToolbar) onToolbar(clean.length > 0);
       return true;
     },
+    // The module's tools in the nav bars (host.nav.set): registered under the module's own namespace in the shared
+    // registry (public/nav-bar.js), drawn while this mount lives (a pane open in this space) and taken out when it is
+    // destroyed. The set replaces the last one. A tool for the primary bar is refused unless the admin allowed the
+    // module there (its manifest's surfaces.page.nav, which the context reports) and the tool says system: true; see
+    // cleanModuleTools for every rule. Resolves false when there is no secondary bar here (a module's own page), in
+    // which case only a system tool is drawn.
+    async 'nav.set'({ tools }) {
+      const clean = navBar.cleanModuleTools(module.id, tools, { allowPrimary: Boolean(contextInfo && contextInfo.module && contextInfo.module.nav) });
+      const wanted = new Set(clean.map((t) => t.id));
+      for (const id of navIds) if (!wanted.has(id)) { navBar.unregister(id); navIds.delete(id); }
+      let drawn = true;
+      for (const t of clean) {
+        if (!navBar.has(t.bar)) { drawn = false; continue; }
+        const { own, module: _m, system: _s, ...tool } = t;
+        navBar.register({ ...tool, onClick: () => send('nav', { id: own }) });
+        navIds.add(t.id);
+      }
+      return drawn;
+    },
+    async 'nav.setActive'({ id, on }) {
+      const full = `${module.id}:${String(id ?? '')}`;
+      return navIds.has(full) && navBar.setActive(full, Boolean(on));
+    },
+    async 'nav.setBadge'({ id, n }) {
+      const full = `${module.id}:${String(id ?? '')}`;
+      return navIds.has(full) && navBar.setBadge(full, Number(n) || 0);
+    },
     // A drag of a pointer to one of this module's items began or ended (see host.refs.drag).
     async 'refs.dragStart'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
@@ -1233,6 +1264,8 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       mounted.delete(mine);
       if (activeDrag && (activeDrag.source === mine || activeDrag.layers.some((l) => l.target === mine))) endDrag();
       if (ptrDrag && ptrDrag.source === mine) ptrEnd();
+      for (const id of navIds) navBar.unregister(id); // its nav tools go with it
+      navIds.clear();
       leaveStream();
       if (pageMode) container.shadowRoot?.replaceChildren();
       else frame.removeAttribute('src');

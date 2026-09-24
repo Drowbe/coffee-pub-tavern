@@ -1,3 +1,5 @@
+import { nav } from '/nav-bar.js';
+
 // Escapes text going into innerHTML -- a room or server name is an admin-set
 // string, not something we generated, so it isn't safe to trust verbatim.
 export function escapeHtml(s) {
@@ -108,6 +110,9 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   // The primary nav is about the system, in three zones (see documentation/plans/plan-nav.md and architecture-navigation.md):
   // left, the logo (home) and where you are; middle, the core navigation (the rooms, each module's own page); right, the
   // system's actions (your profile, Manage, Install, Sign out) and information (the time, on the server's clock).
+  // The markup here is only what is not a tool: the logo, the crumb, the status, the menu button. Everything in the
+  // middle and right zones is a registration in the nav-bar registry (public/nav-bar.js), the same shape a module's
+  // tools take, so there is one drawing path.
   header.innerHTML = `
     <div class="nav-left brand">
       <a class="brand-home" href="/" target="_top" title="All spaces">
@@ -118,21 +123,12 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
       <nav class="crumb" id="topbar-crumb"></nav>
       <span class="status topbar-status" id="topbar-status"></span>
     </div>
-    <nav class="nav-middle core-nav" id="core-nav" aria-label="Core navigation">
-      <a class="core-link" href="/" target="_top" id="rooms-link" title="All spaces" aria-label="All spaces"><i class="fa-solid fa-${initialIcon} fa-fw" data-brand="home-icon" aria-hidden="true"></i><span class="core-label">Spaces</span></a>
-      <span class="module-nav" id="module-nav"></span>
-    </nav>
-    <nav class="nav-right links">
-      <a class="whoami" href="/profile" id="whoami-link" title="Your profile"><img id="whoami-img" alt="" hidden><span id="whoami"></span></a>
-      <span class="nav-divider"></span>
-      <a class="icon-link" href="${adminHref}" id="admin-link" title="Manage" aria-label="Manage" hidden><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a>
-      <button class="icon-link" id="install-link" type="button" title="Install as an app" aria-label="Install as an app" hidden><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
-      <span class="nav-divider"></span>
-      <span class="topbar-clock" id="topbar-clock" title="The time"></span>
-      <a class="icon-link" href="/logout" id="logout-link" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a>
-    </nav>
+    <nav class="nav-middle core-nav" id="core-nav" aria-label="Core navigation"></nav>
+    <nav class="nav-right links"></nav>
     <button class="icon-link nav-toggle" id="nav-toggle" type="button" title="Menu" aria-label="Menu" aria-expanded="false"><i class="fa-solid fa-bars fa-fw" aria-hidden="true"></i></button>
   `;
+  nav.attach('primary', header);
+  registerSystemTools(header, initialIcon, adminHref);
   wireNavMenu(header);
   setTopbarLocation(location);
   wireInstall();
@@ -141,6 +137,32 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   loadUpdateBadge();
   startPresence();
   startNotifications();
+}
+
+// The system's own tools, in the bands plan-nav.md sets out (1-10 core, 11-50 secondary, 51-100 utility, 999 last), so a
+// module's own (101-998) always draw after them. The middle zone is one group, the core navigation; the right zone is
+// three: who you are, what you can do from anywhere, and the session (the time, then Sign out), a divider between each.
+// The profile link and the clock are the page's own elements the registry places (their look is theirs, not a button's).
+function registerSystemTools(header, initialIcon, adminHref) {
+  const doc = header.ownerDocument;
+  const spaces = nav.register({ id: 'rooms-link', bar: 'primary', zone: 'middle', group: 'core', groupOrder: 1, order: 1, icon: initialIcon, label: 'Spaces', title: 'All spaces', href: '/', target: '_top' });
+  spaces.querySelector('i').dataset.brand = 'home-icon'; // loadBranding() swaps in the server's own home icon
+  const whoami = doc.createElement('a');
+  whoami.className = 'whoami';
+  whoami.id = 'whoami-link';
+  whoami.href = '/profile';
+  whoami.title = 'Your profile';
+  whoami.innerHTML = '<img id="whoami-img" alt="" hidden><span id="whoami"></span>';
+  nav.register({ id: 'whoami-link', bar: 'primary', zone: 'right', group: 'you', groupOrder: 1, order: 1, element: whoami });
+  // Manage: each page shows it once it knows the viewer is an admin (its own `hidden`), so no `visible` here.
+  nav.register({ id: 'admin-link', bar: 'primary', zone: 'right', group: 'system', groupOrder: 11, order: 11, icon: 'gear', label: 'Manage', href: adminHref }).hidden = true;
+  nav.register({ id: 'install-link', bar: 'primary', zone: 'right', group: 'system', groupOrder: 11, order: 12, icon: 'download', label: 'Install as an app', visible: () => Boolean(installPromptEvent), onClick: installFromPrompt });
+  const clock = doc.createElement('span');
+  clock.className = 'topbar-clock';
+  clock.id = 'topbar-clock';
+  clock.title = 'The time';
+  nav.register({ id: 'topbar-clock', bar: 'primary', zone: 'right', group: 'session', groupOrder: 51, order: 51, element: clock });
+  nav.register({ id: 'logout-link', bar: 'primary', zone: 'right', group: 'session', groupOrder: 51, order: 52, icon: 'right-from-bracket', label: 'Sign out', href: '/logout' });
 }
 
 // The time, in the primary nav's right zone, on the server's clock (12- or 24-hour: Manage > Settings > Language, time and
@@ -159,20 +181,10 @@ function startClock() {
 
 // On a phone the header's links are a menu (see the phone header rules in style.css): the button
 // opens them, and a tap anywhere else or Escape closes them. The core navigation (the middle zone) has no
-// room on a phone, so its links move into the menu there, and back to the middle when the window widens.
+// room on a phone, so the registry draws its tools into the menu there, and back to the middle when the
+// window widens (nav-bar.js watches the same width).
 function wireNavMenu(header) {
   const toggle = header.querySelector('#nav-toggle');
-  const phone = window.matchMedia('(max-width: 640px)');
-  const core = header.querySelector('#core-nav');
-  const links = header.querySelector('nav.links');
-  const placeCore = () => {
-    if (!core || !links) return;
-    const items = [header.querySelector('#rooms-link'), header.querySelector('#module-nav')].filter(Boolean);
-    if (phone.matches) links.prepend(...items);
-    else core.append(...items);
-  };
-  placeCore();
-  phone.addEventListener('change', placeCore);
   const setOpen = (on) => {
     header.classList.toggle('menu-open', on);
     toggle.setAttribute('aria-expanded', String(on));
@@ -197,17 +209,7 @@ function wireNavMenu(header) {
 const unreadByModule = {};
 
 function paintUnread() {
-  for (const link of qsa('.module-nav-link')) {
-    const n = unreadByModule[link.dataset.module] || 0;
-    let badge = link.querySelector('.nav-badge');
-    if (!n) { badge?.remove(); continue; }
-    if (!badge) {
-      badge = document.createElement('span');
-      badge.className = 'nav-badge';
-      link.appendChild(badge);
-    }
-    badge.textContent = n > 9 ? '9+' : String(n);
-  }
+  for (const link of qsa('.module-nav-link')) nav.setBadge(`page-${link.dataset.module}`, unreadByModule[link.dataset.module] || 0);
   document.dispatchEvent(new CustomEvent('app:unread', { detail: { ...unreadByModule } }));
 }
 document.addEventListener('module-nav-loaded', paintUnread);
@@ -325,23 +327,10 @@ function showInvite(invite) {
 export function setUpdateBadge(count) {
   const link = byId('admin-link');
   if (!link) return;
-  let badge = link.querySelector('.badge');
   const base = link.getAttribute('data-title') || link.title;
   link.setAttribute('data-title', base);
-  if (!count) {
-    badge?.remove();
-    link.title = base;
-    link.setAttribute('aria-label', base);
-    return;
-  }
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.className = 'badge update-badge';
-    badge.setAttribute('aria-hidden', 'true');
-    link.appendChild(badge);
-  }
-  badge.textContent = count > 9 ? '9+' : String(count);
-  const text = `${base}: ${count} module update${count === 1 ? '' : 's'} available`;
+  nav.setBadge('admin-link', count);
+  const text = count ? `${base}: ${count} module update${count === 1 ? '' : 's'} available` : base;
   link.title = text;
   link.setAttribute('aria-label', text);
 }
@@ -356,12 +345,11 @@ async function loadUpdateBadge() {
   }
 }
 
-// Modules with a page of their own get an item in the header. Opened from
-// inside a call they use the same in-page overlay as the profile, so the call
-// keeps running (see openOverlay in room.js).
+// Modules with a page of their own get an item in the header: a tool in the core navigation, after Spaces, in the
+// secondary band (11-50) so the system's own core items stay ahead. Opened from inside a call they use the same
+// in-page overlay as the profile, so the call keeps running (see openOverlay in room.js).
 async function loadModuleNav() {
-  const slot = byId('module-nav');
-  if (!slot) return;
+  if (!nav.has('primary')) return;
   try {
     const res = await fetch('/api/modules/nav');
     if (!res.ok) return;
@@ -370,7 +358,14 @@ async function loadModuleNav() {
     // A module with a dashboard widget is reached from the widget's heading, so it has no item here; one
     // that opted out (surfaces.page.nav: false, reached some other way -- a room's own pane) has none
     // either; anything else does, so nothing becomes unreachable.
-    slot.innerHTML = modules.filter((m) => !m.widget && m.nav).map((m) => `<a class="module-nav-link" data-overlay-link data-module="${escapeHtml(m.id)}" aria-label="${escapeHtml(m.name)}" href="/modules/${encodeURIComponent(m.id)}${keep}" title="${escapeHtml(m.name)}"><i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i><span class="module-nav-label"> ${escapeHtml(m.name)}</span></a>`).join('');
+    const listed = modules.filter((m) => !m.widget && m.nav);
+    nav.unregisterAll('page-');
+    listed.forEach((m, i) => {
+      const el = nav.register({ id: `page-${m.id}`, bar: 'primary', zone: 'middle', group: 'core', order: Math.min(50, 11 + i), icon: m.icon, label: m.name, href: `/modules/${encodeURIComponent(m.id)}${keep}` });
+      el.classList.add('module-nav-link'); // hidden at the table, where the room's own module selector is the way in
+      el.dataset.module = m.id;
+      el.dataset.overlayLink = '';
+    });
     document.dispatchEvent(new CustomEvent('module-nav-loaded', { detail: modules }));
   } catch {
     // no nav is fine
@@ -406,21 +401,22 @@ export function setTopbarLocation(html) {
 // Chrome/Edge's "Install as an app" prompt -- a chromeless window (Settings
 // > Install, or here) with none of a browser tab's own address bar or tab
 // strip. Shared so any page can offer it, not just the table.
+// The Install tool's `visible` reads installPromptEvent, so the bar is redrawn when it changes.
 let installPromptEvent = null;
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   installPromptEvent = event;
-  byId('install-link')?.removeAttribute('hidden');
+  nav.draw('primary');
 });
 function wireInstall() {
-  if (installPromptEvent) byId('install-link')?.removeAttribute('hidden');
-  byId('install-link')?.addEventListener('click', async () => {
-    if (!installPromptEvent) return;
-    installPromptEvent.prompt();
-    await installPromptEvent.userChoice.catch(() => {});
-    installPromptEvent = null;
-    byId('install-link')?.setAttribute('hidden', '');
-  });
+  nav.draw('primary');
+}
+async function installFromPrompt() {
+  if (!installPromptEvent) return;
+  installPromptEvent.prompt();
+  await installPromptEvent.userChoice.catch(() => {});
+  installPromptEvent = null;
+  nav.draw('primary');
 }
 
 // A page opened with the server's access key instead of a sign-in (a module's keyed page, /view/<key>?s=...):

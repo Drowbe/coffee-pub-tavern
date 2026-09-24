@@ -1315,6 +1315,24 @@
       set: (items) => call('toolbar.set', { items }),
     },
 
+    // The module's tools in the space's nav bar (the secondary nav, the row under the header at the table), drawn by
+    // the host in its own look while the module's pane is open in that space and taken out when it closes. Not the
+    // pane's toolbar (host.toolbar.set, about the module's own state): these are the space's actions the module adds.
+    // set([{ id, zone?, icon, label, title?, order?, group?, groupOrder?, href?, visible?, toggleable?, active?, badge? }]):
+    //   id is letters, digits and hyphens, the module's own (the host namespaces it); zone 'left', 'middle' or 'right'
+    //   (the default); icon a Font Awesome name; label what a screen reader and the tooltip say; order and groupOrder
+    //   in the module band (101-998, clamped); href a path on this server or an https address, for a real link.
+    // The set replaces the last. A click arrives as the 'nav' event { id }. A tool for the primary bar (bar:
+    // 'primary') is refused unless the admin allowed the module there (surfaces.page.nav in module.json) and the tool
+    // is marked system: true, and then only into the right zone. Resolves true when the host drew them, false when
+    // there is no space bar here (the module's own page). setActive(id, on) and setBadge(id, n) change a tool in
+    // place; never set() again for that.
+    nav: {
+      set: (tools) => call('nav.set', { tools }),
+      setActive: (id, on) => call('nav.setActive', { id, on }),
+      setBadge: (id, n) => call('nav.setBadge', { id, n }),
+    },
+
     // A menu of actions -- the shared shape for a row's "..." button, a right-click, a joint's +, anything
     // that is "here are some things you could do, pick one." Not for a single yes/no drop decision with
     // nothing more to say afterward (see host.actions.pick for that).
@@ -1346,7 +1364,8 @@
     setTitle: (title) => call('setTitle', { title }),
 
     // Events: 'bar' ({ id }) when an action bar button is clicked, 'header' ({ id }) for a titlebar icon,
-    // 'toolbar' ({ id, value? }) for a toolbar item, 'change' ({ key, value, version, deleted, scope, by })
+    // 'toolbar' ({ id, value? }) for a toolbar item, 'nav' ({ id }) for one of the module's nav-bar tools,
+    // 'change' ({ key, value, version, deleted, scope, by })
     // whenever stored data changes, 'schedule' ({ key, payload }) when a schedule fires, 'theme' (the new theme).
     on(event, fn) {
       if (!listeners.has(event)) listeners.set(event, new Set());

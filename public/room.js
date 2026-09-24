@@ -4,6 +4,7 @@ import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCr
 import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
+import { nav } from '/nav-bar.js';
 
 // Elements by id, wherever the stage currently lives (the page or the pop-out
 // window, which takes the whole stage with it).
@@ -28,23 +29,17 @@ subnav.id = 'subnav';
 // The secondary nav is about the space (the room), in three zones (see documentation/plans/plan-nav.md and
 // architecture-navigation.md): left, the room's name and the module selector; middle, the space's own information and
 // navigation (nothing yet); right, the space's actions: the stage-level snap, full screen, pop out, pulling people back
-// from an aside, and leaving.
+// from an aside, and leaving. The right zone's controls are registrations in the nav-bar registry (public/nav-bar.js),
+// made below beside the code each one drives; a module's own tools (host.nav.set) land in the same bar, after them.
 subnav.innerHTML = `
   <div class="nav-left subnav-left">
     <span class="space-name" id="space-name" hidden><i class="fa-solid fa-fw" id="space-icon" aria-hidden="true"></i><span id="space-name-text"></span></span>
     <div class="subnav-panes" id="modules-menu"></div>
   </div>
   <div class="nav-middle subnav-middle" id="subnav-middle"></div>
-  <span class="nav-right subnav-tools">
-  <span class="snap-tools" id="snap-tools"><button class="icon-link" id="dock-all" type="button" title="Dock every floating pane beside the call" aria-label="Dock every floating pane beside the call"><i class="fa-solid fa-table-columns fa-fw" aria-hidden="true"></i></button><button class="icon-link" id="snap-all" type="button" title="Snap every floating pane to a grid" aria-label="Snap every floating pane to a grid" aria-pressed="false"><i class="fa-solid fa-border-all fa-fw" aria-hidden="true"></i></button><input type="range" id="snap-size" title="Grid size" aria-label="Grid size" hidden></span>
-  <button class="icon-link" id="fullscreen-toggle" type="button" title="Full screen (F)" aria-label="Full screen"><i class="fa-solid fa-expand fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-compress fa-fw icon-off" aria-hidden="true"></i></button>
-  <button class="icon-link" id="popout" type="button" title="Pop out into its own window" aria-label="Pop out into its own window"><i class="fa-solid fa-up-right-from-square fa-fw icon-on" aria-hidden="true"></i><i class="fa-solid fa-window-restore fa-fw icon-off" aria-hidden="true"></i></button>
-  <button class="btn btn-small" id="recall-button" type="button" title="Give everyone in a Private Conversation from this space a 10 second warning, then pull them back" hidden><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back</button>
-  <button class="icon-link" id="rejoin-call" type="button" title="Rejoin call" aria-label="Rejoin call" hidden><i class="fa-solid fa-circle-left fa-fw" aria-hidden="true"></i></button>
-  <span class="nav-divider"></span>
-  <button class="icon-link" id="leave-room" type="button" title="Leave space" aria-label="Leave space"><i class="fa-solid fa-square-xmark fa-fw" aria-hidden="true"></i></button>
-  </span>`;
+  <span class="nav-right subnav-tools"></span>`;
 topbarEl.appendChild(subnav);
+nav.attach('secondary', subnav); // its tools are registered further down, once the state their `visible` reads exists
 // On a phone the room bar is a tab bar at the bottom of the page, in the flow after the stage, so
 // the call toolbar sits directly above it whatever the browser does with its own bottom bar. Wider,
 // it is the header's second row.
@@ -56,22 +51,6 @@ const placeSubnav = () => {
 };
 phoneWidth.addEventListener('change', placeSubnav);
 placeSubnav();
-// On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
-// only be reachable from the Conference view's toolbar. This item, in the menu only and only while
-// in the call, shows the conference and opens them.
-const callSettingsLink = document.createElement('button');
-callSettingsLink.className = 'icon-link call-settings-link';
-callSettingsLink.type = 'button';
-callSettingsLink.hidden = true;
-callSettingsLink.setAttribute('aria-label', 'Call settings');
-callSettingsLink.innerHTML = '<i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i>';
-const logoutDivider = topbarEl.querySelector('#logout-link')?.previousElementSibling;
-logoutDivider?.parentNode.insertBefore(callSettingsLink, logoutDivider);
-topbarEl.querySelector('#nav-toggle')?.addEventListener('click', () => { callSettingsLink.hidden = !inCall; });
-callSettingsLink.addEventListener('click', () => {
-  document.querySelector('.modules-menu-item[data-native="conference"]')?.click(); // shows the conference view
-  setTimeout(() => { if ($('settings').hidden || $('settings').dataset.group !== 'more') openSettings('more'); }, 50);
-});
 // Only this page loads your profile/Manage as an overlay over a running
 // call instead of a real navigation (see openOverlay() below) -- the
 // shared header doesn't know that, so it's marked here instead.
@@ -184,10 +163,13 @@ $('room-link').addEventListener('click', () => {
 let recallButtonTimer = 0;
 let recallButtonCountingDown = false;
 
+// The tool's `visible` (see its registration above): shown while the countdown runs, whatever else changes.
+function recallWanted() {
+  return recallButtonCountingDown || Boolean(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+}
+
 function updateRecallButton() {
-  const btn = $('recall-button');
-  if (!btn || recallButtonCountingDown) return;
-  btn.hidden = !(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+  nav.draw('secondary');
 }
 
 function resetRecallButton() {
@@ -199,7 +181,7 @@ function resetRecallButton() {
   btn.innerHTML = '<i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i> Pull Participants Back';
 }
 
-$('recall-button').addEventListener('click', async () => {
+async function recallParticipants() {
   const btn = $('recall-button');
   try {
     await api('POST', '/api/table/recall');
@@ -220,7 +202,7 @@ $('recall-button').addEventListener('click', async () => {
   } catch (err) {
     setStatus(`pull participants back: ${err.message}`, true);
   }
-});
+}
 
 // The countdown a Private Conversation's own participants see once the
 // admin recalls them -- a warning, not an instant yank, so it doesn't cut
@@ -826,22 +808,51 @@ const prefs = loadPrefs();
 const roomModules = createRoomModules({ guestToken });
 window.hostModules = roomModules; // for debugging and tests
 
+// The space's actions, in the secondary nav's right zone (built at the top of this file): one group in the bands
+// plan-nav.md sets out (the layout tools core, full screen and pop out secondary, the aside's two utility), and Leave
+// last on its own, a divider before it. Registered here, after the state their `visible` functions read exists.
+const SPACE_TOOL = { bar: 'secondary', zone: 'right', group: 'space', groupOrder: 1 };
+nav.register({ ...SPACE_TOOL, id: 'dock-all', order: 1, icon: 'table-columns', label: 'Dock every floating pane beside the call', onClick: () => { roomModules.dockAll(); syncSnapBar(); } });
+nav.register({ ...SPACE_TOOL, id: 'snap-all', order: 2, icon: 'border-all', label: 'Snap every floating pane to a grid', toggleable: true, active: false, onClick: () => { roomModules.snapAll(!roomModules.snapAllOn()); syncSnapBar(); } });
+const snapSize = document.createElement('input');
+snapSize.type = 'range';
+snapSize.id = 'snap-size';
+snapSize.title = 'Grid size';
+snapSize.setAttribute('aria-label', 'Grid size');
+snapSize.hidden = true;
+nav.register({ ...SPACE_TOOL, id: 'snap-size', order: 3, element: snapSize }); // the slider: the registry places it, syncSnapBar() runs it
+nav.register({ ...SPACE_TOOL, id: 'fullscreen-toggle', order: 11, icon: 'expand', activeIcon: 'compress', label: 'Full screen', title: 'Full screen (F)', toggleable: true, active: false, onClick: () => toggleFullscreen() });
+nav.register({ ...SPACE_TOOL, id: 'popout', order: 12, icon: 'up-right-from-square', activeIcon: 'window-restore', label: 'Pop out into its own window', toggleable: true, active: false, onClick: () => (pipWindow ? closePopout() : openPopout()) });
+nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: 'Give everyone in a Private Conversation from this space a 10 second warning, then pull them back', labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
+nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentRoom && currentRoom.ephemeral && currentRoom.origin), onClick: () => returnToTable() });
+nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-room', order: 999, icon: 'square-xmark', label: 'Leave space', onClick: () => leaveRoom() });
+// On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
+// only be reachable from the Conference view's toolbar. This tool, in the menu only (its class, see style.css) and
+// only while in the call, shows the conference and opens them. It sits in the session group, ahead of the clock.
+nav.register({
+  id: 'call-settings', bar: 'primary', zone: 'right', group: 'session', order: 50, icon: 'sliders', label: 'Call settings',
+  visible: () => inCall,
+  onClick: () => {
+    document.querySelector('.modules-menu-item[data-native="conference"]')?.click(); // shows the conference view
+    setTimeout(() => { if ($('settings').hidden || $('settings').dataset.group !== 'more') openSettings('more'); }, 50);
+  },
+}).classList.add('call-settings-link');
+topbarEl.querySelector('#nav-toggle')?.addEventListener('click', () => nav.draw('primary'));
+
 // The stage-level snap, in the room bar: one switch that makes every floating pane, now and later, snap to a grid over the
 // stage, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each pane's own switch
 // on its titlebar still works on its own; this one sets them all. Remembered with the room's layout.
+// The switch and Dock all (the way back: every floating pane docks beside the call, and the stage-level snap goes off with it,
+// or it would float them again) are registered with the bar's other tools at the top of this file.
 function syncSnapBar() {
   const on = roomModules.snapAllOn();
   const range = roomModules.snapPitchRange();
-  $('snap-all').classList.toggle('on', on);
-  $('snap-all').setAttribute('aria-pressed', on ? 'true' : 'false');
+  nav.setActive('snap-all', on);
   const size = $('snap-size');
   size.hidden = !on;
   size.min = String(range.min); size.max = String(range.max); size.step = String(range.step);
   size.value = String(roomModules.snapPitch());
 }
-$('snap-all').addEventListener('click', () => { roomModules.snapAll(!roomModules.snapAllOn()); syncSnapBar(); });
-// The way back: every floating pane docks beside the call (the stage-level snap goes off with it, or it would float them again).
-$('dock-all').addEventListener('click', () => { roomModules.dockAll(); syncSnapBar(); });
 $('snap-size').addEventListener('input', () => roomModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
 $('snap-size').addEventListener('change', () => roomModules.setSnapPitch(Number($('snap-size').value)));
 syncSnapBar();
@@ -1905,7 +1916,7 @@ room
     $('stage').hidden = true;
     $('room-link').hidden = true;
     resetRecallButton();
-    $('recall-button').hidden = true;
+    updateRecallButton(); // no room, so the tool's own `visible` hides it
     clearInterval(recallTimer);
     $('recall-overlay').hidden = true;
     // A guest has no session and no room to pick from -- back to their own
@@ -2088,7 +2099,7 @@ const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.inc
 
 // The space's name in the secondary nav's left zone. At the table the primary nav's crumb is empty: the secondary nav says
 // where you are, and saying it twice was noise (plan-nav.md). In an aside the name is the origin's plus the kind, and the
-// Rejoin call button (a space action) shows in the right zone.
+// Rejoin call tool (a space action, its `visible` reads currentRoom) shows in the right zone once the bar is redrawn.
 function setSpaceName(icon, text) {
   const el = $('space-name');
   if (!el) return;
@@ -2100,22 +2111,17 @@ function setSpaceName(icon, text) {
 }
 function updateCrumb() {
   setTopbarLocation('');
-  const rejoin = $('rejoin-call');
   if (!currentRoom) {
     setSpaceName('couch', '');
-    if (rejoin) rejoin.hidden = true;
-    return;
-  }
-  if (currentRoom.ephemeral && currentRoom.origin) {
+  } else if (currentRoom.ephemeral && currentRoom.origin) {
     const originRoom = tableRooms.find((r) => r.id === currentRoom.origin);
     const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setSpaceName('people-arrows', `${originName} · ${kind}`);
-    if (rejoin) rejoin.hidden = false;
   } else {
     setSpaceName(roomCrumbIcon(currentRoom), tableName);
-    if (rejoin) rejoin.hidden = true;
   }
+  nav.draw('secondary');
 }
 
 async function join(roomId = 'lobby') {
@@ -2530,10 +2536,8 @@ $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
   if (action === 'rejoin') returnToTable();
 });
-// Rejoin call now lives in the space's bar (an aside's way back); the crumb listener above is kept for any page that still draws it there.
-$('rejoin-call').addEventListener('click', () => returnToTable());
-// Leave is in the room's bar (the subnav), which is not the crumb, so it has its own listener.
-$('leave-room').addEventListener('click', leaveRoom);
+// Rejoin call and Leave live in the space's bar (registered with its other tools at the top of this file); the crumb
+// listener above is kept for any page that still draws Rejoin there.
 $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]));
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
 $('aside-cancel').addEventListener('click', cancelAsideSelection);
@@ -2940,11 +2944,10 @@ function toggleFullscreen(doc = stageDoc()) {
 // on the popout's own document once it exists (see setUpPopoutWindow).
 function syncFullscreenButton() {
   const on = !!document.fullscreenElement || !!stageDoc().fullscreenElement || !!confEl.ownerDocument.fullscreenElement;
-  $('fullscreen-toggle').classList.toggle('on', on);
+  nav.setActive('fullscreen-toggle', on);
   $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
 }
 document.addEventListener('fullscreenchange', syncFullscreenButton);
-$('fullscreen-toggle').addEventListener('click', () => toggleFullscreen());
 
 // --- install as an app / pop out ------------------------------------------------
 // The button itself (and the beforeinstallprompt handling behind it) now
@@ -2986,7 +2989,7 @@ function openPopout() {
     pipWindow = window.open('/popout.html', 'app-popout', `popup,width=${width},height=${height}`);
     if (!pipWindow) throw new Error('the browser blocked the popup -- allow popups for this site and try again');
     pipWindow.addEventListener('load', () => setUpPopoutWindow(pipWindow), { once: true });
-    $('popout').classList.add('on');
+    nav.setActive('popout', true);
     $('popout').title = 'Pop it back in';
   } catch (err) {
     setStatus(`pop out: ${err.message}`, true);
@@ -3039,7 +3042,7 @@ function setUpPopoutWindow(win) {
     roomModules.stagePopped(); // and back in this one
     $('away').hidden = true;
     pipWindow = null;
-    $('popout').classList.remove('on');
+    nav.setActive('popout', false);
     $('popout').title = 'Pop out into its own window';
     wake();
   });
@@ -3047,9 +3050,7 @@ function setUpPopoutWindow(win) {
 function closePopout() {
   if (pipWindow) pipWindow.close();
 }
-$('popout').addEventListener('click', () => (pipWindow ? closePopout() : openPopout()));
 $('bring-back').addEventListener('click', closePopout);
-$('popout').hidden = false;
 
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),
