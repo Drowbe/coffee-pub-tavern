@@ -1281,6 +1281,8 @@ async function loadEnvironment() {
   if (!environment.hosted) { panel.hidden = true; return; }
   try {
     envInfo = await api('GET', '/api/environment');
+    // The product page's address (Upgrade goes to its plans): the public product facts carry the base domain.
+    if (!envInfo.baseDomain) envInfo.baseDomain = (await api('GET', '/api/product').catch(() => ({}))).baseDomain || '';
   } catch (err) {
     panel.hidden = true;
     return;
