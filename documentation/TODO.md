@@ -3,6 +3,14 @@
 Things agreed on but not built yet, roughly in order. See the Studio repo's own TODO.md
 for that app's side of things (Windows OBS capture work, mainly).
 
+## Two-step sign-in
+
+Planned (September 24, 2026; plans/plan-mfa.md), not built: codes from an authenticator app as a
+second factor, recovery codes, a policy per environment (off, optional, owners, everyone) and for
+host admins, a remembered browser, secrets encrypted with a key the host keeps, resets by an owner
+or a host admin, and the Studio app told about the `mfaRequired` answer when it ships. Passkeys are
+the named second phase.
+
 ## Room layout: walk it in a real call
 
 The grid, the floating popout bar, the narrow-window switch and the header-height check are built and were only checked in a browser with the call unavailable. In a real call, try: chat open and closed; dragging the chat edge; fullscreen; popped out with chat open and closed; a narrow window and a phone; the grid, strip and spotlight layouts; and the reactions tray, settings popovers, overflow menu, aside and recall overlays and the away prompt in each. Docked modules are covered by the modules walk below.

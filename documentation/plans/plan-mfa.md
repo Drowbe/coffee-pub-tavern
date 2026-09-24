@@ -1,0 +1,54 @@
+# Two-Step Sign-in Plan
+
+**Audience:** the author deciding how Coffee Pub Magpie adds a second factor to signing in, and the two sessions that build it (the server half and the pages half).
+
+**Status:** planned 2026-09-24 at the author's request ("how can we support mfa?", "plan it"); nothing built. The first phase is codes from an authenticator app; passkeys are the named second phase.
+
+## What sign-in is today
+
+- An account has a login and a password hash (`server/auth.js`: `hashPassword`, `verifyPassword`), or a **personal link** (`linkToken`, `/j/<token>`) that signs the person in with no password.
+- A session is a signed token in the `app_session` cookie for 30 days (`issueSession`, `readSession`), carrying the user's key and a stamp of their password hash and link token, so changing either signs every browser out.
+- Three doors: the JSON `POST /api/login` (the pages and the Studio app), the form `POST /login` (the product page's sign-in dropdown), and `/j/<token>`. Guests join a space by a guest link and have no account. A host admin signs in at the console (`POST /api/host/login`, the `host_session` cookie), a separate kind of account.
+- A rate limiter counts failed attempts per address.
+
+## Decisions
+
+- **The factor is a code from an authenticator app (TOTP, RFC 6238):** six digits, thirty seconds, SHA-1, one step of drift allowed either way. It is a small standard, needs nothing outside the server, and works self-hosted. Passkeys come after (below).
+- **Recovery codes** are made at enrolment: ten one-time codes, shown once, kept hashed like passwords. One recovery code signs in when the app is gone and is then spent.
+- **Policy is the environment's** (Manage > Server, `settings.mfa`): `off` (nobody is asked), `optional` (the default: anyone may enrol, and is then asked), `owners` (every admin must enrol; a user may), `everyone`. The host console has its own: host admins may enrol from the day it ships and the host's `HOST_MFA=required` variable makes it mandatory for them. A required account that has not enrolled is signed in only as far as the enrolment page until it has.
+- **A personal link is a first factor, not a bypass.** Someone with a second factor who opens their link still gets the code step. Guests are untouched: they have no account to protect.
+- **Remember this browser.** A tick on the code page keeps a signed `mfa_trust` cookie for 30 days (the user's key and stamp), so the code is asked once a month per browser, not daily. Resetting the factor invalidates it, since the stamp changes.
+- **Secrets are encrypted at rest** with a key the host keeps, never inside an environment's own data: `DATA_DIR/secrets.key` on a single server, `host.json`'s `secretsKey` on a host with environments, made on first start. An owner's export and the console's backup carry the encrypted secret, which is useless without the host's key; a restore on the same host reads it, a restore elsewhere leaves those accounts to enrol again. Nothing of this ever reaches a module.
+- **Resetting.** A person disables their own factor with a current code or a recovery code. An owner resets a member's from the member's profile (the same page that changes a password), and a host admin resets an owner's from the console; a reset signs that person out everywhere (the stamp changes) and asks nothing until they enrol again.
+- **The Studio app** signs in through `POST /api/login` and will get a `mfaRequired` answer once an account has a factor; it needs a small change to ask for the code and call the verify route. It is told when this ships, not before.
+
+## The contract
+
+### Server
+
+- **The user record** gains `mfa: { secret, enrolledAt, recovery: [hash...], version }` or null; `secret` is the TOTP secret encrypted with the host's key; `version` is bumped on enrol, reset and every spent recovery code and goes into `userStamp`, so sessions and trusted browsers die with it. `publicUser` exposes only `mfaEnrolled: true|false`.
+- **TOTP in `server/auth.js`:** `totpSecret()` (20 random bytes, base32), `totpCode(secret, time)`, `totpVerify(secret, code)` (the current step and one either side, a code accepted once: the last used step is kept on the record as `mfa.lastStep`), `otpauthUrl(issuer, login, secret)` (the issuer is the environment's name). The QR image comes from the `qrcode` package on the server as an SVG string (no image ever leaves the server unrendered, and nothing is fetched from anywhere).
+- **The pending step.** When a sign-in's first factor succeeds and the account has a factor (or the policy requires one it has not enrolled), no session is issued. Instead a **pending token** is issued: signed like a session, ten minutes, carrying the user key, the environment and the purpose (`verify` or `enrol`), in the `mfa_pending` cookie and, for the JSON door, in the answer. `POST /api/login` answers `200 { mfaRequired: true, enrol: false|true, pending }`; the form `POST /login` redirects to `/login/verify` (or `/login/enrol`); `/j/<token>` does the same. With a valid `mfa_trust` cookie for that user, the step is skipped and the session issued as today.
+- **`POST /api/login/verify`** `{ code, remember?, pending? }` (the cookie or the body): a TOTP code or a recovery code; on success the session cookie (and `{ user, token }` for the JSON caller), plus the `mfa_trust` cookie when `remember` is true; on failure 401 and the rate limiter counts it. Five wrong codes in a row block the address as five wrong passwords do.
+- **Enrolment**, for the signed-in person (or one holding an `enrol` pending token, who has no session yet): `POST /api/me/mfa/start` -> `{ otpauth, qr, secret }` (kept unconfirmed on the record as `mfa.pending`, replaced by another start, dropped after an hour); `POST /api/me/mfa/enable { code }` confirms it, makes the recovery codes and answers `{ recoveryCodes }` once; with an `enrol` pending token the session is issued in the same answer. `POST /api/me/mfa/disable { code }` (a TOTP or recovery code) removes it, refused when the policy requires it for this person. `GET /api/me` gains `mfaEnrolled` and `mfaRequired`.
+- **Resets:** `DELETE /api/users/:key/mfa` (an admin of the environment, not on themselves), and on the host router `DELETE /api/host/tenants/:slug/owners/:key/mfa` (a host admin, for an owner of that environment) and the host admins' own enrolment mirrored under `/api/host/me/mfa/*` and `POST /api/host/login/verify`.
+- **Policy:** `settings.mfa` (`off | optional | owners | everyone`, default `optional`) through `PATCH /api/settings` as any setting; `branding()` carries it so the sign-in page can say a code will be asked. `HOST_MFA` (`optional | required`) for the console.
+- **The key:** `secrets.key` (32 random bytes, hex, mode 0600) beside the store on a single server; `host.json`'s `secretsKey` on a host with environments; AES-256-GCM with a random nonce per secret, the nonce and tag stored with it.
+
+### Pages
+
+- **`/login/verify`** (`public/login-verify.html`): the code field, "use a recovery code instead", the remember tick, the same look as the sign-in page; on success it goes where `next` said. **`/login/enrol`** for a required account that has none yet: the QR, the code to confirm, then the recovery codes shown once with a "I have saved these" step, then on to the app.
+- **The profile page** gains **Two-step sign-in** under the account facts: enrol (the QR, a code to confirm, the recovery codes shown once), disable (a code), and for an admin editing someone, **Reset their second factor**. A required policy that the person has not met shows the enrolment inline with a banner.
+- **Manage > Server** gains the policy under Sign-in (the four choices with one line each); **Users** shows a small mark on accounts with a factor.
+- **The host console**'s Host tab gains the host admin's own enrolment (the same block as the profile's) and, on an environment's card, a way to reset one of its owners' factor. The Roles and Users wording says "Owner" on a hosted server as elsewhere.
+- **The sign-in page** says "You will be asked for a code from your authenticator app" when the policy is `everyone`.
+- **Docs:** [userguide-accounts](../userguides/userguide-accounts.md) gains "Two-step sign-in" (enrolling, recovery codes, a lost phone, trusted browsers), [userguide-server-settings](../userguides/userguide-server-settings.md) the policy, [userguide-environments](../userguides/userguide-environments.md) the owner's reset, the getting-started guide `HOST_MFA` and `secrets.key`, and the API notes for Studio: the `mfaRequired` answer and the verify route. `architecture-tenants.md` notes where the key lives.
+
+## Phase 2: passkeys
+
+A passkey (WebAuthn) as an alternative second factor, or as the whole sign-in for someone who has one: a server library for the ceremony, the relying-party id set to the base domain on a host with environments (so one passkey works at every environment the person belongs to, each with its own account) and to the host name on a single server, registration from the same profile block, and the code step offered as the fallback. Decided later, once codes are in and used.
+
+## What is not decided
+
+- Whether an owner may **require** a member to enrol before their next sign-in only, or lock them out at once; the plan above says "signed in only as far as the enrolment page", which is the gentler reading.
+- Whether the guest link should ever ask for anything; the plan says no.
