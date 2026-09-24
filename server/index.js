@@ -590,7 +590,7 @@ function tableUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -738,6 +738,44 @@ function walkFiles(dir, base = dir, out = []) {
     else if (st.isFile()) out.push([path.relative(base, full).split(path.sep).join('/'), fs.readFileSync(full)]);
   }
   return out;
+}
+// Total bytes in a directory tree, without reading any file's contents -- walkFiles reads every file (for
+// zipping) and would be wasteful just to measure a tenant's own storage use (plan-tenants.md, "Phase 3").
+function dirSize(dir) {
+  let total = 0;
+  let names;
+  try { names = fs.readdirSync(dir); } catch { return 0; }
+  for (const name of names) {
+    const full = path.join(dir, name);
+    let st;
+    try { st = fs.statSync(full); } catch { continue; } // a broken link, or gone between readdir and stat
+    if (st.isDirectory()) total += dirSize(full);
+    else if (st.isFile()) total += st.size;
+  }
+  return total;
+}
+const STORAGE_MEASURE_MS = 60000;
+// A tenant's storage use, remeasured at most once a minute and cached on the registry entry
+// (HostRegistry.recordStorageUsage) so a page reading it often (the Environment panel, the console's tenant
+// list) never pays for a fresh directory walk itself.
+function tenantStorageBytes(slug, dataDir) {
+  const cached = hostRegistry.findTenant(slug)?.usage;
+  if (cached?.measuredAt && Date.now() - new Date(cached.measuredAt).getTime() < STORAGE_MEASURE_MS) return cached.storageBytes;
+  const bytes = dirSize(dataDir);
+  hostRegistry.recordStorageUsage(slug, bytes);
+  return bytes;
+}
+// How many of this environment's own spaces have a live call right now (someone actually in it, not just
+// created), asked from LiveKit directly -- never cached, so a call ending frees the slot at once. Used by
+// /api/environment's usage.callsNow and, at join time, the calls cap itself (plan-tenants.md, "Phase 4").
+// roomIdOfLivekit already scopes to the current environment's own slug prefix (null for anything else).
+async function liveCallCount() {
+  try {
+    const active = await roomService.listRooms();
+    return active.filter((lk) => roomIdOfLivekit(lk.name) && lk.numParticipants > 0).length;
+  } catch {
+    return 0;
+  }
 }
 function readTenantZip(buffer) {
   return new Promise((resolve, reject) => {
@@ -1426,6 +1464,10 @@ app.get('/api/me', requireUser, (req, res) => {
   res.json({
     user: publicUser(req, user),
     ...branding(),
+    // Owner is a page word, not a stored role: inside an environment role: 'admin' is the owner (see
+    // plan-tenants.md, "Phase 2: the owner role and the split"), except the host admin's own cross sign-in
+    // user, which is never one.
+    environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.serverName, owner: user.role === 'admin' && !user.hostAdmin, hostAdmin: Boolean(user.hostAdmin) },
     livekitUrl: livekitWsUrl(req),
     streamKey: user.role === 'admin' ? store.streamKey : undefined,
   });
@@ -1934,10 +1976,19 @@ app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
   res.status(201).json({ module: await modules.install(zip, { source: 'bundled' }) });
 });
-app.post('/api/modules', requireAdmin, rawZip, async (req, res) => {
+// Uploading a module's own zip, and choosing to run one in the page rather than sandboxed, are the host's own
+// trust decision (plan-tenants.md, "Phase 2": what Manage hides from an owner) -- a hosted environment's owner
+// may still install and enable any module its plan allows, but never bring in code the host itself hasn't
+// vetted. The host admin's own cross sign-in is exempt, same as a self-hosted install (no BASE_DOMAIN at all).
+function requireHostTrust(req, res, next) {
+  if (BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may add or run unvetted modules here' });
+  next();
+}
+app.post('/api/modules', requireAdmin, requireHostTrust, rawZip, async (req, res) => {
   res.status(201).json({ module: await modules.install(req.body) });
 });
 app.patch('/api/modules/:id', requireAdmin, (req, res) => {
+  if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may choose to run a module in the page' });
   res.json({ module: modules.update(req.params.id, req.body || {}, { roomExists: (id) => !!store.roomById(id) }) });
 });
 app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
@@ -2760,6 +2811,13 @@ app.post('/api/modules/:id/ai', async (req, res) => {
   try {
     const task = String(req.body?.task || '');
     const out = await ai.run(task, items, req.body?.question);
+    // Counted on the registry entry regardless of provider (managed or the environment's own key) -- the plan's
+    // aiCallsPerMonth cap is about how much of the environment's own allowance is used, not who is paying for
+    // the tokens (plan-tenants.md, "Phase 3"). ai.js keeps its own separate per-provider token accounting.
+    if (BASE_DOMAIN && hostRegistry) {
+      const slug = currentEnvironment().slug;
+      if (slug) hostRegistry.recordAiCall(slug);
+    }
     noteActivity(ctx.manifest.id, `used AI to ${task} (${out.tokens} tokens)`, ctx.by, ctx.scopeKey);
     res.json({ text: out.text, cards: (out.cards || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) })), tags: out.tags, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
   } catch (err) {
@@ -3542,6 +3600,59 @@ app.get('/api/settings', requireAdmin, (_req, res) => res.json({ settings: brand
 app.patch('/api/settings', requireAdmin, (req, res) => {
   store.updateSettings(req.body || {});
   res.json({ settings: branding() });
+});
+
+// This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
+// 2: the owner role and the split"). Only with a base domain -- a self-hosted install is not a tenant of
+// anything, so it has no plan or usage of its own to show.
+app.get('/api/environment', requireAdmin, async (req, res) => {
+  if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
+  const env = currentEnvironment();
+  const tenant = hostRegistry.findTenant(env.slug);
+  if (!tenant) return res.status(404).json({ error: 'not hosted' }); // defensive: every resolved environment has a registry entry
+  res.json({
+    slug: tenant.slug,
+    name: tenant.name,
+    status: tenant.status,
+    pastDueSince: tenant.pastDueSince,
+    graceEndsAt: tenant.pastDueSince ? new Date(new Date(tenant.pastDueSince).getTime() + 14 * 86400000).toISOString() : null,
+    plan: { name: tenant.plan.name || null, modules: tenant.plan.modules, members: tenant.plan.members, storageBytes: tenant.plan.storageBytes, aiCallsPerMonth: tenant.plan.aiCallsPerMonth, calls: tenant.plan.calls },
+    usage: {
+      members: store.users.length,
+      storageBytes: tenantStorageBytes(env.slug, env.dataDir),
+      aiCallsThisMonth: hostRegistry.aiCallsThisMonth(env.slug),
+      callsNow: await liveCallCount(),
+    },
+  });
+});
+// The tenant's own copy of its data, the same zip the host console's own backup makes -- any environment admin
+// may ask for it, not only a host admin (plan-tenants.md, "Phase 2": Download a copy).
+app.get('/api/environment/export', requireAdmin, (req, res) => {
+  if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
+  const env = currentEnvironment();
+  flushEnvironment(env); // every debounced write on disk before it is zipped
+  const zip = zipFiles(fs.existsSync(env.dataDir) ? walkFiles(env.dataDir) : []);
+  res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${env.slug}-export.zip"` });
+  res.send(zip);
+});
+// Asked for by the environment's own admin, carried out by a host admin on the console (the existing Delete) --
+// never by itself. DELETE withdraws the request.
+app.post('/api/environment/delete-request', requireAdmin, (req, res) => {
+  if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
+  try {
+    res.json(hostRegistry.requestTenantDeletion(currentEnvironment().slug, req.body?.reason));
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+app.delete('/api/environment/delete-request', requireAdmin, (req, res) => {
+  if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
+  try {
+    hostRegistry.withdrawTenantDeletion(currentEnvironment().slug);
+    res.json({ ok: true });
+  } catch (err) {
+    sendHostError(err, res);
+  }
 });
 // Saved themes: named sets of the same seven colors /theme.css can render --
 // switching just repoints activeThemeId (see PATCH /api/settings above),

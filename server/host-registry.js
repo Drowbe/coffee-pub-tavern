@@ -112,6 +112,20 @@ function cleanTenantRecord(raw) {
     plan: cleanPlan(raw.plan),
     status: STATUSES.includes(raw.status) ? raw.status : 'active',
     pastDueSince: typeof raw.pastDueSince === 'string' ? raw.pastDueSince : null,
+    // Asked for by the environment's own admin (POST /api/environment/delete-request), carried out by a host
+    // admin on the console -- never by itself (plan-tenants.md, "Phase 2").
+    deleteRequestedAt: typeof raw.deleteRequestedAt === 'string' ? raw.deleteRequestedAt : null,
+    deleteRequestReason: cleanText(raw.deleteRequestReason, 500) || '',
+    // Cap usage the registry itself tracks or caches, cheaper to keep here than to recompute on every read
+    // (plan-tenants.md, "Phase 3"): storageBytes/measuredAt (server/index.js remeasures at most once a minute),
+    // aiMonth/aiCalls (a plain "YYYY-MM" counter, rolled over on a new month the same way Ai's own per-
+    // environment usage is).
+    usage: {
+      storageBytes: Number.isFinite(raw.usage?.storageBytes) ? raw.usage.storageBytes : 0,
+      measuredAt: typeof raw.usage?.measuredAt === 'string' ? raw.usage.measuredAt : null,
+      aiMonth: typeof raw.usage?.aiMonth === 'string' ? raw.usage.aiMonth : '',
+      aiCalls: Number.isFinite(raw.usage?.aiCalls) ? raw.usage.aiCalls : 0,
+    },
   };
 }
 
@@ -234,10 +248,12 @@ class HostRegistry {
   addTenant({ slug, name, plan }) {
     const clean = cleanSlug(slug);
     if (this.data.tenants.some((t) => t.slug === clean)) throw new HostError(`"${clean}" is already in use`, 409);
-    const tenant = { slug: clean, name: cleanText(name, 80) || clean, createdAt: new Date().toISOString(), plan: cleanPlan(plan), status: 'active', pastDueSince: null };
+    // Built through cleanTenantRecord so a brand new tenant carries the same defaults (usage, the delete-request
+    // fields) a loaded-from-disk one does -- the registry's other methods all assume tenant.usage exists.
+    const tenant = cleanTenantRecord({ slug: clean, name, createdAt: new Date().toISOString(), plan: cleanPlan(plan) });
     this.data.tenants.push(tenant);
     this.save();
-    return { ...tenant, plan: { ...tenant.plan } };
+    return { ...tenant, plan: { ...tenant.plan }, usage: { ...tenant.usage } };
   }
 
   updateTenant(slug, patch) {
@@ -255,6 +271,53 @@ class HostRegistry {
     }
     this.save();
     return { ...tenant, plan: { ...tenant.plan } };
+  }
+
+  // Asked for by the environment's own admin (POST /api/environment/delete-request); withdrawn the same way
+  // (DELETE), or carried out by a host admin on the console (removeTenant, the existing Delete) -- never by
+  // itself. Marking it is not a queue or a timer, just a flag a host admin sees and acts on when they choose.
+  requestTenantDeletion(slug, reason) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) throw new HostError('no such environment', 404);
+    tenant.deleteRequestedAt = new Date().toISOString();
+    tenant.deleteRequestReason = cleanText(reason, 500) || '';
+    this.save();
+    return { deleteRequestedAt: tenant.deleteRequestedAt, deleteRequestReason: tenant.deleteRequestReason };
+  }
+
+  withdrawTenantDeletion(slug) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) throw new HostError('no such environment', 404);
+    tenant.deleteRequestedAt = null;
+    tenant.deleteRequestReason = '';
+    this.save();
+  }
+
+  // storage and AI usage, cached on the entry (plan-tenants.md, "Phase 3") -------------------------------------
+  // storageBytes/measuredAt: server/index.js decides when a minute has passed and remeasures; this just records
+  // what it found. aiMonth/aiCalls: one call counted per successful host.ai.ask, rolled over to 0 on a new
+  // month the same way Ai's own per-environment usage already is.
+  recordStorageUsage(slug, bytes) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) return;
+    tenant.usage.storageBytes = Math.max(0, Math.round(bytes));
+    tenant.usage.measuredAt = new Date().toISOString();
+    this.save();
+  }
+
+  recordAiCall(slug) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) return;
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    if (tenant.usage.aiMonth !== thisMonth) { tenant.usage.aiMonth = thisMonth; tenant.usage.aiCalls = 0; }
+    tenant.usage.aiCalls += 1;
+    this.save();
+  }
+
+  aiCallsThisMonth(slug) {
+    const tenant = this.data.tenants.find((t) => t.slug === slug);
+    if (!tenant) return 0;
+    return tenant.usage.aiMonth === new Date().toISOString().slice(0, 7) ? tenant.usage.aiCalls : 0;
   }
 
   // Only the registry entry -- the directory move (to tenants-deleted/) is the caller's job, since this class
