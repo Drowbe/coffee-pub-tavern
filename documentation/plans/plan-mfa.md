@@ -15,7 +15,7 @@
 
 - **The factor is a code from an authenticator app (TOTP, RFC 6238):** six digits, thirty seconds, SHA-1, one step of drift allowed either way. It is a small standard, needs nothing outside the server, and works self-hosted. Passkeys come after (below).
 - **Recovery codes** are made at enrolment: ten one-time codes, shown once, kept hashed like passwords. One recovery code signs in when the app is gone and is then spent.
-- **Policy is the environment's** (Manage > Server, `settings.mfa`): `off` (nobody is asked), `optional` (the default: anyone may enrol, and is then asked), `owners` (every admin must enrol; a user may), `everyone`. The host console has its own: host admins may enrol from the day it ships and the host's `HOST_MFA=required` variable makes it mandatory for them. A required account that has not enrolled is signed in only as far as the enrolment page until it has.
+- **Policy is the environment's** (Manage > Server, `settings.mfa`): `off` (nobody is asked), `optional` (the default: anyone may enrol, and is then asked), `owners` (every admin must enrol; a user may), `everyone`. The host console has its own: host admins may enrol from the day it ships and the host's `HOST_MFA=required` variable makes it mandatory for them. A required account that has not enrolled is signed in only as far as the enrolment page until it has. The requirement bites at the **next sign-in** (the author, 2026-09-24): a session that is already open keeps working when the policy tightens, and the enrolment page is what the next sign-in lands on.
 - **A personal link is a first factor, not a bypass.** Someone with a second factor who opens their link still gets the code step. Guests are untouched: they have no account to protect.
 - **Remember this browser.** A tick on the code page keeps a signed `mfa_trust` cookie for 30 days (the user's key and stamp), so the code is asked once a month per browser, not daily. Resetting the factor invalidates it, since the stamp changes.
 - **Secrets are encrypted at rest** with a key the host keeps, never inside an environment's own data: `DATA_DIR/secrets.key` on a single server, `host.json`'s `secretsKey` on a host with environments, made on first start. An owner's export and the console's backup carry the encrypted secret, which is useless without the host's key; a restore on the same host reads it, a restore elsewhere leaves those accounts to enrol again. Nothing of this ever reaches a module.
@@ -50,5 +50,6 @@ A passkey (WebAuthn) as an alternative second factor, or as the whole sign-in fo
 
 ## What is not decided
 
-- Whether an owner may **require** a member to enrol before their next sign-in only, or lock them out at once; the plan above says "signed in only as far as the enrolment page", which is the gentler reading.
 - Whether the guest link should ever ask for anything; the plan says no.
+
+Decided since the first draft: a tightened policy applies at the next sign-in, never to a session already open (above, under Decisions).
