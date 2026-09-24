@@ -777,6 +777,57 @@ async function liveCallCount() {
     return 0;
   }
 }
+
+// --- plan caps (plan-tenants.md, "Phase 3: the caps, enforced at the seam") --------------------------------
+// A cap is null for none. Self-hosted (no BASE_DOMAIN, or a slug the registry somehow has no tenant for) is
+// nobody's tenant, so it is never capped -- every planCap() reads null there, same as an uncapped plan.
+function planCap(name) {
+  if (!BASE_DOMAIN || !hostRegistry) return null;
+  const tenant = hostRegistry.findTenant(currentEnvironment().slug);
+  return tenant ? tenant.plan[name] : null;
+}
+function gbText(bytes) {
+  const gb = bytes / (1024 ** 3);
+  return (Number.isInteger(gb) ? gb : Math.round(gb * 10) / 10).toString();
+}
+// Each refuses the one thing at its cap with a 403 and a plain sentence, leaving everything else running;
+// returns true (having already answered) when refused, so a caller just does `if (refuseX(res)) return;`.
+function refuseOverMembers(res) {
+  const cap = planCap('members');
+  if (cap === null || store.users.length < cap) return false;
+  res.status(403).json({ error: `This environment is at its limit of ${cap} members.` });
+  return true;
+}
+function refuseOverStorage(res) {
+  const cap = planCap('storageBytes');
+  if (cap === null) return false;
+  const env = currentEnvironment();
+  if (tenantStorageBytes(env.slug, env.dataDir) < cap) return false;
+  res.status(403).json({ error: `This environment has used its ${gbText(cap)} GB of storage.` });
+  return true;
+}
+// Middleware form of refuseOverStorage, for the routes that write bytes to disk (module uploads, profile and
+// space pictures, site images) rather than checking it inline.
+function checkStorageCap(req, res, next) {
+  if (!refuseOverStorage(res)) next();
+}
+function refuseOverAiCalls(res) {
+  const cap = planCap('aiCallsPerMonth');
+  if (cap === null || hostRegistry.aiCallsThisMonth(currentEnvironment().slug) < cap) return false;
+  res.status(403).json({ error: `This environment has used its ${cap} AI calls for this month.` });
+  return true;
+}
+// 'all' (the default, and every self-hosted install) or a list of module ids. A module already on when a
+// plan shrinks under it is untouched here -- this only gates turning one on, never keeps one already running.
+function moduleAllowedByPlan(id) {
+  const cap = planCap('modules');
+  return cap === null || cap === 'all' || (Array.isArray(cap) && cap.includes(id));
+}
+function refuseModuleNotInPlan(res, id, name) {
+  if (moduleAllowedByPlan(id)) return false;
+  res.status(403).json({ error: `This environment's plan does not include ${name}.` });
+  return true;
+}
 function readTenantZip(buffer) {
   return new Promise((resolve, reject) => {
     const MAX_FILES = 20000;
@@ -1416,6 +1467,7 @@ app.post('/api/login', (req, res) => {
 // not something to grant).
 app.post('/api/register', (req, res) => {
   if (!store.settings.allowRegistration) return res.status(403).json({ error: 'sign-up is turned off' });
+  if (refuseOverMembers(res)) return;
   const { login, displayName, password } = req.body || {};
   if (!password) throw new StoreError('a password is required');
   const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
@@ -1440,6 +1492,7 @@ app.get('/api/invites/:token', (req, res) => {
 app.post('/api/invites/:token/accept', (req, res) => {
   const invite = store.inviteByToken(req.params.token);
   if (!invite) return res.status(404).json({ error: 'this invite is gone or has expired' });
+  if (refuseOverMembers(res)) return;
   const { login, displayName, password } = req.body || {};
   if (!password) throw new StoreError('a password is required');
   const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
@@ -1526,7 +1579,7 @@ function requireImageRight(req, res, next) {
   req.imageSlot = slot;
   next();
 }
-app.put('/api/me/images/:slot', requireUser, requireImageRight, rawImage, (req, res) => {
+app.put('/api/me/images/:slot', requireUser, requireImageRight, rawImage, checkStorageCap, (req, res) => {
   store.setImage(currentUser(req).key, req.imageSlot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
@@ -1540,7 +1593,7 @@ function requireOwnRoom(req, res, next) {
   if (!room || !room.members.includes(currentUser(req).key)) return res.status(403).json({ error: 'not a member of that room' });
   next();
 }
-app.put('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, rawImage, (req, res) => {
+app.put('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, rawImage, checkStorageCap, (req, res) => {
   const user = currentUser(req);
   store.setImage(user.key, req.imageSlot, req.body, req.get('content-type'), req.params.roomId);
   res.json({ user: publicUser(req, store.userByKey(user.key)) });
@@ -1781,7 +1834,7 @@ app.delete('/api/rooms/:id', requireAdmin, (req, res) => {
   chatHistory.forgetRoom(req.params.id);
   res.json({ ok: true });
 });
-app.put('/api/rooms/:id/image', requireAdmin, rawImage, (req, res) => {
+app.put('/api/rooms/:id/image', requireAdmin, rawImage, checkStorageCap, (req, res) => {
   store.setRoomImage(req.params.id, req.body, req.get('content-type'));
   res.json({ room: store.roomById(req.params.id) });
 });
@@ -1828,6 +1881,7 @@ app.get('/api/users/:key', requireAdmin, (req, res) => {
 });
 
 app.post('/api/users', requireAdmin, (req, res) => {
+  if (refuseOverMembers(res)) return;
   const { login, displayName, role, password, passwordless } = req.body || {};
   const user = store.addUser({ login, displayName, role, passwordHash: password ? auth.hashPassword(password) : null });
   if (passwordless) store.updateUser(user.key, { linkToken: randomToken() });
@@ -1869,7 +1923,7 @@ app.delete('/api/users/:key/link', requireAdmin, (req, res) => {
   res.json({ user: publicUser(req, user) });
 });
 
-app.put('/api/users/:key/images/:slot', requireAdmin, rawImage, (req, res) => {
+app.put('/api/users/:key/images/:slot', requireAdmin, rawImage, checkStorageCap, (req, res) => {
   store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'));
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
@@ -1894,7 +1948,7 @@ app.delete('/api/rooms/:id/members/:key', requireAdmin, (req, res) => {
   store.removeMember(req.params.id, req.params.key);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.put('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, rawImage, (req, res) => {
+app.put('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, rawImage, checkStorageCap, (req, res) => {
   store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.roomId);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
@@ -1966,13 +2020,16 @@ function bundledList() {
       id: m.id, name: m.name, icon: m.icon, description: m.description, version: m.version, installed: have,
       requires: m.requires || [], // what it needs installed and on (Maps needs Places), so the list can say so before Install
       update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
+      notInPlan: !moduleAllowedByPlan(m.id), // plan-tenants.md, "Phase 3": the Available list marks these "Not in your plan"
     };
   });
 }
 app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => (b.setting ? { ...b, enabled: store.settings[b.setting] !== false } : b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
 app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
   const id = req.params.id;
-  if (!bundledModules(BUNDLED_DIR).some((m) => m.id === id)) return res.status(404).json({ error: 'that module does not ship with this deployment' });
+  const bundled = bundledModules(BUNDLED_DIR).find((m) => m.id === id);
+  if (!bundled) return res.status(404).json({ error: 'that module does not ship with this deployment' });
+  if (refuseModuleNotInPlan(res, id, bundled.name)) return;
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
   res.status(201).json({ module: await modules.install(zip, { source: 'bundled' }) });
 });
@@ -1985,10 +2042,22 @@ function requireHostTrust(req, res, next) {
   next();
 }
 app.post('/api/modules', requireAdmin, requireHostTrust, rawZip, async (req, res) => {
-  res.status(201).json({ module: await modules.install(req.body) });
+  const installed = await modules.install(req.body);
+  // The zip's own id is only known once it is unpacked -- refused after the fact, undoing the install, rather
+  // than duplicating modules.js's own manifest parsing here just to check the plan first (plan-tenants.md,
+  // "Phase 3"). keepData: false since this was never really installed from the plan's point of view.
+  if (!moduleAllowedByPlan(installed.id)) {
+    modules.uninstall(installed.id, { keepData: false });
+    return res.status(403).json({ error: `This environment's plan does not include ${installed.name}.` });
+  }
+  res.status(201).json({ module: installed });
 });
 app.patch('/api/modules/:id', requireAdmin, (req, res) => {
   if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may choose to run a module in the page' });
+  if (req.body?.enabled === true) {
+    const current = modules.list().find((m) => m.id === req.params.id);
+    if (current && refuseModuleNotInPlan(res, current.id, current.name)) return;
+  }
   res.json({ module: modules.update(req.params.id, req.body || {}, { roomExists: (id) => !!store.roomById(id) }) });
 });
 app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
@@ -2792,6 +2861,7 @@ app.post('/api/modules/:id/ai', async (req, res) => {
   if (!ctx || !requireHook(ctx, res, 'ai')) return;
   const allowed = aiAllowed(ctx);
   if (!allowed.ok) return res.status(403).json({ error: allowed.why });
+  if (refuseOverAiCalls(res)) return;
   if (overLimit(ctx.manifest.id, ctx.by, 'ai')) return res.status(429).json({ error: limitMessage });
   const refs = Array.isArray(req.body?.items) ? req.body.items.slice(0, 12) : [];
   // The items are read as this person: only what they may see, and only kinds this module produces or was approved to link to.
@@ -2841,7 +2911,7 @@ app.get('/api/modules/:id/uploads', (req, res) => {
   if (!ctx) return;
   res.json({ files: moduleUploads.list(ctx.manifest.id, ctx.scopeKey).map(uploadView) });
 });
-app.post('/api/modules/:id/uploads', rawUpload, (req, res) => {
+app.post('/api/modules/:id/uploads', rawUpload, checkStorageCap, (req, res) => {
   const ctx = uploadAccess(req, res, 'write');
   if (!ctx) return;
   if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage });
@@ -2858,7 +2928,7 @@ app.post('/api/modules/:id/uploads/inspect', express.raw({ type: ['image/jpeg', 
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(415).json({ error: 'send the start of the picture' });
   res.json(inspectHead(req.body));
 });
-app.put('/api/modules/:id/uploads/:fid/thumb', rawUpload, (req, res) => {
+app.put('/api/modules/:id/uploads/:fid/thumb', rawUpload, checkStorageCap, (req, res) => {
   const ctx = uploadAccess(req, res, 'write');
   if (!ctx) return;
   const meta = moduleUploads.meta(ctx.manifest.id, ctx.scopeKey, req.params.fid);
@@ -3613,9 +3683,12 @@ app.get('/api/environment', requireAdmin, async (req, res) => {
   res.json({
     slug: tenant.slug,
     name: tenant.name,
+    baseDomain: BASE_DOMAIN,
     status: tenant.status,
     pastDueSince: tenant.pastDueSince,
     graceEndsAt: tenant.pastDueSince ? new Date(new Date(tenant.pastDueSince).getTime() + 14 * 86400000).toISOString() : null,
+    deleteRequestedAt: tenant.deleteRequestedAt,
+    deleteRequestReason: tenant.deleteRequestReason,
     plan: { name: tenant.plan.name || null, modules: tenant.plan.modules, members: tenant.plan.members, storageBytes: tenant.plan.storageBytes, aiCallsPerMonth: tenant.plan.aiCallsPerMonth, calls: tenant.plan.calls },
     usage: {
       members: store.users.length,
@@ -3666,7 +3739,7 @@ app.delete('/api/themes/:id', requireAdmin, (req, res) => {
 });
 // Site images: icon, background.
 const siteImage = (req, res, next) => (req.params.image === 'icon' || req.params.image === 'background' ? next() : res.status(404).json({ error: 'unknown image' }));
-app.put('/api/settings/:image', requireAdmin, siteImage, rawImage, (req, res) => {
+app.put('/api/settings/:image', requireAdmin, siteImage, rawImage, checkStorageCap, (req, res) => {
   store.setSiteImage(req.params.image, req.body, req.get('content-type'));
   res.json({ settings: branding() });
 });
@@ -3676,7 +3749,7 @@ app.delete('/api/settings/:image', requireAdmin, siteImage, (req, res) => {
 });
 // Shared by both the guest and the default Participant picture sets below.
 const participantImageSlot = (req, res, next) => (PARTICIPANT_SLOTS.includes(req.params.slot) ? next() : res.status(404).json({ error: 'unknown image slot' }));
-app.put('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, rawImage, (req, res) => {
+app.put('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
   store.setGuestImage(req.params.slot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
@@ -3685,7 +3758,7 @@ app.delete('/api/settings/guest-images/:slot', requireAdmin, participantImageSlo
   res.json({ ok: true });
 });
 // The server-wide Default Images set (see /img/default/:slot above).
-app.put('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, rawImage, (req, res) => {
+app.put('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
   store.setDefaultImage(req.params.slot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
