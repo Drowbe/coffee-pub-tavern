@@ -12,7 +12,7 @@ The Maps module shows a map of every place your room has: the places saved in [P
 
 1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world well over 100 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
 
-   **Where to get one.** The world is published as a daily file (about 138 GB when I last checked, zoom 0 to 15) at [maps.protomaps.com/builds](https://maps.protomaps.com/builds). You do not download all of it. Install the `pmtiles` tool ([releases](https://github.com/protomaps/go-pmtiles/releases); there is also a `protomaps/go-pmtiles` Docker image) and cut out your area, straight from the web address of the newest file on that page:
+   **Where to get one.** The world is published as a daily file (about 138 GB when I last checked, zoom 0 to 15) at [maps.protomaps.com/builds](https://maps.protomaps.com/builds); each build's address is `https://build.protomaps.com/YYYYMMDD.pmtiles` with the build's date, `20260924` for example, and that address is what the **World map address** field (the console's Maps panel, or a module's "World file" setting on a single server) takes. You do not download all of it. Install the `pmtiles` tool ([releases](https://github.com/protomaps/go-pmtiles/releases); there is also a `protomaps/go-pmtiles` Docker image) and cut out your area, straight from the web address of the newest file on that page:
 
    ```
    pmtiles extract <address of the newest planet file> lisbon.pmtiles --bbox=-9.30,38.68,-9.05,38.82 --maxzoom=15

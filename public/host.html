@@ -205,11 +205,13 @@
         <p class="hint" id="shared-hint">The map every environment shows: the files in the host's own folder, all of them together. Only a host admin puts files here or cuts a region. Copy a PMTiles file into the folder below, or cut one from a world file.</p>
         <p class="hint"><code id="shared-folder"></code></p>
         <div id="shared-files"></div>
-        <form class="row" id="shared-address-form">
-          <label class="grow">World map address <span class="hint">(the PMTiles file regions are cut from; Protomaps publishes a daily build)</span>
-            <input id="shared-address" type="url" maxlength="500" placeholder="https://" autocomplete="off">
-          </label>
-          <button class="btn btn-small" type="submit">Save address</button>
+        <form class="shared-address" id="shared-address-form">
+          <label class="field-label" for="shared-address">World map address</label>
+          <div class="row">
+            <input id="shared-address" type="url" maxlength="500" placeholder="https://build.protomaps.com/20260924.pmtiles" autocomplete="off">
+            <button class="btn btn-small" type="submit">Save address</button>
+          </div>
+          <p class="hint">The world PMTiles file that regions are cut from. Protomaps publishes a daily build at <code>https://build.protomaps.com/YYYYMMDD.pmtiles</code>, where YYYYMMDD is the build's date, such as 20260924; any recent date works.</p>
         </form>
         <!-- the same region-cut block as module-config.html, driven by public/region-cut.js -->
         <div class="region-section" id="cfg-region" hidden>

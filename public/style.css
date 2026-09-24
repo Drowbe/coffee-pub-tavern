@@ -5528,3 +5528,14 @@ body.at-table .topbar.menu-open .links .module-nav-link {
 .mfa-codes { list-style: none; margin: 8px 0; padding: 0; columns: 2; gap: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; line-height: 1.8; }
 .owner-reset .hint { margin: 0; }
 .owner-reset input { max-width: 14em; }
+
+/* The host console's shared map folder: the files table names files in its first column (the generic .files-table
+   keeps a narrow first column for a thumbnail), and the world map address is a label, a field with its button, and
+   the hint under them in sentence case. */
+#shared-files .files-table td:first-child, #shared-files .files-table th:first-child { width: auto; }
+#shared-files .files-table td:last-child, #shared-files .files-table th:last-child { width: 1%; text-align: right; white-space: nowrap; }
+.shared-address { display: grid; gap: 4px; margin: 16px 0 4px; }
+.shared-address .row { flex-wrap: nowrap; }
+.shared-address input { flex: 1; min-width: 0; }
+.shared-address .btn { flex: none; }
+.shared-address .hint { margin: 2px 0 0; }
