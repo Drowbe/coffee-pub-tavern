@@ -483,4 +483,12 @@ test('the page: every journey kind has its tile and colours, lengths are hours a
   assert.ok(html.includes('<span class="side">Departs</span>') && html.includes('<span class="side">Arrives</span>'), 'a flight card says which end departs and which arrives');
 });
 
+test('an empty day is a button that opens the day\'s add menu, worded for the pointer', () => {
+  const html = read('travel.html');
+  const js = read('travel.js');
+  assert.match(html, /<template id="tpl-day-empty-add"><li class="day-empty has-add"><button class="day-empty-add" type="button" data-action="day-menu"/, 'the empty day uses the header\'s own day-menu action');
+  assert.ok(js.includes("matchMedia('(pointer: coarse)')") && js.includes('Nothing planned yet. ${') && js.includes("'Tap' : 'Click'"), 'Click or Tap to add, chosen by the pointer');
+  assert.ok(!js.includes('Add something below'), 'the old sentence pointing at a hidden row is gone');
+});
+
 console.log(`check-travel: OK (${n} checks)`);

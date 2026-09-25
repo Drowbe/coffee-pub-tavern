@@ -393,9 +393,19 @@
     el.prepend(head);
     const list = el.querySelector('.timeline');
     if (!entries.length) {
-      const empty = clone('tpl-day-empty');
-      empty.textContent = 'Nothing planned yet. Add something below.';
-      list.append(empty);
+      // An empty day is one button that opens the day's add menu (the same action as the header's "..."); a viewer
+      // who cannot edit gets the plain sentence. The word follows the pointer, not the width.
+      if (canEdit) {
+        const empty = clone('tpl-day-empty-add');
+        const b = empty.querySelector('.day-empty-add');
+        b.textContent = `Nothing planned yet. ${matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click'} to add.`;
+        b.title = `Add to ${dayShort(day)}`;
+        list.append(empty);
+      } else {
+        const empty = clone('tpl-day-empty');
+        empty.textContent = 'Nothing planned yet.';
+        list.append(empty);
+      }
     }
     // The plan's own ends, and where the trip itself starts and ends (the first and last booked item). Markers are drawn, never stored:
     // they have no id, no menu and no handle, and are not counted as something planned.

@@ -48,7 +48,8 @@ One `button.daychip[data-action=goto-day][data-day=YYYY-MM-DD]` per day, holding
     <span class="day-of">day 3 of 7</span>
     <span class="day-count">6</span>            the number of items, empty when none
   </header>
-  <ol class="items"> ...items, gaps... </ol>    or, when empty: <li class="day-empty">text</li>
+  <ol class="items"> ...items, gaps... </ol>    or, when empty: <li class="day-empty has-add"><button class="day-empty-add" data-action="day-menu">text</button></li>
+                                                (a viewer who cannot edit: <li class="day-empty">text</li>)
   <form class="add-row" data-day="2026-10-05"> ...the add row... </form>
 </section>
 ```
@@ -126,7 +127,7 @@ The Bookings and Money views reuse the same list markup: `.section-title` headin
 |---|---|
 | Loading | `.app` with the header and `#body > .skeleton[aria-busy=true]` holding four `.skel` |
 | No trip yet | `.app > .body > .state#state-empty-trip` with an `h2`, a `p`, and `button.btn.btn-primary[data-action=create-trip]` |
-| Empty day | `ol.items` holds one `li.day-empty` with a sentence; the add row stays |
+| Empty day | `ol.items` holds one `li.day-empty.has-add` (`tpl-day-empty-add`) whose `button.day-empty-add[data-action=day-menu]` reads "Nothing planned yet. Click to add." ("Tap to add." when `matchMedia('(pointer: coarse)')` matches; the pointer decides, not the width). It is the same action as the header's "...", so it opens the same add menu for that day, anchored to the row. A viewer who cannot edit gets a plain `li.day-empty` (`tpl-day-empty`) reading "Nothing planned yet." and no button. A day that has things opens nothing from its blank space. The add row stays |
 | Conflict | the item gets `.conflict` and a last child `.conflict-bar[role=alert]`: a `span` ("Christy changed this while you were editing."), `button.btn[data-action=use-theirs]`, `button.btn[data-action=keep-mine]` |
 | Busy day (20+ items) | nothing special: `.items` scrolls inside a column on a wide pane, the page scrolls on a phone; the day header stays put (sticky) |
 | Error | a `p.error` under the header |
