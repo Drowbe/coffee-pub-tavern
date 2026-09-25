@@ -348,6 +348,8 @@ try {
     assert.deepEqual([quiet.reactions, quiet.iconSet, quiet.theme, quiet.modules], [null, null, null, []], 'nothing the template didn\'t change');
     assert.notEqual(templates.offerFor(env, v2, {}).reactions, null, 'without fingerprints: by the environment as it is (a record from before)');
     const v3 = templates.cleanTemplate(grown({ version: 3, iconSet: ['anchor', 'ship', 'compass'] }));
+    // The console's card for an environment not open reads only the record: changed parts by fingerprint.
+    assert.deepEqual([templates.appliedPartsChanged({ applied }, v2), templates.appliedPartsChanged({ applied }, v3), templates.appliedPartsChanged({}, v2)], [false, true, true], 'unchanged parts: no offer; a changed part or no fingerprints: an offer');
     const offer = templates.offerFor(env, v3, { applied });
     assert.deepEqual([offer.iconSet, offer.reactions], [['ship', 'compass'].filter((id) => !env.store.iconIds().includes(id)), null], 'the changed icon set, only what is missing; reactions unchanged, not offered');
     await templates.applyOffer(env, v3, { iconSet: true }, { applied });

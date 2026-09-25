@@ -306,6 +306,17 @@ try {
     assert.equal((await console_('PATCH', '/api/host/templates/harbour', { words: { space: { one: 'crossing', many: 'crossings' } } })).json.template.version, 3);
     const after = (await asOwner('GET', '/api/environment/template')).json;
     assert.deepEqual([after.template.version, after.template.offerOpen, after.offer], [3, false, null], 'no offer: nothing it applies once changed');
+    const card = () => console_('GET', '/api/host/environments').then((r) => r.json.environments.find((e) => e.slug === 'sail').template);
+    assert.deepEqual(await card().then((t) => [t.version, t.appliedVersion, t.offerOpen]), [3, 2, false], 'the console\'s card agrees');
+    assert.equal((await console_('PATCH', '/api/host/templates/harbour', { modules: [...harbour.modules, 'calendar', 'polls'] })).json.template.version, 4);
+    assert.deepEqual(await card().then((t) => [t.version, t.appliedVersion, t.offerOpen]), [4, 2, true], 'a changed module list flags the card');
+  });
+
+  await test('hosted: the host settings list the modules the image ships, with names and icons, for the template editor', async () => {
+    const mods = (await console_('GET', '/api/host/settings')).json.modules;
+    assert.deepEqual(mods.slice(0, 2), [{ id: 'conference', name: 'Conference', icon: 'video' }, { id: 'chat', name: 'Chat', icon: 'message' }]);
+    assert.deepEqual(mods.find((m) => m.id === 'travel'), { id: 'travel', name: 'Planner', icon: 'suitcase-rolling' });
+    assert.deepEqual((await call(server, 'admin', 'GET', '/api/host/settings')).status, 401, 'host only');
   });
 } finally {
   if (server) await server.stop();

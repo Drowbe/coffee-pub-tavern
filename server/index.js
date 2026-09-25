@@ -636,7 +636,10 @@ function offerIsOpen(record, template, env = null) {
   if (record.switchedAt && !record.appliedAt) return true;
   if (!record.appliedAt || !template) return false;
   if (template.version <= (Number.isInteger(record.appliedVersion) ? record.appliedVersion : 1)) return false;
-  if (!env?.modules) return true;
+  // Without the environment open (the console's list of an environment not in use): a newer version counts as an offer
+  // only if a part it applies once changed since it was applied (its fingerprints); the environment's own state isn't
+  // read, so a changed part the environment already has still shows as an offer until it is opened.
+  if (!env?.modules) return templates.appliedPartsChanged(record, template);
   const offer = templates.offerFor(env, template, { ...templateOptions(env, env.slug), applied: record.applied || null });
   return Boolean(offer.modules.length || offer.reactions || offer.theme || offer.iconSet || offer.lobby || offer.spaceDefaults);
 }
@@ -1720,9 +1723,12 @@ function environmentTemplate(entry) {
   if (read && (!record || typeof record !== 'object' || typeof record.id !== 'string')) return null; // its own data says none
   const id = record?.id || entry.template;
   if (!id) return null;
-  const view = { id, name: templateFor(null, id)?.name || id, appliedAt: null, offerOpen: false, skipped: [] };
+  const template = templateFor(null, id);
+  const view = { id, name: template?.name || id, source: template ? template.source : null, version: template ? template.version : null, appliedAt: null, appliedVersion: null, offerOpen: false, skipped: [] };
   if (!record || typeof record !== 'object') return view;
-  return { ...view, appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : null, offerOpen: typeof record.switchedAt === 'string' && typeof record.appliedAt !== 'string', skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
+  const appliedAt = typeof record.appliedAt === 'string' ? record.appliedAt : null;
+  const switchedAt = typeof record.switchedAt === 'string' ? record.switchedAt : null;
+  return { ...view, appliedAt, appliedVersion: Number.isInteger(record.appliedVersion) ? record.appliedVersion : (appliedAt ? 1 : null), offerOpen: offerIsOpen({ ...record, appliedAt, switchedAt }, template), skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
 }
 hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
   try {
@@ -2009,6 +2015,8 @@ hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
   res.json({
     baseDomain: BASE_DOMAIN, version: VERSION, hostAdmins: hostRegistry.listAdmins(), productName: PRODUCT_NAME, contactEmail: CONTACT_EMAIL || null,
     plans: hostRegistry.plansCatalog(), signup: signupEnabled, billingSecretSet: Boolean(BILLING_SECRET),
+    // The modules this image ships, for the template editor: the built-in two, then the bundled ones by id.
+    modules: [...BUILTIN_MODULES, ...bundledModules(BUNDLED_DIR)].map((m) => ({ id: m.id, name: m.name || m.id, icon: m.icon || null })),
   });
 });
 // The plan catalog (plan-tenants.md, "Phase 5"): the console's Plans panel edits a plan's name and its five caps;

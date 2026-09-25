@@ -35,6 +35,14 @@ const fingerprint = (value) => crypto.createHash('sha256').update(JSON.stringify
 function partFingerprints(template) {
   return Object.fromEntries(PARTS.map((part) => [part, fingerprint(template[part])]));
 }
+// Whether a part the template applies once changed since a record's fingerprints (`applied`) were taken; a record
+// without them (from before fingerprints) counts as changed.
+function appliedPartsChanged(record, template) {
+  const applied = record && record.applied;
+  if (!applied || typeof applied !== 'object') return true;
+  const prints = partFingerprints(template);
+  return PARTS.some((part) => applied[part] !== prints[part]);
+}
 // The applied-once part of a template as a whole (modules, settings, the Lobby, space defaults, reactions, icon set,
 // theme): a bundled template's version must go up when this changes (tools/template-versions.json).
 const appliedOnceFingerprint = (template) => fingerprint(['modules', 'settings', 'lobby', 'spaceDefaults', 'reactions', 'iconSet', 'theme'].map((k) => template[k] ?? null));
@@ -383,4 +391,4 @@ async function applyOffer(env, template, { modules: ids = [], lobby = false, spa
   return skipped;
 }
 
-module.exports = { PARTS, partFingerprints, appliedOnceFingerprint, loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, addIcons, turnOnModules, offerFor, applyOffer, readEmbeddedTheme, FIELDS, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };
+module.exports = { PARTS, partFingerprints, appliedPartsChanged, appliedOnceFingerprint, loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, addIcons, turnOnModules, offerFor, applyOffer, readEmbeddedTheme, FIELDS, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };

@@ -17,7 +17,10 @@ let list = []; // GET /api/host/templates: [{ id, name, description, source, ver
 let onChange = () => {};
 let editing = null; // the template being edited in full, or null for a new one
 let theme = null; // the editor's embedded theme ({ name, author?, light, dark }) or null
-let moduleIds = [...BUILT_IN]; // the modules a template can list: the built-in ones and every module a template names
+let moduleIds = [...BUILT_IN]; // the modules a template can list: the ones the image ships, then any other a template names
+let shipped = null; // GET /api/host/settings `modules`: [{ id, name, icon }], loaded once
+const moduleName = (id) => (shipped || []).find((m) => m.id === id)?.name || id;
+const moduleIcon = (id) => (shipped || []).find((m) => m.id === id)?.icon || 'puzzle-piece';
 
 // host.js hands over the list it loaded, and is told when it changes (the create form and the cards use it too).
 export function initTemplates(templates, changed) {
@@ -118,12 +121,15 @@ function closeEditor() {
   $('template-new').focus();
 }
 
-// The modules a template can name: the host has no module list of its own, so every module any template lists.
+// The modules a template can name: the ones this image ships (by name), then any other module a template lists.
 async function loadModuleIds() {
-  const ids = new Set(BUILT_IN);
+  if (!shipped) shipped = (await api('GET', '/api/host/settings').catch(() => ({}))).modules || null;
+  const own = (shipped || []).map((m) => m.id);
+  const ids = new Set([...BUILT_IN, ...own]);
   const full = await Promise.all(list.map((t) => api('GET', `/api/host/templates/${encodeURIComponent(t.id)}`).then((a) => a.template).catch(() => null)));
   for (const t of full) if (t) for (const id of [...(t.modules || []), ...Object.keys(t.moduleNames || {}), ...Object.keys(t.moduleIcons || {})]) ids.add(id);
-  moduleIds = [...BUILT_IN, ...[...ids].filter((id) => !BUILT_IN.includes(id)).sort()];
+  const first = [...new Set([...BUILT_IN, ...own])];
+  moduleIds = [...first, ...[...ids].filter((id) => !first.includes(id)).sort()];
 }
 
 const iconField = (value, label, placeholder) => `<span class="icon-field"><i class="fa-solid fa-${escapeHtml(value || placeholder)} fa-fw" aria-hidden="true"></i><input type="text" data-icon maxlength="40" value="${escapeHtml(value || '')}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(label)}" autocapitalize="off" spellcheck="false"></span>`;
@@ -147,12 +153,12 @@ async function openEditor(t) {
   previewHome();
   const on = new Set((t && t.modules) || ['chat', 'conference']);
   const ids = [...new Set([...moduleIds, ...on])];
-  $('te-modules').innerHTML = ids.map((id) => `<label class="check"><input type="checkbox" data-module="${escapeHtml(id)}"${on.has(id) ? ' checked' : ''}${id === 'chat' ? ' disabled title="Chat can\'t be switched off yet"' : ''}> ${escapeHtml(id)}</label>`).join('');
+  $('te-modules').innerHTML = ids.map((id) => `<label class="check"><input type="checkbox" data-module="${escapeHtml(id)}"${on.has(id) ? ' checked' : ''}${id === 'chat' ? ' disabled title="Chat can\'t be switched off yet"' : ''}> ${escapeHtml(moduleName(id))}</label>`).join('');
   const names = (t && t.moduleNames) || {};
   const icons = (t && t.moduleIcons) || {};
-  $('te-module-display').innerHTML = ids.map((id) => `<div class="module-display-row" data-display="${escapeHtml(id)}"><code>${escapeHtml(id)}</code>`
-    + `<input type="text" data-name maxlength="40" value="${escapeHtml(names[id] || '')}" placeholder="Its own name" aria-label="${escapeHtml(id)}: name">`
-    + `${iconField(icons[id], `${id}: icon, a Font Awesome name`, 'puzzle-piece')}</div>`).join('');
+  $('te-module-display').innerHTML = ids.map((id) => `<div class="module-display-row" data-display="${escapeHtml(id)}"><strong>${escapeHtml(moduleName(id))}</strong>`
+    + `<input type="text" data-name maxlength="40" value="${escapeHtml(names[id] || '')}" placeholder="${escapeHtml(moduleName(id))}" aria-label="${escapeHtml(moduleName(id))}: name">`
+    + `${iconField(icons[id], `${moduleName(id)}: icon, a Font Awesome name`, moduleIcon(id))}</div>`).join('');
   $('te-lobby-name').value = (t && t.lobby && t.lobby.name) || '';
   $('te-lobby-description').value = (t && t.lobby && t.lobby.description) || '';
   $('te-profile').value = (t && t.spaceDefaults && t.spaceDefaults.profile) || '';

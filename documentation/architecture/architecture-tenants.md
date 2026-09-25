@@ -436,7 +436,8 @@ one. The old `/api/host/tenants...` paths are gone and answer 404; there is no a
 
 | Route | Answer |
 |---|---|
-| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused, template }] }`, `template` being `{ id, name, source, version, appliedVersion, appliedAt, offerOpen, skipped: [{ id, name, why }] }` or null, read from the environment itself (see "Templates") |
+| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused, template }] }`, `template` being `{ id, name, source, version, appliedVersion, appliedAt, offerOpen, skipped: [{ id, name, why }] }` or null, read from the environment itself (see "Templates"); every field is present even for an environment that isn't open |
+| `GET /api/host/settings` | `{ baseDomain, version, hostAdmins, productName, contactEmail, plans, signup, billingSecretSet, modules }`; `modules` is `[{ id, name, icon }]`, the conference and the chat first, then the bundled modules by id, for the template editor |
 | `GET /api/host/templates` | `{ templates: [{ id, name, description, source, version, hidden, usedBy: [slugs] }] }`, every template the host can see (see "Templates") |
 | `GET /api/host/templates/:id` | `{ template }`, the template in full, with `source`, `version`, `hidden`, `createdAt` and `updatedAt`; 404 `There is no template called <id>.` |
 | `POST /api/host/templates` `{ ...the template's fields }` | 201 `{ template }`, saved as version 1, not hidden; 400 `{ error, problems }` (the first problem, then every one); 409 `There is already a template called <id>.` |
@@ -581,7 +582,7 @@ is. Each switch adds `{ from, to, at, by }` (`by`: the owner's key or `host`) to
 kept to the last 20 and not shown to owners. Switching to the template already in use changes nothing.
 
 **The offer.** A template's once-only part is an offer (`offerOpen: true`) after a switch, until it is applied, and
-when the template's `version` is above the record's `appliedVersion` (`offerIsOpen()`). An update offers only the
+when the template's `version` is above the record's `appliedVersion` (`offerIsOpen()`). For an environment that isn't open (the console's list), `offerOpen` is read from the stored record alone: a newer version counts only if a part it applies once changed since it was applied (`templates.appliedPartsChanged()`), so it can over-report a part the environment already has until the environment is opened. An update offers only the
 parts whose fingerprint differs from the record's `applied`, so a part the template didn't change is never offered
 again, whatever the owner did with it since; a record without `applied` (a switch, or one from before) is compared
 with the environment as it is. A newer version with nothing to offer (it changed only live parts) opens no offer.
