@@ -10,6 +10,27 @@
 
 const fs = require('fs');
 const path = require('path');
+const { encryptSecret, decryptSecret } = require('./auth');
+
+// A key kept at rest is encrypted (AES-256-GCM, server/auth.js's encryptSecret: 'aesgcm$...'). The sentence shown
+// when a saved one can't be read with this server's key -- data restored onto a different host, say, which has a
+// different secrets key: the key has to be set again, the way a two-step sign-in has to be enrolled again.
+const ENCRYPTED = 'aesgcm$';
+const isEncrypted = (v) => typeof v === 'string' && v.startsWith(ENCRYPTED);
+const KEY_UNREADABLE = "the saved AI key can't be read on this server; enter the key again";
+// The stored form of a key: encrypted with `buf` when there is one and it is not already; '' stays ''.
+function sealKey(value, buf) {
+  if (!value || !buf || isEncrypted(value)) return value || '';
+  return encryptSecret(value, buf);
+}
+// The usable form of a stored key: { key, unreadable }. A plain value (saved before keys were encrypted, or with
+// no secrets key to encrypt with) is used as it is; an encrypted one that won't decrypt is '' and unreadable.
+function openKey(stored, buf) {
+  if (!stored) return { key: '', unreadable: false };
+  if (!isEncrypted(stored)) return { key: stored, unreadable: false };
+  const plain = buf ? decryptSecret(stored, buf) : null;
+  return plain === null ? { key: '', unreadable: true } : { key: plain, unreadable: false };
+}
 
 // none; openai and anthropic are those companies (the host knows their addresses, so nobody types them); compatible is any other
 // service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
@@ -175,9 +196,12 @@ class Ai {
   // (real keys, for making calls; never exposed by view()), in offer order, or null when the host offers none.
   // AI_KEY moved to the host: an environment's own custom slot no longer has an environment-variable fallback
   // of its own.
-  constructor(dataDir, env = process.env, hosts = HOSTS, managed = () => null) {
+  // `secretsKey`: a function returning (or a Buffer that is) the 32-byte key this environment's own AI key is
+  // encrypted with in ai.json (server/index.js's secretsKeyBuf). Without one (a test) the key is kept as given.
+  constructor(dataDir, env = process.env, hosts = HOSTS, managed = () => null, secretsKey = null) {
     this.hosts = { ...HOSTS, ...hosts };
     this.managed = managed;
+    this.secretsKey = secretsKey;
     this.file = path.join(dataDir, 'ai.json');
     this.usageFile = path.join(dataDir, 'ai-usage.json');
     this.env = env;
@@ -185,6 +209,8 @@ class Ai {
     this.usage = { month: month(), tokens: 0, calls: 0, byTask: {} };
     let loaded = false;
     try { Object.assign(this.config, JSON.parse(fs.readFileSync(this.file, 'utf8'))); loaded = true; } catch { /* not set up */ }
+    // Kept private to the server's user on every load, whatever mode an older install, a restore or a copy left it with.
+    if (loaded) { try { fs.chmodSync(this.file, 0o600); } catch { /* not ours to change */ } }
     try { const u = JSON.parse(fs.readFileSync(this.usageFile, 'utf8')); if (u && u.month === month()) this.usage = { ...this.usage, ...u }; } catch { /* nothing used yet */ }
     if (!PROVIDERS.includes(this.config.provider)) this.config.provider = 'none';
     // Before there were companies to choose, `openai` meant any OpenAI-compatible address: one that is not OpenAI's own is `compatible`.
@@ -217,7 +243,20 @@ class Ai {
       this.saveConfig();
     }
     if (this.config.source === 'custom' && this.config.provider === 'none') this.config.enabled = false;
+    // A key saved in the clear (before keys were encrypted at rest) is encrypted now and saved straight away, so
+    // ai.json never holds a plain key once this server has loaded it.
+    if (typeof this.config.key !== 'string') this.config.key = '';
+    if (this.config.key && !isEncrypted(this.config.key) && this.keyBuf()) {
+      this.config.key = sealKey(this.config.key, this.keyBuf());
+      this.saveConfig();
+    }
     this.timer = null;
+  }
+
+  // The secrets key as a Buffer, or null when this instance was given none.
+  keyBuf() {
+    const k = typeof this.secretsKey === 'function' ? this.secretsKey() : this.secretsKey;
+    return k || null;
   }
 
   // Read once by index.js right after construction, to seed the host's managed service from an environment
@@ -242,7 +281,8 @@ class Ai {
       const o = this.managedOffer(config.managedProvider);
       return o ? { provider: o.provider, address: o.address || '', model: o.model, key: o.key || '', workspace: o.workspace || '' } : { provider: 'none', address: '', model: '', key: '', workspace: '' };
     }
-    return { provider: config.provider, address: config.address, model: config.model, key: config.key, workspace: config.workspace || '' };
+    const { key, unreadable } = openKey(config.key, this.keyBuf());
+    return { provider: config.provider, address: config.address, model: config.model, key, workspace: config.workspace || '', ...(unreadable ? { keyUnreadable: true } : {}) };
   }
 
   // Whether a config names an active, key-ready service -- same as ready() minus the enabled flag itself,
@@ -252,6 +292,9 @@ class Ai {
   hasActiveService(config = this.config) {
     const c = this.effective(config);
     if (c.provider === 'none') return false;
+    // A saved key this server can't read is still a key: the service stays chosen (and AI stays on) while an owner
+    // saves other fields; only ready() refuses to use it, and the one complaint is the key sentence.
+    if (c.keyUnreadable) return true;
     if (c.provider === 'anthropic' || c.provider === 'openai') return !!c.key;
     return true; // another service may need no key (a local model)
   }
@@ -272,6 +315,7 @@ class Ai {
     const c = this.config;
     const offers = this.managed() || [];
     const active = this.effective();
+    const unreadable = openKey(c.key, this.keyBuf()).unreadable;
     return {
       source: c.source,
       active: { provider: active.provider, model: active.model },
@@ -282,7 +326,9 @@ class Ai {
       model: c.model,
       workspace: c.workspace || '', // an id, not a secret -- fine to show
       monthlyTokens: c.monthlyTokens,
-      keySet: !!c.key,
+      keySet: !!c.key && !unreadable, // a saved key this server can't read counts as none: it has to be entered again
+      keyUnreadable: unreadable,
+      keyProblem: unreadable ? KEY_UNREADABLE : null, // one plain sentence for the AI settings to show, or null
       keyFromEnvironment: false,
       enabled: c.enabled,
     };
@@ -315,6 +361,7 @@ class Ai {
       throw new AiError('the host does not offer that company');
     }
     Object.assign(next, applyAiFields(next, p));
+    next.key = sealKey(next.key, this.keyBuf()); // a key just typed is kept encrypted, never in the clear
     if (p.monthlyTokens !== undefined) {
       const n = Number(p.monthlyTokens);
       if (!Number.isFinite(n) || n < 0 || n > 1e10) throw new AiError('the monthly limit must be a number of tokens, 0 for none');
@@ -326,6 +373,7 @@ class Ai {
     // "Setting a service up does not turn AI on" still holds: an environment that has never enabled stays off.
     if (sourceOrProviderChanged && !this.hasActiveService(next)) next.enabled = false;
     if (p.enabled !== undefined) {
+      if (p.enabled === true && !this.config.enabled && this.effective(next).keyUnreadable) throw new AiError(KEY_UNREADABLE); // turning on with a key it can't use
       if (p.enabled === true && !this.hasActiveService(next)) throw new AiError('choose a service and save it before enabling AI');
       next.enabled = p.enabled === true;
     }
@@ -372,7 +420,7 @@ class Ai {
   // Ready to answer: the active source has a provider chosen, this environment has it enabled, and, for a
   // hosted provider, there is a key.
   ready() {
-    return this.config.enabled && this.hasActiveService();
+    return this.config.enabled && this.hasActiveService() && !this.effective().keyUnreadable;
   }
 
   usageView() {
@@ -408,6 +456,7 @@ class Ai {
   // { text, summaries?, tags?, tokens, used }, where `used` are the item numbers the answer names.
   async run(task, items, question) {
     if (!TASKS.includes(task)) throw new AiError('that task is not offered');
+    if (this.config.enabled && this.effective().keyUnreadable) throw new AiError(KEY_UNREADABLE, 503);
     if (!this.ready()) throw new AiError('AI is not set up on this server', 503);
     if (this.overCap()) throw new AiError('this server has used its AI allowance for the month', 429);
     const list = (Array.isArray(items) ? items : []).slice(0, MAX_ITEMS);
@@ -426,7 +475,10 @@ class Ai {
   // when given, otherwise the saved one on this environment's own custom slot (never the managed key -- the
   // host lists the managed service's own models itself, via listModelsFor directly).
   async listModels({ provider, address, key, workspace }) {
-    const useKey = (typeof key === 'string' && key.trim()) || this.config.key;
+    const typed = typeof key === 'string' && key.trim();
+    const saved = typed ? { key: '' } : openKey(this.config.key, this.keyBuf());
+    if (!typed && saved.unreadable) throw new AiError(KEY_UNREADABLE);
+    const useKey = typed || saved.key;
     const useWorkspace = (typeof workspace === 'string' && workspace.trim()) || this.config.workspace || '';
     return listModelsFor({ provider, address: address || this.config.address, key: useKey, workspace: useWorkspace }, this.hosts);
   }
@@ -586,4 +638,4 @@ function citedItems(text, count) {
   return [...used].sort((a, b) => a - b);
 }
 
-module.exports = { Ai, AiError, applyAiFields, applyManagedFields, managedOffer, listModelsFor, PROVIDERS, MANAGED_PROVIDERS, DEFAULT_MODELS, HOSTS, buildPrompt, parseTags, parseSummaries, cleanSummary, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_SUMMARIES };
+module.exports = { Ai, AiError, sealKey, openKey, KEY_UNREADABLE, applyAiFields, applyManagedFields, managedOffer, listModelsFor, PROVIDERS, MANAGED_PROVIDERS, DEFAULT_MODELS, HOSTS, buildPrompt, parseTags, parseSummaries, cleanSummary, citedItems, TASKS, MAX_ITEMS, ICONS, KINDS, MAX_SUMMARIES };

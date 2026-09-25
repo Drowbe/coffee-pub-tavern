@@ -489,8 +489,10 @@ function renderCreateChoices() {
     + templates.map((t) => option(t.id, t.name || t.id, t.description || '')).join('');
   if (!options.querySelector('input:checked')) options.querySelector('input').checked = true;
 }
-$('create-toggle').addEventListener('click', () => { $('create-form').hidden = !$('create-form').hidden; if (!$('create-form').hidden) $('new-slug').focus(); });
-$('create-cancel').addEventListener('click', () => { $('create-form').hidden = true; });
+// Closing the form empties it (a reset also masks its password again, brand.js), so it never reopens with an old value showing.
+const closeCreateForm = () => { $('create-form').hidden = true; $('create-form').reset(); };
+$('create-toggle').addEventListener('click', () => { if (!$('create-form').hidden) return closeCreateForm(); $('create-form').hidden = false; $('new-slug').focus(); });
+$('create-cancel').addEventListener('click', closeCreateForm);
 $('create-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   say($('create-error'), '');
@@ -694,7 +696,7 @@ $('host-logout').addEventListener('click', async () => {
   await load();
 });
 
-renderTopbar({ location: '' });
+renderTopbar({ location: '', themeSwitch: false });
 await loadBranding();
 // The console is the product's own door, so its bar wears the product's logo, not any environment's name and icon.
 const brandHome = document.querySelector('.topbar .brand-home');

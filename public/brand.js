@@ -1,9 +1,12 @@
 import { nav } from '/nav-bar.js';
 import { mountEnvironmentBanner } from '/environment-banner.js';
 import { word, setWords } from '/words.js';
+import { themeSwitch, setEnvironmentMode, setAccountMode, themeChanged, watchThemeWithoutStream, forgetThemeMode } from '/theme-mode.js';
 
 // The words a person reads for each level and role (public/words.js), for every page that already imports from here.
 export { word, words, fill, applyWords, setWords } from '/words.js';
+// Light and dark (GitHub #62): the mode showing now, and a popped-out window following this page's look.
+export { themeMode, followTheme } from '/theme-mode.js';
 
 // Escapes text going into innerHTML -- a space's or the environment's name is an owner-set
 // string, not something we generated, so it isn't safe to trust verbatim.
@@ -83,6 +86,7 @@ export async function loadBranding() {
     // keep the defaults
   }
   ICONS = Array.isArray(b.icons) ? b.icons : [];
+  setEnvironmentMode(b.themeMode, b.themeVersion); // the default mode, and a stylesheet that changed since this page loaded
   setWords(b.words); // every data-word and data-fill on the page, and word() from here on
   refreshSpacesLink();
   clockHour12 = b.clock !== '24';
@@ -132,7 +136,8 @@ let headerEl = null;
 const qsa = (sel) => [...new Set([...document.querySelectorAll(sel), ...(headerEl ? headerEl.querySelectorAll(sel) : [])])];
 const byId = (id) => document.getElementById(id) || headerEl?.querySelector(`#${id}`) || null;
 
-export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
+// themeSwitch: false leaves out the light or dark switch (the host console, which no environment's theme reaches).
+export function renderTopbar({ location = '', adminHref = '/admin', themeSwitch: withThemeSwitch = true } = {}) {
   const header = document.querySelector('.topbar');
   if (!header) return;
   headerEl = header;
@@ -166,7 +171,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
     <button class="icon-link nav-toggle" id="nav-toggle" type="button" title="Menu" aria-label="Menu" aria-expanded="false"><i class="fa-solid fa-bars fa-fw" aria-hidden="true"></i></button>
   `;
   nav.attach('primary', header);
-  registerSystemTools(header, initialIcon, adminHref);
+  registerSystemTools(header, initialIcon, adminHref, withThemeSwitch);
   wireNavMenu(header);
   setTopbarLocation(location);
   wireInstall();
@@ -174,8 +179,9 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   startClock();
   loadUpdateBadge();
   startPresence();
+  if (withThemeSwitch) loadAccountMode();
   startNotifications();
-  mountEnvironmentBanner(); // an owner's past-due line under the header, on a hosted environment only
+  mountEnvironmentBanner(loadMe); // an owner's past-due line under the header, on a hosted environment only
 }
 
 // The system's own tools, in the bands plan-nav.md sets out (1-10 core, 11-50 secondary, 51-100 utility, 999 last), so a
@@ -197,7 +203,7 @@ function refreshSpacesLink() {
     i.dataset.iconId = icon;
   }
 }
-function registerSystemTools(header, initialIcon, adminHref) {
+function registerSystemTools(header, initialIcon, adminHref, withThemeSwitch) {
   const doc = header.ownerDocument;
   const spaces = nav.register(spacesTool(initialIcon));
   spaces.querySelector('i').dataset.brand = 'home-icon'; // loadBranding() swaps in the server's own home icon
@@ -209,6 +215,8 @@ function registerSystemTools(header, initialIcon, adminHref) {
   whoami.innerHTML = '<img id="whoami-img" alt="" hidden><span id="whoami"></span>';
   nav.register({ id: 'whoami-link', bar: 'primary', zone: 'right', group: 'you', groupOrder: 1, order: 1, element: whoami });
   // Manage: each page shows it once it knows the viewer is an admin (its own `hidden`), so no `visible` here.
+  // Light or dark, the person's own (theme-mode.js), beside Manage.
+  if (withThemeSwitch) nav.register({ id: 'theme-mode-switch', bar: 'primary', zone: 'right', group: 'system', groupOrder: 11, order: 10, element: themeSwitch(doc) });
   nav.register({ id: 'admin-link', bar: 'primary', zone: 'right', group: 'system', groupOrder: 11, order: 11, icon: 'gear', label: 'Manage', href: adminHref }).hidden = true;
   nav.register({ id: 'install-link', bar: 'primary', zone: 'right', group: 'system', groupOrder: 11, order: 12, icon: 'download', label: 'Install as an app', visible: () => Boolean(installPromptEvent), onClick: installFromPrompt });
   const clock = doc.createElement('span');
@@ -216,7 +224,7 @@ function registerSystemTools(header, initialIcon, adminHref) {
   clock.id = 'topbar-clock';
   clock.title = 'The time';
   nav.register({ id: 'topbar-clock', bar: 'primary', zone: 'right', group: 'session', groupOrder: 51, order: 51, element: clock });
-  nav.register({ id: 'logout-link', bar: 'primary', zone: 'right', group: 'session', groupOrder: 51, order: 52, icon: 'right-from-bracket', label: 'Sign out', href: '/logout' });
+  nav.register({ id: 'logout-link', bar: 'primary', zone: 'right', group: 'session', groupOrder: 51, order: 52, icon: 'right-from-bracket', label: 'Sign out', href: '/logout', onClick: forgetThemeMode }); // the next person here starts from the default
 }
 
 // The time, in the primary nav's right zone, on the server's clock (12- or 24-hour: Manage > Settings > Language, time and
@@ -301,10 +309,35 @@ function showToast(n) {
   setTimeout(dismiss, 9000);
 }
 
+// A guest's page (a guest link, /guest/<token>, or a module it popped out, ?guest=): no account, so /api/me is not asked.
+const isGuestPage = () => location.pathname.startsWith('/guest/') || new URLSearchParams(location.search).has('guest');
+// GET /api/me, asked once per page and shared (the header's switch, the owner's banner): the answer, null for no
+// account (a guest, or signed out), undefined when it could not be asked. `fresh` asks again.
+let mePromise = null;
+function loadMe(fresh = false) {
+  if (!mePromise || fresh) {
+    mePromise = isGuestPage()
+      ? Promise.resolve(null)
+      : fetch('/api/me').then((res) => (res.ok ? res.json() : res.status === 401 ? null : undefined)).catch(() => undefined);
+  }
+  return mePromise;
+}
+
+// The signed-in person's own light or dark (their account wins over what this browser remembers); a guest's is the
+// browser's. See theme-mode.js.
+async function loadAccountMode(fresh = false) {
+  const me = await loadMe(fresh);
+  if (me) setAccountMode(me.user);
+  else if (me === null) setAccountMode(null);
+  // undefined: unknown; the switch still works, and keeps the pick in this browser
+}
+
 async function startNotifications() {
+  // An overlay over a call (?from=space) leaves all this to the call page, which passes a theme change down to it.
   if (new URLSearchParams(window.location.search).get('from') === 'space') return;
   try {
     const res = await fetch('/api/notifications');
+    if (res.status === 401) watchThemeWithoutStream(); // a guest: no stream, so it asks after the theme now and then
     if (!res.ok) return;
     Object.assign(unreadByModule, (await res.json()).byModule);
     paintUnread();
@@ -312,6 +345,31 @@ async function startNotifications() {
     return;
   }
   const source = new EventSource('/api/notifications/stream');
+  // The owner changed the theme or its default mode: the stylesheet is fetched again (GitHub #62).
+  source.addEventListener('theme', (ev) => {
+    try {
+      themeChanged(JSON.parse(ev.data));
+    } catch {
+      // ignore a malformed event
+    }
+  });
+  // This person picked light or dark on another page or device.
+  source.addEventListener('mode', (ev) => {
+    try {
+      setAccountMode({ themeMode: JSON.parse(ev.data).themeMode });
+    } catch {
+      // ignore a malformed event
+    }
+  });
+  // Back after a dropped connection: anything told while it was down is asked for again.
+  let connected = false;
+  source.addEventListener('open', () => {
+    if (connected) {
+      fetch('/api/branding').then((r) => (r.ok ? r.json() : null)).then((b) => b && setEnvironmentMode(b.themeMode, b.themeVersion)).catch(() => {});
+      loadAccountMode(true);
+    }
+    connected = true;
+  });
   // Someone asked you into a private conversation: join, or decline.
   source.addEventListener('invite', (ev) => {
     try {
@@ -536,6 +594,29 @@ export function wireOverlayBack(label) {
   });
   nav.prepend(back);
 }
+
+// A password field is masked; a Show/Hide button beside it (the access key's pattern on the Manage page) reveals it:
+// <button class="btn btn-small" type="button" data-reveal="the-input-id">Show</button>. A form reset masks it again.
+function setRevealed(button, shown) {
+  const field = document.getElementById(button.dataset.reveal);
+  if (!field) return;
+  field.type = shown ? 'text' : 'password';
+  button.textContent = shown ? 'Hide' : 'Show';
+  button.setAttribute('aria-pressed', String(shown));
+}
+// Masks a field again (after a save that empties it, say), its button back to Show.
+export function maskPassword(id) {
+  document.querySelectorAll(`button[data-reveal="${id}"]`).forEach((button) => setRevealed(button, false));
+}
+document.addEventListener('click', (event) => {
+  const button = event.target.closest?.('button[data-reveal]');
+  if (!button) return;
+  event.preventDefault();
+  setRevealed(button, document.getElementById(button.dataset.reveal)?.type === 'password');
+});
+document.addEventListener('reset', (event) => {
+  event.target.querySelectorAll?.('button[data-reveal]').forEach((button) => setRevealed(button, false));
+}, true);
 
 export function initialsOf(name) {
   const words = String(name || '').trim().split(/\s+/).filter(Boolean);

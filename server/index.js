@@ -29,6 +29,7 @@ const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require(
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
+const themeCssLib = require('./theme-css');
 const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, hasOwnerRights, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
@@ -226,6 +227,7 @@ const limiter = proxyFor('limiter');
 const presence = proxyFor('presence');
 const invites = proxyFor('invites');
 const inviteEvents = proxyFor('inviteEvents');
+const themeEvents = proxyFor('themeEvents');
 const iconSvgs = proxyFor('iconSvgs');
 const moduleActivity = proxyFor('moduleActivity');
 function noteActivity(...args) { return currentEnvironment().noteActivity(...args); }
@@ -248,6 +250,31 @@ if (hostRegistry) {
   hostRegistry.setBaseDomain(BASE_DOMAIN);
   hostRegistry.setPreviousBaseDomains(PREVIOUS_BASE_DOMAINS);
 }
+// The key that encrypts every secret at rest (every TOTP secret, and an environment's own AI key -- server/ai.js): the host's own, shared across every environment, on a host with
+// environments (host.json's secretsKey -- an owner's export or the console's backup never carries host.json
+// at all); a single file beside the store on a self-hosted install (there is no host.json), made on first use.
+// Cached after the first call -- neither source ever changes once the server is up.
+let _secretsKeyBuf = null;
+function secretsKeyBuf() {
+  if (_secretsKeyBuf) return _secretsKeyBuf;
+  if (hostRegistry) {
+    _secretsKeyBuf = Buffer.from(hostRegistry.secretsKey, 'hex');
+    return _secretsKeyBuf;
+  }
+  const file = path.join(DATA_DIR, 'secrets.key');
+  if (!fs.existsSync(file)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
+  try { fs.chmodSync(file, 0o600); } catch { /* not ours to change */ } // private, whatever mode an older install left it with
+  _secretsKeyBuf = Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'hex');
+  return _secretsKeyBuf;
+}
+// A single install's secrets.key from before it was kept private: private from this start on, whether or not
+// anything reads it this time (a hosted server keeps its key in host.json, which HostRegistry keeps private).
+if (!hostRegistry && fs.existsSync(path.join(DATA_DIR, 'secrets.key'))) {
+  try { fs.chmodSync(path.join(DATA_DIR, 'secrets.key'), 0o600); } catch { /* not ours to change */ }
+}
+// (Up here, not beside the two-step sign-in below: environmentFor() runs at module load and hands it to each
+// environment's Ai, which encrypts a plain saved key on its first load.)
 // The host's own region-cut jobs, over its shared folders (documentation/plans/plan-tenants.md, "Shared files:
 // the host's map") -- lands a cut in DATA_DIR/shared/<module id>/<folder>/ (`under: ''`, no per-environment
 // "modules" segment), never DATA_DIR/shared/modules/... An environment's own regionCutJobs (per environment,
@@ -274,7 +301,60 @@ function migrateIfNeeded() {
   }
   hostRegistry.addEnvironment({ slug, name: slug, plan: { modules: 'all' } });
   console.log(`Migrated the existing install to the "${slug}" environment (${dest}).`);
+  secretsToHostKey(dest);
   ownersFromServerAdmin(dest);
+}
+// A single-environment install encrypts its secrets (the AI key in ai.json, every two-step secret in app.json, live
+// and pending) with DATA_DIR/secrets.key; a hosted environment's are read with host.json's secretsKey. So the move
+// decrypts each one with the install's key and encrypts it again with the host's, and says what it did. A value the
+// install's key can't decrypt is left exactly as it is, and said so; a plain (never encrypted) AI key is left for
+// Ai to encrypt on its first load. The install's secrets.key stays in the environment's folder, unused from now on,
+// so nothing is lost if a value has to be recovered by hand.
+function secretsToHostKey(dir) {
+  const keyFile = path.join(dir, 'secrets.key');
+  if (!fs.existsSync(keyFile)) return; // nothing was ever encrypted on this install
+  try { fs.chmodSync(keyFile, 0o600); } catch { /* not ours to change */ } // kept, and private
+  let from;
+  try {
+    from = Buffer.from(fs.readFileSync(keyFile, 'utf8').trim(), 'hex');
+    if (from.length !== 32) throw new Error('it is not a 32-byte key');
+  } catch (err) {
+    console.error(`The install's secrets key (${keyFile}) could not be read (${err.message}), so its AI key and two-step secrets were left as they were; they need setting again.`);
+    return;
+  }
+  const to = Buffer.from(hostRegistry.secretsKey, 'hex');
+  const done = { moved: 0, unreadable: 0 };
+  const swap = (value) => {
+    if (typeof value !== 'string' || !value.startsWith('aesgcm$')) return value;
+    const plain = auth.decryptSecret(value, from);
+    if (plain === null) { done.unreadable += 1; return value; }
+    done.moved += 1;
+    return auth.encryptSecret(plain, to);
+  };
+  const rewrite = (file, change) => {
+    if (!fs.existsSync(file)) return;
+    let data;
+    try { data = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return; } // unreadable data is refused later, by name
+    if (!data || typeof data !== 'object') return;
+    change(data);
+    fs.writeFileSync(`${file}.tmp`, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 });
+    fs.chmodSync(`${file}.tmp`, 0o600);
+    fs.renameSync(`${file}.tmp`, file);
+  };
+  rewrite(path.join(dir, 'ai.json'), (ai) => { if (ai.key) ai.key = swap(ai.key); });
+  const appFile = ['app.json', 'tavern.json'].map((f) => path.join(dir, f)).find((f) => fs.existsSync(f));
+  if (appFile) {
+    rewrite(appFile, (app) => {
+      for (const u of Array.isArray(app.users) ? app.users : []) {
+        if (!u || !u.mfa || typeof u.mfa !== 'object') continue;
+        if (u.mfa.secret) u.mfa.secret = swap(u.mfa.secret);
+        if (u.mfa.pending && u.mfa.pending.secret) u.mfa.pending.secret = swap(u.mfa.pending.secret);
+      }
+    });
+  }
+  const where = `"${path.basename(dir)}"`;
+  if (done.moved) console.log(`Moved ${done.moved} encrypted secret${done.moved === 1 ? '' : 's'} of ${where} (the AI key, two-step sign-in) to the host's key.`);
+  if (done.unreadable) console.error(`${done.unreadable} encrypted secret${done.unreadable === 1 ? '' : 's'} of ${where} could not be read with the install's key and ${done.unreadable === 1 ? 'was' : 'were'} left as ${done.unreadable === 1 ? 'it was' : 'they were'}: the AI key has to be entered again, and anyone affected has to set up two-step sign-in again.`);
 }
 // A single-environment install's admin (role admin, made by ADMIN_LOGIN and ADMIN_PASSWORD) runs that install; once it
 // is one environment of a hosted server, the server's admin is the host admin, so that account becomes the
@@ -287,7 +367,8 @@ function ownersFromServerAdmin(dir) {
   const moved = app.users.filter((u) => u && u.role === 'admin' && !u.hostAdmin);
   if (!moved.length) return;
   for (const u of moved) u.role = 'owner';
-  fs.writeFileSync(file, `${JSON.stringify(app, null, 2)}\n`);
+  fs.writeFileSync(file, `${JSON.stringify(app, null, 2)}\n`, { mode: 0o600 });
+  fs.chmodSync(file, 0o600);
   console.log(`The install's admin (${moved.map((u) => `"${u.login}"`).join(', ')}) is now the "${path.basename(dir)}" environment's owner; the server's admin is the host admin.`);
 }
 migrateIfNeeded();
@@ -419,6 +500,7 @@ function environmentFor(slug) {
       slug: slug || null,
       admin: slug ? null : { login: adminLogin, password: adminPassword },
       managed: managedAi,
+      secretsKey: secretsKeyBuf,
     });
   } catch (err) {
     if (err instanceof MigrationError) { noteRefusal(key, err); err.slug = key; }
@@ -924,22 +1006,6 @@ function resolveLoginUser(login, password) {
 
 // --- two-step sign-in (documentation/plans/plan-mfa.md) -----------------------------------------------------
 
-// The key that encrypts every TOTP secret at rest: the host's own, shared across every environment, on a host with
-// environments (host.json's secretsKey -- an owner's export or the console's backup never carries host.json
-// at all); a single file beside the store on a self-hosted install (there is no host.json), made on first use.
-// Cached after the first call -- neither source ever changes once the server is up.
-let _secretsKeyBuf = null;
-function secretsKeyBuf() {
-  if (_secretsKeyBuf) return _secretsKeyBuf;
-  if (hostRegistry) {
-    _secretsKeyBuf = Buffer.from(hostRegistry.secretsKey, 'hex');
-    return _secretsKeyBuf;
-  }
-  const file = path.join(DATA_DIR, 'secrets.key');
-  if (!fs.existsSync(file)) fs.writeFileSync(file, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
-  _secretsKeyBuf = Buffer.from(fs.readFileSync(file, 'utf8').trim(), 'hex');
-  return _secretsKeyBuf;
-}
 
 // Whether the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) applies to this particular person: an environment's own
 // owner, or a single-environment install's admin (the account ADMIN_LOGIN names, which the bypass exists to let back
@@ -1054,7 +1120,16 @@ function requireStream(req, res, next) {
   next();
 }
 
-function publicUser(req, u) {
+// Who may see a person's personal link (/j/<token>, a sign-in in itself): an owner, and the person themselves.
+// `self`: the answer is about the person making the request, even before a session exists (sign-in, register).
+// `link: false` leaves it out whoever asks (GET /api/status, which the access key in every OBS link reads).
+function maySeeLink(req, u, { self = false, link } = {}) {
+  if (link === false) return false;
+  if (self || isOwner(req)) return true;
+  return currentUser(req)?.key === u.key;
+}
+
+function publicUser(req, u, opts = {}) {
   // Every space this person actually belongs to right now (never the Lobby --
   // per-space images are for the spaces an owner picked them into, not the
   // one everyone is always in), each with which of their own images override
@@ -1077,12 +1152,14 @@ function publicUser(req, u) {
     hostAdmin: u.hostAdmin, // signs in through the host console, not a password of its own -- see resolveLoginUser
     hasPassword: !!u.passwordHash,
     mfaEnrolled: Boolean(u.mfa), // the only mfa field a person other than the account itself ever sees
-    link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
+    // The personal link only for those maySeeLink allows; left out entirely for anyone else.
+    ...(maySeeLink(req, u, opts) ? { link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null } : {}),
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
     spaces,
     permissions: store.spacePermissions(u.key, null), // their role's, outside any one space
     player: { ...u.player, effective: store.effectivePlayer(u) },
     callPrefs: u.callPrefs,
+    themeMode: u.themeMode || null, // their own light or dark; null follows the environment's default (GitHub #62)
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
     createdAt: u.createdAt,
   };
@@ -1095,9 +1172,37 @@ function presenceUser(u) {
   return { key: u.key, displayName: u.displayName, isOwner: hasOwnerRights(u), border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
+// A space's guest link (guestToken, a way into the call in itself) goes only to those who can manage it: an owner
+// (or the admin), and a member of that space with "Manage a space's guest link" (canInvite) -- the same people the
+// guest-link routes let change it. Everyone else (a member without it, a member of another space, a guest, an
+// access-key holder) gets the space with guestToken null.
+function maySeeGuestLink(user, space) {
+  if (!user) return false;
+  if (hasOwnerRights(user)) return true;
+  return space.members.includes(user.key) && Boolean(store.spacePermissions(user.key, space.id).canInvite);
+}
+function shownSpace(req, space) {
+  if (!space || !space.guestToken || maySeeGuestLink(currentUser(req), space)) return space;
+  return { ...space, guestToken: null };
+}
+
+// The environment's default mode (Manage > Theme), and the fingerprint of its /theme.css (server/theme-css.js).
+const environmentThemeMode = () => (store.settings.themeMode === 'light' ? 'light' : 'dark');
+const environmentThemeVersion = () => themeCssLib.themeVersion(store.activeThemeSets(), environmentThemeMode());
+// Runs an owner's theme change and, when what /theme.css says changed, tells every open page (the 'theme' event on
+// /api/notifications/stream), so each one re-fetches it at once instead of on its next load. A refused change throws
+// before anything is told.
+function watchTheme(change) {
+  const before = environmentThemeVersion();
+  const out = change();
+  const version = environmentThemeVersion();
+  if (version !== before) themeEvents.emit('theme', { themeMode: environmentThemeMode(), activeThemeId: store.settings.activeThemeId || null, version });
+  return out;
+}
+
 function branding() {
   const s = store.settings;
-  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), words: store.resolvedWords(), homeIcon: store.homeIcon, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), words: store.resolvedWords(), homeIcon: store.homeIcon, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, themeMode: environmentThemeMode(), themeVersion: environmentThemeVersion(), hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -1574,7 +1679,7 @@ hostRouter.post('/api/host/environments/:slug/restore', requireHostAdmin, rawHos
     for (const [name, data] of files) {
       const full = path.join(dir, name);
       fs.mkdirSync(path.dirname(full), { recursive: true });
-      fs.writeFileSync(full, data);
+      fs.writeFileSync(full, data, { mode: 0o600 }); // a restored file is private to the server's user, like the ones it writes itself
     }
     // Built now, so the console (and the sign-in list) knows at once whether the restored data opens.
     refusals.delete(req.params.slug);
@@ -2201,42 +2306,26 @@ app.use('/lib/tasks-vision.mjs', express.static(path.join(visionDir, 'vision_bun
 app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { maxAge: '30d' }));
 
 // A server-rendered stylesheet, not a static one: whatever theme colors an
-// admin has set (Manage > Settings > Theme), in the light or dark set the
-// server's mode picks, as :root overrides -- linked
+// admin has set (Manage > Settings > Theme), both its light and its dark set
+// (server/theme-css.js), as :root overrides -- linked
 // after style.css on every page, so the cascade lets it win without
-// touching style.css itself. Nothing set yet means an empty file, so an
-// untouched server looks exactly like style.css's own built-in defaults.
+// touching style.css itself. Nothing set yet means only Strong Coffee's
+// light set, under data-theme-mode="light", so an untouched server still
+// looks exactly like style.css's own built-in defaults.
 // This is also why the popped-out call window (space.js clones every
 // <link rel="stylesheet"> into that new window) picks up the theme for
 // free -- it's just another stylesheet link, not a runtime JS override
 // that would need its own copy into that second document.
-app.get('/theme.css', (_req, res) => {
+app.get('/theme.css', (req, res) => {
   res.set('Content-Type', 'text/css');
   res.set('Cache-Control', 'no-cache');
   // No environment at the bare base domain (the landing page): no theme there either, same as one that has not set one.
   const env = envContext.getStore();
-  const theme = env && env.store.activeThemeColors();
-  if (!theme) return res.send('');
-  const vars = [
-    ['--bg', theme.bg],
-    ['--bg-section', theme.bgSection],
-    ['--border', theme.border],
-    ['--text', theme.text],
-    ['--text-dim', theme.textDim],
-    ['--accent', theme.accent],
-    ['--on-accent', theme.onAccent],
-    // Optional ones: only when the theme sets them; otherwise style.css derives them.
-    ['--bg-card', theme.card],
-    ['--header-bg', theme.headerBg],
-    ['--header-text', theme.headerText],
-    ['--icon', theme.icon],
-    ['--icon-hover', theme.iconHover],
-    ['--primary-hover', theme.primaryHover],
-    ['--secondary', theme.secondary],
-    ['--secondary-text', theme.secondaryText],
-    ['--secondary-hover', theme.secondaryHover],
-  ].filter(([, value]) => value);
-  res.send(`:root {\n${vars.map(([name, value]) => `  ${name}: ${value};`).join('\n')}\n}\n`);
+  if (!env) return res.send('');
+  // Both modes, each under its own <html data-theme-mode> (server/theme-css.js); a page without the attribute shows
+  // the signed-in person's own mode, else the environment's default, so the first paint is already right.
+  const person = currentUser(req);
+  res.send(themeCssLib.themeCss(env.store.activeThemeSets(), person?.themeMode || environmentThemeMode()));
 });
 
 app.use(express.static(publicDir, { index: false }));
@@ -2264,7 +2353,7 @@ app.post('/api/login', (req, res) => {
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
-  res.json({ user: publicUser(req, user), token });
+  res.json({ user: publicUser(req, user, { self: true }), token });
 });
 
 // The second step, for an account with a factor already: a TOTP code or a recovery code, checked against
@@ -2296,7 +2385,7 @@ app.post('/api/login/verify', (req, res) => {
   auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
   if (req.body?.remember) auth.setSessionCookie(req, res, auth.issueSession(store.sessionSecret, fresh), auth.TRUST_COOKIE);
   setEnvHint(req, res);
-  res.json({ user: publicUser(req, fresh), token });
+  res.json({ user: publicUser(req, fresh, { self: true }), token });
 });
 
 // Self sign-up: only works while an admin has it turned on. A self-signed
@@ -2311,7 +2400,7 @@ app.post('/api/register', (req, res) => {
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
-  res.status(201).json({ user: publicUser(req, user) });
+  res.status(201).json({ user: publicUser(req, user, { self: true }) });
 });
 
 // An owner-made invite: signs someone up straight into the spaces it was
@@ -2341,7 +2430,7 @@ app.post('/api/invites/:token/accept', (req, res) => {
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
-  res.status(201).json({ user: publicUser(req, user) });
+  res.status(201).json({ user: publicUser(req, user, { self: true }) });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -2352,7 +2441,7 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/me', requireUser, (req, res) => {
   const user = currentUser(req);
   res.json(studioAlias.me(req, {
-    user: publicUser(req, user),
+    user: publicUser(req, user, { self: true }),
     ...branding(),
     // `owner`: this account is one of the environment's owners -- never the host admin's own cross sign-in stand-in
     // (role admin), which has an owner's rights but is not one.
@@ -2367,6 +2456,24 @@ app.get('/api/me', requireUser, (req, res) => {
     mfaRequired: !user.mfa && mfaPolicyRequires(user),
     mfaBypass: mfaBypassApplies(user),
   }, { signedIn: user, role: user.role, hostAdmin: Boolean(user.hostAdmin), environmentName: store.settings.environmentName }));
+});
+
+// The signed-in person's own account settings. So far only themeMode (GitHub #62): 'light' or 'dark', or null to
+// follow the environment's default mode again. Every field is checked before any is kept, so a refused save changes
+// nothing. The person's other open pages are told at once (the 'mode' event on /api/notifications/stream).
+const ME_FIELDS = ['themeMode'];
+app.patch('/api/me', requireUser, (req, res) => {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'send the changes as JSON, such as {"themeMode":"dark"}' });
+  const unknown = Object.keys(body).find((k) => !ME_FIELDS.includes(k));
+  if (unknown) return res.status(400).json({ error: `${unknown} can't be changed here` });
+  if (!Object.keys(body).length) return res.status(400).json({ error: 'there is nothing to change' });
+  const { themeMode } = body;
+  if (themeMode !== null && themeMode !== 'light' && themeMode !== 'dark') return res.status(400).json({ error: `the mode is light or dark, or null to follow the ${word('environment')}'s default` });
+  const user = currentUser(req);
+  const mode = store.setThemeMode(user.key, themeMode);
+  themeEvents.emit('mode', { userKey: user.key, themeMode: mode });
+  res.json({ user: publicUser(req, store.userByKey(user.key), { self: true }), themeMode: environmentThemeMode() });
 });
 
 // Enrolment (documentation/plans/plan-mfa.md): for the signed-in person, or -- with no session yet -- whoever
@@ -2403,7 +2510,7 @@ app.post('/api/me/mfa/enable', requireMfaOffered, (req, res) => {
   const token = auth.issueSession(store.sessionSecret, fresh);
   auth.setSessionCookie(req, res, token);
   auth.clearSessionCookie(req, res, auth.PENDING_COOKIE);
-  const out = { recoveryCodes, user: publicUser(req, fresh), token };
+  const out = { recoveryCodes, user: publicUser(req, fresh, { self: true }), token };
   if (!currentUser(req)) {
     setEnvHint(req, res);
   }
@@ -2528,12 +2635,12 @@ function requireOwnSpace(req, res, next) {
 app.put('/api/me/spaces/:spaceId/images/:slot', requireUser, requireOwnSpace, requireImageRight, rawImage, checkStorageCap, (req, res) => {
   const user = currentUser(req);
   store.setImage(user.key, req.imageSlot, req.body, req.get('content-type'), req.params.spaceId);
-  res.json({ user: publicUser(req, store.userByKey(user.key)) });
+  res.json({ user: publicUser(req, store.userByKey(user.key), { self: true }) });
 });
 app.delete('/api/me/spaces/:spaceId/images/:slot', requireUser, requireOwnSpace, requireImageRight, (req, res) => {
   const user = currentUser(req);
   store.removeImage(user.key, req.imageSlot, req.params.spaceId);
-  res.json({ user: publicUser(req, store.userByKey(user.key)) });
+  res.json({ user: publicUser(req, store.userByKey(user.key), { self: true }) });
 });
 app.patch('/api/me/spaces/:spaceId', requireUser, requireOwnSpace, (req, res) => {
   const user = currentUser(req);
@@ -2542,7 +2649,7 @@ app.patch('/api/me/spaces/:spaceId', requireUser, requireOwnSpace, (req, res) =>
     return res.status(403).json({ error: `your role can't change ${word('space', { a: true })}'s images` });
   }
   store.setSpacePrefs(user.key, req.params.spaceId, { useDefaultImages: req.body?.useDefaultImages });
-  res.json({ user: publicUser(req, store.userByKey(user.key)) });
+  res.json({ user: publicUser(req, store.userByKey(user.key), { self: true }) });
 });
 
 // A user's own mic/camera processing settings (gain, noise suppression,
@@ -2592,7 +2699,7 @@ app.post('/api/asides/invite', requireUser, (req, res) => {
   invites.set(invite.id, invite);
   for (const [id, i] of invites) if (Date.now() - i.at > INVITE_MS) invites.delete(id);
   inviteEvents.emit('invite', { ...invite, fromName: me.displayName });
-  res.json({ aside, invite: { id: invite.id } });
+  res.json({ aside: shownSpace(req, aside), invite: { id: invite.id } });
 });
 // Declining just ends the invitation; the inviter is not told anything unfriendly, the aside simply stays empty.
 app.post('/api/asides/invite/:id/decline', requireUser, (req, res) => {
@@ -2610,7 +2717,7 @@ app.get('/api/presence', async (req, res) => {
   res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), space: byKey.get(u.key)?.space || null, inCall: byKey.get(u.key)?.inCall ?? false })),
-    spaces: store.spaces.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
+    spaces: store.spaces.map((r) => ({ ...shownSpace(req, r), mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
     activeSpace: activeSpaceId(byKey),
     ownerOnline: hasOnlineOwner(byKey),
   });
@@ -2654,7 +2761,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
     // the next poll catches up.
     const bystanderPayload = asidePayload(ASIDE_TOPICS.started, { spaceId: aside.id, members: aside.members });
     await callService.sendData(initiatorCall, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.started }).catch(() => {});
-    res.json({ aside });
+    res.json({ aside: shownSpace(req, aside) });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -2705,7 +2812,7 @@ app.post('/api/asides/return', requireUser, async (req, res) => {
         .sendData(mine.call, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: others, topic: ASIDE_TOPICS.return })
         .catch(() => {});
     }
-    res.json({ space: dest });
+    res.json({ space: shownSpace(req, dest) });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -2719,8 +2826,8 @@ app.get('/api/status', requireStream, async (req, res) => {
   store.pruneAsides(byKey);
   res.json(studioAlias.status(req, {
     ...branding(),
-    users: store.users.map((u) => ({ ...publicUser(req, u), online: withoutCall(byKey.get(u.key)) })),
-    spaces: store.spaces,
+    users: store.users.map((u) => ({ ...publicUser(req, u, { link: false }), online: withoutCall(byKey.get(u.key)) })),
+    spaces: store.spaces.map((r) => shownSpace(req, r)),
     activeSpace: activeSpaceId(byKey),
     ownerOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
@@ -2740,7 +2847,7 @@ app.get('/api/pages/:path', requireStream, (req, res) => {
 // users and stream key holders can read them; owners change them.
 app.get('/api/spaces', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
-  res.json({ spaces: store.spaces });
+  res.json({ spaces: store.spaces.map((r) => shownSpace(req, r)) });
 });
 app.post('/api/spaces', requireOwner, (req, res) => {
   const { name, description, members, profile, link, linkIcon } = req.body || {};
@@ -3846,6 +3953,8 @@ app.put('/api/ai', requireOwner, (req, res) => {
 function aiAllowed(ctx) {
   const user = ctx.who.user;
   if (!user) return { ok: false, why: `${word('guest', { many: true })} cannot use AI` };
+  // A saved key this server can't decrypt (data restored onto another host): said as such, not as "not set up".
+  if (!ai.ready() && ai.view().keyUnreadable && ai.view().enabled) return { ok: false, why: `the AI key can't be read on this server; ${word('owner', { a: true })} needs to enter it again` };
   if (!ai.ready()) return { ok: false, why: 'AI is not set up on this server' };
   const space = ctx.spaceId ? store.spaceById(ctx.spaceId) : null;
   if (space && space.aiOff) return { ok: false, why: `AI is turned off in this ${word('space')}` };
@@ -4548,11 +4657,19 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
     res.write(`event: invite\ndata: ${JSON.stringify({ id: invite.id, spaceId: invite.spaceId, fromName: invite.fromName })}\n\n`);
   };
   inviteEvents.on('invite', onInvite);
+  // GitHub #62: the owner's theme changed (everyone re-fetches /theme.css), or this person picked light or dark on
+  // another page or device (this page sets <html data-theme-mode> to match).
+  const onTheme = (t) => res.write(`event: theme\ndata: ${JSON.stringify(t)}\n\n`);
+  const onMode = ({ userKey, themeMode }) => { if (userKey === key) res.write(`event: mode\ndata: ${JSON.stringify({ themeMode })}\n\n`); };
+  themeEvents.on('theme', onTheme);
+  themeEvents.on('mode', onMode);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => envContext.run(env, () => {
     clearInterval(beat);
     moduleHooks.off('notification', onNote);
     inviteEvents.off('invite', onInvite);
+    themeEvents.off('theme', onTheme);
+    themeEvents.off('mode', onMode);
   }));
 });
 
@@ -4695,7 +4812,7 @@ app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: cu
 const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords(), ownHomeIcon: store.settings.homeIcon || null, template: templateView(store), templateWords: store.templateWordsView(), templateHomeIcon: store.templateHomeIcon || null, spaceDefaults: store.settings.spaceDefaults || null });
 app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: ownerSettings(), streamKey: store.streamKey }));
 app.patch('/api/settings', requireOwner, (req, res) => {
-  store.updateSettings(req.body || {});
+  watchTheme(() => store.updateSettings(req.body || {}));
   res.json({ settings: ownerSettings() });
 });
 
@@ -4761,9 +4878,9 @@ app.delete('/api/environment/delete-request', requireOwner, (req, res) => {
 // no re-picking needed. See store.js's "themes" section for the shape.
 app.get('/api/themes', requireOwner, (_req, res) => res.json({ themes: store.themes, defaultTheme: store.defaultTheme, activeThemeId: store.settings.activeThemeId || null, themeMode: store.settings.themeMode }));
 app.post('/api/themes', requireOwner, (req, res) => res.json({ theme: store.addTheme(req.body || {}) }));
-app.patch('/api/themes/:id', requireOwner, (req, res) => res.json({ theme: store.updateTheme(req.params.id, req.body || {}) }));
+app.patch('/api/themes/:id', requireOwner, (req, res) => res.json({ theme: watchTheme(() => store.updateTheme(req.params.id, req.body || {})) }));
 app.delete('/api/themes/:id', requireOwner, (req, res) => {
-  store.removeTheme(req.params.id);
+  watchTheme(() => store.removeTheme(req.params.id));
   res.json({ ok: true });
 });
 // Site images: icon, background.

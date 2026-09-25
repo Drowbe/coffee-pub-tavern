@@ -55,7 +55,7 @@ await test('the setting: the key is kept and never shown', () => {
   // The view: the custom slot's fields, whether a key is set (never the key), and the source with the host's offer.
   const { source, managed, managedProvider, active, ...custom } = v;
   assert.deepEqual(active, { provider: 'compatible', model: 'local' }); // custom: the service in use is the custom slot
-  assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', workspace: '', monthlyTokens: 0, keySet: true, keyFromEnvironment: false, enabled: true });
+  assert.deepEqual(custom, { provider: 'compatible', address, model: 'local', workspace: '', monthlyTokens: 0, keySet: true, keyUnreadable: false, keyProblem: null, keyFromEnvironment: false, enabled: true });
   assert.equal(managedProvider, '');
   assert.equal(source, 'custom'); // no host offer: an environment can only be custom
   assert.deepEqual(managed, { available: false, services: [] });
@@ -311,6 +311,57 @@ await test('a non-ok answer: the status and the service\'s own message reach the
   } finally {
     console.warn = origWarn;
   }
+});
+
+await test('the key is encrypted at rest: a plain one is sealed on load, a typed one on save, a foreign one is a plain sentence', async () => {
+  const crypto = await import('node:crypto');
+  const keyA = crypto.randomBytes(32);
+  const keyB = crypto.randomBytes(32);
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-'));
+  const file = path.join(d, 'ai.json');
+  const stored = () => JSON.parse(fs.readFileSync(file, 'utf8')).key;
+  // A key saved in the clear before this change: sealed on the first load, and it still answers.
+  fs.writeFileSync(file, JSON.stringify({ source: 'custom', provider: 'compatible', address, model: 'local', key: 'sk-plain', enabled: true }));
+  const a = new Ai(d, {}, undefined, () => null, () => keyA);
+  assert.match(stored(), /^aesgcm\$/);
+  assert.ok(!fs.readFileSync(file, 'utf8').includes('sk-plain'), 'ai.json never holds the plain key after load');
+  assert.equal((fs.statSync(file).mode & 0o777), 0o600);
+  sent.length = 0;
+  reply = 'fine';
+  await a.run('ask', items, 'what now?');
+  assert.equal(sent.at(-1).auth, 'Bearer sk-plain');
+  // A key typed in is sealed before it is saved, and still reaches the service.
+  a.set({ key: 'sk-typed' });
+  assert.match(stored(), /^aesgcm\$/);
+  assert.ok(!fs.readFileSync(file, 'utf8').includes('sk-typed'));
+  await a.run('ask', items, 'again?');
+  assert.equal(sent.at(-1).auth, 'Bearer sk-typed');
+  // A later save of something else keeps the sealed key sealed (never sealed twice, never lost).
+  a.set({ monthlyTokens: 5000 });
+  assert.equal(new Ai(d, {}, undefined, () => null, keyA).effective().key, 'sk-typed');
+  await a.listModels({ provider: 'compatible', address }); // the saved key, decrypted, lists the models
+  assert.equal(sent.at(-1).auth, 'Bearer sk-typed');
+  // The same file on a host with a different secrets key: no crash, a plain sentence, not ready, and no key sent.
+  const b = new Ai(d, {}, undefined, () => null, () => keyB);
+  const v = b.view();
+  assert.equal(v.keySet, false);
+  assert.equal(v.keyUnreadable, true);
+  assert.equal(v.keyProblem, "the saved AI key can't be read on this server; enter the key again");
+  assert.equal(b.ready(), false);
+  // Still a chosen service: saving another field keeps AI on (no "turn its modules off too?"), the key sentence the one complaint.
+  assert.equal(b.previewEnabled({ model: 'other' }), true);
+  assert.equal(b.set({ model: 'other' }).enabled, true);
+  assert.equal(b.view().keyProblem, "the saved AI key can't be read on this server; enter the key again");
+  b.set({ model: 'local' });
+  await assert.rejects(b.run('ask', items, 'hello?'), (e) => e instanceof AiError && e.status === 503 && /can't be read/.test(e.message));
+  await assert.rejects(b.listModels({ provider: 'compatible', address }), /can't be read/);
+  // Entering the key again there fixes it.
+  b.set({ key: 'sk-again' });
+  assert.equal(b.view().keyUnreadable, false);
+  assert.equal(b.ready(), true);
+  await b.run('ask', items, 'better?');
+  assert.equal(sent.at(-1).auth, 'Bearer sk-again');
+  fs.rmSync(d, { recursive: true, force: true });
 });
 
 server.close();

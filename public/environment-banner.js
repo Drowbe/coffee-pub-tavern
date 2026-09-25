@@ -4,16 +4,11 @@
 // brand.js calls this once the header is drawn.
 import { word } from '/words.js';
 
-export async function mountEnvironmentBanner() {
+// getMe: brand.js's one shared GET /api/me (null for a guest, who is not asked at all).
+export async function mountEnvironmentBanner(getMe) {
   if (document.querySelector('.env-page-banner')) return;
-  let me;
-  try {
-    const res = await fetch('/api/me');
-    if (!res.ok) return;
-    me = await res.json();
-  } catch (err) {
-    return;
-  }
+  const me = await getMe();
+  if (!me) return;
   const env = me && me.environment;
   if (!env || !env.hosted || !(env.owner || env.hostAdmin)) return;
   let info;

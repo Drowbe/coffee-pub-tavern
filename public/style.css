@@ -3488,6 +3488,46 @@ a.crumb-here:hover {
   color: var(--accent);
 }
 
+.theme-mode:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* The same switch in the header (theme-mode.js): a person's own light or dark, smaller, in the header's icon color.
+   Its name is only shown in the phone menu. */
+.topbar .topbar-theme-mode {
+  gap: 4px;
+  height: 30px;
+  padding: 0 4px;
+  border-radius: 6px;
+  color: var(--icon, color-mix(in srgb, var(--header-text) 75%, transparent));
+}
+
+.topbar .topbar-theme-mode:hover {
+  color: var(--icon-hover);
+  background: color-mix(in srgb, var(--icon-hover) 14%, transparent);
+}
+
+.topbar .topbar-theme-mode .theme-mode-track {
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+}
+
+.topbar .topbar-theme-mode .theme-mode-knob {
+  width: 10px;
+  height: 10px;
+}
+
+.topbar .topbar-theme-mode[aria-checked="true"] .theme-mode-knob {
+  transform: translateX(12px);
+}
+
+.topbar-theme-mode .theme-mode-label {
+  display: none;
+}
+
 .theme-optional {
   align-items: end;
 }
@@ -5103,6 +5143,17 @@ body.in-space .topbar.menu-open .links .module-nav-link {
     padding: 6px 12px;
   }
 
+  /* The light or dark switch: a row of its own, its name after it. */
+  .topbar.menu-open .links .topbar-theme-mode {
+    gap: 8px;
+    height: auto;
+  }
+
+  .topbar.menu-open .links .topbar-theme-mode .theme-mode-label {
+    display: inline;
+    margin-left: 4px;
+  }
+
   .topbar nav.links {
     display: none;
   }
@@ -5557,6 +5608,8 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 .ai-fields [hidden] { display: none; }
 .ai-key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ai-key-row input { flex: 1; min-width: 200px; }
+/* A saved key the server can't read: the server's sentence, in place of the key's usual hint. */
+.ai-key .hint.error { color: var(--danger-text); }
 .ai-usage { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .ai-usage h3 { margin: 0 0 8px; font-size: 14px; }
 .ai-meter { height: 8px; border-radius: 999px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; }
@@ -5629,6 +5682,11 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 .shared-address input { flex: 1; min-width: 0; }
 .shared-address .btn { flex: none; }
 .shared-address .hint { margin: 2px 0 0; }
+
+/* A masked password field with its Show/Hide button (brand.js wires any button[data-reveal]). */
+.reveal-row { flex-wrap: nowrap; }
+.reveal-row input { flex: 1; min-width: 0; }
+.reveal-row .btn { flex: none; text-transform: none; letter-spacing: normal; }
 
 /* A managed AI service's address or workspace id on the host console: the field takes the row, like the key does. */
 .ai-key > input[type="text"], .ai-key > input[type="url"] { width: 100%; box-sizing: border-box; }

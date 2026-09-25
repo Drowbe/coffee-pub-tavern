@@ -11,6 +11,7 @@
   <title>Profile</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
+  <script src="/theme-head.js"></script>
   <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
@@ -44,7 +45,7 @@
           <label class="fact">Display name<input id="e-name" type="text" maxlength="40"></label>
           <label class="fact">Username<input id="e-login" type="text" maxlength="40" autocapitalize="off"></label>
           <label class="fact">Role<select id="e-role" data-fill><option value="member">{Member}</option><option value="owner">{Owner}</option></select><span class="hint" id="e-role-note" hidden></span></label>
-          <label class="fact">New password<input id="e-password" type="text" maxlength="200" placeholder="leave empty to keep" autocomplete="off"></label>
+          <label class="fact">New password<span class="row reveal-row"><input id="e-password" aria-label="New password" type="password" maxlength="200" placeholder="leave empty to keep" autocomplete="new-password"><button class="btn btn-small" type="button" data-reveal="e-password" aria-pressed="false">Show</button></span></label>
         </div>
         <div class="row" id="account-save-row" hidden>
           <button class="btn btn-primary btn-small" id="account-save" type="button">Save</button>

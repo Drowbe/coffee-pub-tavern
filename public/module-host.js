@@ -221,6 +221,13 @@ async function watchMedia({ key, audio = false, video = true, space: startSpace 
 // drop, which pointer was dropped, in the frame's own coordinates. The frame decides what that means
 // (and the host still checks the pointer when it is resolved). Nothing else crosses.
 const mounted = new Set(); // every module frame the host has on this page: { frame, module, send }
+// Light or dark flipped, or the owner changed the theme (theme-mode.js fires 'app:theme' once the new colors are in):
+// every module hears its colors again, through the SDK's 'theme' event, which a framed module's SDK also sets on its
+// own :root.
+document.addEventListener('app:theme', () => {
+  const theme = readTheme();
+  for (const target of mounted) target.send('theme', theme);
+});
 let activeDrag = null; // { source, ref, layers, timer }
 
 const REF_SHAPE = (r) => r && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string'

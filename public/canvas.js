@@ -12,7 +12,7 @@
 // when it is popped out: they open in whichever window the canvas is in.
 // See documentation/architecture/architecture-room-layout.md.
 
-import { api, markModuleRead } from '/brand.js';
+import { api, markModuleRead, followTheme } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 // What each space remembers (`app.canvas.<space>`; brand.js moves the old `app.panels` keys): the modules open when the person last used it,
@@ -740,6 +740,7 @@ export function createCanvas({ guestToken = null } = {}) {
     const setup = () => {
       win.document.title = def.name;
       for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) win.document.head.appendChild(sheet.cloneNode(true));
+      followTheme(win.document); // light or dark, and a changed theme, follow the call page's (brand.js)
       win.document.body.className = def.windowClass || 'chat-window';
       const grid = def.wrap ? wrapFor(def, def.el, win.document) : win.document.createElement('div');
       if (!def.wrap) {

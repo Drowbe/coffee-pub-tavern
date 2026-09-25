@@ -9,9 +9,14 @@ server, so every color must come from the tokens below.
 
 ## How a theme reaches a page
 
-Every page links `/theme.css` after `style.css`. The server renders it from the active theme as
-`:root` overrides of the seven base tokens and of each optional token the theme sets, and an untouched server sends an empty file, so it looks
-exactly like the defaults in `style.css`. Because it is an ordinary stylesheet link, the popped-out
+Every page links `/theme.css` after `style.css`. The server renders it from the active theme (`server/theme-css.js`)
+with both of the theme's sets, the light one under `html[data-theme-mode="light"]` and the dark one under
+`html[data-theme-mode="dark"]`, as overrides of the seven base tokens and of each optional token the theme sets. An
+untouched server sends only the default theme's light set, so it looks exactly like the defaults in `style.css`.
+`public/theme-mode.js` sets `data-theme-mode` from the person's own choice (their account's `themeMode`, or
+`app.themeMode` in the browser for a guest), else the environment's default, and swaps it without a reload when
+either changes; `branding()`'s `themeMode` and `themeVersion` and the notifications stream's `theme` and `mode`
+events tell an open page. A person's own choice is `PATCH /api/me` `{ themeMode: 'light' | 'dark' | null }` (`null` follows the environment's default again; anything else answers 400 "the mode is light or dark, or null to follow the environment's default"), shown as `user.themeMode`. Draw every colour from the tokens and both modes follow. Because it is an ordinary stylesheet link, the popped-out
 call window picks the theme up too, when the page clones its stylesheets into the new window.
 
 ## The tokens

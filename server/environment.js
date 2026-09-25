@@ -54,8 +54,10 @@ function moduleCan(manifest, perms, need) {
 // `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
 // AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
 // registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
-// need it.
-function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null } = {}) {
+// need it. `secretsKey`, when given, returns the key (a 32-byte Buffer) the environment's own AI key is encrypted
+// with at rest in ai.json -- index.js's secretsKeyBuf, the same key as every two-step secret. Without it (a test
+// that does not need it) the AI key is kept as it was given.
+function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null, secretsKey = null } = {}) {
   // The Names migration (documentation/plans/plan-names.md, "The migration") runs before Store reads app.json, so
   // every service below reads this environment's data in its current shape. Throws a MigrationError naming the
   // file when a part cannot finish, and nothing is built.
@@ -124,6 +126,10 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   const invites = new Map(); // id -> { id, from, to, spaceId, at }
   const inviteEvents = new EventEmitter();
   inviteEvents.setMaxListeners(0);
+  // The theme changed (the owner's theme, its colors or its default mode: 'theme'), or one person picked their own
+  // light or dark ('mode'): told to every open page over /api/notifications/stream so it switches without a reload.
+  const themeEvents = new EventEmitter();
+  themeEvents.setMaxListeners(0);
 
   const chatHistory = new ChatHistory(dataDir);
   const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a space's history
@@ -132,7 +138,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   const moduleBus = new ModuleBus(modules.dir);
   const moduleSettings = new ModuleSettings(modules.dir);
 
-  const ai = new Ai(dataDir, process.env, undefined, managed);
+  const ai = new Ai(dataDir, process.env, undefined, managed, secretsKey);
   modules.aiReady = () => ai.ready(); // a module declaring hooks.ai depends on the AI service the way one module depends on another
 
   const moduleUploads = new ModuleUploads(modules.dir);
@@ -185,7 +191,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   return {
     slug, dataDir,
     store, modules, moduleData, moduleHooks, chatHistory, moduleLinks, moduleBus, moduleSettings, ai, moduleUploads,
-    geocodeCache, regionCutJobs, moduleLimits, limiter, presence, invites, inviteEvents, chatPosts, iconSvgs,
+    geocodeCache, regionCutJobs, moduleLimits, limiter, presence, invites, inviteEvents, themeEvents, chatPosts, iconSvgs,
     moduleActivity, noteActivity, saveActivity,
   };
 }

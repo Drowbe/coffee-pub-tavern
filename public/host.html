@@ -82,7 +82,7 @@
         <div id="admins" class="list"></div>
         <form id="admin-form" class="fields" autocomplete="off">
           <label>Login<input id="admin-login" type="text" maxlength="40" required autocapitalize="off"></label>
-          <label>Password<input id="admin-password" type="text" maxlength="200" required></label>
+          <label>Password<span class="row reveal-row"><input id="admin-password" aria-label="Password" type="password" maxlength="200" required autocomplete="new-password"><button class="btn btn-small" type="button" data-reveal="admin-password" aria-pressed="false">Show</button></span></label>
           <div class="row"><button class="btn" type="submit">Add a host admin</button></div>
         </form>
       </section>
@@ -145,7 +145,7 @@
         <div class="fields">
           <label>Login<input id="new-owner-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
           <label>Display name<input id="new-owner-name" type="text" maxlength="40" autocomplete="off"></label>
-          <label>Password<input id="new-owner-password" type="text" maxlength="200" required autocomplete="off"></label>
+          <label>Password<span class="row reveal-row"><input id="new-owner-password" aria-label="Password" type="password" maxlength="200" required autocomplete="new-password"><button class="btn btn-small" type="button" data-reveal="new-owner-password" aria-pressed="false">Show</button></span></label>
         </div>
         <p class="hint">The slug is the environment's address and is fixed once made: letters, digits and hyphens, 3 to 30. The owner signs in there with these.</p>
         <div class="row">

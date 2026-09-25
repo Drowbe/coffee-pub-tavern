@@ -59,13 +59,18 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     for (const el of $('ai-panel').querySelectorAll('[data-ai-for]')) el.hidden = managed || !el.dataset.aiFor.split(' ').includes(provider);
     $('ai-key-optional').hidden = provider !== 'compatible';
     const set = (aiState.keySet || aiKeyMode === 'replace') && aiKeyMode !== 'clear';
-    $('ai-key-state').textContent = aiState.keyFromEnvironment ? 'set by the server\'s environment' : aiKeyMode === 'clear' ? 'will be removed' : set ? 'set' : 'not set';
+    // A saved key this server can't read (the server says why in keyProblem): it counts as none and has to be entered again.
+    const problem = aiState.keyProblem && aiKeyMode === 'keep' ? aiState.keyProblem.charAt(0).toUpperCase() + aiState.keyProblem.slice(1) : '';
+    $('ai-key-state').textContent = aiState.keyFromEnvironment ? 'set by the server\'s environment' : aiKeyMode === 'clear' ? 'will be removed' : set ? 'set' : problem ? 'can\'t be read' : 'not set';
     $('ai-key-state').classList.toggle('on', set);
+    $('ai-key-state').classList.toggle('warn', Boolean(problem));
     $('ai-key').hidden = aiKeyMode !== 'replace';
     $('ai-key-replace').hidden = aiState.keyFromEnvironment;
-    $('ai-key-replace').textContent = aiKeyMode === 'replace' ? 'Cancel' : aiState.keySet ? 'Replace the key' : 'Set a key';
+    $('ai-key-replace').textContent = aiKeyMode === 'replace' ? 'Cancel' : aiState.keySet ? 'Replace the key' : problem ? 'Enter the key again' : 'Set a key';
     $('ai-key-clear').hidden = aiState.keyFromEnvironment || !aiState.keySet || aiKeyMode === 'clear';
-    $('ai-key-help').textContent = aiState.keyFromEnvironment ? 'The key comes from the server\'s environment (AI_KEY); change it there.' : 'The key is kept on the server and is never shown again.';
+    $('ai-key-help').textContent = problem || (aiState.keyFromEnvironment ? 'The key comes from the server\'s environment (AI_KEY); change it there.' : 'The key is kept on the server and is never shown again.');
+    $('ai-key-help').classList.toggle('status', Boolean(problem));
+    $('ai-key-help').classList.toggle('error', Boolean(problem));
     $('ai-model-select').hidden = aiManual;
     $('ai-model').hidden = !aiManual;
     $('ai-models-refresh').hidden = aiManual;

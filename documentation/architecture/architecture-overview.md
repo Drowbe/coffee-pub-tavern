@@ -109,6 +109,19 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   (see [api-module-sdk](../api/api-module-sdk.md)). `tools/check-names.mjs --words` fails, in `server/`, `public/` and
   `modules/`, on a changeable word typed into text people read; the host console and the product page use the
   host's own words and are allow-listed.
+- **Who sees a link that signs someone in.** A person's personal sign-in link (`linkToken`) is sent only to owners
+  and to that person, and never in `GET /api/status`, whatever key the request carries. A space's guest link
+  (`guestToken`) is sent only to owners and to members of that space who may manage its guest link; everyone else
+  (other members, guests, the stream access key) gets `null`, in `GET /api/spaces`, `GET /api/presence` and the
+  aside answers alike. Before this, the access key in every OBS link could read every personal link from
+  `/api/status`, an owner's included.
+- **Secrets at rest.** Two-step sign-in secrets, the environment's AI key and the host's managed AI keys are
+  encrypted with the server's key (`secrets.key` beside the data on a single install, `host.json`'s key with
+  environments); a key saved in plain text by an older version is encrypted on first load. `app.json`,
+  `host.json`, `ai.json` and `secrets.key` are made readable only by the server's own user (mode 600), on every
+  start and again after a restore or a migration. An AI key that can't be read with this server's key (data
+  restored onto another host) doesn't stop the other AI settings from saving; the AI settings say "the saved AI
+  key can't be read on this server; enter the key again".
 - **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.

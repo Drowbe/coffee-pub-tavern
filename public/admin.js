@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords, refreshModuleNav } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords, refreshModuleNav, themeMode } from '/brand.js';
 import { pickBackground } from '/background-picker.js';
 import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
 
@@ -576,6 +576,10 @@ let activeThemeId = null; // what's actually live right now (persisted)
 let activeMode = 'dark';
 let selectedThemeId = null; // whatever the dropdown/editor is showing -- may not be applied yet
 let selectedMode = 'dark';
+// Whether the page shows the editor's colors (a theme, mode or color picked here and not yet applied) instead of its
+// own live look. Until something is picked here, the page keeps the live theme in the viewer's own light or dark (the
+// header's switch), so that switch works on this page too.
+let previewing = false;
 
 const selectedTheme = () => themes.find((t) => t.id === selectedThemeId) || null;
 // The colors the editor shows: the picked theme's set for the picked mode, or its other set when it has no such one yet.
@@ -598,7 +602,8 @@ function loadThemeInputsFrom(colors) {
 // values it references change at the SAME element custom properties
 // inherit their already-resolved value, they don't re-substitute var() per
 // descendant. Root it is; this only previews locally until Apply actually
-// persists it.
+// persists it. Not previewing, the colors go on only long enough to read the Auto fields' values, and come off again
+// before the page paints.
 function updateThemePreview() {
   const root = document.documentElement;
   for (const [id, cssVar] of THEME_FIELDS) root.style.setProperty(cssVar, $(id).value);
@@ -613,18 +618,28 @@ function updateThemePreview() {
       ? toHex(getComputedStyle(document.querySelector('.theme-preview-header .icon-link')).color)
       : resolvedVar(cssVar);
   }
+  if (!previewing) clearThemePreview();
 }
+// A change made here: the page previews it from now until Apply.
+function previewThemeEdit() {
+  previewing = true;
+  updateThemePreview();
+}
+// The header's switch, or a theme another page applied, changed the live look: the Auto fields read it again.
+document.addEventListener('app:theme', () => {
+  if (!previewing && defaultTheme) updateThemePreview();
+});
 function clearThemePreview() {
   const root = document.documentElement;
   for (const [, cssVar] of THEME_FIELDS) root.style.removeProperty(cssVar);
   for (const [, cssVar] of THEME_OPTIONAL_FIELDS) root.style.removeProperty(cssVar);
 }
-for (const [id] of THEME_FIELDS) $(id).addEventListener('input', updateThemePreview);
+for (const [id] of THEME_FIELDS) $(id).addEventListener('input', previewThemeEdit);
 for (const [id] of THEME_OPTIONAL_FIELDS) {
-  $(id).addEventListener('input', updateThemePreview);
+  $(id).addEventListener('input', previewThemeEdit);
   autoBox(id).addEventListener('change', () => {
     $(id).disabled = autoBox(id).checked;
-    updateThemePreview();
+    previewThemeEdit();
   });
 }
 // The colors to save: the seven, and each optional one or null when on Auto.
@@ -644,9 +659,7 @@ function reloadThemeStylesheet() {
     const link = $('theme-link');
     const onLoad = () => { link.removeEventListener('load', onLoad); resolve(); };
     link.addEventListener('load', onLoad);
-    const url = new URL(link.href, location.origin);
-    url.searchParams.set('v', Date.now());
-    link.href = url.toString();
+    link.setAttribute('href', `/theme.css?v=${Date.now().toString(36)}`); // kept relative: brand.js finds it by its start
   });
 }
 function renderThemeChooser() {
@@ -655,6 +668,7 @@ function renderThemeChooser() {
   select.value = selectedThemeId || '';
   const selected = selectedTheme();
   $('theme-mode').setAttribute('aria-checked', String(selectedMode === 'dark'));
+  $('theme-mode').title = selectedMode === 'dark' ? 'The default is dark: switch to light' : 'The default is light: switch to dark';
   $('theme-update-name').textContent = selected ? `${selected.name}, ${selectedMode}` : '';
   $('theme-update').hidden = !selected;
   $('theme-delete').hidden = !selected;
@@ -684,19 +698,27 @@ async function loadThemes() {
 // changing what everyone else sees.
 $('theme-select').addEventListener('change', () => {
   selectedThemeId = $('theme-select').value || null;
+  previewing = true;
   showSelectedTheme();
 });
 $('theme-mode').addEventListener('click', () => {
   selectedMode = selectedMode === 'dark' ? 'light' : 'dark';
+  previewing = true;
   showSelectedTheme();
 });
+// Apply puts the theme live, and its mode as the default: every open page follows at once (the notifications stream's
+// 'theme' event, brand.js). Someone who picked their own light or dark with the header's switch keeps it, this owner too.
 $('theme-apply').addEventListener('click', async () => {
   await saveSettings({ activeThemeId: selectedThemeId, themeMode: selectedMode }, $('theme-status'));
+  if ($('theme-status').classList.contains('error')) return;
   await reloadThemeStylesheet();
+  previewing = false;
   clearThemePreview();
   activeThemeId = selectedThemeId;
   activeMode = selectedMode;
   renderThemeChooser();
+  const own = themeMode();
+  say($('theme-status'), own === selectedMode ? 'applied' : `applied -- you still see ${own}, your own pick (the switch at the top)`);
 });
 $('theme-save-new').addEventListener('click', async () => {
   const name = window.prompt('Name this theme:');
@@ -723,6 +745,7 @@ $('theme-update').addEventListener('click', async () => {
     // right now -- editing one you're just browsing shouldn't make it live.
     if (selectedThemeId === activeThemeId && selectedMode === activeMode) {
       await reloadThemeStylesheet();
+      previewing = false;
       clearThemePreview();
     }
     say($('theme-status'), 'saved');
@@ -745,8 +768,11 @@ $('theme-delete').addEventListener('click', async () => {
     selectedThemeId = activeThemeId;
     renderThemeChooser();
     loadThemeInputsFrom(selectedColors());
+    previewing = false; // back on the live theme: the page shows its own look again
+    updateThemePreview();
     if (wasActive) {
       await reloadThemeStylesheet();
+      previewing = false;
       clearThemePreview();
     }
     say($('theme-status'), 'deleted');

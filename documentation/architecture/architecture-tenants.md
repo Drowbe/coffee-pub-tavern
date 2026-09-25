@@ -417,6 +417,11 @@ start when it differs (plan-names decision 7, amended):
   (step 4) is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's
   admin."
 - **The pre-environment move** makes the install's admin the new environment's owner.
+  Its encrypted secrets (the AI key and two-step sign-in) are re-encrypted from the install's own key to the
+  host's, so they keep working; the start logs "Moved <n> encrypted secret(s) of <where> (the AI key, two-step
+  sign-in) to the host's key." A secret that can't be read with the install's key is left as it was and logged,
+  and if the install's key file itself can't be read, the start logs that the AI key and two-step secrets need
+  setting again. The host's managed AI keys in `host.json` are encrypted too.
 
 The lockout bypass (`ADMIN_MFA_LOCKOUT_BYPASS`) covers owners and the server's admin, and the start logs "The
 lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and the server's admin skips two-step sign-in

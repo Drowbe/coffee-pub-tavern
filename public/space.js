@@ -1,6 +1,6 @@
 // The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights, word, applyWords } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights, word, applyWords, followTheme } from '/brand.js';
 import { createCanvas, joinModules, setJoinModules } from '/canvas.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
@@ -3028,6 +3028,7 @@ function setUpPopoutWindow(win) {
   for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
     win.document.head.appendChild(sheet.cloneNode(true));
   }
+  followTheme(win.document); // light or dark, and a changed theme, follow this page's (brand.js)
   win.document.body.className = 'in-space popout';
   // The whole app moves: the header too, so everything works from where you are. Moving a
   // node adopts it into the new document, video and audio and all.

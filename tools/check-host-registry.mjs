@@ -35,6 +35,26 @@ test('a slug is 3 to 30 letters, digits and hyphens, and never a reserved word',
   assert.throws(() => cleanSlug('admin'), HostError);
 });
 
+test('host.json is private to the server, and every managed AI key in it is encrypted', () => {
+  const dir = freshDir();
+  const file = path.join(dir, 'host.json');
+  // A managed key saved in the clear before keys were encrypted: sealed on load, still usable.
+  fs.writeFileSync(file, JSON.stringify({ ai: { openai: { model: 'gpt-4o-mini', key: 'sk-host-plain' } } }), { mode: 0o644 });
+  const r = new HostRegistry(dir);
+  const text = () => fs.readFileSync(file, 'utf8');
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assert.ok(!text().includes('sk-host-plain'), 'host.json never holds a plain managed key after load');
+  assert.match(JSON.parse(text()).ai.openai.key, /^aesgcm\$/);
+  assert.equal(r.managedAi.openai.key, 'sk-host-plain');
+  // A key set from the console is sealed too, and a later save of another field keeps it.
+  r.setManagedAi('anthropic', { model: 'claude-x', key: 'sk-ant-typed' });
+  assert.ok(!text().includes('sk-ant-typed'));
+  r.setManagedAi('anthropic', { model: 'claude-y' });
+  assert.equal(new HostRegistry(dir).managedAi.anthropic.key, 'sk-ant-typed');
+  assert.equal(new HostRegistry(dir).managedAi.anthropic.model, 'claude-y');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('a fresh registry has a session secret, no environments, no admins', () => {
   const dir = freshDir();
   const r = new HostRegistry(dir);
@@ -594,6 +614,10 @@ try {
     assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Fixture Table');
     for (const rel of ['modules/todo/data/space-keep01.json', 'modules/todo/data/environment.json', 'modules/research/uploads/space-keep01', 'chat.json']) assert.ok(fs.existsSync(path.join(envDir, rel)), rel);
     assert.ok('spaces' in readJson(path.join(envDir, 'chat.json')));
+    // Every restored file, and every copy the migration keeps, is private to the server's user.
+    for (const rel of [['app.json'], ['chat.json'], ['modules', 'todo', 'data', 'environment.json'], ['pre-names', 'names-table', 'app.json']]) {
+      assert.equal(fs.statSync(path.join(envDir, ...rel)).mode & 0o777, 0o600, `${rel.join('/')} is private after a restore`);
+    }
   });
 
   await liveTest('live: a module scope other than environment, space, spaces or person is refused, never read as the environment', async () => {
@@ -816,6 +840,42 @@ try {
     const res = await call(server, 'keep', 'POST', '/api/login', { body: { login: 'gm', password: 'admin-password-1' } });
     assert.deepEqual([res.status, res.json.user.role], [200, 'owner']);
     assert.equal((await call(server, 'admin', 'POST', '/api/host/login', { body: { login: HOST_LOGIN, password: HOST_PASSWORD } })).status, 200);
+    await server.stop();
+    server = null;
+  });
+
+  await liveTest('live: a single install moved into an environment: its AI key and two-step secrets move to the host\'s key, and every secret file is private', async () => {
+    const auth = require('../server/auth.js');
+    const crypto = require('node:crypto');
+    const single = path.join(liveDir, 'single-secrets-then-hosted');
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'admin-password-1' });
+    await server.stop();
+    // The install's own secrets: its key, an AI key and a live two-step secret encrypted with it, and a pending one
+    // encrypted with some other key (which the move can't read, so leaves as it is). All left readable by others,
+    // as an install from before files were kept private would have them.
+    const installKey = crypto.randomBytes(32);
+    const otherKey = crypto.randomBytes(32);
+    fs.writeFileSync(path.join(single, 'secrets.key'), installKey.toString('hex'), { mode: 0o644 });
+    fs.writeFileSync(path.join(single, 'ai.json'), JSON.stringify({ source: 'custom', provider: 'compatible', address: 'http://127.0.0.1:9', model: 'm', key: auth.encryptSecret('sk-moved', installKey), enabled: true }), { mode: 0o644 });
+    const appFile = path.join(single, 'app.json');
+    const app = readJson(appFile);
+    const unreadable = auth.encryptSecret('pending-elsewhere', otherKey);
+    app.users[0].mfa = { secret: auth.encryptSecret('TOTPSECRETLIVE', installKey), enrolledAt: '2026-09-01T00:00:00.000Z', recovery: [], version: 1, lastStep: null, pending: { secret: unreadable, startedAt: '2026-09-02T00:00:00.000Z' } };
+    fs.writeFileSync(appFile, JSON.stringify(app));
+    fs.chmodSync(appFile, 0o644);
+    server = await startServer(single, { ...hostedEnv, MIGRATE_ENVIRONMENT_SLUG: 'keep' });
+    assert.ok(server.output().includes('Moved 2 encrypted secrets of "keep" (the AI key, two-step sign-in) to the host\'s key.'), server.output());
+    assert.ok(server.output().includes('1 encrypted secret of "keep" could not be read with the install\'s key and was left as it was: the AI key has to be entered again, and anyone affected has to set up two-step sign-in again.'), server.output());
+    const envDir = path.join(single, 'environments', 'keep');
+    const hostKey = Buffer.from(readJson(path.join(single, 'host.json')).secrets.key, 'hex');
+    assert.equal(auth.decryptSecret(readJson(path.join(envDir, 'ai.json')).key, hostKey), 'sk-moved', 'the AI key reads with the host\'s key');
+    const gm = readJson(path.join(envDir, 'app.json')).users.find((u) => u.login === 'gm');
+    assert.equal(auth.decryptSecret(gm.mfa.secret, hostKey), 'TOTPSECRETLIVE', 'the two-step secret reads with the host\'s key');
+    assert.equal(gm.mfa.pending.secret, unreadable, 'one the install\'s key could not read is left exactly as it was');
+    assert.equal(gm.role, 'owner', 'and the admin still becomes the owner');
+    for (const file of [path.join(single, 'host.json'), path.join(envDir, 'app.json'), path.join(envDir, 'ai.json'), path.join(envDir, 'secrets.key')]) {
+      assert.equal(fs.statSync(file).mode & 0o777, 0o600, `${path.relative(single, file)} is private`);
+    }
     await server.stop();
     server = null;
   });

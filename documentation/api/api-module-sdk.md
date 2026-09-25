@@ -64,7 +64,7 @@ const t = await host.ready();
 // t.user      { key, name, role }   role: 'owner', 'member', 'guest', or 'admin' for the host admin's own account
 // t.context   { scope: 'environment' | 'space' | 'keyed', spaceId }   a keyed page adds path, subject and query
 // t.permissions  { view: true, edit: false }   the module's own permissions, by short key
-// t.theme     the current theme tokens
+// t.theme     the current theme tokens; host.on('theme', (theme) => { ... }) fires whenever the theme or the light or dark mode changes
 host.can('edit');   // true or false, from the permissions above; always true for an owner
 ```
 

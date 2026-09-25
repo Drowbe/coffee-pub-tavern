@@ -54,7 +54,7 @@ labels and help) still uses the default words.
 
 ## Theme
 
-- **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Pick a
+- **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Every theme has a light and a dark version. The **Dark by default** switch sets which one everyone sees until they choose their own with the light or dark switch at the top of any page. **Apply** puts the theme and the default live on every open page at once, with no refresh (a guest's page within about a minute). Pick a
   theme and **Apply**, or adjust the seven base colors (page background, section background, border, text, dim
   text, primary accent and text on accent) and save them as a new theme. Under **Header, buttons and
   icons** you can also set the card background (the small boxes inside a section, such as member

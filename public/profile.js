@@ -4,7 +4,7 @@
 // changed, rather than a flat table of everyone on the Manage page.
 import { renderModuleSettings } from '/module-settings.js';
 import { pickBackground } from '/background-picker.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights, isAdminAccount, roleLabel, word, applyWords } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights, isAdminAccount, roleLabel, word, applyWords, maskPassword } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
@@ -540,6 +540,7 @@ $('account-save').addEventListener('click', () => run(async () => {
   if (password) patch.password = password;
   user = (await api('PATCH', `/api/users/${user.key}`, patch)).user;
   $('e-password').value = '';
+  maskPassword('e-password');
   render();
   sayField($('account-status'), 'saved');
 }, $('account-status')));

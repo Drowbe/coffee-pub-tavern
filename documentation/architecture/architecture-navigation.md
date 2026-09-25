@@ -12,7 +12,7 @@ The header is two rows, and each row is three zones. The rows are about differen
 |---|---|---|
 | Left | `.nav-left` (`.brand`) | the logo and server name (the home link), the crumb saying where you are (`#topbar-crumb`, `setTopbarLocation()`), the status line |
 | Middle | `.nav-middle` (`#core-nav`) | the core navigation, one group: Spaces (`#spaces-link`, order 1) and each module's own page (`page-<module>`, orders 11 and up, class `module-nav-link`, hidden at the table where the room's own module selector is the way in) |
-| Right | `.nav-right` (`.links`) | the system's actions and information, three groups with a divider between: you (`#whoami-link`), the system (Manage `#admin-link`, Install `#install-link`), the session (Call settings at the table, the time `#topbar-clock` on the server's clock setting, Sign out `#logout-link`) |
+| Right | `.nav-right` (`.links`) | the system's actions and information, three groups with a divider between: you (`#whoami-link`), the system (the light or dark switch `theme-mode-switch`, not on the host console; Manage `#admin-link`; Install `#install-link`), the session (Call settings at the table, the time `#topbar-clock` on the server's clock setting, Sign out `#logout-link`) |
 
 ## The secondary nav: the space
 

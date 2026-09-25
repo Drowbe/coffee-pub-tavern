@@ -493,6 +493,9 @@ class Store {
       if (err.code !== 'ENOENT') throw new StoreError(`Could not read ${this.file} (${err.message}). Fix or restore this file, then start again.`, 500);
     }
     if (text !== null) {
+      // An install from before app.json was kept private (or restored, or copied by hand) may have it readable by
+      // others: made private to the server's user on every load. Best effort -- a file this user doesn't own stays as is.
+      try { fs.chmodSync(this.file, 0o600); } catch { /* not ours to change */ }
       try {
         raw = JSON.parse(text);
       } catch (err) {
@@ -619,7 +622,10 @@ class Store {
   save() {
     fs.mkdirSync(this.dir, { recursive: true });
     const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, `${JSON.stringify(this.data, null, 2)}\n`);
+    // Private to the server's own user: it holds password hashes, session and link tokens. The mode is set again in
+    // case an old .tmp was left behind by a crash (a mode given to writeFileSync only applies to a file it creates).
+    fs.writeFileSync(tmp, `${JSON.stringify(this.data, null, 2)}\n`, { mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
     fs.renameSync(tmp, this.file);
   }
 
@@ -673,6 +679,8 @@ class Store {
       spaces,
       player: {}, // borders and the plate are server-wide now; older per-user values are dropped
       callPrefs: this.sanitizeCallPrefs(u.callPrefs),
+      // Their own light or dark (GitHub #62); left off while they follow the environment's default mode.
+      ...(u.themeMode === 'light' || u.themeMode === 'dark' ? { themeMode: u.themeMode } : {}),
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
     };
   }
@@ -899,7 +907,10 @@ class Store {
       else if (s.themes.some((t) => t.id === patch.activeThemeId)) s.activeThemeId = patch.activeThemeId;
       else throw new StoreError('no such theme');
     }
-    if (patch.themeMode !== undefined) s.themeMode = cleanMode(patch.themeMode);
+    if (patch.themeMode !== undefined) {
+      if (patch.themeMode !== 'light' && patch.themeMode !== 'dark') throw new StoreError('the mode is light or dark');
+      s.themeMode = patch.themeMode;
+    }
     if (patch.border !== undefined) s.border = Boolean(patch.border);
     if (patch.borderColor !== undefined && cleanColor(patch.borderColor)) s.borderColor = cleanColor(patch.borderColor);
     if (patch.borderWidth !== undefined && cleanWidth(patch.borderWidth)) s.borderWidth = cleanWidth(patch.borderWidth);
@@ -1038,15 +1049,25 @@ class Store {
     return theme;
   }
 
-  // The colors /theme.css should actually render: the live theme's set for
-  // the live mode (or its only set), or null for Strong Coffee dark
-  // (style.css's own built-in palette, no override needed).
-  activeThemeColors() {
+  // Both of the live theme's sets, for /theme.css to send at once (server/theme-css.js): { light, dark }, a theme
+  // with only one set showing it in both modes, and null for Strong Coffee dark (style.css's own palette).
+  activeThemeSets() {
     const s = this.data.settings;
-    const mode = cleanMode(s.themeMode);
     const theme = s.activeThemeId ? s.themes.find((t) => t.id === s.activeThemeId) : null;
-    if (!theme) return mode === 'light' ? this.defaultTheme.light : null;
-    return theme[mode] || theme.light || theme.dark;
+    if (!theme) return { light: this.defaultTheme.light, dark: null };
+    return { light: theme.light || theme.dark || null, dark: theme.dark || theme.light || null };
+  }
+
+  // A person's own light or dark (GitHub #62): 'light' or 'dark', or null to follow the environment's default mode
+  // again (the key is then left off the account altogether). Anything else is refused and nothing changes.
+  setThemeMode(key, mode) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    if (mode !== null && mode !== 'light' && mode !== 'dark') throw new StoreError('the mode is light or dark, or null to follow the default');
+    if (mode === null) delete user.themeMode;
+    else user.themeMode = mode;
+    this.save();
+    return user.themeMode || null;
   }
 
   // A user's video-box settings with the server defaults filled in.

@@ -553,6 +553,7 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
       try {
         fs.mkdirSync(path.dirname(to), { recursive: true });
         fs.copyFileSync(from, to);
+        fs.chmodSync(to, 0o600); // the copy holds what the original does (password hashes, keys): private to the server's user
       } catch (err) {
         throw new MigrationError(`Could not copy ${from} to ${to} before migrating it: ${err.message}`, from);
       }
@@ -626,7 +627,7 @@ function readMovedNote(dir, file) {
 }
 function writeMovedNote(file, list) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(`${file}.names-tmp`, serialize(list));
+  fs.writeFileSync(`${file}.names-tmp`, serialize(list), { mode: 0o600 });
   fs.renameSync(`${file}.names-tmp`, file);
 }
 function mergeMoved(earlier, later) {
@@ -670,7 +671,8 @@ function commit(dir, writes, moves, { noteMoves = null, copyRoot = null } = {}) 
     for (const [file, text] of texts) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       temps.push(file);
-      fs.writeFileSync(`${file}.names-tmp`, text);
+      fs.writeFileSync(`${file}.names-tmp`, text, { mode: 0o600 }); // what a part writes is the environment's (or host's) data: private
+      fs.chmodSync(`${file}.names-tmp`, 0o600); // also when an old temporary file was left there by a stopped attempt
     }
   } catch (err) {
     const file = temps[temps.length - 1] || dir;

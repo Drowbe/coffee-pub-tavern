@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { cleanText, cleanLogin, randomToken, sanitizeMfa } = require('./store');
-const { applyManagedFields, MANAGED_PROVIDERS } = require('./ai');
+const { applyManagedFields, sealKey, openKey, MANAGED_PROVIDERS } = require('./ai');
 
 class HostError extends Error {
   constructor(message, status = 400) {
@@ -172,6 +172,9 @@ class HostRegistry {
     this.dir = dataDir;
     this.file = path.join(dataDir, 'host.json');
     this.data = this.load();
+    // Each company's managed key is kept encrypted with the host's own secrets key, like every environment's own
+    // AI key (server/ai.js): one saved in the clear before that is encrypted here, on the save just below.
+    for (const slot of Object.values(this.data.ai)) if (slot.key) slot.key = sealKey(slot.key, this.keyBuf());
     this.save(); // a freshly generated session secret (or a first-run empty file) is on disk before anything signs with it
   }
 
@@ -213,7 +216,10 @@ class HostRegistry {
   save() {
     fs.mkdirSync(this.dir, { recursive: true });
     const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2));
+    // Private to the server's own user: it holds the host's secrets. The mode is set again in case an old .tmp
+    // was left behind by a crash (a mode given to writeFileSync only applies to a file it creates).
+    fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
     fs.renameSync(tmp, this.file);
   }
 
@@ -239,6 +245,10 @@ class HostRegistry {
     return this.data.secrets.key;
   }
 
+  keyBuf() {
+    return Buffer.from(this.data.secrets.key, 'hex');
+  }
+
   // ai ----------------------------------------------------------------------------------------------------
   // The host's own managed AI service, above every environment, per company: real values (including the key),
   // for server/index.js's managedSlot to build both an Ai instance's `managed()` callback and the host
@@ -247,15 +257,19 @@ class HostRegistry {
   // (empty when nothing is saved for it), so a caller never has to guard against a missing key.
   get managedAi() {
     const out = {};
-    for (const provider of MANAGED_PROVIDERS) out[provider] = { model: '', key: '', ...(provider === 'compatible' ? { address: '' } : {}), ...(provider === 'anthropic' ? { workspace: '' } : {}), ...(this.data.ai[provider] || {}) };
+    for (const provider of MANAGED_PROVIDERS) {
+      out[provider] = { model: '', key: '', ...(provider === 'compatible' ? { address: '' } : {}), ...(provider === 'anthropic' ? { workspace: '' } : {}), ...(this.data.ai[provider] || {}) };
+      out[provider].key = openKey(out[provider].key, this.keyBuf()).key; // kept encrypted in host.json; the real key here
+    }
     return out;
   }
 
   setManagedAi(provider, patch) {
     if (!MANAGED_PROVIDERS.includes(provider)) throw new HostError('choose openai, anthropic or compatible');
-    this.data.ai[provider] = applyManagedFields(provider, this.managedAi[provider], patch);
+    const next = applyManagedFields(provider, this.managedAi[provider], patch);
+    this.data.ai[provider] = { ...next, key: sealKey(next.key, this.keyBuf()) };
     this.save();
-    return { ...this.data.ai[provider] };
+    return next;
   }
 
   // Used only by index.js's migration seeding: an environment's old provider/address/model, worked only

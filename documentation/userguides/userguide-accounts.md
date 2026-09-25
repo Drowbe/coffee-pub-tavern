@@ -99,6 +99,13 @@ belong to. In each, **Moderator** makes them a moderator in that room only, so t
 the Moderator role has there and nothing extra elsewhere. **Use Default Profile Images** decides
 whether the room's own pictures replace their defaults, and **Remove** takes them out of the room.
 
+## Light or dark
+
+The sun and moon switch next to the gear at the top of every page changes between light and dark at once, with
+no refresh. When you are signed in, your choice is kept on your account and follows you to your other devices; a
+guest's is kept in that browser. Once you have used it, you keep your choice even when the owner changes the
+environment's default.
+
 ## Two-step sign-in
 
 A second step after the password, if you or your owner want one: a six-digit code from an authenticator app on your phone, the standard kind that any such app makes.
