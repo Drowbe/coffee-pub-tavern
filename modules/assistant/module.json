@@ -1,7 +1,7 @@
 {
   "id": "assistant",
   "name": "Assistant",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "icon": "wand-magic-sparkles",
   "description": "An open-ended conversation with the AI the {owner} set up. Add a note, a link or anything else as context if you want the answer to use it; a card worth keeping can be saved and dragged like any other.",
   "author": "Coffee Pub",
@@ -9,8 +9,8 @@
     "space"
   ],
   "surfaces": {
-    "panel": {
-      "entry": "panel.html",
+    "canvas": {
+      "entry": "canvas.html",
       "width": 420,
       "height": 600,
       "mode": [

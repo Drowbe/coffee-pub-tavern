@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.35",
+  "version": "0.7.36",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your {space} already has.",
   "author": "Coffee Pub",
@@ -13,8 +13,8 @@
     "page": {
       "entry": "page.html"
     },
-    "panel": {
-      "entry": "panel.html",
+    "canvas": {
+      "entry": "canvas.html",
       "width": 460,
       "height": 600,
       "mode": [

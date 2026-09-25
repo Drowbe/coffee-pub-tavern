@@ -1,7 +1,7 @@
 {
   "id": "research",
   "name": "Research",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "icon": "book-open",
   "description": "What a group finds out while it plans: notes, links with the part that mattered, photos with a caption. Tagged, searchable, linkable from anywhere, and questioned or summarised by the AI the {owner} chose.",
   "author": "Coffee Pub",
@@ -13,8 +13,8 @@
     "page": {
       "entry": "page.html"
     },
-    "panel": {
-      "entry": "panel.html",
+    "canvas": {
+      "entry": "canvas.html",
       "width": 520,
       "height": 640,
       "mode": [

@@ -412,7 +412,7 @@ async function loadModuleNav() {
     const { modules } = await res.json();
     const keep = new URLSearchParams(window.location.search).get('from') === 'space' ? window.location.search : '';
     // A module with a dashboard widget is reached from the widget's heading, so it has no item here; one
-    // that opted out (surfaces.page.nav: false, reached some other way -- a space's own pane) has none
+    // that opted out (surfaces.page.nav: false, reached some other way -- a space's canvas) has none
     // either; anything else does, so nothing becomes unreachable.
     const listed = modules.filter((m) => !m.widget && m.nav);
     nav.unregisterAll('page-');

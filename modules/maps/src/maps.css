@@ -16,7 +16,7 @@ body { margin: 0; overflow: hidden; }
 
 /* ---- the frame: the map fills the pane; what is selected shows in a callout over it ---- */
 .app { position: relative; display: flex; height: 100%; background: var(--bg); }
-.stage { position: relative; flex: 1; min-width: 0; min-height: 0; }
+.map-area { position: relative; flex: 1; min-width: 0; min-height: 0; }
 .map { position: absolute; inset: 0; background: var(--bg-section); }
 .map.adding { cursor: crosshair; }
 .map .maplibregl-canvas { outline: none; }
@@ -101,7 +101,7 @@ body { margin: 0; overflow: hidden; }
 /* phones and narrow panes: the script sets .narrow on .app from the pane width (under 720 px), not the window's */
 .app.narrow { display: block; }
 
-.app.narrow .stage { position: absolute; inset: 0; }
+.app.narrow .map-area { position: absolute; inset: 0; }
 
 .app.narrow .icon-btn { width: 40px; height: 40px; }
 

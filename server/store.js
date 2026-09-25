@@ -101,8 +101,8 @@ const SPACE_PERMISSIONS = ['moderator'];
 // are enforced by the page itself, since chat, reactions and screen share
 // travel peer to peer through LiveKit with no server hop to check.
 const ROLE_PERMISSIONS = [
-  { key: 'conference', label: 'See and join the conference', group: 'Panes' },
-  { key: 'chatRead', label: 'Open and read the chat', group: 'Panes' },
+  { key: 'conference', label: 'See and join the conference', group: '{Modules}' },
+  { key: 'chatRead', label: 'Open and read the chat', group: '{Modules}' },
   { key: 'chat', label: 'Send chat messages', group: 'In the {Space}' },
   { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the {Space}' },
   { key: 'react', label: 'Use reactions', group: 'In the {Space}' },

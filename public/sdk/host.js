@@ -975,7 +975,7 @@
       // A module written after this one appears here with no change to this one, so use it (and the
       // cards' own module and kind) rather than naming other modules in your code.
       kinds: () => call('refs.kinds', {}),
-      // Show an item in the module that owns it (its pane opens, and it is asked to show the item). The
+      // Show an item in the module that owns it (it opens on the canvas, and it is asked to show the item). The
       // card says whether it can: card.open.
       open: (ref) => call('refs.open', { ref }),
       // For a module that owns items: called when someone asks to see one of them (host.refs.open from
@@ -1397,7 +1397,7 @@
       set: (items) => call('bar.set', { items }),
     },
 
-    // Icon buttons in the module's titlebar, ahead of the pane's own buttons and set off by a pipe:
+    // Icon buttons in the module's titlebar, ahead of the host's own buttons and set off by a pipe:
     // set([{ id, icon, title, on, regular, disabled, overflow }]), where `icon` is a Font Awesome name (solid, or
     // regular with `regular: true`) and `on` marks the current choice. A click arrives as the 'header'
     // event with the button's id. Resolves true when the host drew them, false when it has no titlebar
@@ -1433,8 +1433,8 @@
     },
 
     // The module's tools in the space's nav bar (the secondary nav, the row under the header on the call page), drawn by
-    // the host in its own look while the module's pane is open in that space and taken out when it closes. Not the
-    // pane's toolbar (host.toolbar.set, about the module's own state): these are the space's actions the module adds.
+    // the host in its own look while the module is open in that space and taken out when it closes. Not the
+    // module's toolbar (host.toolbar.set, about the module's own state): these are the space's actions the module adds.
     // set([{ id, zone?, icon, label, title?, order?, group?, groupOrder?, href?, visible?, toggleable?, active?, badge? }]):
     //   id is letters, digits and hyphens, the module's own (the host namespaces it); zone 'left', 'middle' or 'right'
     //   (the default); icon a Font Awesome name; label what a screen reader and the tooltip say; order and groupOrder

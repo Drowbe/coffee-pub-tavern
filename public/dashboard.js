@@ -30,8 +30,8 @@ let started = false;
 
 const section = () => document.getElementById('dashboard');
 
-// Showing an item where its module keeps it. An item in a space takes the person into that space with the module's
-// pane open on it (the page supplies how, since it owns joining); anything else goes to the module's own page,
+// Showing an item where its module keeps it. An item in a space takes the person into that space with the module
+// open on its canvas (the page supplies how, since it owns joining); anything else goes to the module's own page,
 // given the pointer in the address (the page hands it on).
 let openInSpace = null;
 function openRef(ref) {

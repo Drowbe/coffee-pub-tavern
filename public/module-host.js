@@ -429,7 +429,7 @@ function toggleOverflow(trigger, items) {
     if (!item.disabled) b.addEventListener('click', () => { closeOverflow(); item.onPick(); });
     menu.appendChild(b);
   }
-  const host = trigger.closest('.module-panel, .module-docked, .module') || doc.body;
+  const host = trigger.closest('.module-floating, .module-docked, .module') || doc.body;
   if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
   host.appendChild(menu);
   const hostBox = host.getBoundingClientRect();
@@ -572,7 +572,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       if (guestToken) p.set('guest', guestToken);
       return (await api('GET', `/api/refs/kinds?${p}`)).kinds;
     },
-    // Show an item in the module that owns it (the page decides how: a pane, a page).
+    // Show an item in the module that owns it (the page decides how: the canvas, a page).
     async 'refs.open'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
@@ -800,8 +800,8 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       if (onBar) onBar(clean.length > 0);
       return true;
     },
-    // Icon buttons in the module's titlebar, before the pane's own buttons and set off by a pipe. Only a
-    // host with a titlebar (a pane, or a module's own window) has room for them: the answer says which,
+    // Icon buttons in the module's titlebar, before the host's own buttons and set off by a pipe. Only a
+    // host with a titlebar (a module on the canvas, or in its own window) has room for them: the answer says which,
     // so a module can keep its own controls in the page when it is not.
     async 'header.set'({ items }) {
       if (!header) return false;
@@ -1005,7 +1005,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       return true;
     },
     // The module's tools in the nav bars (host.nav.set): registered under the module's own namespace in the shared
-    // registry (public/nav-bar.js), drawn while this mount lives (a pane open in this space) and taken out when it is
+    // registry (public/nav-bar.js), drawn while this mount lives (the module open on this space's canvas) and taken out when it is
     // destroyed. The set replaces the last one. A tool for the primary bar is refused unless the admin allowed the
     // module there (its manifest's surfaces.page.nav, which the context reports) and the tool says system: true; see
     // cleanModuleTools for every rule. Resolves false when there is no secondary bar here (a module's own page), in

@@ -1,26 +1,26 @@
 // The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights, word, applyWords } from '/brand.js';
-import { createSpaceModules, joinPanes, setJoinPanes } from '/canvas.js';
+import { createCanvas, joinModules, setJoinModules } from '/canvas.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
 import { nav } from '/nav-bar.js';
 
-// Elements by id, wherever the stage currently lives (the page or the pop-out
-// window, which takes the whole stage with it).
-const stageEl = document.getElementById('stage');
-// The conference can live in a floating panel or a window of its own, away from the stage.
+// Elements by id, wherever the canvas currently lives (the page or the pop-out
+// window, which takes the whole canvas with it).
+const canvasEl = document.getElementById('canvas');
+// The conference can float or live in a window of its own, away from the canvas.
 const confEl = document.getElementById('conference');
-// The header moves to the popped-out window with the stage, so it is searched too.
+// The header moves to the popped-out window with the canvas, so it is searched too.
 const topbarEl = document.getElementById('topbar');
-const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`));
+const $ = (id) => (id === 'canvas' ? canvasEl : document.getElementById(id) || canvasEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`));
 // Before anything else touches a header element -- the header itself is
 // built here, not left static in space.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
 renderTopbar();
 if (new URLSearchParams(location.search).has('layout')) import('/layout-debug.js'); // a live geometry readout, see there
 // The space's own bar, a second row of the header (so it moves with the header when the app is
-// popped out): the panes to open on the left (chat, the space's modules; canvas.js fills
+// popped out): the modules to open on the left (chat, the space's modules; canvas.js fills
 // #modules-menu), and the controls for the whole app on the right, full screen and pop out,
 // which move the whole call page, not the conference.
 const subnav = document.createElement('div');
@@ -28,19 +28,19 @@ subnav.className = 'subnav';
 subnav.id = 'subnav';
 // The secondary nav is about the space, in three zones (see documentation/plans/plan-nav.md and
 // architecture-navigation.md): left, the space's name and the module selector; middle, the space's own information and
-// navigation (nothing yet); right, the space's actions: the stage-level snap, full screen, pop out, pulling people back
+// navigation (nothing yet); right, the space's actions: the canvas-level snap, full screen, pop out, pulling people back
 // from an aside, and leaving. The right zone's controls are registrations in the nav-bar registry (public/nav-bar.js),
 // made below beside the code each one drives; a module's own tools (host.nav.set) land in the same bar, after them.
 subnav.innerHTML = `
   <div class="nav-left subnav-left">
     <span class="space-name" id="space-name" hidden><i class="fa-solid fa-fw" id="space-icon" aria-hidden="true"></i><span id="space-name-text"></span></span>
-    <div class="subnav-panes" id="modules-menu"></div>
+    <div class="subnav-modules" id="modules-menu"></div>
   </div>
   <div class="nav-middle subnav-middle" id="subnav-middle"></div>
   <span class="nav-right subnav-tools"></span>`;
 topbarEl.appendChild(subnav);
 nav.attach('secondary', subnav); // its tools are registered further down, once the state their `visible` reads exists
-// On a phone the space bar is a tab bar at the bottom of the page, in the flow after the stage, so
+// On a phone the space bar is a tab bar at the bottom of the page, in the flow after the canvas, so
 // the call toolbar sits directly above it whatever the browser does with its own bottom bar. Wider,
 // it is the header's second row.
 const phoneWidth = window.matchMedia('(max-width: 640px)');
@@ -76,7 +76,7 @@ const forgetSpace = () => { if (unloading) return; try { sessionStorage.removeIt
 const rememberedSpace = () => { try { return sessionStorage.getItem(REMEMBERED_SPACE) || ''; } catch { return ''; } };
 // Being in the space and being in the conference are separate: the page stays connected
 // for the chat and the modules, and only sends and receives audio and video while the
-// conference pane is open. Others see the difference through the "call" attribute.
+// conference module is open. Others see the difference through the "call" attribute.
 let inCall = false;
 let callStarting = Promise.resolve(); // settles once the conference has finished starting
 const LOBBY = 'lobby';
@@ -456,15 +456,15 @@ setInterval(() => {
 // Join a space straight into its own window, skipping the step of joining in
 // the page first and then popping out. The window opens first, synchronously
 // with the click (a popup opened after a network wait is what browsers
-// block); the stage moves into it, and is revealed there once connected.
+// block); the canvas moves into it, and is revealed there once connected.
 async function joinInPopout(spaceId) {
   if (!pipWindow) openPopout();
-  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToStage();
+  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToCanvas();
   else if (call.state === 'connected') await reconnectTo(spaceId);
   else await join(spaceId);
   if (call.state !== 'connected') closePopout(); // it failed; don't leave an empty window
 }
-// "Join with": which panes a space opens with, remembered for that space (see joinPanes in
+// "Join with": which modules a space opens with, remembered for that space (see joinModules in
 // canvas.js). The list is the conference, the chat and the space's modules.
 const spaceModuleList = new Map(); // space id -> the modules on for it, fetched once
 const canIn = (spaceId, permission) => hasOwnerRights(me) || !!(me?.spaces?.[spaceId]?.effective || me?.permissions || {})[permission];
@@ -493,17 +493,17 @@ async function toggleJoinWith(card, spaceId) {
     ...(canIn(spaceId, 'chatRead') ? [shownBuiltin('chat', 'Chat', 'message')] : []),
     ...onHere.map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
   ];
-  const chosen = new Set(joinPanes(spaceId) ?? ['conference']);
+  const chosen = new Set(joinModules(spaceId) ?? ['conference']);
   const list = pop.querySelector('.join-with-list');
   for (const item of items) {
     const label = document.createElement('label');
     label.className = 'check';
-    label.innerHTML = `<input type="checkbox" data-pane="${escapeHtml(item.id)}"> <i class="fa-solid fa-${escapeHtml(item.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(item.name)}`;
+    label.innerHTML = `<input type="checkbox" data-join-module="${escapeHtml(item.id)}"> <i class="fa-solid fa-${escapeHtml(item.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(item.name)}`;
     label.querySelector('input').checked = chosen.has(item.id);
     list.appendChild(label);
   }
   list.addEventListener('change', () => {
-    setJoinPanes(spaceId, [...list.querySelectorAll('input:checked')].map((i) => i.dataset.pane));
+    setJoinModules(spaceId, [...list.querySelectorAll('input:checked')].map((i) => i.dataset.joinModule));
   });
 }
 function closeJoinWith() {
@@ -528,7 +528,7 @@ $('spaces').addEventListener('click', (event) => {
   const button = event.target.closest('[data-join]');
   if (!button) return;
   const spaceId = button.dataset.join;
-  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToStage();
+  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToCanvas();
   else if (call.state === 'connected') reconnectTo(spaceId);
   else join(spaceId);
 });
@@ -811,16 +811,14 @@ const DEFAULT_PREFS = {
 // Call preferences (layout, devices, volumes, keys). brand.js moves the key they had before the Names plan on load.
 const PREFS_KEY = 'app.call';
 const prefs = loadPrefs();
-// The space's modules: the toolbar's Modules button and its floating panels.
-const spaceModules = createSpaceModules({ guestToken });
-window.hostModules = spaceModules; // for debugging and tests
+// The space's canvas: the Modules menu and every module open on it, docked, floating or in a window.
+const canvas = createCanvas({ guestToken });
+window.hostModules = canvas; // for debugging and tests
 
 // The space's actions, in the secondary nav's right zone (built at the top of this file): one group in the bands
 // plan-nav.md sets out (the layout tools core, full screen and pop out secondary, the aside's two utility), and Leave
 // last on its own, a divider before it. Registered here, after the state their `visible` functions read exists.
 const SPACE_TOOL = { bar: 'secondary', zone: 'right', group: 'space', groupOrder: 1 };
-nav.register({ ...SPACE_TOOL, id: 'dock-all', order: 1, icon: 'table-columns', label: 'Dock every floating pane beside the call', onClick: () => { spaceModules.dockAll(); syncSnapBar(); } });
-nav.register({ ...SPACE_TOOL, id: 'snap-all', order: 2, icon: 'border-all', label: 'Snap every floating pane to a grid', toggleable: true, active: false, onClick: () => { spaceModules.snapAll(!spaceModules.snapAllOn()); syncSnapBar(); } });
 const snapSize = document.createElement('input');
 snapSize.type = 'range';
 snapSize.id = 'snap-size';
@@ -830,8 +828,10 @@ snapSize.hidden = true;
 nav.register({ ...SPACE_TOOL, id: 'snap-size', order: 3, element: snapSize }); // the slider: the registry places it, syncSnapBar() runs it
 nav.register({ ...SPACE_TOOL, id: 'fullscreen-toggle', order: 11, icon: 'expand', activeIcon: 'compress', label: 'Full screen', title: 'Full screen (F)', toggleable: true, active: false, onClick: () => toggleFullscreen() });
 nav.register({ ...SPACE_TOOL, id: 'popout', order: 12, icon: 'up-right-from-square', activeIcon: 'window-restore', label: 'Pop out into its own window', toggleable: true, active: false, onClick: () => (pipWindow ? closePopout() : openPopout()) });
-// The two tools whose words are the environment's: registered again (the same elements) once loadBranding() has them.
+// The tools whose words are the environment's: registered again (the same elements) once loadBranding() has them.
 function registerWordTools() {
+  nav.register({ ...SPACE_TOOL, id: 'dock-all', order: 1, icon: 'table-columns', label: `Dock every floating ${word('module')} beside the call`, onClick: () => { canvas.dockAll(); syncSnapBar(); } });
+  nav.register({ ...SPACE_TOOL, id: 'snap-all', order: 2, icon: 'border-all', label: `Snap every floating ${word('module')} to a grid`, toggleable: true, active: canvas.snapAllOn(), onClick: () => { canvas.snapAll(!canvas.snapAllOn()); syncSnapBar(); } });
   nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: `Give everyone in a Private Conversation from this ${word('space')} a 10 second warning, then pull them back`, labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
   nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-space', order: 999, icon: 'square-xmark', label: `Leave ${word('space')}`, onClick: () => leaveSpace() });
 }
@@ -844,33 +844,33 @@ nav.register({
   id: 'call-settings', bar: 'primary', zone: 'right', group: 'session', order: 50, icon: 'sliders', label: 'Call settings',
   visible: () => inCall,
   onClick: () => {
-    document.querySelector('.modules-menu-item[data-native="conference"]')?.click(); // shows the conference view
+    document.querySelector('.modules-menu-item[data-builtin="conference"]')?.click(); // shows the conference view
     setTimeout(() => { if ($('settings').hidden || $('settings').dataset.group !== 'more') openSettings('more'); }, 50);
   },
 }).classList.add('call-settings-link');
 topbarEl.querySelector('#nav-toggle')?.addEventListener('click', () => nav.draw('primary'));
 
-// The stage-level snap, in the space bar: one switch that makes every floating pane, now and later, snap to a grid over the
-// stage, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each pane's own switch
+// The canvas-level snap, in the space bar: one switch that makes every floating module, now and later, snap to a grid over the
+// canvas, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each module's own switch
 // on its titlebar still works on its own; this one sets them all. Remembered with the space's layout.
-// The switch and Dock all (the way back: every floating pane docks beside the call, and the stage-level snap goes off with it,
+// The switch and Dock all (the way back: every floating module docks beside the call, and the canvas-level snap goes off with it,
 // or it would float them again) are registered with the bar's other tools at the top of this file.
 function syncSnapBar() {
-  const on = spaceModules.snapAllOn();
-  const range = spaceModules.snapPitchRange();
+  const on = canvas.snapAllOn();
+  const range = canvas.snapPitchRange();
   nav.setActive('snap-all', on);
   const size = $('snap-size');
   size.hidden = !on;
   size.min = String(range.min); size.max = String(range.max); size.step = String(range.step);
-  size.value = String(spaceModules.snapPitch());
+  size.value = String(canvas.snapPitch());
 }
-$('snap-size').addEventListener('input', () => spaceModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
-$('snap-size').addEventListener('change', () => spaceModules.setSnapPitch(Number($('snap-size').value)));
+$('snap-size').addEventListener('input', () => canvas.setSnapPitch(Number($('snap-size').value), { preview: true }));
+$('snap-size').addEventListener('change', () => canvas.setSnapPitch(Number($('snap-size').value)));
 syncSnapBar();
-// A toast about a space module opens its panel; a server module opens over the call.
+// A toast about a space module opens it on the canvas; an environment module opens over the call.
 document.addEventListener('app:notification', (event) => {
   const n = event.detail;
-  if (spaceModules.handleNotification(n)) event.preventDefault();
+  if (canvas.handleNotification(n)) event.preventDefault();
   else if (n.scope === 'environment' && document.body.classList.contains('in-space')) {
     event.preventDefault();
     openOverlay(`/modules/${encodeURIComponent(n.module)}`);
@@ -981,20 +981,20 @@ function cycleView() {
 
 function applyLayout() {
   fitFloatbar();
-  spaceModules.layoutChanged(); // panes' columns follow the stage's width
+  canvas.layoutChanged(); // modules' columns follow the canvas's width
   const grid = $('grid');
   grid.dataset.layout = prefs.layout;
   const portrait = grid.clientHeight > grid.clientWidth;
   grid.classList.toggle('portrait', portrait);
-  const stage = $('stage');
-  stage.classList.toggle('narrow', stage.clientWidth < 640);
+  const canvasEl = $('canvas');
+  canvasEl.classList.toggle('narrow', canvasEl.clientWidth < 640);
   // The sizes follow the conference itself, wherever it is (docked beside the chat, floating,
-  // or in a window of its own), not the whole stage.
-  const host = confEl.closest('.stage') || stage;
+  // or in a window of its own), not the whole canvas.
+  const host = confEl.closest('.canvas') || canvasEl;
   const box = confEl.querySelector('.mod-content');
   const cw = box?.clientWidth || host.clientWidth;
   const ch = box?.clientHeight || host.clientHeight;
-  for (const el of new Set([stage, host])) {
+  for (const el of new Set([canvasEl, host])) {
     el.classList.toggle('compact', cw < 460);
     el.classList.toggle('tiny', cw < 300 || ch < 220);
   }
@@ -1172,7 +1172,7 @@ function attachTrack(participant, track) {
     audio.dataset.identity = participant.identity;
     audio.muted = prefs.deafened;
     if (prefs.speakerId && audio.setSinkId) audio.setSinkId(prefs.speakerId).catch(() => {});
-    $('stage').appendChild(audio);
+    $('canvas').appendChild(audio);
     track.setVolume(effectiveVolume(participant.identity));
   }
 }
@@ -1196,7 +1196,7 @@ function removeParticipant(participant) {
   tiles.delete(participant.identity);
   removeScreenTile(participant.identity);
   if (asideSelection.delete(participant.identity)) updateAsideConfirm();
-  stageDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
+  canvasDoc().querySelectorAll(`audio[data-identity="${CSS.escape(participant.identity)}"]`).forEach((el) => el.remove());
   reconcileGhostTiles(); // they may have just stepped into a private aside, not actually left
   applyLayout();
 }
@@ -1237,9 +1237,9 @@ function updateCamera(participant) {
   tile.querySelector('.placeholder-bg').hidden = !off;
 }
 
-// The document the stage currently lives in (the page, or the pop-out window).
-function stageDoc() {
-  return $('stage').ownerDocument;
+// The document the canvas currently lives in (the page, or the pop-out window).
+function canvasDoc() {
+  return $('canvas').ownerDocument;
 }
 
 // --- chat ---------------------------------------------------------------------
@@ -1279,7 +1279,7 @@ function postChatMessage(text) {
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
   api('POST', `/api/spaces/${encodeURIComponent(currentSpace.id)}/chat${q}`, { text, name: me?.displayName || call.localParticipant.name }).catch(() => {});
 }
-// Called once per join, after the stage is up but before anything live has
+// Called once per join, after the canvas is up but before anything live has
 // arrived -- fills #messages with whatever this space already said, so it
 // reads as "still here" rather than the chat looking wiped on every rejoin.
 async function renderChatHistory(spaceId) {
@@ -1427,9 +1427,9 @@ function addEntry(entry, own = false) {
   chatLog.push(entry);
   $('messages').appendChild(messageEl(entry, own));
   $('messages').scrollTop = $('messages').scrollHeight;
-  if (!spaceModules.nativeOpen('chat') && !own) {
+  if (!canvas.builtinOpen('chat') && !own) {
     unread += 1;
-    spaceModules.setNativeUnread('chat', unread);
+    canvas.setBuiltinUnread('chat', unread);
   }
 }
 
@@ -1572,30 +1572,30 @@ function openSettings(group) {
   toggleTray(false);
 }
 
-// A built-in pane's own header, with the name and icon this environment shows it by (canvas.js hands them over once the
+// A built-in module's own header, with the name and icon this environment shows it by (canvas.js hands them over once the
 // space's modules are loaded).
-function showPaneName(def) {
-  const name = def.el.querySelector('[data-pane-name]');
+function showBuiltinName(def) {
+  const name = def.el.querySelector('[data-module-name]');
   if (name) name.textContent = def.name;
-  const icon = def.el.querySelector('[data-pane-icon]');
+  const icon = def.el.querySelector('[data-module-icon]');
   if (icon) icon.className = `fa-solid fa-${def.icon} fa-fw`;
 }
 
-// The conference is a pane too: docked, floating or in a window of its own, and it can be
+// The conference is a module too: docked, floating or in a window of its own, and it can be
 // closed, which leaves the call but not the space. It is the flexible column, and the first
 // one. Opening it starts the call (from a join or "Rejoin call"), closing it stops it;
 // only moving it between docked, floating and a window leaves the call running.
-spaceModules.registerNative({
+canvas.registerBuiltin({
   id: 'conference',
   name: 'Conference',
   closedLabel: 'Rejoin call',
   icon: 'video',
   el: $('conference'),
-  onShown: showPaneName,
+  onShown: showBuiltinName,
   order: -1,
   flex: true,
   modes: ['dock', 'float', 'window'],
-  wrap: 'stage conference-stage', // out of the stage's grid it needs a .stage of its own
+  wrap: 'canvas conference-canvas', // out of the canvas's grid it needs a .canvas of its own
   windowClass: 'conference-window',
   windowSize: { w: 640, h: 420 },
   floatSize: { w: 560, h: 380 },
@@ -1611,46 +1611,46 @@ spaceModules.registerNative({
   },
   onWindowResize: () => applyLayout(),
   onChange: ({ open, mode, moving }) => {
-    $('stage').classList.toggle('conference-open', open && mode === 'dock'); // the narrow layout keys off this
+    $('canvas').classList.toggle('conference-open', open && mode === 'dock'); // the narrow layout keys off this
     if (!moving) {
       if (open) callStarting = startCall().catch((err) => setStatus(`call: ${err.message}`, true));
-      else { stopCall(); setNoCall(false); } // closed, the pane starts fresh next time
+      else { stopCall(); setNoCall(false); } // closed, the module starts fresh next time
     }
     updateCrumb();
-    setTimeout(applyLayout, 0); // once the pane is in place
+    setTimeout(applyLayout, 0); // once the module is in place
   },
 });
-// The titlebar's x closes the pane (and with it the call); Hang up on the toolbar only leaves the call.
-$('conf-close').addEventListener('click', () => { if (pipWindow) closePopout(); spaceModules.closeNative('conference'); });
+// The titlebar's x closes the module (and with it the call); Hang up on the toolbar only leaves the call.
+$('conf-close').addEventListener('click', () => { if (pipWindow) closePopout(); canvas.closeBuiltin('conference'); });
 
 
-// The chat is a pane like a module's: a column beside the video, a floating panel,
-// or a window of its own (see canvas.js). This is what the pane manager
+// The chat is a built-in module, shown like any other: a column beside the video, floating,
+// or a window of its own (see canvas.js). This is what the canvas
 // tells the chat when it opens or closes.
-spaceModules.registerNative({
+canvas.registerBuiltin({
   id: 'chat',
   name: 'Chat',
   icon: 'message',
   el: $('chat'),
-  onShown: showPaneName,
+  onShown: showBuiltinName,
   allowed: () => canDo('chatRead'),
   width: prefs.chatWidth,
   onWidth: (w) => { prefs.chatWidth = w; savePrefs(); },
   onChange: ({ open, mode }) => {
-    $('stage').classList.toggle('chat-open', open && mode === 'dock'); // the narrow layout keys off this
+    $('canvas').classList.toggle('chat-open', open && mode === 'dock'); // the narrow layout keys off this
     applyLayout();
     if (open) {
       unread = 0;
-      spaceModules.setNativeUnread('chat', 0);
+      canvas.setBuiltinUnread('chat', 0);
       $('chat-input').focus();
       $('messages').scrollTop = $('messages').scrollHeight;
     }
   },
 });
 
-function toggleChat(open = !spaceModules.nativeOpen('chat')) {
-  if (open) spaceModules.openNative('chat');
-  else spaceModules.closeNative('chat');
+function toggleChat(open = !canvas.builtinOpen('chat')) {
+  if (open) canvas.openBuiltin('chat');
+  else canvas.closeBuiltin('chat');
 }
 
 // --- microphone: device -> level -> gate -> what the call hears -----------
@@ -1802,7 +1802,7 @@ function applyMasterVolume() {
 // The output device every remote participant's audio plays through.
 async function applySpeaker() {
   if (!prefs.speakerId) return;
-  for (const audio of stageDoc().querySelectorAll('audio')) {
+  for (const audio of canvasDoc().querySelectorAll('audio')) {
     if (audio.setSinkId) await audio.setSinkId(prefs.speakerId).catch(() => {});
   }
 }
@@ -1925,17 +1925,17 @@ call
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`in ${spaceName}`))
   .on(RoomEvent.Disconnected, () => {
-    spaceModules.suspend(); // tearing the call down must not become its remembered layout
+    canvas.suspend(); // tearing the call down must not become its remembered layout
     inCall = false; // the whole call is gone, so there is nothing to stop; the rest of this clears it
     closeMic();
     closePopout();
-    spaceModules.closeNative('conference');
+    canvas.closeBuiltin('conference');
     setStatus('left the call');
     forgetSpace();
     currentSpace = null;
-    spaceModules.refresh(null);
+    canvas.refresh(null);
     document.body.classList.remove('in-space');
-    $('stage').hidden = true;
+    $('canvas').hidden = true;
     $('space-link').hidden = true;
     resetRecallButton();
     updateRecallButton(); // no room, so the tool's own `visible` hides it
@@ -1961,7 +1961,7 @@ call
     tiles.clear();
     for (const [, tile] of ghostTiles) tile.remove();
     ghostTiles.clear();
-    stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
+    canvasDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
     $('chat-delete-overlay').hidden = true;
     toggleChat(false);
@@ -1997,11 +1997,11 @@ async function fillDevices() {
 // Disconnect (if connected) and join a different space. Used for the admin's
 // own "pull aside" click, for the pulled player's push notification, and
 // for "Rejoin call".
-// From the dashboard: go into a space with one module's pane open on one item, and nothing else changed. In the
-// space already, that is just showing the stage and opening the pane.
+// From the dashboard: go into a space with one module's module open on one item, and nothing else changed. In the
+// space already, that is just showing the canvas and opening the module.
 // Into a space I was invited to (or started): the one I am in is left for it.
 async function joinInvitedSpace(spaceId) {
-  if (call.state === 'connected' && currentSpace?.id === spaceId) return returnToStage();
+  if (call.state === 'connected' && currentSpace?.id === spaceId) return returnToCanvas();
   if (call.state === 'connected') return reconnectTo(spaceId);
   return join(spaceId);
 }
@@ -2013,12 +2013,12 @@ document.addEventListener('app:invite-accept', (event) => {
 
 async function openInSpace(spaceId, moduleId, ref) {
   if (call.state === 'connected' && currentSpace?.id === spaceId) {
-    returnToStage();
-    spaceModules.open(moduleId);
-    spaceModules.openRef(ref);
+    returnToCanvas();
+    canvas.open(moduleId);
+    canvas.openRef(ref);
     return;
   }
-  spaceModules.requestOpen(moduleId, ref);
+  canvas.requestOpen(moduleId, ref);
   if (call.state === 'connected') await reconnectTo(spaceId);
   else await join(spaceId);
 }
@@ -2157,7 +2157,7 @@ async function join(spaceId = 'lobby') {
     me = (await api('GET', '/api/me')).user;
     await loadPresence();
     currentSpace = presenceSpaces.find((r) => r.id === spaceId) || { id: spaceId, name: spaceName };
-    await spaceModules.refresh(currentSpace.ephemeral ? null : currentSpace.id); // asides have no modules
+    await canvas.refresh(currentSpace.ephemeral ? null : currentSpace.id); // asides have no modules
     spaceName = spaceDisplayName(currentSpace);
     renderSpaceLink();
     applyPermissions();
@@ -2186,7 +2186,7 @@ async function joinAsGuest(token, livekitUrl, joinedId, joinedName) {
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentSpace.members downstream breaks.
     currentSpace = presenceSpaces.find((r) => r.id === joinedId) || { id: joinedId, name: joinedName, members: [] };
-    await spaceModules.refresh(currentSpace.id);
+    await canvas.refresh(currentSpace.id);
     renderSpaceLink();
     applyPermissions();
     updateRecallButton();
@@ -2200,7 +2200,7 @@ async function joinAsGuest(token, livekitUrl, joinedId, joinedName) {
 }
 
 // Shared by join() and joinAsGuest() once a LiveKit token is in hand:
-// connect, reveal the stage, and open the conference (unless the role has no
+// connect, reveal the canvas, and open the conference (unless the role has no
 // conference). Errors propagate to whichever of those called it, to land on the
 // right error message. Nothing is received until the conference starts, so
 // autoSubscribe is off.
@@ -2210,21 +2210,21 @@ async function connectAndSetup(token, livekitUrl) {
     if (!guestToken && currentSpace && !currentSpace.ephemeral) rememberSpace(currentSpace.id); // an aside is gone once it ends, so it is not kept
     $('join').hidden = true;
     $('guest-join').hidden = true;
-    $('stage').hidden = false;
+    $('canvas').hidden = false;
     updateCrumb();
     document.body.classList.add('in-space');
     wake();
     setStatus(`in ${spaceName}`);
     if (!currentSpace.ephemeral) renderChatHistory(currentSpace.id);
-    spaceModules.updateMenu();
-    spaceModules.restore(); // the panes this space had open last time, or the conference the first time
-    syncSnapBar(); // and this space's stage-level snap
-    if (spaceModules.nativeOpen('conference')) await callStarting;
+    canvas.updateMenu();
+    canvas.restore(); // the modules this space had open last time, or the conference the first time
+    syncSnapBar(); // and this space's canvas-level snap
+    if (canvas.builtinOpen('conference')) await callStarting;
     else setStatus(`in ${spaceName} (not in the call)`);
 }
 
 // Start the conference: tiles for everyone in it, their media, and my own microphone.
-// Runs when the conference pane opens (a join, or "Rejoin call").
+// Runs when the conference module opens (a join, or "Rejoin call").
 async function startCall() {
   if (inCall || call.state !== 'connected') return;
   inCall = true;
@@ -2290,7 +2290,7 @@ async function stopCall() {
   tiles.clear();
   for (const [, tile] of ghostTiles) tile.remove();
   ghostTiles.clear();
-  stageDoc().querySelectorAll('audio').forEach((el) => el.remove());
+  canvasDoc().querySelectorAll('audio').forEach((el) => el.remove());
   asideSelection.clear();
   updateAsideConfirm();
   $('cam').classList.remove('on');
@@ -2301,10 +2301,10 @@ async function stopCall() {
   setStatus(`in ${spaceName} (not in the call)`);
 }
 
-// The hang-up button. In a pop-out window the stage comes back to the page first, since the
+// The hang-up button. In a pop-out window the canvas comes back to the page first, since the
 // Modules button that brings the conference back is in the page's header.
-// Hang up leaves the call but keeps the conference pane, which says "Not in a call" while the toolbar's phone turns
-// green to dial back in; the pane's own close (its titlebar x) is what closes it. The whole-call popout comes back
+// Hang up leaves the call but keeps the conference module, which says "Not in a call" while the toolbar's phone turns
+// green to dial back in; the module's own close (its titlebar x) is what closes it. The whole-call popout comes back
 // in with the call, as before.
 function hangUp() {
   if (pipWindow) closePopout();
@@ -2396,7 +2396,7 @@ async function toggleScreenShare() {
 // phone call or something else needs the space quiet for a minute without
 // actually leaving or muting yourself to the others.
 function applyDeafen() {
-  stageDoc().querySelectorAll('audio').forEach((el) => { el.muted = prefs.deafened; });
+  canvasDoc().querySelectorAll('audio').forEach((el) => { el.muted = prefs.deafened; });
   $('deafen').classList.toggle('on', !prefs.deafened);
   $('deafen').classList.toggle('off', prefs.deafened);
   $('deafen').title = prefs.deafened ? 'Unmute what you hear (D)' : 'Mute what you hear (D)';
@@ -2574,7 +2574,7 @@ $('chat-delete-confirm').addEventListener('click', () => {
   chatLog.length = 0;
   $('messages').textContent = '';
   unread = 0;
-  spaceModules.setNativeUnread('chat', 0);
+  canvas.setBuiltinUnread('chat', 0);
   if (currentSpace) {
     try {
       localStorage.setItem(chatClearedKey(currentSpace.id), String(Date.now()));
@@ -2744,7 +2744,7 @@ $('floatbar').addEventListener('click', (event) => {
 // (rather than wrapping to a second row) as the bar runs out of room, lowest
 // data-collapse first -- the extras, then chat, then camera, then the
 // microphone last. See fitFloatbar(), called from applyLayout() whenever the
-// stage (or the chat next to it) changes size.
+// canvas (or the chat next to it) changes size.
 const FLOATBAR_ALL = [...$('floatbar').children];
 const FLOATBAR_COLLAPSE_ORDER = FLOATBAR_ALL.filter((el) => el.dataset.collapse).sort(
   (a, b) => Number(a.dataset.collapse) - Number(b.dataset.collapse)
@@ -2898,31 +2898,31 @@ syncViewportHeight();
 // --- floating controls: show on movement, hide when the pointer rests --------
 
 let idleTimer = 0;
-// The stages that hide their chrome when the pointer rests: the page's own, and the one the conference is wrapped in
+// The canvases that hide their chrome when the pointer rests: the page's own, and the one the conference is wrapped in
 // when it is popped out into a window of its own (that window's document, not this page's).
-function idleStages() {
-  const out = [$('stage')];
-  const win = spaceModules.nativeWindow('conference');
-  const theirs = win && win.document.querySelector('.stage');
+function idleCanvases() {
+  const out = [$('canvas')];
+  const win = canvas.builtinWindow('conference');
+  const theirs = win && win.document.querySelector('.canvas');
   if (theirs) out.push(theirs);
   return out;
 }
 // `doc`: the document the movement happened in, so a pointer on the page does not bring the popped-out window's chrome
-// back (or the other way round); with none given, every stage wakes.
+// back (or the other way round); with none given, every canvas wakes.
 function wake(doc = null) {
-  for (const s of idleStages()) if (!doc || s.ownerDocument === doc) s.classList.remove('idle');
+  for (const s of idleCanvases()) if (!doc || s.ownerDocument === doc) s.classList.remove('idle');
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
     // The settings popover, the reaction tray and the floating toolbar live inside the conference section, so they are in
     // whichever document the conference is in: this page's, or its own window's once popped out. An open popover, or a
     // pointer resting on the toolbar, keeps the chrome up. The chat keeps it up only while the call is on this page: in
     // the conference's own window the chat is not there to need it.
-    const win = spaceModules.nativeWindow('conference');
+    const win = canvas.builtinWindow('conference');
     const doc = win ? win.document : document;
     const shown = (id) => { const el = doc.getElementById(id); return Boolean(el && !el.hidden); };
     const floatbar = doc.getElementById('floatbar');
-    const keepOpen = shown('settings') || shown('react-tray') || Boolean(floatbar && floatbar.matches(':hover')) || (!win && spaceModules.nativeOpen('chat'));
-    if (!keepOpen) for (const s of idleStages()) s.classList.add('idle');
+    const keepOpen = shown('settings') || shown('react-tray') || Boolean(floatbar && floatbar.matches(':hover')) || (!win && canvas.builtinOpen('chat'));
+    if (!keepOpen) for (const s of idleCanvases()) s.classList.add('idle');
     else wake();
   }, 2500);
 }
@@ -2949,11 +2949,11 @@ watchOutsideClick(document);
 
 // --- full screen ---------------------------------------------------------------
 
-// Full screen applies to whichever document actually holds the stage right
+// Full screen applies to whichever document actually holds the canvas right
 // now -- the main window normally, or the popped-out one once it exists.
 // Hardcoding `document` here would fullscreen the wrong (empty) window
 // once popped out, since that's a separate top-level browsing context.
-function toggleFullscreen(doc = stageDoc()) {
+function toggleFullscreen(doc = canvasDoc()) {
   if (doc.fullscreenElement) {
     doc.exitFullscreen().catch(() => {});
   } else {
@@ -2965,7 +2965,7 @@ function toggleFullscreen(doc = stageDoc()) {
 // showing the wrong state. Registered on the main document up front, and
 // on the popout's own document once it exists (see setUpPopoutWindow).
 function syncFullscreenButton() {
-  const on = !!document.fullscreenElement || !!stageDoc().fullscreenElement || !!confEl.ownerDocument.fullscreenElement;
+  const on = !!document.fullscreenElement || !!canvasDoc().fullscreenElement || !!confEl.ownerDocument.fullscreenElement;
   nav.setActive('fullscreen-toggle', on);
   $('fullscreen-toggle').title = on ? 'Exit full screen (F)' : 'Full screen (F)';
 }
@@ -2987,7 +2987,7 @@ function describeInstall() {
   return 'For a window without browser bars, use Install in the header once your browser offers it.';
 }
 
-// A plain popup window: the whole stage moves into it and comes back when
+// A plain popup window: the whole canvas moves into it and comes back when
 // closed, same as before. Used to be Chrome's document picture-in-picture,
 // which floats over other windows automatically -- but that API caps
 // itself to ~80% of the screen's work area with no way for a page to ask
@@ -3019,7 +3019,7 @@ function openPopout() {
 }
 
 // Runs once /popout.html has actually finished loading in the new window --
-// moving the stage in before then would land it in that page's own
+// moving the canvas in before then would land it in that page's own
 // about:blank-era document, which the real navigation throws away.
 function setUpPopoutWindow(win) {
   win.document.title = spaceName;
@@ -3030,8 +3030,8 @@ function setUpPopoutWindow(win) {
   // The whole app moves: the header too, so everything works from where you are. Moving a
   // node adopts it into the new document, video and audio and all.
   win.document.body.appendChild(topbarEl);
-  win.document.body.appendChild($('stage'));
-  spaceModules.stagePopped(); // the panes open again in this window
+  win.document.body.appendChild($('canvas'));
+  canvas.popped(); // the modules open again in this window
   $('away').hidden = false;
   watchPointer(win.document);
   watchOutsideClick(win.document);
@@ -3060,8 +3060,8 @@ function setUpPopoutWindow(win) {
   setTimeout(applyLayout, 50);
   win.addEventListener('pagehide', () => {
     document.body.prepend(topbarEl);
-    document.body.appendChild($('stage'));
-    spaceModules.stagePopped(); // and back in this one
+    document.body.appendChild($('canvas'));
+    canvas.popped(); // and back in this one
     $('away').hidden = true;
     pipWindow = null;
     nav.setActive('popout', false);
@@ -3146,8 +3146,8 @@ function showSpaceList() {
   if (!document.body.classList.contains('in-space')) return;
   setAway(true);
   document.body.classList.remove('in-space');
-  $('stage').hidden = true;
-  spaceModules.showFloating(false); // a floating pane lives beside the stage, not inside it
+  $('canvas').hidden = true;
+  canvas.showFloating(false); // a floating module lives beside the canvas, not inside it
   if (guestToken) {
     $('guest-join').hidden = false;
   } else {
@@ -3158,12 +3158,12 @@ function showSpaceList() {
 // The reverse: a space card recognizes the space it's still connected to (see
 // renderSpaces()) and offers "Rejoin" instead of "Join" -- no network round
 // trip needed, just the same view swap back.
-function returnToStage() {
+function returnToCanvas() {
   if (call.state !== 'connected') return;
   $('join').hidden = true;
   $('guest-join').hidden = true;
-  $('stage').hidden = false;
-  spaceModules.showFloating(true);
+  $('canvas').hidden = false;
+  canvas.showFloating(true);
   document.body.classList.add('in-space');
   updateCrumb();
   setAway(false);

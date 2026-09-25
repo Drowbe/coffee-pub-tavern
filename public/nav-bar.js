@@ -359,7 +359,7 @@ function flatten(list, doc) {
 }
 
 // Put the owned elements into the container in this order, moving only what is out of place. Anything else in the
-// container (the space's name and pane switches, an overlay page's Back button) stays where it is: the registry
+// container (the space's name and module switches, an overlay page's Back button) stays where it is: the registry
 // owns its own elements, not the zone.
 const owned = (n) => n.nodeType === 1 && n.dataset && ('navTool' in n.dataset || 'navDivider' in n.dataset);
 function place(container, list) {

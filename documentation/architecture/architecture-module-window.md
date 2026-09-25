@@ -98,12 +98,12 @@ closes it" rule.
 
 ## Reuse across dock and float
 
-Switching a docked module to floating (or back) does not rebuild it: `moveModulePane()` in
+Switching a docked module to floating (or back) does not rebuild it: `moveModule()` in
 `public/canvas.js` pulls the frame (or in-page container), the action bar, the toolbar and the
 titlebar's custom-icons span out of the old chrome and moves those same DOM nodes into the new chrome,
 so whatever the module is holding onto (a conversation, a draft, a scroll position) survives the switch.
 Only the class that lays each one out changes. A window is a real new page, so that still goes through
-`closePane` + `popOut` instead -- a frame cannot move between windows without reloading.
+`closeModule` + `popOut` instead -- a frame cannot move between windows without reloading.
 
 This is why the toolbar and action bar are real elements the host hands into `mountModule` (not markup the
 module builds), the same as the titlebar's custom span: whichever zone's DOM node is not moved on a mode
@@ -122,7 +122,7 @@ switch would otherwise lose whatever `host.toolbar.set`/`host.bar.set` last drew
   actions.
 
 `tools/check-module-window.mjs` enforces the first rule mechanically, as part of `npm run check`, the way
-`check-room-layout.mjs` enforces the room grid's; add a rule there when the next drift shows the shape of one.
+`check-canvas.mjs` enforces the room grid's; add a rule there when the next drift shows the shape of one.
 
 ## What is not built yet
 

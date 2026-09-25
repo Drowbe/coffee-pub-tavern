@@ -4275,7 +4275,7 @@ app.get('/api/modules/:id/context', (req, res) => {
   });
 });
 
-// Modules with a panel in one space, for the call's Modules button.
+// Modules on one space's canvas, for the call's Modules menu.
 app.get('/api/modules/for-space', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
@@ -4284,8 +4284,8 @@ app.get('/api/modules/for-space', (req, res) => {
   const perms = modulePerms(who, space.id);
   res.json({
     modules: modules.enabledAll()
-      .filter(({ manifest, entry }) => manifest.scope.includes('space') && manifest.surfaces.panel && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+      .filter(({ manifest, entry }) => manifest.scope.includes('space') && manifest.surfaces.canvas && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
+      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), canvas: manifest.surfaces.canvas, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
     // The built-in modules' names and icons as this environment shows them (the canvas's Conference and Chat switches).
     builtin: BUILTIN_MODULES.map((b) => ({ id: b.id, ...shownModule(b) })),
   });
@@ -4293,7 +4293,7 @@ app.get('/api/modules/for-space', (req, res) => {
 
 // One module's own page, for its full-width server page: the shell page
 // (public/module.html) reads the module id from the address.
-// A space's panel popped out into its own window opens the same page with the
+// A module on a space's canvas popped out into its own window opens the same page with the
 // space in the query, ?space=<id> (and a guest's link token, if that is who is looking).
 app.get('/modules/:id', (req, res) => {
   if (!currentUser(req) && !hasGuestAccess(req)) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);

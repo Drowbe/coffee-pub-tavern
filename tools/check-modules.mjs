@@ -16,7 +16,7 @@ const test = (name, fn) => { fn(); n += 1; };
 
 // The smallest manifest cleanManifest will accept: an environment-scope module with one page.
 const base = () => ({ id: 'thing', name: 'Thing', version: '1.0.0', scope: ['environment'], surfaces: { page: { entry: 'page.html' } } });
-const files = new Set(['page.html', 'panel.html']);
+const files = new Set(['page.html', 'canvas.html']);
 
 test('a setting keeps a help paragraph longer than a one-line hint', () => {
   const long = 'A world PMTiles file to cut a region from with "Add a region", below. the host reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for todays, or point this at your own stable copy. Left empty, cutting a region is off.';
@@ -41,18 +41,20 @@ test('a choice option\'s own help is unaffected (already had the wider ceiling)'
 });
 
 test('a manifest\'s scopes are environment, space and person', () => {
-  const both = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
+  const both = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html', width: 500, height: 9999, mode: ['dock', 'sideways'] } };
   const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }, { key: 'c', label: 'C', type: 'boolean', scope: 'person' }], install: { auto: true, settingsFrom: 'environment' } }, files);
   assert.deepEqual(m.scope, ['environment', 'space', 'person']);
+  assert.deepEqual(m.surfaces.canvas, { entry: 'canvas.html', width: 500, height: 1000, mode: ['dock'] }, 'surfaces.canvas: its size kept within bounds, its modes only dock and float');
   assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment', 'person'], 'a setting with no scope is the environment\'s');
   assert.equal(m.install.settingsFrom, 'environment');
   assert.throws(() => cleanManifest({ ...base(), scope: ['nowhere'] }, files), /"scope" must include "environment", "space", or both/);
-  assert.throws(() => cleanManifest({ ...base(), scope: ['space'] }, files), /the "space" scope needs a surfaces.panel/);
+  assert.throws(() => cleanManifest({ ...base(), scope: ['space'] }, files), /the "space" scope needs a surfaces.canvas/);
   assert.throws(() => cleanManifest({ ...base(), settings: [{ key: 'f', label: 'F', type: 'file', scope: 'space' }] }, files), /its scope must be "environment"/);
 });
 
 // Plan-names step 5c, the hard break: each old name in a manifest is refused with its one sentence, naming the field
 // and what to use instead.
+const OLD_SURFACE = 'panel'; // surfaces.canvas before plan-names step 6
 const OLD_MANIFESTS = [
   [{ scope: ['environment', 'room'] }, 'module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).'],
   [{ scope: ['server'] }, 'module.json uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).'],
@@ -60,6 +62,8 @@ const OLD_MANIFESTS = [
   [{ settings: [{ key: 'n', label: 'N', type: 'note', scope: 'server' }] }, 'module.json: setting "n" uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).'],
   [{ install: { auto: true, settingsFrom: 'server' } }, 'module.json: install.settingsFrom uses the old name "server"; use "environment" (Magpie renamed the server to the environment).'],
   [{ permissions: [{ key: 'view', label: 'View', default: { user: true } }] }, 'module.json: permission "view" names the old role "user" in its default; use "member" (Magpie renamed the user role to member).'],
+  // Plan-names step 6: the canvas surface's old name.
+  [{ scope: ['environment', 'space'], surfaces: { page: { entry: 'page.html' }, [OLD_SURFACE]: { entry: 'canvas.html' } } }, "module.json uses the old surfaces.panel; use surfaces.canvas (Magpie renamed a module's panel to its place on the canvas)."],
 ];
 test('a manifest with an old name is refused with a sentence naming the field and what to use', () => {
   for (const [part, sentence] of OLD_MANIFESTS) {
@@ -120,8 +124,8 @@ test('a refused module update changes nothing, including the modules that need i
       fs.mkdirSync(d, { recursive: true });
       fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version: '1.0.0', ...m }));
     };
-    const panel = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
-    put('base', { scope: ['environment', 'space'], surfaces: panel });
+    const surfaces = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html' } };
+    put('base', { scope: ['environment', 'space'], surfaces });
     put('child', { scope: ['environment'], requires: ['base'], surfaces: { page: { entry: 'page.html' } } });
     const entry = (id) => ({ id, versions: ['1.0.0'], version: '1.0.0', enabled: true, allSpaces: false, spaces: ['s1'], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
     const file = path.join(dir, 'modules', 'registry.json');
@@ -164,9 +168,9 @@ test('an installed module with an old manifest does not run, says why, and canno
       fs.mkdirSync(d, { recursive: true });
       fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version, ...m }));
     };
-    const panel = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
-    put('old', '1.0.0', { scope: ['environment', 'space'], surfaces: panel });
-    put('old', '0.9.0', { scope: ['server', 'room'], surfaces: panel });
+    const surfaces = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html' } };
+    put('old', '1.0.0', { scope: ['environment', 'space'], surfaces });
+    put('old', '0.9.0', { scope: ['server', 'room'], surfaces });
     put('needer', '1.0.0', { scope: ['environment'], requires: ['old'], surfaces: { page: { entry: 'page.html' } } });
     const entry = (id, version, versions) => ({ id, versions, version, enabled: true, allSpaces: true, spaces: [], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
     const file = path.join(dir, 'modules', 'registry.json');

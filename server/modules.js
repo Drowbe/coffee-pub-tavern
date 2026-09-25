@@ -66,7 +66,7 @@ const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['environment', 'space', 'person'];
 // Plan-names step 5c, the hard break: a manifest speaks only the new names. One that still uses an old one (a scope
 // `room` or `server`, a setting's scope `room` or `server`, `install.settingsFrom: "server"`, a permission default
-// keyed `user`) is refused at install with a sentence naming the field and what to use instead; one already
+// keyed `user`, and from step 6 `surfaces.panel`) is refused at install with a sentence naming the field and what to use instead; one already
 // installed does not run (see ModuleManager.outdated) and its card says so.
 const OLD_SCOPE_NAMES = {
   room: { use: 'space', why: 'Magpie renamed rooms to spaces' },
@@ -75,6 +75,8 @@ const OLD_SCOPE_NAMES = {
 // Filled with the environment's words where it is shown (list()); OUTDATED is the text in the default words.
 const OUTDATED_TEXT = 'This {module} was built for an older Magpie and needs an update from its author.';
 const OUTDATED = fill(OUTDATED_TEXT, null);
+// The old name of surfaces.canvas (plan-names decision 13), named only so a manifest that still uses it is refused.
+const OLD_CANVAS_SURFACE = 'panel';
 const isOldScope = (s) => typeof s === 'string' && Object.prototype.hasOwnProperty.call(OLD_SCOPE_NAMES, s);
 // The first old name a raw manifest uses, as the sentence that refuses it, or null when it uses none.
 function oldNameIn(raw) {
@@ -91,6 +93,10 @@ function oldNameIn(raw) {
     if (p && p.default && typeof p.default === 'object' && Object.prototype.hasOwnProperty.call(p.default, 'user')) {
       return `module.json: permission "${String(p.key ?? '')}" names the old role "user" in its default; use "member" (Magpie renamed the user role to member).`;
     }
+  }
+  // Plan-names step 6: a module's docked or floating surface is on the canvas (surfaces.canvas), no longer a panel.
+  if (raw.surfaces && typeof raw.surfaces === 'object' && Object.prototype.hasOwnProperty.call(raw.surfaces, OLD_CANVAS_SURFACE)) {
+    return `module.json uses the old surfaces.${OLD_CANVAS_SURFACE}; use surfaces.canvas (Magpie renamed a module's panel to its place on the canvas).`;
   }
   return null;
 }
@@ -433,16 +439,17 @@ function cleanManifest(raw, files) {
 
   const surfaces = {};
   // `nav: false` (default true) leaves a module's page out of the main nav's icon row -- for one better
-  // reached another way (a room's own pane, a link from what it's about), so the row is not clutter.
+  // reached another way (a space's canvas, a link from what it's about), so the row is not clutter.
   if (raw.surfaces?.page) surfaces.page = { entry: cleanEntry(raw.surfaces.page.entry, files, 'surfaces.page'), nav: raw.surfaces.page.nav !== false };
-  if (raw.surfaces?.panel) {
-    surfaces.panel = {
-      entry: cleanEntry(raw.surfaces.panel.entry, files, 'surfaces.panel'),
-      width: clamp(raw.surfaces.panel.width, 240, 1200, 420),
-      height: clamp(raw.surfaces.panel.height, 200, 1000, 520),
-      // How a room panel may be shown: floating over the call, docked as a column, or both.
+  if (raw.surfaces?.canvas) {
+    const c = raw.surfaces.canvas;
+    surfaces.canvas = {
+      entry: cleanEntry(c.entry, files, 'surfaces.canvas'),
+      width: clamp(c.width, 240, 1200, 420),
+      height: clamp(c.height, 200, 1000, 520),
+      // How the module may be shown on a space's canvas: floating over the call, docked as a column, or both.
       mode: (() => {
-        const modes = [...new Set(Array.isArray(raw.surfaces.panel.mode) ? raw.surfaces.panel.mode : [])].filter((m) => ['float', 'dock'].includes(m));
+        const modes = [...new Set(Array.isArray(c.mode) ? c.mode : [])].filter((m) => ['float', 'dock'].includes(m));
         return modes.length ? modes : ['float'];
       })(),
     };
@@ -469,7 +476,7 @@ function cleanManifest(raw, files) {
     surfaces.keyed = { path: kpath, entry: cleanEntry(k.entry, files, 'surfaces.keyed') };
   }
   if (scope.includes('environment') && !surfaces.page) throw new ModuleError('a module with the "environment" scope needs a surfaces.page');
-  if (scope.includes('space') && !surfaces.panel) throw new ModuleError('a module with the "space" scope needs a surfaces.panel');
+  if (scope.includes('space') && !surfaces.canvas) throw new ModuleError('a module with the "space" scope needs a surfaces.canvas');
 
   const permissions = [];
   for (const p of Array.isArray(raw.permissions) ? raw.permissions.slice(0, 20) : []) {

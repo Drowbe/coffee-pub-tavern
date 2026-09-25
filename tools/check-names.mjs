@@ -86,8 +86,11 @@ const LEVELS = [
     codePatterns: [/room/gi, /\bserverName\b/g, /\bscope\s*(:|[!=]==?)\s*['"]server['"]/g, /['"]server['"]\s*[!=]==?\s*[\w.?]*\bscope\b/g, /\bscope:\s*\[[^\]]*['"](room|server)['"]/g],
     wordPatterns: [/\brooms?\b/gi],
   },
-  { id: 'canvas', step: '6', code: 'report', words: null, codePatterns: [/stage/gi] },
-  { id: 'module', step: '6', code: 'report', words: null, codePatterns: [/pane/gi] },
+  // Step 6: the canvas was the `stage`, and a module on it a `pane` or (in a manifest and the floating box's classes) a
+  // `panel`. /pane/ covers panel too; "panel" meaning a panel of a page that is not a module (the .panel card and
+  // the ids named after one) is allowed in tools/check-names-allow.json by meaning. A person never reads "pane".
+  { id: 'canvas', step: '6', code: 'enforce', words: 'enforce', codePatterns: [/stage/gi], wordPatterns: [/\bstages?\b/gi] },
+  { id: 'module', step: '6', code: 'enforce', words: 'enforce', codePatterns: [/pane/gi], wordPatterns: [/\bpanes?\b/gi] },
   {
     id: 'object', step: '7', code: 'report', words: null,
     codePatterns: [
@@ -394,7 +397,7 @@ function scanText(file, text, mode, allow, results) {
         const hit = fileAllow.find((e) => (e.level === '*' || e.level === level.id) && e.re.test(token) && (!e.lineRe || e.lineRe.test(lineText)));
         if (hit) { hit.used += 1; bucket.allowed += 1; } else bucket.hits.push({ file, line: lineNo, token });
       };
-      // A file's own name, in code mode (room.html, check-room-layout.mjs).
+      // A file's own name, in code mode (room.html, check-room-layout.mjs before step 6).
       if (mode === 'code') {
         const base = path.basename(file);
         for (const re of patterns) {

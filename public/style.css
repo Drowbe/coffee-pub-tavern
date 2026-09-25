@@ -30,7 +30,7 @@
   --shade: color-mix(in srgb, var(--bg) 85%, var(--border) 15%);
   /* Layout: the one height every module header strip has, so headers in
      neighbouring columns line up. Nothing else sets a module header height
-     (tools/check-room-layout.mjs enforces it). */
+     (tools/check-canvas.mjs enforces it). */
   --module-header-h: 42px;
   /* The height of every control in the shared bottom row (the call toolbar's buttons, the chat's input and
      Send, each module's quick-add), so they line up whatever cell they are in. */
@@ -560,7 +560,7 @@ input[type="range"] {
 /* The join screen: the spaces I may join, one card each, on a grid that
    wraps. Each card is built like the sign-in box. */
 /* The spaces page: the header stays put and the page scrolls beneath it, so the scrollbar starts under the
-   header. In a space the stage takes over and this is gone. */
+   header. In a space the canvas takes over and this is gone. */
 body:has(> .page-scroll):not(.in-space) {
   height: 100vh;
   height: 100dvh;
@@ -1080,7 +1080,7 @@ body.in-space .page-scroll {
   background: var(--border);
 }
 
-/* The space's bar, the header's second row, only in a space: the panes to open on the left, the
+/* The space's bar, the header's second row, only in a space: the modules to open on the left, the
    controls for the whole app (full screen, pop out) on the right. */
 .subnav {
   display: none;
@@ -1096,7 +1096,7 @@ body.in-space .page-scroll {
   background: var(--nav-secondary-bg);
 }
 
-/* Three zones, like the primary nav: left (the space's name, the pane switches), middle (space information and navigation),
+/* Three zones, like the primary nav: left (the space's name, the module switches), middle (space information and navigation),
    right (space actions); the middle is centred on the row, whatever the other two hold. See architecture-navigation.md. */
 body.in-space .subnav {
   display: grid;
@@ -1146,7 +1146,7 @@ body.in-space .subnav {
   height: 14px;
 }
 
-/* the stage-level snap's grid-size slider, beside its switch while the switch is on (the nav-bar registry places it) */
+/* the canvas-level snap's grid-size slider, beside its switch while the switch is on (the nav-bar registry places it) */
 .subnav-tools input[type="range"] {
   width: 84px;
   margin: 0;
@@ -1159,7 +1159,7 @@ body.in-space .subnav {
   line-height: 1;
 }
 
-.subnav-panes {
+.subnav-modules {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1167,8 +1167,8 @@ body.in-space .subnav {
   overflow-x: auto;
 }
 
-/* A pane toggle, not a button: a small switch, on when the pane is open, then its icon and name. */
-.subnav-panes .modules-menu-item {
+/* A module toggle, not a button: a small switch, on when the module is open, then its icon and name. */
+.subnav-modules .modules-menu-item {
   width: auto;
   gap: 6px;
   padding: 2px 8px 2px 4px;
@@ -1180,7 +1180,7 @@ body.in-space .subnav {
   white-space: nowrap;
 }
 
-.subnav-panes .modules-menu-item::before {
+.subnav-modules .modules-menu-item::before {
   content: "";
   flex: none;
   width: 22px;
@@ -1191,16 +1191,16 @@ body.in-space .subnav {
     color-mix(in srgb, var(--header-text) 22%, transparent);
 }
 
-.subnav-panes .modules-menu-item:hover {
+.subnav-modules .modules-menu-item:hover {
   background: color-mix(in srgb, var(--header-text) 8%, transparent);
   color: var(--header-text);
 }
 
-.subnav-panes .modules-menu-item.on {
+.subnav-modules .modules-menu-item.on {
   color: var(--header-text);
 }
 
-.subnav-panes .modules-menu-item.on::before {
+.subnav-modules .modules-menu-item.on::before {
   background:
     radial-gradient(circle at 16px 50%, var(--on-accent) 4px, transparent 4.5px),
     var(--accent);
@@ -1229,7 +1229,7 @@ body.in-space .topbar {
     display: none;
   }
 
-  .subnav-panes .modules-menu-item span:not(.badge) {
+  .subnav-modules .modules-menu-item span:not(.badge) {
     display: none;
   }
 
@@ -1866,11 +1866,11 @@ a.btn {
   margin: 4px 0 -8px;
 }
 
-/* --- the stage: full-window call with floating controls ------------------- */
+/* --- the canvas: full-window call with floating controls ------------------- */
 
 /* On the page the call is a column: the site header, the tiles, and a
    toolbar locked to the bottom edge (like Zoom or Meet). Popped out, the
-   stage is the whole window with the floating pill and status instead. */
+   canvas is the whole window with the floating pill and status instead. */
 body.in-space {
   overflow: hidden;
   /* The base body rule's min-height: 100vh is the large viewport on a phone (777px in Chrome on an
@@ -1999,15 +1999,15 @@ a.crumb-here:hover {
    action bar, and the bars share one bottom row so they line up. The row is
    as tall as the tallest bar; nothing is measured. See
    documentation/architecture/architecture-room-layout.md. */
-.stage {
+.canvas {
   position: relative;
   width: 100%;
   flex: 1;
   min-height: 0;
   display: grid;
-  /* a column for each docked pane (conference, chat, then modules); the canvas
+  /* a column for each docked module (conference, chat, then modules); the canvas
      manager sets the whole template, one column flexible and the rest fixed */
-  grid-template-columns: var(--stage-cols, minmax(0, 1fr));
+  grid-template-columns: var(--canvas-cols, minmax(0, 1fr));
   grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg);
   overflow: hidden;
@@ -2048,9 +2048,9 @@ a.crumb-here:hover {
   flex-direction: column;
 }
 
-/* Popped out (the whole call, body.popout, or the conference pane alone in its own window,
+/* Popped out (the whole call, body.popout, or the conference module alone in its own window,
    body.conference-window), the conference keeps its titlebar and toolbar, but they slide away
-   when nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
+   when nothing has moved for a moment (the canvas gets .idle) so the window is only the tiles,
    and slide back on the next movement. Gone, they leave the flow, so the tiles take the
    whole window. */
 .popout .conference-head,
@@ -2060,12 +2060,12 @@ a.crumb-here:hover {
   transition: transform 0.25s ease;
 }
 
-.conference-window .stage {
+.conference-window .canvas {
   position: relative; /* the hidden titlebar and toolbar park against the window's edges */
 }
 
 /* The header goes with the titlebar and toolbar, so an idle popout is only tiles. */
-.popout:has(.stage.idle) .topbar {
+.popout:has(.canvas.idle) .topbar {
   position: absolute;
   left: 0;
   right: 0;
@@ -2076,8 +2076,8 @@ a.crumb-here:hover {
   transition: transform 0.25s ease;
 }
 
-.popout .stage.idle .conference-head,
-.conference-window .stage.idle .conference-head {
+.popout .canvas.idle .conference-head,
+.conference-window .canvas.idle .conference-head {
   position: absolute;
   top: 0;
   left: 0;
@@ -2086,8 +2086,8 @@ a.crumb-here:hover {
   transform: translateY(-100%);
 }
 
-.popout .stage.idle .video-bar,
-.conference-window .stage.idle .video-bar {
+.popout .canvas.idle .video-bar,
+.conference-window .canvas.idle .video-bar {
   position: absolute;
   grid-row: 1 / -1;
   left: 0;
@@ -2103,7 +2103,7 @@ a.crumb-here:hover {
 
 /* The conference alone in a window of its own: no close on its titlebar, which would read as "close this window"
    (which brings the call back to the page) when it means "leave the call"; Hang up on the toolbar leaves. */
-.conference-window .conference-head [data-pane-close],
+.conference-window .conference-head [data-module-close],
 .conference-window .conference-head [data-popout] {
   display: none;
 }
@@ -2114,14 +2114,14 @@ a.crumb-here:hover {
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.popout .stage.idle .float:not(.floatbar),
-.conference-window .stage.idle .float:not(.floatbar) {
+.popout .canvas.idle .float:not(.floatbar),
+.conference-window .canvas.idle .float:not(.floatbar) {
   opacity: 0;
   pointer-events: none;
 }
 
-.popout .stage.idle,
-.conference-window .stage.idle {
+.popout .canvas.idle,
+.conference-window .canvas.idle {
   cursor: none;
 }
 
@@ -2296,7 +2296,7 @@ a.crumb-here:hover {
   border-color: var(--danger);
 }
 
-/* After Hang up: the phone turns green to dial back in, the pane says so, and the rest of the toolbar waits. */
+/* After Hang up: the phone turns green to dial back in, the module says so, and the rest of the toolbar waits. */
 .fbtn.dial {
   background: var(--ok);
   border-color: var(--ok);
@@ -2383,7 +2383,7 @@ a.crumb-here:hover {
   border-top: 1px solid var(--border);
 }
 
-/* Covers just the chat's content, not the whole stage -- see the markup comment
+/* Covers just the chat's content, not the whole canvas -- see the markup comment
    in space.html for why. */
 .chat-delete-overlay {
   position: absolute;
@@ -2785,7 +2785,7 @@ a.crumb-here:hover {
 }
 
 /* #floatbar-overflow, not .floatbar-overflow -- these need to outrank the
-   .stage.compact/.stage.tiny sizing rules further down the sheet, which
+   .canvas.compact/.canvas.tiny sizing rules further down the sheet, which
    share the same 2-class specificity and would otherwise win on source
    order alone. */
 #floatbar-overflow .fbtn-wrap {
@@ -2856,7 +2856,7 @@ a.crumb-here:hover {
   opacity: 0.4;
 }
 
-.stage .grid {
+.canvas .grid {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -2869,28 +2869,28 @@ a.crumb-here:hover {
   overflow: hidden;
 }
 
-.stage .grid .tile {
+.canvas .grid .tile {
   flex: 0 0 auto;
   width: var(--tw, 280px);
   height: var(--th, 158px);
   aspect-ratio: auto;
 }
 
-.stage .grid[data-layout="strip"] {
+.canvas .grid[data-layout="strip"] {
   flex-wrap: nowrap;
   flex-direction: row;
 }
 
-.stage .grid[data-layout="strip"].portrait {
+.canvas .grid[data-layout="strip"].portrait {
   flex-direction: column;
 }
 
-.stage .grid[data-layout="spotlight"] {
+.canvas .grid[data-layout="spotlight"] {
   flex-direction: column;
   flex-wrap: nowrap;
 }
 
-.stage .grid .rest {
+.canvas .grid .rest {
   display: flex;
   flex-wrap: nowrap;
   justify-content: center;
@@ -2899,12 +2899,12 @@ a.crumb-here:hover {
   overflow: hidden;
 }
 
-.stage .grid .rest .tile {
+.canvas .grid .rest .tile {
   width: var(--sw, 160px);
   height: var(--sh, 90px);
 }
 
-.stage .grid[data-layout="spotlight"] .tile.spot .name {
+.canvas .grid[data-layout="spotlight"] .tile.spot .name {
   font-size: 15px;
 }
 
@@ -3062,7 +3062,7 @@ a.crumb-here:hover {
 }
 
 /* Float a shared screen into its own always-on-top window (native video
-   Picture-in-Picture), separate from the whole-stage pop out. */
+   Picture-in-Picture), separate from the whole-canvas pop out. */
 .tile-pip {
   position: absolute;
   top: 8px;
@@ -3284,28 +3284,28 @@ a.crumb-here:hover {
 
 /* --- small windows (pop out, phones) --------------------------------------- */
 
-.stage.compact .grid {
+.canvas.compact .grid {
   padding: 6px;
   gap: 6px;
 }
 
-.stage.compact .floatbar {
+.canvas.compact .floatbar {
   gap: 4px;
   padding: 5px;
   padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
-.stage.compact .fbtn {
+.canvas.compact .fbtn {
   width: 34px;
   height: 34px;
   font-size: 15px;
 }
 
-.stage.compact .fbtn .glyph i {
+.canvas.compact .fbtn .glyph i {
   font-size: 14px;
 }
 
-.stage.compact .fbtn-caret {
+.canvas.compact .fbtn-caret {
   width: 13px;
   height: 13px;
   font-size: 11px;
@@ -3313,21 +3313,21 @@ a.crumb-here:hover {
   right: 2px;
 }
 
-.stage.compact .status-float {
+.canvas.compact .status-float {
   top: 6px;
   left: 6px;
   padding: 3px 7px;
   font-size: 11px;
 }
 
-.stage.compact .tile .name {
+.canvas.compact .tile .name {
   font-size: 11px;
   padding: 2px 6px;
   left: 5px;
   bottom: 5px;
 }
 
-.stage.compact .tile .muted {
+.canvas.compact .tile .muted {
   font-size: 10px;
   padding: 2px 6px;
   right: 5px;
@@ -3337,17 +3337,17 @@ a.crumb-here:hover {
 /* Layout and Settings used to just vanish here -- now fitFloatbar() moves
    them (and whatever else doesn't fit) into "More" instead, so they stay
    reachable at any width. */
-.stage.tiny .status-float {
+.canvas.tiny .status-float {
   display: none;
 }
 
-.stage.tiny .fbtn {
+.canvas.tiny .fbtn {
   width: 30px;
   height: 30px;
   font-size: 13px;
 }
 
-.stage.tiny .fbtn .glyph i {
+.canvas.tiny .fbtn .glyph i {
   font-size: 12px;
 }
 
@@ -3927,51 +3927,51 @@ input[type="color"] {
 
 /* Narrow windows (a phone): the chat replaces the video while it is open, with
    the toolbar still under it, so one click on Chat brings the video back. */
-.stage.narrow {
+.canvas.narrow {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.stage.narrow.chat-open {
+.canvas.narrow.chat-open {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
-/* One view at a time: the pane being shown (the conference, the chat or a module) takes the whole stage above
+/* One view at a time: the module being shown (the conference, the chat or a module) takes the whole canvas above
    the tab bar. The others stay open but hidden, so a call keeps running while the chat is read. */
 .narrow-hidden {
   display: none !important;
 }
 
-.stage.narrow.chat-open .module-chat > * {
+.canvas.narrow.chat-open .module-chat > * {
   grid-column: 1;
 }
 
-.stage.narrow.chat-open .chat-resize {
+.canvas.narrow.chat-open .chat-resize {
   display: none;
 }
 
-/* A docked module on a narrow window is laid out as the chat is: it fills the stage, its action bar under it. */
-.stage.narrow.module-open {
+/* A docked module on a narrow window is laid out as the chat is: it fills the canvas, its action bar under it. */
+.canvas.narrow.module-open {
   grid-template-rows: minmax(0, 1fr) auto auto;
 }
 
-.stage.narrow.module-open .module-docked > * {
+.canvas.narrow.module-open .module-docked > * {
   grid-column: 1;
 }
 
-.stage.narrow.module-open .module-docked .mod-content {
+.canvas.narrow.module-open .module-docked .mod-content {
   grid-row: 1;
 }
 
-.stage.narrow.module-open .module-docked .dock-bar {
+.canvas.narrow.module-open .module-docked .dock-bar {
   grid-row: 2;
 }
 
-.stage.narrow.module-open .dock-resize {
+.canvas.narrow.module-open .dock-resize {
   display: none;
 }
 
 /* A comfortable touch width for a module's titlebar buttons, the close button above all; the height is the shared header's. */
-.stage.narrow .module-docked .mod-header .msg-btn {
+.canvas.narrow .module-docked .mod-header .msg-btn {
   min-width: 44px;
   align-self: stretch; /* as tall as the shared header, which sets the touch height */
 }
@@ -4024,7 +4024,7 @@ body.module-page {
   height: 100dvh;
 }
 
-.module-stage {
+.module-canvas {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -4043,26 +4043,26 @@ body.module-page {
 }
 
 /* The conference in a floating panel or a window of its own: its tiles are styled under
-   a .stage, so it brings one. Popovers hang above the toolbar, past the panel's edge. */
-.conference-panel {
+   a .canvas, so it brings one. Popovers hang above the toolbar, past the panel's edge. */
+.conference-floating {
   overflow: visible;
 }
 
-.conference-panel > .stage,
-.conference-window .stage {
+.conference-floating > .canvas,
+.conference-window .canvas {
   height: 100%;
   overflow: visible;
   border-radius: 10px;
 }
 
-.conference-panel .conference-head {
+.conference-floating .conference-head {
   cursor: grab;
   user-select: none;
   touch-action: none;
   border-radius: 10px 10px 0 0;
 }
 
-.conference-panel .video-bar {
+.conference-floating .video-bar {
   border-radius: 0 0 10px 10px;
 }
 
@@ -4074,13 +4074,13 @@ body.conference-window {
   color: var(--text);
 }
 
-.conference-window .stage {
+.conference-window .canvas {
   height: 100vh;
   border-radius: 0;
 }
 
 /* Nothing docked, floating or in a window of its own. */
-.stage-empty {
+.canvas-empty {
   grid-column: 1 / -1;
   grid-row: 1 / -1;
   display: flex;
@@ -4156,7 +4156,7 @@ body.conference-window {
   pointer-events: none;
 }
 
-.module-panel {
+.module-floating {
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -4170,7 +4170,7 @@ body.conference-window {
   pointer-events: auto;
 }
 
-.module-panel-head {
+.module-floating-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4182,7 +4182,7 @@ body.conference-window {
   touch-action: none;
 }
 
-.module-panel-title {
+.mod-title {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4191,7 +4191,7 @@ body.conference-window {
   text-overflow: ellipsis;
 }
 
-.module-panel-frame {
+.module-floating-frame {
   flex: 1;
   min-height: 0;
   width: 100%;
@@ -4199,7 +4199,7 @@ body.conference-window {
   background: var(--bg);
 }
 
-.module-panel-grip {
+.module-floating-grip {
   position: absolute;
   z-index: 8; /* above the conference's toolbar, which reaches the panel's corner */
   right: 0;
@@ -4211,12 +4211,12 @@ body.conference-window {
   background: linear-gradient(135deg, transparent 50%, var(--border) 50%, var(--border) 60%, transparent 60%, transparent 70%, var(--border) 70%, var(--border) 80%, transparent 80%);
 }
 
-.module-layer.dragging .module-panel-frame {
+.module-layer.dragging .module-floating-frame {
   pointer-events: none;
 }
 
-/* The grid a snapped floating pane sits in, drawn over the stage only while one is being dragged or
-   resized (canvas.js sets the cell size as --snap-cw/--snap-ch and the box to the stage's). */
+/* The grid a snapped floating module sits in, drawn over the canvas only while one is being dragged or
+   resized (canvas.js sets the cell size as --snap-cw/--snap-ch and the box to the canvas's). */
 .snap-grid {
   position: absolute;
   display: none;
@@ -4344,7 +4344,7 @@ body.conference-window {
   background: var(--shade);
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none; /* a narrow pane scrolls the row by touch/drag rather than clipping it */
+  scrollbar-width: none; /* a narrow module scrolls the row by touch/drag rather than clipping it */
 }
 
 .mod-toolbar::-webkit-scrollbar {
@@ -4552,8 +4552,8 @@ body.conference-window {
   background: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
-.stage.resizing-dock .dock-frame,
-.stage.resizing-dock .module-video iframe {
+.canvas.resizing-dock .dock-frame,
+.canvas.resizing-dock .module-video iframe {
   pointer-events: none; /* a frame under the pointer would swallow the drag */
 }
 
@@ -4585,7 +4585,7 @@ body.module-popout .topbar {
   border-top: 1px solid var(--border);
 }
 
-.module-panel-bar,
+.module-floating-bar,
 .module-bar {
   display: flex;
   flex: none;
@@ -4596,7 +4596,7 @@ body.module-popout .topbar {
   border-top: 1px solid var(--border);
 }
 
-.module-panel-bar[hidden],
+.module-floating-bar[hidden],
 .module-bar[hidden],
 .dock-bar[hidden] {
   display: none;
@@ -4604,7 +4604,7 @@ body.module-popout .topbar {
 
 /* A module's quick-add: a text field with a small + button, filling the module's bar (docked bar, panel bar, page bar). It sits at the bottom, lined up with the chat box. */
 .dock-bar:has(.quick-add),
-.module-panel-bar:has(.quick-add),
+.module-floating-bar:has(.quick-add),
 .module-bar:has(.quick-add) {
   align-items: flex-end;
 }
@@ -4648,7 +4648,7 @@ body.module-popout .topbar {
 
 /* a quick-add with buttons beside it (a module sets more than one bar item): the field takes the room, and an icon-only button is as tall as the field is */
 .dock-bar:has(.quick-add),
-.module-panel-bar:has(.quick-add),
+.module-floating-bar:has(.quick-add),
 .module-bar:has(.quick-add) {
   gap: 6px;
 }
@@ -4660,28 +4660,28 @@ body.module-popout .topbar {
   padding: 0;
 }
 
-body.module-page .module-stage {
+body.module-page .module-canvas {
   flex-direction: column;
 }
 
 /* The chat as a floating panel or in a window of its own: its pieces stack instead of taking grid columns. */
-.native-panel .chat-resize,
+.builtin-floating .chat-resize,
 .chat-window-grid .chat-resize {
   display: none;
 }
 
-.native-panel .module-chat .mod-content {
+.builtin-floating .module-chat .mod-content {
   flex: 1;
   min-height: 0;
   border-left: 0;
 }
 
-.native-panel .chat-bar {
+.builtin-floating .chat-bar {
   flex: none;
   border-left: 0;
 }
 
-.native-panel .chat header {
+.builtin-floating .chat header {
   cursor: grab;
   user-select: none;
   touch-action: none;
@@ -4720,7 +4720,7 @@ body.chat-window {
   right: -2px;
 }
 
-/* "Join with": the panes a space opens with, from its card on the space list. */
+/* "Join with": the modules a space opens with, from its card on the space list. */
 .space-choice {
   position: relative;
 }
@@ -4838,7 +4838,7 @@ body.in-space .topbar.menu-open .links .module-nav-link {
   color: var(--text);
 }
 
-/* A module's own icon buttons in its titlebar (host.header.set), then a pipe before the pane's buttons. */
+/* A module's own icon buttons in its titlebar (host.header.set), then a pipe before the module's buttons. */
 .titlebar-custom {
   display: inline-flex;
   align-items: center;
@@ -4902,9 +4902,9 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 @media (max-width: 640px) { .activity-row { flex-wrap: wrap; gap: 2px 10px; } .activity-time, .activity-source { width: auto; } .activity-event { flex-basis: 100%; } }
 
 /* --- phone: the space as an app ---------------------------------------------
-   Below 640px (the same width the stage calls "narrow") the call is a phone layout: a slim
-   header, the stage, and the space bar as a tab bar fixed to the bottom, one thumb away. The
-   panes in it are the same items as on a desktop, shown as tabs (icon over name, accent when
+   Below 640px (the same width the canvas calls "narrow") the call is a phone layout: a slim
+   header, the canvas, and the space bar as a tab bar fixed to the bottom, one thumb away. The
+   modules in it are the same items as on a desktop, shown as tabs (icon over name, accent when
    open). The call toolbar sits directly above it.
    The page is pinned to the visible screen with position: fixed rather than a measured
    height, so a browser's own bottom bar (Chrome on an iPhone) can never cover the toolbar. */
@@ -4935,14 +4935,14 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 
   /* The tab bar sits under the toolbar, so the toolbar has no home indicator to clear. */
   body.in-space .floatbar,
-  body.in-space .stage.compact .floatbar {
+  body.in-space .canvas.compact .floatbar {
     padding-bottom: 6px;
   }
 
-  /* space.js moves the bar out of the header, after the stage, so it is the last thing in the
+  /* space.js moves the bar out of the header, after the canvas, so it is the last thing in the
      page's column: the toolbar sits right above it with no padding to calculate. */
   body.in-space .subnav {
-    display: flex; /* the tab bar: the pane switches are the bar; the space's name and the middle zone are not drawn */
+    display: flex; /* the tab bar: the module switches are the bar; the space's name and the middle zone are not drawn */
     flex: none;
     width: auto;
     margin: 0;
@@ -4957,13 +4957,13 @@ body.in-space .topbar.menu-open .links .module-nav-link {
     border-top: 1px solid var(--border);
   }
 
-  body.in-space .subnav-panes {
+  body.in-space .subnav-modules {
     flex: 1;
     gap: 0;
     justify-content: space-around;
   }
 
-  body.in-space .subnav-panes .modules-menu-item {
+  body.in-space .subnav-modules .modules-menu-item {
     flex: 1 0 60px;
     flex-direction: column;
     justify-content: center;
@@ -4975,30 +4975,30 @@ body.in-space .topbar.menu-open .links .module-nav-link {
     line-height: 1.1;
   }
 
-  body.in-space .subnav-panes .modules-menu-item::before {
+  body.in-space .subnav-modules .modules-menu-item::before {
     display: none;
   }
 
-  body.in-space .subnav-panes .modules-menu-item i {
+  body.in-space .subnav-modules .modules-menu-item i {
     font-size: 18px;
   }
 
-  body.in-space .subnav-panes .modules-menu-item span:not(.badge) {
+  body.in-space .subnav-modules .modules-menu-item span:not(.badge) {
     display: block;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  body.in-space .subnav-panes .modules-menu-item.on {
+  body.in-space .subnav-modules .modules-menu-item.on {
     color: var(--accent);
   }
 
-  body.in-space .subnav-panes .modules-menu-item {
+  body.in-space .subnav-modules .modules-menu-item {
     position: relative;
   }
 
-  body.in-space .subnav-panes .modules-menu-item .badge {
+  body.in-space .subnav-modules .modules-menu-item .badge {
     position: absolute;
     top: 2px;
     left: calc(50% + 6px);
@@ -5015,9 +5015,9 @@ body.in-space .topbar.menu-open .links .module-nav-link {
     display: none; /* a phone has no use for either */
   }
 
-  /* A pane fills the screen: no floating it over the page or opening it in a window. */
-  body.in-space .stage [data-mode],
-  body.in-space .stage [data-popout] {
+  /* A module fills the screen: no floating it over the page or opening it in a window. */
+  body.in-space .canvas [data-mode],
+  body.in-space .canvas [data-popout] {
     display: none;
   }
 
@@ -5031,7 +5031,7 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 
   /* In the call but looking at something else: a dot on the Conference tab, green with the
      microphone off and red while it is live, so nobody talks unseen. */
-  body.in-space .subnav-panes .modules-menu-item.in-call::after {
+  body.in-space .subnav-modules .modules-menu-item.in-call::after {
     content: "";
     position: absolute;
     top: 6px;
@@ -5043,7 +5043,7 @@ body.in-space .topbar.menu-open .links .module-nav-link {
     border: 2px solid var(--header-bg);
   }
 
-  body.in-space .subnav-panes[data-mic="live"] .modules-menu-item.in-call::after {
+  body.in-space .subnav-modules[data-mic="live"] .modules-menu-item.in-call::after {
     background: var(--danger);
   }
 
@@ -5505,12 +5505,12 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 .option-help p { margin: 4px 0; }
 .option-help a { color: var(--accent); }
 
-/* Reordering the columns of the stage: a docked pane is dragged by its titlebar (buttons in it still click). */
+/* Reordering the columns of the canvas: a docked module is dragged by its titlebar (buttons in it still click). */
 .mod-header.reorderable, .chat-head.reorderable, .conference-head.reorderable, header.reorderable { cursor: grab; }
 .reorderable button, .reorderable a, .reorderable input { cursor: pointer; }
-.stage.reordering, .stage.reordering * { cursor: grabbing !important; user-select: none; }
-.stage.reordering iframe { pointer-events: none; }
-.pane-lifted { position: relative; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 12px 32px color-mix(in srgb, black 40%, transparent); }
+.canvas.reordering, .canvas.reordering * { cursor: grabbing !important; user-select: none; }
+.canvas.reordering iframe { pointer-events: none; }
+.module-lifted { position: relative; z-index: 3; box-shadow: 0 0 0 2px var(--accent), 0 12px 32px color-mix(in srgb, black 40%, transparent); }
 
 /* a list setting (Planner's marker types): a row each with a colour, an icon, a label and tools */
 .list-rows { list-style: none; margin: 6px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }

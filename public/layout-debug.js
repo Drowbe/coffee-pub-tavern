@@ -20,7 +20,7 @@ function paint() {
     `mode: standalone=${matchMedia('(display-mode: standalone)').matches}  ${innerWidth}x${innerHeight}  vv ${vv ? Math.round(vv.height) : '-'} offTop ${vv ? Math.round(vv.offsetTop) : '-'}`,
     `100dvh probe ${Math.round(probe.getBoundingClientRect().height)}  docEl.clientHeight ${document.documentElement.clientHeight}  --app-vh ${document.documentElement.style.getPropertyValue('--app-vh') || '-'}`,
     `body: position ${cs.position} height ${cs.height} top ${cs.top} bottom ${cs.bottom}`,
-    rect('body'), rect('.topbar'), rect('#stage'), rect('.video-bar'), rect('#subnav'),
+    rect('body'), rect('.topbar'), rect('#canvas'), rect('.video-bar'), rect('#subnav'),
     `subnav parent: ${document.querySelector('#subnav')?.parentElement?.tagName || '-'}`,
   ].join('\n');
 }

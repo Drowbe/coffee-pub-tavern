@@ -1,7 +1,7 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.16",
+  "version": "0.7.17",
   "icon": "map-location-dot",
   "description": "A map of every place your {space} has: the places you have saved and the items other {modules} put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
@@ -12,8 +12,8 @@
     "page": {
       "entry": "page.html"
     },
-    "panel": {
-      "entry": "panel.html",
+    "canvas": {
+      "entry": "canvas.html",
       "width": 520,
       "height": 600,
       "mode": [

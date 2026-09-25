@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /*
- * check-room-layout.mjs -- keep the room page's grid honest.
+ * check-canvas.mjs -- keep the canvas's grid honest.
  *
- * The room is a grid of module columns (content over an action bar), and the layout rules are in
+ * A space's canvas is a grid of module columns (content over an action bar), and the layout rules are in
  * documentation/architecture/architecture-room-layout.md. This fails when the stylesheet drifts back
  * to the measured, absolute-positioned layout it replaced, or when something other than the shared
  * token sets a module header height.
  *
- *   node tools/check-room-layout.mjs
+ *   node tools/check-canvas.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,7 +49,7 @@ for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
 }
 
 if (problems.length) {
-  console.error(`check-room-layout: ${problems.length} problem(s)\n  ${problems.join('\n  ')}`);
+  console.error(`check-canvas: ${problems.length} problem(s)\n  ${problems.join('\n  ')}`);
   process.exit(1);
 }
-console.log('check-room-layout: OK');
+console.log('check-canvas: OK');

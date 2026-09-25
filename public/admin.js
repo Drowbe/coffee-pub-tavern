@@ -904,7 +904,7 @@ function bundledNeeds(b) {
 function moduleCard(m) {
   // Where it shows (a person's own data is not a place of its own).
   // An outdated module's old scopes are not read, so it has no place to show: say why instead.
-  const scopes = m.outdated ? 'Can\'t run until it is updated' : m.scope.filter((s) => s !== 'person').map((s) => (s === 'environment' ? `${word('environment', { cap: true })} page` : `${word('space', { cap: true })} panel`)).join(' + ');
+  const scopes = m.outdated ? 'Can\'t run until it is updated' : m.scope.filter((s) => s !== 'person').map((s) => (s === 'environment' ? `${word('environment', { cap: true })} page` : `${word('space', { cap: true })} ${word('canvas')}`)).join(' + ');
   // Versions built for an older Magpie can't be switched to: marked, and not offered.
   const staleVersions = new Set(m.outdatedVersions || (m.outdated ? [m.version] : []));
   // What a requirement needs to be turned on first (one built for an older Magpie is in needsUpdate instead).
@@ -1216,7 +1216,7 @@ function renderModules() {
   // "Available" isolates the not-yet-installed list below; every other filter hides it and works on what is installed.
   const showAvailableOnly = moduleFilter === 'available';
   const updatesOnly = moduleFilter !== 'all' && !showAvailableOnly;
-  // The built-in panes first: always on, and not removable.
+  // The built-in modules first: always on, and not removable.
   for (const b of updatesOnly || showAvailableOnly ? [] : builtinModules) {
     const el = document.createElement('article');
     el.className = 'panel module-card';
@@ -1627,8 +1627,8 @@ function applyHosted() {
 // that is still left out, each with why and where to put it right. A module turned on since is no longer listed.
 const sentence = (text) => { const t = String(text || '').trim(); return t ? capitalOf(t) + (/[.!?]$/.test(t) ? '' : '.') : ''; };
 function renderTemplateNote() {
-  const panel = $('template-panel');
-  panel.hidden = !madeFrom;
+  const card = $('template-panel');
+  card.hidden = !madeFrom;
   if (!madeFrom) return;
   $('template-made').innerHTML = `<strong>Made from the ${escapeHtml(madeFrom.name || madeFrom.id)} template.</strong>`;
   const modulesTab = '#modules'; // the Modules tab's address
@@ -1662,17 +1662,17 @@ function renderTemplateNote() {
 let envInfo = null;
 const gb = (bytes) => (bytes >= 1e9 ? `${(bytes / 1e9).toFixed(bytes < 1e10 ? 1 : 0)} GB` : `${Math.max(1, Math.round(bytes / 1e6))} MB`);
 async function loadEnvironment() {
-  const panel = $('env-panel');
-  if (!environment.hosted) { panel.hidden = true; return; }
+  const card = $('env-panel');
+  if (!environment.hosted) { card.hidden = true; return; }
   try {
     envInfo = await api('GET', '/api/environment');
     // The product page's address (Upgrade goes to its plans): the public product facts carry the base domain.
     if (!envInfo.baseDomain) envInfo.baseDomain = (await api('GET', '/api/product').catch(() => ({}))).baseDomain || '';
   } catch (err) {
-    panel.hidden = true;
+    card.hidden = true;
     return;
   }
-  panel.hidden = false;
+  card.hidden = false;
   renderEnvironment();
 }
 function renderEnvironment() {

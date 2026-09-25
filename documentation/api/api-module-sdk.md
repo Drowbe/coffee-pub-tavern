@@ -11,7 +11,7 @@ A module is a zip of static files that runs in the browser, inside a sandboxed f
 A module has one or two **surfaces**:
 
 - **page**: a full-width page of its own (environment scope), with an item in the header unless the module has a widget, in which case the widget card's heading opens it.
-- **panel**: a module a space can open on its canvas from the space's module selector (space scope). A panel can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
+- **canvas**: a module a space can open on its canvas from the space's module selector (space scope). On the canvas it can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
 
 The same HTML file can serve all of them. The SDK tells the module which scope it is in, and the page should adapt to its width: a docked pane is narrow.
 
@@ -33,7 +33,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
   "scope": ["environment", "space"],
   "surfaces": {
     "page": { "entry": "page.html" },
-    "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
+    "canvas": { "entry": "canvas.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
   },
   "permissions": [
     { "key": "view", "label": "See the calendar", "default": { "member": true, "guest": true, "moderator": true } },
@@ -44,9 +44,9 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 }
 ```
 
-- `scope` says where the module can run: `environment`, `space`, `person`, or several. An `environment` module needs a `page` surface and a `space` module needs a `panel`. The old names (`server`, `room`) are refused at install with one sentence naming the new word, for example `module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).`
+- `scope` says where the module can run: `environment`, `space`, `person`, or several. An `environment` module needs a `page` surface and a `space` module needs a `canvas` surface. The old names (`server`, `room`) are refused at install with one sentence naming the new word, for example `module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).`
 - `icon` is the name of a Font Awesome icon, used in the header and the Modules menu.
-- `panel.mode` lists how a panel may be shown: `dock` (a column of the space's canvas beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A space opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
+- `canvas` is the module's place on a space's canvas: `{ entry, width, height, mode }` (it was `surfaces.panel`, with `panel.html`; a manifest still using `panel` is refused, see [api-modules](api-modules.md)). `canvas.mode` lists how it may be shown: `dock` (a column of the space's canvas beside the video and chat), `float` (floating over the call), or both. Leave it out and both are allowed. A space opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
 - `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role: `member`, `moderator` and `guest` (a missing `moderator` takes `member`'s value; the old key `user` is refused). A permission can say `"replaces": "<old key>"` when it was renamed: each role's choice for the old key is carried over once, when the server starts and after any install. It is refused if it names a key the module still uses, or an old key another permission already replaces. A key matches `^[a-z][a-z0-9_]{0,23}$`: a lower-case letter, then up to 23 lower-case letters, digits or underscores. Owners, and the host admin on a hosted server, always have every permission, so a module never needs a role check of its own: ask `host.can()`.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
 - `hooks` names what the module may ask Magpie to do: `schedule` and `notify`. An owner approves them when enabling the module.
@@ -275,7 +275,7 @@ Anything more than one module needs belongs in the SDK, not copied into each mod
 - `host.ui.currencySelect(select, { value, empty, onChange })` fills a `<select>` you already have with the currencies the server accepts: a **Common** group, then **All currencies**, each by its name in the viewer's language (the bare code where there is no name). `value` is matched in capitals; a value not on the list (an old or odd code) gets its own selected option, so nothing stored disappears. `empty: true` adds a first choice, "Default (<the environment's currency>)", whose value is `""`; give a string instead to label it yourself. `onChange(code)` runs on each change (`""` for the default). It returns `{ set(value), value, destroy() }`. Call it after `host.ready()`, since the list comes with the handshake; with no list there it falls back to the browser's own list, then to the common codes.
 - `host.ui.viewSwitch({ id, options, value, onChange })` draws a labelled view or filter switch in the toolbar (see "The toolbar" below) and owns the boilerplate every module drawing one otherwise repeats: it only calls `host.toolbar.set` when the value or an option's label actually changed, and wires the `toolbar` event for you. Call `.set(value, options?)` on every render (it no-ops when nothing changed) rather than diffing and calling `toolbar.set` yourself. A module may make more than one (Research: whose items, then Cards/List): every live switch shares the toolbar row, drawn in the order they were made with a separator between, and any one changing redraws the row; `destroy()` takes one out again. Do not call `toolbar.set` yourself while a switch is live, since the next switch change would draw over it.
 - `host.ui.toolbarButton({ id, label, icon, iconOnly, on, onClick })` puts one button in the same toolbar row as the view switches (after the switches made before it), for a chooser that opens a menu, such as Research's Tags: `onClick` runs on a click, and the returned `{ set({ label, icon, on }), destroy() }` changes what it shows (`set` redraws only when something changed). Open the menu it belongs to with `host.menu.show({ at: { x: 100000, y: 4 }, ... })`, which lands at the top right of the module, under the toolbar.
-- `host.people()` returns the people of the space a panel is in, `[{ key, name }]` (empty outside a space), for choosing a person ("whose is it"): store their `key`, not the name.
+- `host.people()` returns the people of the space the module is open in, `[{ key, name }]` (empty outside a space), for choosing a person ("whose is it"): store their `key`, not the name.
 - `host.ui.icon(name, style)` returns a Font Awesome icon ("circle-right", style "solid", "regular" or "brands") as inline SVG text, coloured by the text colour, for a module that cannot load the icon font (a sandboxed frame). It rejects if there is no such icon.
 - `host.actions.pick(items, point)` is the small menu described under Actions.
 - `host.util` holds `esc` (text made safe for HTML), `id()` (a new id for something you store), `refKey(ref)` (a pointer as one string, for comparing), and `ymd(date)` / `parseYmd(text)` (a local day as `"2026-09-24"`, and back).
@@ -423,7 +423,7 @@ Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome
 
 ```js
 host.setTitle('Calendar');              // the title above the module
-host.resize({ width: 500, height: 600 }); // ask a floating panel for a size (page content height, in pixels)
+host.resize({ width: 500, height: 600 }); // ask for a size while floating (page content height, in pixels)
 ```
 
 ### Keyed pages: a page about one person, with no sign-in

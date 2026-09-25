@@ -16,10 +16,10 @@
 <body class="module-page">
   <header class="topbar"></header>
 
-  <!-- A module in a window of its own has a titlebar like the space's panes, with the way back
-       to a column beside the call or a floating panel. -->
+  <!-- A module in a window of its own has a titlebar like a module on a space's canvas, with the way back
+       to a column beside the call or floating. -->
   <header class="mod-header module-titlebar" id="module-titlebar" hidden>
-    <span class="module-panel-title"><i class="fa-solid fa-fw" id="module-titlebar-icon" aria-hidden="true"></i> <span id="module-titlebar-title"></span></span>
+    <span class="mod-title"><i class="fa-solid fa-fw" id="module-titlebar-icon" aria-hidden="true"></i> <span id="module-titlebar-title"></span></span>
     <span class="mod-header-tools">
       <span class="titlebar-custom" id="module-titlebar-custom"></span>
       <button class="msg-btn" id="module-back-float" type="button" title="Float over the call" aria-label="Float over the call" hidden><i class="fa-regular fa-window-restore fa-fw" aria-hidden="true"></i></button>
@@ -32,7 +32,7 @@
 
   <!-- A module's own page: the module runs in a sandboxed frame (see
        module-host.js) and fills everything under the header. -->
-  <main class="module-stage">
+  <main class="module-canvas">
     <iframe class="module-frame" id="module-frame" title="{Module}" data-fill hidden></iframe>
     <div class="module-bar" id="module-bar" hidden></div>
     <p class="hint module-missing" id="module-missing" data-fill hidden>That {module} is not available.</p>

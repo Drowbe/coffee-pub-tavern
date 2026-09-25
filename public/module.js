@@ -3,7 +3,7 @@
 //
 // Two ways in:
 //   /modules/<id>                          the module's server page
-//   /modules/<id>?space=<space>&popout=1   a space's panel in a window of its own (?moduleRoom= redirects here)
+//   /modules/<id>?space=<space>&popout=1   a module on a space's canvas, in a window of its own (?moduleRoom= redirects here)
 //                                          (add &guest=<token> for a guest)
 // (A module page opened over a call also carries from=space&spaceName=<the space's name>, for its Back link.)
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights, word } from '/brand.js';
@@ -35,7 +35,7 @@ async function start() {
     $('admin-link').hidden = !hasOwnerRights(me);
   }
 
-  // Which module, and how it is shown: its own page (the environment's scope), or a space's panel.
+  // Which module, and how it is shown: its own page (the environment's scope), or on a space's canvas.
   let mod;
   let scope = 'environment';
   let entry;
@@ -45,8 +45,8 @@ async function start() {
     if (guestToken) q.set('guest', guestToken);
     const found = (await api('GET', `/api/modules/for-space?${q}`)).modules.find((m) => m.id === id);
     if (found) {
-      mod = { ...found, entry: found.panel.entry };
-      entry = found.panel.entry;
+      mod = { ...found, entry: found.canvas.entry };
+      entry = found.canvas.entry;
     }
   } else {
     const found = (await api('GET', '/api/modules/nav')).modules.find((m) => m.id === id);
@@ -136,7 +136,7 @@ function refFromHash() {
 }
 
 // The window's own titlebar: close, and (while the space page that opened it is still there) the
-// way back into the space as a docked column or a floating panel.
+// way back into the space as a docked column or floating.
 function wireTitlebar(mod) {
   $('module-titlebar').hidden = false;
   $('module-titlebar-icon').className = `fa-solid fa-${mod.icon} fa-fw`;

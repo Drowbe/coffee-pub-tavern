@@ -18,8 +18,8 @@ order:
 5. Space and the environment scope: the server and data (5a, **built** September 24, 2026), the pages (5b,
    **built** September 25, 2026), the SDK, the manifest and the bundled modules (5c, **built**
    September 25, 2026).
-6. Canvas and module.
-7. Object.
+6. Canvas and module. **Built** (September 25, 2026).
+7. Object (next).
 8. Asides.
 9. The documentation: renamed files and wiki pages, and the text.
 10. The aliases go, once a Coffee Pub Studio release reads the new names.
@@ -70,11 +70,11 @@ Built and only checked in a browser with the LiveKit connection unavailable, and
 
 Make the conference a pane like chat and the modules, so a person can join with only chat, or chat and the Calendar. Decisions, progress and the four stages are in plans/plan-canvas.md. All four stages are built and need real calls and real windows to verify: close and rejoin the conference; the other person's tile leaving and returning; chat with no conference; a role without the conference; an aside with someone out of the conference; the conference floating and in its own window (tiles and audio after the move, hotkeys, popovers); the whole app popped out (the header and pane icons, idle sliding, full screen, header links); a module window's dock and float buttons; and Join with and the remembered layout across a reload, a dropped connection and a real leave. Then delete the plan.
 
-## Stage: a snap-to-grid layout
+## Canvas: a snap-to-grid layout
 
-Built (September 2026): a floating pane has a toggle, **free** (anywhere over the stage, any
-size) or **snap** (it sits in the cells of a 2D grid over the stage, moves and grows a cell at
-a time, and keeps its cells when the window changes size), plus a stage-level switch in the
+Built (September 2026): a floating pane has a toggle, **free** (anywhere over the canvas, any
+size) or **snap** (it sits in the cells of a 2D grid over the canvas, moves and grows a cell at
+a time, and keeps its cells when the window changes size), plus a canvas-level switch in the
 room bar that snaps every floating pane, now and later, and a slider for the grid's size.
 Docked and window are untouched; snap is a way of floating, not a replacement for docking.
 See "Free or snapped" in architecture-room-layout.md. Only checked in a browser with the call unavailable (the chat
@@ -85,7 +85,7 @@ Left from the idea: the same drag-to-snap mechanism laying out the rooms (dashbo
 a room card there is a static tile, not a live pane, so the generic snap (`snapGrid`,
 `snapCell`, `cellBox` in `public/canvas.js`) would need lifting out of the pane
 manager first rather than assuming identical reuse. And a 2D equivalent of the dock's "one
-flexible column never leaves a gap" rule, if snapped panes should ever tile the stage
+flexible column never leaves a gap" rule, if snapped panes should ever tile the canvas
 exhaustively rather than sit where they were put.
 
 ## Ideas and open questions

@@ -22,7 +22,7 @@ The header is two rows, and each row is three zones. The rows are about differen
 |---|---|---|
 | Left | `.nav-left` | the room's name (`#space-name`, set by `updateCrumb()`), then the module selector (`#modules-menu`: the switches for the conference, the chat and the room's modules, rendered by `public/canvas.js`) |
 | Middle | `.nav-middle` (`#subnav-middle`) | the space's information and navigation: nothing of the system's yet; a module may register here |
-| Right | `.nav-right` (`.subnav-tools`) | the space's actions, one group: Dock all (`#dock-all`, every floating pane back beside the call), the stage-level snap (`#snap-all`) and its grid slider (`#snap-size`), Full screen (`#fullscreen-toggle`), Pop out (`#popout`), Pull participants back (`#recall-button`, during an aside), Rejoin call (`#rejoin-call`, in an aside); then, after a divider, a module's own groups; then Leave (`#leave-room`, order 999) last |
+| Right | `.nav-right` (`.subnav-tools`) | the space's actions, one group: Dock all (`#dock-all`, every floating pane back beside the call), the canvas-level snap (`#snap-all`) and its grid slider (`#snap-size`), Full screen (`#fullscreen-toggle`), Pop out (`#popout`), Pull participants back (`#recall-button`, during an aside), Rejoin call (`#rejoin-call`, in an aside); then, after a divider, a module's own groups; then Leave (`#leave-room`, order 999) last |
 
 ## The registry: one drawing path
 
@@ -37,7 +37,7 @@ The header is two rows, and each row is three zones. The rows are about differen
 - **The middle is centred on the row.** Each row is a grid of `minmax(0, 1fr) auto minmax(0, 1fr)`, so the middle zone sits in the same place whatever the left and right zones hold; the left zone justifies its content to the start, the right to the end.
 - **Two builders, one registry, no others.** `brand.js` builds the primary nav and `space.js` the secondary; both register their controls into `nav-bar.js`, which draws them. A page that wants a control in the header registers a tool, never appends markup of its own.
 - **Phones keep the meaning, not the place.** Below 640px the primary nav is a row of the logo, the crumb and a menu button; the registry draws the middle zone's tools into the menu (the right zone's element), ahead of the right zone's, and back into the middle when the window widens (the registry watches the width itself). The secondary nav becomes the tab bar at the bottom of the page: the pane switches are the bar, the room's name and the middle zone are not drawn, and of the right zone only Leave stays (see [architecture-room-layout](architecture-room-layout.md), "Phones").
-- **Popped out, the header goes too.** Pop out moves the header with the stage into the popup, so every control works where you are; the registry keeps the zone elements, not selectors, so it follows them. See the room layout document.
+- **Popped out, the header goes too.** Pop out moves the header with the canvas into the popup, so every control works where you are; the registry keeps the zone elements, not selectors, so it follows them. See the room layout document.
 
 ## What is not built yet
 
