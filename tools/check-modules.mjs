@@ -5,11 +5,12 @@
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const { cleanManifest, permissionDefaults, PERMISSION_KEY_RE, ModuleError } = createRequire(import.meta.url)('../server/modules.js');
+const { cleanManifest, permissionDefaults, PERMISSION_KEY_RE, ModuleError, ModuleManager } = createRequire(import.meta.url)('../server/modules.js');
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
@@ -89,6 +90,49 @@ test('every bundled module\'s permission keys pass the server\'s rule, once each
   // The rule itself, as the server applies it.
   assert.throws(() => cleanManifest({ ...base(), permissions: [{ key: 'manageAny', label: 'x' }] }, files), /lowercase letters, digits or underscores/);
   assert.equal(cleanManifest({ ...base(), permissions: [{ key: 'manage_any', label: 'x' }] }, files).permissions[0].key, 'manage_any');
+});
+
+// ModuleManager.update against a throwaway registry (under the system temp folder): a refused update changes nothing,
+// not the module and not the modules that need it, in memory or on disk (GitHub #17).
+test('a refused module update changes nothing, including the modules that need it; a valid one still applies', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-'));
+  try {
+    const put = (id, m) => {
+      const d = path.join(dir, 'modules', id, 'versions', '1.0.0');
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version: '1.0.0', ...m }));
+    };
+    const panel = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
+    put('base', { scope: ['environment', 'space'], surfaces: panel });
+    put('child', { scope: ['environment'], requires: ['base'], surfaces: { page: { entry: 'page.html' } } });
+    const entry = (id) => ({ id, versions: ['1.0.0'], version: '1.0.0', enabled: true, allSpaces: false, spaces: ['s1'], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
+    const file = path.join(dir, 'modules', 'registry.json');
+    fs.writeFileSync(file, JSON.stringify({ modules: { base: entry('base'), child: entry('child') }, autoInstalled: [] }, null, 2));
+    const before = fs.readFileSync(file, 'utf8');
+    const mm = new ModuleManager(dir);
+    const snapshot = () => JSON.stringify(mm.registry);
+    const memory = snapshot();
+    const refused = [
+      [{ enabled: false, force: true, runMode: 'nowhere' }, /runMode must be "page" or "sandbox"/],
+      [{ enabled: false, force: true, runMode: 'page' }, /accepting the risk/],
+      [{ enabled: false, force: true, allSpaces: true, spaces: 'not a list' }, /spaces must be a list/],
+      [{ enabled: false, force: true, runMode: 'sandbox', spaces: 7 }, /spaces must be a list/],
+      [{ enabled: false }, /needs base; turn it off too\?/],
+    ];
+    for (const [patch, message] of refused) {
+      assert.throws(() => mm.update('base', patch), message);
+      assert.equal(snapshot(), memory, `refused ${JSON.stringify(patch)} left the registry as it was, in memory`);
+      assert.equal(fs.readFileSync(file, 'utf8'), before, `refused ${JSON.stringify(patch)} left the registry as it was, on disk`);
+    }
+    // A valid update still applies all of it, dependents included.
+    const view = mm.update('base', { enabled: false, force: true, runMode: 'sandbox', allSpaces: true, spaces: ['s2', 'gone', 's2'] }, { spaceExists: (s) => s !== 'gone' });
+    assert.deepEqual([view.enabled, view.runMode, view.allSpaces, view.spaces], [false, 'sandbox', true, ['s2']]);
+    assert.equal(mm.registry.modules.child.enabled, false, 'what needs it went off with it');
+    const disk = JSON.parse(fs.readFileSync(file, 'utf8')).modules;
+    assert.deepEqual([disk.base.enabled, disk.base.runMode, disk.base.allSpaces, disk.base.spaces, disk.child.enabled], [false, 'sandbox', true, ['s2'], false]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 console.log(`check-modules: ${n} groups OK`);

@@ -795,9 +795,13 @@ class ModuleManager {
 
   // enabled: turning a module on records that the admin approved what its
   // active version asks for. allSpaces / spaces: where a module with the space scope is on.
+  // Everything is checked into a draft first and applied only once all of it is accepted: a refused update
+  // changes nothing, not this module and not the ones that need it (GitHub #17).
   update(id, patch, { spaceExists = () => true } = {}) {
     const entry = this.get(id);
     const manifest = this.manifestOf(id, entry.version);
+    const draft = {}; // the fields of this entry to set
+    let switchOff = []; // the modules that need this one, to turn off with it
     if (patch.enabled !== undefined) {
       if (patch.enabled) {
         const missing = this.missingFor(manifest);
@@ -811,11 +815,11 @@ class ModuleManager {
         // Turning off a module others need: those go off with it, but only when the caller said so (`force`).
         const needing = this.dependentsOf(id);
         if (needing.length && patch.force !== true) throw new ModuleError(`${needing.map((r) => this.manifestOf(r, this.registry.modules[r].version).name).join(' and ')} needs ${manifest.name}; turn ${needing.length === 1 ? 'it' : 'them'} off too?`);
-        for (const r of needing) this.registry.modules[r].enabled = false;
+        switchOff = needing;
       }
-      entry.enabled = Boolean(patch.enabled);
-      if (entry.enabled) {
-        entry.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes], events: [...manifest.events.subscribes], actions: [...manifest.actions.uses] };
+      draft.enabled = Boolean(patch.enabled);
+      if (draft.enabled) {
+        draft.approved = { permissions: manifest.permissions.map((p) => p.key), hooks: HOOKS.filter((h) => manifest.hooks[h]), refs: [...manifest.refs.consumes], events: [...manifest.events.subscribes], actions: [...manifest.actions.uses] };
       }
     }
     // Running in the page gives a module the page's own power, so for an uploaded module the admin has to
@@ -823,24 +827,27 @@ class ModuleManager {
     if (patch.runMode !== undefined) {
       if (patch.runMode === 'sandbox') {
         if (manifest.surfaces.keyed) throw new ModuleError('this module has a keyed page, so it must run in the page, not a frame');
-        entry.runMode = 'sandbox';
+        draft.runMode = 'sandbox';
       } else if (patch.runMode === 'page') {
         if (entry.source !== 'bundled' && patch.acceptRisk !== true) throw new ModuleError('running a module in the page means accepting the risk');
-        entry.runMode = 'page';
-        if (entry.source !== 'bundled') entry.riskAcceptedAt = new Date().toISOString();
+        draft.runMode = 'page';
+        if (entry.source !== 'bundled') draft.riskAcceptedAt = new Date().toISOString();
       } else {
         throw new ModuleError('runMode must be "page" or "sandbox"');
       }
     }
     if (patch.allSpaces !== undefined) {
       if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
-      entry.allSpaces = Boolean(patch.allSpaces);
+      draft.allSpaces = Boolean(patch.allSpaces);
     }
     if (patch.spaces !== undefined) {
       if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
       if (!Array.isArray(patch.spaces)) throw new ModuleError('spaces must be a list');
-      entry.spaces = [...new Set(patch.spaces.filter((r) => typeof r === 'string' && spaceExists(r)))];
+      draft.spaces = [...new Set(patch.spaces.filter((r) => typeof r === 'string' && spaceExists(r)))];
     }
+    // All accepted: apply at once.
+    for (const r of switchOff) this.registry.modules[r].enabled = false;
+    Object.assign(entry, draft);
     this.save();
     return this.view(id);
   }
