@@ -1,7 +1,7 @@
 // The picker for a pre-made background: a dialog with the library's images, filtered by theme and style. Used beside an image slot
 // (the sign-in background on Manage, a person's own background on their profile) as an alternative to uploading one.
 //   pickBackground({ title }) resolves to a File made from the chosen image, or null when it is dismissed. The caller saves it the
-//   way it saves an upload, so serving, removal and per-room use all behave as they do for a file the person chose.
+//   way it saves an upload, so serving, removal and per-space use all behave as they do for a file the person chose.
 import { api, escapeHtml } from '/brand.js';
 
 let open = null;

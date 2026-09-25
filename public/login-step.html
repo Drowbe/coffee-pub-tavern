@@ -16,7 +16,7 @@
        requires to have one and that has none yet, enrolling first (/login/enrol). The first step (the password, or a
        personal link) already happened; a short-lived pending token in a cookie says who this is. -->
   <form class="panel login login-step" id="verify" hidden>
-    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub</span></div>
+    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="environmentName">Coffee Pub</span></div>
     <p class="hint" id="verify-lede">One more step: the six digits your authenticator app shows.</p>
     <label id="code-label">Code<input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus></label>
     <label class="check"><input id="remember" type="checkbox"> Remember this browser for 30 days</label>
@@ -28,7 +28,7 @@
   </form>
 
   <section class="panel login login-step wide" id="enrol" hidden>
-    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="serverName">Coffee Pub</span></div>
+    <div class="brand big"><img data-brand="icon" alt="" class="icon"><span data-brand="environmentName">Coffee Pub</span></div>
     <p class="hint">This account must sign in in two steps. Set up an authenticator app now; it takes a minute, once.</p>
     <div id="enrol-block"></div>
     <p class="hint"><a href="/login">Start over</a></p>

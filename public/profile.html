@@ -19,7 +19,7 @@
   <main class="admin">
     <nav class="subtabs" id="subtabs">
       <button class="subtab active" data-tab="profile" type="button">Profile</button>
-      <button class="subtab" data-tab="rooms" type="button">Spaces</button>
+      <button class="subtab" data-tab="spaces" type="button">Spaces</button>
     </nav>
 
     <section class="tab-stack" id="tab-profile">
@@ -169,21 +169,21 @@
       </section>
     </section>
 
-    <section class="tab-stack" id="tab-rooms" hidden>
-      <div id="room-sections"></div>
+    <section class="tab-stack" id="tab-spaces" hidden>
+      <div id="space-sections"></div>
     </section>
   </main>
 
-  <template id="room-section-template">
-    <section class="panel room-section">
+  <template id="space-section-template">
+    <section class="panel space-section">
       <div class="section-head">
-        <div class="room-section-heading">
-          <img class="room-token" alt="" hidden>
-          <h2 class="room-section-title"></h2>
+        <div class="space-section-heading">
+          <img class="space-token" alt="" hidden>
+          <h2 class="space-section-title"></h2>
         </div>
-        <button class="btn btn-small btn-danger" data-action="room-remove" type="button" hidden>Remove from space</button>
+        <button class="btn btn-small btn-danger" data-action="space-remove" type="button" hidden>Remove from space</button>
       </div>
-      <p class="hint room-section-hint"></p>
+      <p class="hint space-section-hint"></p>
 
       <h3>Permissions</h3>
       <div class="checks">
@@ -192,7 +192,7 @@
       <p class="hint" data-permissions-hint></p>
 
       <label class="check"><input type="checkbox" data-use-default> Use Default Profile Images</label>
-      <div data-room-images hidden>
+      <div data-space-images hidden>
       <div class="group" data-group="participant" hidden>
         <h3>Participant</h3>
         <div class="slots">

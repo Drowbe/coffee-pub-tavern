@@ -28,7 +28,7 @@ The zip can be up to 10 MB. Magpie refuses a zip that holds files it does not al
 
 ## Turn a module on in rooms
 
-A module with a room panel is off in every room until you turn it on. Either tick **Available in every room** on its card here, or open a room's own page from the Rooms tab, go to its **Modules** tab (it appears when there are modules to set) and tick the module. The Modules section of a room only lists modules that are enabled.
+A module with a room panel is off in every room until you turn it on. Either tick **Available in every space** on its card here, or open a room's own page from the Rooms tab, go to its **Modules** tab (it appears when there are modules to set) and tick the module. The Modules section of a room only lists modules that are enabled.
 
 ## Settings
 

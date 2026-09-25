@@ -109,7 +109,7 @@ To switch environments on, with the server already running as above:
 
 **Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
 compose file, `"true"` by default) says whether the server offers a second step at all; with it off nobody is
-asked and nobody can set one up. When it is offered, each environment's owners choose on Manage > Server
+asked and nobody can set one up. When it is offered, each environment's owners choose on Manage > Environment
 whether to **require** it of everyone, and otherwise each person chooses on their own profile. Host admins
 set theirs up on the console's Host tab, and `HOST_MFA_REQUIRED: "true"` makes it mandatory for them. The
 secrets are encrypted with a key the server makes on first start (`secrets.key` beside the data on a single

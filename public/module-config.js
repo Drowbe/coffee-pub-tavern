@@ -7,7 +7,7 @@ import { wireRegionCut } from '/region-cut.js';
 const $ = (id) => document.getElementById(id);
 const id = new URLSearchParams(location.search).get('id') || '';
 
-renderTopbar({ location: crumbLink('gear', 'Server Settings', '/admin') });
+renderTopbar({ location: crumbLink('gear', 'Manage', '/admin') });
 await loadBranding();
 wireOverlayBack();
 
@@ -30,7 +30,7 @@ if (!m) {
   $('cfg-state').classList.add(m.enabled ? 'on' : 'warn');
   $('cfg-desc').textContent = m.description || '';
   const mine = (scope) => (m.settings || []).filter((d) => d.scope === scope).length; // the server's scope names (plan-names step 5a)
-  const showSettings = () => renderModuleSettings($('settings'), { scope: 'server', only: m.id, heading: false });
+  const showSettings = () => renderModuleSettings($('settings'), { scope: 'environment', only: m.id, heading: false });
   if (!mine('environment')) {
     $('cfg-none').hidden = false;
   } else if (!m.enabled) {
@@ -41,7 +41,7 @@ if (!m) {
   }
   if (m.geocoder && m.enabled) wireCache(m.id);
   if (m.regionSource && m.enabled) wireRegion(m, showSettings);
-  const others = [mine('room') && "each space's moderators choose some in the space's module settings", mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
+  const others = [mine('space') && "each space's moderators choose some in the space's module settings", mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
   if (others.length) {
     $('cfg-other').hidden = false;
     $('cfg-other').textContent = `Also: ${others.join('; ')}.`;

@@ -44,7 +44,7 @@ chat and reactions, and can be published to OBS like anyone else.
 
 ## Let people sign themselves up
 
-Off by default. Under **Server**, turn on **Let anyone at /register sign themselves up** and anyone
+Off by default. On the **Environment** tab, under **Sign-up**, turn on **Let anyone at /register sign themselves up** and anyone
 who finds that link can make their own account, as a member in the Lobby.
 
 Without opening it up, an owner can still **invite** someone straight into specific rooms: pick the
@@ -62,7 +62,7 @@ Anyone in the call with the right permission can turn the link on, copy it, or t
 standing door rather than single-use: it works for as many guests as show up until someone turns it
 off or generates a new one. Nothing about a guest is kept once they leave. A guest with their camera
 off shows the shared **Guest images** picture set (see
-[Server settings](userguide-server-settings.md)). A room can turn guests off entirely with **Allow
+[Manage](userguide-server-settings.md)). A room can turn guests off entirely with **Allow
 Guests** on its own settings page, which also turns off any link already in use there.
 
 ## Roles and what they can do
@@ -74,7 +74,7 @@ Open **Roles** on the Manage page to see a grid of checkboxes: one row per permi
   environment: they add people, set passwords and change settings. An owner also has every permission a
   module adds.
 - **Moderator** is what someone gets in any room where they are marked **Moderator** on their
-  profile's Rooms tab, on top of their ordinary role there.
+  profile's **Spaces** tab, on top of their ordinary role there.
 - **Member** is an ordinary account.
 - **Guest** is everyone who joins from a room's guest link.
 
@@ -94,7 +94,7 @@ if someone tries the request by hand.
 
 ## Per-room settings for a member
 
-An owner opens someone's profile and chooses the **Rooms** tab to see one section for each room they
+An owner opens someone's profile and chooses the **Spaces** tab to see one section for each space they
 belong to. In each, **Moderator** makes them a moderator in that room only, so they get everything
 the Moderator role has there and nothing extra elsewhere. **Use Default Profile Images** decides
 whether the room's own pictures replace their defaults, and **Remove** takes them out of the room.
@@ -108,4 +108,4 @@ A second step after the password, if you or your owner want one: a six-digit cod
 - **A personal link** still gets the code step once you have one; it is the first step, not a way around the second.
 - **Turning it off** asks for a code. If the environment requires it (below), it cannot be turned off.
 - **Locked out.** Ask an owner: on your profile they can **Reset your second factor**, which signs you out everywhere and lets you set it up again. An owner locked out of their own account on a hosted server asks the host; on a single server, the operator turns on the lockout bypass (`ADMIN_MFA_LOCKOUT_BYPASS`) in the compose file, signs in on the password, and presses **Reset my second factor** on their profile (see the getting-started guide).
-- **The rule for the whole server** is one switch on Manage > Server, under the sign-in page: **Require two-step sign-in for everyone**. Off (the default), anyone may set it up and is then asked; on, everyone must, from their next sign-in, which lands on the set-up page first; a session already open keeps working. Whether the server offers two-step sign-in at all is the operator's compose setting; when it does not, none of this appears.
+- **The rule for the whole server** is one switch on Manage > Environment, under the sign-in page: **Require two-step sign-in for everyone**. Off (the default), anyone may set it up and is then asked; on, everyone must, from their next sign-in, which lands on the set-up page first; a session already open keeps working. Whether the server offers two-step sign-in at all is the operator's compose setting; when it does not, none of this appears.

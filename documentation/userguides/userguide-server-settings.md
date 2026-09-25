@@ -1,22 +1,22 @@
-# Server Settings
+# Manage
 
 **Audience:** an owner or the admin running a Coffee Pub Magpie server, working through the Manage page.
 
-Open the Manage page with the gear icon in the header. It has six tabs, in this order: **Server**,
-**Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only owners and the admin (on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
+Open the Manage page with the gear icon in the header. It has six tabs, in this order: **Environment**,
+**Theme**, **Spaces**, **Roles**, **Users** and **Modules**, plus **About**. (Old addresses still work: `/admin#server` and `#settings` open Environment, and `#rooms` opens Spaces.) The header's crumb on the pages reached from here (a space's settings, a person's profile, a module's configuration, the AI configuration) says **Manage**. Only owners and the admin (on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
 
-## Server
+## Environment
 
 - **Environment** (a hosted server only). The plan's name, each cap with what is used, the overdue banner when a payment has lapsed, **Upgrade**, **Download a copy** and **Ask for deletion**. See [Your environment](userguide-environments.md).
-- **Server name and icon.** The name shows in the header and the browser tab. The icon is any image;
+- **Name and icon.** The **Name** shows in the header and the browser tab. The icon is any image;
   it is used in the header, as the favicon, and on the sign-in page. Click it to change it, and the
   small **x** over its corner to clear it.
-- **Home icon.** The icon beside the server name wherever it is a link back to the room list. You
+- **Home icon.** The icon beside the server name wherever it is a link back to the list of spaces. You
   choose from the Font Awesome list on the Theme tab.
 - **Call features.** Turns screen sharing, asides, private conversations and reactions on or off for
   everyone, and sets the highest video quality anyone can pick.
 - **Sign-in page.** A background picture behind the sign-in box, the text under the password field, and **Require two-step sign-in for everyone**: off (the default: anyone may set up an authenticator app on their profile) or on (everyone must, from their next sign-in; a session already open keeps working); see "Two-step sign-in" in [Accounts, roles and permissions](userguide-accounts.md). The switch is not shown when the server does not offer two-step sign-in (`ENABLE_MFA` in the compose file). The Users tab marks accounts that have set it up. Click the picture to upload your own, or choose **Choose from the library** for one of the pre-made backgrounds that ship with Magpie (filter by theme and style, pick one, **Use this background**). New pre-made images are added by putting files in `public/assets/images/backgrounds/`; see the README there for the format and file names.
-- **Sign-up.** Self-service `/register` on or off, and invite links into specific rooms. See
+- **Sign-up.** Self-service `/register` on or off, and invite links into specific spaces. See
   [Accounts, roles and permissions](userguide-accounts.md).
 - **Access key.** The key that a keyed page's link carries in place of a sign-in (the Stream module's
   OBS views, `?s=...`). Show, copy or regenerate it; regenerating stops every existing link working.
@@ -25,7 +25,7 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 
 ## Language, time and money
 
-On the Server tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the server and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. The list has a **Common** group first, then **All currencies**, each by its name in your language: exactly the currencies the server accepts. The server refuses any other code ("XYZ is not a currency this server knows. Choose one from the list, such as USD."). A code saved before this check keeps working and still shows in the list. A trip in the Planner picks its own currency from the same list. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
+On the Environment tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the server and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. The list has a **Common** group first, then **All currencies**, each by its name in your language: exactly the currencies the server accepts. The server refuses any other code ("XYZ is not a currency this server knows. Choose one from the list, such as USD."). A code saved before this check keeps working and still shows in the list. A trip in the Planner picks its own currency from the same list. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
 
 ## Theme
 

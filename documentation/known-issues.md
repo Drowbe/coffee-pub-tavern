@@ -22,6 +22,22 @@ The page still says the link doesn't work. GitHub #18.
 
 Workaround: none needed; ask the environment's owner for a new link.
 
+## The Calendar doesn't open an event from a link to it
+
+A link to a Calendar event (an item's address ending in `#ref=...`, such as one another module or a person
+shared) opens the Calendar but not the event, when the Calendar is loaded for the first time by that link or
+is on a space's page. GitHub #19.
+
+Workaround: find the event on its day in the Calendar.
+
+## Opening a dashboard item a second time doesn't open the item
+
+On the spaces page, clicking an item on the dashboard (a task, an event, a poll) opens its module and the item
+the first time. Clicking it a second time opens the module but not the item.
+GitHub #20.
+
+Workaround: find the item in the module itself.
+
 ## The console's Maps tab is too wide on a phone
 
 On the host console at phone width, the Maps tab runs past the right edge of the screen.

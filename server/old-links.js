@@ -7,6 +7,8 @@
 //   /img/room/<id>                         -> /img/space/<id>         a space's picture (Coffee Pub Studio asks this)
 //   /img/<key>/<slot>?room=<id>&roomOnly=1 -> ?space=<id>&spaceOnly=1 a person's picture in a space (OBS sources)
 //   /modules/<id>?moduleRoom=<id>          -> ?space=<id>             a module popped out of a space
+//   /module-settings?room=<id>             -> ?space=<id>             a space's module settings, for its moderators
+//   /room.html, /roomconfig.html           -> /space.html, /space-settings.html   the pages' old file names (step 5b)
 //
 // Every other part of the query is kept, in its order.
 'use strict';
@@ -40,6 +42,13 @@ function mountOldLinks(app) {
     if (!hasAny(req, Object.keys(IMAGE_QUERY))) return next();
     res.redirect(301, `/img/${encodeURIComponent(req.params.key)}/${encodeURIComponent(req.params.slot)}${renamedQuery(req, IMAGE_QUERY)}`);
   });
+  const SETTINGS_QUERY = { room: 'space' };
+  app.get('/module-settings', (req, res, next) => {
+    if (!hasAny(req, Object.keys(SETTINGS_QUERY))) return next();
+    res.redirect(301, `/module-settings${renamedQuery(req, SETTINGS_QUERY)}`);
+  });
+  const OLD_PAGES = { '/room.html': '/space.html', '/roomconfig.html': '/space-settings.html' };
+  for (const [from, to] of Object.entries(OLD_PAGES)) app.get(from, (req, res) => res.redirect(301, `${to}${renamedQuery(req, {})}`));
   const POPOUT_QUERY = { moduleRoom: 'space' };
   app.get('/modules/:id', (req, res, next) => {
     if (!hasAny(req, Object.keys(POPOUT_QUERY))) return next();

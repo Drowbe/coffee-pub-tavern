@@ -1,7 +1,7 @@
 import { nav } from '/nav-bar.js';
 import { mountEnvironmentBanner } from '/environment-banner.js';
 
-// Escapes text going into innerHTML -- a room or server name is an admin-set
+// Escapes text going into innerHTML -- a space's or the environment's name is an owner-set
 // string, not something we generated, so it isn't safe to trust verbatim.
 export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -25,7 +25,7 @@ export function roleLabel(user) {
 // The admin's Font Awesome list (Theme tab), as last loaded by loadBranding().
 let ICONS = [];
 export const getIcons = () => ICONS;
-// Full class list for an icon id -- room link icons and the home icon are
+// Full class list for an icon id -- space link icons and the home icon are
 // stored as ids into that list. Before the list has loaded, or for an id no
 // longer in it, fall back rather than draw nothing.
 export function iconClasses(id) {
@@ -34,33 +34,42 @@ export function iconClasses(id) {
   return ICONS.length ? 'fa-solid fa-link' : `fa-solid fa-${id || 'link'}`;
 }
 
-// Fills in the server name and icon on every page from /api/branding.
 // What a page keeps in the browser was keyed by the product's old name once; it is keyed by
 // "app" now (the host is not the brand, see plans/plan-modules.md). Old keys are moved the first time any page loads, so
-// nobody's layout, chat history or remembered choices are lost.
+// nobody's layout, chat history or remembered choices are lost. A key moves only when its new name is still empty, and
+// the old one is deleted either way.
+function moveStoredKey(storage, from, to) {
+  const old = storage.getItem(from);
+  if (old === null) return;
+  if (storage.getItem(to) === null) storage.setItem(to, old);
+  storage.removeItem(from);
+}
 function migrateStoredKeys() {
   try {
     for (const key of Object.keys(localStorage)) {
       const m = /^tavern([.:])(.*)$/.exec(key); // the old product name, read only to move the key
-      if (!m) continue;
-      const next = `app${m[1]}${m[2]}`;
-      if (localStorage.getItem(next) === null) localStorage.setItem(next, localStorage.getItem(key));
-      localStorage.removeItem(key);
+      if (m) moveStoredKey(localStorage, key, `app${m[1]}${m[2]}`);
     }
-    // Keys renamed by the Names plan: the call's preferences (step 3). Read only to move them.
-    const moves = { 'host.table': 'app.call' };
-    for (const [from, to] of Object.entries(moves)) {
-      const old = localStorage.getItem(from);
-      if (old === null) continue;
-      if (localStorage.getItem(to) === null) localStorage.setItem(to, old);
-      localStorage.removeItem(from);
+    // Keys renamed by the Names plan, read only to move them: the call's preferences (step 3), and each space's
+    // remembered canvas (step 5b; `app.panels` alone is the layout from before layouts were kept per space). The chat
+    // keys (app:chat:<id>:..., app:chatclear:<id>:...) keep their names: a space's id did not change.
+    const moves = { 'host.table': 'app.call', 'app.panels': 'app.canvas' };
+    for (const [from, to] of Object.entries(moves)) moveStoredKey(localStorage, from, to);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('app.panels.')) moveStoredKey(localStorage, key, `app.canvas.${key.slice('app.panels.'.length)}`);
     }
+  } catch {
+    // no storage: nothing to move
+  }
+  try {
+    moveStoredKey(sessionStorage, 'host.room', 'app.space'); // the space this tab was in, rejoined on a reload (step 5b)
   } catch {
     // no storage: nothing to move
   }
 }
 migrateStoredKeys();
 
+// Fills in the environment's name and icon on every page from /api/branding.
 export async function loadBranding() {
   let b = { environmentName: 'Coffee Pub', loginText: '', hasIcon: false };
   try {
@@ -72,7 +81,7 @@ export async function loadBranding() {
   ICONS = Array.isArray(b.icons) ? b.icons : [];
   clockHour12 = b.clock !== '24';
   if (byId('topbar-clock')) startClock();
-  qsa('[data-brand="serverName"]').forEach((el) => (el.textContent = b.environmentName));
+  qsa('[data-brand="environmentName"]').forEach((el) => (el.textContent = b.environmentName));
   qsa('[data-brand="home-icon"]').forEach((el) => {
     el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
     el.dataset.iconId = b.homeIcon || 'couch';
@@ -104,7 +113,7 @@ export async function loadBranding() {
 }
 
 // One header, built once here, used by every page including the call page
-// itself -- room.html included, its live-call controls (Leave, Pull
+// itself -- space.html included, its live-call controls (Leave, Pull
 // Participants Back) folded in through the "location and actions" crumb
 // zone (see setTopbarLocation()) rather than kept as a bespoke header of
 // its own. Four zones, left to right: the server icon and name (always
@@ -121,17 +130,17 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   const header = document.querySelector('.topbar');
   if (!header) return;
   headerEl = header;
-  // Opened as an overlay iframe (see openOverlay() in room.js), the parent
-  // page already knows the real server name and icon -- passing them along
+  // Opened as an overlay iframe (see openOverlay() in space.js), the parent
+  // page already knows the environment's real name and icon -- passing them along
   // means the very first paint gets it right, instead of flashing the
   // generic default while this page's own loadBranding() fetch is in
   // flight (barely noticeable on a real navigation, jarring in an iframe
   // that appears almost instantly).
   const handoff = new URLSearchParams(window.location.search);
-  const initialName = handoff.get('serverName') || 'Coffee Pub';
+  const initialName = handoff.get('environmentName') || 'Coffee Pub';
   const initialIcon = handoff.get('homeIcon') || 'couch';
   // The primary nav is about the system, in three zones (see documentation/plans/plan-nav.md and architecture-navigation.md):
-  // left, the logo (home) and where you are; middle, the core navigation (the rooms, each module's own page); right, the
+  // left, the logo (home) and where you are; middle, the core navigation (the spaces, each module's own page); right, the
   // system's actions (your profile, Manage, Install, Sign out) and information (the time, on the server's clock).
   // The markup here is only what is not a tool: the logo, the crumb, the status, the menu button. Everything in the
   // middle and right zones is a registration in the nav-bar registry (public/nav-bar.js), the same shape a module's
@@ -141,7 +150,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
       <a class="brand-home" href="/" target="_top" title="All spaces">
         <img data-brand="icon" alt="" class="icon">
         <i class="fa-solid fa-${initialIcon} fa-fw" data-icon-id="${escapeHtml(initialIcon)}" data-brand="home-icon" aria-hidden="true"></i>
-        <span data-brand="serverName">${escapeHtml(initialName)}</span>
+        <span data-brand="environmentName">${escapeHtml(initialName)}</span>
       </a>
       <nav class="crumb" id="topbar-crumb"></nav>
       <span class="status topbar-status" id="topbar-status"></span>
@@ -169,7 +178,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
 // The profile link and the clock are the page's own elements the registry places (their look is theirs, not a button's).
 function registerSystemTools(header, initialIcon, adminHref) {
   const doc = header.ownerDocument;
-  const spaces = nav.register({ id: 'rooms-link', bar: 'primary', zone: 'middle', group: 'core', groupOrder: 1, order: 1, icon: initialIcon, label: 'Spaces', title: 'All spaces', href: '/', target: '_top' });
+  const spaces = nav.register({ id: 'spaces-link', bar: 'primary', zone: 'middle', group: 'core', groupOrder: 1, order: 1, icon: initialIcon, label: 'Spaces', title: 'All spaces', href: '/', target: '_top' });
   spaces.querySelector('i').dataset.brand = 'home-icon'; // loadBranding() swaps in the server's own home icon
   const whoami = doc.createElement('a');
   whoami.className = 'whoami';
@@ -205,7 +214,7 @@ function startClock() {
 
 // On a phone the header's links are a menu (see the phone header rules in style.css): the button
 // opens them, and a tap anywhere else or Escape closes them. The core navigation (the middle zone) has no
-// room on a phone, so the registry draws its tools into the menu there, and back to the middle when the
+// space on a phone, so the registry draws its tools into the menu there, and back to the middle when the
 // window widens (nav-bar.js watches the same width).
 function wireNavMenu(header) {
   const toggle = header.querySelector('#nav-toggle');
@@ -229,7 +238,7 @@ function wireNavMenu(header) {
 // A module can notify people (its reminders, say). They arrive as a toast
 // while you are in the host and as an unread count on the module's nav item and
 // on the call's Modules button; opening the module clears them. Overlay pages
-// opened over a call (?from=room) leave this to the call page underneath.
+// opened over a call (?from=space) leave this to the call page underneath.
 const unreadByModule = {};
 
 function paintUnread() {
@@ -262,7 +271,7 @@ function showToast(n) {
   toast.innerHTML = `<i class="fa-solid fa-${escapeHtml(n.icon || 'bell')} fa-fw toast-icon" aria-hidden="true"></i><span class="toast-text"><strong>${escapeHtml(n.title)}</strong>${n.body ? `<span class="toast-body">${escapeHtml(n.body)}</span>` : ''}<span class="toast-from">${escapeHtml(n.moduleName || '')}</span></span>`;
   const dismiss = () => toast.remove();
   toast.addEventListener('click', () => {
-    // The call page handles opening a room module's panel; anything else goes to the module's page.
+    // The call page handles opening a space module's panel; anything else goes to the module's page.
     const handled = !document.dispatchEvent(new CustomEvent('app:notification', { detail: n, cancelable: true }));
     if (!handled && n.scope === 'environment') window.location.href = `/modules/${encodeURIComponent(n.module)}`;
     dismiss();
@@ -272,7 +281,7 @@ function showToast(n) {
 }
 
 async function startNotifications() {
-  if (new URLSearchParams(window.location.search).get('from') === 'room') return;
+  if (new URLSearchParams(window.location.search).get('from') === 'space') return;
   try {
     const res = await fetch('/api/notifications');
     if (!res.ok) return;
@@ -306,7 +315,7 @@ async function startNotifications() {
 // Who's around can show who is online, not only who is in a space. Not in an overlay over a call: that page's
 // own page is already doing it.
 function startPresence() {
-  if (new URLSearchParams(window.location.search).get('from') === 'room') return;
+  if (new URLSearchParams(window.location.search).get('from') === 'space') return;
   const beat = () => {
     if (document.visibilityState === 'visible') fetch('/api/presence', { method: 'POST' }).catch(() => {});
   };
@@ -315,8 +324,8 @@ function startPresence() {
   document.addEventListener('visibilitychange', beat);
 }
 
-// The toast for an invitation: who asked, and Join or Decline. The page can take it (the room page joins in place);
-// any other page goes to the rooms page, which joins.
+// The toast for an invitation: who asked, and Join or Decline. The page can take it (the space page joins in place);
+// any other page goes to the spaces page, which joins.
 function showInvite(invite) {
   let layer = document.getElementById('toast-layer');
   if (!layer) {
@@ -371,22 +380,22 @@ async function loadUpdateBadge() {
 
 // Modules with a page of their own get an item in the header: a tool in the core navigation, after Spaces, in the
 // secondary band (11-50) so the system's own core items stay ahead. Opened from inside a call they use the same
-// in-page overlay as the profile, so the call keeps running (see openOverlay in room.js).
+// in-page overlay as the profile, so the call keeps running (see openOverlay in space.js).
 async function loadModuleNav() {
   if (!nav.has('primary')) return;
   try {
     const res = await fetch('/api/modules/nav');
     if (!res.ok) return;
     const { modules } = await res.json();
-    const keep = new URLSearchParams(window.location.search).get('from') === 'room' ? window.location.search : '';
+    const keep = new URLSearchParams(window.location.search).get('from') === 'space' ? window.location.search : '';
     // A module with a dashboard widget is reached from the widget's heading, so it has no item here; one
-    // that opted out (surfaces.page.nav: false, reached some other way -- a room's own pane) has none
+    // that opted out (surfaces.page.nav: false, reached some other way -- a space's own pane) has none
     // either; anything else does, so nothing becomes unreachable.
     const listed = modules.filter((m) => !m.widget && m.nav);
     nav.unregisterAll('page-');
     listed.forEach((m, i) => {
       const el = nav.register({ id: `page-${m.id}`, bar: 'primary', zone: 'middle', group: 'core', order: Math.min(50, 11 + i), icon: m.icon, label: m.name, href: `/modules/${encodeURIComponent(m.id)}${keep}` });
-      el.classList.add('module-nav-link'); // hidden on the call page, where the room's own module selector is the way in
+      el.classList.add('module-nav-link'); // hidden on the call page, where the space's own module selector is the way in
       el.dataset.module = m.id;
       el.dataset.overlayLink = '';
     });
@@ -396,23 +405,23 @@ async function loadModuleNav() {
   }
 }
 
-// The crumb zone: plain text for "you're already here" (Rooms, Profile,
-// Server Settings), or markup with its own buttons for a page that offers
-// actions from right where it says where you are (a room's own Leave, an
-// aside's own Rejoin Call) -- see room.js's updateCrumb() for the one page
+// The crumb zone: plain text for "you're already here" (Spaces, Profile,
+// Manage), or markup with its own buttons for a page that offers
+// actions from right where it says where you are (a space's own Leave, an
+// aside's own Rejoin Call) -- see space.js's updateCrumb() for the one page
 // that actually changes this after the initial render.
 // One crumb segment that goes somewhere. Opened as an overlay over a call
-// (?from=room), the link keeps that query so the next page still knows to
+// (?from=space), the link keeps that query so the next page still knows to
 // offer its "Back" button instead of quietly turning into a normal page.
-// The header icon for a room: the launch-link icon the room picked, or the
+// The header icon for a space: the launch-link icon the space picked, or the
 // plain message icon when it has not picked one ('link' is the default).
-export function roomCrumbIcon(room) {
-  return room?.linkIcon && room.linkIcon !== 'link' ? iconClasses(room.linkIcon) : 'fa-solid fa-message';
+export function spaceCrumbIcon(space) {
+  return space?.linkIcon && space.linkIcon !== 'link' ? iconClasses(space.linkIcon) : 'fa-solid fa-message';
 }
 
 export function crumbLink(icon, label, href) {
   const params = new URLSearchParams(window.location.search);
-  const keep = params.get('from') === 'room' ? window.location.search : '';
+  const keep = params.get('from') === 'space' ? window.location.search : '';
   const [path, hash] = href.split('#');
   return `<a class="crumb-here" href="${path}${keep}${hash ? '#' + hash : ''}"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(label)}</span></a>`;
 }
@@ -478,23 +487,23 @@ export async function api(method, url, body, contentType) {
   return data;
 }
 
-// Your profile or Manage, opened from inside a call (room.js loads either
+// Your profile or Manage, opened from inside a call (space.js loads either
 // one in an iframe rather than navigating away, so the call underneath
 // keeps running). Adds a "Back to [space]" link to this page's own header,
 // which closes the overlay via the parent window -- same origin, so a
 // direct call, no postMessage plumbing needed. A page that isn't "about"
-// the room itself (Manage, say) can pass its own label instead of the
-// room's name.
+// the space itself (Manage, say) can pass its own label instead of the
+// space's name.
 export function wireOverlayBack(label) {
   const params = new URLSearchParams(location.search);
-  if (params.get('from') !== 'room' || window.parent === window) return;
+  if (params.get('from') !== 'space' || window.parent === window) return;
   const nav = document.querySelector('.topbar nav.links');
   if (!nav) return;
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'btn btn-small';
-  const room = params.get('room');
-  back.textContent = label ? `← Back to ${label}` : room ? `← Back to ${room}` : '← Back';
+  const spaceName = params.get('spaceName');
+  back.textContent = label ? `← Back to ${label}` : spaceName ? `← Back to ${spaceName}` : '← Back';
   back.addEventListener('click', () => {
     try {
       window.parent.closeProfileOverlay?.();

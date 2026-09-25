@@ -10,7 +10,7 @@ The person who runs an environment is its **owner**; there can be more than one.
 
 ## The plan and what is used
 
-Manage > Server starts with an **Environment** panel: the plan's name, and each cap with what is used as a bar.
+Manage > Environment starts with an **Environment** panel: the plan's name, and each cap with what is used as a bar.
 
 - **Members** is the number of accounts (guests never count). At the cap, no more accounts can be made, sign-up closes and invites stop, with a sentence saying why; everyone already in keeps working.
 - **Storage** is the whole environment on disk: pictures, module uploads, the map. At the cap, new uploads and pictures are refused.
@@ -26,7 +26,7 @@ If a payment lapses, a banner on every page says so, with the date the environme
 
 ## Two-step sign-in
 
-Whether your environment requires it of everyone is yours to set (Manage > Server, when the host offers two-step sign-in at all), and you reset a member's second factor from their profile when their app is gone. If an owner is locked out, the host admin resets theirs from the console (an environment's card takes the owner's login).
+Whether your environment requires it of everyone is yours to set (Manage > Environment, when the host offers two-step sign-in at all), and you reset a member's second factor from their profile when their app is gone. If an owner is locked out, the host admin resets theirs from the console (an environment's card takes the owner's login).
 
 ## A copy, and leaving
 

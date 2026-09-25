@@ -1,9 +1,9 @@
-// The panes of a room: the Modules button and its menu, and every pane the room has
+// The panes of a space: the Modules button and its menu, and every pane the space has
 // open. A pane is either a module (a sandboxed frame driven by module-host.js) or a
 // native pane, which are the conference and the chat. Both work the same way and can
 // be shown three ways:
 //
-//   docked   as a column of the room's grid: conference, chat, module...
+//   docked   as a column of the space's grid: conference, chat, module...
 //   floating as a draggable, resizable panel over the call
 //   window   as a window of its own
 //
@@ -15,11 +15,11 @@
 import { api, markModuleRead } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
-// What each room remembers (`app.panels.<room>`): the panes open when the person last used it,
-// and each pane's mode and sizes. `app.panels` alone is what earlier versions kept for all
-// rooms, and is the starting point for a room with nothing saved yet.
-const STORE_KEY = 'app.panels';
-const storeKey = (roomId) => `${STORE_KEY}.${roomId}`;
+// What each space remembers (`app.canvas.<space>`; brand.js moves the old `app.panels` keys): the panes open when the person last used it,
+// and each pane's mode and sizes. `app.canvas` alone is what earlier versions kept for all
+// spaces, and is the starting point for a space with nothing saved yet.
+const STORE_KEY = 'app.canvas';
+const storeKey = (spaceId) => `${STORE_KEY}.${spaceId}`;
 const MIN_W = 240;
 const MIN_H = 160;
 const HEAD_H = 42; // the shared module header height (--module-header-h in style.css)
@@ -34,25 +34,25 @@ function readStore(key) {
   }
 }
 
-function loadSaved(roomId) {
-  const own = roomId ? readStore(storeKey(roomId)) : null;
+function loadSaved(spaceId) {
+  const own = spaceId ? readStore(storeKey(spaceId)) : null;
   if (own) return own;
   const { __open, ...rest } = readStore(STORE_KEY) || {};
   return rest;
 }
 
-// The panes a room opens with (ids, in order), or null when nothing is remembered yet. The room
+// The panes a space opens with (ids, in order), or null when nothing is remembered yet. The space
 // list's "Join with" choice reads and writes this.
-export function joinPanes(roomId) {
-  const open = loadSaved(roomId).__open;
+export function joinPanes(spaceId) {
+  const open = loadSaved(spaceId).__open;
   return Array.isArray(open) ? open : null;
 }
 
-export function setJoinPanes(roomId, ids) {
-  const saved = loadSaved(roomId);
+export function setJoinPanes(spaceId, ids) {
+  const saved = loadSaved(spaceId);
   saved.__open = ids;
   try {
-    localStorage.setItem(storeKey(roomId), JSON.stringify(saved));
+    localStorage.setItem(storeKey(spaceId), JSON.stringify(saved));
   } catch {
     // private mode: nothing is remembered
   }
@@ -69,21 +69,21 @@ const toolsHtml = ({ mode, canDock, canFloat, closable = true, snap = false }) =
   ${mode !== 'window' ? '<button class="msg-btn" data-popout type="button" title="Open in its own window" aria-label="Open in its own window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>' : ''}
   ${closable ? '<button class="msg-btn" data-close type="button" title="Close" aria-label="Close"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>' : ''}`;
 
-export function createRoomModules({ guestToken = null } = {}) {
+export function createSpaceModules({ guestToken = null } = {}) {
   const toggle = document.getElementById('modules-toggle');
   const menu = document.getElementById('modules-menu');
-  // An inline menu (the pane buttons sit in a bar in the room header) is always shown: it is never hidden
+  // An inline menu (the pane buttons sit in a bar in the space header) is always shown: it is never hidden
   // or positioned by this file, only kept up to date.
   const inline = () => Boolean(menu && menu.classList.contains('subnav-panes'));
   const stage = document.getElementById('stage');
   let saved = loadSaved(null);
-  // Nothing is remembered until a join has restored the room's panes, and not while the room is
+  // Nothing is remembered until a join has restored the space's panes, and not while the space is
   // being torn down: closing every pane on the way out must not become the layout.
   let suspended = true;
   const panes = new Map(); // id -> pane; a pane is open while it is in here
   const natives = new Map(); // id -> the built-in pane's definition (the conference and the chat)
   const stageEmpty = document.getElementById('stage-empty');
-  let roomId = null;
+  let spaceId = null;
   let available = [];
   let z = 40;
   let order = 0;
@@ -106,9 +106,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     }
     return layer;
   }
-  // Floating panels live in their own layer, a sibling of the stage, so hiding the stage (room.js's
-  // own room-list view, shown while still connected but not looking at this room) does not hide them
-  // on its own -- without this they go on floating over whatever the room shows instead. Nothing is
+  // Floating panels live in their own layer, a sibling of the stage, so hiding the stage (space.js's
+  // own space-list view, shown while still connected but not looking at this space) does not hide them
+  // on its own -- without this they go on floating over whatever the space shows instead. Nothing is
   // torn down: the same panes reappear exactly as they were once the stage comes back.
   function showFloating(show) {
     const layer = layers.get(stageDoc());
@@ -124,9 +124,9 @@ export function createRoomModules({ guestToken = null } = {}) {
   }
 
   function persist() {
-    if (!roomId) return; // an aside remembers nothing
+    if (!spaceId) return; // an aside remembers nothing
     try {
-      localStorage.setItem(storeKey(roomId), JSON.stringify(saved));
+      localStorage.setItem(storeKey(spaceId), JSON.stringify(saved));
     } catch {
       // private mode: panes still work, they just do not remember where they were
     }
@@ -134,12 +134,12 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   // The panes open now, in column order.
   // A join that was asked to open one item (from the dashboard) opens just that module, once, and does not
-  // become the room's remembered layout: nothing is saved until the person opens or closes a pane themselves.
+  // become the space's remembered layout: nothing is saved until the person opens or closes a pane themselves.
   let openRequest = null;
   let keepLayout = false;
   let restoring = false;
   function snapshot() {
-    if (suspended || !roomId || keepLayout) return;
+    if (suspended || !spaceId || keepLayout) return;
     saved.__open = [...panes.values()].sort((a, b) => a.order - b.order).map((p) => p.id);
     persist();
   }
@@ -181,7 +181,7 @@ export function createRoomModules({ guestToken = null } = {}) {
   // changes size. The grid is as many cells of about SNAP_CELL as the stage fits (never fewer than one), gutter
   // SNAP_GAP, drawn (`.snap-grid`) only while a snapped pane is being dragged. Docked and window are untouched.
   // The grid's pitch (a cell's width; a cell is 0.77 as tall) is the stage's: the space bar's slider sets it, remembered with
-  // the room's layout (`__snap.pitch`), beside the stage-level switch (`__snap.all`) that snaps every floating pane, now and later.
+  // the space's layout (`__snap.pitch`), beside the stage-level switch (`__snap.all`) that snaps every floating pane, now and later.
   const SNAP_PITCH = { min: 60, max: 320, step: 10, default: 130 };
   const SNAP_GAP = 16; // the same 16px clampBox keeps clear of the window's edges, so a pane spanning every cell still fits the grid
   const snapPitch = () => { const p = Number(saved.__snap?.pitch); return p >= SNAP_PITCH.min && p <= SNAP_PITCH.max ? p : SNAP_PITCH.default; };
@@ -359,8 +359,8 @@ export function createRoomModules({ guestToken = null } = {}) {
     // in step (each pane keeps the width it was given for when there is room again).
     const fixed = docked.filter((p) => p !== flex);
     const total = fixed.reduce((sum, p) => sum + p.width, 0);
-    const room = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
-    const ratio = total > room ? room / total : 1;
+    const spare = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
+    const ratio = total > spare ? spare / total : 1;
     stage.style.setProperty('--stage-cols', docked.map((p) => (p === flex ? 'minmax(0, 1fr)' : `${Math.max(160, Math.floor(p.width * ratio))}px`)).join(' '));
     docked.forEach((p, i) => { for (const el of p.parts()) el.style.gridColumn = String(1 + i); });
   }
@@ -375,15 +375,15 @@ export function createRoomModules({ guestToken = null } = {}) {
     const flex = docked.find((p) => p.def?.flex) || docked[0];
     const fixed = docked.filter((p) => p !== flex);
     const total = fixed.reduce((sum, p) => sum + p.width, 0);
-    const room = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
-    if (total <= room) return;
-    const ratio = room / total;
+    const spare = Math.max(DOCK_MIN, stage.clientWidth - VIDEO_MIN);
+    if (total <= spare) return;
+    const ratio = spare / total;
     for (const p of fixed) p.width = Math.max(160, Math.floor(p.width * ratio));
   }
 
   // Widening a column when there is no room left takes the width from the other fixed columns (each down to
   // its minimum), not by squeezing the one being dragged; the conference keeps what it has.
-  function takeRoomFromOthers(pane) {
+  function takeWidthFromOthers(pane) {
     const docked = dockedPanes();
     if (isNarrow() || docked.length < 2) return;
     const flex = docked.find((p) => p.def?.flex) || docked[0];
@@ -474,7 +474,7 @@ export function createRoomModules({ guestToken = null } = {}) {
       const pane = current();
       if (!drag || !pane) return;
       pane.width = clampDock(drag.w + (drag.sx - event.clientX)); // the column is on the right: dragging left widens it
-      takeRoomFromOthers(pane);
+      takeWidthFromOthers(pane);
       syncDock();
     });
     const stop = () => {
@@ -516,8 +516,8 @@ export function createRoomModules({ guestToken = null } = {}) {
       onOpenRef: openRef,
       // A request for an action waits for the page of the module that carries it: open that pane if it is on here.
       onOpenModule: (id) => { const target = available.find((x) => x.id === id); if (target && !panes.has(id)) openModule(target); },
-      scope: 'room',
-      roomId,
+      scope: 'space',
+      spaceId,
       guestToken,
       entry: m.panel.entry,
       onTitle: (title) => { pane.el.querySelector('[data-title]').textContent = title || m.name; },
@@ -861,7 +861,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     update();
   }
 
-  // Show an item in the module that owns it, here: open its pane (if it is on in this room) and hand it
+  // Show an item in the module that owns it, here: open its pane (if it is on in this space) and hand it
   // the pointer, which its own code turns into showing the item. the host knows nothing about the item.
   function openRef(ref) {
     const m = available.find((x) => x.id === ref.module);
@@ -918,7 +918,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const pane = panes.get(id);
     const m = pane?.m || available.find((x) => x.id === id);
     if (!m) return;
-    const q = new URLSearchParams({ space: roomId, popout: '1' });
+    const q = new URLSearchParams({ space: spaceId, popout: '1' });
     if (guestToken) q.set('guest', guestToken);
     const width = Math.max(320, Math.min(m.panel.width, screen.availWidth));
     const height = Math.max(240, Math.min(m.panel.height + HEAD_H, screen.availHeight));
@@ -958,16 +958,16 @@ export function createRoomModules({ guestToken = null } = {}) {
     snapshot();
   }
 
-  // Open the room's remembered panes: what was open when it was last used, or just the
-  // conference for a room not used before.
+  // Open the space's remembered panes: what was open when it was last used, or just the
+  // conference for a space not used before.
   function restore() {
     suspended = true;
     restoring = true;
-    // A pending request to open one item wins, when the module is on for this room and the request is fresh.
+    // A pending request to open one item wins, when the module is on for this space and the request is fresh.
     const request = openRequest && Date.now() - openRequest.at < 20000 && available.some((x) => x.id === openRequest.module) ? openRequest : null;
     openRequest = null;
     keepLayout = Boolean(request);
-    // A room not used before opens on the conference, or on the chat when the conference is off on this server.
+    // A space not used before opens on the conference, or on the chat when the conference is off on this server.
     const noConference = natives.has('conference') && natives.get('conference').allowed && !natives.get('conference').allowed();
     const want = request ? [request.module] : Array.isArray(saved.__open) ? saved.__open : [noConference ? 'chat' : 'conference'];
     for (const id of want) {
@@ -998,7 +998,7 @@ export function createRoomModules({ guestToken = null } = {}) {
 
   // --- the toolbar button and its menu --------------------------------------
 
-  // The one place to show and hide panes: the chat first, then the room's modules.
+  // The one place to show and hide panes: the chat first, then the space's modules.
   function update() {
     const total = available.reduce((sum, m) => sum + (unread[m.id] || 0), 0)
       + [...natives.keys()].reduce((sum, id) => sum + (panes.has(id) ? 0 : nativeUnread[id] || 0), 0);
@@ -1120,11 +1120,11 @@ export function createRoomModules({ guestToken = null } = {}) {
     if (!inline()) menu.hidden = true;
   });
 
-  // The modules on for this room and this viewer, or none (null = not in a room).
+  // The modules on for this space and this viewer, or none (null = not in a space).
   async function refresh(id) {
     suspended = true;
     closeAllModules();
-    roomId = id;
+    spaceId = id;
     saved = loadSaved(id);
     available = [];
     if (id) {
@@ -1171,7 +1171,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     sendTo: (id, event, data) => panes.get(id)?.mount?.send(event, data),
     testDrag: (id, ref) => panes.get(id)?.mount?.beginDragForTest(ref),
     testPtr: (id, step, ref, label, x, y) => panes.get(id)?.mount?.ptrForTest(step, ref, label, x, y),
-    // The stage-level snap (the room bar's switch and slider): whether every floating pane snaps, and the grid's pitch.
+    // The stage-level snap (the space bar's switch and slider): whether every floating pane snaps, and the grid's pitch.
     snapAll: setSnapAll,
     snapAllOn,
     dockAll,
@@ -1211,7 +1211,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     nativeMode: (id) => panes.get(id)?.mode || null,
     // A notification's toast asks the call to open the module's pane.
     handleNotification(n) {
-      if (n.scope !== 'space' || n.spaceId !== roomId) return false;
+      if (n.scope !== 'space' || n.spaceId !== spaceId) return false;
       const m = available.find((x) => x.id === n.module);
       if (!m) return false;
       openModule(m);

@@ -1,5 +1,5 @@
 // The registry behind both nav bars (documentation/plans/plan-nav.md, "Modules register into the bars";
-// documentation/architecture/architecture-navigation.md). The primary nav (brand.js) and the secondary (room.js) each
+// documentation/architecture/architecture-navigation.md). The primary nav (brand.js) and the secondary (space.js) each
 // attach their three zones here and register their own controls as tools; a module's tools arrive through
 // module-host.js under the module's own namespace. One drawing path: the host draws every tool and owns its look, so a
 // module never hands over markup, and the page's own controls are registrations of the same shape as a module's.
@@ -359,7 +359,7 @@ function flatten(list, doc) {
 }
 
 // Put the owned elements into the container in this order, moving only what is out of place. Anything else in the
-// container (the room's name and pane switches, an overlay page's Back button) stays where it is: the registry
+// container (the space's name and pane switches, an overlay page's Back button) stays where it is: the registry
 // owns its own elements, not the zone.
 const owned = (n) => n.nodeType === 1 && n.dataset && ('navTool' in n.dataset || 'navDivider' in n.dataset);
 function place(container, list) {

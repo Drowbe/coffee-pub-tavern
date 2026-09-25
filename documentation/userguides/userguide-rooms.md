@@ -33,7 +33,7 @@ If you reload the page while you are in a room, you are put back in that room ra
 
 ## Add and set up a room
 
-The **Rooms** tab on the Manage page holds the **Lobby**, which everyone belongs to and which cannot
+The **Spaces** tab on the Manage page holds the **Lobby**, which everyone belongs to and which cannot
 be deleted, plus any rooms an owner adds. It is a roster: click a room to open its own page. The
 arrows on each row reorder the roster; the Lobby is always first.
 

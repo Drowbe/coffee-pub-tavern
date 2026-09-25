@@ -1,7 +1,7 @@
 # Module Window Architecture
 
 **Audience:** developers building or changing a module's chrome, or the host code that draws it
-(`public/module-host.js`, `public/room-modules.js`, `public/sdk/host.js`).
+(`public/module-host.js`, `public/canvas.js`, `public/sdk/host.js`).
 
 Every module a person can open -- docked beside the call, floating over it, in a window of its own, or
 its own standalone page -- is drawn from the same four zones, in the same order, whichever chrome it is
@@ -51,7 +51,7 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
 
 A module never draws its own titlebar or reimplements dock/float/close: `public/module-host.js` draws all
 four zones from what a module hands it (`header`, `toolbar`, `bar`, and the frame itself), so the same
-`bar.set`/`header.set`/`toolbar.set` calls work whether the pane is docked (`public/room-modules.js`), floating,
+`bar.set`/`header.set`/`toolbar.set` calls work whether the pane is docked (`public/canvas.js`), floating,
 popped into its own window (`public/module.js`, only when popped out for the titlebar; the toolbar and action
 bar are there regardless), or the module's own standalone page.
 
@@ -99,7 +99,7 @@ closes it" rule.
 ## Reuse across dock and float
 
 Switching a docked module to floating (or back) does not rebuild it: `moveModulePane()` in
-`public/room-modules.js` pulls the frame (or in-page container), the action bar, the toolbar and the
+`public/canvas.js` pulls the frame (or in-page container), the action bar, the toolbar and the
 titlebar's custom-icons span out of the old chrome and moves those same DOM nodes into the new chrome,
 so whatever the module is holding onto (a conversation, a draft, a scroll position) survives the switch.
 Only the class that lays each one out changes. A window is a real new page, so that still goes through

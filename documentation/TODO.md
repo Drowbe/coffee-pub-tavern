@@ -16,7 +16,7 @@ order:
 3. Table out, and the call's name. **Built** (September 24, 2026).
 4. Roles: `owner`, `member` and the host's stand-in `admin`. **Built** (September 24, 2026).
 5. Space and the environment scope: the server and data (5a, **built** September 24, 2026), the pages (5b,
-   next), the SDK, the manifest and the bundled modules (5c).
+   **built** September 25, 2026), the SDK, the manifest and the bundled modules (5c).
 6. Canvas and module.
 7. Object.
 8. Asides.
@@ -84,7 +84,7 @@ both snapped, and with the call popped out.
 
 Left from the idea: the same drag-to-snap mechanism laying out the rooms (dashboard) page --
 a room card there is a static tile, not a live pane, so the generic snap (`snapGrid`,
-`snapCell`, `cellBox` in `public/room-modules.js`) would need lifting out of the pane
+`snapCell`, `cellBox` in `public/canvas.js`) would need lifting out of the pane
 manager first rather than assuming identical reuse. And a 2D equivalent of the dock's "one
 flexible column never leaves a gap" rule, if snapped panes should ever tile the stage
 exhaustively rather than sit where they were put.

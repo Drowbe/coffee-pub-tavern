@@ -1,8 +1,8 @@
 // The page side of a module frame. A module runs in a sandboxed iframe and can
 // only talk to this page (see public/sdk/host.js); this file answers those
 // calls by making the real, authenticated requests, and pushes live changes
-// back into the frame. Used by the server-page shell (module.js) and by the
-// room's floating panels (room.js).
+// back into the frame. Used by a module's own page (module.js), the dashboard (dashboard.js) and a
+// space's canvas (canvas.js).
 
 import { api, accessKeyHeaders } from '/brand.js';
 import { nav as navBar } from '/nav-bar.js';
@@ -34,18 +34,22 @@ const toWireScope = (sc) => WIRE_SCOPE[sc] || sc;
 const toSdkScope = (sc) => SDK_SCOPE[sc] || sc;
 const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
 const isPointer = (v) => isPlainObject(v) && typeof v.module === 'string' && typeof v.kind === 'string' && (typeof v.id === 'string' || typeof v.id === 'number');
-// Every pointer in a value, in the server's shape (toWire) or the SDK's (toSdk); anything else as it is.
+// Every pointer in a value, in the server's shape (toWire) or the SDK's (toSdk); anything else as it is. Either way a
+// pointer may arrive in either shape (an old #ref= link, a page handing back what it was given), so both directions
+// accept both and give the one asked for: a space's pointer carries its place under `space` (wire) or `room` (SDK), and
+// any other scope carries no place.
 function pointersIn(value, toWire) {
   if (Array.isArray(value)) return value.map((v) => pointersIn(v, toWire));
   if (!isPlainObject(value)) return value;
   if (isPointer(value) && typeof value.scope === 'string') {
-    const [from, to, fromKey, toKey] = toWire ? ['room', 'space', 'room', 'space'] : ['space', 'room', 'space', 'room'];
+    const [inSpace, placeKey, otherKey] = toWire ? ['space', 'space', 'room'] : ['room', 'room', 'space'];
     const scope = toWire ? toWireScope(value.scope) : toSdkScope(value.scope);
+    const place = value[placeKey] ?? value[otherKey];
     const out = {};
     for (const [k, v] of Object.entries(value)) {
       if (k === 'scope') out.scope = scope;
-      else if (k === fromKey) { if (value.scope === from || scope === to) out[toKey] = v; }
-      else if (k !== toKey) out[k] = v;
+      else if (k === placeKey || k === otherKey) { if (scope === inSpace && !(placeKey in out) && place !== undefined) out[placeKey] = place; }
+      else out[k] = v;
     }
     return out;
   }
@@ -57,13 +61,13 @@ const toSdk = (value) => pointersIn(value, false);
 // One live stream per page (and room) is shared by every module frame on it. Browsers allow only a
 // few long-lived connections to one site, so a stream per module would starve everything else once
 // a handful of modules were open. See GET /api/modules/stream in server/index.js.
-const streams = new Map(); // "<room>|<guest>" -> { source, subs }
-function joinStream(room, guest, onEvent) {
-  const key = `${room || ''}|${guest || ''}`;
+const streams = new Map(); // "<space>|<guest>" -> { source, subs }
+function joinStream(space, guest, onEvent) {
+  const key = `${space || ''}|${guest || ''}`;
   let s = streams.get(key);
   if (!s) {
     const p = new URLSearchParams();
-    if (room) p.set('space', room);
+    if (space) p.set('space', space);
     if (guest) p.set('guest', guest);
     const source = new EventSource(`/api/modules/stream?${p}`);
     s = { source, subs: new Set() };
@@ -96,19 +100,19 @@ function joinStream(room, guest, onEvent) {
 // the person's state (`handlers.state`: online, cameraOn, micOn, speaking, name) and their reactions
 // (`handlers.reaction`). The client library is loaded the first time anyone watches.
 let livekit = null;
-async function watchMedia({ key, audio = false, video = true, room: startRoom = 'lobby', handlers = {} }) {
+async function watchMedia({ key, audio = false, video = true, room: startSpace = 'lobby', handlers = {} }) {
   if (typeof key !== 'string' || !key) throw Object.assign(new Error('media.watch needs the person\'s key'), { status: 400 });
   if (!livekit) livekit = await import('/lib/livekit-client.esm.mjs');
   const { Room, RoomEvent, Track } = livekit;
   const call = (name, ...args) => { try { if (typeof handlers[name] === 'function') handlers[name](...args); } catch (err) { console.error(err); } };
-  const room = new Room({ adaptiveStream: false });
+  const viewer = new Room({ adaptiveStream: false });
   // Everything for a video box; a box that only needs "are they talking" subscribes to the microphone
   // alone once the person is found (LiveKit reports who is talking over the subscriber link).
   const autoSubscribe = video || audio;
   let participant = null;
   let speaking = false;
-  let wantedRoom = typeof startRoom === 'string' && startRoom ? startRoom : 'lobby';
-  let connectedRoom = null;
+  let wantedSpace = typeof startSpace === 'string' && startSpace ? startSpace : 'lobby';
+  let connectedSpace = null;
   let following = false; // this disconnect is ours (follow), so reconnect at once, not after the usual pause
   let stopped = false;
   let videoEl = null;
@@ -153,7 +157,7 @@ async function watchMedia({ key, audio = false, video = true, room: startRoom = 
     dropMedia();
     state();
   };
-  room
+  viewer
     .on(RoomEvent.ParticipantConnected, adopt)
     .on(RoomEvent.ParticipantDisconnected, drop)
     .on(RoomEvent.TrackPublished, (_pub, p) => adopt(p))
@@ -198,7 +202,7 @@ async function watchMedia({ key, audio = false, video = true, room: startRoom = 
       }
     })
     .on(RoomEvent.Disconnected, () => {
-      connectedRoom = null;
+      connectedSpace = null;
       participant = null;
       dropMedia();
       state();
@@ -210,13 +214,13 @@ async function watchMedia({ key, audio = false, video = true, room: startRoom = 
 
   async function connect() {
     if (stopped) return;
-    const target = wantedRoom;
+    const target = wantedSpace;
     try {
       const { token, livekitUrl } = await api('POST', '/api/token', { role: 'viewer', space: target });
-      await room.connect(livekitUrl, token, { autoSubscribe });
-      connectedRoom = target;
+      await viewer.connect(livekitUrl, token, { autoSubscribe });
+      connectedSpace = target;
       call('connection', { connected: true, room: target });
-      for (const p of room.remoteParticipants.values()) adopt(p);
+      for (const p of viewer.remoteParticipants.values()) adopt(p);
       state();
     } catch (err) {
       call('connection', { connected: false, room: null, error: err.message });
@@ -225,20 +229,20 @@ async function watchMedia({ key, audio = false, video = true, room: startRoom = 
   }
   connect();
   return {
-    // The person moved: leave this room for that one (the reconnect follows Disconnected).
-    follow(roomId) {
-      if (typeof roomId !== 'string' || !roomId || roomId === wantedRoom) return;
-      wantedRoom = roomId;
-      if (connectedRoom) {
+    // The person moved: leave this space for that one (the reconnect follows Disconnected).
+    follow(spaceId) {
+      if (typeof spaceId !== 'string' || !spaceId || spaceId === wantedSpace) return;
+      wantedSpace = spaceId;
+      if (connectedSpace) {
         following = true;
-        room.disconnect().catch(() => {});
+        viewer.disconnect().catch(() => {});
       }
     },
     stop() {
       stopped = true;
       clearTimeout(retry);
       dropMedia();
-      room.disconnect().catch(() => {});
+      viewer.disconnect().catch(() => {});
     },
   };
 }
@@ -493,10 +497,13 @@ function splitOverflow(items, max) {
 // root of its own, beside the page's own elements, with the page's power (see the run modes in
 // documentation/architecture/architecture-modules.md).
 //
-// Mounts one module into an empty <iframe>. `scope` is 'server' (the module's
-// own page) or 'room' (a room panel, with `roomId`). Returns { destroy, send }.
-export function mountModule({ module, frame = null, container = null, scope, roomId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
+// `scope` is 'environment' (the module's own page) or 'space' (on a space's canvas, with `spaceId`). Returns
+// { destroy, send, deliver }. Pointers the page is handed (onOpenRef) and hands in (deliver) are in the server's names.
+export function mountModule({ module, frame = null, container = null, scope: place, spaceId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
+  // What the module hears: the SDK's names for its place ('server', or 'room' with `roomId`) until plan-names step 5c.
+  const scope = toSdkScope(place);
+  const roomId = spaceId;
   let contextInfo = null;
   // A keyed page (public/keyed.js): the module's page about one person, opened with the access key and no
   // session. `keyed` is { path, subject, query }; the page's own api() already carries the key.
@@ -602,7 +609,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'refs.open'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
-      return Boolean(await onOpenRef({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) }));
+      return Boolean(await onOpenRef(toWire({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) })));
     },
     // A Font Awesome icon as inline SVG, for a module in a sandboxed frame that cannot load the icon font.
     async 'icons.svg'({ name, style }) {
@@ -1291,7 +1298,8 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     beginDragForTest: (ref) => beginDrag(mine, ref),
     // For tests: run the pointer-driven drag from this module as its SDK would (steps: start, move, drop).
     ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref && ref.card ? { card: cleanCard(ref.card) } : { ref }, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
-    deliver,
+    // An event for the module from the page: a pointer in it (refopen) goes in the SDK's names.
+    deliver: (event, data) => deliver(event, toSdk(data)),
     destroy() {
       if (!pageMode) hostWin.removeEventListener('message', onMessage);
       sdkEmit = null;

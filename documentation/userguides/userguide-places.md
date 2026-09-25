@@ -7,7 +7,7 @@ The Places module keeps the places your room cares about: where you are staying,
 ## Set it up (owner)
 
 1. On the Modules tab, choose **Install** beside Places under **Available with this server**, then **Approve and enable**. It asks to link to other modules' items.
-2. Tick **Available in every room**, or tick it per room on the room's own page.
+2. Tick **Available in every space**, or tick it per room on the room's own page.
 3. **Search (optional).** Under Places' settings (**Module Configuration** on its card), **Place search** chooses where a search for a place by name is asked, and Magpie sends nothing out unless you choose one:
    - **None** (the default): no search.
    - **Photon, the public service**: searches the server cannot answer from its own saved places are sent to the public Photon service at photon.komoot.io. Its terms are "reasonable limits": extensive use may be throttled or banned, and there is no availability guarantee. Results come from OpenStreetMap data, so "© OpenStreetMap contributors" applies (Magpie already shows that credit on the map, and the results say "Search by Photon").

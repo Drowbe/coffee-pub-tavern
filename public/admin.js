@@ -55,11 +55,13 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
-// Server / Theme / Rooms / Roles / Users / About tabs, remembered in the address
-const TABS = ['server', 'theme', 'rooms', 'roles', 'users', 'modules', 'about'];
+// Environment / Theme / Spaces / Roles / Users / Modules / About tabs, remembered in the address
+const TABS = ['environment', 'theme', 'spaces', 'roles', 'users', 'modules', 'about'];
+// Their old names, from links and bookmarks: #settings and #server are the Environment tab, #rooms the Spaces tab.
+const OLD_TABS = { settings: 'environment', server: 'environment', rooms: 'spaces' };
 function selectTab(name) {
-  if (name === 'settings') name = 'server'; // the old name
-  const tab = TABS.includes(name) ? name : 'server';
+  if (OLD_TABS[name]) name = OLD_TABS[name];
+  const tab = TABS.includes(name) ? name : 'environment';
   for (const t of TABS) $(`tab-${t}`).hidden = tab !== t;
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
@@ -101,8 +103,8 @@ function renderLive(card, online) {
   dot.classList.toggle('online', !!online);
   dot.title = online ? 'in a call' : 'offline';
   const live = card.querySelector('[data-live]');
-  const inRoom = online && online.room ? rooms.find((r) => r.id === online.room) : null;
-  live.textContent = online ? `${inRoom ? `in ${inRoom.name} · ` : ''}${online.micOn ? 'mic on' : 'mic off'} · ${online.cameraOn ? 'camera on' : 'camera off'}` : '';
+  const inSpace = online && online.space ? spaces.find((r) => r.id === online.space) : null;
+  live.textContent = online ? `${inSpace ? `in ${inSpace.name} · ` : ''}${online.micOn ? 'mic on' : 'mic off'} · ${online.cameraOn ? 'camera on' : 'camera off'}` : '';
   card.querySelector('[data-action="mute"]').hidden = !online || !online.micOn;
   card.querySelector('[data-action="kick"]').hidden = !online;
 }
@@ -145,7 +147,7 @@ function renderUsers() {
     }
   }
   $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} in a call`;
-  renderRooms(); // the member lists follow the users
+  renderSpaces(); // the member lists follow the users
 }
 
 async function refreshLive() {
@@ -163,7 +165,7 @@ async function refreshLive() {
 async function loadUsers() {
   const status = await api('GET', '/api/status');
   users = status.users;
-  rooms = status.spaces || rooms;
+  spaces = status.spaces || spaces;
   renderUsers();
 }
 
@@ -205,84 +207,84 @@ $('roles-table').addEventListener('change', async (event) => {
   }
 });
 
-// --- rooms ---------------------------------------------------------------------
-// A roster, same as Users: click a room to configure it on its own page
-// (/rooms/<id>) instead of editing it inline in this list.
+// --- spaces ---------------------------------------------------------------------
+// A roster, same as Users: click a space to configure it on its own page
+// (/spaces/<id>) instead of editing it inline in this list.
 
-let rooms = [];
-const roomRows = new Map();
+let spaces = [];
+const spaceRows = new Map();
 
-function roomRowFor(room) {
-  let row = roomRows.get(room.id);
+function spaceRowFor(space) {
+  let row = spaceRows.get(space.id);
   if (row) return row;
-  row = $('room-card').content.firstElementChild.cloneNode(true);
-  row.dataset.room = room.id;
-  roomRows.set(room.id, row);
-  $('rooms').appendChild(row);
+  row = $('space-card').content.firstElementChild.cloneNode(true);
+  row.dataset.space = space.id;
+  spaceRows.set(space.id, row);
+  $('spaces').appendChild(row);
   return row;
 }
 
 const PROFILE_LABELS = { roleplaying: 'Roleplaying', participants: 'Participants', characters: 'Characters' };
 
-function fillRoomRow(row, room, index) {
+function fillSpaceRow(row, space, index) {
   const img = row.querySelector('[data-thumb]');
-  img.hidden = !room.hasImage;
-  if (room.hasImage) img.src = `/img/space/${room.id}?v=${Date.now()}`;
-  row.querySelector('[data-thumb-fallback]').hidden = room.hasImage;
-  row.querySelector('[data-name]').textContent = room.name;
-  const count = room.isLobby ? users.length : room.members.length;
-  const who = room.isLobby ? 'Everyone' : `${count} member${count === 1 ? '' : 's'}`;
-  row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[room.profile] || 'Roleplaying'}`;
-  row.querySelector('[data-action="edit"]').href = `/spaces/${encodeURIComponent(room.id)}`;
-  row.classList.toggle('lobby', room.isLobby);
+  img.hidden = !space.hasImage;
+  if (space.hasImage) img.src = `/img/space/${space.id}?v=${Date.now()}`;
+  row.querySelector('[data-thumb-fallback]').hidden = space.hasImage;
+  row.querySelector('[data-name]').textContent = space.name;
+  const count = space.isLobby ? users.length : space.members.length;
+  const who = space.isLobby ? 'Everyone' : `${count} member${count === 1 ? '' : 's'}`;
+  row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[space.profile] || 'Roleplaying'}`;
+  row.querySelector('[data-action="edit"]').href = `/spaces/${encodeURIComponent(space.id)}`;
+  row.classList.toggle('lobby', space.isLobby);
   // The Lobby always sits first and isn't reorderable; among the rest, hide
   // whichever arrow would be a no-op at that end of the list.
-  row.querySelector('[data-action="room-up"]').hidden = room.isLobby || index <= 1;
-  row.querySelector('[data-action="room-down"]').hidden = room.isLobby || index >= rooms.length - 1;
+  row.querySelector('[data-action="space-up"]').hidden = space.isLobby || index <= 1;
+  row.querySelector('[data-action="space-down"]').hidden = space.isLobby || index >= spaces.length - 1;
 }
 
-function renderRooms() {
-  rooms.forEach((room, index) => {
-    const row = roomRowFor(room);
-    fillRoomRow(row, room, index);
-    $('rooms').appendChild(row); // also fixes the row's position after a reorder
+function renderSpaces() {
+  spaces.forEach((space, index) => {
+    const row = spaceRowFor(space);
+    fillSpaceRow(row, space, index);
+    $('spaces').appendChild(row); // also fixes the row's position after a reorder
   });
-  for (const [id, row] of roomRows) {
-    if (!rooms.some((r) => r.id === id)) {
+  for (const [id, row] of spaceRows) {
+    if (!spaces.some((r) => r.id === id)) {
       row.remove();
-      roomRows.delete(id);
+      spaceRows.delete(id);
     }
   }
-  $('rooms-status').textContent = `${rooms.length} room${rooms.length === 1 ? '' : 's'}`;
-  renderInviteRooms();
+  $('spaces-status').textContent = `${spaces.length} space${spaces.length === 1 ? '' : 's'}`;
+  renderInviteSpaces();
 }
 
-async function saveRoomOrder() {
+async function saveSpaceOrder() {
   try {
-    await api('POST', '/api/spaces/order', { order: rooms.filter((r) => !r.isLobby).map((r) => r.id) });
+    await api('POST', '/api/spaces/order', { order: spaces.filter((r) => !r.isLobby).map((r) => r.id) });
   } catch (err) {
-    say($('rooms-status'), err.message, true);
+    say($('spaces-status'), err.message, true);
   }
 }
 
-$('rooms').addEventListener('click', (event) => {
-  const button = event.target.closest('[data-action="room-up"], [data-action="room-down"]');
+$('spaces').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action="space-up"], [data-action="space-down"]');
   if (!button) return;
-  const id = button.closest('.user-card').dataset.room;
-  const index = rooms.findIndex((r) => r.id === id);
-  const swapWith = button.dataset.action === 'room-up' ? index - 1 : index + 1;
-  if (index < 0 || swapWith < 0 || swapWith >= rooms.length || rooms[swapWith].isLobby) return;
-  [rooms[index], rooms[swapWith]] = [rooms[swapWith], rooms[index]];
-  renderRooms();
-  saveRoomOrder();
+  const id = button.closest('.user-card').dataset.space;
+  const index = spaces.findIndex((r) => r.id === id);
+  const swapWith = button.dataset.action === 'space-up' ? index - 1 : index + 1;
+  if (index < 0 || swapWith < 0 || swapWith >= spaces.length || spaces[swapWith].isLobby) return;
+  [spaces[index], spaces[swapWith]] = [spaces[swapWith], spaces[index]];
+  renderSpaces();
+  saveSpaceOrder();
 });
 
-$('add-room').addEventListener('click', async () => {
+$('add-space').addEventListener('click', async () => {
   try {
-    const { space: room } = await api('POST', '/api/spaces', { name: `Room ${rooms.length}`, description: '', members: [] });
-    location.href = `/spaces/${encodeURIComponent(room.id)}`; // set up members and an image right away
+    const { space } = await api('POST', '/api/spaces', { name: `Space ${spaces.length}`, description: '', members: [] });
+    location.href = `/spaces/${encodeURIComponent(space.id)}`; // set up members and an image right away
   } catch (err) {
-    say($('rooms-status'), err.message, true);
+    say($('spaces-status'), err.message, true);
   }
 });
 
@@ -318,7 +320,7 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-environment-name').value, homeIcon: selectedHomeIcon }, $('settings-status')));
 // Language, time and money: the currency list is the one every picker uses (window.hostCurrency, from /sdk/host.js): the
 // common ones first, then every other the server takes, by name, plus whatever is set if it is in neither (so a code chosen
 // elsewhere is shown, not lost). Without the server's list it falls back to the browser's.
@@ -582,17 +584,17 @@ $('save-registration').addEventListener('click', () => saveSettings({ allowRegis
 
 // --- invites -----------------------------------------------------------------
 
-function renderInviteRooms() {
-  const container = $('invite-rooms');
+function renderInviteSpaces() {
+  const container = $('invite-spaces');
   const keep = new Set();
-  for (const room of rooms) {
-    if (room.isLobby) continue; // everyone is already there; nothing to pick
-    keep.add(room.id);
-    let label = container.querySelector(`[data-room="${CSS.escape(room.id)}"]`);
+  for (const space of spaces) {
+    if (space.isLobby) continue; // everyone is already there; nothing to pick
+    keep.add(space.id);
+    let label = container.querySelector(`[data-space="${CSS.escape(space.id)}"]`);
     if (!label) {
       label = document.createElement('label');
       label.className = 'member member-toggle';
-      label.dataset.room = room.id;
+      label.dataset.space = space.id;
       const input = document.createElement('input');
       input.type = 'checkbox';
       const name = document.createElement('span');
@@ -600,19 +602,19 @@ function renderInviteRooms() {
       label.append(input, name);
       container.appendChild(label);
     }
-    label.querySelector('.member-name').textContent = room.name;
+    label.querySelector('.member-name').textContent = space.name;
   }
-  for (const label of [...container.children]) if (!keep.has(label.dataset.room)) label.remove();
+  for (const label of [...container.children]) if (!keep.has(label.dataset.space)) label.remove();
 }
 
-$('invite-rooms').addEventListener('change', (event) => {
+$('invite-spaces').addEventListener('change', (event) => {
   event.target.closest('.member-toggle')?.classList.toggle('online', event.target.checked);
 });
 
 $('make-invite').addEventListener('click', async () => {
   try {
-    const roomIds = [...$('invite-rooms').querySelectorAll('input:checked')].map((i) => i.closest('[data-room]').dataset.room);
-    const { invite } = await api('POST', '/api/invites', { spaces: roomIds });
+    const spaceIds = [...$('invite-spaces').querySelectorAll('input:checked')].map((i) => i.closest('[data-space]').dataset.space);
+    const { invite } = await api('POST', '/api/invites', { spaces: spaceIds });
     $('invite-link').textContent = invite.url;
     $('invite-link-row').hidden = false;
     say($('invite-status'), 'link made');
@@ -745,7 +747,7 @@ function moduleCard(m) {
       <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
       ${m.source === 'bundled' || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
-    ${m.scope.includes('space') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
+    ${m.scope.includes('space') ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
     <div class="row">
       ${(m.settings || []).some((d) => d.scope === 'environment') ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does on this server"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
       <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && m.missing?.length ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
@@ -909,7 +911,7 @@ function renderModules() {
       <div class="module-head">
         <i class="fa-solid fa-${escapeHtml(b.icon)} fa-fw module-icon" aria-hidden="true"></i>
         <div class="grow"><h2>${escapeHtml(b.name)} <span class="hint">built in</span></h2>
-          <div class="hint">Room pane</div></div>
+          <div class="hint">On a space's canvas</div></div>
         <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
@@ -1051,7 +1053,7 @@ $('modules-list').addEventListener('change', async (event) => {
     card.querySelector('[data-module-action="rollback"]').disabled = event.target.value === m.version;
     return;
   }
-  if (!event.target.matches('[data-module-all-rooms]')) return;
+  if (!event.target.matches('[data-module-all-spaces]')) return;
   const id = event.target.closest('.module-card').dataset.id;
   try {
     await api('PATCH', `/api/modules/${id}`, { allSpaces: event.target.checked });
@@ -1129,7 +1131,7 @@ $('save-icons').addEventListener('click', async () => {
 // Site images (icon, sign-in background): click the picture to change it,
 // Remove to clear it. The icon falls back to the built-in one when unset.
 function renderSiteImages(b) {
-  for (const slot of document.querySelectorAll('#tab-server [data-site]')) {
+  for (const slot of document.querySelectorAll('#tab-environment [data-site]')) {
     const name = slot.dataset.site;
     const has = name === 'icon' ? b.hasIcon : b.hasBackground;
     const img = slot.querySelector('img');
@@ -1153,7 +1155,7 @@ async function saveSiteImage(name, file) {
     say($('settings-status'), err.message, true);
   }
 }
-$('tab-server').addEventListener('change', async (event) => {
+$('tab-environment').addEventListener('change', async (event) => {
   const input = event.target;
   if (input.type !== 'file' || !input.closest('[data-site]')) return;
   const file = input.files[0];
@@ -1161,14 +1163,14 @@ $('tab-server').addEventListener('change', async (event) => {
   await saveSiteImage(input.closest('[data-site]').dataset.site, file);
   input.value = '';
 });
-$('tab-server').addEventListener('click', async (event) => {
+$('tab-environment').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action="site-library"]');
   if (!button) return;
   const file = await pickBackground({ title: 'Choose the sign-in background' });
   if (file) await saveSiteImage(button.closest('[data-site]').dataset.site, file);
 });
 
-$('tab-server').addEventListener('click', async (event) => {
+$('tab-environment').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action="site-clear"]');
   if (!button) return;
   const name = button.closest('[data-site]').dataset.site;
@@ -1224,7 +1226,7 @@ $('guest-images').addEventListener('click', async (event) => {
 });
 
 // The server-wide Default Images set -- what a member's own Participant
-// box falls back to once neither they nor their room has set a picture.
+// box falls back to once neither they nor their space has set a picture.
 // Same click-to-change/Clear shape as every other image slot in the app.
 function renderDefaultImages(b) {
   for (const slot of document.querySelectorAll('#default-images [data-default-slot]')) {
@@ -1395,7 +1397,7 @@ $('env-delete-cancel').addEventListener('click', async () => {
 });
 
 async function init() {
-  renderTopbar({ location: crumbLink('gear', 'Server Settings', '/admin') });
+  renderTopbar({ location: crumbLink('gear', 'Manage', '/admin') });
   buildHomeIconGrid();
   await loadBranding();
   wireOverlayBack('Spaces');
@@ -1416,7 +1418,7 @@ async function init() {
     if (info.mfaBypass) mfaBypassBanner();
     $('set-mfa-row').hidden = info.mfaOffered === false;
     const { settings } = await api('GET', '/api/settings');
-    $('set-server').value = settings.environmentName;
+    $('set-environment-name').value = settings.environmentName;
     $('set-language').value = settings.language || 'en';
     $('set-clock').value = settings.clock === '24' ? '24' : '12';
     fillCurrencies(settings.currency || 'USD');

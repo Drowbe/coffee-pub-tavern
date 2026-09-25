@@ -7,7 +7,7 @@ Polls lets a group decide something together: where to go on a trip, where to st
 ## Set it up (owner)
 
 1. On the Modules tab, choose **Install** beside Polls under **Available with this server**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add four permissions to the Roles tab and to send notifications. Version 1.12.10 adds one of them, so updating to it waits for an owner's approval once.
-2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
+2. To use it in rooms, tick **Available in every space** on its card, or tick it per room on the room's own page.
 3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**, and who can **Close and delete polls other people started**. By default members and moderators can do the first three and guests can only see; the fourth is off for everyone but owners, who can always do everything. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
 
 The permission to start polls is enforced by the Polls page itself, not by the server, so it is a guard against a mistake rather than against someone determined. See and vote are enforced by the server.

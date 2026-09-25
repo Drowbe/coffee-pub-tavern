@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const files = ['public/style.css', 'public/room.js', 'public/room.html'];
+const files = ['public/style.css', 'public/space.js', 'public/space.html'];
 const problems = [];
 const fail = (file, detail) => problems.push(`${file}: ${detail}`);
 

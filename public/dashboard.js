@@ -1,4 +1,4 @@
-// The dashboard on the rooms page: cards under the room list, across all of a person's rooms. Who is around is
+// The dashboard on the spaces page: cards under the space list, across all of a person's spaces. Who is around is
 // the host's own; every other card is a widget a module provides (its manifest's surfaces.widget), hosted here
 // exactly as a module page is, so the host names no module. The section stays hidden while there is nothing to show.
 import { api, escapeHtml } from '/brand.js';
@@ -30,17 +30,17 @@ let started = false;
 
 const section = () => document.getElementById('dashboard');
 
-// Showing an item where its module keeps it. An item in a room takes the person into that room with the module's
+// Showing an item where its module keeps it. An item in a space takes the person into that space with the module's
 // pane open on it (the page supplies how, since it owns joining); anything else goes to the module's own page,
 // given the pointer in the address (the page hands it on).
-let openInRoom = null;
+let openInSpace = null;
 function openRef(ref) {
-  if (ref.scope === 'room' && ref.room && openInRoom) {
-    openInRoom(ref.room, ref.module, ref);
+  if (ref.scope === 'space' && ref.space && openInSpace) {
+    openInSpace(ref.space, ref.module, ref);
     return true;
   }
   const q = new URLSearchParams();
-  if (ref.scope === 'room') q.set('space', ref.room);
+  if (ref.scope === 'space') q.set('space', ref.space);
   location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}#ref=${encodeURIComponent(JSON.stringify(ref))}`;
   return true;
 }
@@ -78,7 +78,7 @@ function mountWidget(w) {
   mountModule({
     module: { id: w.id, version: w.version, scope: w.scope },
     ...(inPage ? { container: holder } : { frame: holder }),
-    scope: 'server',
+    scope: 'environment',
     entry: w.entry,
     onOpenRef: openRef,
     // A click in the widget that means "show me this in full": the module's own page, at that place.
@@ -88,22 +88,22 @@ function mountWidget(w) {
   });
 }
 
-// Who is around: a strip above the room cards of everyone online (signed in with the host open, in a room or not),
+// Who is around: a strip above the space cards of everyone online (signed in with the host open, in a space or not),
 // with where they are, and a button to ask them into a private conversation of two.
-let joinRoom = null;
+let joinSpace = null;
 let whoNote = '';
 function renderWho(presence) {
   const el = document.getElementById('whos-around');
   if (!el) return;
-  const rooms = new Map((presence.rooms || []).map((r) => [r.id, r]));
+  const spaces = new Map((presence.spaces || []).map((r) => [r.id, r]));
   const here = (presence.users || []).filter((u) => u.present || u.online);
   const people = here.map((u) => {
     const mine = u.key === presence.me;
-    const where = u.space && rooms.get(u.space) ? rooms.get(u.space).name : '';
+    const where = u.space && spaces.get(u.space) ? spaces.get(u.space).name : '';
     const label = escapeHtml(u.displayName || u.login || 'Someone');
     // One cell of the grid: who, where they are, and what can be done (in the call, invite).
-    const actions = `${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinRoom ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}`;
-    return `<div class="dashboard-person${where ? ' in-room' : ''}"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-text"><span class="dashboard-person-name">${label}${mine ? ' (you)' : ''}</span><span class="dashboard-person-where">${where ? `in ${escapeHtml(where)}` : 'online'}</span></span><span class="dashboard-person-actions">${actions}</span></div>`;
+    const actions = `${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinSpace ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}`;
+    return `<div class="dashboard-person${where ? ' is-placed' : ''}"><img src="/img/${encodeURIComponent(u.key)}/profile" alt=""><span class="dashboard-person-text"><span class="dashboard-person-name">${label}${mine ? ' (you)' : ''}</span><span class="dashboard-person-where">${where ? `in ${escapeHtml(where)}` : 'online'}</span></span><span class="dashboard-person-actions">${actions}</span></div>`;
   });
   el.innerHTML = `<h2 class="whos-around-title"><i class="fa-solid fa-user-group fa-fw" aria-hidden="true"></i> Who's around <span class="whos-around-count">${people.length || ''}</span></h2>` + (people.length ? `<div class="whos-around-list">${people.join('')}</div>` : '<p class="dashboard-empty">Nobody is around right now.</p>') + (whoNote ? `<p class="whos-around-note">${escapeHtml(whoNote)}</p>` : '');
   el.hidden = false;
@@ -111,9 +111,9 @@ function renderWho(presence) {
 
 async function invite(key) {
   try {
-    const { room } = await api('POST', '/api/asides/invite', { to: key });
+    const { aside } = await api('POST', '/api/asides/invite', { to: key });
     whoNote = '';
-    await joinRoom(room.id);
+    await joinSpace(aside.id);
   } catch (err) {
     whoNote = err.message;
     renderWho(lastPresence);
@@ -126,12 +126,12 @@ document.addEventListener('click', (event) => {
   if (b) invite(b.dataset.invite);
 });
 
-// Called each time the room list is drawn: the widgets are mounted once, who is around every time.
+// Called each time the space list is drawn: the widgets are mounted once, who is around every time.
 export async function initDashboard(presence, hooks = {}) {
   const root = section();
   if (!root) return;
-  if (hooks.openInRoom) openInRoom = hooks.openInRoom;
-  if (hooks.joinRoom) joinRoom = hooks.joinRoom;
+  if (hooks.openInSpace) openInSpace = hooks.openInSpace;
+  if (hooks.joinSpace) joinSpace = hooks.joinSpace;
   lastPresence = presence;
   if (!started) {
     started = true;

@@ -10,7 +10,7 @@ import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
 const PARTICIPANT_SLOTS = ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'];
 const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
-const ROOM_PROFILE_SLOTS = { roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS], participants: PARTICIPANT_SLOTS, characters: CHARACTER_SLOTS };
+const SPACE_PROFILE_SLOTS = { roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS], participants: PARTICIPANT_SLOTS, characters: CHARACTER_SLOTS };
 
 const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
@@ -19,10 +19,10 @@ let user = null; // whose profile this is: me, or the person being edited
 let mfaRequired = false; // the environment requires a second factor of the signed-in person (their own profile only)
 let mfaOffered = true; // the server offers two-step sign-in at all (ENABLE_MFA)
 let mfaBypass = false; // the server's admin lockout bypass applies to the signed-in person: no code asked, own reset offered
-let roomsById = new Map(); // every real room (not the Lobby), for the per-room sections below
+let spacesById = new Map(); // every real space (not the Lobby), for the per-space sections below
 
 // If this page is open as the overlay on top of an active call (same
-// pattern as closeProfileOverlay -- see brand.js/room.js), and it's my own
+// pattern as closeProfileOverlay -- see brand.js/space.js), and it's my own
 // settings rather than an admin editing someone else's, tell the running
 // call to pick up the change now instead of waiting for a camera toggle.
 function notifyLiveCallPrefs(patch) {
@@ -69,10 +69,10 @@ async function reload() {
 // An admin editing someone can change anything; on your own profile it's
 // whatever your role's Images permissions allow (Manage > Roles).
 const canImg = (slot) => !!editingKey || !!user.permissions?.[`image_${slot}`];
-const canRoomImages = () => !!editingKey || Object.entries(user.permissions || {}).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background');
-const imgApi = (slot, roomId) => editingKey
-  ? `/api/users/${user.key}${roomId ? `/spaces/${roomId}` : ''}/images/${slot}`
-  : `/api/me${roomId ? `/spaces/${roomId}` : ''}/images/${slot}`;
+const canSpaceImages = () => !!editingKey || Object.entries(user.permissions || {}).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background');
+const imgApi = (slot, spaceId) => editingKey
+  ? `/api/users/${user.key}${spaceId ? `/spaces/${spaceId}` : ''}/images/${slot}`
+  : `/api/me${spaceId ? `/spaces/${spaceId}` : ''}/images/${slot}`;
 
 function render() {
   const editing = !!editingKey;
@@ -205,38 +205,38 @@ function render() {
     $('delete-btn').hidden = self || (fixed && !user.hostAdmin); // the server's admin can't be removed here
   }
 
-  renderRoomSections();
+  renderSpaceSections();
 }
 
-// --- per-room images -------------------------------------------------------
-// One section per real room this person belongs to (never the Lobby --
-// per-room images are for rooms an admin actually picked them into). A
-// room's profile decides which of the two groups it even offers; an unset
+// --- per-space images -------------------------------------------------------
+// One section per real space this person belongs to (never the Lobby --
+// per-space images are for spaces an admin actually picked them into). A
+// space's profile decides which of the two groups it even offers; an unset
 // slot here simply uses the Default Profile Images above, so someone in
 // two campaigns can give each its own Character images without the other
 // campaign's set ever needing to be touched.
 
-function buildRoomSection(roomId) {
-  const section = $('room-section-template').content.firstElementChild.cloneNode(true);
-  section.id = `section-room-${roomId}`;
-  section.dataset.room = roomId;
-  $('room-sections').appendChild(section);
+function buildSpaceSection(spaceId) {
+  const section = $('space-section-template').content.firstElementChild.cloneNode(true);
+  section.id = `section-space-${spaceId}`;
+  section.dataset.space = spaceId;
+  $('space-sections').appendChild(section);
   return section;
 }
 
-function fillRoomSection(section, room, roomImages) {
+function fillSpaceSection(section, space, spaceImages) {
   const editing = !!editingKey;
-  section.querySelector('.room-section-title').textContent = room.name;
-  const token = section.querySelector('.room-token');
-  token.hidden = !room.hasImage;
-  if (room.hasImage && token.dataset.for !== `${room.id}`) {
-    token.dataset.for = room.id;
-    token.src = `/img/space/${encodeURIComponent(room.id)}?v=${Date.now()}`;
+  section.querySelector('.space-section-title').textContent = space.name;
+  const token = section.querySelector('.space-token');
+  token.hidden = !space.hasImage;
+  if (space.hasImage && token.dataset.for !== `${space.id}`) {
+    token.dataset.for = space.id;
+    token.src = `/img/space/${encodeURIComponent(space.id)}?v=${Date.now()}`;
   }
-  section.querySelector('[data-action="room-remove"]').hidden = !editing;
+  section.querySelector('[data-action="space-remove"]').hidden = !editing;
 
   // Only an owner or the admin sets any of this, same as the images themselves.
-  const perms = roomImages.permissions || {};
+  const perms = spaceImages.permissions || {};
   for (const box of section.querySelectorAll('[data-permission]')) {
     box.checked = !!perms[box.dataset.permission];
     box.disabled = !editing || hasOwnerRights(user);
@@ -244,28 +244,28 @@ function fillRoomSection(section, room, roomImages) {
   section.querySelector('[data-permissions-hint]').textContent = hasOwnerRights(user)
     ? `${user.hostAdmin ? 'The host admin' : isAdminAccount(user) ? 'The admin' : 'Owners'} can always do all of this, in every space.`
     : editing
-      ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
-      : `Set in Manage. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
-  const useDefault = roomImages.useDefaultImages !== false;
+      ? `Moderator makes ${user.displayName} a moderator in ${space.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
+      : `Set in Manage. Moderator gives you the Moderator role's permissions in ${space.name} only.`;
+  const useDefault = spaceImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
-  useBox.disabled = !canRoomImages();
-  section.querySelector('[data-room-images]').hidden = useDefault;
-  section.querySelector('.room-section-hint').textContent = editing
-    ? `${user.displayName}'s images just for ${room.name}. Anything left unset here uses the Default Profile Images above.`
-    : `Your images just for ${room.name}. Anything left unset here uses your Default Profile Images above.`;
+  useBox.disabled = !canSpaceImages();
+  section.querySelector('[data-space-images]').hidden = useDefault;
+  section.querySelector('.space-section-hint').textContent = editing
+    ? `${user.displayName}'s images just for ${space.name}. Anything left unset here uses the Default Profile Images above.`
+    : `Your images just for ${space.name}. Anything left unset here uses your Default Profile Images above.`;
 
-  const allowed = ROOM_PROFILE_SLOTS[room.profile] || ROOM_PROFILE_SLOTS.roleplaying;
+  const allowed = SPACE_PROFILE_SLOTS[space.profile] || SPACE_PROFILE_SLOTS.roleplaying;
   section.querySelector('[data-group="participant"]').hidden = !PARTICIPANT_SLOTS.some((s) => allowed.includes(s));
   section.querySelector('[data-group="character"]').hidden = !CHARACTER_SLOTS.some((s) => allowed.includes(s));
 
   for (const slot of section.querySelectorAll('.slot')) {
     const name = slot.dataset.slot;
-    const hasOwn = !!roomImages.images[name];
+    const hasOwn = !!spaceImages.images[name];
     const hasEffective = hasOwn || !!user.images[name];
     const img = slot.querySelector('img');
     img.hidden = !hasEffective;
-    if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?space=${encodeURIComponent(room.id)}&v=${Date.now()}`;
+    if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?space=${encodeURIComponent(space.id)}&v=${Date.now()}`;
     slot.querySelector('.unset').hidden = hasEffective;
     slot.classList.toggle('set', hasOwn);
     slot.querySelector('.slot-pick').classList.toggle('still', !canImg(name));
@@ -273,35 +273,35 @@ function fillRoomSection(section, room, roomImages) {
   }
 }
 
-function renderRoomSections() {
-  const userRooms = user.spaces || {};
-  const keep = new Set(Object.keys(userRooms));
-  for (const [roomId, roomImages] of Object.entries(userRooms)) {
-    const room = roomsById.get(roomId);
-    if (!room) continue; // a room we don't know about yet (shouldn't happen); skip rather than crash
-    const section = $(`section-room-${roomId}`) || buildRoomSection(roomId);
-    fillRoomSection(section, room, roomImages);
+function renderSpaceSections() {
+  const userSpaces = user.spaces || {};
+  const keep = new Set(Object.keys(userSpaces));
+  for (const [spaceId, spaceImages] of Object.entries(userSpaces)) {
+    const space = spacesById.get(spaceId);
+    if (!space) continue; // a space we don't know about yet (shouldn't happen); skip rather than crash
+    const section = $(`section-space-${spaceId}`) || buildSpaceSection(spaceId);
+    fillSpaceSection(section, space, spaceImages);
   }
-  for (const section of [...$('room-sections').children]) {
-    if (keep.has(section.dataset.room)) continue;
+  for (const section of [...$('space-sections').children]) {
+    if (keep.has(section.dataset.space)) continue;
     section.remove();
   }
 }
 
-$('room-sections').addEventListener('change', (event) => {
-  const roomId0 = event.target.closest('.room-section')?.dataset.room;
-  if (roomId0 && ((editingKey && event.target.dataset.permission) || event.target.hasAttribute('data-use-default'))) {
+$('space-sections').addEventListener('change', (event) => {
+  const changedId = event.target.closest('.space-section')?.dataset.space;
+  if (changedId && ((editingKey && event.target.dataset.permission) || event.target.hasAttribute('data-use-default'))) {
     const patch = event.target.dataset.permission
       ? { permissions: { [event.target.dataset.permission]: event.target.checked } }
       : { useDefaultImages: event.target.checked };
     run(async () => {
-      user = (await api('PATCH', editingKey ? `/api/users/${user.key}/spaces/${roomId0}` : `/api/me/spaces/${roomId0}`, patch)).user;
+      user = (await api('PATCH', editingKey ? `/api/users/${user.key}/spaces/${changedId}` : `/api/me/spaces/${changedId}`, patch)).user;
       render();
     });
     return;
   }
   if (event.target.type !== 'file') return;
-  const roomId = event.target.closest('.room-section').dataset.room;
+  const spaceId = event.target.closest('.space-section').dataset.space;
   const slot = event.target.closest('.slot').dataset.slot;
   if (!canImg(slot)) return;
   const file = event.target.files[0];
@@ -309,30 +309,30 @@ $('room-sections').addEventListener('change', (event) => {
   if (!file) return;
   run(async () => {
     say(`uploading ${slot}...`);
-    user = (await api('PUT', imgApi(slot, roomId), file, file.type)).user;
+    user = (await api('PUT', imgApi(slot, spaceId), file, file.type)).user;
     render();
     say('image saved');
   });
 });
-$('room-sections').addEventListener('click', (event) => {
-  const remove = event.target.closest('[data-action="room-remove"]');
+$('space-sections').addEventListener('click', (event) => {
+  const remove = event.target.closest('[data-action="space-remove"]');
   if (remove && editingKey) {
-    const section = remove.closest('.room-section');
-    const name = section.querySelector('.room-section-title').textContent;
+    const section = remove.closest('.space-section');
+    const name = section.querySelector('.space-section-title').textContent;
     if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the space's Members tab.`)) return;
     run(async () => {
-      user = (await api('DELETE', `/api/spaces/${section.dataset.room}/members/${user.key}`)).user;
+      user = (await api('DELETE', `/api/spaces/${section.dataset.space}/members/${user.key}`)).user;
       render();
     });
     return;
   }
   const button = event.target.closest('[data-action="slot-clear"]');
   if (!button) return;
-  const roomId = button.closest('.room-section').dataset.room;
+  const spaceId = button.closest('.space-section').dataset.space;
   const slot = button.closest('.slot').dataset.slot;
   if (!canImg(slot)) return;
   run(async () => {
-    user = (await api('DELETE', imgApi(slot, roomId))).user;
+    user = (await api('DELETE', imgApi(slot, spaceId))).user;
     render();
   });
 });
@@ -604,12 +604,12 @@ $('delete-btn').addEventListener('click', () => run(async () => {
   location.href = '/admin';
 }));
 
-// Profile / Rooms tabs, remembered in the address -- same pattern as
-// admin.html's Users/Rooms/Settings tabs.
+// Profile / Spaces tabs, remembered in the address -- same pattern as
+// admin.html's tabs. #rooms, the old name, still opens Spaces.
 function selectTab(name) {
-  const tab = name === 'rooms' ? 'rooms' : 'profile';
+  const tab = name === 'spaces' || name === 'rooms' ? 'spaces' : 'profile';
   $('tab-profile').hidden = tab !== 'profile';
-  $('tab-rooms').hidden = tab !== 'rooms';
+  $('tab-spaces').hidden = tab !== 'spaces';
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
 }
@@ -634,15 +634,15 @@ async function init() {
       me = mine.user;
       if (!hasOwnerRights(me)) { location.href = '/'; return; }
     }
-    const [, { spaces: rooms }] = await Promise.all([reload(), api('GET', '/api/spaces')]);
-    roomsById = new Map(rooms.map((r) => [r.id, r]));
+    const [, { spaces }] = await Promise.all([reload(), api('GET', '/api/spaces')]);
+    spacesById = new Map(spaces.map((r) => [r.id, r]));
   } catch (err) {
     location.href = editingKey ? '/admin' : '/login?next=/profile';
     return;
   }
   document.title = `${document.title.split(' - ')[0]} - ${user.displayName}`;
-  // An admin editing someone: Server Settings > their name, each a way back.
-  if (editingKey) setTopbarLocation(crumbLink('gear', 'Server Settings', '/admin#users') + '<span class="crumb-sep">&rsaquo;</span>' + crumbLink('user', user.displayName, location.pathname));
+  // An owner editing someone: Manage > their name, each a way back.
+  if (editingKey) setTopbarLocation(crumbLink('gear', 'Manage', '/admin#users') + '<span class="crumb-sep">&rsaquo;</span>' + crumbLink('user', user.displayName, location.pathname));
   render();
   selectTab(location.hash.slice(1));
   // Your own module settings (not when an admin is editing someone else's profile).

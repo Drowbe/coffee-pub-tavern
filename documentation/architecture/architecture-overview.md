@@ -52,10 +52,11 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `server/modules.js` | Module install and registry; see [architecture-modules](architecture-modules.md) |
 | `public/login.html` | Sign-in page |
 | `public/register.html` | Self sign-up and invite acceptance |
-| `public/room.html` | The space list and the call |
+| `public/space.html` | The space list and the call. Until step 5b of the Names plan these were `room.html`, `room.js`, `roomconfig.*` and `room-modules.js`; `/room.html`, `/roomconfig.html` and `/module-settings?room=` answer 301 to the new pages, keeping the query |
 | `public/profile.html` | A player's profile: photo, call settings, default images, a section per room |
 | `public/admin.html` | The Manage page |
-| `public/roomconfig.html` | A room's own settings page |
+| `public/space-settings.html` | A space's own settings page, at `/spaces/<id>` |
+| `public/canvas.js` | The space's canvas: docking, floating, snapping and popping out the conference, the chat and the modules |
 | `public/view.html` | The OBS view |
 | `public/brand.js` | Shared header, branding and icon lookup |
 | `public/style.css` | The one stylesheet |

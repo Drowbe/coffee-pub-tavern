@@ -4,7 +4,7 @@
 import { loadBranding, api, renderTopbar, crumbLink, wireOverlayBack, hasOwnerRights } from '/brand.js';
 import { mountAiForm } from '/ai-form.js';
 
-renderTopbar({ location: crumbLink('gear', 'Server Settings', '/admin') });
+renderTopbar({ location: crumbLink('gear', 'Manage', '/admin') });
 await loadBranding();
 wireOverlayBack();
 

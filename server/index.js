@@ -1641,14 +1641,14 @@ mountOldLinks(app);
 
 app.get('/', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login');
-  res.sendFile(page('room.html'));
+  res.sendFile(page('space.html'));
 });
 
-// A guest link: the same page, in guest mode (room.js reads the token from
+// A guest link: the same page, in guest mode (space.js reads the token from
 // the URL itself -- see guestToken there). No account, so no redirect to
 // sign in; a dead or turned-off link is handled client-side instead.
 app.get('/guest/:token', (_req, res) => {
-  res.sendFile(page('room.html'));
+  res.sendFile(page('space.html'));
 });
 
 app.get('/login', (req, res) => {
@@ -1764,7 +1764,7 @@ app.get('/admin', (req, res) => {
 app.get('/spaces/:id', (req, res) => {
   if (!currentUser(req)) return res.redirect(`/login?next=/spaces/${encodeURIComponent(req.params.id)}`);
   if (!isOwner(req)) return res.status(403).send('Owners only.');
-  res.sendFile(page('roomconfig.html'));
+  res.sendFile(page('space-settings.html'));
 });
 
 
@@ -1890,7 +1890,7 @@ app.use('/fa/webfonts', express.static(path.join(faProDir, 'webfonts'), { maxAge
 // Background blur's own dependencies, all self-hosted for the same reason
 // livekit-client is: nothing this page needs is fetched from a CDN at
 // runtime. track-processors imports "livekit-client" and
-// "@mediapipe/tasks-vision" by bare package name -- room.html's import map
+// "@mediapipe/tasks-vision" by bare package name -- space.html's import map
 // points those at the second and third routes below.
 const trackProcessorsDist = path.join(__dirname, '..', 'node_modules', '@livekit', 'track-processors', 'dist');
 const visionDir = path.join(__dirname, '..', 'node_modules', '@mediapipe', 'tasks-vision');
@@ -1904,7 +1904,7 @@ app.use('/lib/mediapipe-wasm', express.static(path.join(visionDir, 'wasm'), { ma
 // after style.css on every page, so the cascade lets it win without
 // touching style.css itself. Nothing set yet means an empty file, so an
 // untouched server looks exactly like style.css's own built-in defaults.
-// This is also why the popped-out call window (room.js clones every
+// This is also why the popped-out call window (space.js clones every
 // <link rel="stylesheet"> into that new window) picks up the theme for
 // free -- it's just another stylesheet link, not a runtime JS override
 // that would need its own copy into that second document.

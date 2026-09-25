@@ -49,7 +49,7 @@ const runMigration = onlyMigration || (!onlyWords);
 // 'report' or 'enforce' (null: that mode has no pattern for this level). `step` is the plan's step that
 // switches the level to enforce. `enforceIn`, when given, keeps an enforced level to those folders for now: a hit
 // anywhere else is only reported, until the step that renames it there (the space level: server/ and tools/ from
-// step 5a; public/ in 5b and modules/ in 5c).
+// step 5a, public/ from 5b; modules/ in 5c).
 const LEVELS = [
   { id: 'environment', step: '2', code: 'enforce', words: 'enforce', codePatterns: [/tenant/gi], wordPatterns: [/\btenants?\b/gi] },
   {
@@ -70,7 +70,7 @@ const LEVELS = [
     ],
   },
   {
-    id: 'space', step: '5', code: 'enforce', words: 'enforce', enforceIn: ['server/', 'tools/'], reportUntil: '5b (public/) and 5c (modules/)',
+    id: 'space', step: '5', code: 'enforce', words: 'enforce', enforceIn: ['server/', 'tools/', 'public/'], reportUntil: '5c (modules/)',
     codePatterns: [/room/gi, /\bserverName\b/g, /\bscope\s*(:|[!=]==?)\s*['"]server['"]/g, /['"]server['"]\s*[!=]==?\s*[\w.?]*\bscope\b/g, /\bscope:\s*\[[^\]]*['"](room|server)['"]/g],
     wordPatterns: [/\brooms?\b/gi],
   },

@@ -21,7 +21,7 @@ async function start() {
   mountModule({
     module: { id: page.module.id, version: page.module.version, scope: ['environment'] },
     container: document.getElementById('module-frame'),
-    scope: 'server',
+    scope: 'environment',
     entry: page.entry,
     keyed: { path, subject, query },
     onTitle: (title) => { document.title = title || page.module.name; },

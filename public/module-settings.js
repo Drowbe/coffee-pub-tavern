@@ -1,6 +1,6 @@
 // The forms for the settings modules declare (module.json `settings`): one card per module that has settings of
 // a scope, one control per setting, a Save on each card. Used on the Modules tab (the server's), a space's page (the
-// room's), the page a space's moderators use (module-settings.html) and the profile page (a person's own). The
+// space's), the page a space's moderators use (module-settings.html) and the profile page (a person's own). The
 // server decides who may change what; this only draws what it is given.
 import { api, escapeHtml } from '/brand.js';
 
@@ -80,7 +80,7 @@ function control(def) {
   return `${head}<input id="${id}" type="text" data-key="${escapeHtml(def.key)}" value="${escapeHtml(def.value)}" maxlength="${def.maxLength || 100}"></label>`;
 }
 
-// Fill `container` with the settings of one scope ('server', 'room' with { room }, or 'person'). The container is
+// Fill `container` with the settings of one scope ('environment', 'space' with { space }, or 'person'). The container is
 // left hidden when there is nothing to set.
 // Why the list of files is empty, from what the server found in the folder.
 function fileHint(def) {
@@ -92,14 +92,12 @@ function fileHint(def) {
   return `${where}, which is empty. Copy the file in.`;
 }
 
-export async function renderModuleSettings(container, { scope, room = null, only = '', heading = true }) {
+export async function renderModuleSettings(container, { scope, space = null, only = '', heading = true }) {
   container.hidden = true;
-  // The server's names for the scopes (plan-names step 5a); this page's callers still say server and room until 5b.
-  const wireScope = { server: 'environment', room: 'space' }[scope] || scope;
   let modules;
   try {
-    const q = room ? `?space=${encodeURIComponent(room)}` : '';
-    modules = (await api('GET', `/api/module-settings/${wireScope}${q}`)).modules;
+    const q = space ? `?space=${encodeURIComponent(space)}` : '';
+    modules = (await api('GET', `/api/module-settings/${scope}${q}`)).modules;
   } catch {
     return; // not something this person may set here
   }
@@ -140,7 +138,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
       delBtn.disabled = true;
       try {
         await api('DELETE', `/api/modules/${encodeURIComponent(module.id)}/files/${encodeURIComponent(name)}`);
-        await renderModuleSettings(container, { scope, room, only, heading });
+        await renderModuleSettings(container, { scope, space, only, heading });
       } catch (err) {
         delBtn.disabled = false;
         window.alert(err.message);
@@ -160,7 +158,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
     status.classList.remove('error');
     status.textContent = 'saving...';
     try {
-      await api('PUT', `/api/modules/${encodeURIComponent(module.id)}/settings/${wireScope}`, { values, ...(room ? { space: room } : {}) });
+      await api('PUT', `/api/modules/${encodeURIComponent(module.id)}/settings/${scope}`, { values, ...(space ? { space } : {}) });
       status.textContent = 'saved';
     } catch (err) {
       status.textContent = err.message;

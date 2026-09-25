@@ -30,8 +30,8 @@ online but pulled into an aside elsewhere, and **Private** the same for a privat
 While someone speaks, a **talking border** is drawn around the box, and while their microphone is off
 a **muted border** in its own color. Both share one width and fit any source size. The borders are
 the only things the box ever draws; for anything more, use the Talking and Muted pictures. The
-borders, their colors, the width and the **name plate** are set once under **Participant video
-defaults** on the Server tab, the same for everyone.
+borders, their colors, the width and the **name plate** are the Stream module's settings, the same for
+everyone (see [Magpie in OBS](userguide-obs.md)).
 
 Two more defaults shape the box while it shows a picture rather than the camera: a **color behind the
 picture**, so the video area stays visible on the recording, and a **picture size** as a percentage of

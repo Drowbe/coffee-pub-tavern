@@ -18,17 +18,17 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="room" type="button">Space</button>
+      <button class="subtab active" data-tab="space" type="button">Space</button>
       <button class="subtab" data-tab="members" type="button">Members</button>
       <button class="subtab" data-tab="modules" type="button" hidden>Modules</button>
     </nav>
 
-    <section class="tab-stack" id="tab-room">
-      <div class="panel" id="section-room">
+    <section class="tab-stack" id="tab-space">
+      <div class="panel" id="section-space">
         <div class="profile-head">
-          <div class="slot" id="room-image-slot" data-room-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="room-image" alt=""><span class="unset">not set</span><input type="file" id="room-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="room-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
+          <div class="slot" id="space-image-slot" data-space-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="space-image" alt=""><span class="unset">not set</span><input type="file" id="space-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="space-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
-            <h1 id="room-title"></h1>
+            <h1 id="space-title"></h1>
             <span class="tag" id="lobby-tag" hidden>Everyone's space</span>
             <p class="status" id="status"></p>
           </div>
@@ -106,8 +106,8 @@
       <div class="panel" id="section-modules" hidden>
         <h2>Modules</h2>
         <p class="hint">Modules with a space panel. Tick one to make it available to this space's members, in the Modules button on the call toolbar. A module marked on for every space is set on the Modules tab of Manage.</p>
-        <div id="room-modules"></div>
-        <span class="status" id="room-modules-status"></span>
+        <div id="space-modules"></div>
+        <span class="status" id="space-modules-status"></span>
       </div>
       <!-- shown once an AI service is set up (Manage > Modules > AI service) -->
       <div class="panel" id="section-ai" hidden>
@@ -124,6 +124,6 @@
     </section>
   </main>
 
-  <script type="module" src="/roomconfig.js"></script>
+  <script type="module" src="/space-settings.js"></script>
 </body>
 </html>

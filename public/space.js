@@ -1,7 +1,7 @@
 // The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon, hasOwnerRights } from '/brand.js';
-import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights } from '/brand.js';
+import { createSpaceModules, joinPanes, setJoinPanes } from '/canvas.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
 import { nav } from '/nav-bar.js';
@@ -15,19 +15,19 @@ const confEl = document.getElementById('conference');
 const topbarEl = document.getElementById('topbar');
 const $ = (id) => (id === 'stage' ? stageEl : document.getElementById(id) || stageEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`));
 // Before anything else touches a header element -- the header itself is
-// built here, not left static in room.html, so every #topbar-crumb,
+// built here, not left static in space.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.
 renderTopbar();
 if (new URLSearchParams(location.search).has('layout')) import('/layout-debug.js'); // a live geometry readout, see there
-// The room's own bar, a second row of the header (so it moves with the header when the app is
-// popped out): the panes to open on the left (chat, the room's modules; room-modules.js fills
+// The space's own bar, a second row of the header (so it moves with the header when the app is
+// popped out): the panes to open on the left (chat, the space's modules; canvas.js fills
 // #modules-menu), and the controls for the whole app on the right, full screen and pop out,
 // which move the whole call page, not the conference.
 const subnav = document.createElement('div');
 subnav.className = 'subnav';
 subnav.id = 'subnav';
-// The secondary nav is about the space (the room), in three zones (see documentation/plans/plan-nav.md and
-// architecture-navigation.md): left, the room's name and the module selector; middle, the space's own information and
+// The secondary nav is about the space, in three zones (see documentation/plans/plan-nav.md and
+// architecture-navigation.md): left, the space's name and the module selector; middle, the space's own information and
 // navigation (nothing yet); right, the space's actions: the stage-level snap, full screen, pop out, pulling people back
 // from an aside, and leaving. The right zone's controls are registrations in the nav-bar registry (public/nav-bar.js),
 // made below beside the code each one drives; a module's own tools (host.nav.set) land in the same bar, after them.
@@ -40,7 +40,7 @@ subnav.innerHTML = `
   <span class="nav-right subnav-tools"></span>`;
 topbarEl.appendChild(subnav);
 nav.attach('secondary', subnav); // its tools are registered further down, once the state their `visible` reads exists
-// On a phone the room bar is a tab bar at the bottom of the page, in the flow after the stage, so
+// On a phone the space bar is a tab bar at the bottom of the page, in the flow after the stage, so
 // the call toolbar sits directly above it whatever the browser does with its own bottom bar. Wider,
 // it is the header's second row.
 const phoneWidth = window.matchMedia('(max-width: 640px)');
@@ -56,38 +56,38 @@ placeSubnav();
 // shared header doesn't know that, so it's marked here instead.
 $('whoami-link').dataset.overlayLink = '';
 $('admin-link').dataset.overlayLink = '';
-const room = new Room({ adaptiveStream: true, dynacast: true });
+const call = new Room({ adaptiveStream: true, dynacast: true });
 const tiles = new Map(); // participant identity (user key) -> tile element
-const ghostTiles = new Map(); // identity -> tile element, for room members aside elsewhere
+const ghostTiles = new Map(); // identity -> tile element, for space members aside elsewhere
 const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
 let spaceName = 'Coffee Pub'; // the space I am in, once joined; the environment's name before that
 const presenceUsers = new Map(); // key -> { displayName, borderColor, online, space, ... } from /api/presence
-let presenceRooms = []; // the rooms, with `mine` for the ones I may join
-let currentRoom = null; // the room I am in, once joined
-// Reloading the page keeps you in your room: the room is remembered for this tab (not across tabs or restarts) and rejoined when the
+let presenceSpaces = []; // the spaces, with `mine` for the ones I may join
+let currentSpace = null; // the space I am in, once joined
+// Reloading the page keeps you in your space: the space is remembered for this tab (not across tabs or restarts) and rejoined when the
 // page starts again. It is forgotten when you leave or are removed, but not when the page itself is going away.
 let unloading = false;
 addEventListener('pagehide', () => { unloading = true; });
 addEventListener('pageshow', () => { unloading = false; });
-const REMEMBERED_ROOM = 'host.room';
-const rememberRoom = (id) => { try { sessionStorage.setItem(REMEMBERED_ROOM, id); } catch { /* not remembered */ } };
-const forgetRoom = () => { if (unloading) return; try { sessionStorage.removeItem(REMEMBERED_ROOM); } catch { /* nothing */ } };
-const rememberedRoom = () => { try { return sessionStorage.getItem(REMEMBERED_ROOM) || ''; } catch { return ''; } };
-// Being in the room and being in the conference are separate: the page stays connected
+const REMEMBERED_SPACE = 'app.space';
+const rememberSpace = (id) => { try { sessionStorage.setItem(REMEMBERED_SPACE, id); } catch { /* not remembered */ } };
+const forgetSpace = () => { if (unloading) return; try { sessionStorage.removeItem(REMEMBERED_SPACE); } catch { /* nothing */ } };
+const rememberedSpace = () => { try { return sessionStorage.getItem(REMEMBERED_SPACE) || ''; } catch { return ''; } };
+// Being in the space and being in the conference are separate: the page stays connected
 // for the chat and the modules, and only sends and receives audio and video while the
 // conference pane is open. Others see the difference through the "call" attribute.
 let inCall = false;
 let callStarting = Promise.resolve(); // settles once the conference has finished starting
 const LOBBY = 'lobby';
-let activeRoom = LOBBY; // the room the stream currently hears (server-computed)
+let activeSpace = LOBBY; // the space the stream currently hears (server-computed)
 let adminOnline = false; // whether that's actually backed by a real online admin right now
 // Server-wide call feature toggles (Manage > Settings) -- these defaults
 // hold until init() replaces them with whatever /api/branding actually says.
 let features = { maxQuality: 720, allowScreenShare: true, allowAsides: true, allowPrivate: true, allowReactions: true };
 
-// A guest link (/guest/<token>): no account, just a name and this room. The
-// token both identifies which room's guest link this is and, appended to
+// A guest link (/guest/<token>): no account, just a name and this space. The
+// token both identifies which space's guest link this is and, appended to
 // our own reads below, is this tab's only credential -- there's no session.
 const GUEST_PREFIX = 'guest-';
 const guestToken = location.pathname.startsWith('/guest/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : null;
@@ -108,56 +108,56 @@ function imgUrl(key, slot, params = {}) {
 
 // A member's Online picture for the space we're in, when they've set one there
 // (Use Default Profile Images off); otherwise the tile falls back to their
-// profile photo. Private asides count as their origin room.
-function roomPortraitUrl(key) {
-  const roomId = currentRoom?.ephemeral ? currentRoom.origin : currentRoom?.id;
-  if (!roomId || roomId === LOBBY || key.startsWith(GUEST_PREFIX)) return imgUrl(key, 'profile');
-  return imgUrl(key, 'player', { space: roomId, spaceOnly: 1 });
+// profile photo. Private asides count as their origin space.
+function spacePortraitUrl(key) {
+  const spaceId = currentSpace?.ephemeral ? currentSpace.origin : currentSpace?.id;
+  if (!spaceId || spaceId === LOBBY || key.startsWith(GUEST_PREFIX)) return imgUrl(key, 'profile');
+  return imgUrl(key, 'player', { space: spaceId, spaceOnly: 1 });
 }
 
 async function loadPresence() {
   try {
-    const { users, spaces: rooms, activeSpace: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
+    const { users, spaces, activeSpace: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
     presenceUsers.clear();
     for (const u of users) presenceUsers.set(u.key, u);
-    presenceRooms = rooms || [];
-    activeRoom = active || LOBBY;
+    presenceSpaces = spaces || [];
+    activeSpace = active || LOBBY;
     adminOnline = Boolean(hasAdmin);
     for (const [key, tile] of tiles) {
       const colour = presenceUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
       updateBackgroundPlaceholder(tile, key);
     }
-    renderRooms();
-    if (!guestToken) initDashboard({ users, rooms: presenceRooms, me: me?.key }, { openInRoom, joinRoom: joinInvitedRoom });
+    renderSpaces();
+    if (!guestToken) initDashboard({ users, spaces: presenceSpaces, me: me?.key }, { openInSpace, joinSpace: joinInvitedSpace });
     reconcileGhostTiles();
     renderGuestLink();
-    renderRoomLink();
+    renderSpaceLink();
     updateRecallButton();
   } catch (err) {
     // default colour stands
   }
 }
 
-// The room's own launch link, mirrored in the floatbar so it's reachable
-// without leaving the call. Reads live off presenceRooms (like renderGuestLink)
-// rather than the frozen currentRoom, so an admin editing the link mid-call
+// The space's own launch link, mirrored in the floatbar so it's reachable
+// without leaving the call. Reads live off presenceSpaces (like renderGuestLink)
+// rather than the frozen currentSpace, so an admin editing the link mid-call
 // is reflected here on the next poll.
-function renderRoomLink() {
-  const btn = $('room-link');
-  if (!btn || !currentRoom) return;
-  const room = presenceRooms.find((r) => r.id === currentRoom.id);
-  const link = room?.link;
+function renderSpaceLink() {
+  const btn = $('space-link');
+  if (!btn || !currentSpace) return;
+  const space = presenceSpaces.find((r) => r.id === currentSpace.id);
+  const link = space?.link;
   btn.hidden = !link;
-  if (link) btn.querySelector('.glyph').innerHTML = `<i class="${iconClasses(room.linkIcon || 'link')} fa-fw" aria-hidden="true"></i>`;
+  if (link) btn.querySelector('.glyph').innerHTML = `<i class="${iconClasses(space.linkIcon || 'link')} fa-fw" aria-hidden="true"></i>`;
 }
-$('room-link').addEventListener('click', () => {
-  const room = currentRoom && presenceRooms.find((r) => r.id === currentRoom.id);
-  if (room?.link) window.open(room.link, '_blank', 'noopener');
+$('space-link').addEventListener('click', () => {
+  const space = currentSpace && presenceSpaces.find((r) => r.id === currentSpace.id);
+  if (space?.link) window.open(space.link, '_blank', 'noopener');
 });
 
 // Admin only: shows "Pull Participants Back" whenever a Private
-// Conversation was pulled out of the room I'm currently in -- the admin
+// Conversation was pulled out of the space I'm currently in -- the admin
 // is never part of those (see /api/asides), so without this
 // there'd be no way to know one is even happening, let alone end it.
 let recallButtonTimer = 0;
@@ -165,7 +165,7 @@ let recallButtonCountingDown = false;
 
 // The tool's `visible` (see its registration above): shown while the countdown runs, whatever else changes.
 function recallWanted() {
-  return recallButtonCountingDown || Boolean(hasOwnerRights(me) && currentRoom && presenceRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+  return recallButtonCountingDown || Boolean(hasOwnerRights(me) && currentSpace && presenceSpaces.some((r) => r.ephemeral && r.private && r.origin === currentSpace.id));
 }
 
 function updateRecallButton() {
@@ -209,9 +209,9 @@ async function recallParticipants() {
 // anyone off mid-sentence. Re-triggering (e.g. the admin clicks it twice)
 // restarts the same countdown rather than stacking a second one.
 let recallTimer = 0;
-function startRecallCountdown(roomId, roomName) {
+function startRecallCountdown(spaceId, name) {
   clearInterval(recallTimer);
-  $('recall-room-name').textContent = roomName || 'the call';
+  $('recall-space-name').textContent = name || 'the call';
   $('recall-overlay').hidden = false;
   let n = 10;
   $('recall-countdown').textContent = n;
@@ -220,14 +220,14 @@ function startRecallCountdown(roomId, roomName) {
     if (n <= 0) {
       clearInterval(recallTimer);
       $('recall-overlay').hidden = true;
-      reconnectTo(roomId, 'pulled back to the call...');
+      reconnectTo(spaceId, 'pulled back to the call...');
       return;
     }
     $('recall-countdown').textContent = n;
   }, 1000);
 }
 
-// A member of the room I'm in who is online but not actually connected
+// A member of the space I'm in who is online but not actually connected
 // here -- they're in a private aside elsewhere -- gets a placeholder tile:
 // their picture stands in for video, dimmed, with who they stepped aside
 // with, so they read as "still in the call" rather than looking like they
@@ -241,7 +241,7 @@ function othersLabel(members, exclude) {
   return `with ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
 }
 
-// The Aside/Private picture (their own, their room's, or the server-wide
+// The Aside/Private picture (their own, their space's, or the server-wide
 // Default Images fallback) laid over their profile photo, same as OBS
 // shows it over the Online/Offline picture -- a badge, not a replacement.
 // Optional, so unlike the profile photo it simply stays hidden rather
@@ -294,19 +294,19 @@ function removeGhost(key) {
 }
 
 function reconcileGhostTiles() {
-  if (!currentRoom || !inCall || !document.body.classList.contains('in-space')) return;
+  if (!currentSpace || !inCall || !document.body.classList.contains('in-space')) return;
   let changed = false;
-  for (const key of currentRoom.members) {
+  for (const key of currentSpace.members) {
     if (key === me?.key) continue;
     if (tiles.has(key)) {
       if (ghostTiles.has(key)) { removeGhost(key); changed = true; }
       continue;
     }
     const user = presenceUsers.get(key);
-    const asideRoom = user?.online && user.space && user.space !== currentRoom.id ? presenceRooms.find((r) => r.id === user.space) : null;
-    if (asideRoom?.ephemeral) {
+    const aside = user?.online && user.space && user.space !== currentSpace.id ? presenceSpaces.find((r) => r.id === user.space) : null;
+    if (aside?.ephemeral) {
       const tile = ghostTile(key);
-      const isPrivate = Boolean(asideRoom.private);
+      const isPrivate = Boolean(aside.private);
       tile.classList.toggle('tile-ghost-private', isPrivate);
       setGhostBadge(tile.querySelector('.tile-ghost-badge'), key, isPrivate ? 'playerPrivate' : 'playerAside');
       tile.querySelector('.name').textContent = user.displayName;
@@ -314,7 +314,7 @@ function reconcileGhostTiles() {
       // Who a private word is with stays off the record here too, same as
       // it's kept off the OBS-facing recording -- everyone else at the
       // call only gets to know that it's happening, not with whom.
-      tile.querySelector('.tile-ghost-with').textContent = isPrivate ? '' : othersLabel(asideRoom.members, key);
+      tile.querySelector('.tile-ghost-with').textContent = isPrivate ? '' : othersLabel(aside.members, key);
       changed = true;
     } else if (ghostTiles.has(key)) {
       removeGhost(key);
@@ -322,14 +322,14 @@ function reconcileGhostTiles() {
     }
   }
   for (const key of [...ghostTiles.keys()]) {
-    if (!currentRoom.members.includes(key)) { removeGhost(key); changed = true; }
+    if (!currentSpace.members.includes(key)) { removeGhost(key); changed = true; }
   }
   if (changed) applyLayout();
 }
 
-// A room's name for display: ephemeral "pull aside" rooms carry no useful
+// A space's name for display: ephemeral "pull aside" spaces carry no useful
 // stored name, so build one from whoever else is in it.
-function roomDisplayName(r) {
+function spaceDisplayName(r) {
   if (!r?.ephemeral) return r?.name || spaceName;
   const others = r.members.filter((k) => k !== me?.key).map((k) => presenceUsers.get(k)?.displayName).filter(Boolean);
   // Says "Private" rather than "Aside" whenever it is one -- whoever's in
@@ -339,45 +339,45 @@ function roomDisplayName(r) {
   return others.length ? `${label} with ${others.join(' & ')}` : label;
 }
 
-// The join screen: one card per room I belong to, with its members and a
-// green dot on those in that room right now. Refreshed until I join.
-function renderRooms() {
-  const list = $('rooms');
+// The join screen: one card per space I belong to, with its members and a
+// green dot on those in that space right now. Refreshed until I join.
+function renderSpaces() {
+  const list = $('spaces');
   if (!list) return;
   const keep = new Set();
-  for (const r of presenceRooms.filter((x) => x.mine)) {
+  for (const r of presenceSpaces.filter((x) => x.mine)) {
     keep.add(r.id);
-    let card = list.querySelector(`[data-room="${CSS.escape(r.id)}"]`);
+    let card = list.querySelector(`[data-space="${CSS.escape(r.id)}"]`);
     if (!card) {
-      card = document.getElementById('room-choice').content.firstElementChild.cloneNode(true);
-      card.dataset.room = r.id;
+      card = document.getElementById('space-choice').content.firstElementChild.cloneNode(true);
+      card.dataset.space = r.id;
       card.querySelector('[data-join]').dataset.join = r.id;
       list.appendChild(card);
     }
     card.classList.toggle('aside', Boolean(r.ephemeral));
-    // Still connected to this one (just browsing the room list -- see
-    // showRoomList()): offer to jump back in instead of joining fresh.
-    const rejoin = room.state === 'connected' && currentRoom?.id === r.id;
+    // Still connected to this one (just browsing the space list -- see
+    // showSpaceList()): offer to jump back in instead of joining fresh.
+    const rejoin = call.state === 'connected' && currentSpace?.id === r.id;
     card.querySelector('[data-join-icon]').className = `fa-solid fa-${rejoin ? 'circle-left' : 'comments'} fa-fw`;
     card.querySelector('[data-join-label]').textContent = rejoin ? 'Rejoin' : 'Join';
     card.querySelector('[data-join-with]').hidden = Boolean(r.ephemeral);
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || !hasOwnerRights(me);
     edit.href = `/spaces/${encodeURIComponent(r.id)}`;
-    // A moderator cannot open the room's page, but changes what its modules do here.
+    // A moderator cannot open the space's page, but changes what its modules do here.
     const modSettings = card.querySelector('[data-module-settings]');
     modSettings.hidden = r.ephemeral || hasOwnerRights(me) || !me?.spaces?.[r.id]?.permissions?.moderator;
-    modSettings.href = `/module-settings?room=${encodeURIComponent(r.id)}`;
+    modSettings.href = `/module-settings?space=${encodeURIComponent(r.id)}`;
     const link = card.querySelector('[data-link]');
     link.hidden = !r.link;
     if (r.link) {
       link.href = r.link;
       link.querySelector('i').className = `${iconClasses(r.linkIcon || 'link')} fa-fw`;
     }
-    card.querySelector('.room-choice-name').textContent = roomDisplayName(r);
-    card.querySelector('.room-choice-desc').textContent = r.description;
-    card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;
-    const img = card.querySelector('.room-choice-image');
+    card.querySelector('.space-choice-name').textContent = spaceDisplayName(r);
+    card.querySelector('.space-choice-desc').textContent = r.description;
+    card.querySelector('.space-choice-desc').hidden = !r.description || r.ephemeral;
+    const img = card.querySelector('.space-choice-image');
     const src = !r.ephemeral && r.hasImage ? `/img/space/${encodeURIComponent(r.id)}` : '';
     img.hidden = !src;
     if (src && img.dataset.src !== src) {
@@ -386,13 +386,13 @@ function renderRooms() {
     }
     const members = r.members.map((k) => presenceUsers.get(k)).filter(Boolean);
     const here = members.filter((u) => u.online && u.space === r.id).length;
-    card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
+    card.querySelector('.space-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
     renderMembers(card.querySelector('.members'), members, r.id);
   }
-  for (const card of [...list.children]) if (!keep.has(card.dataset.room)) card.remove();
+  for (const card of [...list.children]) if (!keep.has(card.dataset.space)) card.remove();
 }
 
-function renderMembers(list, members, roomId) {
+function renderMembers(list, members, spaceId) {
   const keep = new Set();
   for (const u of members) {
     keep.add(u.key);
@@ -410,8 +410,8 @@ function renderMembers(list, members, roomId) {
       el.append(img, dot, name);
       list.appendChild(el);
     }
-    const here = Boolean(u.online) && u.space === roomId;
-    // This room's Online/Offline picture when they've set one here (Use
+    const here = Boolean(u.online) && u.space === spaceId;
+    // This space's Online/Offline picture when they've set one here (Use
     // Default Profile Images off); otherwise their profile photo.
     const img = el.querySelector('img');
     const slot = here ? 'player' : 'playerOffline';
@@ -419,21 +419,21 @@ function renderMembers(list, members, roomId) {
       img.dataset.slot = slot;
       const profile = imgUrl(u.key, 'profile');
       img.onerror = () => { img.onerror = null; img.src = profile; };
-      img.src = roomId && roomId !== LOBBY && !u.key.startsWith(GUEST_PREFIX) ? imgUrl(u.key, slot, { space: roomId, spaceOnly: 1 }) : profile;
+      img.src = spaceId && spaceId !== LOBBY && !u.key.startsWith(GUEST_PREFIX) ? imgUrl(u.key, slot, { space: spaceId, spaceOnly: 1 }) : profile;
     }
     el.querySelector('.member-name').textContent = u.displayName;
     el.querySelector('.dot').classList.toggle('online', here);
     el.classList.toggle('online', here);
-    const elsewhere = u.online && !here ? presenceRooms.find((r) => r.id === u.space) : null;
-    el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
-    // Off stream: this member is online but not in the room the stream
+    const elsewhere = u.online && !here ? presenceSpaces.find((r) => r.id === u.space) : null;
+    el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${spaceDisplayName(elsewhere)}` : u.displayName;
+    // Off stream: this member is online but not in the space the stream
     // currently hears (wherever the admin/GM actually is); "aside" is the
     // more specific case of a pulled-aside private word, which implies off
     // stream too. Only meaningful when an admin is actually online -- with
-    // none, activeRoom is just the Lobby fallback, not a real "here's where
+    // none, activeSpace is just the Lobby fallback, not a real "here's where
     // the stream is" signal, so nobody should read as off stream against it.
-    const inAside = u.online && presenceRooms.find((r) => r.id === u.space)?.ephemeral;
-    const offStream = u.online && adminOnline && u.space !== activeRoom;
+    const inAside = u.online && presenceSpaces.find((r) => r.id === u.space)?.ephemeral;
+    const offStream = u.online && adminOnline && u.space !== activeSpace;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
       if (!badge) {
@@ -452,43 +452,43 @@ function renderMembers(list, members, roomId) {
 setInterval(() => {
   if (!$('join').hidden || document.body.classList.contains('in-space')) loadPresence();
 }, 5000);
-// Join a room straight into its own window, skipping the step of joining in
+// Join a space straight into its own window, skipping the step of joining in
 // the page first and then popping out. The window opens first, synchronously
 // with the click (a popup opened after a network wait is what browsers
 // block); the stage moves into it, and is revealed there once connected.
-async function joinInPopout(roomId) {
+async function joinInPopout(spaceId) {
   if (!pipWindow) openPopout();
-  if (room.state === 'connected' && currentRoom?.id === roomId) returnToStage();
-  else if (room.state === 'connected') await reconnectTo(roomId);
-  else await join(roomId);
-  if (room.state !== 'connected') closePopout(); // it failed; don't leave an empty window
+  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToStage();
+  else if (call.state === 'connected') await reconnectTo(spaceId);
+  else await join(spaceId);
+  if (call.state !== 'connected') closePopout(); // it failed; don't leave an empty window
 }
-// "Join with": which panes a room opens with, remembered for that room (see joinPanes in
-// room-modules.js). The list is the conference, the chat and the room's modules.
-const roomModuleList = new Map(); // room id -> the modules on for it, fetched once
-const canIn = (roomId, permission) => hasOwnerRights(me) || !!(me?.spaces?.[roomId]?.effective || me?.permissions || {})[permission];
+// "Join with": which panes a space opens with, remembered for that space (see joinPanes in
+// canvas.js). The list is the conference, the chat and the space's modules.
+const spaceModuleList = new Map(); // space id -> the modules on for it, fetched once
+const canIn = (spaceId, permission) => hasOwnerRights(me) || !!(me?.spaces?.[spaceId]?.effective || me?.permissions || {})[permission];
 
-async function toggleJoinWith(card, roomId) {
+async function toggleJoinWith(card, spaceId) {
   const open = card.querySelector('.join-with');
   closeJoinWith();
   if (open) return;
   const pop = document.createElement('div');
   pop.className = 'join-with';
-  pop.innerHTML = '<strong>Join with</strong><div class="join-with-list"></div><p class="hint">Remembered for this room.</p>';
+  pop.innerHTML = '<strong>Join with</strong><div class="join-with-list"></div><p class="hint">Remembered for this space.</p>';
   card.appendChild(pop);
-  if (!roomModuleList.has(roomId)) {
+  if (!spaceModuleList.has(spaceId)) {
     try {
-      roomModuleList.set(roomId, (await api('GET', `/api/modules/for-space?space=${encodeURIComponent(roomId)}`)).modules);
+      spaceModuleList.set(spaceId, (await api('GET', `/api/modules/for-space?space=${encodeURIComponent(spaceId)}`)).modules);
     } catch {
-      roomModuleList.set(roomId, []);
+      spaceModuleList.set(spaceId, []);
     }
   }
   const items = [
-    ...(canIn(roomId, 'conference') ? [{ id: 'conference', name: 'Conference', icon: 'video' }] : []),
-    ...(canIn(roomId, 'chatRead') ? [{ id: 'chat', name: 'Chat', icon: 'message' }] : []),
-    ...roomModuleList.get(roomId).map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
+    ...(canIn(spaceId, 'conference') ? [{ id: 'conference', name: 'Conference', icon: 'video' }] : []),
+    ...(canIn(spaceId, 'chatRead') ? [{ id: 'chat', name: 'Chat', icon: 'message' }] : []),
+    ...spaceModuleList.get(spaceId).map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
   ];
-  const chosen = new Set(joinPanes(roomId) ?? ['conference']);
+  const chosen = new Set(joinPanes(spaceId) ?? ['conference']);
   const list = pop.querySelector('.join-with-list');
   for (const item of items) {
     const label = document.createElement('label');
@@ -498,7 +498,7 @@ async function toggleJoinWith(card, roomId) {
     list.appendChild(label);
   }
   list.addEventListener('change', () => {
-    setJoinPanes(roomId, [...list.querySelectorAll('input:checked')].map((i) => i.dataset.pane));
+    setJoinPanes(spaceId, [...list.querySelectorAll('input:checked')].map((i) => i.dataset.pane));
   });
 }
 function closeJoinWith() {
@@ -508,24 +508,24 @@ document.addEventListener('click', (event) => {
   if (!event.target.closest('.join-with, [data-join-with]')) closeJoinWith();
 });
 
-$('rooms').addEventListener('click', (event) => {
+$('spaces').addEventListener('click', (event) => {
   const withBtn = event.target.closest('[data-join-with]');
   if (withBtn) {
-    const card = withBtn.closest('.room-choice');
-    toggleJoinWith(card, card.dataset.room);
+    const card = withBtn.closest('.space-choice');
+    toggleJoinWith(card, card.dataset.space);
     return;
   }
   const popout = event.target.closest('[data-join-popout]');
   if (popout) {
-    joinInPopout(popout.closest('.room-choice').dataset.room);
+    joinInPopout(popout.closest('.space-choice').dataset.space);
     return;
   }
   const button = event.target.closest('[data-join]');
   if (!button) return;
-  const roomId = button.dataset.join;
-  if (room.state === 'connected' && currentRoom?.id === roomId) returnToStage();
-  else if (room.state === 'connected') reconnectTo(roomId);
-  else join(roomId);
+  const spaceId = button.dataset.join;
+  if (call.state === 'connected' && currentSpace?.id === spaceId) returnToStage();
+  else if (call.state === 'connected') reconnectTo(spaceId);
+  else join(spaceId);
 });
 $('guest-join').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -535,9 +535,9 @@ $('guest-join').addEventListener('submit', async (event) => {
   const submit = $('guest-join').querySelector('button[type="submit"]');
   submit.disabled = true;
   try {
-    const { token, livekitUrl, identity, spaceId: roomId, spaceName: roomName, permissions } = await api('POST', '/api/guest-join', { token: guestToken, name });
+    const { token, livekitUrl, identity, spaceId: joinedId, spaceName: joinedName, permissions } = await api('POST', '/api/guest-join', { token: guestToken, name });
     me = { key: identity, displayName: name, role: 'guest', permissions };
-    await joinAsGuest(token, livekitUrl, roomId, roomName);
+    await joinAsGuest(token, livekitUrl, joinedId, joinedName);
   } catch (err) {
     $('guest-join-error').textContent = err.message;
     $('guest-join-error').hidden = false;
@@ -551,8 +551,8 @@ let pipWindow = null;
 function setStatus(text, error = false) {
   $('status').textContent = text;
   $('status').classList.toggle('error', error);
-  // The page header shows the same status, except the plain "in <room>"
-  // which the room name next to the brand already says.
+  // The page header shows the same status, except the plain "in <space>"
+  // which the space name next to the brand already says.
   const top = $('topbar-status');
   top.textContent = !error && text === `in ${spaceName}` ? '' : text;
   top.classList.toggle('error', error);
@@ -561,7 +561,7 @@ function setStatus(text, error = false) {
 // --- tiles -------------------------------------------------------------------
 
 // While the camera is off, a chosen background image (the same one used
-// live when the camera is on -- see room.js's video settings) shows behind
+// live when the camera is on -- see space.js's video settings) shows behind
 // the profile photo too, instead of a plain fill, so the box looks like
 // them even without video.
 function updateBackgroundPlaceholder(tile, key) {
@@ -579,18 +579,18 @@ function updateBackgroundPlaceholder(tile, key) {
 // Admin only, on hover: mute (toggles, reading the live mic state fresh on
 // each click rather than tracking our own copy of it) and kick. Neither
 // touches this browser's own call state, so no local UI besides the tile
-// itself needs updating -- the room's own presence/track events do that.
-// What I can do here: everything as an admin; otherwise the room's own
+// itself needs updating -- the space's own presence/track events do that.
+// What I can do here: everything as an admin; otherwise the space's own
 // effective set (my role's permissions plus anything ticked for me in that
-// room, see Settings > Roles and profile > Rooms), or just my role's
-// outside a room the server has no per-room entry for (an aside, a guest).
+// space, see Settings > Roles and profile > Spaces), or just my role's
+// outside a space the server has no per-space entry for (an aside, a guest).
 function canDo(permission) {
   if (hasOwnerRights(me)) return true;
-  const inRoom = currentRoom && me?.spaces?.[currentRoom.id]?.effective;
-  return !!(inRoom || me?.permissions || {})[permission];
+  const inSpace = currentSpace && me?.spaces?.[currentSpace.id]?.effective;
+  return !!(inSpace || me?.permissions || {})[permission];
 }
 // Everything a permission hides or shows on the page. Reruns once who I am
-// and which room I'm in are both known, not just at load.
+// and which space I'm in are both known, not just at load.
 function applyPermissions() {
   applyFeatureFlags();
   $('chat-form').hidden = !canDo('chat');
@@ -637,10 +637,10 @@ function adminToolsFor(participant) {
   if (canDo('canMute')) tools.append(mute);
   if (canDo('canKick')) tools.append(kick);
   // Same restriction as the corner step-aside button: you can't step aside
-  // from an aside (or private) room, there's nowhere further to go. Each
+  // from an aside (or private) space, there's nowhere further to go. Each
   // also has its own Manage > Settings toggle, independent of the other.
   const isOwner = hasOwnerRights(me);
-  if (isOwner && !currentRoom?.ephemeral && features.allowAsides) {
+  if (isOwner && !currentSpace?.ephemeral && features.allowAsides) {
     const aside = document.createElement('button');
     aside.type = 'button';
     aside.className = 'tile-admin-btn';
@@ -653,7 +653,7 @@ function adminToolsFor(participant) {
     });
     tools.append(aside);
   }
-  if (isOwner && !currentRoom?.ephemeral && features.allowPrivate) {
+  if (isOwner && !currentSpace?.ephemeral && features.allowPrivate) {
     const priv = document.createElement('button');
     priv.type = 'button';
     priv.className = 'tile-admin-btn';
@@ -687,7 +687,7 @@ function tileFor(participant) {
   const placeholder = document.createElement('img');
   placeholder.className = 'placeholder';
   placeholder.alt = '';
-  placeholder.src = roomPortraitUrl(participant.identity);
+  placeholder.src = spacePortraitUrl(participant.identity);
   placeholder.onerror = () => { placeholder.onerror = null; placeholder.src = imgUrl(participant.identity, 'profile'); };
   const colour = presenceUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
@@ -714,7 +714,7 @@ function tileFor(participant) {
     // click each -- this corner button (pick one or more, then confirm) is
     // only still needed for a non-admin, who has no other way to invite
     // someone for a private word.
-    if (!currentRoom?.ephemeral && !hasOwnerRights(me) && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
+    if (!currentSpace?.ephemeral && !hasOwnerRights(me) && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -724,7 +724,7 @@ function tileFor(participant) {
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
     }
-    // Mute/Kick for admins, or for a member granted them in this room --
+    // Mute/Kick for admins, or for a member granted them in this space --
     // never against an admin (the server refuses that anyway).
     const targetIsAdmin = presenceUsers.get(participant.identity)?.isAdmin;
     if (hasOwnerRights(me) || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
@@ -806,16 +806,16 @@ const DEFAULT_PREFS = {
 // Call preferences (layout, devices, volumes, keys). brand.js moves the key they had before the Names plan on load.
 const PREFS_KEY = 'app.call';
 const prefs = loadPrefs();
-// The room's modules: the toolbar's Modules button and its floating panels.
-const roomModules = createRoomModules({ guestToken });
-window.hostModules = roomModules; // for debugging and tests
+// The space's modules: the toolbar's Modules button and its floating panels.
+const spaceModules = createSpaceModules({ guestToken });
+window.hostModules = spaceModules; // for debugging and tests
 
 // The space's actions, in the secondary nav's right zone (built at the top of this file): one group in the bands
 // plan-nav.md sets out (the layout tools core, full screen and pop out secondary, the aside's two utility), and Leave
 // last on its own, a divider before it. Registered here, after the state their `visible` functions read exists.
 const SPACE_TOOL = { bar: 'secondary', zone: 'right', group: 'space', groupOrder: 1 };
-nav.register({ ...SPACE_TOOL, id: 'dock-all', order: 1, icon: 'table-columns', label: 'Dock every floating pane beside the call', onClick: () => { roomModules.dockAll(); syncSnapBar(); } });
-nav.register({ ...SPACE_TOOL, id: 'snap-all', order: 2, icon: 'border-all', label: 'Snap every floating pane to a grid', toggleable: true, active: false, onClick: () => { roomModules.snapAll(!roomModules.snapAllOn()); syncSnapBar(); } });
+nav.register({ ...SPACE_TOOL, id: 'dock-all', order: 1, icon: 'table-columns', label: 'Dock every floating pane beside the call', onClick: () => { spaceModules.dockAll(); syncSnapBar(); } });
+nav.register({ ...SPACE_TOOL, id: 'snap-all', order: 2, icon: 'border-all', label: 'Snap every floating pane to a grid', toggleable: true, active: false, onClick: () => { spaceModules.snapAll(!spaceModules.snapAllOn()); syncSnapBar(); } });
 const snapSize = document.createElement('input');
 snapSize.type = 'range';
 snapSize.id = 'snap-size';
@@ -826,8 +826,8 @@ nav.register({ ...SPACE_TOOL, id: 'snap-size', order: 3, element: snapSize }); /
 nav.register({ ...SPACE_TOOL, id: 'fullscreen-toggle', order: 11, icon: 'expand', activeIcon: 'compress', label: 'Full screen', title: 'Full screen (F)', toggleable: true, active: false, onClick: () => toggleFullscreen() });
 nav.register({ ...SPACE_TOOL, id: 'popout', order: 12, icon: 'up-right-from-square', activeIcon: 'window-restore', label: 'Pop out into its own window', toggleable: true, active: false, onClick: () => (pipWindow ? closePopout() : openPopout()) });
 nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: 'Give everyone in a Private Conversation from this space a 10 second warning, then pull them back', labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
-nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentRoom && currentRoom.ephemeral && currentRoom.origin), onClick: () => returnFromAside() });
-nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-room', order: 999, icon: 'square-xmark', label: 'Leave space', onClick: () => leaveRoom() });
+nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentSpace && currentSpace.ephemeral && currentSpace.origin), onClick: () => returnFromAside() });
+nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-space', order: 999, icon: 'square-xmark', label: 'Leave space', onClick: () => leaveSpace() });
 // On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
 // only be reachable from the Conference view's toolbar. This tool, in the menu only (its class, see style.css) and
 // only while in the call, shows the conference and opens them. It sits in the session group, ahead of the clock.
@@ -841,27 +841,27 @@ nav.register({
 }).classList.add('call-settings-link');
 topbarEl.querySelector('#nav-toggle')?.addEventListener('click', () => nav.draw('primary'));
 
-// The stage-level snap, in the room bar: one switch that makes every floating pane, now and later, snap to a grid over the
+// The stage-level snap, in the space bar: one switch that makes every floating pane, now and later, snap to a grid over the
 // stage, and, while it is on, a slider for the grid's size (the grid shows while the slider moves). Each pane's own switch
-// on its titlebar still works on its own; this one sets them all. Remembered with the room's layout.
+// on its titlebar still works on its own; this one sets them all. Remembered with the space's layout.
 // The switch and Dock all (the way back: every floating pane docks beside the call, and the stage-level snap goes off with it,
 // or it would float them again) are registered with the bar's other tools at the top of this file.
 function syncSnapBar() {
-  const on = roomModules.snapAllOn();
-  const range = roomModules.snapPitchRange();
+  const on = spaceModules.snapAllOn();
+  const range = spaceModules.snapPitchRange();
   nav.setActive('snap-all', on);
   const size = $('snap-size');
   size.hidden = !on;
   size.min = String(range.min); size.max = String(range.max); size.step = String(range.step);
-  size.value = String(roomModules.snapPitch());
+  size.value = String(spaceModules.snapPitch());
 }
-$('snap-size').addEventListener('input', () => roomModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
-$('snap-size').addEventListener('change', () => roomModules.setSnapPitch(Number($('snap-size').value)));
+$('snap-size').addEventListener('input', () => spaceModules.setSnapPitch(Number($('snap-size').value), { preview: true }));
+$('snap-size').addEventListener('change', () => spaceModules.setSnapPitch(Number($('snap-size').value)));
 syncSnapBar();
-// A toast about a room module opens its panel; a server module opens over the call.
+// A toast about a space module opens its panel; a server module opens over the call.
 document.addEventListener('app:notification', (event) => {
   const n = event.detail;
-  if (roomModules.handleNotification(n)) event.preventDefault();
+  if (spaceModules.handleNotification(n)) event.preventDefault();
   else if (n.scope === 'environment' && document.body.classList.contains('in-space')) {
     event.preventDefault();
     openOverlay(`/modules/${encodeURIComponent(n.module)}`);
@@ -972,7 +972,7 @@ function cycleView() {
 
 function applyLayout() {
   fitFloatbar();
-  roomModules.layoutChanged(); // panes' columns follow the stage's width
+  spaceModules.layoutChanged(); // panes' columns follow the stage's width
   const grid = $('grid');
   grid.dataset.layout = prefs.layout;
   const portrait = grid.clientHeight > grid.clientWidth;
@@ -1236,52 +1236,52 @@ function stageDoc() {
 // --- chat ---------------------------------------------------------------------
 
 // Text and pictures travel live over LiveKit's data channel. The sender also posts a text message to the server,
-// which keeps a rolling window per room (see server/chat-history.js), and everyone who joins reads it back, so a
-// late joiner or a new browser sees what was said. Pictures are live only. An aside/private room keeps nothing,
+// which keeps a rolling window per space (see server/chat-history.js), and everyone who joins reads it back, so a
+// late joiner or a new browser sees what was said. Pictures are live only. An aside/private space keeps nothing,
 // staying as off-the-record as everything else about it. The log here is what Save writes out and goes when you
 // leave; "Clear chat" hides what came before from this browser only.
 const chatLog = []; // { who, at, text } or { who, at, blob, name }
-// Older versions kept the history in this browser only; it is still read when the server has none for the room
+// Older versions kept the history in this browser only; it is still read when the server has none for the space
 // (or cannot be reached). "Clear chat" remembers when, per person, so what came before stays hidden here.
-const chatHistoryKey = (roomId) => `app:chat:${roomId}:${me?.key || guestToken || 'guest'}`;
-const chatClearedKey = (roomId) => `app:chatclear:${roomId}:${me?.key || guestToken || 'guest'}`;
-function loadChatHistory(roomId) {
+const chatHistoryKey = (spaceId) => `app:chat:${spaceId}:${me?.key || guestToken || 'guest'}`;
+const chatClearedKey = (spaceId) => `app:chatclear:${spaceId}:${me?.key || guestToken || 'guest'}`;
+function loadChatHistory(spaceId) {
   try {
-    return JSON.parse(localStorage.getItem(chatHistoryKey(roomId))) || [];
+    return JSON.parse(localStorage.getItem(chatHistoryKey(spaceId))) || [];
   } catch {
     return [];
   }
 }
-function chatClearedAt(roomId) {
+function chatClearedAt(spaceId) {
   try {
-    return Number(localStorage.getItem(chatClearedKey(roomId))) || 0;
+    return Number(localStorage.getItem(chatClearedKey(spaceId))) || 0;
   } catch {
     return 0;
   }
 }
-async function fetchChatHistory(roomId) {
+async function fetchChatHistory(spaceId) {
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-  const { messages } = await api('GET', `/api/spaces/${encodeURIComponent(roomId)}/chat${q}`);
+  const { messages } = await api('GET', `/api/spaces/${encodeURIComponent(spaceId)}/chat${q}`);
   return messages.map((m) => ({ who: m.who, text: m.text, at: new Date(m.at).toISOString() }));
 }
-// Tell the server what was just said, so the room's history has it. Best effort: the message already went out live.
+// Tell the server what was just said, so the space's history has it. Best effort: the message already went out live.
 function postChatMessage(text) {
-  if (!currentRoom || currentRoom.ephemeral) return;
+  if (!currentSpace || currentSpace.ephemeral) return;
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-  api('POST', `/api/spaces/${encodeURIComponent(currentRoom.id)}/chat${q}`, { text, name: me?.displayName || room.localParticipant.name }).catch(() => {});
+  api('POST', `/api/spaces/${encodeURIComponent(currentSpace.id)}/chat${q}`, { text, name: me?.displayName || call.localParticipant.name }).catch(() => {});
 }
 // Called once per join, after the stage is up but before anything live has
-// arrived -- fills #messages with whatever this room already said, so it
+// arrived -- fills #messages with whatever this space already said, so it
 // reads as "still here" rather than the chat looking wiped on every rejoin.
-async function renderChatHistory(roomId) {
+async function renderChatHistory(spaceId) {
   let history;
   try {
-    history = await fetchChatHistory(roomId);
-    if (!history.length) history = loadChatHistory(roomId);
+    history = await fetchChatHistory(spaceId);
+    if (!history.length) history = loadChatHistory(spaceId);
   } catch {
-    history = loadChatHistory(roomId);
+    history = loadChatHistory(spaceId);
   }
-  const cleared = chatClearedAt(roomId);
+  const cleared = chatClearedAt(spaceId);
   history = history.filter((e) => new Date(e.at).getTime() > cleared);
   // Anything live that arrived while this was loading is already there, so the history goes above it.
   const fragment = document.createDocumentFragment();
@@ -1418,9 +1418,9 @@ function addEntry(entry, own = false) {
   chatLog.push(entry);
   $('messages').appendChild(messageEl(entry, own));
   $('messages').scrollTop = $('messages').scrollHeight;
-  if (!roomModules.nativeOpen('chat') && !own) {
+  if (!spaceModules.nativeOpen('chat') && !own) {
     unread += 1;
-    roomModules.setNativeUnread('chat', unread);
+    spaceModules.setNativeUnread('chat', unread);
   }
 }
 
@@ -1455,21 +1455,21 @@ async function shrinkImage(file) {
 }
 
 async function sendImage(file) {
-  if (!file || !file.type.startsWith('image/') || room.state !== 'connected' || !canDo('sendPictures')) return;
+  if (!file || !file.type.startsWith('image/') || call.state !== 'connected' || !canDo('sendPictures')) return;
   try {
     const out = await shrinkImage(file);
-    addEntry({ who: room.localParticipant.name || room.localParticipant.identity, blob: out, name: out.name }, true);
-    await room.localParticipant.sendFile(out, { topic: 'chat-image', mimeType: out.type });
+    addEntry({ who: call.localParticipant.name || call.localParticipant.identity, blob: out, name: out.name }, true);
+    await call.localParticipant.sendFile(out, { topic: 'chat-image', mimeType: out.type });
   } catch (err) {
     setStatus(`picture: ${err.message}`, true);
   }
 }
 
-room.registerByteStreamHandler('chat-image', async (reader, { identity }) => {
+call.registerByteStreamHandler('chat-image', async (reader, { identity }) => {
   try {
     const chunks = await reader.readAll();
     const blob = new Blob(chunks, { type: reader.info.mimeType || 'image/png' });
-    const from = room.remoteParticipants.get(identity);
+    const from = call.remoteParticipants.get(identity);
     addEntry({ who: from?.name || identity, blob, name: reader.info.name }, false);
   } catch (err) {
     setStatus(`picture: ${err.message}`, true);
@@ -1524,10 +1524,10 @@ function showReaction(identity, id) {
 }
 
 async function sendReaction(id) {
-  if (!features.allowReactions || !canDo('react') || !REACTIONS[id] || room.state !== 'connected') return;
-  showReaction(room.localParticipant.identity, id); // data is not echoed back
+  if (!features.allowReactions || !canDo('react') || !REACTIONS[id] || call.state !== 'connected') return;
+  showReaction(call.localParticipant.identity, id); // data is not echoed back
   try {
-    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'reaction', id })), { reliable: true, topic: 'reaction' });
+    await call.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'reaction', id })), { reliable: true, topic: 'reaction' });
   } catch (err) {
     setStatus(`reaction: ${err.message}`, true);
   }
@@ -1564,10 +1564,10 @@ function openSettings(group) {
 }
 
 // The conference is a pane too: docked, floating or in a window of its own, and it can be
-// closed, which leaves the call but not the room. It is the flexible column, and the first
+// closed, which leaves the call but not the space. It is the flexible column, and the first
 // one. Opening it starts the call (from a join or "Rejoin call"), closing it stops it;
 // only moving it between docked, floating and a window leaves the call running.
-roomModules.registerNative({
+spaceModules.registerNative({
   id: 'conference',
   name: 'Conference',
   closedLabel: 'Rejoin call',
@@ -1602,13 +1602,13 @@ roomModules.registerNative({
   },
 });
 // The titlebar's x closes the pane (and with it the call); Hang up on the toolbar only leaves the call.
-$('conf-close').addEventListener('click', () => { if (pipWindow) closePopout(); roomModules.closeNative('conference'); });
+$('conf-close').addEventListener('click', () => { if (pipWindow) closePopout(); spaceModules.closeNative('conference'); });
 
 
 // The chat is a pane like a module's: a column beside the video, a floating panel,
-// or a window of its own (see room-modules.js). This is what the pane manager
+// or a window of its own (see canvas.js). This is what the pane manager
 // tells the chat when it opens or closes.
-roomModules.registerNative({
+spaceModules.registerNative({
   id: 'chat',
   name: 'Chat',
   icon: 'message',
@@ -1621,16 +1621,16 @@ roomModules.registerNative({
     applyLayout();
     if (open) {
       unread = 0;
-      roomModules.setNativeUnread('chat', 0);
+      spaceModules.setNativeUnread('chat', 0);
       $('chat-input').focus();
       $('messages').scrollTop = $('messages').scrollHeight;
     }
   },
 });
 
-function toggleChat(open = !roomModules.nativeOpen('chat')) {
-  if (open) roomModules.openNative('chat');
-  else roomModules.closeNative('chat');
+function toggleChat(open = !spaceModules.nativeOpen('chat')) {
+  if (open) spaceModules.openNative('chat');
+  else spaceModules.closeNative('chat');
 }
 
 // --- microphone: device -> level -> gate -> what the call hears -----------
@@ -1696,7 +1696,7 @@ async function openMic() {
   }
   const raw = stream.getAudioTracks()[0];
   if (!mic.ctx) await buildMicGraph();
-  // LiveKit's room.disconnect() (called on every reconnectTo(), including
+  // LiveKit's call.disconnect() (called on every reconnectTo(), including
   // every aside/private step and the return from one) stops the underlying
   // MediaStreamTrack of whatever was published -- our processed track from
   // the Web Audio graph included. A stopped track can never restart, so
@@ -1773,7 +1773,7 @@ function setVolume(participant, volume) {
 }
 
 function applyMasterVolume() {
-  for (const p of room.remoteParticipants.values()) {
+  for (const p of call.remoteParticipants.values()) {
     const pub = p.getTrackPublication(Track.Source.Microphone);
     if (pub?.track?.setVolume) pub.track.setVolume(effectiveVolume(p.identity));
   }
@@ -1799,33 +1799,33 @@ async function setPushToTalk(on) {
   savePrefs();
   pttHeld = false;
   $('mic').title = on ? `Push to talk: hold ${formatHotkey(prefs.pttKey)} (M toggles)` : 'Microphone (M)';
-  if (on && room.state === 'connected') await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+  if (on && call.state === 'connected') await call.localParticipant.setMicrophoneEnabled(false).catch(() => {});
   reflectMic();
 }
 
 function reflectMic() {
-  const on = room.localParticipant?.isMicrophoneEnabled;
+  const on = call.localParticipant?.isMicrophoneEnabled;
   $('mic').classList.toggle('on', !!on);
   $('mic').classList.toggle('off', !on);
   $('mic').classList.toggle('ptt', prefs.ptt);
-  // On a phone the conference can be hidden behind the chat while the mic is live, so the room bar
+  // On a phone the conference can be hidden behind the chat while the mic is live, so the space bar
   // says so (see the in-call dot in style.css). The bar's own element is kept, its items are rebuilt.
   const bar = $('modules-menu');
   if (bar) bar.dataset.mic = on ? 'live' : 'off';
-  if (room.state === 'connected') updateMuted(room.localParticipant);
+  if (call.state === 'connected') updateMuted(call.localParticipant);
 }
 
-// --- room events --------------------------------------------------------------
+// --- call events ---------------------------------------------------------------
 
-room
+call
   .on(RoomEvent.TrackSubscribed, (track, _pub, participant) => attachTrack(participant, track))
   .on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => detachTrack(participant, track))
-  .on(RoomEvent.LocalTrackPublished, (pub) => pub.track && attachTrack(room.localParticipant, pub.track))
-  .on(RoomEvent.LocalTrackUnpublished, (pub) => pub.track && detachTrack(room.localParticipant, pub.track))
+  .on(RoomEvent.LocalTrackPublished, (pub) => pub.track && attachTrack(call.localParticipant, pub.track))
+  .on(RoomEvent.LocalTrackUnpublished, (pub) => pub.track && detachTrack(call.localParticipant, pub.track))
   .on(RoomEvent.ParticipantConnected, (p) => { if (shownInCall(p)) tileFor(p); })
   // Nothing is received until I am in the conference; then everything published is taken.
   .on(RoomEvent.TrackPublished, (pub, p) => { if (shownInCall(p)) pub.setSubscribed(true); })
-  // Someone left or rejoined the conference without leaving the room.
+  // Someone left or rejoined the conference without leaving the space.
   .on(RoomEvent.ParticipantAttributesChanged, (changed, p) => {
     if (p.isLocal || !inCall || !('call' in changed)) return;
     if (p.attributes?.call === 'off') return removeParticipant(p);
@@ -1877,7 +1877,7 @@ room
           }, 0);
         }
       }
-      // The other member of a pull-aside room clicked "Rejoin call";
+      // The other member of a pull-aside space clicked "Rejoin call";
       // follow them there instead of being left behind.
       else if (topic === 'aside-return' && data.type === 'aside-return' && data.spaceId) {
         setTimeout(() => reconnectTo(data.spaceId, 'back to the call...'), 0);
@@ -1886,14 +1886,14 @@ room
       // the local data so their tile can turn into an "in an aside"
       // placeholder right away, without waiting for the next /api/presence poll.
       else if (topic === 'aside-started' && data.type === 'aside-started' && data.spaceId && Array.isArray(data.members)) {
-        if (!presenceRooms.some((r) => r.id === data.spaceId)) presenceRooms.push({ id: data.spaceId, name: 'Aside', members: data.members, ephemeral: true });
+        if (!presenceSpaces.some((r) => r.id === data.spaceId)) presenceSpaces.push({ id: data.spaceId, name: 'Aside', members: data.members, ephemeral: true });
         for (const key of data.members) {
           const user = presenceUsers.get(key);
           if (user) { user.online = true; user.space = data.spaceId; }
         }
         reconcileGhostTiles();
       }
-      // The admin clicked "Pull Participants Back" in the room this Private
+      // The admin clicked "Pull Participants Back" in the space this Private
       // Conversation came from: warn, don't yank -- a countdown, then go.
       else if (topic === 'aside-recall' && data.type === 'aside-recall' && data.spaceId) {
         startRecallCountdown(data.spaceId, data.spaceName);
@@ -1905,24 +1905,24 @@ room
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
   .on(RoomEvent.Reconnected, () => setStatus(`in ${spaceName}`))
   .on(RoomEvent.Disconnected, () => {
-    roomModules.suspend(); // tearing the room down must not become its remembered layout
-    inCall = false; // the whole room is gone, so there is nothing to stop; the rest of this clears it
+    spaceModules.suspend(); // tearing the call down must not become its remembered layout
+    inCall = false; // the whole call is gone, so there is nothing to stop; the rest of this clears it
     closeMic();
     closePopout();
-    roomModules.closeNative('conference');
+    spaceModules.closeNative('conference');
     setStatus('left the call');
-    forgetRoom();
-    currentRoom = null;
-    roomModules.refresh(null);
+    forgetSpace();
+    currentSpace = null;
+    spaceModules.refresh(null);
     document.body.classList.remove('in-space');
     $('stage').hidden = true;
-    $('room-link').hidden = true;
+    $('space-link').hidden = true;
     resetRecallButton();
     updateRecallButton(); // no room, so the tool's own `visible` hides it
     clearInterval(recallTimer);
     $('recall-overlay').hidden = true;
     // A guest has no session and no room to pick from -- back to their own
-    // name-only form for the one room their link is for, not the real
+    // name-only form for the one space their link is for, not the real
     // members' space list (which they can't do anything with anyway).
     $('join').hidden = !!guestToken;
     $('guest-join').hidden = !guestToken;
@@ -1932,7 +1932,7 @@ room
     updateAsideConfirm();
     // Not setAway(false): that would try to re-enable mic/camera on a
     // participant that's already gone. Just drop the stale state so the
-    // next room starts clean, not still marked away from the last one.
+    // next space starts clean, not still marked away from the last one.
     $('away-overlay').hidden = true;
     isAway = false;
     $('away-toggle').classList.remove('off');
@@ -1974,41 +1974,41 @@ async function fillDevices() {
 
 // --- join / leave ---------------------------------------------------------------
 
-// Disconnect (if connected) and join a different room. Used for the admin's
+// Disconnect (if connected) and join a different space. Used for the admin's
 // own "pull aside" click, for the pulled player's push notification, and
 // for "Rejoin call".
-// From the dashboard: go into a room with one module's pane open on one item, and nothing else changed. In the
-// room already, that is just showing the stage and opening the pane.
-// Into a room I was invited to (or started): the one I am in is left for it.
-async function joinInvitedRoom(roomId) {
-  if (room.state === 'connected' && currentRoom?.id === roomId) return returnToStage();
-  if (room.state === 'connected') return reconnectTo(roomId);
-  return join(roomId);
+// From the dashboard: go into a space with one module's pane open on one item, and nothing else changed. In the
+// space already, that is just showing the stage and opening the pane.
+// Into a space I was invited to (or started): the one I am in is left for it.
+async function joinInvitedSpace(spaceId) {
+  if (call.state === 'connected' && currentSpace?.id === spaceId) return returnToStage();
+  if (call.state === 'connected') return reconnectTo(spaceId);
+  return join(spaceId);
 }
 // An invitation accepted on this page (the toast in brand.js asks; a page that handles it says so).
 document.addEventListener('app:invite-accept', (event) => {
   event.preventDefault();
-  joinInvitedRoom(event.detail.spaceId);
+  joinInvitedSpace(event.detail.spaceId);
 });
 
-async function openInRoom(roomId, moduleId, ref) {
-  if (room.state === 'connected' && currentRoom?.id === roomId) {
+async function openInSpace(spaceId, moduleId, ref) {
+  if (call.state === 'connected' && currentSpace?.id === spaceId) {
     returnToStage();
-    roomModules.open(moduleId);
-    roomModules.openRef(ref);
+    spaceModules.open(moduleId);
+    spaceModules.openRef(ref);
     return;
   }
-  roomModules.requestOpen(moduleId, ref);
-  if (room.state === 'connected') await reconnectTo(roomId);
-  else await join(roomId);
+  spaceModules.requestOpen(moduleId, ref);
+  if (call.state === 'connected') await reconnectTo(spaceId);
+  else await join(spaceId);
 }
-async function reconnectTo(roomId, statusText) {
+async function reconnectTo(spaceId, statusText) {
   if (statusText) setStatus(statusText);
-  await room.disconnect().catch(() => {});
-  await join(roomId);
+  await call.disconnect().catch(() => {});
+  await join(spaceId);
 }
 
-// Admin only: pick who to pull into a private room with me -- click a
+// Admin only: pick who to pull into a private space with me -- click a
 // tile's door icon to add or remove them, then confirm once ready.
 function toggleAsideSelection(identity, button) {
   if (asideSelection.has(identity)) asideSelection.delete(identity);
@@ -2042,27 +2042,27 @@ function cancelAsideSelection() {
 }
 
 // Admin only: pull one or more people who are currently in the call into a
-// new room with me, for a word away from the rest. `priv` marks a real
+// new space with me, for a word away from the rest. `priv` marks a real
 // off-the-record word (Studio hides it from the recording, and the stream
 // doesn't follow me there) rather than an in-fiction private moment (still
 // recorded, just muted/dimmed on the main feed while it's happening).
 async function pullAside(identities, priv = false) {
   try {
-    const { aside: asideRoom } = await api('POST', '/api/asides', { with: identities, private: priv });
+    const { aside } = await api('POST', '/api/asides', { with: identities, private: priv });
     asideSelection.clear();
-    await reconnectTo(asideRoom.id, priv ? 'stepping aside privately...' : 'stepping aside...');
+    await reconnectTo(aside.id, priv ? 'stepping aside privately...' : 'stepping aside...');
   } catch (err) {
     setStatus(`pull aside: ${err.message}`, true);
   }
 }
 
-// "Rejoin call": return to the room a pull-aside room came from
-// (whichever room that was, not always the Lobby), and bring whoever else
+// "Rejoin call": return to the space a pull-aside space came from
+// (whichever space that was, not always the Lobby), and bring whoever else
 // is still in there with me.
 async function returnFromAside() {
   try {
-    const { space: homeRoom } = await api('POST', '/api/asides/return');
-    await reconnectTo(homeRoom.id, 'back to the call...');
+    const { space: homeSpace } = await api('POST', '/api/asides/return');
+    await reconnectTo(homeSpace.id, 'back to the call...');
   } catch (err) {
     setStatus(`rejoin call: ${err.message}`, true);
   }
@@ -2071,26 +2071,26 @@ async function returnFromAside() {
 // Leaving entirely (not "Rejoin call" -- I'm not going anywhere
 // myself). If I'm in a pulled-aside space, regular or private, whoever's
 // still in there with me would otherwise be stranded -- an aside/private
-// room is normally just the two (or few) of us, so without me there's no
-// reason for them to still be off in a room by themselves. Applies to
+// space is normally just the two (or few) of us, so without me there's no
+// reason for them to still be off in a space by themselves. Applies to
 // anyone, not just an admin: a Private Conversation doesn't need one.
 // Same nudge /api/asides/return already sends the others in
 // returnFromAside() above; I just never reconnect anywhere myself afterward.
-async function leaveRoom() {
-  if (currentRoom?.ephemeral) {
+async function leaveSpace() {
+  if (currentSpace?.ephemeral) {
     await api('POST', '/api/asides/return').catch(() => {});
   }
-  room.disconnect();
+  call.disconnect();
 }
 
-// Keeps the header's crumb in sync with where we actually are: the room
+// Keeps the header's crumb in sync with where we actually are: the space
 // list (nobody's called join() yet, or Disconnected just fired), a real
-// room (with its own Leave), or an aside/private pulled out of one (with
-// both a Leave for the whole call and a Rejoin Call back into the room it
+// space (with its own Leave), or an aside/private pulled out of one (with
+// both a Leave for the whole call and a Rejoin Call back into the space it
 // came from). Same delegated click handler covers both, wired once below.
-// "Rooms" is a real ancestor, not a label that only shows up when there's
+// "Spaces" is a real ancestor, not a label that only shows up when there's
 // nothing more specific to say -- the path never skips a level, so it's
-// always here and always a link back to the room list, whether or not
+// always here and always a link back to the space list, whether or not
 // there's anything after it.
 // Rejoin is icon-only, styled like the header's other icon buttons
 // (settings, sign out) rather than a labeled pill -- title carries the
@@ -2101,7 +2101,7 @@ const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.inc
 
 // The space's name in the secondary nav's left zone. On the call page the primary nav's crumb is empty: the secondary nav says
 // where you are, and saying it twice was noise (plan-nav.md). In an aside the name is the origin's plus the kind, and the
-// Rejoin call tool (a space action, its `visible` reads currentRoom) shows in the right zone once the bar is redrawn.
+// Rejoin call tool (a space action, its `visible` reads currentSpace) shows in the right zone once the bar is redrawn.
 function setSpaceName(icon, text) {
   const el = $('space-name');
   if (!el) return;
@@ -2113,61 +2113,61 @@ function setSpaceName(icon, text) {
 }
 function updateCrumb() {
   setTopbarLocation('');
-  if (!currentRoom) {
+  if (!currentSpace) {
     setSpaceName('couch', '');
-  } else if (currentRoom.ephemeral && currentRoom.origin) {
-    const originRoom = presenceRooms.find((r) => r.id === currentRoom.origin);
-    const originName = originRoom ? roomDisplayName(originRoom) : 'the call';
-    const kind = currentRoom.private ? 'Private' : 'Aside';
+  } else if (currentSpace.ephemeral && currentSpace.origin) {
+    const originSpace = presenceSpaces.find((r) => r.id === currentSpace.origin);
+    const originName = originSpace ? spaceDisplayName(originSpace) : 'the call';
+    const kind = currentSpace.private ? 'Private' : 'Aside';
     setSpaceName('people-arrows', `${originName} · ${kind}`);
   } else {
-    setSpaceName(roomCrumbIcon(currentRoom), spaceName);
+    setSpaceName(spaceCrumbIcon(currentSpace), spaceName);
   }
   nav.draw('secondary');
 }
 
-async function join(roomId = 'lobby') {
+async function join(spaceId = 'lobby') {
   $('join-error').hidden = true;
   for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
   try {
     setStatus('connecting...');
-    const { token, livekitUrl } = await api('POST', '/api/token', { space: roomId });
+    const { token, livekitUrl } = await api('POST', '/api/token', { space: spaceId });
     // Fresh permissions each join -- an admin may have changed them since
     // this page loaded.
     me = (await api('GET', '/api/me')).user;
     await loadPresence();
-    currentRoom = presenceRooms.find((r) => r.id === roomId) || { id: roomId, name: spaceName };
-    await roomModules.refresh(currentRoom.ephemeral ? null : currentRoom.id); // asides have no modules
-    spaceName = roomDisplayName(currentRoom);
-    renderRoomLink();
+    currentSpace = presenceSpaces.find((r) => r.id === spaceId) || { id: spaceId, name: spaceName };
+    await spaceModules.refresh(currentSpace.ephemeral ? null : currentSpace.id); // asides have no modules
+    spaceName = spaceDisplayName(currentSpace);
+    renderSpaceLink();
     applyPermissions();
     updateRecallButton();
     await connectAndSetup(token, livekitUrl);
   } catch (err) {
     setStatus('', false);
-    forgetRoom(); // a room that cannot be joined is not remembered, so a reload does not try it again
+    forgetSpace(); // a space that cannot be joined is not remembered, so a reload does not try it again
     $('join-error').textContent = err.message;
     $('join-error').hidden = false;
-    await room.disconnect().catch(() => {});
+    await call.disconnect().catch(() => {});
   } finally {
     for (const b of document.querySelectorAll('[data-join]')) b.disabled = false;
   }
 }
 
-// A guest link: locked to the one room the link is for, no room picker, no
+// A guest link: locked to the one space the link is for, no space picker, no
 // account -- everything past "connect" is identical to a real member's join.
-async function joinAsGuest(token, livekitUrl, roomId, roomName) {
+async function joinAsGuest(token, livekitUrl, joinedId, joinedName) {
   $('guest-join-error').hidden = true;
   try {
     setStatus('connecting...');
-    spaceName = roomName;
+    spaceName = joinedName;
     await loadPresence();
-    // The full room object (members, ephemeral, ...), same as a real
+    // The full space object (members, ephemeral, ...), same as a real
     // member's join -- not just the {id, name} guest-join handed back, or
-    // anything reading currentRoom.members downstream breaks.
-    currentRoom = presenceRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
-    await roomModules.refresh(currentRoom.id);
-    renderRoomLink();
+    // anything reading currentSpace.members downstream breaks.
+    currentSpace = presenceSpaces.find((r) => r.id === joinedId) || { id: joinedId, name: joinedName, members: [] };
+    await spaceModules.refresh(currentSpace.id);
+    renderSpaceLink();
     applyPermissions();
     updateRecallButton();
     await connectAndSetup(token, livekitUrl);
@@ -2175,7 +2175,7 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
     setStatus('', false);
     $('guest-join-error').textContent = err.message;
     $('guest-join-error').hidden = false;
-    await room.disconnect().catch(() => {});
+    await call.disconnect().catch(() => {});
   }
 }
 
@@ -2185,9 +2185,9 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
 // right error message. Nothing is received until the conference starts, so
 // autoSubscribe is off.
 async function connectAndSetup(token, livekitUrl) {
-    await room.connect(livekitUrl, token, { autoSubscribe: false });
-    console.debug('[app] connected to', currentRoom.id);
-    if (!guestToken && currentRoom && !currentRoom.ephemeral) rememberRoom(currentRoom.id); // an aside is gone once it ends, so it is not kept
+    await call.connect(livekitUrl, token, { autoSubscribe: false });
+    console.debug('[app] connected to', currentSpace.id);
+    if (!guestToken && currentSpace && !currentSpace.ephemeral) rememberSpace(currentSpace.id); // an aside is gone once it ends, so it is not kept
     $('join').hidden = true;
     $('guest-join').hidden = true;
     $('stage').hidden = false;
@@ -2195,33 +2195,33 @@ async function connectAndSetup(token, livekitUrl) {
     document.body.classList.add('in-space');
     wake();
     setStatus(`in ${spaceName}`);
-    if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
-    roomModules.updateMenu();
-    roomModules.restore(); // the panes this room had open last time, or the conference the first time
-    syncSnapBar(); // and this room's stage-level snap
-    if (roomModules.nativeOpen('conference')) await callStarting;
+    if (!currentSpace.ephemeral) renderChatHistory(currentSpace.id);
+    spaceModules.updateMenu();
+    spaceModules.restore(); // the panes this space had open last time, or the conference the first time
+    syncSnapBar(); // and this space's stage-level snap
+    if (spaceModules.nativeOpen('conference')) await callStarting;
     else setStatus(`in ${spaceName} (not in the call)`);
 }
 
 // Start the conference: tiles for everyone in it, their media, and my own microphone.
 // Runs when the conference pane opens (a join, or "Rejoin call").
 async function startCall() {
-  if (inCall || room.state !== 'connected') return;
+  if (inCall || call.state !== 'connected') return;
   inCall = true;
   setNoCall(false);
-  if (room.localParticipant.attributes?.call !== 'on') {
-    await room.localParticipant.setAttributes({ call: 'on' }).catch(() => {});
+  if (call.localParticipant.attributes?.call !== 'on') {
+    await call.localParticipant.setAttributes({ call: 'on' }).catch(() => {});
   }
-  tileFor(room.localParticipant);
+  tileFor(call.localParticipant);
   applyMirror();
-  for (const p of room.remoteParticipants.values()) {
+  for (const p of call.remoteParticipants.values()) {
     if (!shownInCall(p)) continue;
     tileFor(p);
     subscribeAll(p);
     updateMuted(p);
     updateCamera(p);
   }
-  reconcileGhostTiles(); // anyone else in this room who's aside elsewhere, without waiting for the next poll
+  reconcileGhostTiles(); // anyone else in this space who's aside elsewhere, without waiting for the next poll
   // Only the microphone publishes on join. The camera stays off until
   // deliberately turned on -- a safety default, so nobody's video goes out
   // before they mean it to, and camera permission is only ever asked for
@@ -2231,15 +2231,15 @@ async function startCall() {
   let haveMic = false;
   try {
     const track = await openMic();
-    await room.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
+    await call.localParticipant.publishTrack(track, { source: Track.Source.Microphone, name: 'microphone' });
     haveMic = true;
     console.debug('[app] published audio');
-    if (prefs.ptt) await room.localParticipant.setMicrophoneEnabled(false);
+    if (prefs.ptt) await call.localParticipant.setMicrophoneEnabled(false);
   } catch (err) {
     console.warn('[app] no microphone:', err.message);
   }
-  updateMuted(room.localParticipant);
-  updateCamera(room.localParticipant);
+  updateMuted(call.localParticipant);
+  updateCamera(call.localParticipant);
   await fillDevices();
   reflectMic();
   $('cam').classList.remove('on');
@@ -2248,17 +2248,17 @@ async function startCall() {
   applyLayout();
 }
 
-// Leave the conference and stay in the room: stop sending and receiving media, drop the
+// Leave the conference and stay in the space: stop sending and receiving media, drop the
 // tiles, and tell everyone I am not in it (the "call" attribute), so they drop mine.
 async function stopCall() {
   if (!inCall) return;
   inCall = false;
-  if (room.state === 'connected') {
-    await room.localParticipant.setAttributes({ call: 'off' }).catch(() => {});
-    for (const pub of [...room.localParticipant.trackPublications.values()]) {
-      if (pub.track) await room.localParticipant.unpublishTrack(pub.track, true).catch(() => {});
+  if (call.state === 'connected') {
+    await call.localParticipant.setAttributes({ call: 'off' }).catch(() => {});
+    for (const pub of [...call.localParticipant.trackPublications.values()]) {
+      if (pub.track) await call.localParticipant.unpublishTrack(pub.track, true).catch(() => {});
     }
-    for (const p of room.remoteParticipants.values()) for (const pub of p.trackPublications.values()) pub.setSubscribed(false);
+    for (const p of call.remoteParticipants.values()) for (const pub of p.trackPublications.values()) pub.setSubscribed(false);
   }
   closeMic();
   // Away is a conference state: going out of the call ends it without a word to anyone.
@@ -2308,9 +2308,9 @@ function phoneButton() {
 
 async function toggleMic() {
   if (!inCall) return;
-  const enabled = !room.localParticipant.isMicrophoneEnabled;
+  const enabled = !call.localParticipant.isMicrophoneEnabled;
   try {
-    await room.localParticipant.setMicrophoneEnabled(enabled);
+    await call.localParticipant.setMicrophoneEnabled(enabled);
   } catch (err) {
     setStatus(`microphone: ${err.message}`, true);
   }
@@ -2326,7 +2326,7 @@ async function toggleCam() {
   if (camToggling) return;
   camToggling = true;
   $('cam').classList.add('loading');
-  const enabled = !room.localParticipant.isCameraEnabled;
+  const enabled = !call.localParticipant.isCameraEnabled;
   try {
     await setCameraEnabledWithRetry(enabled);
     if (enabled && prefs.background !== 'none') await applyBackground(); // a fresh track on re-enable needs the processor reapplied
@@ -2335,10 +2335,10 @@ async function toggleCam() {
   }
   camToggling = false;
   $('cam').classList.remove('loading');
-  const on = room.localParticipant.isCameraEnabled;
+  const on = call.localParticipant.isCameraEnabled;
   $('cam').classList.toggle('on', on);
   $('cam').classList.toggle('off', !on);
-  updateCamera(room.localParticipant);
+  updateCamera(call.localParticipant);
 }
 
 // Right after a reconnectTo() (stepping into or back from an aside/private),
@@ -2349,11 +2349,11 @@ async function toggleCam() {
 // camera at all) wait needlessly.
 async function setCameraEnabledWithRetry(enabled) {
   try {
-    await room.localParticipant.setCameraEnabled(enabled);
+    await call.localParticipant.setCameraEnabled(enabled);
   } catch (err) {
     if (!enabled || err?.name !== 'NotReadableError') throw err;
     await new Promise((resolve) => setTimeout(resolve, 700));
-    await room.localParticipant.setCameraEnabled(enabled);
+    await call.localParticipant.setCameraEnabled(enabled);
   }
 }
 
@@ -2362,18 +2362,18 @@ async function setCameraEnabledWithRetry(enabled) {
 async function toggleScreenShare() {
   if (!inCall) return;
   try {
-    await room.localParticipant.setScreenShareEnabled(!room.localParticipant.isScreenShareEnabled, { audio: true });
+    await call.localParticipant.setScreenShareEnabled(!call.localParticipant.isScreenShareEnabled, { audio: true });
   } catch (err) {
     // cancelling the browser's own share picker throws too -- not a real error
     if (err?.name !== 'NotAllowedError') setStatus(`screen share: ${err.message}`, true);
   }
-  const on = room.localParticipant.isScreenShareEnabled;
+  const on = call.localParticipant.isScreenShareEnabled;
   $('screen-share').classList.toggle('on', on);
   $('screen-share').title = on ? 'Stop sharing your screen (S)' : 'Share your screen (S)';
 }
 
 // Mute what I hear: everyone else's audio, not my own mic -- for when a
-// phone call or something else needs the room quiet for a minute without
+// phone call or something else needs the space quiet for a minute without
 // actually leaving or muting yourself to the others.
 function applyDeafen() {
   stageDoc().querySelectorAll('audio').forEach((el) => { el.muted = prefs.deafened; });
@@ -2488,7 +2488,7 @@ $('background-mode').addEventListener('change', async (e) => {
 });
 
 function applyMirror() {
-  const tile = room.localParticipant && tiles.get(room.localParticipant.identity);
+  const tile = call.localParticipant && tiles.get(call.localParticipant.identity);
   if (tile) tile.classList.toggle('mirror', prefs.mirror);
 }
 
@@ -2501,7 +2501,7 @@ const MEDIAPIPE_ASSET_PATHS = { tasksVisionFileSet: '/lib/mediapipe-wasm', model
 // a WASM runtime plus an ML segmenter -- so it's only fetched the first
 // time someone actually turns either of these on, not on every join.
 async function applyBackground() {
-  const pub = room.localParticipant?.getTrackPublication(Track.Source.Camera);
+  const pub = call.localParticipant?.getTrackPublication(Track.Source.Camera);
   if (!pub?.track) return; // camera off right now; applied when it comes back on
   try {
     if (prefs.background === 'blur') {
@@ -2522,7 +2522,7 @@ async function applyBackground() {
 }
 
 async function restartCamera() {
-  const pub = room.localParticipant?.getTrackPublication(Track.Source.Camera);
+  const pub = call.localParticipant?.getTrackPublication(Track.Source.Camera);
   if (!pub?.track) return;
   try {
     await pub.track.restartTrack(videoConstraints());
@@ -2544,7 +2544,7 @@ $('aside-confirm').addEventListener('click', () => pullAside([...asideSelection]
 $('aside-confirm-private').addEventListener('click', () => pullAside([...asideSelection], true));
 $('aside-cancel').addEventListener('click', cancelAsideSelection);
 $('aside-overlay').addEventListener('click', (e) => { if (e.target === e.currentTarget) cancelAsideSelection(); });
-window.addEventListener('beforeunload', () => room.disconnect());
+window.addEventListener('beforeunload', () => call.disconnect());
 
 $('chat-close').addEventListener('click', () => toggleChat(false));
 $('chat-save').addEventListener('click', saveChat);
@@ -2554,11 +2554,11 @@ $('chat-delete-confirm').addEventListener('click', () => {
   chatLog.length = 0;
   $('messages').textContent = '';
   unread = 0;
-  roomModules.setNativeUnread('chat', 0);
-  if (currentRoom) {
+  spaceModules.setNativeUnread('chat', 0);
+  if (currentSpace) {
     try {
-      localStorage.setItem(chatClearedKey(currentRoom.id), String(Date.now()));
-      localStorage.removeItem(chatHistoryKey(currentRoom.id));
+      localStorage.setItem(chatClearedKey(currentSpace.id), String(Date.now()));
+      localStorage.removeItem(chatHistoryKey(currentSpace.id));
     } catch {
       // private browsing: the chat is cleared for now, but the history returns on the next join
     }
@@ -2593,7 +2593,7 @@ $('chat-form').addEventListener('submit', async (event) => {
   $('chat-input').value = '';
   resizeChatInput();
   try {
-    await room.localParticipant.sendChatMessage(text); // echoed back through ChatMessage
+    await call.localParticipant.sendChatMessage(text); // echoed back through ChatMessage
     postChatMessage(text);
   } catch (err) {
     setStatus(`chat: ${err.message}`, true);
@@ -2758,7 +2758,7 @@ document.addEventListener('click', (event) => {
   }
 });
 
-// Guests: the room's own reusable join link, same door for everyone at the
+// Guests: the space's own reusable join link, same door for everyone at the
 // call to open (see the guest-link routes) -- not just an admin.
 function say(el, text, error = false) {
   el.textContent = text;
@@ -2774,11 +2774,11 @@ async function copyText(text, statusEl) {
   }
 }
 function renderGuestLink() {
-  if (guestToken || !currentRoom) return; // a guest has no session to manage this with
+  if (guestToken || !currentSpace) return; // a guest has no session to manage this with
   $('guest-section').hidden = !canDo('canInvite');
-  const room = presenceRooms.find((r) => r.id === currentRoom.id);
-  const token = room?.guestToken || null;
-  const allowed = room?.allowGuests !== false;
+  const space = presenceSpaces.find((r) => r.id === currentSpace.id);
+  const token = space?.guestToken || null;
+  const allowed = space?.allowGuests !== false;
   $('guest-link-off-note').hidden = allowed;
   $('guest-link-value').textContent = token ? `${location.origin}/guest/${token}` : 'off';
   $('guest-link-on').hidden = !allowed || !!token;
@@ -2788,8 +2788,8 @@ function renderGuestLink() {
 }
 async function setGuestLink(body) {
   try {
-    if (body === null) await api('DELETE', `/api/spaces/${encodeURIComponent(currentRoom.id)}/guest-link`);
-    else await api('POST', `/api/spaces/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
+    if (body === null) await api('DELETE', `/api/spaces/${encodeURIComponent(currentSpace.id)}/guest-link`);
+    else await api('POST', `/api/spaces/${encodeURIComponent(currentSpace.id)}/guest-link`, body);
     await loadPresence();
     renderGuestLink();
   } catch (err) {
@@ -2825,7 +2825,7 @@ function typing(event) {
 function onKeyUp(event) {
   if (prefs.ptt && pttHeld && !typing(event) && hotkeyMatches(event, prefs.pttKey)) {
     pttHeld = false;
-    room.localParticipant.setMicrophoneEnabled(false).then(reflectMic).catch(() => {});
+    call.localParticipant.setMicrophoneEnabled(false).then(reflectMic).catch(() => {});
     event.preventDefault();
   }
 }
@@ -2836,7 +2836,7 @@ function onKey(event) {
     event.preventDefault();
     if (event.repeat || pttHeld) return;
     pttHeld = true;
-    room.localParticipant.setMicrophoneEnabled(true).then(reflectMic).catch(() => {});
+    call.localParticipant.setMicrophoneEnabled(true).then(reflectMic).catch(() => {});
     return;
   }
   // Configurable mute/camera shortcuts (Cmd/Ctrl+D and +E by default, same
@@ -2882,7 +2882,7 @@ let idleTimer = 0;
 // when it is popped out into a window of its own (that window's document, not this page's).
 function idleStages() {
   const out = [$('stage')];
-  const win = roomModules.nativeWindow('conference');
+  const win = spaceModules.nativeWindow('conference');
   const theirs = win && win.document.querySelector('.stage');
   if (theirs) out.push(theirs);
   return out;
@@ -2897,11 +2897,11 @@ function wake(doc = null) {
     // whichever document the conference is in: this page's, or its own window's once popped out. An open popover, or a
     // pointer resting on the toolbar, keeps the chrome up. The chat keeps it up only while the call is on this page: in
     // the conference's own window the chat is not there to need it.
-    const win = roomModules.nativeWindow('conference');
+    const win = spaceModules.nativeWindow('conference');
     const doc = win ? win.document : document;
     const shown = (id) => { const el = doc.getElementById(id); return Boolean(el && !el.hidden); };
     const floatbar = doc.getElementById('floatbar');
-    const keepOpen = shown('settings') || shown('react-tray') || Boolean(floatbar && floatbar.matches(':hover')) || (!win && roomModules.nativeOpen('chat'));
+    const keepOpen = shown('settings') || shown('react-tray') || Boolean(floatbar && floatbar.matches(':hover')) || (!win && spaceModules.nativeOpen('chat'));
     if (!keepOpen) for (const s of idleStages()) s.classList.add('idle');
     else wake();
   }, 2500);
@@ -3011,7 +3011,7 @@ function setUpPopoutWindow(win) {
   // node adopts it into the new document, video and audio and all.
   win.document.body.appendChild(topbarEl);
   win.document.body.appendChild($('stage'));
-  roomModules.stagePopped(); // the panes open again in this window
+  spaceModules.stagePopped(); // the panes open again in this window
   $('away').hidden = false;
   watchPointer(win.document);
   watchOutsideClick(win.document);
@@ -3028,7 +3028,7 @@ function setUpPopoutWindow(win) {
     event.preventDefault();
     const href = link.getAttribute('href');
     closePopout();
-    if (link.matches('#spaces-link, .brand-home')) showRoomList();
+    if (link.matches('#spaces-link, .brand-home')) showSpaceList();
     else if (href === '/logout') location.href = '/logout';
     else if (link.matches('[data-overlay-link]')) openOverlay(href);
   });
@@ -3041,7 +3041,7 @@ function setUpPopoutWindow(win) {
   win.addEventListener('pagehide', () => {
     document.body.prepend(topbarEl);
     document.body.appendChild($('stage'));
-    roomModules.stagePopped(); // and back in this one
+    spaceModules.stagePopped(); // and back in this one
     $('away').hidden = true;
     pipWindow = null;
     nav.setActive('popout', false);
@@ -3057,18 +3057,18 @@ $('bring-back').addEventListener('click', closePopout);
 // --- your profile / Manage, without leaving the call -------------------------
 // A real navigation would drop the WebRTC connection (it's tied to the page),
 // so these load in an iframe instead: the call keeps running underneath,
-// untouched. The loaded page (same origin) gets a "Back to [room]" link
+// untouched. The loaded page (same origin) gets a "Back to [space]" link
 // added to its own header -- see wireOverlayBack in brand.js -- rather than
 // this page stacking a second bar of its own on top of it. Everyone else at
 // the call sees your own tile marked "Away" while you're in there; you
 // don't, since you already know.
 function openOverlay(path) {
-  const params = new URLSearchParams({ from: 'room', room: spaceName });
+  const params = new URLSearchParams({ from: 'space', spaceName });
   // Already known here -- handing them off lets the overlay's own header
   // render correctly on its very first paint instead of flashing the
   // generic default. See the matching read in renderTopbar() (brand.js).
-  const serverName = document.querySelector('[data-brand="serverName"]')?.textContent;
-  if (serverName) params.set('serverName', serverName);
+  const environmentName = document.querySelector('[data-brand="environmentName"]')?.textContent;
+  if (environmentName) params.set('environmentName', environmentName);
   const homeIconEl = document.querySelector('[data-brand="home-icon"]');
   const homeIcon = homeIconEl?.dataset.iconId;
   if (homeIcon) params.set('homeIcon', homeIcon);
@@ -3106,8 +3106,8 @@ window.appApplyCallPrefs = async function (patch) {
   // re-fetches the picture itself fresh every time, cache-bust and all.
   if (!patch || 'background' in patch || prefs.background === 'image') await applyBackground();
 };
-// Delegated (not one-time-queried) since a room card's own Edit link is
-// built later, once presenceRooms comes back -- a static query here would
+// Delegated (not one-time-queried) since a space card's own Edit link is
+// built later, once presenceSpaces comes back -- a static query here would
 // miss it and open it as a real navigation instead, with no way back.
 document.addEventListener('click', (event) => {
   const link = event.target.closest('[data-overlay-link]');
@@ -3116,18 +3116,18 @@ document.addEventListener('click', (event) => {
   openOverlay(link.getAttribute('href'));
 });
 
-// --- the room list, without leaving the call ---------------------------------
+// --- the space list, without leaving the call ---------------------------------
 // "All spaces" (the server name/icon, and its twin in the nav) would otherwise
 // be a real navigation to '/' -- same page, but a fresh load drops the
-// WebRTC connection entirely. The room list already lives right here on this
+// WebRTC connection entirely. The space list already lives right here on this
 // page (#join), so there's nothing to load: just swap views, the same "away"
 // treatment openOverlay() gives profile/admin, and stay connected underneath.
-function showRoomList() {
+function showSpaceList() {
   if (!document.body.classList.contains('in-space')) return;
   setAway(true);
   document.body.classList.remove('in-space');
   $('stage').hidden = true;
-  roomModules.showFloating(false); // a floating pane lives beside the stage, not inside it
+  spaceModules.showFloating(false); // a floating pane lives beside the stage, not inside it
   if (guestToken) {
     $('guest-join').hidden = false;
   } else {
@@ -3135,15 +3135,15 @@ function showRoomList() {
     loadPresence();
   }
 }
-// The reverse: a room card recognizes the room it's still connected to (see
-// renderRooms()) and offers "Rejoin" instead of "Join" -- no network round
+// The reverse: a space card recognizes the space it's still connected to (see
+// renderSpaces()) and offers "Rejoin" instead of "Join" -- no network round
 // trip needed, just the same view swap back.
 function returnToStage() {
-  if (room.state !== 'connected') return;
+  if (call.state !== 'connected') return;
   $('join').hidden = true;
   $('guest-join').hidden = true;
   $('stage').hidden = false;
-  roomModules.showFloating(true);
+  spaceModules.showFloating(true);
   document.body.classList.add('in-space');
   updateCrumb();
   setAway(false);
@@ -3152,7 +3152,7 @@ document.addEventListener('click', (event) => {
   if (!event.target.closest('#spaces-link, .brand-home')) return;
   if (guestToken || !document.body.classList.contains('in-space')) return; // a real navigation is fine here
   event.preventDefault();
-  showRoomList();
+  showSpaceList();
 });
 
 // `message` is the optional away message; without one the tile just says Away.
@@ -3194,10 +3194,10 @@ function updateAwayOverlay(identity, on, message) {
 }
 
 async function sendAway(on, message = '') {
-  updateAwayOverlay(room.localParticipant?.identity, on, message);
-  if (room.state !== 'connected') return;
+  updateAwayOverlay(call.localParticipant?.identity, on, message);
+  if (call.state !== 'connected') return;
   try {
-    await room.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on, message })), { reliable: true, topic: 'away' });
+    await call.localParticipant.publishData(encoder.encode(JSON.stringify({ type: 'away', on, message })), { reliable: true, topic: 'away' });
   } catch (err) {
     // best-effort: not worth surfacing to the person who just wants their profile
   }
@@ -3217,26 +3217,26 @@ async function setAway(on, message = '') {
   if (on === isAway) return;
   isAway = on;
   if (on) {
-    awayRestoreMic = !!room.localParticipant.isMicrophoneEnabled;
-    awayRestoreCam = !!room.localParticipant.isCameraEnabled;
-    if (awayRestoreMic) await room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
-    if (awayRestoreCam) await room.localParticipant.setCameraEnabled(false).catch(() => {});
+    awayRestoreMic = !!call.localParticipant.isMicrophoneEnabled;
+    awayRestoreCam = !!call.localParticipant.isCameraEnabled;
+    if (awayRestoreMic) await call.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+    if (awayRestoreCam) await call.localParticipant.setCameraEnabled(false).catch(() => {});
   } else {
-    if (awayRestoreMic) await room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+    if (awayRestoreMic) await call.localParticipant.setMicrophoneEnabled(true).catch(() => {});
     if (awayRestoreCam) await setCameraEnabledWithRetry(true).catch(() => {});
   }
   reflectMic();
-  const camOn = room.localParticipant.isCameraEnabled;
+  const camOn = call.localParticipant.isCameraEnabled;
   $('cam').classList.toggle('on', camOn);
   $('cam').classList.toggle('off', !camOn);
-  updateCamera(room.localParticipant);
+  updateCamera(call.localParticipant);
   $('away-toggle').classList.toggle('off', on);
   $('away-toggle').title = on ? 'Back: unpause your mic and camera and let everyone know' : 'Away: pauses your mic and camera and lets everyone know';
   await sendAway(on, message);
 }
 
 // The away button asks for an optional message first; coming back is one click.
-// Away set by opening your profile or the room list stays a plain "Away".
+// Away set by opening your profile or the space list stays a plain "Away".
 function closeAwayPrompt() {
   $('away-overlay').hidden = true;
 }
@@ -3314,7 +3314,7 @@ async function init() {
   applyFeatureFlags();
   // The topbar dropped its own version readout -- too cramped alongside
   // everything else there. It's in the title bar instead, which reads as
-  // the room's real native window title once installed as an app.
+  // the space's real native window title once installed as an app.
   if (branding.version) document.title += ` — ${branding.version}`;
   renderReactionTray(branding.reactions);
   updateCrumb();
@@ -3330,21 +3330,21 @@ async function init() {
   if (guestToken) {
     // No account: no whoami, no Manage, no Sign out, no Guests section (that
     // needs a real session too) -- just the name field and, past that,
-    // everything the room itself already handles the same for everyone.
+    // everything the space itself already handles the same for everyone.
     $('join').hidden = true;
     $('whoami-link').hidden = true;
-    $('rooms-link').hidden = true;
+    $('spaces-link').hidden = true;
     $('logout-link').hidden = true;
     $('guest-section').hidden = true;
     $('settings-links').hidden = true;
     try {
       const info = await api('GET', `/api/guest-link/${encodeURIComponent(guestToken)}`);
-      $('guest-room-name').textContent = `Join ${info.spaceName}`;
+      $('guest-space-name').textContent = `Join ${info.spaceName}`;
       $('guest-join').hidden = false;
-      $('guest-join').dataset.roomId = info.spaceId;
-      $('guest-join').dataset.roomName = info.spaceName;
+      $('guest-join').dataset.spaceId = info.spaceId;
+      $('guest-join').dataset.spaceName = info.spaceName;
     } catch (err) {
-      $('guest-room-name').textContent = 'This link is off';
+      $('guest-space-name').textContent = 'This link is off';
       $('guest-join-error').textContent = err.message;
       $('guest-join-error').hidden = false;
       $('guest-join').hidden = false;
@@ -3378,16 +3378,16 @@ async function init() {
     location.href = '/login';
     return;
   }
-  // Following an invitation from another page: "/#join=<room>" goes straight into that room.
+  // Following an invitation from another page: "/#join=<space>" goes straight into that space.
   const invited = /^#join=([a-z0-9]{4,16})$/.exec(location.hash);
   if (invited) {
     history.replaceState(null, '', location.pathname + location.search);
-    joinInvitedRoom(invited[1]);
-  } else if (!guestToken && rememberedRoom()) {
-    // A reload: back into the room this tab was in, if it is still there for this person.
-    const again = presenceRooms.find((r) => r.id === rememberedRoom() && !r.ephemeral);
+    joinInvitedSpace(invited[1]);
+  } else if (!guestToken && rememberedSpace()) {
+    // A reload: back into the space this tab was in, if it is still there for this person.
+    const again = presenceSpaces.find((r) => r.id === rememberedSpace() && !r.ephemeral);
     if (again) join(again.id);
-    else forgetRoom();
+    else forgetSpace();
   }
 }
 init();

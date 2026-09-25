@@ -8,7 +8,7 @@ Assistant is a place for an open-ended conversation with the AI the owner set up
 
 1. Set up the AI itself first: on the Modules tab, **AI service** (none, OpenAI, Anthropic, or another OpenAI-compatible service), a model and a key, then **Approve and enable**. See [Modules](userguide-modules.md).
 2. On the Modules tab, choose **Install** beside Assistant, then **Approve and enable**. It asks to link to every other module's items, to ask their actions, and to use the AI hook.
-3. Tick **Available in every room**, or tick it per room.
+3. Tick **Available in every space**, or tick it per room.
 4. On the Roles tab, **Use AI in modules** (under AI) governs who may actually get an answer here; it is off for everyone until you turn it on, and a guest never can. A separate **Use the assistant** permission, under Module: Assistant, governs who may open the pane at all (on by default).
 
 ## Ask

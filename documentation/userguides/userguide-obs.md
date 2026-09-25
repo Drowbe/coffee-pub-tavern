@@ -31,7 +31,7 @@ view shows the Character pictures only and never the video. See
 each person's own, on their profile.
 
 The links carry the server's **access key**, which the Stream page shows (and regenerates) for owners and
-the admin (on a hosted server, the host admin), as does **Access key** on the Server tab of the Manage page. Regenerating
+the admin (on a hosted server, the host admin), as does **Access key** on the Environment tab of the Manage page. Regenerating
 it stops every existing link working, so do it only if a link has leaked. Anyone else who opens the Stream
 page sees "Only an owner sees the links, since each one carries the access key." The module's **See the
 stream links and the access key** permission on the Roles tab does not change that today.
@@ -46,7 +46,7 @@ muted borders and their colours and width for the Participant box and, separatel
 the name plate (on or off, position, box colour and opacity, text colour, size and case); a colour behind
 the Participant picture and how large the portrait sits in the box; and how a box is dimmed or tinted
 while the person is offline, in an aside away from the room the stream follows, or in a private
-conversation. These are the same for everyone. A server that had these on its Server tab before the
+conversation. These are the same for everyone. A server that had these on its Server tab (now Environment) before the
 module arrived keeps its values: they were carried over when the module installed itself.
 
 ## Sound

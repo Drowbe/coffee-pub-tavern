@@ -5,14 +5,14 @@
 //   /modules/<id>                          the module's server page
 //   /modules/<id>?space=<space>&popout=1   a space's panel in a window of its own (?moduleRoom= redirects here)
 //                                          (add &guest=<token> for a guest)
-// (Not "room": a module page opened over a call already carries room=<name of the room>.)
+// (A module page opened over a call also carries from=space&spaceName=<the space's name>, for its Back link.)
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
 const id = decodeURIComponent(location.pathname.split('/')[2] || '');
 const params = new URLSearchParams(location.search);
-const roomId = params.get('space');
+const spaceId = params.get('space');
 const guestToken = params.get('guest');
 const popout = params.get('popout') === '1';
 
@@ -35,13 +35,13 @@ async function start() {
     $('admin-link').hidden = !hasOwnerRights(me);
   }
 
-  // Which module, and how it is shown: its own page (server scope), or a room's panel.
+  // Which module, and how it is shown: its own page (the environment's scope), or a space's panel.
   let mod;
-  let scope = 'server';
+  let scope = 'environment';
   let entry;
-  if (roomId) {
-    scope = 'room';
-    const q = new URLSearchParams({ space: roomId });
+  if (spaceId) {
+    scope = 'space';
+    const q = new URLSearchParams({ space: spaceId });
     if (guestToken) q.set('guest', guestToken);
     const found = (await api('GET', `/api/modules/for-space?${q}`)).modules.find((m) => m.id === id);
     if (found) {
@@ -85,7 +85,7 @@ async function start() {
     const q = new URLSearchParams(location.search);
     q.delete('popout');
     q.delete('space');
-    if (ref.scope === 'room') q.set('space', ref.room);
+    if (ref.scope === 'space') q.set('space', ref.space);
     location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}${refHash(ref)}`;
     return true;
   };
@@ -97,7 +97,7 @@ async function start() {
     header: popout ? $('module-titlebar-custom') : null,
     toolbar: $('module-toolbar'),
     scope,
-    roomId,
+    spaceId,
     guestToken,
     entry,
     onTitle: (title) => {
@@ -135,8 +135,8 @@ function refFromHash() {
   }
 }
 
-// The window's own titlebar: close, and (while the room page that opened it is still there) the
-// way back into the room as a docked column or a floating panel.
+// The window's own titlebar: close, and (while the space page that opened it is still there) the
+// way back into the space as a docked column or a floating panel.
 function wireTitlebar(mod) {
   $('module-titlebar').hidden = false;
   $('module-titlebar-icon').className = `fa-solid fa-${mod.icon} fa-fw`;

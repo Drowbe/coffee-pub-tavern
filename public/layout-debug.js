@@ -1,4 +1,4 @@
-// A live readout of the room page's real geometry, for phones where the layout is wrong: open the
+// A live readout of the space page's real geometry, for phones where the layout is wrong: open the
 // call page with ?layout=1 (Manage > About > Troubleshooting has a link). Numbers are in CSS pixels,
 // measured from the top of the page.
 const box = document.createElement('pre');

@@ -18,9 +18,9 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="server" type="button">Server</button>
+      <button class="subtab active" data-tab="environment" type="button">Environment</button>
       <button class="subtab" data-tab="theme" type="button">Theme</button>
-      <button class="subtab" data-tab="rooms" type="button">Spaces</button>
+      <button class="subtab" data-tab="spaces" type="button">Spaces</button>
       <button class="subtab" data-tab="roles" type="button">Roles</button>
       <button class="subtab" data-tab="users" type="button">Users</button>
       <button class="subtab" data-tab="modules" type="button">Modules</button>
@@ -67,7 +67,7 @@
       </div>
       <div class="theme-preview" id="theme-preview">
         <div class="theme-preview-header topbar-sample">
-          <span class="theme-preview-brand"><i class="fa-solid fa-couch fa-fw" aria-hidden="true"></i> Server name</span>
+          <span class="theme-preview-brand"><i class="fa-solid fa-couch fa-fw" aria-hidden="true"></i> Environment name</span>
           <span><a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a><a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a></span>
         </div>
         <div class="theme-preview-main">
@@ -173,16 +173,16 @@
       </div>
     </section>
 
-    <section class="tab-rooms" id="tab-rooms" hidden>
+    <section class="tab-spaces" id="tab-spaces" hidden>
       <div class="panel">
         <div class="section-head">
           <h1>Spaces</h1>
-          <span class="status" id="rooms-status"></span>
-          <button class="btn btn-primary btn-small" id="add-room" type="button">Add space</button>
+          <span class="status" id="spaces-status"></span>
+          <button class="btn btn-primary btn-small" id="add-space" type="button">Add space</button>
         </div>
         <p class="hint">Everyone belongs to the Lobby. Each space is its own conversation for the users you pick; players see their spaces after signing in and choose one. Coffee Pub Studio shows one space at a time.</p>
       </div>
-      <div id="rooms" class="users"></div>
+      <div id="spaces" class="users"></div>
     </section>
 
     <section class="tab-stack" id="tab-roles" hidden>
@@ -257,7 +257,7 @@
       </div>
     </section>
 
-    <section class="tab-stack" id="tab-server">
+    <section class="tab-stack" id="tab-environment">
       <!-- The environment on a host with several: its plan, what it has used, and the two things an owner may ask of the host. -->
       <div class="panel" id="env-panel" hidden>
         <div class="section-head">
@@ -281,8 +281,8 @@
         </form>
       </div>
       <div class="panel">
-      <h2>Server</h2>
-      <p class="hint">The icon and server name show in the header, the browser tab and on the sign-in page.</p>
+      <h2>Name and icon</h2>
+      <p class="hint">The icon and name show in the header, the browser tab and on the sign-in page.</p>
       <div class="brand-row">
         <div class="site-images">
           <div class="slot" data-site="icon">
@@ -293,14 +293,14 @@
           </div>
         </div>
         <div class="fields grow">
-          <label>Server name<input id="set-server" type="text" maxlength="60"></label>
+          <label>Name<input id="set-environment-name" type="text" maxlength="60"></label>
         </div>
       </div>
       <div class="icon-pick-field">
         <span class="field-label">Home icon</span>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
-      <p class="hint">Shown next to the server name wherever it's a link back to the space list.</p>
+      <p class="hint">Shown next to the name wherever it's a link back to the space list.</p>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
@@ -309,7 +309,7 @@
 
       <div class="panel">
       <h2>Language, time and money</h2>
-      <p class="hint">How the server and every module show these. Times are on a 12-hour clock unless you choose 24-hour; amounts are shown in this currency unless a trip names its own.</p>
+      <p class="hint">How this environment and every module show these. Times are on a 12-hour clock unless you choose 24-hour; amounts are shown in this currency unless a trip names its own.</p>
       <div class="fields">
         <label>Language<select id="set-language"><option value="en">English</option></select></label>
         <label>Clock<select id="set-clock"><option value="12">12-hour (10:30 PM)</option><option value="24">24-hour (22:30)</option></select></label>
@@ -324,7 +324,7 @@
 
       <div class="panel">
       <h2>Call features</h2>
-      <p class="hint">Turn any of these off server-wide. All on by default.</p>
+      <p class="hint">Turn any of these off for the whole environment. All on by default.</p>
       <div class="fields">
         <label>Maximum call quality<select id="set-max-quality"><option value="360">360p</option><option value="540">540p</option><option value="720">720p</option></select></label>
       </div>
@@ -379,7 +379,7 @@
       <p class="hint">Or invite someone straight into specific spaces without opening sign-up to everyone:</p>
       <div class="row">
         <span class="field-label">Spaces</span>
-        <div class="member-checks" id="invite-rooms"></div>
+        <div class="member-checks" id="invite-spaces"></div>
       </div>
       <div class="row">
         <button class="btn btn-primary" id="make-invite" type="button">Generate invite link</button>
@@ -426,15 +426,15 @@
     </div>
   </template>
 
-  <template id="room-card">
+  <template id="space-card">
     <article class="user-card">
-      <span class="room-thumb"><img class="thumb" data-thumb alt="" hidden><i class="fa-solid fa-door-open" aria-hidden="true" data-thumb-fallback></i></span>
+      <span class="space-thumb"><img class="thumb" data-thumb alt="" hidden><i class="fa-solid fa-door-open" aria-hidden="true" data-thumb-fallback></i></span>
       <div class="user-title">
         <strong data-name></strong>
         <span class="meta" data-meta></span>
       </div>
-      <button class="btn btn-small" data-action="room-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
-      <button class="btn btn-small" data-action="room-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
+      <button class="btn btn-small" data-action="space-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
+      <button class="btn btn-small" data-action="space-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
       <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit space</a>
     </article>
   </template>

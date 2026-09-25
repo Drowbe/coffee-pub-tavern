@@ -18,16 +18,16 @@
 <body>
   <header class="topbar" id="topbar"></header>
 
-  <!-- The rooms page scrolls in here, under the header, so the scrollbar starts below it. -->
+  <!-- The spaces page scrolls in here, under the header, so the scrollbar starts below it. -->
   <div class="page-scroll" id="page-scroll">
   <div class="join" id="join">
-    <!-- The rooms page: a sidebar of widget cards that modules provide (the dashboard, filled by
-         public/dashboard.js; empty and hidden until it has any) beside who is around and the room cards. -->
+    <!-- The spaces page: a sidebar of widget cards that modules provide (the dashboard, filled by
+         public/dashboard.js; empty and hidden until it has any) beside who is around and the space cards. -->
     <div class="home">
       <aside class="dashboard" id="dashboard" hidden></aside>
       <div class="home-main">
         <section class="whos-around" id="whos-around" hidden></section>
-        <div class="room-list" id="rooms"></div>
+        <div class="space-list" id="spaces"></div>
       </div>
     </div>
     <p class="status error" id="join-error" hidden></p>
@@ -36,7 +36,7 @@
 
   <!-- A guest link (/guest/<token>) shows this instead: a name, nothing else. -->
   <form class="join guest-join" id="guest-join" hidden>
-    <h1 id="guest-room-name">Join as a guest</h1>
+    <h1 id="guest-space-name">Join as a guest</h1>
     <label>Your name<input id="guest-name" type="text" maxlength="40" required autocomplete="name"></label>
     <button class="btn btn-primary" type="submit"><i class="fa-solid fa-comments fa-fw" aria-hidden="true"></i> Join</button>
     <p class="status error" id="guest-join-error" hidden></p>
@@ -44,16 +44,16 @@
   </form>
   </div>
 
-  <template id="room-choice">
-    <article class="room-choice">
-      <img class="room-choice-image" alt="" hidden>
-      <div class="room-choice-head">
-        <strong class="room-choice-name"></strong>
-        <span class="hint room-choice-count"></span>
+  <template id="space-choice">
+    <article class="space-choice">
+      <img class="space-choice-image" alt="" hidden>
+      <div class="space-choice-head">
+        <strong class="space-choice-name"></strong>
+        <span class="hint space-choice-count"></span>
       </div>
-      <p class="hint room-choice-desc"></p>
+      <p class="hint space-choice-desc"></p>
       <div class="members"></div>
-      <div class="room-choice-actions">
+      <div class="space-choice-actions">
         <a class="btn btn-small" data-link target="_blank" rel="noopener" href="#" title="Open this space's link" hidden><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></a>
         <button class="btn btn-primary" data-join type="button"><i class="fa-solid fa-comments fa-fw" data-join-icon aria-hidden="true"></i> <span data-join-label>Join</span></button>
         <button class="btn btn-accent btn-small" data-join-popout type="button" title="Join in a pop-out window" aria-label="Join in a pop-out window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>
@@ -72,14 +72,14 @@
 
   <!-- Your profile or Manage, opened from inside a call: loads for real in
        an iframe so the call underneath keeps running untouched. The page's
-       own header gets a "Back to [room]" link added to it (see brand.js'
+       own header gets a "Back to [space]" link added to it (see brand.js'
        wireOverlayBack, called from profile.js/admin.js) rather than
        stacking a second bar of ours on top of it. -->
   <iframe class="page-overlay" id="page-overlay-frame" title="Page" hidden></iframe>
 
   <!-- Everything in the call lives inside the stage so it can pop out as one. -->
   <main class="stage" id="stage" hidden>
-    <!-- Each module owns a column of the room's grid: a content area over
+    <!-- Each module owns a column of the space's grid: a content area over
          an action bar, the bars sharing one bottom row so they line up. Video
          and chat are the first two; see documentation/architecture/architecture-room-layout.md. -->
     <section class="module module-video" id="conference" hidden>
@@ -95,7 +95,7 @@
       <div class="no-call" id="no-call" hidden><i class="fa-solid fa-phone-slash" aria-hidden="true"></i><span>Not in a call</span></div>
 
       <div class="float status-float" id="status-float">
-        <span data-brand="serverName">Coffee Pub</span>
+        <span data-brand="environmentName">Coffee Pub</span>
         <span class="status" id="status"></span>
       </div>
   
@@ -121,13 +121,13 @@
         </div>
 
         <!-- Shown on a Private Conversation participant's own screen once the
-             admin clicks "Pull Participants Back" in the room they stepped out
+             admin clicks "Pull Participants Back" in the space they stepped out
              of -- a warned countdown, not an instant yank, so it doesn't cut
              someone off mid-sentence. No cancel: this is the admin's call, not
              theirs to override. -->
         <div class="aside-overlay" id="recall-overlay" hidden>
           <div class="aside-overlay-card">
-            <p>You are being pulled back to <strong id="recall-room-name"></strong> in...</p>
+            <p>You are being pulled back to <strong id="recall-space-name"></strong> in...</p>
             <p class="recall-countdown" id="recall-countdown"></p>
           </div>
         </div>
@@ -169,7 +169,7 @@
         <button class="fbtn" id="away-toggle" type="button" title="Away: pauses your mic and camera and lets everyone know" data-collapse="5"><span class="glyph"><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i></span></button>
       <button class="fbtn" id="react-toggle" type="button" title="Reactions (R, or keys 1 to 6)" data-collapse="3"><span class="glyph"><i class="fa-solid fa-face-smile fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="settings-toggle" type="button" title="Settings" data-settings="more" data-collapse="2"><span class="glyph"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></span></button>
-        <button class="fbtn" id="room-link" type="button" title="Open this space's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
+        <button class="fbtn" id="space-link" type="button" title="Open this space's link" data-collapse="1" hidden><span class="glyph"><i class="fa-solid fa-link fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn" id="floatbar-more" type="button" title="More" aria-label="More" hidden><span class="glyph"><i class="fa-solid fa-ellipsis-vertical fa-fw" aria-hidden="true"></i></span></button>
         <button class="fbtn danger" id="hangup" type="button" title="Leave the call (you stay in the space)"><span class="glyph"><i class="fa-solid fa-phone-slash fa-fw" aria-hidden="true"></i></span></button>
       </div>
@@ -265,7 +265,7 @@
       </header>
       <div class="messages" id="messages"></div>
       <!-- Covers just the chat panel, not the whole stage -- clearing chat
-           is scoped to this one room and this one browser, not a call-wide
+           is scoped to this one space and this one browser, not a call-wide
            action, so the confirmation shouldn't read as bigger than it is. -->
       <div class="chat-delete-overlay" id="chat-delete-overlay" hidden>
         <p>Clear this chat? What came before disappears from your view on this browser -- not for anyone else, and not what's already been said out loud.</p>
@@ -317,6 +317,6 @@
        exact text is pinned by a CSP hash above -- change one, change both. -->
   <script type="importmap">{"imports":{"livekit-client":"/lib/livekit-client.esm.mjs","@mediapipe/tasks-vision":"/lib/tasks-vision.mjs"}}</script>
   <script src="/sdk/host.js" data-host-sdk></script>
-  <script type="module" src="/room.js"></script>
+  <script type="module" src="/space.js"></script>
 </body>
 </html>

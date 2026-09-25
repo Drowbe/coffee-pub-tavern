@@ -1,5 +1,5 @@
 // A small cross-platform keyboard-shortcut format shared by the profile
-// page (recording a combo) and the room (matching one live during a call).
+// page (recording a combo) and the space (matching one live during a call).
 // Stored and sent to the server as strings like "Mod+KeyD": "Mod" is Cmd on
 // a Mac and Ctrl everywhere else, the same convention most cross-platform
 // apps use, so a shortcut picked on one OS still reads and works sensibly
