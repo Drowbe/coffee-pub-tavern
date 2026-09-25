@@ -870,7 +870,7 @@ export function createCanvas({ guestToken = null } = {}) {
     const mod = opened.get(m.id);
     if (!mod || !mod.mount) return false;
     if (mod.mode === 'float') front(mod.el);
-    mod.mount.deliver('refopen', { ref });
+    mod.mount.deliver('objectopen', { ref });
     return true;
   }
 

@@ -6,8 +6,8 @@ side of things.
 
 ## In progress
 
-- **Names** ([plan-names](plans/plan-names.md)): steps 1 to 6 are built (September 24 and 25, 2026); step 7,
-  object, is next. Steps 8 to 10 (asides, the documentation, the aliases going): #24.
+- **Names** ([plan-names](plans/plan-names.md)): steps 1 to 7 are built (September 24 and 25, 2026). Steps 8
+  to 10 (asides, the documentation, the aliases going): #24.
 - **Environment templates** ([plan-environment-templates](plans/plan-environment-templates.md)): done
   (September 25, 2026).
 

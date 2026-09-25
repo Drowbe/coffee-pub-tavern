@@ -514,7 +514,7 @@ function templateView(store) {
 // live there -- a value that fails to validate against its declared type is skipped rather than failing the
 // whole install (logged either way).
 async function autoInstallBundled(env) {
-  await updateOutdatedBundled(env);
+  await updateBundled(env);
   for (const bundled of bundledModules(BUNDLED_DIR)) {
     if (!bundled.install?.auto || env.modules.isInstalled(bundled.id) || env.modules.autoInstalled(bundled.id)) continue;
     let installed;
@@ -543,28 +543,39 @@ async function autoInstallBundled(env) {
   }
 }
 
-// A bundled module installed before plan-names step 5c has a manifest in the old names, so it can't run (see
-// ModuleManager.enabled). When this deployment ships a newer copy in the new names, it is updated to it on the
-// environment's first build, the way an owner would press Update, so nothing that was on goes off for good: it keeps
-// its on or off, its spaces and its data. Only a module that came from this deployment (source "bundled"); an
-// uploaded one waits for its author.
+// A module installed from this deployment's bundled copy (source "bundled") stays in step with the server: on each
+// environment's first build, when this deployment ships a newer version, it is updated to it the way an owner would
+// press Update, keeping its on or off, its spaces and its data. Requirements first (requirementsFirst), so what a
+// module needs is updated and back on before it is.
 //
-// An update that asks for something new waits for an owner's approval, as any update does, with one exception on
-// this path only: a new permission that is off for every role (moderator, member and guest) widens nothing, since
-// only owners (and the admin) hold it, so a module that was on and asks for nothing else new stays on, and the log
-// says so. A new permission on for some role, or any other new request (a hook, a link, an event, an action), still
-// waits.
-async function updateOutdatedBundled(env) {
+// Only an update that needs no new approval is made on its own: one that asks for nothing new, or whose only new
+// requests are permissions off for every role (pendingWidensNothing: only owners and the admin hold them, so a module
+// that was on stays on, and the log says so). An update that asks for anything else new (a permission on for some
+// role, a hook, a link, an event, an action) waits for an owner in Modules, and the installed version keeps running;
+// the log says so on each start. The exception is an installed version built for an older Magpie (outdated, which
+// can't run at all): it is updated whatever the update asks for, and what it newly asks for waits for an owner, off
+// until then. An uploaded module is never touched: it waits for its author.
+async function updateBundled(env) {
   // On a hosted server each line names the environment it is about.
   const where = BASE_DOMAIN && env.slug ? `[${env.slug}] ` : '';
+  // A rename the installed versions already declare and that has not run here (data restored from a backup, say) runs
+  // first, before any update is read from disk.
+  for (const id of Object.keys(env.modules.registry.modules)) syncStoredKeys(env, id);
   for (const bundled of requirementsFirst(bundledModules(BUNDLED_DIR))) {
     const entry = env.modules.registry.modules[bundled.id];
     if (!entry || entry.source !== 'bundled' || oldNameIn(bundled)) continue;
-    if (!env.modules.manifestOf(bundled.id, entry.version)?.outdated) continue;
+    const from = entry.version;
     if (compareVersions(bundled.version, [...entry.versions].sort(compareVersions).pop()) <= 0) continue;
+    const outdated = Boolean(env.modules.manifestOf(bundled.id, entry.version)?.outdated);
     const wasOn = Boolean(entry.enabled);
     try {
       const { zip } = buildModule(path.join(BUNDLED_DIR, bundled.id));
+      const { pending: asks, manifest: next } = await env.modules.preview(zip);
+      const asksNothing = !asks || !env.modules.hasPending(asks);
+      if (!outdated && !asksNothing && !pendingWidensNothing(asks, next.permissions)) {
+        console.log(`${where}"${bundled.id}" ${bundled.version} is here, but it asks for something new, so it waits for an owner to update it in Modules; ${from} keeps running.`);
+        continue;
+      }
       const view = await env.modules.install(zip, { source: 'bundled' });
       let note = '';
       // Still switched on unless the update asks for something new (install switches it off then); whether it runs also
@@ -585,16 +596,85 @@ async function updateOutdatedBundled(env) {
           note = ' It waits for an owner to approve what it newly asks for in Modules.';
         }
       }
-      console.log(`${where}Updated "${bundled.id}" to ${view.version}: the version installed was built for an older Magpie.${note}`);
+      console.log(`${where}Updated "${bundled.id}" from ${from} to ${view.version}${outdated ? ': the version installed was built for an older Magpie' : ', the version this server ships'}.${note}`);
+      // Its stored keys renamed at once, before anyone opens the new version (no request is served in between).
+      syncStoredKeys(env, bundled.id);
     } catch (err) {
-      console.error(`${where}Could not update "${bundled.id}", which was built for an older Magpie: ${err.message}`);
+      console.error(`${where}Could not update "${bundled.id}" from ${from} to ${bundled.version}: ${err.message}`);
     }
   }
-  carryReplacedGrants(env);
+  afterModulesChanged(env);
   for (const m of env.modules.list()) {
     if (m.outdated) console.warn(`${where}Module "${m.id}" ${m.version} can't run until it is updated: ${m.outdatedWhy}`);
     else if (m.needsUpdate.length) console.warn(`${where}Module "${m.id}" ${m.version} can't run until ${m.needsUpdate.map((r) => `"${r}"`).join(' and ')}, which it requires, ${m.needsUpdate.length === 1 ? 'is' : 'are'} updated.`);
   }
+}
+
+// After a module is installed or updated (or on start, for every installed one): carry renamed permissions' grants
+// over, and rename the stored keys its author renamed.
+function afterModulesChanged(env) {
+  carryReplacedGrants(env);
+  for (const id of Object.keys(env.modules.registry.modules)) syncStoredKeys(env, id);
+}
+
+// A module's author renamed a prefix of its stored keys (`storage.renamed: [{ from, to }]` in module.json, see
+// cleanStorage in modules.js). Each rename is recorded on the registry entry with the version that introduced it (the
+// running version when it first took effect): `renamed: [{ from, to, version, at, kept }]`. The rule: a rename is in
+// effect for every version from the one that introduced it on, so the data always matches the version that runs.
+// Whenever that may have changed (on start, and after an install, an update or a rollback):
+// - each rename in effect (declared by the running version, or recorded with a version no newer than it) moves every
+//   key still under `from` to `to`, in every scope of the module's data (the environment's, each space's, each
+//   person's), in the order recorded. Every time, not once: a key written under the old prefix since (an old page still
+//   open) is moved on the next sync. A later version that no longer declares a rename keeps it, and keeps applying it.
+// - each recorded rename introduced by a version newer than the running one, as after a rollback to a version from
+//   before the rename, is undone, last first: keys under `to` go back to `from`, so the older version finds them, and
+//   the record goes.
+// A key whose target name is already taken is never overwritten: both are left as they are (`kept`), for the module to
+// settle. The log and the module's activity say so when keys moved or a new conflict appeared, never again for the same
+// one. By prefix, never by module: the host knows nothing of what the keys mean.
+function syncStoredKeys(env, id) {
+  const where = BASE_DOMAIN && env.slug ? `[${env.slug}] ` : '';
+  const entry = env.modules.registry.modules[id];
+  if (!entry) return;
+  const running = entry.version;
+  const declared = env.modules.manifestOf(id, running)?.storage?.renamed || [];
+  const applied = env.modules.appliedRenames(id);
+  const same = (a, b) => a.from === b.from && a.to === b.to;
+  const isDeclared = (r) => declared.some((d) => same(d, r));
+  // A record from before versions were recorded counts as introduced by the running version.
+  const introduced = (r) => (typeof r.version === 'string' ? r.version : running);
+  const move = (from, to, back, keptBefore = 0) => {
+    let result;
+    try {
+      result = env.moduleData.renamePrefix(id, from, to);
+    } catch (err) {
+      console.error(`${where}Could not ${back ? 'move back' : 'rename'} "${id}"'s stored keys from ${from} to ${to}: ${err.message}. It is tried again on the next start.`);
+      return null;
+    }
+    if (result.moved || result.kept > keptBefore) {
+      const kept = result.kept ? `; kept ${result.kept} whose new name was already taken` : '';
+      env.noteActivity(id, `${back ? 'moved back' : 'renamed'} ${result.moved} stored key${result.moved === 1 ? '' : 's'} from ${from} to ${to}${kept}`, null, null);
+      console.log(`${where}${back ? 'Moved back' : 'Renamed'} "${id}"'s stored keys from ${from} to ${to}${back ? `, since ${running} is from before that rename` : ''} (${result.moved} in ${result.scopes} place${result.scopes === 1 ? '' : 's'}${kept}).`);
+    }
+    return result;
+  };
+  let next = applied.map((r) => ({ ...r }));
+  // Undone: introduced by a newer version than the one running, and not declared by it.
+  for (const r of [...next].reverse()) {
+    if (isDeclared(r) || compareVersions(introduced(r), running) <= 0) continue;
+    if (move(r.to, r.from, true)) next = next.filter((x) => !same(x, r));
+  }
+  // In effect: what is left, then what the running version declares that is not recorded yet.
+  for (const r of declared) {
+    const had = next.find((x) => same(x, r));
+    if (!had) next.push({ from: r.from, to: r.to, version: running, at: new Date().toISOString(), kept: 0 });
+    else if (typeof had.version !== 'string' || compareVersions(had.version, running) > 0) had.version = running;
+  }
+  for (const r of next) {
+    const result = move(r.from, r.to, false, Number.isInteger(r.kept) ? r.kept : 0);
+    if (result) r.kept = result.kept;
+  }
+  if (JSON.stringify(next) !== JSON.stringify(applied)) env.modules.setAppliedRenames(id, next);
 }
 
 // Bundled modules with each one after the modules it requires (Places before Maps), so a requirement is updated and
@@ -2858,6 +2938,10 @@ function shownModule(m) {
   const d = store.moduleDisplay(m.id);
   return { name: d.name || m.name, icon: d.icon || m.icon };
 }
+// What a kind of object is called: its manifest `name`, where `{name}` stands for the module's shown name (this
+// environment's display name for it, else the manifest's own), so the Planner's "{name}" reads "Itinerary" where it
+// is shown as Itinerary. The words' placeholders ({space} and the rest) were filled with the manifest already.
+const kindNameOf = (manifest, name) => String(name).replace(/\{name\}/g, () => shownModule(manifest).name);
 // A built-in module as Manage shows it: its sentences in this environment's words ({space} and the like, server/words.js),
 // and whether it is on, for one with an environment-wide switch.
 function builtinView(b) {
@@ -2894,7 +2978,7 @@ app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
   if (refuseModuleNotInPlan(res, id, bundled.name)) return;
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
   const installed = await modules.install(zip, { source: 'bundled' });
-  carryReplacedGrants(currentEnvironment());
+  afterModulesChanged(currentEnvironment());
   res.status(201).json({ module: installed });
 });
 // Uploading a module's own zip, and choosing to run one in the page rather than sandboxed, are the host's own
@@ -2914,7 +2998,7 @@ app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res
     modules.uninstall(installed.id, { keepData: false });
     return res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${installed.displayName || installed.name}.` });
   }
-  carryReplacedGrants(currentEnvironment());
+  afterModulesChanged(currentEnvironment());
   res.status(201).json({ module: installed });
 });
 // displayName and displayIcon: what this environment calls the module and shows it as (null, or '' for the name, goes
@@ -2940,7 +3024,10 @@ app.patch('/api/modules/:id', requireOwner, (req, res) => {
   res.json({ module: modules.view(req.params.id) });
 });
 app.post('/api/modules/:id/rollback', requireOwner, (req, res) => {
-  res.json({ module: modules.rollback(req.params.id, String(req.body?.version || '')) });
+  const rolled = modules.rollback(req.params.id, String(req.body?.version || ''));
+  // The stored keys follow the version now running (storage.renamed): a rename it does not declare is undone.
+  syncStoredKeys(currentEnvironment(), req.params.id);
+  res.json({ module: rolled });
 });
 app.delete('/api/modules/:id', requireOwner, (req, res) => {
   modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
@@ -3159,16 +3246,16 @@ app.get('/api/modules/:id/spaces-data', (req, res) => {
   res.json({ spaces, items });
 });
 
-// --- refs: one module pointing at another's items ---------------------------
+// --- objects: one module pointing at another's objects ---------------------------
 // Modules cannot reach each other's storage, and that stays. The host knows nothing about any module's
-// items; it offers conduits. A module declares in its manifest the kinds of item it lets others point
-// at (`refs.produces`: a kind, the stored key its items live under, which stored fields make up a
-// small card, and whether it can open one or show what links to it) and which kinds it wants to point
+// objects; it offers conduits. A module declares in its manifest the kinds of object it lets others point
+// at (`refs.produces`: a kind, the stored key its objects live under, which stored fields make up the
+// object's summary, and whether it can open one or show what links to it) and which kinds it wants to point
 // at (`refs.consumes`: named kinds, or "*" for whatever other modules share; approved by an admin).
-// The consumer stores only a pointer ({ module, kind, id, scope, space? }) and asks the host for the card
+// The consumer stores only a pointer ({ module, kind, id, scope, space? }) and asks the host for the summary
 // whenever it draws it. The host answers only what the viewer could already see in the producing
 // module: it must be enabled, the viewer must hold its read permission in that scope (and be in the
-// space), and the consumer must have been approved for that kind. What comes back is the card, never
+// space), and the consumer must have been approved for that kind. What comes back is the summary, never
 // the stored record. Nothing here names a module: a module installed tomorrow takes part by declaring.
 
 const refError = (status, message) => Object.assign(new Error(message), { status });
@@ -3196,13 +3283,13 @@ function refScope(who, { provider, kind, scope, space, from, skipConsumer = fals
   const found = modules.enabled(provider);
   if (!found) throw refError(404, `no such ${word('module')}`);
   const produce = found.manifest.refs.produces.find((p) => p.kind === kind);
-  if (!produce) throw refError(404, `that ${word('module')} does not share that kind of item`);
+  if (!produce) throw refError(404, `that ${word('module')} does not share that kind of ${word('object')}`);
   let consumer = null;
   if (!skipConsumer) {
     if (!from) throw refError(400, `say which ${word('module')} is asking`);
     consumer = modules.enabled(from);
     if (!consumer) throw refError(404, `no such ${word('module')}`);
-    if (!consumerMayLink(consumer, provider, kind)) throw refError(403, `that ${word('module')} has not been approved to link to those items`);
+    if (!consumerMayLink(consumer, provider, kind)) throw refError(403, `that ${word('module')} has not been approved to link to those ${word('object', { many: true })}`);
   }
   const { manifest, entry } = found;
   let scopeKey;
@@ -3234,45 +3321,45 @@ function refScope(who, { provider, kind, scope, space, from, skipConsumer = fals
   return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'space' ? 'space' : scope === 'person' ? 'person' : 'environment', ...(scope === 'space' ? { space: String(space) } : {}) } };
 }
 
-// The card for one stored item: only the fields the producer named, trimmed and typed.
-function refCard({ manifest, produce, ref }, id, value, withText = false) {
+// The summary of one stored object: only the fields the producer named, trimmed and typed.
+function objectSummary({ manifest, produce, ref }, id, value, withText = false) {
   const text = (v) => (typeof v === 'string' ? v.slice(0, 200) : typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-  const field = (name) => (produce.card[name] ? value?.[produce.card[name]] : undefined);
-  const card = {
+  const field = (name) => (produce.summary[name] ? value?.[produce.summary[name]] : undefined);
+  const summary = {
     ref: { ...ref, id },
     kind: produce.kind,
-    kindName: produce.name,
+    kindName: kindNameOf(manifest, produce.name),
     open: produce.open,
     module: { id: manifest.id, ...shownModule(manifest) },
     title: String(text(field('title')) ?? '').trim() || 'Untitled',
   };
   const subtitle = text(field('subtitle'));
-  if (subtitle !== undefined && subtitle !== '') card.subtitle = subtitle;
+  if (subtitle !== undefined && subtitle !== '') summary.subtitle = subtitle;
   for (const name of ['when', 'end']) {
     const v = text(field(name));
-    if (v !== undefined && v !== '') card[name] = v;
+    if (v !== undefined && v !== '') summary[name] = v;
   }
-  for (const name of ['allDay', 'done']) if (typeof field(name) === 'boolean') card[name] = field(name);
+  for (const name of ['allDay', 'done']) if (typeof field(name) === 'boolean') summary[name] = field(name);
   // A short label a module may give its items to group or colour them ("eat", "stay"): lower case letters, digits and dashes.
   const category = text(field('category'));
-  if (typeof category === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(category)) card.category = category.toLowerCase();
-  // The item's own words (a note's body), plain and up to 8 KB. Left out of the cards people browse; the server reads it only
+  if (typeof category === 'string' && /^[A-Za-z0-9-]{1,20}$/.test(category)) summary.category = category.toLowerCase();
+  // The object's own words (a note's body), plain and up to 8 KB. Left out of the summaries people browse; the server reads it only
   // for the AI hook, as the person asking.
-  if (withText) { const t = field('text'); if (typeof t === 'string' && t.trim()) card.text = t.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000); }
+  if (withText) { const t = field('text'); if (typeof t === 'string' && t.trim()) summary.text = t.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000); }
   // A place on the map, if the item has one: { lat, lng, name? }, checked; anything else is left out.
   const place = field('place');
   if (place && typeof place === 'object' && Number.isFinite(place.lat) && Number.isFinite(place.lng) && Math.abs(place.lat) <= 90 && Math.abs(place.lng) <= 180) {
-    card.place = { lat: place.lat, lng: place.lng, ...(typeof place.name === 'string' && place.name.trim() ? { name: place.name.replace(/\p{Cc}/gu, ' ').trim().slice(0, 120) } : {}) };
+    summary.place = { lat: place.lat, lng: place.lng, ...(typeof place.name === 'string' && place.name.trim() ? { name: place.name.replace(/\p{Cc}/gu, ' ').trim().slice(0, 120) } : {}) };
   }
-  return card;
+  return summary;
 }
 
 function resolveRef(who, ref, from, opts = {}) {
   if (!refShape(ref)) throw refError(400, 'that is not a valid reference');
   const at = refScope(who, { provider: ref.module, kind: ref.kind, scope: ref.scope, space: ref.space, from, ...opts });
   const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', String(ref.id)));
-  if (!item || !item.value) throw refError(404, 'that item is no longer there');
-  return refCard(at, String(ref.id), item.value, opts.withText === true);
+  if (!item || !item.value) throw refError(404, `that ${word('object')} is no longer there`);
+  return objectSummary(at, String(ref.id), item.value, opts.withText === true);
 }
 
 // The kinds the consumer may point at: every kind of every other enabled module it was approved for.
@@ -3283,7 +3370,7 @@ function consumableKinds(consumerId) {
   for (const { manifest } of modules.enabledAll()) {
     if (manifest.id === consumerId) continue;
     for (const p of manifest.refs.produces) {
-      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: shownModule(manifest).name, icon: shownModule(manifest).icon, kind: p.kind, name: p.name, open: p.open, events: (manifest.events?.publishes || []).filter((e) => e.kind === p.kind).map((e) => ({ name: e.name, label: e.label, data: e.data || {} })) });
+      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: shownModule(manifest).name, icon: shownModule(manifest).icon, kind: p.kind, name: kindNameOf(manifest, p.name), open: p.open, events: (manifest.events?.publishes || []).filter((e) => e.kind === p.kind).map((e) => ({ name: e.name, label: e.label, data: e.data || {} })) });
     }
   }
   return out;
@@ -3299,23 +3386,23 @@ const refAnswer = (fn) => {
   }
 };
 
-// Cards for a list of pointers, one answer each (a card, or why not).
-app.post('/api/refs/resolve', (req, res) => {
+// Summaries for a list of pointers, one answer each (a summary, or why not).
+app.post('/api/objects/resolve', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.body?.from || '');
   const refs = Array.isArray(req.body?.refs) ? req.body.refs.slice(0, 50) : [];
-  res.json({ cards: refs.map((ref) => refAnswer(() => resolveRef(who, ref, from)) ) .map((c, i) => (c.error ? { ref: refs[i], ...c } : c)) });
+  res.json({ summaries: refs.map((ref) => refAnswer(() => resolveRef(who, ref, from))).map((c, i) => (c.error ? { ref: refs[i], ...c } : c)) });
 });
 
 // The kinds the asking module may link to, so it does not have to know other modules by name.
-app.get('/api/refs/kinds', (req, res) => {
+app.get('/api/objects/kinds', (req, res) => {
   if (!moduleViewer(req)) return res.status(401).json({ error: 'sign in first' });
   res.json({ kinds: consumableKinds(String(req.query.from || '')) });
 });
 
-// Items the asking module could link to, in one scope: every kind it was approved to consume.
-app.get('/api/refs/search', (req, res) => {
+// Objects the asking module could link to, in one scope: every kind it was approved to consume.
+app.get('/api/objects/search', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.query.from || '');
@@ -3323,7 +3410,7 @@ app.get('/api/refs/search', (req, res) => {
   const scope = askedScope(req.query.scope, res, ['environment', 'space', 'person']);
   if (!scope) return;
   const q = String(req.query.q || '').trim().toLowerCase();
-  const cards = [];
+  const summaries = [];
   for (const k of consumableKinds(from)) {
     let at;
     try {
@@ -3334,21 +3421,21 @@ app.get('/api/refs/search', (req, res) => {
     const prefix = at.produce.key.replace('{id}', '');
     for (const item of moduleData.list(k.module, at.scopeKey, prefix)) {
       if (!item.value || !REF_ID_RE.test(item.key.slice(prefix.length))) continue;
-      const card = refCard(at, item.key.slice(prefix.length), item.value);
-      if (q && !`${card.title} ${card.subtitle || ''}`.toLowerCase().includes(q)) continue;
-      cards.push(card);
+      const summary = objectSummary(at, item.key.slice(prefix.length), item.value);
+      if (q && !`${summary.title} ${summary.subtitle || ''}`.toLowerCase().includes(q)) continue;
+      summaries.push(summary);
     }
   }
   // Newest dates first, undated last.
-  cards.sort((a, b) => String(b.when ?? '').localeCompare(String(a.when ?? '')) || a.title.localeCompare(b.title));
-  res.json({ cards: cards.slice(0, 50) });
+  summaries.sort((a, b) => String(b.when ?? '').localeCompare(String(a.when ?? '')) || a.title.localeCompare(b.title));
+  res.json({ summaries: summaries.slice(0, 50) });
 });
 
-// One item, by address (the same answer the batch gives).
-app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
+// One object, by address (the same answer the batch gives).
+app.get('/api/modules/:id/objects/:kind/:objectId', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
-  const out = refAnswer(() => ({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, space: req.query.space }, String(req.query.from || '')) }));
+  const out = refAnswer(() => ({ summary: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.objectId, scope: req.query.scope, space: req.query.space }, String(req.query.from || '')) }));
   res.status(out.status || 200).json(out);
 });
 
@@ -3356,16 +3443,16 @@ app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
 // ask what points at them. `module` is the asking module, `from` one of its own items, `to` the items
 // it now points at (the whole list: it replaces the last). Each target must be something the viewer
 // can see and the module is approved to link to, and the viewer must be able to write to the module.
-app.post('/api/refs/links', (req, res) => {
+app.post('/api/objects/links', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const asker = String(req.body?.module || '');
   const from = req.body?.from;
   const found = modules.enabled(asker);
   if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
-  if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only say what its own items point at` });
-  if (from.scope === 'person') return res.status(400).json({ error: 'personal items are private, so they are not linked' });
-  if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: `that ${word('module')} does not share that kind of item` });
+  if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only say what its own ${word('object', { many: true })} point at` });
+  if (from.scope === 'person') return res.status(400).json({ error: `personal ${word('object', { many: true })} are private, so they are not linked` });
+  if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: `that ${word('module')} does not share that kind of ${word('object')}` });
   // The viewer must be allowed to change the asking module's data in that scope.
   let perms;
   if (from.scope === 'space') {
@@ -3392,8 +3479,8 @@ app.post('/api/refs/links', (req, res) => {
 });
 
 // What points at an item (`dir=to`, for the module that owns it, if it shows backlinks) or what it
-// points at (`dir=from`): cards, each only for what the viewer may see.
-app.get('/api/refs/links', (req, res) => {
+// points at (`dir=from`): summaries, each only for what the viewer may see.
+app.get('/api/objects/links', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   let ref;
@@ -3405,11 +3492,11 @@ app.get('/api/refs/links', (req, res) => {
   const asker = String(req.query.from || '');
   const found = modules.enabled(asker);
   if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
-  if (!refShape(ref) || ref.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only ask about its own items` });
+  if (!refShape(ref) || ref.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only ask about its own ${word('object', { many: true })}` });
   const produce = found.manifest.refs.produces.find((p) => p.kind === ref.kind);
-  if (!produce) return res.status(400).json({ error: `that ${word('module')} does not share that kind of item` });
+  if (!produce) return res.status(400).json({ error: `that ${word('module')} does not share that kind of ${word('object')}` });
   const dir = req.query.dir === 'from' ? 'from' : 'to';
-  if (dir === 'to' && !produce.backlinks) return res.status(403).json({ error: 'that kind of item does not show what links to it' });
+  if (dir === 'to' && !produce.backlinks) return res.status(403).json({ error: `that kind of ${word('object')} does not show what links to it` });
   // The asking module's own item must itself be visible to the viewer.
   try {
     resolveRef(who, ref, null, { skipConsumer: true });
@@ -3417,15 +3504,15 @@ app.get('/api/refs/links', (req, res) => {
     if (!err.status) throw err;
     return res.status(err.status).json({ error: err.message });
   }
-  const cards = [];
+  const summaries = [];
   for (const other of dir === 'to' ? moduleLinks.to(ref) : moduleLinks.from(ref)) {
     try {
-      cards.push(dir === 'to' ? resolveRef(who, other, null, { skipConsumer: true }) : resolveRef(who, other, asker));
+      summaries.push(dir === 'to' ? resolveRef(who, other, null, { skipConsumer: true }) : resolveRef(who, other, asker));
     } catch (err) {
       if (!err.status) throw err; // gone, or not for this viewer
     }
   }
-  res.json({ cards });
+  res.json({ summaries });
 });
 
 // --- events and actions: modules reacting to and asking things of each other -------------------
@@ -3497,7 +3584,7 @@ app.post('/api/bus/publish', busRoute((who, req) => {
   let pointer = null;
   if (ref !== undefined && ref !== null) {
     if (!refShape(ref) || ref.module !== id || !at.found.manifest.refs.produces.some((p) => p.kind === ref.kind) || refScopeKey(ref) !== at.scopeKey) {
-      throw refError(400, `an event can only point at one of its ${word('module')}'s own items, in the same place`);
+      throw refError(400, `an event can only point at one of its ${word('module')}'s own ${word('object', { many: true })}, in the same place`);
     }
     pointer = plainRef(ref);
   }
@@ -3723,8 +3810,8 @@ app.get('/api/modules/widgets', (req, res) => {
 
 // --- AI, for the modules that ask ---------------------------------------------------------------------------------------------
 // One server-wide setting (see ai.js); the key never leaves the server and is never sent back. A module asks through the `ai` hook:
-// the server checks the person's role and the room, reads the chosen items as that person, asks the service the admin set up, and
-// returns text with any cards the model wrote (each checked). Nothing is kept: no question, no answer, no item text. The activity
+// the server checks the person's role and the space, reads the chosen objects as that person, asks the service the admin set up, and
+// returns text with any summaries the model wrote (each checked). Nothing is kept: no question, no answer, no object's text. The activity
 // list gets who, which module and task, and how many tokens.
 function sendAiError(err, res) {
   if (err instanceof AiError) return res.status(err.status).json({ error: err.message });
@@ -3779,24 +3866,26 @@ app.post('/api/modules/:id/ai', async (req, res) => {
   if (!allowed.ok) return res.status(403).json({ error: allowed.why });
   if (refuseOverAiCalls(res)) return;
   if (overLimit(ctx.manifest.id, ctx.by, 'ai')) return res.status(429).json({ error: limitMessage() });
-  const refs = Array.isArray(req.body?.items) ? req.body.items.slice(0, 12) : [];
-  // The items are read as this person: only what they may see, and only kinds this module produces or was approved to link to.
-  const items = [];
+  // Plan-names step 7: the objects to ask about are `objects`, no longer `items`; the old name is refused, not read.
+  if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'items')) return res.status(400).json({ error: `items is an old name; send the ${word('object', { many: true })} to ask about as objects` });
+  const refs = Array.isArray(req.body?.objects) ? req.body.objects.slice(0, 12) : [];
+  // The objects are read as this person: only what they may see, and only kinds this module produces or was approved to link to.
+  const material = [];
   const given = [];
   for (const ref of refs) {
     try {
       const own = ref && ref.module === ctx.manifest.id;
-      const card = resolveRef(ctx.who, ref, ctx.manifest.id, { withText: true, skipConsumer: own });
-      const bits = [card.subtitle, card.when ? `date: ${card.when}` : '', card.place && card.place.name ? `place: ${card.place.name}` : ''].filter(Boolean);
-      items.push({ title: card.title, text: [card.text, ...bits].filter(Boolean).join('\n') || card.title });
-      given.push(card.ref);
+      const summary = resolveRef(ctx.who, ref, ctx.manifest.id, { withText: true, skipConsumer: own });
+      const bits = [summary.subtitle, summary.when ? `date: ${summary.when}` : '', summary.place && summary.place.name ? `place: ${summary.place.name}` : ''].filter(Boolean);
+      material.push({ title: summary.title, text: [summary.text, ...bits].filter(Boolean).join('\n') || summary.title });
+      given.push(summary.ref);
     } catch {
-      // an item that is gone, or that this person may not see, is simply left out
+      // an object that is gone, or that this person may not see, is simply left out
     }
   }
   try {
     const task = String(req.body?.task || '');
-    const out = await ai.run(task, items, req.body?.question);
+    const out = await ai.run(task, material, req.body?.question);
     // Counted on the registry entry regardless of provider (managed or the environment's own key) -- the plan's
     // aiCallsPerMonth cap is about how much of the environment's own allowance is used, not who is paying for
     // the tokens (plan-tenants.md, "Phase 3"). ai.js keeps its own separate per-provider token accounting.
@@ -3805,7 +3894,7 @@ app.post('/api/modules/:id/ai', async (req, res) => {
       if (slug) hostRegistry.recordAiCall(slug);
     }
     noteActivity(ctx.manifest.id, `used AI to ${task} (${out.tokens} tokens)`, ctx.by, ctx.scopeKey);
-    res.json({ text: out.text, cards: (out.cards || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) })), tags: out.tags, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
+    res.json({ text: out.text, summaries: (out.summaries || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) })), tags: out.tags, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
   } catch (err) {
     sendAiError(err, res);
   }

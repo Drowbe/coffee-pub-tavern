@@ -2,7 +2,7 @@
 // store (see travel-lib-plan.js); this page draws them into the markup in travel.html by cloning its templates and
 // filling their [data-slot] and [data-icon] hooks, and then only toggles the state classes and data attributes that
 // CONTRACT.md lists. It never builds markup from strings and sets no style (one exception: the item menu is placed
-// under the button that opened it). Items other modules hold come in as pointers, drawn from their cards.
+// under the button that opened it). Objects other modules hold come in as pointers, drawn from their summaries.
 (async () => {
   'use strict';
 
@@ -40,8 +40,8 @@
     view: 'days',
     loaded: false,
     people: [], // [{ key, name }] of this space
-    links: new Map(), // plan item id -> cards of what other modules link to it
-    tripLinks: [], // cards of what other modules link to the trip itself
+    links: new Map(), // plan item id -> summaries of what other modules link to it
+    tripLinks: [], // summaries of what other modules link to the trip itself
     conflicts: new Map(), // item id -> { patch }: my edit that met someone else's change
     editing: null, // { mode: 'item' | 'trip', id, kind, day }
     menuFor: null, // item id
@@ -106,9 +106,9 @@
     const clash = state.people.some((p) => p.key !== key && (p.name[0] || '').toUpperCase() === first);
     return clash ? first + (name[1] || '').toLowerCase() : first;
   };
-  const timeOf = (card) => (cardWhen(card) || {}).time || '';
-  const planRef = (id) => host.refs.make('plan', id);
-  const tripRef = () => host.refs.make('trip', 'main');
+  const timeOf = (summary) => (summaryWhen(summary) || {}).time || '';
+  const planRef = (id) => host.objects.make('plan', id);
+  const tripRef = () => host.objects.make('trip', 'main');
   const note = (text) => { $('note').textContent = text || ''; hide($('note'), !text); };
 
   // The time cell: the start in bold, then whatever goes after it.
@@ -140,64 +140,65 @@
     }
   }
 
-  // Why a linked item cannot be drawn from its card: 'gone' (deleted), 'hidden' (this viewer may not see it), 'unavailable'
+  // Why a linked object cannot be drawn from its summary: 'gone' (deleted), 'hidden' (this viewer may not see it), 'unavailable'
   // (it could not be read just now), or '' when it can.
-  const linkState = (card) => (card && card.error ? card.state || 'unavailable' : '');
+  const linkState = (summary) => (summary && summary.error ? summary.state || 'unavailable' : '');
 
-  // The card for an item, by its type (see cardOf in the model), filled by slot name.
-  function buildCard(entry, kind, card) {
+  // The card for an item, by its type (see cardOf in the model), filled by slot name. A link is drawn from `summary`, what the
+  // object it points at says of itself.
+  function buildCard(entry, kind, summary) {
     const { item, span } = entry;
-    const c = cardOf(item, card);
-    const el = clone(`tpl-card-${span === 'middle' ? 'hotel-mid' : span === 'end' ? 'hotel-out' : c.card}`);
+    const c = cardOf(item, summary);
+    const el = clone(`tpl-card-${span === 'middle' ? 'hotel-mid' : span === 'end' ? 'hotel-out' : c.template}`);
     const arrive = arriveText(item);
     const duration = lengthText(item.minutes);
     const where = item.place || item.address;
     const badge = el.querySelector('.badge [data-icon]');
     if (badge && c.badge && !badge.dataset.icon) setIcon(badge, c.badge);
-    if (c.card === 'flight') {
+    if (c.template === 'flight') {
       put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, fromCode: item.fromCode, toCode: item.toCode, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, duration, seat: item.seat, gate: item.gate, travelClass: item.travelClass });
-    } else if (c.card === 'train') {
+    } else if (c.template === 'train') {
       put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Coach ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
-    } else if (c.card === 'transit') {
+    } else if (c.template === 'transit') {
       const to = item.to || item.dropoff || '';
       put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: tt(item.time), to, confirm: item.confirm });
       const go = el.querySelector('.go');
       if (go && !item.time && !to && !item.confirm) go.hidden = true;
-    } else if (c.card === 'hotel' && span !== 'end' && span !== 'middle') {
+    } else if (c.template === 'hotel' && span !== 'end' && span !== 'middle') {
       const nights = stayNights(item);
       put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), tt(item.time)].filter(Boolean).join(' · '), checkout: item.checkOut ? [dayShort(item.checkOut), tt(item.checkOutTime)].filter(Boolean).join(' · ') : 'Not set', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
     } else if (span === 'end') {
       put(el, { title: item.title, address: where, time: tt(item.checkOutTime), nights: words(stayNights(item), 'night', 'nights') });
     } else if (span === 'middle') {
       put(el, { title: `Staying at ${item.title}` });
-    } else if (c.card === 'meal') {
+    } else if (c.template === 'meal') {
       setIcon(el.querySelector('.badge [data-icon]'), c.badge);
       put(el, { kicker: c.kicker, title: item.title, address: where, partySize: item.partySize ? `Table for ${item.partySize}` : '', reservationName: item.reservationName ? `under ${item.reservationName}` : '', time: tt(item.time), minutes: duration });
-    } else if (c.card === 'activity') {
+    } else if (c.template === 'activity') {
       setIcon(el.querySelector('.badge [data-icon]'), c.badge);
       put(el, { kicker: c.kicker, title: item.title, address: where, minutes: duration, admissionCount: words(item.admissionCount, 'ticket', 'tickets'), confirm: item.confirm });
-    } else if (c.card === 'show') {
+    } else if (c.template === 'show') {
       put(el, { kicker: c.kicker, title: item.title, address: where, gate: item.gate ? `Gate ${item.gate}` : '', confirm: item.confirm, admissionCount: item.admissionCount ? String(item.admissionCount) : '', time: tt(item.time) });
-    } else if (c.card === 'block') {
+    } else if (c.template === 'block') {
       const type = markerType(item.type);
       el.dataset.type = item.type;
       setIcon(el.querySelector('.mk-icon [data-icon]'), type.icon);
       colourPill(el, type);
       put(el, { title: item.title || type.label, minutes: duration, body: item.notes });
-    } else if (c.card === 'note') {
+    } else if (c.template === 'note') {
       put(el, { title: item.title, body: item.notes });
-    } else if (c.card === 'place') {
-      put(el, { title: card.title || item.title, address: card.subtitle });
+    } else if (c.template === 'place') {
+      put(el, { title: summary.title || item.title, address: summary.subtitle });
     } else {
-      // What the linked item says now (never a copy kept here), or, when it cannot be read, why: it is gone, or this viewer may not
+      // What the linked object says now (never a copy kept here), or, when it cannot be read, why: it is gone, or this viewer may not
       // see it. Either way nothing opens an editor for it, and it can be removed from the plan.
-      const stateOf = linkState(card);
+      const stateOf = linkState(summary);
       const broken = Boolean(stateOf);
-      setIcon(el.querySelector('.src [data-icon]'), broken ? 'link-slash' : (card && card.module && card.module.icon) || 'link');
-      const shown = stateOf === 'hidden' ? 'An item you cannot see' : stateOf ? item.title || 'An item' : (card && card.title) || item.title;
-      put(el, { module: broken || !card ? `another ${word('module')}` : (card.module && card.module.name) || `another ${word('module')}`, title: shown, sub: broken ? '' : item.result ? `Result: ${item.result}` : card ? card.subtitle : '', state: stateOf === 'hidden' ? 'Not available to you' : stateOf === 'gone' ? 'No longer available' : stateOf === 'unavailable' ? 'Could not be read right now' : '' });
+      setIcon(el.querySelector('.src [data-icon]'), broken ? 'link-slash' : (summary && summary.module && summary.module.icon) || 'link');
+      const shown = stateOf === 'hidden' ? `${word('object', { a: true, cap: true })} you cannot see` : stateOf ? item.title || word('object', { a: true, cap: true }) : (summary && summary.title) || item.title;
+      put(el, { module: broken || !summary ? `another ${word('module')}` : (summary.module && summary.module.name) || `another ${word('module')}`, title: shown, sub: broken ? '' : item.result ? `Result: ${item.result}` : summary ? summary.subtitle : '', state: stateOf === 'hidden' ? 'Not available to you' : stateOf === 'gone' ? 'No longer available' : stateOf === 'unavailable' ? 'Could not be read right now' : '' });
       if (broken) el.classList.add(stateOf === 'hidden' ? 'hidden' : 'gone');
-      hide(el.querySelector('[data-action="open"]'), broken || !card || !card.open);
+      hide(el.querySelector('[data-action="open"]'), broken || !summary || !summary.open);
       hide(el.querySelector('[data-action="remove-link"]'), !broken || !canEdit);
     }
     ownersInto(el, item);
@@ -269,8 +270,8 @@
     const item = withBooking(entry.item);
     const { span } = entry;
     entry = { ...entry, item };
-    const card = item.ref ? plan.cards.get(host.util.refKey(item.ref)) : null;
-    const c = cardOf(item, card);
+    const summary = item.ref ? plan.summaries.get(host.util.objectKey(item.ref)) : null;
+    const c = cardOf(item, summary);
     const row = clone('tpl-row');
     row.dataset.id = item.id;
     row.dataset.kind = item.kind;
@@ -279,13 +280,13 @@
     if (item.kind === 'journey') { const leg = plan.outboundFor(item) ? 'return' : plan.returnFor(item.id) ? 'outbound' : ''; if (leg) row.dataset.leg = leg; }
     let time = tt(item.time);
     let sub = '';
-    if (item.kind === 'link') { time = tt(timeOf(card)); sub = ''; }
+    if (item.kind === 'link') { time = tt(timeOf(summary)); sub = ''; }
     else if (item.kind === 'stay') { time = span === 'end' ? tt(item.checkOutTime) : span === 'middle' ? '' : tt(item.time); sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
     else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${arriveText(item, '\n')}` : '';
     else sub = lengthText(item.minutes);
     if (line) { time = ''; sub = ''; }
     fill(row, { time, sub });
-    row.querySelector('.slot').append(buildCard(entry, item.kind, card));
+    row.querySelector('.slot').append(buildCard(entry, item.kind, summary));
     if (state.conflicts.has(item.id)) {
       row.classList.add('conflict');
       const bar = clone('tpl-conflict');
@@ -463,7 +464,7 @@
     // What other modules hold on this day that the plan could take in.
     const box = el.querySelector('.suggestions');
     const list2 = box.querySelector('.suggestions-list');
-    const mine = canEdit ? plan.suggestions.filter((c) => (cardWhen(c) || {}).day === day) : [];
+    const mine = canEdit ? plan.suggestions.filter((c) => (summaryWhen(c) || {}).day === day) : [];
     hide(box, !mine.length);
     for (const c of mine) {
       const s = clone('tpl-suggestion');
@@ -703,14 +704,14 @@
       body.append(ul);
       return;
     }
-    for (const [kind, cards] of groups) {
+    for (const [kind, summaries] of groups) {
       const [title, list] = parts('tpl-decisions');
       title.textContent = kind;
       list.replaceChildren();
-      for (const c of cards) {
+      for (const c of summaries) {
         const row = clone('tpl-decision');
         setIcon(row.querySelector('[data-icon]'), c.module && c.module.icon);
-        const w = cardWhen(c);
+        const w = summaryWhen(c);
         const when = w ? `${parseYmd(w.day).toLocaleDateString([], { month: 'short', day: 'numeric' })}${w.time ? ' ' + tt(w.time) : ''}` : '';
         fill(row, { title: c.title, sub: [when, c.subtitle].filter(Boolean).join(' · ') });
         const btn = row.querySelector('[data-action="open"]');
@@ -979,18 +980,18 @@
   // What other modules link to each item and to the trip (only asked for what is shown, and once).
   const asked = new Set();
   async function loadLinks() {
-    if (!host.refs || !host.refs.linksTo) return;
+    if (!host.objects || !host.objects.linksTo) return;
     let changed = false;
     if (!asked.has('trip')) {
       asked.add('trip');
-      try { state.tripLinks = await host.refs.linksTo(tripRef()); changed = true; } catch (err) { state.tripLinks = []; }
+      try { state.tripLinks = await host.objects.linksTo(tripRef()); changed = true; } catch (err) { state.tripLinks = []; }
     }
     for (const item of plan.list().slice(0, 60)) {
       if (asked.has(item.id)) continue;
       asked.add(item.id);
       try {
-        const cards = await host.refs.linksTo(planRef(item.id));
-        if (cards.length) { state.links.set(item.id, cards); changed = true; }
+        const summaries = await host.objects.linksTo(planRef(item.id));
+        if (summaries.length) { state.links.set(item.id, summaries); changed = true; }
       } catch (err) { /* nothing links to it */ }
     }
     if (changed) redraw();
@@ -1012,7 +1013,7 @@
     const follow = menu.querySelector('[data-action="follow"]');
     hide(follow, item.kind !== 'link');
     // A link that cannot be read has nothing to edit.
-    hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.cards.get(host.util.refKey(item.ref)))));
+    hide(menu.querySelector('[data-action="edit"]'), item.kind === 'link' && Boolean(linkState(item.ref && plan.summaries.get(host.util.objectKey(item.ref)))));
     fill(follow, { 'follow-label': item.follow ? 'Stop following its result' : 'Follow its result' });
     // A time block can change its type; it is removed rather than deleted.
     const isBlock = item.kind === 'block' || item.kind === 'lane';
@@ -1224,28 +1225,28 @@
     return plan.moveTo(id, date, index);
   }
 
-  // A pointer a shared plan may hold: a private item is copied to the space first (title, position and address, through a module that
+  // A pointer a shared plan may hold: a private object is copied to the space first (title, position and address, through a module that
   // offers to save a place), and the copy's pointer is used.
   async function sharedRef(ref) {
     if (ref.scope !== 'person') return ref;
-    const card = await host.refs.resolve(ref);
-    if (!card || card.error) throw new Error('That private item could not be read.');
+    const summary = await host.objects.resolve(ref);
+    if (!summary || summary.error) throw new Error(`That private ${word('object')} could not be read.`);
     let add = null;
     try { add = (await host.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
-    if (!add) throw new Error(`That item is private to you. Share it to the ${word('space')} first, then use the shared copy.`);
-    const out = await host.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
+    if (!add) throw new Error(`That ${word('object')} is private to you. Share it to the ${word('space')} first, then use the shared copy.`);
+    const out = await host.actions.request(add.action, { title: summary.title, ...(summary.subtitle ? { address: summary.subtitle } : {}), ...(summary.place ? { lat: summary.place.lat, lng: summary.place.lng } : {}) }, { wait: true });
     if (out.status === 'done' && out.result && out.result.ok && out.result.ref) return out.result.ref;
     throw new Error(`It could not be shared to the ${word('space')}.`);
   }
 
-  // Something dropped on the plan, by the pointer drag every module's items share: one of this plan's own items (pressed on its
-  // body) moves to the day or the joint it lands on; another module's item or card is put there.
-  if (host.refs && host.refs.dropTarget && canEdit) {
+  // Something dropped on the plan, by the pointer drag every module's objects share: one of this plan's own items (pressed on its
+  // body) moves to the day or the joint it lands on; another module's object, or a summary the drag carried, is put there.
+  if (host.objects && host.objects.dropTarget && canEdit) {
     const ownRef = (ref) => Boolean(ref) && ref.module === info.module.id && ref.kind === 'plan';
     const isLane = (ref) => { const it = plan.list().find((i) => i.id === ref.id); return Boolean(it) && it.kind === 'lane'; };
     // The pointer is in this module's own coordinates, a box in the page's.
     const pageY = (pt) => pt.y + host.rootElement.getBoundingClientRect().top;
-    const spotAt = (pt) => spotFrom(host.refs.elementAt(pt), pageY(pt));
+    const spotAt = (pt) => spotFrom(host.objects.elementAt(pt), pageY(pt));
     // A marker between days is only ever on the line, so for it the joint nearest the pointer is the spot wherever the pointer is.
     const laneSpot = (pt, id) => {
       const y = pageY(pt);
@@ -1260,8 +1261,8 @@
       const inJoint = Boolean(spot) && spot.after === best.joint.dataset.after && Boolean(spot.row) && spot.row.dataset.id !== id;
       return { after: best.joint.dataset.after, el: best.joint, row: inJoint ? spot.row : null, where: inJoint ? spot.where : null };
     };
-    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    host.refs.dropTarget({
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.summary));
+    host.objects.dropTarget({
       over: (pt, ref, dragged) => {
         clearDrop(true);
         if (!ownRef(ref) && !foreign(ref, dragged)) return closeJoints();
@@ -1285,10 +1286,10 @@
         const place = spot.after !== undefined ? { after: spot.after } : { date: spot.date };
         const target = spot.row && spot.row.dataset.id ? planRef(spot.row.dataset.id) : null;
         attempt(async () => {
-          // What can be done with it here is the shared decision (host.refs.dropMenu). This module's own offer puts it
-          // on the day, or at the joint on the line: a pointer as a link, a card carried by the drag (an answer) as an item of
-          // its own kind. The modules around add whatever they offer for an item of that kind, filled from the day and the
-          // entry under the pointer. A private item (someone's own, in their profile) cannot be pointed at from a shared plan,
+          // What can be done with it here is the shared decision (host.objects.dropMenu). This module's own offer puts it
+          // on the day, or at the joint on the line: a pointer as a link, a summary carried by the drag (an answer) as an item of
+          // its own kind. The modules around add whatever they offer for an object of that kind, filled from the day and the
+          // entry under the pointer. A private object (someone's own, in their profile) cannot be pointed at from a shared plan,
           // nor handed to another module here: only they could open it. So it is shared first, as a copy in the space, by
           // whichever module offers to save a place, and the plan points at the copy; nothing else is offered for it.
           const own = [{
@@ -1296,15 +1297,15 @@
             label: place.date ? `Put it on ${dayShort(place.date)}` : `Put it here, ${jointLabel(place.after).toLowerCase()}`,
             run: async (ctx) => (ref
               ? plan.addLink(await sharedRef(ref), place)
-              : plan.addItem(plan.fromSuggestion({ title: ctx.card.title, kind: ctx.card.kind, content: ctx.card.text, place: ctx.card.place && ctx.card.place.name, ...place }))),
+              : plan.addItem(plan.fromSuggestion({ title: ctx.summary.title, kind: ctx.summary.kind, content: ctx.summary.text, place: ctx.summary.place && ctx.summary.place.name, ...place }))),
           }];
           if (ref && ref.scope === 'person') {
-            const card = await host.refs.resolve(ref);
-            if (!card || card.error) throw new Error('That private item could not be read.');
-            await own[0].run({ card });
+            const summary = await host.objects.resolve(ref);
+            if (!summary || summary.error) throw new Error(`That private ${word('object')} could not be read.`);
+            await own[0].run({ summary });
             return note('');
           }
-          const chosen = await host.refs.dropMenu(dragged, pt, { context: { ...(place.date ? { date: place.date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : place.date ? 'day' : 'joint' });
+          const chosen = await host.objects.dropMenu(dragged, pt, { context: { ...(place.date ? { date: place.date } : {}), ...(target ? { target } : {}) }, own, remember: target ? 'item' : place.date ? 'day' : 'joint' }); // 'item': the key a browser kept the choice under, kept
           note(chosen && chosen.id !== 'add' ? `${chosen.label}: done` : '');
         });
       },
@@ -1313,12 +1314,12 @@
 
   // An item of the trip can be dragged out to another module (a task links to it): pressing its body and moving. The
   // handle is the other drag (reordering), so a press there is left alone.
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable(root, (target) => {
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable(root, (target) => {
       const li = target.closest && target.closest('.row.entry');
       if (!li || !li.dataset.id || target.closest('.rail, .menu-btn, button, input, select, textarea, a')) return null;
       const item = plan.list().find((i) => i.id === li.dataset.id);
-      return item ? { kind: 'plan', id: item.id, label: item.title || 'Trip item' } : null;
+      return item ? { kind: 'plan', id: item.id, label: item.title || 'Plan' } : null;
     });
   }
 
@@ -1328,15 +1329,15 @@
     host.events.subscribe(async (e) => {
       const summary = e.data && typeof e.data.summary === 'string' ? e.data.summary.slice(0, 200) : '';
       if (!e.ref || !summary) return;
-      const k = host.util.refKey(e.ref);
-      for (const item of plan.list().filter((i) => i.kind === 'link' && i.follow && i.ref && host.util.refKey(i.ref) === k)) {
+      const k = host.util.objectKey(e.ref);
+      for (const item of plan.list().filter((i) => i.kind === 'link' && i.follow && i.ref && host.util.objectKey(i.ref) === k)) {
         const fired = Number(e.id) || Date.now();
         if (item.fired === fired) continue;
         try { await plan.updateItem(item.id, { result: summary, fired }); } catch (err) { continue; }
         const date = e.data.date && /^\d{4}-\d{2}-\d{2}$/.test(String(e.data.date)) ? String(e.data.date) : null;
         try {
           if (e.data.pick && e.data.pick.module) await plan.addLink(e.data.pick, { date });
-          else if (date) await plan.addItem({ kind: 'stop', title: summary, date, notes: `From ${item.title || 'a linked item'}` });
+          else if (date) await plan.addItem({ kind: 'stop', title: summary, date, notes: `From ${item.title || `a linked ${word('object')}`}` });
         } catch (err) { /* the result is kept either way */ }
       }
     });
@@ -1798,7 +1799,7 @@
     } else if (action === 'open') {
       const item = li ? plan.list().find((i) => i.id === li.dataset.id) : null;
       const ref = item && item.ref ? item.ref : b.dataset.ref ? JSON.parse(b.dataset.ref) : null;
-      if (ref) host.refs.open(ref).catch((err) => note(err.message));
+      if (ref) host.objects.open(ref).catch((err) => note(err.message));
     } else if (action === 'edit-item') {
       openItemEditor(b.dataset.id);
     } else if (action === 'edit-leg' && li) {
@@ -1893,7 +1894,7 @@
   plan.subscribe(() => { if (state.loaded) redraw(); });
   // What the plan points at can change or go where it lives without telling this page, so look again now and then and when the
   // page comes back into view (until the server announces it).
-  const look = () => { if (state.loaded) plan.refreshCards().catch(() => {}); };
+  const look = () => { if (state.loaded) plan.refreshSummaries().catch(() => {}); };
   const lookTimer = setInterval(() => { if (!host.rootElement.isConnected) clearInterval(lookTimer); else look(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) look(); });
   render();

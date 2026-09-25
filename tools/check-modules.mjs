@@ -10,8 +10,9 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const { cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, ModuleError, ModuleManager } = createRequire(import.meta.url)('../server/modules.js');
+const { cleanManifest, cleanStorage, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, ModuleError, ModuleManager } = createRequire(import.meta.url)('../server/modules.js');
 let n = 0;
+const { ModuleData } = createRequire(import.meta.url)('../server/module-data.js');
 const test = (name, fn) => { fn(); n += 1; };
 
 // The smallest manifest cleanManifest will accept: an environment-scope module with one page.
@@ -55,6 +56,7 @@ test('a manifest\'s scopes are environment, space and person', () => {
 // Plan-names step 5c, the hard break: each old name in a manifest is refused with its one sentence, naming the field
 // and what to use instead.
 const OLD_SURFACE = 'panel'; // surfaces.canvas before plan-names step 6
+const OLD_SUMMARY = 'card'; // refs.produces[].summary before plan-names step 7
 const OLD_MANIFESTS = [
   [{ scope: ['environment', 'room'] }, 'module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).'],
   [{ scope: ['server'] }, 'module.json uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).'],
@@ -64,6 +66,9 @@ const OLD_MANIFESTS = [
   [{ permissions: [{ key: 'view', label: 'View', default: { user: true } }] }, 'module.json: permission "view" names the old role "user" in its default; use "member" (Magpie renamed the user role to member).'],
   // Plan-names step 6: the canvas surface's old name.
   [{ scope: ['environment', 'space'], surfaces: { page: { entry: 'page.html' }, [OLD_SURFACE]: { entry: 'canvas.html' } } }, "module.json uses the old surfaces.panel; use surfaces.canvas (Magpie renamed a module's panel to its place on the canvas)."],
+  // Plan-names step 7: a kind's summary was its card; refused even beside a summary.
+  [{ refs: { produces: [{ kind: 'note', key: 'note:{id}', [OLD_SUMMARY]: { title: 'title' } }] } }, 'module.json: refs kind "note" uses the old card; use summary (Magpie renamed an object\'s card to its summary).'],
+  [{ refs: { produces: [{ kind: 'note', key: 'note:{id}', summary: { title: 'title' } }, { kind: 'memo', key: 'memo:{id}', summary: { title: 'title' }, [OLD_SUMMARY]: { title: 'title' } }] } }, 'module.json: refs kind "memo" uses the old card; use summary (Magpie renamed an object\'s card to its summary).'],
 ];
 test('a manifest with an old name is refused with a sentence naming the field and what to use', () => {
   for (const [part, sentence] of OLD_MANIFESTS) {
@@ -71,6 +76,68 @@ test('a manifest with an old name is refused with a sentence naming the field an
     assert.throws(() => cleanManifest({ ...base(), ...part }, files), (err) => err instanceof ModuleError && err.status === 400 && err.message === sentence, sentence);
   }
   assert.equal(oldNameIn(base()), null);
+});
+
+test('a kind of object names the stored fields of its summary, and only those', () => {
+  const produces = (p) => cleanManifest({ ...base(), refs: { produces: [{ kind: 'note', key: 'note:{id}', ...p }] } }, files).refs.produces[0];
+  const kind = produces({ name: 'Note', open: true, summary: { title: 'title', subtitle: 'body', when: 'due', done: 'done', nonsense: 'x' } });
+  assert.deepEqual(kind, { kind: 'note', name: 'Note', key: 'note:{id}', summary: { title: 'title', subtitle: 'body', when: 'due', done: 'done' }, open: true, backlinks: false });
+  assert.ok(!('card' in kind), 'no card');
+  assert.throws(() => produces({ summary: { subtitle: 'body' } }), (err) => err instanceof ModuleError && err.message === 'module.json: refs "note" needs a summary.title');
+  assert.throws(() => produces({ summary: { title: 'no spaces allowed' } }), (err) => err instanceof ModuleError && err.message === 'module.json: refs "note" summary.title must name a stored field');
+});
+
+test('storage.renamed: key prefixes a module renamed, checked, each refusal one sentence', () => {
+  assert.deepEqual(cleanManifest({ ...base(), storage: { renamed: [{ from: 'item:', to: 'plan:', extra: 1 }] } }, files).storage, { renamed: [{ from: 'item:', to: 'plan:' }] });
+  assert.deepEqual(cleanManifest(base(), files).storage, { renamed: [] }, 'none: an empty list');
+  const refused = [
+    [[], 'module.json: "storage" must be an object, such as { "renamed": [{ "from": "item:", "to": "plan:" }] }.'],
+    [{ renamed: 'item:' }, 'module.json: storage.renamed must be a list of at most 10 { "from", "to" } key prefixes.'],
+    [{ renamed: Array(11).fill({ from: 'a:', to: 'b:' }) }, 'module.json: storage.renamed must be a list of at most 10 { "from", "to" } key prefixes.'],
+    [{ renamed: [{ from: 'item:' }] }, 'module.json: each storage.renamed entry needs a "from" and a "to" key prefix.'],
+    [{ renamed: [{ from: 'item :', to: 'plan:' }] }, 'module.json: storage.renamed "item :" to "plan:": a key prefix is 1 to 64 letters, digits and . _ : / -.'],
+    [{ renamed: [{ from: '', to: 'plan:' }] }, 'module.json: storage.renamed "" to "plan:": a key prefix is 1 to 64 letters, digits and . _ : / -.'],
+    [{ renamed: [{ from: 'item:', to: 'item:x' }] }, 'module.json: storage.renamed "item:" to "item:x": one prefix must not start with the other.'],
+    [{ renamed: [{ from: 'a:', to: 'b:' }, { from: 'a:', to: 'c:' }] }, 'module.json: storage.renamed lists "a:" more than once.'],
+    // A set that would move a key back: a:→b: with b:→a: (QA), and the same by a longer prefix.
+    [{ renamed: [{ from: 'a:', to: 'b:' }, { from: 'b:', to: 'a:' }] }, 'module.json: storage.renamed "b:" to "a:" would move keys back under "a:", which an earlier entry renames from.'],
+    [{ renamed: [{ from: 'a:', to: 'b:' }, { from: 'b:', to: 'a:x' }] }, 'module.json: storage.renamed "b:" to "a:x" would move keys back under "a:", which an earlier entry renames from.'],
+  ];
+  assert.deepEqual(cleanStorage({ renamed: [{ from: 'a:', to: 'b:' }, { from: 'b:', to: 'c:' }] }).renamed.map((r) => r.to), ['b:', 'c:'], 'a chain moves forward: allowed');
+  for (const [storage, sentence] of refused) {
+    assert.throws(() => cleanStorage(storage), (err) => err instanceof ModuleError && err.status === 400 && err.message === sentence, sentence);
+    assert.throws(() => cleanManifest({ ...base(), storage }, files), (err) => err.message === sentence);
+  }
+});
+
+test('a stored-key rename moves every key with the prefix in every scope, never overwrites a taken name, and does nothing twice', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-rename-'));
+  try {
+    const data = path.join(dir, 'm', 'data');
+    fs.mkdirSync(data, { recursive: true });
+    const e = (title, version = 2) => ({ value: { title }, version, updatedAt: '2026-01-01T00:00:00.000Z', by: 'k' });
+    fs.writeFileSync(path.join(data, 'environment.json'), JSON.stringify({ 'item:1': e('one'), 'itemish': e('not the prefix') }));
+    fs.writeFileSync(path.join(data, 'space-abcd.json'), JSON.stringify({ 'item:2': e('two', 5), 'item:3': e('old three'), 'plan:3': e('new three') }));
+    fs.writeFileSync(path.join(data, 'person-memberkey1.json'), JSON.stringify({ 'item:4': e('four') }));
+    fs.writeFileSync(path.join(data, 'space-efgh.json'), JSON.stringify({ 'plan:5': e('already') }));
+    fs.writeFileSync(path.join(data, 'notes.txt'), 'not a scope');
+    const md = new ModuleData(dir);
+    assert.equal(md.get('m', 'space:abcd', 'item:2').version, 5, 'read before, so the cache is warm');
+    const untouched = fs.readFileSync(path.join(data, 'space-efgh.json'), 'utf8');
+    assert.deepEqual(md.renamePrefix('m', 'item:', 'plan:'), { moved: 3, kept: 1, scopes: 3 });
+    const read = (f) => JSON.parse(fs.readFileSync(path.join(data, f), 'utf8'));
+    assert.deepEqual(Object.keys(read('environment.json')).sort(), ['itemish', 'plan:1']);
+    assert.deepEqual(read('space-abcd.json'), { 'plan:2': e('two', 5), 'item:3': e('old three'), 'plan:3': e('new three') });
+    assert.deepEqual(Object.keys(read('person-memberkey1.json')), ['plan:4']);
+    assert.equal(fs.readFileSync(path.join(data, 'space-efgh.json'), 'utf8'), untouched, 'nothing to move: not written');
+    assert.equal(md.get('m', 'space:abcd', 'plan:2').value.title, 'two', 'the cache follows');
+    assert.equal(md.get('m', 'space:abcd', 'item:2'), null);
+    assert.equal(new ModuleData(dir).get('m', 'person:memberkey1', 'plan:4').value.title, 'four', 'and the files');
+    assert.deepEqual(md.renamePrefix('m', 'item:', 'plan:'), { moved: 0, kept: 1, scopes: 0 }, 'again: only the taken one, left as it is');
+    assert.deepEqual(md.renamePrefix('none', 'item:', 'plan:'), { moved: 0, kept: 0, scopes: 0 }, 'a module with no data');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('bad input still throws a ModuleError, same as before', () => {
@@ -270,6 +337,17 @@ test('a manifest\'s text a person reads is filled with the environment\'s words;
   assert.deepEqual(manifestTexts(f).map(([o, k]) => o[k]), ['For every trip.', 'Trips', 'Edit a trip', 'Per tool', 'Each trip {x}', 'Tools', 'a trip', 'In a trip', 'Open a tool', 'Trip note']);
   assert.equal(f.name, 'The {Space} Tool', 'a name is a name, never filled');
   assert.equal(fillManifest(m, null).description, 'For every space.', 'no words: the defaults');
+});
+
+test('a kind\'s {name} is the module\'s shown name, never a word: the words leave it as it is', () => {
+  const { fillManifest } = createRequire(import.meta.url)('../server/modules.js');
+  const { resolve } = createRequire(import.meta.url)('../server/words.js');
+  const words = resolve({ space: { one: 'trip', many: 'trips' } }, null);
+  const only = { id: 'p', name: 'Planner', refs: { produces: [{ kind: 'plan', name: '{name}' }] } };
+  assert.equal(fillManifest(only, words), only, 'a {name} alone is no words placeholder: the manifest itself');
+  const both = { id: 'p', name: 'Planner', refs: { produces: [{ kind: 'plan', name: '{name} in the {space}' }] } };
+  assert.equal(fillManifest(both, words).refs.produces[0].name, '{name} in the trip');
+  assert.equal(cleanManifest({ ...base(), refs: { produces: [{ kind: 'plan', key: 'plan:{id}', name: '{name}', summary: { title: 'title' } }] } }, files).refs.produces[0].name, '{name}', 'kept for the server to fill');
 });
 
 test('a display name and icon are checked before anything is saved, each with one sentence', () => {

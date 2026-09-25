@@ -3,7 +3,7 @@ import { pickBackground } from '/background-picker.js';
 import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
 
 const $ = (id) => document.getElementById(id);
-const cards = new Map(); // key -> card element
+const userCards = new Map(); // key -> the user's card element
 let me = null;
 let streamKey = '';
 let streamShown = false;
@@ -149,10 +149,10 @@ function renderLive(card, online) {
 }
 
 function cardFor(user) {
-  let card = cards.get(user.key);
+  let card = userCards.get(user.key);
   if (card) return card;
   card = $('user-card').content.firstElementChild.cloneNode(true);
-  cards.set(user.key, card);
+  userCards.set(user.key, card);
   $('users').appendChild(card);
   wire(card);
   return card;
@@ -179,10 +179,10 @@ function wire(card) {
 
 function renderUsers() {
   for (const user of users) fill(cardFor(user), user);
-  for (const [key, card] of cards) {
+  for (const [key, card] of userCards) {
     if (!users.some((u) => u.key === key)) {
       card.remove();
-      cards.delete(key);
+      userCards.delete(key);
     }
   }
   $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} in a call`;
@@ -915,7 +915,7 @@ function moduleCard(m) {
     ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people using it</span></li>'] : []),
     ...(m.events && m.events.subscribes.length ? [`<li><strong>Hear what happens in other ${escapeHtml(word('module', { many: true }))}</strong> <span class="hint">${escapeHtml(m.events.subscribes.map((c) => c === '*' ? `any ${word('module')}` : c.replace(':', ' ')).join(', '))}: their events, only for people who can see them</span></li>`] : []),
     ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other ${escapeHtml(word('module', { many: true }))} to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? `any ${word('module')}` : c.replace(':', ' ')).join(', '))}: each request is carried out by the ${escapeHtml(word('module'))} that owns the action</span></li>`] : []),
-    ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other ${escapeHtml(word('module', { many: true }))}' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
+    ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other ${escapeHtml(word('module', { many: true }))}' ${escapeHtml(word('object', { many: true }))}</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
   ];
   const modeTag = m.runMode === 'page' ? '<span class="pill warn">In the page</span>' : '<span class="pill">Sandboxed</span>';
   const state = modeTag + ' ' + (m.outdated ? '<span class="pill warn">Needs an update</span>' : m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>');

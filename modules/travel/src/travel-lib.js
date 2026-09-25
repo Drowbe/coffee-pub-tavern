@@ -4,6 +4,14 @@
 
   // The trip is one stored value per space (its key is a pointer's id, so the trip can be pointed at and opened).
   const TRIP_KEY = 'trip:main';
+  // Each item of the plan is its own stored value, `plan:<id>` (its kind's name, as other modules point at it). Before Magpie's
+  // rename of items to objects (plan-names step 7) it was `item:<id>`: the plan moves those to `plan:` the first time it loads
+  // in a place and records that it has (MOVED_KEY), and reads both until then, so nothing is lost for someone who cannot edit.
+  const PLAN_PREFIX = 'plan:';
+  const OLD_PLAN_PREFIX = 'item:';
+  const MOVED_KEY = '_moved:plan-keys';
+  // The id of an item of the plan from its stored key, under either prefix, or null for any other key.
+  const planIdOf = (key) => (typeof key !== 'string' ? null : key.startsWith(PLAN_PREFIX) ? key.slice(PLAN_PREFIX.length) : key.startsWith(OLD_PLAN_PREFIX) ? key.slice(OLD_PLAN_PREFIX.length) : null);
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
   const KINDS = ['stop', 'stay', 'journey', 'note', 'link', 'block', 'lane'];
   // What an item is, for how it is drawn (the page decides how; the model only keeps a known value). A journey has a `mode`,
@@ -27,8 +35,8 @@
   const clip = (s, n) => String(s ?? '').replace(/\p{Cc}/gu, (c) => (c === '\n' ? c : ' ')).trim().slice(0, n);
 
   // One stored item, made safe and complete; null when it cannot be an item at all. `date` is null for an idea
-  // that has no day yet. A `link` item points at another module's item (`ref`) and takes its day from the card
-  // unless it has its own.
+  // that has no day yet. A `link` item points at another module's object (`ref`) and takes its day from that
+  // object's summary unless it has its own.
   function cleanItem(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const kind = KINDS.includes(raw.kind) ? raw.kind : 'stop';
@@ -167,7 +175,7 @@
   const sortLine = (items) => [...items].sort((a, b) => String(a.after || '').localeCompare(String(b.after || '')) || a.order - b.order || String(a.id).localeCompare(String(b.id)));
 
   // Where a day's items sit: those with no time first (the whole-day things, in the order people put them), then
-  // the timed ones by time. An item's `cards` day (for a link) is given by dayOf.
+  // the timed ones by time. A link's day (from its object's summary) is given by dayOf.
   const minutesOfDay = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   function sortDay(items) {
     const untimed = items.filter((i) => !i.time).sort((a, b) => a.order - b.order || String(a.id).localeCompare(String(b.id)));
@@ -175,7 +183,7 @@
     return [...untimed, ...timed];
   }
 
-  // Every item under its day; `dayOf(item)` says which (the item's own date, or a linked item's card). Items with
+  // Every item under its day; `dayOf(item)` says which (the item's own date, or a linked object's summary). Items with
   // no day go under null, the ideas not yet placed.
   function itemsByDay(items, days, dayOf = (i) => i.date) {
     const by = new Map(days.map((d) => [d, []]));
@@ -293,19 +301,19 @@
     return { title: clip(r.title, 80), destination: clip(r.destination, 80), start, end, notes: clip(r.notes, 2000), currency, by: clip(r.by, 40) };
   }
 
-  // When a card says something is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
+  // When an object's summary says it is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
   // closing time). Returns { day, time } with the time as "HH:MM" (empty for a whole day), or null.
-  // A card that says it is all day, or whose moment is exactly local midnight (what a date with no time turns into),
+  // A summary that says it is all day, or whose moment is exactly local midnight (what a date with no time turns into),
   // has no time of day.
   const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  const clockOf = (d, card) => (card.allDay === true || (d.getHours() === 0 && d.getMinutes() === 0) ? '' : hhmm(d));
-  function cardWhen(card) {
-    const w = card && card.when;
-    if (typeof w === 'number' && Number.isFinite(w)) { const d = new Date(w); return { day: ymd(d), time: clockOf(d, card) }; }
+  const clockOf = (d, summary) => (summary.allDay === true || (d.getHours() === 0 && d.getMinutes() === 0) ? '' : hhmm(d));
+  function summaryWhen(summary) {
+    const w = summary && summary.when;
+    if (typeof w === 'number' && Number.isFinite(w)) { const d = new Date(w); return { day: ymd(d), time: clockOf(d, summary) }; }
     if (typeof w !== 'string' || !w) return null;
     if (w.length <= 10) return isYmd(w) ? { day: w, time: '' } : null;
     const d = new Date(w);
-    return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: clockOf(d, card) };
+    return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: clockOf(d, summary) };
   }
 
   // Round trips. The later legs of a booking are the journeys whose `legOf` is the first leg's id, in `order` (two returns saved
@@ -392,7 +400,7 @@
   const TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'taxi', 'rideshare', 'shuttle', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'note'];
   const JOURNEY_TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'taxi', 'rideshare', 'shuttle'];
   const STOP_TILES = ['restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show'];
-  // The tile an item shows under in the editor. A link (another module's item) has none.
+  // The tile an item shows under in the editor. A link (another module's object) has none.
   function tileOf(item) {
     if (!item) return 'sight';
     if (item.kind === 'journey') return item.mode === 'other' || !JOURNEY_TILES.includes(item.mode) ? 'bus' : item.mode;
@@ -417,25 +425,26 @@
     if (tile === 'note') return { kind: 'note', category: 'other' };
     return { kind: 'stop', type: keep && item.type ? item.type : tile, category: tile === 'restaurant' || tile === 'cafe' || tile === 'bar' ? 'eat' : 'do' };
   }
-  // How an item is drawn: its card template, the colour family on its row, the kicker and the badge icon.
+  // How an item is drawn: its card's template, the colour family on its row, the kicker and the badge icon. A link is drawn
+  // from the summary of the object it points at (`summary`, as host.objects.resolve gave it).
   const KICKERS = { flight: 'Flight', train: 'Train', ferry: 'Ferry', bus: 'Bus', car: 'Rental car', taxi: 'Taxi', rideshare: 'Ride share', shuttle: 'Shuttle', restaurant: 'Restaurant', cafe: 'Café', bar: 'Bar', sight: 'Sight', museum: 'Museum', tour: 'Tour', hike: 'Hike', beach: 'Beach', shop: 'Shop', spa: 'Spa', show: 'Show', other: 'Stop' };
   const BADGES = { flight: 'plane', train: 'train', ferry: 'ship', bus: 'bus', car: 'car', taxi: 'taxi', rideshare: 'car-side', shuttle: 'van-shuttle', restaurant: 'utensils', cafe: 'mug-hot', bar: 'martini-glass', sight: 'monument', museum: 'building-columns', tour: 'person-hiking', hike: 'person-hiking', beach: 'umbrella-beach', shop: 'bag-shopping', spa: 'spa', show: 'masks-theater', other: 'location-dot' };
   const STAY_KICKERS = { hotel: 'Hotel', rental: 'Rental', hostel: 'Hostel', camp: 'Camp', other: 'Stay' };
-  function cardOf(item, card) {
-    if (item.kind === 'link') return { card: card && !card.error && card.kind === 'place' ? 'place' : 'link', family: card && !card.error && card.kind === 'place' ? 'place' : 'link', kicker: '', badge: '' };
-    if (item.kind === 'note') return { card: 'note', family: 'note', kicker: 'Note', badge: '' };
-    if (item.kind === 'block') return { card: 'block', family: 'block', kicker: '', badge: '' };
-    if (item.kind === 'lane') return { card: 'lane', family: 'lane', kicker: '', badge: '' };
-    if (item.kind === 'stay') return { card: 'hotel', family: 'hotel', kicker: STAY_KICKERS[item.type] || 'Hotel', badge: 'bed' };
+  function cardOf(item, summary) {
+    if (item.kind === 'link') return { template: summary && !summary.error && summary.kind === 'place' ? 'place' : 'link', family: summary && !summary.error && summary.kind === 'place' ? 'place' : 'link', kicker: '', badge: '' };
+    if (item.kind === 'note') return { template: 'note', family: 'note', kicker: 'Note', badge: '' };
+    if (item.kind === 'block') return { template: 'block', family: 'block', kicker: '', badge: '' };
+    if (item.kind === 'lane') return { template: 'lane', family: 'lane', kicker: '', badge: '' };
+    if (item.kind === 'stay') return { template: 'hotel', family: 'hotel', kicker: STAY_KICKERS[item.type] || 'Hotel', badge: 'bed' };
     if (item.kind === 'journey') {
       const mode = JOURNEY_TILES.includes(item.mode) ? item.mode : 'bus';
-      const cardName = mode === 'flight' ? 'flight' : mode === 'train' ? 'train' : 'transit';
-      return { card: cardName, family: mode, kicker: item.mode === 'other' ? 'Transit' : KICKERS[mode], badge: BADGES[mode] };
+      const template = mode === 'flight' ? 'flight' : mode === 'train' ? 'train' : 'transit';
+      return { template, family: mode, kicker: item.mode === 'other' ? 'Transit' : KICKERS[mode], badge: BADGES[mode] };
     }
     const t = item.type || (item.category === 'eat' ? 'restaurant' : item.category === 'do' ? 'sight' : 'other');
     const family = ['hike', 'beach', 'shop', 'spa', 'other'].includes(t) ? 'sight' : t;
-    const cardName = t === 'restaurant' || t === 'cafe' || t === 'bar' ? 'meal' : t === 'show' ? 'show' : 'activity';
-    return { card: cardName, family, kicker: KICKERS[t] || 'Stop', badge: BADGES[t] || 'location-dot' };
+    const template = t === 'restaurant' || t === 'cafe' || t === 'bar' ? 'meal' : t === 'show' ? 'show' : 'activity';
+    return { template, family, kicker: KICKERS[t] || 'Stop', badge: BADGES[t] || 'location-dot' };
   }
   // The icon for the way to a stop.
   const LEG_ICONS = { walk: 'person-walking', drive: 'car', transit: 'bus', bike: 'bicycle', taxi: 'taxi', rideshare: 'car-side' };

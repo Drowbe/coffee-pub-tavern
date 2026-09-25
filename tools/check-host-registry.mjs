@@ -379,7 +379,7 @@ try {
       const envDir = path.join(data, 'environments', slug);
       const app = readJson(path.join(envDir, 'app.json'));
       assert.equal(app.version, 2, `${slug}: version 2`);
-      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers'], `${slug}: each environment part recorded once`);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects'], `${slug}: each environment part recorded once`);
       assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
       assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
     }
@@ -590,7 +590,7 @@ try {
     assert.deepEqual([redirected.status, redirected.headers.location], [301, `/img/space/keep01?s=${s}`]);
     const envDir = path.join(data, 'environments', 'bravo');
     const app = readJson(path.join(envDir, 'app.json'));
-    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers']);
+    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects']);
     assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Fixture Table');
     for (const rel of ['modules/todo/data/space-keep01.json', 'modules/todo/data/environment.json', 'modules/research/uploads/space-keep01', 'chat.json']) assert.ok(fs.existsSync(path.join(envDir, rel)), rel);
     assert.ok('spaces' in readJson(path.join(envDir, 'chat.json')));
@@ -611,7 +611,7 @@ try {
       assert.deepEqual([put.status, put.json], [400, BAD], `PUT ${q}`);
       const get = await as('GET', `/api/modules/todo/data/task:t9?${q}`);
       assert.deepEqual([get.status, get.json], [400, BAD], `GET ${q}`);
-      assert.deepEqual([(await as('GET', `/api/modules/todo/uploads?${q}`)).status, (await as('GET', `/api/refs/search?from=todo&${q}`)).status], [400, 400], `uploads and search, ${q}`);
+      assert.deepEqual([(await as('GET', `/api/modules/todo/uploads?${q}`)).status, (await as('GET', `/api/objects/search?from=todo&${q}`)).status], [400, 400], `uploads and search, ${q}`);
     }
     const spaces = await as('PUT', '/api/modules/todo/data/task:t9?scope=spaces', { value: { title: 'x' } });
     assert.deepEqual([spaces.status, spaces.json], [400, { error: 'scope must be environment, space or person here' }]);
@@ -1023,15 +1023,152 @@ try {
     registry.autoInstalled = [...new Set([...(registry.autoInstalled || []), 'stream'])];
     fs.writeFileSync(path.join(modulesDir, 'registry.json'), JSON.stringify(registry));
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
-    for (const id of ['maps', 'places', 'stream']) await waitFor(`Updated "${id}" to ${current[id]}`);
+    for (const id of ['maps', 'places', 'stream']) await waitFor(`Updated "${id}" from ${oldVersion(current[id])} to ${current[id]}: the version installed was built for an older Magpie.`);
     const out = server.output();
     assert.ok(!out.includes('Could not update'), out);
     assert.ok(out.indexOf('Updated "places"') < out.indexOf('Updated "maps"'), `Places before Maps:\n${out}`);
-    assert.ok(out.includes(`Updated "stream" to ${current.stream}: the version installed was built for an older Magpie. It stays on: its new permission (view_page) is off for every role, so only owners have it.`), out);
+    assert.ok(out.includes(`Updated "stream" from ${oldVersion(current.stream)} to ${current.stream}: the version installed was built for an older Magpie. It stays on: its new permission (view_page) is off for every role, so only owners have it.`), out);
     const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
     const byId = Object.fromEntries((await call(server, '', 'GET', '/api/modules', { cookie: admin })).json.modules.map((m) => [m.id, m]));
     for (const id of ['maps', 'places', 'stream']) assert.deepEqual([id, byId[id].version, byId[id].enabled, byId[id].missing, byId[id].needsUpdate], [id, current[id], true, [], []]);
     assert.equal((await call(server, '', 'GET', '/api/modules/maps/context?scope=space&space=lobby', { cookie: admin })).status, 200, 'Maps runs');
+    await server.stop();
+    server = null;
+  });
+
+  // Bundled modules stay in step with the server: an older bundled copy in the new names (as a build from step 6 left it) is
+  // updated on start when the update asks for nothing new, keeping on, spaces and data; one that asks for something new
+  // waits and keeps running; and a module's storage.renamed moves its stored keys in every scope, once, before anyone opens it.
+  await liveTest('live: bundled modules are updated to the shipped version when that needs no approval; storage.renamed moves stored keys once', async () => {
+    const single = path.join(liveDir, 'single-in-step');
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    const waitFor = async (text) => { for (let i = 0; i < 100 && !server.output().includes(text); i += 1) await new Promise((r) => setTimeout(r, 50)); assert.ok(server.output().includes(text), `${text}\n${server.output()}`); };
+    await waitFor('Auto-installed and enabled "stream"');
+    await server.stop();
+    const modulesDir = path.join(single, 'modules');
+    const registry = readJson(path.join(modulesDir, 'registry.json'));
+    const older = (v) => { const [a, b, c] = v.split('.').map(Number); return c > 0 ? `${a}.${b}.${c - 1}` : `${a}.${b - 1}.99`; };
+    const current = {};
+    for (const id of ['places', 'maps', 'todo', 'travel']) {
+      const now = readJson(path.join(ROOT, 'modules', id, 'module.json'));
+      current[id] = now.version;
+      const version = older(now.version);
+      const d = path.join(modulesDir, id, 'versions', version);
+      fs.mkdirSync(d, { recursive: true });
+      const { storage, ...before } = now; // the installed copy predates the rename
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ ...before, version }));
+      const approved = { permissions: (now.permissions || []).map((p) => p.key), hooks: Object.keys(now.hooks || {}).filter((h) => now.hooks[h]), refs: now.refs?.consumes || [], events: now.events?.subscribes || [], actions: now.actions?.uses || [] };
+      // The To-do's installed copy was approved before it used notifications: its update asks for something new.
+      if (id === 'todo') approved.hooks = approved.hooks.filter((h) => h !== 'notify');
+      registry.modules[id] = { id, versions: [version], version, enabled: true, allSpaces: true, spaces: [], approved, source: 'bundled', installedAt: '2026-09-01T00:00:00.000Z' };
+    }
+    fs.writeFileSync(path.join(modulesDir, 'registry.json'), JSON.stringify(registry));
+    // The Planner's items under their old keys, in a space and in the environment; one whose new key is already taken.
+    const entry = (value) => ({ value, version: 3, updatedAt: '2026-09-01T00:00:00.000Z', by: 'someone' });
+    const dataDir = path.join(modulesDir, 'travel', 'data');
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, 'space-lobby.json'), JSON.stringify({ 'trip:main': entry({ title: 'Lisbon' }), 'item:a1': entry({ title: 'Ferry to Cacilhas', date: '2026-10-01' }), 'item:c1': entry({ title: 'old copy' }), 'plan:c1': entry({ title: 'new copy' }) }));
+    fs.writeFileSync(path.join(dataDir, 'environment.json'), JSON.stringify({ 'item:e1': entry({ title: 'Passports' }) }));
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    for (const id of ['places', 'maps', 'travel']) await waitFor(`Updated "${id}" from ${older(current[id])} to ${current[id]}, the version this server ships.`);
+    await waitFor(`"todo" ${current.todo} is here, but it asks for something new, so it waits for an owner to update it in Modules; ${older(current.todo)} keeps running.`);
+    await waitFor('Renamed "travel"\'s stored keys from item: to plan: (2 in 2 places; kept 1 whose new name was already taken).');
+    const out = server.output();
+    assert.ok(out.indexOf('Updated "places"') < out.indexOf('Updated "maps"'), `Places before Maps:\n${out}`);
+    const space = readJson(path.join(dataDir, 'space-lobby.json'));
+    assert.deepEqual(Object.keys(space).sort(), ['item:c1', 'plan:a1', 'plan:c1', 'trip:main'], 'moved, and the taken name never overwritten');
+    assert.deepEqual([space['plan:a1'], space['plan:c1'].value.title, space['item:c1'].value.title], [entry({ title: 'Ferry to Cacilhas', date: '2026-10-01' }), 'new copy', 'old copy'], 'value, version, time and author kept');
+    assert.deepEqual(Object.keys(readJson(path.join(dataDir, 'environment.json'))), ['plan:e1']);
+    const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
+    const as = (method, url, body) => call(server, '', method, url, { cookie: admin, body });
+    const byId = Object.fromEntries((await as('GET', '/api/modules')).json.modules.map((m) => [m.id, m]));
+    for (const id of ['places', 'maps', 'travel']) assert.deepEqual([id, byId[id].version, byId[id].enabled, byId[id].allSpaces], [id, current[id], true, true]);
+    assert.deepEqual([byId.todo.version, byId.todo.enabled], [older(current.todo), true], 'the To-do waits, still on, on its old version');
+    assert.equal((await as('GET', '/api/modules/maps/context?scope=space&space=lobby')).status, 200, 'Maps runs');
+    // Found as plan: objects without anyone having opened the Planner.
+    const found = await as('GET', '/api/objects/search?from=todo&scope=space&space=lobby&q=ferry');
+    assert.deepEqual(found.json.summaries.map((x) => [x.kind, x.ref.id, x.title]), [['plan', 'a1', 'Ferry to Cacilhas']]);
+    const resolved = await as('POST', '/api/objects/resolve', { from: 'todo', refs: [{ module: 'travel', kind: 'plan', id: 'a1', scope: 'space', space: 'lobby' }, { module: 'travel', kind: 'plan', id: 'e1', scope: 'environment' }] });
+    assert.deepEqual(resolved.json.summaries.map((x) => x.title), ['Ferry to Cacilhas', 'Passports']);
+    assert.deepEqual(readJson(path.join(modulesDir, 'registry.json')).modules.travel.renamed.map((r) => [r.from, r.to]), [['item:', 'plan:']]);
+    await server.stop();
+    // Every start, not once: an old key written again after the rename (an old page still open) is moved on the next start.
+    const again = readJson(path.join(dataDir, 'space-lobby.json'));
+    again['item:z9'] = entry({ title: 'late' });
+    fs.writeFileSync(path.join(dataDir, 'space-lobby.json'), JSON.stringify(again));
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    await waitFor(`"todo" ${current.todo} is here`);
+    await waitFor('Renamed "travel"\'s stored keys from item: to plan: (1 in 1 place; kept 1 whose new name was already taken).');
+    assert.ok(!server.output().includes('Updated "'), server.output());
+    assert.deepEqual(Object.keys(readJson(path.join(dataDir, 'space-lobby.json'))).sort(), ['item:c1', 'plan:a1', 'plan:c1', 'plan:z9', 'trip:main']);
+    await server.stop();
+    // The conflict already counted is not logged, or added to the activity, again.
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    await waitFor(`"todo" ${current.todo} is here`);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(!server.output().includes('Renamed'), server.output());
+    await server.stop();
+    server = null;
+  });
+
+  // QA's case: storage.renamed across a rollback. The stored keys always match the version that runs: rolling back to a
+  // version from before a rename moves the keys back, and rolling forward again moves every key under the old prefix,
+  // including one the older version wrote meanwhile.
+  await liveTest('live: storage.renamed follows the running version across a rollback and back, and strands no key', async () => {
+    const single = path.join(liveDir, 'single-rename-rollback');
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
+    const as = (method, url, body, type) => call(server, '', method, url, { cookie: admin, body, type });
+    assert.equal((await as('POST', '/api/modules/bundled/todo/install')).status, 201);
+    assert.equal((await as('PATCH', '/api/modules/todo', { enabled: true, allSpaces: true })).status, 200);
+    const shipped = readJson(path.join(ROOT, 'modules', 'todo', 'module.json'));
+    for (const id of ['t1', 't2', 't3']) assert.equal((await as('PUT', `/api/modules/todo/data/task:${id}?scope=space&space=lobby`, { value: { title: id } })).status, 200);
+    // The next version renames task: to job:, as an author would (an uploaded copy of the To-do).
+    const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'check-rename-todo-'));
+    fs.cpSync(path.join(ROOT, 'modules', 'todo'), copy, { recursive: true });
+    const [a, b, c] = shipped.version.split('.').map(Number);
+    const next = `${a}.${b}.${c + 1}`;
+    fs.writeFileSync(path.join(copy, 'module.json'), JSON.stringify({ ...shipped, version: next, storage: { renamed: [{ from: 'task:', to: 'job:' }] } }));
+    const { buildModule } = require('../server/module-build.js');
+    const up = await as('POST', '/api/modules', buildModule(copy).zip, 'application/zip');
+    fs.rmSync(copy, { recursive: true, force: true });
+    assert.equal(up.status, 201, up.text);
+    const keys = () => Object.keys(readJson(path.join(single, 'modules', 'todo', 'data', 'space-lobby.json'))).sort();
+    assert.deepEqual(keys(), ['job:t1', 'job:t2', 'job:t3'], 'renamed on install');
+    // Back to the version from before the rename: its keys are where it looks for them.
+    assert.equal((await as('POST', '/api/modules/todo/rollback', { version: shipped.version })).status, 200);
+    assert.deepEqual(keys(), ['task:t1', 'task:t2', 'task:t3'], 'moved back on rollback');
+    assert.equal((await as('GET', '/api/modules/todo/data?scope=space&space=lobby&prefix=task:')).json.items.length, 3, 'the older version finds them');
+    assert.equal((await as('PUT', '/api/modules/todo/data/task:rb?scope=space&space=lobby', { value: { title: 'written while rolled back' } })).status, 200);
+    // And forward again: every key under the old prefix moves, the one written meanwhile too.
+    assert.equal((await as('POST', '/api/modules/todo/rollback', { version: next })).status, 200);
+    assert.deepEqual(keys(), ['job:rb', 'job:t1', 'job:t2', 'job:t3']);
+    assert.deepEqual(readJson(path.join(single, 'modules', 'registry.json')).modules.todo.renamed.map((r) => [r.from, r.to, r.version]), [['task:', 'job:', next]], 'recorded with the version that introduced it');
+    // QA's second case: a newer version that no longer declares the rename keeps it; nothing moves back.
+    const copy2 = fs.mkdtempSync(path.join(os.tmpdir(), 'check-rename-todo-'));
+    fs.cpSync(path.join(ROOT, 'modules', 'todo'), copy2, { recursive: true });
+    const later = `${a}.${b}.${c + 2}`;
+    fs.writeFileSync(path.join(copy2, 'module.json'), JSON.stringify({ ...shipped, version: later }));
+    const logBefore = server.output().length;
+    const up2 = await as('POST', '/api/modules', buildModule(copy2).zip, 'application/zip');
+    fs.rmSync(copy2, { recursive: true, force: true });
+    assert.equal(up2.status, 201, up2.text);
+    assert.deepEqual(keys(), ['job:rb', 'job:t1', 'job:t2', 'job:t3'], 'the keys stay renamed');
+    assert.ok(!server.output().slice(logBefore).includes('Moved back'), server.output());
+    assert.deepEqual(readJson(path.join(single, 'modules', 'registry.json')).modules.todo.renamed.map((r) => [r.from, r.to, r.version]), [['task:', 'job:', next]]);
+    await server.stop();
+    // A key under the old prefix on disk (an old page's late write) is moved on the next start.
+    const file = path.join(single, 'modules', 'todo', 'data', 'space-lobby.json');
+    fs.writeFileSync(file, JSON.stringify({ ...readJson(file), 'task:late': { value: { title: 'late' }, version: 1, updatedAt: '2026-09-01T00:00:00.000Z', by: 'k' } }));
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    for (let i = 0; i < 100 && !keys().includes('job:late'); i += 1) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual(keys(), ['job:late', 'job:rb', 'job:t1', 'job:t2', 'job:t3'], 'still applied by the later version that no longer declares it');
+    // And back to the version from before the rename: undone, so it finds its keys.
+    const admin2 = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
+    assert.equal((await call(server, '', 'POST', '/api/modules/todo/rollback', { cookie: admin2, body: { version: shipped.version } })).status, 200);
+    assert.deepEqual(keys(), ['task:late', 'task:rb', 'task:t1', 'task:t2', 'task:t3']);
+    assert.ok(server.output().includes(`Moved back "todo"'s stored keys from job: to task:, since ${shipped.version} is from before that rename (5 in 1 place).`), server.output());
+    assert.deepEqual(readJson(path.join(single, 'modules', 'registry.json')).modules.todo.renamed, []);
     await server.stop();
     server = null;
   });

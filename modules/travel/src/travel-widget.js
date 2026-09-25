@@ -24,7 +24,7 @@
   const MAX_TRIPS = 3;
   const MAX_TODAY = 3;
   const trips = new Map(); // space id -> trip
-  const planned = new Map(); // space id -> [items]
+  const planned = new Map(); // space id -> Map(id -> the plan's items)
   const spaces = new Map(); // space id -> { id, name, icon, svg }
 
   async function load() {
@@ -33,11 +33,14 @@
     try {
       for (const r of await host.spaces()) spaces.set(r.id, r);
       for (const it of await host.storage.list(TRIP_KEY, { scope: 'spaces' })) if (it.value) trips.set(it.spaceId, cleanTrip(it.value));
-      for (const it of await host.storage.list('item:', { scope: 'spaces' })) {
-        const item = it.value ? cleanItem({ ...it.value, id: it.key.slice(5) }) : null;
+      // A space whose Planner has not been opened since the rename still has its items under the old keys: both are read, the
+      // new key winning (see PLAN_PREFIX).
+      const stored = [...await host.storage.list(OLD_PLAN_PREFIX, { scope: 'spaces' }), ...await host.storage.list(PLAN_PREFIX, { scope: 'spaces' })];
+      for (const it of stored) {
+        const item = it.value ? cleanItem({ ...it.value, id: planIdOf(it.key) }) : null;
         if (!item) continue;
-        if (!planned.has(it.spaceId)) planned.set(it.spaceId, []);
-        planned.get(it.spaceId).push(item);
+        if (!planned.has(it.spaceId)) planned.set(it.spaceId, new Map());
+        planned.get(it.spaceId).set(item.id, item);
       }
     } catch (err) {
       // no spaces is fine: no trips
@@ -64,7 +67,7 @@
     $('list').innerHTML = list.map(([spaceId, t]) => {
       const r = spaces.get(spaceId);
       const on = daysUntil(t, today) <= 0;
-      const todays = on ? sortDay((planned.get(spaceId) || []).filter((i) => i.date === today)).slice(0, MAX_TODAY) : [];
+      const todays = on ? sortDay([...(planned.get(spaceId) || new Map()).values()].filter((i) => i.date === today)).slice(0, MAX_TODAY) : [];
       const range = t.end && t.end !== t.start ? `${parseYmd(t.start).toLocaleDateString([], { month: 'short', day: 'numeric' })} - ${parseYmd(t.end).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : parseYmd(t.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
       return `<div class="trip">
         <button type="button" class="item" data-trip="${esc(spaceId)}" title="${esc(t.title || t.destination || 'Trip')}${r ? ' - ' + esc(r.name) : ''}">
@@ -81,18 +84,18 @@
 
   root.addEventListener('click', (e) => {
     const trip = e.target.closest('[data-trip]');
-    if (trip) return void host.refs.open(host.refs.make('trip', 'main', { space: trip.dataset.trip })).catch(() => {});
+    if (trip) return void host.objects.open(host.objects.make('trip', 'main', { space: trip.dataset.trip })).catch(() => {});
     const plan = e.target.closest('[data-plan]');
     if (plan) {
       const [space, id] = plan.dataset.plan.split('|');
-      host.refs.open(host.refs.make('plan', id, { space })).catch(() => {});
+      host.objects.open(host.objects.make('plan', id, { space })).catch(() => {});
     }
   });
 
   let refreshing = 0;
   host.on('change', (e) => {
     const key = String(e.key);
-    if (key !== TRIP_KEY && !key.startsWith('item:')) return;
+    if (key !== TRIP_KEY && planIdOf(key) === null) return;
     clearTimeout(refreshing);
     refreshing = setTimeout(() => load().then(render).catch(() => {}), 300);
   });

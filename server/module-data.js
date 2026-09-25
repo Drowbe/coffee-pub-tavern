@@ -77,6 +77,51 @@ class ModuleData extends EventEmitter {
     }
   }
 
+  // Every scope this module has a data file for: 'environment', 'space:<id>' and 'person:<key>'.
+  scopesOf(id) {
+    let names = [];
+    try { names = fs.readdirSync(path.join(this.dir, id, 'data')); } catch { return []; }
+    const out = [];
+    for (const n of names.sort()) {
+      if (n === 'environment.json') out.push('environment');
+      const m = /^space-(.+)\.json$/.exec(n);
+      if (m && SPACE_RE.test(m[1])) out.push(`space:${m[1]}`);
+      const p = /^person-(.+)\.json$/.exec(n);
+      if (p && PERSON_RE.test(p[1])) out.push(`person:${p[1]}`);
+    }
+    return out;
+  }
+
+  // A module's author renamed a key prefix (storage.renamed in module.json): every key starting with `from`, in every
+  // scope, moves to the same key starting with `to`, keeping its value, version, time and who wrote it. A key whose new
+  // name is already taken is never overwritten: both are left as they are, and counted in `kept`. Answers
+  // { moved, kept, scopes } (the number of keys moved, of keys left because the new name was taken, and of scope files
+  // rewritten). Nothing to move writes nothing, so running it again over its own result changes nothing. No change
+  // events are sent: it runs when the module is installed or updated, before its pages ask again.
+  renamePrefix(id, from, to) {
+    let moved = 0;
+    let kept = 0;
+    let scopes = 0;
+    for (const scopeKey of this.scopesOf(id)) {
+      const map = this.load(id, scopeKey);
+      const next = new Map();
+      let changed = false;
+      for (const [key, entry] of map) {
+        if (!key.startsWith(from)) { next.set(key, entry); continue; }
+        const newKey = to + key.slice(from.length);
+        if (map.has(newKey) || next.has(newKey) || !KEY_RE.test(newKey)) { next.set(key, entry); kept += 1; continue; }
+        next.set(newKey, entry);
+        moved += 1;
+        changed = true;
+      }
+      if (!changed) continue;
+      this.persist(id, scopeKey, next);
+      this.cache.set(`${id}|${scopeKey}`, next);
+      scopes += 1;
+    }
+    return { moved, kept, scopes };
+  }
+
   // Drop cached scopes for a module (after its data was deleted).
   forget(id) {
     for (const key of [...this.cache.keys()]) if (key.startsWith(`${id}|`)) this.cache.delete(key);

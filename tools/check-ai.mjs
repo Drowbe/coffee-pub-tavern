@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * check-ai.mjs -- run the AI part (server/ai.js) on its own against a stand-in service on this machine: the setting and the key
- * that is never shown again, the prompt's frame, what is sent, the cards the model writes being checked field by field, tags,
+ * that is never shown again, the prompt's frame, what is sent, the summaries the model writes being checked field by field, tags,
  * the monthly limit and the usage count. No network beyond localhost.
  */
 import fs from 'node:fs';
@@ -11,7 +11,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const { Ai, AiError, applyManagedFields, buildPrompt, parseCards, cleanCard, parseTags, citedItems, ICONS, KINDS, MAX_CARDS } = createRequire(import.meta.url)('../server/ai.js');
+const { Ai, AiError, applyManagedFields, buildPrompt, parseSummaries, cleanSummary, parseTags, citedItems, ICONS, KINDS, MAX_SUMMARIES } = createRequire(import.meta.url)('../server/ai.js');
 
 let n = 0;
 const test = async (name, fn) => { await fn(); n += 1; };
@@ -113,9 +113,9 @@ await test('a request: the frame, the numbered items, the key as a header, the t
   assert.ok(!('tools' in s.body));
   assert.equal(r.tokens, 50);
   assert.deepEqual(r.used, [1]);
-  assert.equal(r.cards.length, 1);
-  assert.deepEqual(r.cards[0].sources, [1]); // 9 was never given
-  assert.match(r.text, /\{\{card:0\}\}/);
+  assert.equal(r.summaries.length, 1);
+  assert.deepEqual(r.summaries[0].sources, [1]); // 9 was never given
+  assert.match(r.text, /\{\{summary:0\}\}/);
   assert.equal(ai.usageView().tokens, 50);
   assert.equal(ai.usageView().byTask.ask, 50);
   const b = new Ai(dir, {}, { anthropic: address });
@@ -210,11 +210,11 @@ await test('the enable step', () => {
   assert.equal(new Ai(d, {}).view().enabled, false);
 });
 
-await test('cards are checked field by field', () => {
+await test('summaries are checked field by field', () => {
   const good = { icon: 'nope', title: `  ${'t'.repeat(200)} `, content: 'a <b>bold</b> claim\nsecond line', tags: ['One Word', 'x y', 'a', 'b', 'c', 'd', 'e'], place: { name: 'Cafe', lat: 95, lng: 10 }, date: '2026-02-30', links: [{ title: 'ok', url: 'https://a.example/x' }, { url: 'http://plain.example' }, { url: 'javascript:1' }, { url: 'https://u:p@a.example' }], sources: [1, 2, 3] };
-  const c = parseCards('intro\n```card\n' + JSON.stringify(good) + '\n```\noutro', 2);
-  assert.equal(c.cards.length, 1);
-  const k = c.cards[0];
+  const c = parseSummaries('intro\n```card\n' + JSON.stringify(good) + '\n```\noutro', 2);
+  assert.equal(c.summaries.length, 1);
+  const k = c.summaries[0];
   assert.equal(k.icon, ICONS[0]);
   assert.equal(k.title.length, 80);
   assert.equal(k.content, 'a bold claim\nsecond line');
@@ -223,26 +223,30 @@ await test('cards are checked field by field', () => {
   assert.equal(k.date, undefined);
   assert.deepEqual(k.links, [{ title: 'ok', url: 'https://a.example/x' }]);
   assert.deepEqual(k.sources, [1, 2]);
-  assert.equal(c.text, 'intro\n\n{{card:0}}\n\noutro');
-  // Not a card: it stays as text. An unfinished block is never a card.
-  assert.equal(parseCards('```card\n{"title":"T","content":"c"}\n```', 0).cards[0].basis, 'general'); // no material: general
-  assert.equal(parseCards('```card\n{"title":"T","content":"c"}\n```', 2).cards[0].basis, 'items');
-  assert.equal(parseCards('```card\n{"title":"T","content":"c","basis":"both"}\n```', 2).cards[0].basis, 'both');
-  assert.equal(parseCards('```card\n{"title":"T","content":"c","basis":"nonsense"}\n```', 2).cards[0].basis, 'items');
-  assert.equal(parseCards('```card\nnot json\n```', 1).cards.length, 0);
-  assert.equal(parseCards('```card\n{"title":"","content":"x"}\n```', 1).cards.length, 0);
-  assert.equal(parseCards('```card\n{"title":"T","content":"still writing', 1).cards.length, 0);
-  assert.equal(parseCards('```card\n{"title":"T","content":"c","date":"2026-02-28"}\n```', 1).cards[0].date, '2026-02-28');
-  const many = Array(MAX_CARDS + 5).fill('```card\n{"title":"T","content":"c"}\n```').join('\n');
-  assert.equal(parseCards(many, 1).cards.length, MAX_CARDS);
+  assert.equal(c.text, 'intro\n\n{{summary:0}}\n\noutro');
+  // Not a summary: it stays as text. An unfinished block is never one.
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"c"}\n```', 0).summaries[0].basis, 'general'); // no material: general
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"c"}\n```', 2).summaries[0].basis, 'items');
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"c","basis":"both"}\n```', 2).summaries[0].basis, 'both');
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"c","basis":"nonsense"}\n```', 2).summaries[0].basis, 'items');
+  assert.equal(parseSummaries('```card\nnot json\n```', 1).summaries.length, 0);
+  assert.equal(parseSummaries('```card\n{"title":"","content":"x"}\n```', 1).summaries.length, 0);
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"still writing', 1).summaries.length, 0);
+  assert.equal(parseSummaries('```card\n{"title":"T","content":"c","date":"2026-02-28"}\n```', 1).summaries[0].date, '2026-02-28');
+  // The model is asked for ```card (its own instructions, unchanged); a ```summary or ```json fence is read the same way.
+  assert.equal(parseSummaries('```summary\n{"title":"T","content":"c"}\n```', 1).text, '{{summary:0}}');
+  assert.equal(parseSummaries('```json\n{"title":"T","content":"c"}\n```', 1).summaries.length, 1);
+  assert.match(buildPrompt('ask', [], 'Why?').prompt, /```card\n/);
+  const many = Array(MAX_SUMMARIES + 5).fill('```card\n{"title":"T","content":"c"}\n```').join('\n');
+  assert.equal(parseSummaries(many, 1).summaries.length, MAX_SUMMARIES);
 });
 
-test('a card\'s kind', () => {
+test('a summary\'s kind', () => {
   assert.equal(KINDS.includes('flight'), true);
   assert.equal(KINDS.includes('hotel'), true);
-  assert.equal(cleanCard({ title: 'LIS to FAO', content: 'x', kind: 'flight' }, 0).kind, 'flight');
-  assert.equal(cleanCard({ title: 'T', content: 'x', kind: 'nonsense' }, 0).kind, undefined);
-  assert.equal(cleanCard({ title: 'T', content: 'x' }, 0).kind, undefined);
+  assert.equal(cleanSummary({ title: 'LIS to FAO', content: 'x', kind: 'flight' }, 0).kind, 'flight');
+  assert.equal(cleanSummary({ title: 'T', content: 'x', kind: 'nonsense' }, 0).kind, undefined);
+  assert.equal(cleanSummary({ title: 'T', content: 'x' }, 0).kind, undefined);
 });
 
 await test('tags and citations', async () => {

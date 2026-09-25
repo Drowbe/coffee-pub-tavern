@@ -49,11 +49,11 @@ body { margin: 0; overflow: hidden; }
 .pin { --pin: var(--accent); --pin-text: var(--on-accent); position: relative; display: block; width: 30px; height: 30px; padding: 0; border: 0; background: none; color: var(--pin-text); font: inherit; cursor: pointer; transform-origin: 50% 100%; }
 .pin-body { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 2px solid var(--bg-section); border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); background: var(--pin); box-shadow: 0 2px 6px color-mix(in srgb, black 40%, transparent); }
 .pin-body .ic { transform: rotate(45deg); font-size: 14px; }
-.pin[data-kind="item"] { --pin: var(--bg-card); --pin-text: var(--text); }
-.pin[data-kind="item"] .pin-body { border-color: var(--accent); }
+.pin[data-kind="object"] { --pin: var(--bg-card); --pin-text: var(--text); }
+.pin[data-kind="object"] .pin-body { border-color: var(--accent); }
 
-/* a card's category (do, eat, stay, travel, other) gives its pin and row the same colour family as the Travel cards and the Places cards,
-   turned from the accent; a card with no category keeps the module-based look above. */
+/* a summary's category (do, eat, stay, travel, other) gives its pin and row the same colour family as the Travel cards and the Places cards,
+   turned from the accent; a summary with no category keeps the module-based look above. */
 .pin[data-cat] { --turn: 0; --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
 @supports (color: oklch(from red l c h)) { .pin[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
 .pin[data-cat="do"] { --turn: 95; }
@@ -134,7 +134,7 @@ body { margin: 0; overflow: hidden; }
 .callout-box { position: absolute; z-index: 5; left: 10px; bottom: 30px; width: min(360px, calc(100% - 20px)); pointer-events: none; }
 .callout-box > * { pointer-events: auto; }
 .callout { --turn: 0; --tone: var(--accent); position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 12px; border: 1px solid color-mix(in srgb, var(--tone) 40%, var(--border)); border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--tone) 12%, var(--bg-section)), var(--bg-section) 70%); box-shadow: 0 12px 32px color-mix(in srgb, black 35%, transparent); animation: callout-in 0.16s ease-out; }
-.callout[data-kind="item"] { --tone: var(--text-dim); }
+.callout[data-kind="object"] { --tone: var(--text-dim); }
 .callout[data-cat] { --tone: color-mix(in srgb, var(--accent) 65%, var(--text)); }
 @supports (color: oklch(from red l c h)) { .callout[data-cat] { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
 .callout[data-cat="do"] { --turn: 95; }

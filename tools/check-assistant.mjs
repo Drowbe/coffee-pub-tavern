@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * check-assistant.mjs -- run Assistant's model (modules/assistant/src/assistant-lib.js) on its own: turning an AI reply into the
- * pieces to draw (as check-ai.mjs's parseCards does the server side of the same {{card:N}} markers), and what a kept card asks a
+ * pieces to draw (as check-ai.mjs does the server side of the same {{summary:N}} markers), and what a kept answer asks a
  * note-shaped save action to keep.
  */
 import fs from 'node:fs';
@@ -19,10 +19,10 @@ const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/assistant
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
-test('an AI reply: cards drawn in place, a stray marker never trusted', () => {
-  assert.deepEqual(lib.answerParts('Before\n\n{{card:0}}\n\nAfter', 1), [{ text: 'Before' }, { card: 0 }, { text: 'After' }]);
-  assert.deepEqual(lib.answerParts('Only text {{card:5}} here', 1), [{ text: 'Only text {{card:5}} here' }, { card: 0 }]);
-  assert.deepEqual(lib.answerParts('{{card:0}} {{card:0}}', 1), [{ card: 0 }, { text: '{{card:0}}' }]);
+test('an AI reply: summaries drawn in place, a stray marker never trusted', () => {
+  assert.deepEqual(lib.answerParts('Before\n\n{{summary:0}}\n\nAfter', 1), [{ text: 'Before' }, { summary: 0 }, { text: 'After' }]);
+  assert.deepEqual(lib.answerParts('Only text {{summary:5}} here', 1), [{ text: 'Only text {{summary:5}} here' }, { summary: 0 }]);
+  assert.deepEqual(lib.answerParts('{{summary:0}} {{summary:0}}', 1), [{ summary: 0 }, { text: '{{summary:0}}' }]);
   assert.deepEqual(lib.answerParts('', 0), []);
 });
 

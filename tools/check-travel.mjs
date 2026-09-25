@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems', 'MAX_MINUTES', 'arrivalOf', 'laterText'];
+const names = ['bookings', 'balances', 'summaryWhen', 'TRIP_KEY', 'PLAN_PREFIX', 'OLD_PLAN_PREFIX', 'MOVED_KEY', 'planIdOf', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems', 'MAX_MINUTES', 'arrivalOf', 'laterText'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -76,7 +76,7 @@ test('itemsByDay groups by day, keeps ideas apart and drops days outside the tri
   assert.equal([...by.values()].flat().some((i) => i.id === 'out'), false);
 });
 
-test('a linked item is placed by its card when it has no day of its own', () => {
+test('a linked object is placed by its summary when it has no day of its own', () => {
   const l = lib.cleanItem({ id: 'l', kind: 'link', ref: { module: 'calendar', kind: 'event', id: 'e', scope: 'environment' } });
   const by = lib.itemsByDay([l], ['2026-10-01', '2026-10-02'], (i) => i.date || '2026-10-02');
   assert.equal(by.get('2026-10-02').length, 1);
@@ -117,15 +117,15 @@ test('gaps are the minutes between the end of one timed item and the next start'
   assert.equal(lib.gapText(135), '2 h 15 min');
 });
 
-test('a card says when in a day, a moment or milliseconds', () => {
-  assert.deepEqual(lib.cardWhen({ when: '2026-10-03' }), { day: '2026-10-03', time: '' });
+test('a summary says when in a day, a moment or milliseconds', () => {
+  assert.deepEqual(lib.summaryWhen({ when: '2026-10-03' }), { day: '2026-10-03', time: '' });
   const d = new Date(2026, 9, 3, 18, 30);
-  assert.deepEqual(lib.cardWhen({ when: d.toISOString() }), { day: '2026-10-03', time: '18:30' });
-  assert.deepEqual(lib.cardWhen({ when: d.getTime() }), { day: '2026-10-03', time: '18:30' });
-  assert.deepEqual(lib.cardWhen({ when: new Date(2026, 9, 3, 0, 0).getTime() }), { day: '2026-10-03', time: '' }); // local midnight: no time of day
-  assert.deepEqual(lib.cardWhen({ when: d.toISOString(), allDay: true }), { day: '2026-10-03', time: '' });
-  assert.equal(lib.cardWhen({}), null);
-  assert.equal(lib.cardWhen({ when: 'soon' }), null);
+  assert.deepEqual(lib.summaryWhen({ when: d.toISOString() }), { day: '2026-10-03', time: '18:30' });
+  assert.deepEqual(lib.summaryWhen({ when: d.getTime() }), { day: '2026-10-03', time: '18:30' });
+  assert.deepEqual(lib.summaryWhen({ when: new Date(2026, 9, 3, 0, 0).getTime() }), { day: '2026-10-03', time: '' }); // local midnight: no time of day
+  assert.deepEqual(lib.summaryWhen({ when: d.toISOString(), allDay: true }), { day: '2026-10-03', time: '' });
+  assert.equal(lib.summaryWhen({}), null);
+  assert.equal(lib.summaryWhen({ when: 'soon' }), null);
 });
 
 test('bookings are stays and journeys by date and time', () => {
@@ -193,30 +193,38 @@ await (async () => {
 
 // --- the plan, against a small stand-in for the SDK -------------------------------------------------------------
 
-function fakeHost({ cards = [], search = [] } = {}) {
+function fakeHost({ summaries = [], search = [], readOnly = false } = {}) {
   const store = new Map(); // key -> { value, version }
   const handlers = { change: [] };
   const provided = {};
   let clock = 0;
-  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|');
+  const objectKey = (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|');
+  const refuse = () => { if (readOnly) throw Object.assign(new Error('you may not change this'), { status: 403 }); };
   const t = {
     user: { key: 'u1', name: 'Ann' },
-    util: { id: () => 'id' + (++clock), refKey, ymd, parseYmd },
+    util: { id: () => 'id' + (++clock), objectKey, ymd, parseYmd, word: (k) => k },
     storage: {
       get: async (key) => (store.has(key) ? { key, ...store.get(key) } : null),
       list: async (prefix) => [...store].filter(([k]) => k.startsWith(prefix)).map(([key, v]) => ({ key, ...v })),
+      // As the server: a version given must be the one stored (0 when there is none).
       set: async (key, value, o = {}) => {
+        refuse();
         const cur = store.get(key);
-        if (o.version !== undefined && (!cur || cur.version !== o.version)) throw Object.assign(new Error('stale'), { status: 409 });
+        if (o.version !== undefined && (cur ? cur.version : 0) !== o.version) throw Object.assign(new Error('stale'), { status: 409 });
         const version = (cur ? cur.version : 0) + 1;
         store.set(key, { value, version });
         return { key, value, version };
       },
-      delete: async (key) => { store.delete(key); },
+      delete: async (key, o = {}) => {
+        refuse();
+        const cur = store.get(key);
+        if (cur && o.version !== undefined && cur.version !== o.version) throw Object.assign(new Error('stale'), { status: 409 });
+        store.delete(key);
+      },
     },
     on: (event, fn) => { (handlers[event] ||= []).push(fn); },
-    refs: {
-      resolve: async (refs) => refs.map((r) => cards.find((c) => refKey(c.ref) === refKey(r)) || { error: 'gone' }),
+    objects: {
+      resolve: async (refs) => refs.map((r) => summaries.find((c) => objectKey(c.ref) === objectKey(r)) || { error: 'gone' }),
       search: async () => search,
       make: (kind, id) => ({ module: 'travel', kind, id, scope: 'space' }),
     },
@@ -246,9 +254,9 @@ const run = async () => {
   assert.deepEqual(plan.byDay().get('2026-10-01').map((i) => i.title), ['Dinner']);
   n += 1;
 
-  // a pointer with a card time sorts by it
+  // a pointer whose object's summary has a time sorts by it
   const evc = { ref: { module: 'calendar', kind: 'event', id: 'ev9', scope: 'space', space: 'lobby' }, module: { id: 'calendar' }, title: 'Dinner', when: new Date(2026, 9, 1, 20, 0).toISOString() };
-  const h = fakeHost({ cards: [evc] });
+  const h = fakeHost({ summaries: [evc] });
   const plan3 = lib.createPlan(h.t);
   await plan3.load();
   await plan3.saveTrip({ start: '2026-10-01', end: '2026-10-02' });
@@ -260,16 +268,16 @@ const run = async () => {
   n += 1;
 
   // two people: an edit to something changed meanwhile is refused and the newer copy is loaded
-  await f.t.storage.set('item:' + a.id, { ...f.store.get('item:' + a.id).value, title: 'Long hike' }, {});
+  await f.t.storage.set('plan:' + a.id, { ...f.store.get('plan:' + a.id).value, title: 'Long hike' }, {});
   await assert.rejects(() => plan.updateItem(a.id, { notes: 'x' }), (e) => e.conflict === true);
   assert.equal(plan.list().find((i) => i.id === a.id).title, 'Long hike');
   await plan.updateItem(a.id, { notes: 'x' });
   n += 1;
 
   // live changes from someone else
-  f.push({ key: 'item:zz', value: { kind: 'note', title: 'Bring cash', date: '2026-10-03', order: 1000 }, version: 1 });
+  f.push({ key: 'plan:zz', value: { kind: 'note', title: 'Bring cash', date: '2026-10-03', order: 1000 }, version: 1 });
   assert.equal(plan.byDay().get('2026-10-03').length, 1);
-  f.push({ key: 'item:zz', deleted: true });
+  f.push({ key: 'plan:zz', deleted: true });
   assert.equal(plan.byDay().get('2026-10-03').length, 0);
   n += 1;
 
@@ -301,20 +309,93 @@ const run = async () => {
   await f.provided.acceptSuggestion({ title: 'Something odd', kind: 'nonsense' });
   assert.equal(plan.list().find((i) => i.title === 'Something odd').kind, 'stop');
   const ev = { ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' }, module: { id: 'calendar' }, title: 'Train', when: '2026-10-03' };
-  const g = fakeHost({ cards: [ev], search: [ev, { ...ev, ref: { ...ev.ref, id: 'e2' }, when: '2026-12-25' }, { ...ev, ref: { ...ev.ref, id: 'e3' }, module: { id: 'travel' } }] });
+  const g = fakeHost({ summaries: [ev], search: [ev, { ...ev, ref: { ...ev.ref, id: 'e2' }, when: '2026-12-25' }, { ...ev, ref: { ...ev.ref, id: 'e3' }, module: { id: 'travel' } }] });
   const plan2 = lib.createPlan(g.t);
   await plan2.load();
   await plan2.saveTrip({ start: '2026-10-01', end: '2026-10-03' });
   const sug = await plan2.suggest();
   assert.deepEqual(sug.map((c) => c.ref.id), ['e1']);
   plan2.provide();
-  await g.provided.addToDay({ item: ev.ref, date: null });
+  await g.provided.addToDay({ object: ev.ref, date: null });
   await new Promise((r) => setTimeout(r, 0));
   assert.equal(plan2.byDay().get('2026-10-03').length, 1); // placed by the linked item's own day
   assert.equal((await plan2.suggest()).length, 0); // and no longer suggested
   n += 1;
 };
 await run();
+
+// --- the plan's own keys renamed (plan-names decision 19): item:<id> becomes plan:<id>, once, recorded ------------------
+await (async () => {
+  const old = (f, id, title, extra = {}) => f.store.set(lib.OLD_PLAN_PREFIX + id, { value: { kind: 'stop', title, date: '2026-10-01', order: 1000, ...extra }, version: 3 });
+  assert.equal(lib.PLAN_PREFIX, 'plan:');
+  assert.equal(lib.planIdOf('plan:a1'), 'a1');
+  assert.equal(lib.planIdOf('item:a1'), 'a1');
+  assert.equal(lib.planIdOf('trip:main'), null);
+  assert.equal(lib.planIdOf('_moved:plan-keys'), null);
+
+  // Someone who may edit opens the plan: every old key moves, values intact, and the move is recorded.
+  const f = fakeHost();
+  old(f, 'a1', 'Ferry', { notes: 'deck' });
+  old(f, 'a2', 'Castle');
+  const plan = lib.createPlan(f.t);
+  await plan.load();
+  assert.deepEqual([...f.store.keys()].filter((k) => k.startsWith('item:')), [], 'no old key is left');
+  assert.equal(f.store.get('plan:a1').value.notes, 'deck', 'the value moved as it was');
+  assert.ok(f.store.get(lib.MOVED_KEY), 'the move is recorded');
+  assert.deepEqual(plan.list().map((i) => i.title).sort(), ['Castle', 'Ferry']);
+  // Loading again moves nothing and changes nothing.
+  const before = JSON.stringify([...f.store]);
+  await lib.createPlan(f.t).load();
+  assert.equal(JSON.stringify([...f.store]), before, 'a second load changes nothing');
+  n += 1;
+
+  // Recorded already: an old key that turns up later (an old page still open) is shown, and moved on its change.
+  old(f, 'a3', 'Late');
+  f.push({ key: 'item:a3', value: f.store.get('item:a3').value, version: 3 });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(plan.list().some((i) => i.title === 'Late'), 'an old key is still read');
+  assert.ok(f.store.has('plan:a3') && !f.store.has('item:a3'), 'and moved');
+  n += 1;
+
+  // A different copy already under the new key: the plan shows the new one, and the old key is kept, never deleted.
+  const g = fakeHost();
+  old(g, 'b1', 'Old title');
+  g.store.set('plan:b1', { value: { kind: 'stop', title: 'New title', date: '2026-10-01', order: 1000 }, version: 1 });
+  const plan2 = lib.createPlan(g.t);
+  await plan2.load();
+  assert.equal(g.store.get('plan:b1').value.title, 'New title');
+  assert.equal(g.store.get('item:b1').value.title, 'Old title', 'a different old value is kept');
+  assert.deepEqual(plan2.list().map((i) => i.title), ['New title']);
+  // The same value under both keys (someone else moved it first): the old key goes.
+  const same = fakeHost();
+  old(same, 'b2', 'Twin');
+  same.store.set('plan:b2', { value: same.store.get('item:b2').value, version: 1 });
+  await lib.createPlan(same.t).load();
+  assert.ok(same.store.has('plan:b2') && !same.store.has('item:b2'), 'an identical old copy is removed');
+  n += 1;
+
+  // Someone who cannot edit moves nothing and records nothing, and still sees the whole plan.
+  const r = fakeHost({ readOnly: true });
+  old(r, 'c1', 'Museum');
+  const plan3 = lib.createPlan(r.t);
+  await plan3.load();
+  assert.ok(r.store.has('item:c1') && !r.store.has(lib.MOVED_KEY), 'nothing moved or recorded');
+  assert.deepEqual(plan3.list().map((i) => i.title), ['Museum']);
+  n += 1;
+
+  // An item still under its old key, changed by someone who can edit: saved under the new key, the old one gone.
+  const e = fakeHost();
+  old(e, 'd1', 'Walk');
+  e.store.set(lib.MOVED_KEY, { value: { at: 'x' }, version: 1 }); // recorded, but this one was left behind
+  const plan4 = lib.createPlan(e.t);
+  await plan4.load();
+  await plan4.updateItem('d1', { notes: 'bring water' });
+  assert.equal(e.store.get('plan:d1').value.notes, 'bring water');
+  assert.ok(!e.store.has('item:d1'));
+  await plan4.removeItem('d1');
+  assert.ok(!e.store.has('plan:d1'));
+  n += 1;
+})();
 
 test('details for the cards: a journey has a mode, a stop and a stay a type, any item a leg to it', () => {
   const f = lib.cleanItem({ id: 'f', kind: 'journey', title: 'LIS to FAO', mode: 'flight', operator: 'TAP', number: 'tp 1234', fromCode: 'lis!', toCode: 'fao', terminal: '1', seat: '12A', travelClass: 'economy' });
@@ -371,20 +452,20 @@ test('what an item is: its editor tile, the fields a tile decides, and its card'
   assert.equal(lib.fromTile('tour', it({ kind: 'stop', type: 'hike' })).type, 'hike');
   assert.equal(lib.fromTile('sight', it({ kind: 'stop', type: 'hike' })).type, 'sight');
   assert.equal(lib.fromTile('hotel', it({ kind: 'stay', type: 'camp' })).type, 'camp');
-  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'train' })).card, 'train');
-  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'ferry' })).card, 'transit');
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'train' })).template, 'train');
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'ferry' })).template, 'transit');
   assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'ferry' })).badge, 'ship');
   assert.equal(lib.cardOf(it({ kind: 'journey' })).family, 'bus');
   assert.equal(lib.cardOf(it({ kind: 'stay', type: 'hostel' })).kicker, 'Hostel');
-  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'bar' })).card, 'meal');
+  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'bar' })).template, 'meal');
   assert.equal(lib.cardOf(it({ kind: 'stop', type: 'spa' })).family, 'sight');
-  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'show' })).card, 'show');
+  assert.equal(lib.cardOf(it({ kind: 'stop', type: 'show' })).template, 'show');
   assert.equal(lib.cardOf(it({ kind: 'stop', category: 'eat' })).family, 'restaurant');
   assert.equal(lib.cardOf(it({ kind: 'stop', category: 'other' })).kicker, 'Stop');
-  assert.equal(lib.cardOf(it({ kind: 'note' })).card, 'note');
-  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'place', title: 'x' }).card, 'place');
-  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'event', title: 'x' }).card, 'link');
-  assert.equal(lib.cardOf({ kind: 'link' }, { error: 'gone' }).card, 'link');
+  assert.equal(lib.cardOf(it({ kind: 'note' })).template, 'note');
+  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'place', title: 'x' }).template, 'place');
+  assert.equal(lib.cardOf({ kind: 'link' }, { kind: 'event', title: 'x' }).template, 'link');
+  assert.equal(lib.cardOf({ kind: 'link' }, { error: 'gone' }).template, 'link');
   assert.ok(lib.TILES.every((t) => lib.tileOf(it(lib.fromTile(t))) === t), 'every tile round-trips');
   assert.equal(lib.LEG_ICONS.walk, 'person-walking');
 });
@@ -421,7 +502,7 @@ test('a time block is an item with a marker type and no place', () => {
   assert.equal(lib.cleanItem({ id: 'b', kind: 'block', type: 'Bad Type' }), null);
   assert.equal(lib.tileOf(b), 'block:free-time');
   assert.deepEqual(lib.fromTile('block:rest'), { kind: 'block', type: 'rest', category: 'other' });
-  assert.equal(lib.cardOf(b).card, 'block');
+  assert.equal(lib.cardOf(b).template, 'block');
   assert.equal(lib.tripBounds([b, lib.cleanItem({ id: 'j', kind: 'journey', title: 'x', date: '2026-10-04', time: '09:00' })]).start.id, 'j', 'a block is never the start of the trip');
 });
 
@@ -437,7 +518,7 @@ test('a marker between the days follows a day and has no time', () => {
   assert.equal(lib.cleanItem({ id: 'l', kind: 'lane', title: 'x' }), null, 'a marker needs a type');
   assert.equal(lib.tileOf(l), 'lane:free-time');
   assert.deepEqual(lib.fromTile('lane:rest'), { kind: 'lane', type: 'rest', category: 'other' });
-  assert.equal(lib.cardOf(l).card, 'lane');
+  assert.equal(lib.cardOf(l).template, 'lane');
 });
 
 test('an item is on a day or at a joint, never both; nothing is read as the head or the borrowed day', () => {
@@ -554,7 +635,7 @@ test('taxi, ride share and shuttle are journeys with a tile and a card, and ride
     assert.equal(lib.tileOf(it({ kind: 'journey', mode })), mode);
     assert.deepEqual(lib.fromTile(mode), { kind: 'journey', mode, category: 'travel' });
     const c = lib.cardOf(it({ kind: 'journey', mode }));
-    assert.equal(c.card, 'transit');
+    assert.equal(c.template, 'transit');
     assert.equal(c.family, mode);
     assert.ok(c.kicker && c.badge, mode);
   }
@@ -564,11 +645,11 @@ test('taxi, ride share and shuttle are journeys with a tile and a card, and ride
 
 test('the page: every journey kind has its tile and colours, lengths are hours and minutes, a stay checks out on any date', () => {
   const html = read('travel.html');
-  const cards = read('travel-lib-cards.css');
+  const cardStyles = read('travel-lib-cards.css');
   const editor = read('travel-lib-editor.css');
   for (const t of lib.JOURNEY_TILES) {
     assert.ok(html.includes(`class="tile" type="button" data-type="${t}"`), `a tile for ${t}`);
-    assert.ok(cards.includes(`.entry[data-type="${t}"]`), `a card colour for ${t}`);
+    assert.ok(cardStyles.includes(`.entry[data-type="${t}"]`), `a card colour for ${t}`);
     assert.ok(editor.includes(`.tile[data-type="${t}"]`), `a tile colour for ${t}`);
   }
   for (const m of Object.keys(lib.LEG_ICONS)) assert.ok(html.includes(`data-mode="${m}"`), `a way-to-a-stop button for ${m}`);
@@ -682,7 +763,7 @@ const roundTrips = async () => {
   // an orphan saved alone (its outbound gone) keeps its booking details
   const lone = await plan.addItem({ kind: 'journey', mode: 'bus', title: 'Old bus', date: '2026-10-05', legOf: 'gone123', confirm: 'BUS-9', cost: 15, paidBy: 'u1' });
   await plan.updateItem(lone.id, { notes: 'x' });
-  const saved = f.store.get('item:' + lone.id).value;
+  const saved = f.store.get('plan:' + lone.id).value;
   assert.equal(saved.confirm, 'BUS-9');
   assert.equal(saved.cost, 15);
   await plan.removeItem(lone.id);

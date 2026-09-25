@@ -283,30 +283,30 @@
 
   // --- what links to an event, and being opened from a link -----------------------
   // Other modules (a to-do, say) can point at an event. The host tells this module what points at it
-  // (host.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
-  // shown (host.refs.onOpen). Nothing here knows which modules those are.
+  // (host.objects.linksTo), only what the viewer may see, and a link to an event can ask for it to be
+  // shown (host.objects.onOpen). Nothing here knows which modules those are.
 
   const whereFor = (x) => (x.scope === 'spaces' ? { space: x.spaceId } : x.scope === 'environment' && inSpace ? { scope: 'environment' } : undefined);
   let backlinksFor = null; // the event key the shown backlinks are for
   async function showBacklinks(x) {
     backlinksFor = x ? x.key : null;
     $('f-links-wrap').hidden = true;
-    if (!x || !host.refs || !host.refs.linksTo) return;
-    let cards = [];
+    if (!x || !host.objects || !host.objects.linksTo) return;
+    let summaries = [];
     try {
-      cards = await host.refs.linksTo(host.refs.make('event', x.id, whereFor(x)));
+      summaries = await host.objects.linksTo(host.objects.make('event', x.id, whereFor(x)));
     } catch (err) {
-      cards = [];
+      summaries = [];
     }
     if (backlinksFor !== x.key) return; // the editor moved on
-    $('f-links').innerHTML = cards.map((c) => (c.open
+    $('f-links').innerHTML = summaries.map((c) => (c.open
       ? `<button type="button" class="link" data-ref="${esc(JSON.stringify(c.ref))}"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</button>`
       : `<span class="link"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`)).join('');
-    $('f-links-wrap').hidden = cards.length === 0;
+    $('f-links-wrap').hidden = summaries.length === 0;
   }
   $('f-links').addEventListener('click', (e) => {
     const b = e.target.closest('[data-ref]');
-    if (b && host.refs) host.refs.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
+    if (b && host.objects) host.objects.open(JSON.parse(b.dataset.ref)).catch((err) => showError(err.message));
   });
   // Opened at a place in the page (from the dashboard's month: "day=2026-09-24"): show that month with that day marked.
   if (host.page && host.page.onHash) {
@@ -341,8 +341,8 @@
     render();
     openEditor(x);
   }
-  if (host.refs && host.refs.onOpen) {
-    host.refs.onOpen((ref) => {
+  if (host.objects && host.objects.onOpen) {
+    host.objects.onOpen((ref) => {
       if (loaded) showRef(ref);
       else waitingRef = ref;
     });
@@ -538,18 +538,18 @@
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a
   // pointer to the event, and the other module asks the host for what it may show.
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable($('body'), (target) => {
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable($('body'), (target) => {
       const open = target.closest('[data-open]');
       const x = open && events.get(open.dataset.open);
       return x ? { kind: 'event', id: x.id, label: x.ev.title, ...whereFor(x) } : null;
     });
   }
   // --- what a drop can do ---------------------------------------------------
-  // An item dropped from another module on a day, or on an event, offers what can be done with it. Some
+  // An object dropped from another module on a day, or on an event, offers what can be done with it. Some
   // of that is this module's own (make an event of it); the rest is whatever other modules say they can do
-  // with an item of that kind and can be filled in from what this module has (the day, an event's pointer).
-  // Nothing here names the module the item came from. More than one choice: the person is asked.
+  // with an object of that kind and can be filled in from what this module has (the day, an event's pointer).
+  // Nothing here names the module the object came from. More than one choice: the person is asked.
   let noteTimer = 0;
   function note(text, bad) {
     $('note').textContent = text;
@@ -563,14 +563,14 @@
     const ev = { id, title: String(title).slice(0, 120), allDay: true, start: date, end: null, desc: '', remind: null, repeat: null, by: info.user.name };
     const saved = await host.storage.set('event:' + id, ev, {});
     remember('here', { key: 'event:' + id, value: ev, version: saved.version });
-    const made = host.refs.make('event', id);
-    // Made from an item dropped or handed over: point at it, so the link shows from both ends.
-    if (ref && host.refs.setLinks) host.refs.setLinks(made, [ref]).catch(() => {});
+    const made = host.objects.make('event', id);
+    // Made from an object dropped or handed over: point at it, so the link shows from both ends.
+    if (ref && host.objects.setLinks) host.objects.setLinks(made, [ref]).catch(() => {});
     render();
     return { ref: made };
   }
   const dropSpot = (pt) => {
-    const el = host.refs.elementAt(pt);
+    const el = host.objects.elementAt(pt);
     if (!el) return null;
     const open = el.closest('[data-open]');
     const x = open && events.get(open.dataset.open);
@@ -579,12 +579,12 @@
     return cell ? { el: cell, event: null, day: cell.dataset.day } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.drop')) e.classList.remove('drop'); };
-  // What a drop can do is the one shared decision (host.refs.dropMenu): this module says what is under the
+  // What a drop can do is the one shared decision (host.objects.dropMenu): this module says what is under the
   // pointer (the day, and the event when dropped on one) and offers its own (make an event of it); the SDK adds
-  // whatever the modules around offer for an item of that kind, filled from the same context.
-  if (host.refs && host.refs.dropTarget && host.actions) {
-    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    host.refs.dropTarget({
+  // whatever the modules around offer for an object of that kind, filled from the same context.
+  if (host.objects && host.objects.dropTarget && host.actions) {
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.summary));
+    host.objects.dropTarget({
       over: (pt, ref, dragged) => {
         clearDrop();
         if (!foreign(ref, dragged) || !canEdit) return;
@@ -596,13 +596,13 @@
         clearDrop();
         if (!foreign(ref, dragged) || !canEdit) return;
         const spot = dropSpot(pt);
-        host.refs.trace(spot ? 'drop on ' + (spot.event ? 'event ' + spot.event.id : 'day ' + spot.day) : 'drop: nothing under the pointer');
+        host.objects.trace(spot ? 'drop on ' + (spot.event ? 'event ' + spot.event.id : 'day ' + spot.day) : 'drop: nothing under the pointer');
         if (!spot) return;
         try {
-          const context = { date: spot.day, ...(spot.event ? { target: host.refs.make('event', spot.event.id, whereFor(spot.event)) } : {}) };
-          const chosen = await host.refs.dropMenu(dragged, pt, {
+          const context = { date: spot.day, ...(spot.event ? { target: host.objects.make('event', spot.event.id, whereFor(spot.event)) } : {}) };
+          const chosen = await host.objects.dropMenu(dragged, pt, {
             context,
-            own: spot.event ? [] : [{ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: (ctx) => createEventOn(ctx.card.title || (ref ? ref.kind : 'Event'), spot.day, ref) }],
+            own: spot.event ? [] : [{ id: 'create', label: 'Add to the calendar as an event', hint: shortDay(parseYmd(spot.day)), run: (ctx) => createEventOn(ctx.summary.title || (ref ? ref.kind : 'Event'), spot.day, ref) }],
             remember: spot.event ? 'event' : 'day',
           });
           if (chosen) note(chosen.label + ': done');
@@ -643,7 +643,8 @@
     if (!w) return;
     $('app').classList.toggle('compact', w < 520);
   };
-  new ResizeObserver(() => { fit(); render(); }).observe(host.rootElement);
+  // A calendar that was just closed (in the page, its elements go before its root stops resizing) has nothing to draw.
+  new ResizeObserver(() => { if (!$('app')) return; fit(); render(); }).observe(host.rootElement);
 
   $('add').hidden = !canEdit;
   try {
@@ -684,7 +685,7 @@
         const saved = await host.storage.set('event:' + x.id, ev, { version: x.version });
         remember('here', { key: 'event:' + x.id, value: ev, version: saved.version });
         const day = startOf(ev).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        await host.events.publish('ended', { ref: host.refs.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
+        await host.events.publish('ended', { ref: host.objects.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
       } catch (err) {
         // someone else announced it first, or nobody may hear it: the event is fine either way
       } finally {

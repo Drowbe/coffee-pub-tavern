@@ -82,7 +82,7 @@ State: `.today` on today's day; `.drop-target` while something is dragged over t
 - `stay`: the same, with `data-span`. `start`: time is the check-in time and the sub-line "check in". `middle`: a one-line dashed card, "Staying at <name>", no time cell text, no meta (the CSS hides it). `end`: time is the check-out time and the sub-line "check out". The script adds a `stay` item to every day it covers.
 - `journey`: after the title a `.route` with `[data-slot=from]`, an arrow icon, `[data-slot=to]`; the `.code` holds the booking reference. The time cell is the departure, and "→ arrival" under it, with "the next day" or "+2 days" when it arrives on a later day (a length is at most 7 days). Every time shown follows the environment's clock (`host.util.time`).
 - `note`: title and an optional `[data-slot=body]`.
-- `link`: another module's item, drawn from its card. The frame is dashed. Instead of a category, its first child in `.item-main` is `.source[data-slot=source]`: the source module's icon, "from <Module name>", and `button.open[data-action=open]`. The body is read-only. `.item-menu` still exists (move to another day). The title, `[data-slot=body]` and `.owners` come from the card.
+- `link`: another module's object, drawn from its summary. The frame is dashed. Instead of a category, its first child in `.item-main` is `.source[data-slot=source]`: the source module's icon, "from <Module name>", and `button.open[data-action=open]`. The body is read-only. `.item-menu` still exists (move to another day). The title, `[data-slot=body]` and `.owners` come from the card.
 
 ## The gap between two timed items
 
@@ -239,7 +239,7 @@ Every item is in one of two places (the model enforces it, `cleanItem`): **on a 
 
 ### A link whose item is gone or hidden
 
-The link card (`tpl-card-link`, `article.card.linkcard`) has two more states, set from what `refs.resolve` says (see plan-linked-items.md):
+The link card (`tpl-card-link`, `article.card.linkcard`) has two more states, set from what `host.objects.resolve` says (see plan-linked-items.md):
 - `.gone`: the item was deleted. The icon is `link-slash`, the title is the last known one (struck through), `[data-slot=state]` reads "No longer available" and `[data-action=remove-link]` ("Remove from plan") is shown.
 - `.hidden`: the item exists but this person may not see it. The title reads "Not available to you" (italic), `[data-slot=state]` says so, and Remove is shown for someone who may edit.
 

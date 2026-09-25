@@ -24,7 +24,7 @@
   </header>
   <p class="error" id="note" hidden></p>
 
-  <!-- what the answer may use besides what the model already knows: items added by hand, or opened here already carrying some (askAssistant). None is fine: ask anything. -->
+  <!-- what the answer may use besides what the model already knows: objects added by hand, or opened here already carrying some (askAssistant). None is fine: ask anything. -->
   <div class="ask-context" id="ask-context">
     <span class="ask-context-label">Use as context</span>
     <div class="ask-chips" id="ask-chips"></div>
@@ -36,7 +36,7 @@
   </div>
 
   <div class="thread" id="thread" role="log" aria-live="polite">
-    <p class="ask-empty" id="ask-empty">Ask anything: a place, a plan, a comparison. Add notes, links or other items as context if you want the answer to use them.</p>
+    <p class="ask-empty" id="ask-empty">Ask anything: a place, a plan, a comparison. Add notes, links or other <span data-word="object" data-word-form="many"></span> as context if you want the answer to use them.</p>
   </div>
 
   <form class="composer" id="ask-form">
@@ -48,9 +48,9 @@
 
 <!-- ============================ templates ============================ -->
 
-<!-- a context chip (an item the answer may use); the x removes it -->
+<!-- a context chip (an object the answer may use); the x removes it -->
 <template id="tpl-ask-chip"><span class="ask-chip"><span class="ic" data-icon=""></span><span data-slot="label"></span><button type="button" data-action="remove-context" aria-label="Remove"><span class="ic" data-icon="xmark"></span></button></span></template>
-<!-- a row of the "add context" picker: anything with a card, from anywhere Assistant can reach -->
+<!-- a row of the "add context" picker: any object with a summary, from anywhere Assistant can reach -->
 <template id="tpl-pick-row"><label class="pick-row"><input type="checkbox"><span class="ic" data-icon=""></span><span class="pick-title" data-slot="title"></span><span class="pick-kind" data-slot="kind"></span></label></template>
 <!-- a tag on a card, and a source pill (what a card drew on); .gone on a source no longer reachable -->
 <template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
@@ -87,7 +87,7 @@
 <!-- states that replace the pane -->
 <template id="tpl-state-loading"><div class="state"><span class="ic" data-icon="wand-magic-sparkles"></span><h2>Loading...</h2></div></template>
 <template id="tpl-state-unavailable"><div class="state" id="state-unavailable"><span class="ic" data-icon="circle-info"></span><h2>The assistant is not available here</h2><p data-slot="why"></p></div></template>
-<template id="tpl-state-nowhere-to-save"><p class="hint">Nothing here can save a kept card yet.</p></template>
+<template id="tpl-state-nowhere-to-save"><p class="hint">Nothing here can keep an answer yet.</p></template>
 
 <script>
 /*__JS__*/

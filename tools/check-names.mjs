@@ -91,9 +91,18 @@ const LEVELS = [
   // the ids named after one) is allowed in tools/check-names-allow.json by meaning. A person never reads "pane".
   { id: 'canvas', step: '6', code: 'enforce', words: 'enforce', codePatterns: [/stage/gi], wordPatterns: [/\bstages?\b/gi] },
   { id: 'module', step: '6', code: 'enforce', words: 'enforce', codePatterns: [/pane/gi], wordPatterns: [/\bpanes?\b/gi] },
+  // Step 7: an object's summary was its `card`, `host.objects` was `host.refs` (with `refKey`, the drag's REF_MIME and the
+  // /api/refs routes), and the AI's `objects` its `items`: enforced everywhere. Menu and toolbar items and card-shaped
+  // styles (the --bg-card token, a module's own card templates) are not objects; they are allowed by meaning.
   {
-    id: 'object', step: '7', code: 'report', words: null,
+    id: 'object', step: '7', code: 'enforce', words: 'enforce',
+    // In what a person reads: "item" and "card" for an object (a task, a note, a place). Menu items, a list's items and
+    // card-shaped parts of a page are not objects; they are allowed by meaning in tools/check-names-allow.json.
+    // Only where a person reads it (not the tools' own messages), and never as part of a class or property name.
+    wordPatterns: [/(?<![\w-])(items?|cards?)(?![\w-])/gi], wordsIn: ['server/', 'public/', 'modules/'],
     codePatterns: [
+      // The old names of the SDK's drag and open messages and the drag's data type, and the AI's old marker.
+      /refsdrag/gi, /refopen/gi, /application\/x-host-ref\b/g, /\{\{card:/g,
       /\bhost\.refs\b/g, /\brefs\.(make|resolve|kinds|open|onOpen|setLinks|linksTo|linksFrom|search|drag|draggable|dropTarget|fillFor|offersFor|dropMenu|accepts|parse|trace|elementAt)\b/g,
       /\brefKey\b/g, /\bREF_MIME\b/g, /\/api\/refs\b/g, /\/refs\//g, /\bcards\b/g, /["']card["']\s*:|\bcard\s*:\s/g,
       // The AI's `items` (pointers it is asked about), in the object sense only: not menu or toolbar items.
@@ -391,6 +400,7 @@ function scanText(file, text, mode, allow, results) {
     for (const level of LEVELS) {
       const patterns = mode === 'code' ? level.codePatterns : level.wordPatterns;
       if (!patterns || !level[mode]) continue;
+      if (mode === 'words' && level.wordsIn && !level.wordsIn.some((dir) => file.startsWith(dir))) continue;
       const bucket = results.get(level.id);
       const record = (lineNo, token, lineText) => {
         // An entry allows only its own level's hit, by that hit's own token (and its line, when it asks for one).
@@ -428,9 +438,9 @@ function report(mode, files, allow) {
     if (!state) continue;
     const { hits, allowed } = results.get(level.id);
     const fileCount = new Set(hits.map((h) => h.file)).size;
-    const enforcedHere = (h) => !level.enforceIn || level.enforceIn.some((dir) => h.file.startsWith(dir));
+    const enforcedHere = (h) => (!level.enforceIn || level.enforceIn.some((dir) => h.file.startsWith(dir))) && !(level.waitingIn || []).includes(h.file);
     const failing = state === 'enforce' ? hits.filter(enforcedHere) : [];
-    const where = level.enforceIn ? ` in ${level.enforceIn.join(' and ')}; ${hits.length - failing.length} elsewhere reported until step ${level.reportUntil}` : '';
+    const where = level.enforceIn ? ` in ${level.enforceIn.join(' and ')}${level.waitingIn ? ` but ${level.waitingIn.length} tools` : ''}; ${hits.length - failing.length} elsewhere reported until step ${level.reportUntil}` : '';
     rows.push(`  ${level.id.padEnd(12)}${state.padEnd(8)}${String(hits.length).padStart(6)} in ${String(fileCount).padStart(3)} files  (${allowed} allowed; enforced from step ${level.step}${where})`);
     if (failing.length) fail(`check-names: ${mode} level "${level.id}" is enforced${level.enforceIn ? ` in ${level.enforceIn.join(' and ')}` : ''} and has ${failing.length} old name${failing.length === 1 ? '' : 's'} left (run with --list=${level.id})`);
     if (listArg && (!listLevel || listLevel === level.id)) {
@@ -817,6 +827,20 @@ function scannerCheck() {
   test("the AI's items are objects; a menu's items are not", () => {
     const text = "host.ai.ask({ task: 'ask', items: refs });\nhost.menu.show({ items: [] });\nconst list = req.body?.items;\n";
     assert.deepEqual(hitsOf('public/scratch.js', text, 'code', []).object.length, 2);
+  });
+
+  test('the old drag and open messages, the drag type and the AI marker are object hits in code', () => {
+    const text = "call('refsDrag', {});\npost({ type: 'refOpen' });\nconst T = 'application/x-host-ref';\nconst m = '{{card:0}}';\ncall('objectsDrag', {});\n";
+    assert.deepEqual(hitsOf('public/scratch.js', text, 'code', []).object, ['1:refsDrag', '2:refOpen', '3:application/x-host-ref', '4:{{card:0']);
+  });
+
+  test('"item" and "card" for an object in what a person reads, a manifest label too; not a class, a property or a tool\'s message', () => {
+    const page = "toast('That item is gone.');\nel.innerHTML = `<button class=\"item today\">Open</button>`;\nstyle = 'align-items: center; background: var(--bg-card)';\nthrow new Error('no such card here');\n";
+    // A class list inside a module's markup reads as text to the scanner; the allow-list's `class="item` entry covers it.
+    assert.deepEqual(hitsOf('modules/demo/src/demo.js', page, 'words', realAllow.map((e) => ({ ...e, used: 0 }))).object, ['1:item', '4:card']);
+    const manifest = '{\n  "permissions": [{ "key": "edit", "label": "Change the cards" }],\n  "actions": { "provides": [{ "name": "a", "label": "Link this item to it" }] }\n}\n';
+    assert.deepEqual(hitsOf('modules/demo/module.json', manifest, 'words', []).object, ['2:cards', '3:item']);
+    assert.deepEqual(hitsOf('tools/check-demo.mjs', "assert.ok(x, 'the item is kept');\n", 'words', []).object, [], 'a tool\'s own message is not read by anyone');
   });
   console.log(`check-names: scanner, ${n} groups OK`);
 }
@@ -1899,7 +1923,7 @@ function migrationCheck() {
       names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: quiet });
       const before = snapshot(dir);
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-pointers']);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-pointers', 'names-objects']);
       const after = snapshot(dir);
       // To-do's links: a space's and the environment's, inside a list inside a value.
       const todo = jsonOf(dir, 'modules/todo/data/space-keep01.json');
@@ -1945,7 +1969,7 @@ function migrationCheck() {
       bus.events.push({ id: 4, at: 1767225600000, module: 'polls', name: 'closed', ref: { module: 'polls', kind: 'poll', id: 'p1', scope: 'space', space: 'keep01' }, data: { pick, all: [pick, { module: 'calendar', kind: 'event', id: 'e2', scope: 'server' }], own }, scopeKey: 'space:keep01', by: 'ownerkey01' });
       fs.writeFileSync(path.join(dir, 'modules', 'bus.json'), JSON.stringify(bus));
       const before = fs.readFileSync(path.join(dir, 'modules', 'bus.json'), 'utf8');
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers']);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers', 'names-objects']);
       const after = jsonOf(dir, 'modules/bus.json');
       const e = after.events.find((x) => x.id === 4);
       assert.deepEqual(e.data.pick, { module: 'travel', kind: 'plan', id: 'i1', scope: 'space', space: 'keep01' });
@@ -1963,6 +1987,45 @@ function migrationCheck() {
       const before = snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json');
       assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers']);
       assert.deepEqual(snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json'), before, 'no other file written');
+    });
+
+    // --- names-objects (plan-names step 7): nothing the host stores carries step 7's names, so it is recorded, moving nothing ---
+    const UP_TO_POINTERS = names.ENVIRONMENT_PARTS.slice(0, 4);
+    test('names-objects is the fifth environment part, after names-pointers', () => {
+      assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 5), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects']);
+    });
+
+    test('names-objects is recorded and copies the record, and changes nothing else: a module\'s own card and item keys, links, the bus and installed manifests stay', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: UP_TO_POINTERS, log: quiet });
+      // What a module keeps in its own words (the Planner's item: keys, a stored "card"), a link and an installed manifest in the
+      // old names: none of it is the host's to rename.
+      const own = path.join(dir, 'modules', 'travel', 'data', 'space-lobby.json');
+      fs.mkdirSync(path.dirname(own), { recursive: true });
+      fs.writeFileSync(own, JSON.stringify({ 'item:i1': { value: { title: 'Ferry', card: { title: 'Ferry' }, cards: [] }, version: 1 } }));
+      const manifest = path.join(dir, 'modules', 'notes', 'versions', '1.0.0', 'module.json');
+      fs.mkdirSync(path.dirname(manifest), { recursive: true });
+      fs.writeFileSync(manifest, JSON.stringify({ id: 'notes', refs: { produces: [{ kind: 'note', key: 'note:{id}', card: { title: 'title' } }] } }));
+      fs.writeFileSync(path.join(dir, 'modules', 'links.json'), JSON.stringify([{ from: { module: 'todo', kind: 'task', id: 't1', scope: 'space', space: 'lobby' }, to: { module: 'travel', kind: 'item', id: 'i1', scope: 'space', space: 'lobby' }, by: 'ownerkey01', at: 1 }]));
+      const recordBefore = fs.readFileSync(path.join(dir, 'app.json'), 'utf8');
+      const before = snapshot(dir, (rel) => rel === 'app.json');
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-objects']);
+      const after = snapshot(dir, (rel) => rel === 'app.json' || rel.startsWith('pre-names/names-objects'));
+      assert.deepEqual(after, before, 'nothing but the record written');
+      assert.equal(fs.readFileSync(path.join(dir, 'pre-names', 'names-objects', 'app.json'), 'utf8'), recordBefore, 'the record copied first');
+      assert.deepEqual(fs.readdirSync(path.join(dir, 'pre-names', 'names-objects')), ['app.json'], 'and nothing else copied');
+      const app = appOf(dir);
+      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(app.migrations.find((m) => m.id === 'names-objects').moved, []);
+      assert.ok(logged.some((m) => m.includes('"names-objects"')), logged.join('\n'));
+      const settled = snapshot(dir);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), settled, 'and changes nothing');
+    });
+
+    test('names-objects: a build from before step 7 refuses data that records it', () => {
+      assert.deepEqual(names.unknownParts({ version: 2, migrations: ALL_PARTS.map((id) => ({ id })) }, UP_TO_POINTERS), ['names-objects']);
     });
 
     test('names-spaces on a hosted environment: its module data and the rest take the new names', () => {

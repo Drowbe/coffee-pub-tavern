@@ -79,7 +79,7 @@ async function start() {
   const refHash = (ref) => `#ref=${encodeURIComponent(JSON.stringify(ref))}`;
   const openRef = (ref) => {
     if (ref.module === mod.id) {
-      mounted.deliver('refopen', { ref });
+      mounted.deliver('objectopen', { ref });
       return true;
     }
     const q = new URLSearchParams(location.search);
@@ -108,12 +108,12 @@ async function start() {
   });
   // Opened by another module's link: hand the pointer on, and again if the address changes.
   const first = refFromHash();
-  if (first) mounted.deliver('refopen', { ref: first });
+  if (first) mounted.deliver('objectopen', { ref: first });
   const place = placeFromHash();
   if (place) mounted.deliver('pagehash', { hash: place });
   window.addEventListener('hashchange', () => {
     const ref = refFromHash();
-    if (ref) mounted.deliver('refopen', { ref });
+    if (ref) mounted.deliver('objectopen', { ref });
     const at = placeFromHash();
     if (at) mounted.deliver('pagehash', { hash: at });
   });
@@ -125,7 +125,7 @@ function placeFromHash() {
   return m && !m[1].startsWith('ref=') ? m[1] : null;
 }
 
-// A pointer left in the address by another module's "open this" (see host.refs.open).
+// A pointer left in the address by another module's "open this" (see host.objects.open).
 function refFromHash() {
   try {
     const m = /^#ref=(.+)$/.exec(location.hash);

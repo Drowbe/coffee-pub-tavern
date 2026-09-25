@@ -1,9 +1,9 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.17",
+  "version": "0.7.18",
   "icon": "map-location-dot",
-  "description": "A map of every place your {space} has: the places you have saved and the items other {modules} put somewhere. Pick a spot to save a new place.",
+  "description": "A map of every place your {space} has: the places you have saved and the {objects} other {modules} put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
   "scope": [
     "space"
@@ -34,7 +34,7 @@
     },
     {
       "key": "edit",
-      "label": "Save places from the map and put items on it",
+      "label": "Save places from the map and put {objects} on it",
       "default": {
         "member": true,
         "guest": false,

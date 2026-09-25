@@ -1,8 +1,8 @@
 // The Research module's page: notes, links and photos a group keeps while it plans, each a card that can be tagged, found again,
-// linked from anywhere and dragged onto a plan. The items live in the module's store (see research-lib.js). This page draws into
+// linked from anywhere and dragged onto a plan. The objects live in the module's store (see research-lib.js). This page draws into
 // the markup in research.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state
 // classes and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (a tag's colour, --tag, and the
-// item menu's position are the exceptions). Nothing here names another module: "Ask about this" requests the generic askAssistant
+// object menu's position are the exceptions). Nothing here names another module: "Ask about this" requests the generic askAssistant
 // action of whichever module offers it (found by name and input shape), never Assistant by name.
 (async () => {
   'use strict';
@@ -46,7 +46,7 @@
     people: [],
     filter: '',
     kind: '',
-    tags: [], // tags chosen as filters (an item must have all)
+    tags: [], // tags chosen as filters (an object must have all)
     loaded: false,
     editing: null, // { id | null, kind, version, point, pointOk, seed }
     menuFor: null,
@@ -54,7 +54,7 @@
     uploads: [], // { el, file, step, progress, error, posAsk }
     tagColors: new Map(), // a well-known tag -> its colour
     ai: false, // whether this person may use AI here (for Suggest tags)
-    askAssistant: null, // the generic action that opens a conversation about an item, if some module offers one
+    askAssistant: null, // the generic action that opens a conversation about an object, if some module offers one
     thumbs: new Map(), // photo id -> address of its thumbnail in the view it was asked for
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || (key === me && info.user ? info.user.displayName : '') || '';
@@ -102,7 +102,7 @@
   new ResizeObserver(fit).observe(host.rootElement);
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
-  // What to call an item an answer came from: its title when it is one of ours, otherwise what kind of thing it is.
+  // What to call an object an answer came from: its title when it is one of ours, otherwise what kind of thing it is.
   const sourceLabel = (r) => (r.module === info.module.id && stores.space.get(r.id) ? stores.space.get(r.id).title : r.module === info.module.id && stores.my.get(r.id) ? stores.my.get(r.id).title : r.label || r.kind);
   // A source of an answer as a pill; `gone` when it is one of ours that is no longer there.
   const sourcePill = (r) => {
@@ -140,28 +140,28 @@
     return state.thumbs.get(key);
   };
 
-  // What other modules point at each item (space view only: a person's own items are never linked): asked once per item, cleared by the
+  // What other modules point at each object (space view only: a person's own objects are never linked): asked once per object, cleared by the
   // 'links' event. Shown as one pill per kind of linker: "Task: book the hotel", or "2 plans".
-  const links = new Map(); // item id -> cards of what points at it
+  const links = new Map(); // object id -> summaries of what points at it
   const linkTarget = new WeakMap(); // a pill -> the pointer to open
   const askedLinks = new Set();
   async function loadLinks() {
-    if (view === 'my' || !host.refs || !host.refs.linksTo) return;
+    if (view === 'my' || !host.objects || !host.objects.linksTo) return;
     let changed = false;
     for (const it of research.list().slice(0, 100)) {
       if (askedLinks.has(it.id)) continue;
       askedLinks.add(it.id);
       try {
-        const cards = await host.refs.linksTo(research.refOf(it.kind, it.id));
-        if (cards.length) { links.set(it.id, cards); changed = true; }
+        const summaries = await host.objects.linksTo(research.refOf(it.kind, it.id));
+        if (summaries.length) { links.set(it.id, summaries); changed = true; }
       } catch (err) { /* nothing points at it */ }
     }
     if (changed) render();
   }
   if (host.on) host.on('links', () => { askedLinks.clear(); links.clear(); loadLinks().catch(() => {}); });
-  function backlinkPills(cards) {
+  function backlinkPills(summaries) {
     const groups = new Map();
-    for (const c of cards) { const k = c.kindName || c.kind || 'item'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+    for (const c of summaries) { const k = c.kindName || c.kind || word('object', { cap: true }); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
     const all = [...groups.entries()];
     const pills = all.slice(0, 3).map(([kind, list]) => {
       const el = clone('tpl-backlink');
@@ -220,7 +220,7 @@
     for (const b of $('kinds').querySelectorAll('.rs-chip')) b.classList.toggle('on', b.dataset.kind === state.kind);
     const counts = tagCounts(all);
     // Only the tags chosen as filters show here, each with an x; every tag in use is in the toolbar's Tags chooser.
-    state.tags = state.tags.filter((t) => counts.some((c) => c.tag === t)); // a tag no item carries any more drops out
+    state.tags = state.tags.filter((t) => counts.some((c) => c.tag === t)); // a tag no object carries any more drops out
     $('tag-chips').replaceChildren(...state.tags.map((tag) => { const c = tagNode(tag, 'tpl-chip-tag'); c.dataset.tag = tag; return c; }));
     hide($('tag-chips'), !state.tags.length);
     if (tagsButton) tagsButton.set({ label: state.tags.length ? `Tags ${state.tags.length}` : 'Tags', on: state.tags.length > 0 });
@@ -285,19 +285,19 @@
       return {
         id: `tag:${tag}`,
         label: tag,
-        hint: `${count} item${count === 1 ? '' : 's'}${on ? ' · filtering' : ''}`,
+        hint: `${count} ${word('object', { many: count !== 1 })}${on ? ' · filtering' : ''}`,
         icon: on ? 'square-check' : 'square',
         regular: !on,
         ...(color ? { iconColor: color } : {}),
         onClick: () => { state.tags = on ? state.tags.filter((t) => t !== tag) : [...state.tags, tag]; render(); },
       };
     });
-    if (!items.length) items.push({ id: 'none', label: 'No tags yet', hint: 'Tags are added when you edit an item', disabled: true });
+    if (!items.length) items.push({ id: 'none', label: 'No tags yet', hint: `Tags are added when you edit ${word('object', { a: true })}`, disabled: true });
     if (state.tags.length) items.unshift({ id: 'clear', label: 'Clear tags', icon: 'xmark', onClick: () => { state.tags = []; render(); } }, { separator: true });
     host.menu.show({ id: 'tags', at: { x: 100000, y: 4 }, items });
   }
 
-  // --- the item menu ------------------------------------------------------------------------------------------------
+  // --- an object's menu ------------------------------------------------------------------------------------------------
 
   const mayRemove = (it) => canEdit && (view === 'my' || it.kind !== 'photo' || it.by === me || removeAnyPhoto);
   // Remove armed by id, cleared a few seconds after arming so a stray later click cannot remove unarmed.
@@ -353,7 +353,7 @@
     host.menu.show({ id: `research-${id}`, anchor: button, items });
   }
 
-  // --- the dialog for one item --------------------------------------------------------------------------------------
+  // --- the dialog for one object --------------------------------------------------------------------------------------
 
   const editorError = (text) => { $('f-error').textContent = text; $('f-error').hidden = !text; };
   const dropConflict = () => { for (const n of $('form').querySelectorAll('.conflict-bar')) n.remove(); if (state.editing) state.editing.conflict = null; };
@@ -370,7 +370,7 @@
   }
   $('f-point').addEventListener('input', readPoint);
 
-  // Show an item in the dialog: a new one (`id` null; `seed` its start, with its kind), or an existing one.
+  // Show an object in the dialog: a new one (`id` null; `seed` its start, with its kind), or an existing one.
   function openEditor(id, seed) {
     const cur = id ? research.get(id) : null;
     if (id && !cur) return;
@@ -411,7 +411,7 @@
   }
   function closeEditor() { hide($('editor'), true); state.editing = null; }
 
-  // Someone else changed the item that is open: say so, and offer their version or keeping mine.
+  // Someone else changed the object that is open: say so, and offer their version or keeping mine.
   function checkConflict() {
     const e = state.editing;
     if (!e || !e.id || !canEdit || e.conflict) return;
@@ -580,7 +580,7 @@
   async function checkAi() {
     try { state.ai = Boolean((await host.ai.available()).available); } catch (err) { state.ai = false; }
   }
-  // The generic action that opens a conversation with the AI about an item, found by name and input shape, never by naming a
+  // The generic action that opens a conversation with the AI about an object, found by name and input shape, never by naming a
   // module: any module could offer this, and Research asks for it the same way Places asks Maps to show something.
   async function findAssistant() {
     try {
@@ -591,7 +591,7 @@
     }
   }
 
-  // Suggest tags for the item in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
+  // Suggest tags for the object in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
   // for the person to keep or change; nothing is saved until they save.
   async function suggestTags() {
     const e = state.editing;
@@ -600,7 +600,7 @@
     btn.disabled = true;
     editorError('');
     try {
-      const r = await host.ai.ask({ task: 'tags', items: [research.refOf(e.kind, e.id)] });
+      const r = await host.ai.ask({ task: 'tags', objects: [research.refOf(e.kind, e.id)] });
       const have = parseTags($('f-tags').value);
       $('f-tags').value = [...new Set([...have, ...(r.tags || [])])].slice(0, 8).join(', ');
       if (!(r.tags || []).length) editorError('The AI had no tags to suggest.');
@@ -616,16 +616,16 @@
       ev.stopPropagation();
       return openMenu(cardEl.dataset.id, t);
     }
-    if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) host.refs.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
+    if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) host.objects.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
     if (t && t.dataset.action === 'suggest-tags') return suggestTags();
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
   });
-  // An item can be dragged out to another module (onto a day of a plan, or a task that links to it): press its card and move.
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable(root, (target) => {
+  // An object can be dragged out to another module (onto a day of a plan, or a task that links to it): press its card and move.
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable(root, (target) => {
       const el = target.closest && target.closest('.rcard');
       if (!el || !el.dataset.id || target.closest('.menu, button, a')) return null;
       const it = research.get(el.dataset.id);
@@ -656,27 +656,27 @@
     });
   }
   // Something from another module dropped on the pane: what can be done with it is the shared decision
-  // (host.refs.dropMenu). Starting a note about it, with its title, linked to it, is this module's own offer (a
-  // personal note is not linked: private items are not linked to or from); a card carried by the drag (an answer)
+  // (host.objects.dropMenu). Starting a note about it, with its title, linked to it, is this module's own offer (a
+  // personal note is not linked: private objects are not linked to or from); a summary carried by the drag (an answer)
   // keeps its text as the note's body. The modules around add theirs.
-  if (host.refs && host.refs.dropTarget) {
+  if (host.objects && host.objects.dropTarget) {
     const showDrop = (yes) => { $('app').classList.toggle('drop-target', yes); hide($('drop-hint'), !yes); };
-    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    host.refs.dropTarget({
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.summary));
+    host.objects.dropTarget({
       over: (_point, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
         showDrop(false);
         if (!canEdit || !foreign(ref, dragged)) return;
         try {
-          const chosen = await host.refs.dropMenu(dragged, pt, {
+          const chosen = await host.objects.dropMenu(dragged, pt, {
             context: {},
             own: [{
               id: 'note',
               label: 'Start a note about it',
               run: async (ctx) => {
-                const note = await research.save({ kind: 'note', title: geo.oneLine(ctx.card.title || '', 120) || 'Note', body: ref ? '' : String(ctx.card.text || ''), tags: [], date: '', by: me });
-                if (ref && view !== 'my') host.refs.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
+                const note = await research.save({ kind: 'note', title: geo.oneLine(ctx.summary.title || '', 120) || 'Note', body: ref ? '' : String(ctx.summary.text || ''), tags: [], date: '', by: me });
+                if (ref && view !== 'my') host.objects.setLinks(research.refOf('note', note.id), [ref]).catch(() => {});
                 openEditor(note.id);
               },
             }],
@@ -688,8 +688,8 @@
     });
   }
   if (inSpace) stores.space.provide(me); // other modules' requests to save a note or a link go to the space's research
-  if (host.refs && host.refs.onOpen) {
-    host.refs.onOpen((ref) => {
+  if (host.objects && host.objects.onOpen) {
+    host.objects.onOpen((ref) => {
       if (ref.module !== info.module.id || !KINDS.includes(ref.kind)) return;
       const show = async () => {
         const want = ref.scope === 'person' ? 'my' : 'space';
@@ -707,14 +707,14 @@
     { id: 'space', label: `This ${word('space')}`, icon: 'users' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
-  // How the items are laid out: cards packed like masonry, or a list. Remembered per person.
-  try { state.layout = localStorage.getItem('research-layout') === 'list' ? 'list' : 'cards'; } catch (err) { state.layout = 'cards'; }
+  // How the objects are laid out: cards packed like masonry, or a list. Remembered per person.
+  try { state.layout = localStorage.getItem('research-layout') === 'list' ? 'list' : 'grid'; } catch (err) { state.layout = 'grid'; }
   host.ui.viewSwitch({
     id: 'layout',
-    options: [{ id: 'cards', label: 'Cards', icon: 'grip', iconOnly: true }, { id: 'list', label: 'List', icon: 'list', iconOnly: true }],
+    options: [{ id: 'grid', label: 'Cards', icon: 'grip', iconOnly: true }, { id: 'list', label: 'List', icon: 'list', iconOnly: true }],
     value: state.layout,
     onChange: (next) => {
-      state.layout = next === 'list' ? 'list' : 'cards';
+      state.layout = next === 'list' ? 'list' : 'grid';
       try { localStorage.setItem('research-layout', state.layout); } catch (err) { /* not remembered */ }
       render();
     },

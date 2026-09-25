@@ -36,7 +36,7 @@ function fakeHost() {
     },
     on: () => () => {},
     util: { id: () => `id${(n += 1)}` },
-    refs: { make: (kind, id) => ({ module: 'research', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
+    objects: { make: (kind, id) => ({ module: 'research', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
     uploads: { remove: async (id) => { removedFiles.push(id); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
@@ -66,7 +66,7 @@ await test('items are checked: what a kind needs, and nothing else', () => {
   assert.equal(lib.cleanItem('photo', 'c', { title: 'x', file: { id: '../../etc' } }), null);
   const answer = lib.cleanItem('answer', 'd', { title: 'Hotels', content: 'Near the station.', ai: { question: 'where?', sources: [{ module: 'places', kind: 'place', id: 'p1' }, { bad: 1 }] } });
   assert.equal(answer.ai.sources.length, 1);
-  // What is stored: only what the kind uses, plus the words the card carries.
+  // What is stored: only what the kind uses, plus the words its summary carries.
   const v = lib.itemValue(link);
   assert.equal(v.text, 'the part that mattered');
   assert.equal(v.sub, 'example.org');
@@ -112,7 +112,7 @@ await test('the store: save, edit with versions, remove (and the picture), and w
   await assert.rejects(r.save({ ...note, title: 'Stale' }, 99), (e) => e.status === 409);
   await r.save({ ...note, title: 'Ideas 2' }, r.versionOf(note.id));
   assert.equal(r.get(note.id).title, 'Ideas 2');
-  await assert.rejects(r.save({ kind: 'link', url: 'nope', by: 'u1' }), /whole item/);
+  await assert.rejects(r.save({ kind: 'link', url: 'nope', by: 'u1' }), /not complete, or not valid/);
   const photo = await r.save({ kind: 'photo', title: 'Harbour', file: { id: FILE, hasThumb: true }, by: 'u1' });
   await r.remove(photo.id);
   assert.deepEqual(f.removedFiles, [FILE]);

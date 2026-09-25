@@ -197,7 +197,7 @@ for the new names.
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4), `names-spaces` (step 5a) and `names-pointers` (step 5c), all below.
+`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4), `names-spaces` (step 5a), `names-pointers` (step 5c) and `names-objects` (step 7), all below.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -334,6 +334,14 @@ scope. So this part rewrites, by shape and never by module, every `.json` file u
 `scope: 'space'` with `space`. Its other keys are kept, everything else is left as it is, and a file that is not
 valid JSON is skipped. The originals are kept in `pre-names/names-pointers/`.
 
+### The environment part: `names-objects`
+
+Step 7's part moves and rewrites nothing: the host stores no summary (one is made on every request), the pointers
+in `links.json`, `bus.json`, `schedules.json` and `notifications.json` keep their field names, an installed
+module's `module.json` is never rewritten, and a module's own keys are its own to rename (with
+`storage.renamed`, see [architecture-modules](architecture-modules.md)). It is recorded like every part, so data
+from after step 7 is refused by a build from before it.
+
 ### Bundled modules built for an older Magpie
 
 Since step 5c a manifest in the old names can't run (see [architecture-modules](architecture-modules.md)). So,
@@ -344,7 +352,9 @@ asks for widens nothing (`pendingWidensNothing()`: a new permission that is off 
 waits for an owner's approval, as any update does. Each update logs one line, such as `Updated "polls" to
 1.12.11: the version installed was built for an older Magpie.`; if turning it back on is refused, the line adds
 "It is off for now: <reason>" rather than reporting a failed update. A failed install logs
-`Could not update "<id>" ...`. On a hosted server every startup line an
+`Could not update "<id>" ...`. Since step 7 the same start also updates every bundled module, outdated or not, to
+the version the server ships whenever the update asks for nothing new to approve; one that asks for more waits for
+an owner while the installed version keeps running. Uploaded modules are never touched. On a hosted server every startup line an
 environment logs starts with `[<slug>] `.
 
 ### A pre-environment install

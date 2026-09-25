@@ -1,6 +1,6 @@
 // The Polls' dashboard widget: open polls the viewer has not voted in yet, across every space they are in and the
 // environment's own polls. It shows and opens; voting happens in the poll. Clicking a poll takes the person to it
-// (host.refs.open); the widget's heading opens all the polls.
+// (host.objects.open); the widget's heading opens all the polls.
 (async () => {
   'use strict';
 
@@ -57,15 +57,15 @@
   }
 
   function render() {
-    const items = [...polls.entries()]
+    const shown = [...polls.entries()]
       .filter(([key, x]) => !isClosed(x.p) && !mine.has(key))
       // soonest closing first, then the newest
       .sort(([, a], [, b]) => (a.p.closesAt || Infinity) - (b.p.closesAt || Infinity) || (b.p.createdAt || 0) - (a.p.createdAt || 0))
       .slice(0, MAX_ITEMS);
-    $('msg').hidden = items.length > 0;
+    $('msg').hidden = shown.length > 0;
     $('msg').textContent = 'No polls waiting for your vote.';
-    $('list').hidden = items.length === 0;
-    $('list').innerHTML = items.map(([, x]) => {
+    $('list').hidden = shown.length === 0;
+    $('list').innerHTML = shown.map(([, x]) => {
       const r = x.spaceId ? spaces.get(x.spaceId) : null;
       const closes = closesText(x.p);
       return `<button type="button" class="item" data-poll="${esc(x.spaceId || '')}|${esc(x.id)}" title="${esc(x.p.question)}${r ? ' - ' + esc(r.name) : ''}">
@@ -87,7 +87,7 @@
     const b = e.target.closest('[data-poll]');
     if (!b) return;
     const [space, id] = b.dataset.poll.split('|');
-    host.refs.open(host.refs.make('poll', id, space ? { space } : undefined)).catch(() => {});
+    host.objects.open(host.objects.make('poll', id, space ? { space } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;

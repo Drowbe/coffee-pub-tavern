@@ -1,6 +1,6 @@
 // The Calendar's dashboard widget: what is coming up in the next week, across every space the viewer is in and
-// the environment's own calendar. It shows and opens; it never edits. The dashboard hosts it, and clicking an item
-// takes the person to that event (host.refs.open) while the widget's heading opens the full calendar.
+// the environment's own calendar. It shows and opens; it never edits. The dashboard hosts it, and clicking an event
+// takes the person to that event (host.objects.open) while the widget's heading opens the full calendar.
 (async () => {
   'use strict';
 
@@ -75,15 +75,15 @@
 
   function render() {
     renderMonth();
-    const items = upcoming();
-    $('msg').hidden = items.length > 0;
+    const shown = upcoming();
+    $('msg').hidden = shown.length > 0;
     $('msg').textContent = 'Nothing in the next week.';
-    $('msg').hidden = items.length > 0;
-    $('list').hidden = items.length === 0;
+    $('msg').hidden = shown.length > 0;
+    $('list').hidden = shown.length === 0;
     const today = ymd(new Date());
     const tomorrow = ymd(addDays(new Date(), 1));
     const byDay = new Map();
-    for (const it of items) {
+    for (const it of shown) {
       const k = ymd(it.start);
       if (!byDay.has(k)) byDay.set(k, []);
       byDay.get(k).push(it);
@@ -118,7 +118,7 @@
     const b = e.target.closest('[data-event]');
     if (!b) return;
     const [space, id] = b.dataset.event.split('|');
-    host.refs.open(host.refs.make('event', id, space ? { space } : undefined)).catch(() => {});
+    host.objects.open(host.objects.make('event', id, space ? { space } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;

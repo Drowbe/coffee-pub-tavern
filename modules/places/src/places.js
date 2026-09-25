@@ -1,5 +1,5 @@
 // The Places module's page: the space's saved places, listed by category, each with an address, an optional position, notes and
-// owners. The places live in the module's store (see places-lib.js) and, with a position, give their card a `place` that a map
+// owners. The places live in the module's store (see places-lib.js) and, with a position, give their summary a `place` that a map
 // module draws. This page draws into the markup in places.html by cloning its templates and filling their [data-slot] and
 // [data-icon] hooks, and toggles the state classes and data attributes CONTRACT.md lists. It builds no markup from strings
 // and sets no style (the item menu is placed under the button that opened it). Nothing here names another module.
@@ -61,7 +61,7 @@
     filter: '',
     cat: '',
     loaded: false,
-    links: new Map(), // place id -> cards of what other modules point at it
+    links: new Map(), // place id -> summaries of what other modules point at it
     editing: null, // { id | null, version, point: {lat, lng} | null, pointOk, conflict, origin (the search result it came from) }
     menuFor: null,
     armed: null,
@@ -101,7 +101,7 @@
   }
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
   const say = (text) => { const n = $('note'); n.textContent = text || ''; n.hidden = !text; };
-  const placeRef = (id) => host.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'environment' } : undefined);
+  const placeRef = (id) => host.objects.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'environment' } : undefined);
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
@@ -122,24 +122,24 @@
   // What other modules point at each place (asked once per place; the 'links' event clears it).
   const asked = new Set();
   async function loadLinks() {
-    if (view === 'my' || !host.refs || !host.refs.linksTo) return; // personal places are not linked
+    if (view === 'my' || !host.objects || !host.objects.linksTo) return; // personal places are not linked
     let changed = false;
     for (const p of places.list().slice(0, 100)) {
       if (asked.has(p.id)) continue;
       asked.add(p.id);
       try {
-        const cards = await host.refs.linksTo(placeRef(p.id));
-        if (cards.length) { state.links.set(p.id, cards); changed = true; }
+        const summaries = await host.objects.linksTo(placeRef(p.id));
+        if (summaries.length) { state.links.set(p.id, summaries); changed = true; }
       } catch (err) { /* nothing points at it */ }
     }
     if (changed) render();
   }
   if (host.on) host.on('links', () => { asked.clear(); state.links.clear(); loadLinks().catch(() => {}); });
 
-  const linkPill = (card) => {
+  const linkPill = (summary) => {
     const el = clone('tpl-link');
-    setIcon(el.querySelector('[data-icon]'), (card.module && card.module.icon) || 'link');
-    fill(el, { kind: card.kindName || card.kind || '', title: card.title || '' });
+    setIcon(el.querySelector('[data-icon]'), (summary.module && summary.module.icon) || 'link');
+    fill(el, { kind: summary.kindName || summary.kind || '', title: summary.title || '' });
     return el;
   };
 
@@ -462,35 +462,35 @@
   });
   // A place can be dragged out to another module (onto a day of a plan, or a task that links to it): press its row and move.
   // The pointer is the place's in the view it is shown in. A click after the drag is swallowed by the SDK.
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable(root, (target) => {
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable(root, (target) => {
       const row = target.closest && target.closest('.place-row');
       if (!row || !row.dataset.id || target.closest('.item-menu, button, a')) return null;
       const p = places.get(row.dataset.id);
       return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'environment' } : {}) } : null;
     });
   }
-  // Something from another module dropped here: what can be done with it is the shared decision (host.refs.dropMenu).
-  // This module's own offer, when the item has a position, is to save it as a place: the editor opens seeded from it,
+  // Something from another module dropped here: what can be done with it is the shared decision (host.objects.dropMenu).
+  // This module's own offer, when the object has a position, is to save it as a place: the editor opens seeded from it,
   // so the person finishes it rather than a copy landing unseen. The modules around add theirs.
-  if (host.refs && host.refs.dropTarget) {
+  if (host.objects && host.objects.dropTarget) {
     const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
-    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.card));
-    host.refs.dropTarget({
+    const foreign = (ref, dragged) => (ref ? ref.module !== info.module.id : Boolean(dragged && dragged.summary));
+    host.objects.dropTarget({
       over: (_pt, ref, dragged) => showDrop(canEdit && foreign(ref, dragged)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
         showDrop(false);
         if (!canEdit || !foreign(ref, dragged)) return;
         try {
-          const chosen = await host.refs.dropMenu(dragged, pt, {
+          const chosen = await host.objects.dropMenu(dragged, pt, {
             context: {},
             own: [{
               id: 'save',
               label: 'Save it as a place',
-              run: (ctx) => openEditor(null, { title: ctx.card.title || '', point: ctx.card.place ? { lat: ctx.card.place.lat, lng: ctx.card.place.lng } : null, address: ctx.card.place && ctx.card.place.name && ctx.card.place.name !== ctx.card.title ? ctx.card.place.name : '' }),
-              // Only offered for an item that is somewhere: the shared menu drops an own offer whose `when` says no.
-              when: (ctx) => Boolean(ctx.card.place),
+              run: (ctx) => openEditor(null, { title: ctx.summary.title || '', point: ctx.summary.place ? { lat: ctx.summary.place.lat, lng: ctx.summary.place.lng } : null, address: ctx.summary.place && ctx.summary.place.name && ctx.summary.place.name !== ctx.summary.title ? ctx.summary.place.name : '' }),
+              // Only offered for an object that is somewhere: the shared menu drops an own offer whose `when` says no.
+              when: (ctx) => Boolean(ctx.summary.place),
             }],
             remember: 'pane',
           });
@@ -630,8 +630,8 @@
   }
 
   if (inSpace) stores.space.provide(info.user.key); // other modules' requests to add a place go to the space's list
-  if (host.refs && host.refs.onOpen) {
-    host.refs.onOpen((ref) => {
+  if (host.objects && host.objects.onOpen) {
+    host.objects.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
       const show = () => openEditor(ref.id);
       if (state.loaded) show(); else state.openWanted = show;

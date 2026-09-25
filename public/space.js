@@ -13,7 +13,9 @@ const canvasEl = document.getElementById('canvas');
 const confEl = document.getElementById('conference');
 // The header moves to the popped-out window with the canvas, so it is searched too.
 const topbarEl = document.getElementById('topbar');
-const $ = (id) => (id === 'canvas' ? canvasEl : document.getElementById(id) || canvasEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`));
+// The chat can be in a window of its own, away from the canvas, so it is searched too.
+const chatEl = document.getElementById('chat');
+const $ = (id) => (id === 'canvas' ? canvasEl : document.getElementById(id) || canvasEl.querySelector(`#${id}`) || confEl.querySelector(`#${id}`) || topbarEl.querySelector(`#${id}`) || chatEl.querySelector(`#${id}`));
 // Before anything else touches a header element -- the header itself is
 // built here, not left static in space.html, so every #topbar-crumb,
 // #recall-button etc. lookup below needs this to have already run.

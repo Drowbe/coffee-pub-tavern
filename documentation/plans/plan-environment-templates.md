@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decides what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
 
-**Status:** Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
+**Status:** Done; addendum for switching, approved 2026-09-25 (see "Addendum: switching a template"; GitHub issue #59). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
 
 ## What it is today
 
@@ -22,7 +22,7 @@ This is the code after plan-names steps 1 to 5a; steps 5b (the pages) and 5c (th
 1. **The name is "template".** "Profile" already means a space's profile and a person's page; "plan" already means a billing plan.
 2. **Mixed.** Words and icons follow the template live. Settings and modules are applied once, when the environment is created.
 3. **Defaults, never locks.** The owner can change anything a template set. Only the billing plan limits what an environment may use.
-4. **Picked at creation only**: the host console's create form and the product page's sign-up form, and `TEMPLATE=` on a single-environment install. Unset, everything is as today. Never switched afterwards.
+4. **Picked at creation**: the host console's create form and the product page's sign-up form, and `TEMPLATE=` on a single-environment install. Unset, everything is as today. Amended 2026-09-25: an owner or the host admin can also give an existing environment a template, or switch to another (see "Addendum: switching a template"); `TEMPLATE=` stays creation only.
 5. **Bundled only**: `templates/<id>.json` in the repository, released with the image.
 6. **Separate from billing plans.** A template module the environment's plan does not include is skipped, and the skip is recorded and shown.
 7. **A template's modules are on in every space**, and new spaces start with them.
@@ -154,3 +154,73 @@ Built after plan-names step 5c: the pages and the SDK already use the Names' cod
    - **Built (2026-09-25).** `server/templates.js`, `templates/travel.json` (copied by the Dockerfile) and `tools/check-templates.mjs`; the choice on the host console's New environment form (with a **Plan** choice), on the product page's sign-up and as `TEMPLATE` on a fresh single install; applied once and recorded in `app.json`'s `template` with what was skipped and why; the words, home icon and module names and icons followed live, under the owner's own; the marks in Manage and the **Template** panel; the record carried by backup and restore; Planner 0.7.35. Documented in [userguide-templates](../userguides/userguide-templates.md) and [architecture-tenants](../architecture/architecture-tenants.md) ("Templates"). Verified live on hosted and single installs.
 
 The documentation (a user guide section on templates for owners, the host operator's `TEMPLATE` and console notes, the SDK's `host.locale().words` and `host.util.word`) is content-manager's, after each step lands.
+
+## Addendum: switching a template
+
+**Status:** approved 2026-09-25; not built. GitHub issue #59.
+
+### The decision
+
+Asked whether an existing environment can take a template, or change to another, Thomas answered: "Yes, owner or host." This amends decision 4.
+
+- An owner (Manage > Environment gains a **Template** choice) or the host admin (the console) can give an existing environment a template, or switch it to another, or to none.
+- Switching changes the words, the home icon and the module display names and icons at once. The owner's own choices still win.
+- Switching offers to turn on the template's modules. It never turns anything off, removes a module or touches data.
+- A switch is recorded the way a template applied at creation is.
+
+### What it is today
+
+The record is `template: { id, appliedAt, skipped }` in `app.json` (`cleanTemplateRecord`, `server/store.js`). `useTemplate()` in `server/index.js` records a template only for a fresh environment and reads the live part from the recorded id on every build (`templates.useLive`). `applyRecordedTemplate()` runs `templates.applyTemplate()` once, while `appliedAt` is empty. Two things it does are wrong for a switch: it sets `conferenceEnabled` to whether the template lists the conference, which can turn the conference off, and it clears `settings.homeIcon`, which would undo an owner's own home icon. The console's `PATCH /api/host/environments/:slug` changes only the registry entry, and the owner's `PATCH /api/settings` passes its body to `store.updateSettings`.
+
+### The contract
+
+**Switching** changes only the live part, at once:
+
+- The record's `id` becomes the new template's (or the record is removed for none). `templates.useLive()` runs against the new template, so the words, the home icon and the module display names and icons follow it on the next request. The owner's own words (`settings.words`), home icon (`settings.homeIcon`) and module display names and icons (`PATCH /api/modules/:id`) are untouched and still win. `appliedAt` and `skipped` are cleared: the new template's once-only part has not been applied.
+- The template's icons are added to the environment's icon list, so the pickers show them. Nothing is removed from the list.
+- **None** removes the record: the words, the home icon and the module names and icons go back to their defaults (or the owner's own), and nothing else changes.
+- A hosted environment's registry entry follows the record, as today.
+
+**The offer.** The answer to a switch lists what the new template would add, and the person switching confirms what they want:
+
+- **Modules**: each module the template lists (with what it requires) that is not already on in every space, with whether the plan allows it. Confirmed modules are installed if needed, enabled and put in every space (`allSpaces: true`), as at creation; one the plan does not include is skipped and recorded, as at creation. The conference is offered when the template lists it and it is off; it is never turned off.
+- **The Lobby's name and description, and the new-space defaults** (`spaceDefaults.profile`): offered, unticked, since the Lobby's words are the owner's by now; applied only when ticked.
+- When the offer is confirmed (even with nothing ticked), `appliedAt` is written and `skipped` records what was skipped, so the offer is not made again for that template.
+
+**Never touched by a switch:** a module's on or off (except turning on what is confirmed), a module's spaces beyond adding `allSpaces` for a confirmed one, any module's data, the spaces and their members, the environment's settings (decision 1 below), the owner's words, icons and module names, and the billing plan.
+
+**Routes:**
+
+- Owner: `PATCH /api/settings { template: "<id>" | "none" }`. `template` is taken out of the body before `store.updateSettings`; an unknown id answers 400 "There is no template called <id>."; the same id as now answers 200 with nothing changed. The answer is the settings, as today, plus `template` (the view Manage shows) and `offer: { modules: [{ id, name, allowed, why? }], lobby: { name, description } | null, spaceDefaults: { profile } | null }`.
+- Owner: `POST /api/environment/template/apply { modules: [ids], lobby: boolean, spaceDefaults: boolean }` applies the confirmed part of the offer for the recorded template; 409 when there is no recorded template or it is already applied.
+- Host: `PATCH /api/host/environments/:slug { template }` does the same switch on that environment (building it if it is not built yet) and answers the environment with `template` and `offer`; `POST /api/host/environments/:slug/template/apply` takes the same body as the owner's.
+- `GET /api/environment` and the console's environment list show the template and, when its offer is still open, that it is.
+
+**The record.** `template: { id, appliedAt, skipped }` as today. Each switch is also added to `templateHistory: [{ from, to, at, by }]` in `app.json` (`by` is the owner's key or `host`), kept to the last 20 and not shown to owners (decision 3 below).
+
+**`TEMPLATE=`** is unchanged: it picks a template for a new data directory only. On an existing one it is ignored with its log line, as today; switching a single-environment install is done in Manage.
+
+**The pages.**
+
+- Manage > Environment: a **Template** choice (None, then each template's name and description) beside the note naming the current one. Choosing one asks "Switch to <name>? Words, icons and module names change now. Nothing is turned off or removed." Then the offer: the modules as ticked boxes (the plan's refusals shown, not ticked), the Lobby and the new-space profile as unticked boxes, and **Apply** (Apply with nothing ticked closes the offer).
+- The host console: the same choice and offer on an environment's card.
+
+### Left to build, in order
+
+1. **The server** (server-development). The switch in the store and `templates.js` (a switch variant of `applyTemplate` that never turns the conference off, never clears `homeIcon`, and applies only what is confirmed); the offer; the four routes; `templateHistory`; `check-templates` running a switch twice against a throwaway store.
+   - Done when: `npm run check` passes.
+   - Verify: checked by the tool; live on `BASE_DOMAIN=localhost` with a throwaway `DATA_DIR` under `/tmp`: an environment made with no template switched to travel by its owner (the words read "trip" at once, the offer lists the modules, applying it turns them on in every space, a module the plan leaves out is skipped and recorded), then switched to none (the words go back, the modules stay on, their data untouched), and the same from the console; an owner's own word and home icon surviving both switches; a single-environment install switched in Manage.
+2. **The pages** (experience-design). The Template choice and the offer on Manage > Environment and on the console's environment card.
+   - Done when: the pages pass `npm run check`.
+   - Verify: live in a browser on the same servers, both switches from both places. Nothing here needs a call.
+
+The documentation (the owner's user guide on switching, the console's) is content-manager's, after each step lands.
+
+### Decided at approval (2026-09-25)
+
+Thomas answered the addendum's four questions as recommended:
+
+1. **A switch does not offer the template's settings** (language, clock, currency, sign-in text and the rest of its allowed list). They are the owner's by now.
+2. **Modules the previous template turned on are left on**, and in every space. A switch never turns anything off.
+3. **`templateHistory` is kept**, the last 20 switches, for support and the console; it is not shown to owners.
+4. **Switching back to a template used before makes its offer again**, listing only what is missing.

@@ -22,19 +22,6 @@ GitHub #20.
 
 Workaround: find the item in the module itself.
 
-## The Calendar shows an error after the whole app is popped out
-
-After popping the whole app out into its own window with the Calendar open, the Calendar reports an error
-(`isCompact`). GitHub #21.
-
-Workaround: none known yet.
-
-## Chat in its own window shows an error when it gets focus
-
-With the chat opened in a window of its own, clicking into that window reports an error. GitHub #22.
-
-Workaround: none known yet.
-
 ## The console's Maps tab is too wide on a phone
 
 On the host console at phone width, the Maps tab runs past the right edge of the screen.

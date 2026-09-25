@@ -18,10 +18,10 @@
 (function (global) {
   'use strict';
 
-  // The drag data type a pointer to a module's item travels under (see host.refs).
-  const REF_MIME = 'application/x-host-ref';
+  // The drag data type a pointer to a module's object travels under (see host.objects).
+  const OBJECT_MIME = 'application/x-host-object';
 
-  // A pointer checked for shape, or null. Says nothing about whether the viewer may see the item.
+  // A pointer checked for shape, or null. Says nothing about whether the viewer may see the object.
   function cleanRef(ref) {
     const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string'
       && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id)
@@ -29,29 +29,29 @@
     return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'space' ? { space: ref.space } : {}) } : null;
   }
 
-  // What a drag carries, as one shape: { ref, card }. Takes what dropTarget hands a module, or a bare pointer.
+  // What a drag carries, as one shape: { ref, summary }. Takes what dropTarget hands a module, or a bare pointer.
   function normalizeDragged(dragged) {
-    if (!dragged) return { ref: null, card: null };
-    if (typeof dragged.module === 'string' && typeof dragged.id === 'string') return { ref: cleanRef(dragged), card: null };
+    if (!dragged) return { ref: null, summary: null };
+    if (typeof dragged.module === 'string' && typeof dragged.id === 'string') return { ref: cleanRef(dragged), summary: null };
     const ref = dragged.ref ? cleanRef(dragged.ref) : null;
-    const card = !ref && dragged.card && typeof dragged.card.title === 'string' ? dragged.card : null;
-    return { ref, card };
+    const summary = !ref && dragged.summary && typeof dragged.summary.title === 'string' ? dragged.summary : null;
+    return { ref, summary };
   }
 
   // The drop fill rules (see plan-drop.md, "The drop context"). For each `name: type` an action takes:
   //   ref:<module>:<kind>  the dropped pointer, when it is that kind
-  //   ref                  the dropped pointer; a second one, or one named `target`, the target's own item under the pointer
-  //   date / datetime      the day (and time) under the pointer, else the card's own date
-  //   string  title/kind   the card's title / kind
-  //   text    notes/body/content/text   the card's text, when the drag carried one
-  //   number  lat/lng      the spot under the pointer (a map), else the card's own place
-  // Returns the input, or null: a required input could not be filled, or nothing of the dropped item was used.
+  //   ref                  the dropped pointer; a second one, or one named `target`, the target's own object under the pointer
+  //   date / datetime      the day (and time) under the pointer, else the summary's own date
+  //   string  title/kind   the summary's title / kind
+  //   text    notes/body/content/text   the summary's text, when the drag carried one
+  //   number  lat/lng      the spot under the pointer (a map), else the summary's own place
+  // Returns the input, or null: a required input could not be filled, or nothing of the dropped object was used.
   const TEXT_FIELDS = ['notes', 'body', 'content', 'text'];
   function fillFor(action, dragged, context) {
     const d = normalizeDragged(dragged);
     const ctx = context || {};
-    const card = ctx.card || d.card || {};
-    const place = ctx.place || card.place || null;
+    const summary = ctx.summary || d.summary || {};
+    const place = ctx.place || summary.place || null;
     const input = {};
     let used = false;
     let refsGiven = 0;
@@ -67,15 +67,15 @@
         else if (ctx.target) value = ctx.target;
       } else if (base === 'date') {
         if (ctx.date) value = ctx.date;
-        else if (card.date) { value = card.date; used = true; }
+        else if (summary.date) { value = summary.date; used = true; }
       } else if (base === 'datetime') {
         if (ctx.date) value = ctx.time ? `${ctx.date}T${ctx.time}` : ctx.date;
-        else if (card.date) { value = card.date; used = true; }
+        else if (summary.date) { value = summary.date; used = true; }
       } else if (base === 'string') {
-        if (field === 'title' && card.title) { value = String(card.title); used = true; }
-        else if (field === 'kind' && card.kind) { value = String(card.kind); used = true; }
+        if (field === 'title' && summary.title) { value = String(summary.title); used = true; }
+        else if (field === 'kind' && summary.kind) { value = String(summary.kind); used = true; }
       } else if (base === 'text') {
-        if (TEXT_FIELDS.includes(field) && card.text) { value = String(card.text); used = true; }
+        if (TEXT_FIELDS.includes(field) && summary.text) { value = String(summary.text); used = true; }
       } else if (base === 'number') {
         if (place && field === 'lat') { value = place.lat; if (!ctx.place) used = true; }
         else if (place && field === 'lng') { value = place.lng; if (!ctx.place) used = true; }
@@ -88,8 +88,8 @@
     }
     return used ? input : null;
   }
-  // Whether a filled input used anything from under the pointer (the target item, the day or time, the spot):
-  // an action that used only the dropped item is about the item, not about here.
+  // Whether a filled input used anything from under the pointer (the target object, the day or time, the spot):
+  // an action that used only the dropped object is about the object, not about here.
   function usesHere(input, ctx) {
     const t = ctx.target;
     return Object.values(input || {}).some((v) =>
@@ -109,7 +109,7 @@
       // A required input fillFor could not fill on its own is the reason; a plain `ref` or `title` counts as "used" itself.
       if (!filledAlone && !(t === 'ref' && ctx.target) ) return `needs ${field} (${t})`;
     }
-    return 'nothing of the dropped item would be used';
+    return 'nothing of the dropped object would be used';
   }
 
   // Text made safe to put in HTML.
@@ -275,11 +275,11 @@
     host.toolbar.set(items).catch(() => {});
   }
 
-  // An "open this item" from the host can arrive before the module has said what to do with one.
+  // An "open this object" from the host can arrive before the module has said what to do with one.
   let pendingOpen = null;
 
   function emit(event, data) {
-    if (event === 'refopen' && !(listeners.get(event) && listeners.get(event).size)) pendingOpen = data;
+    if (event === 'objectopen' && !(listeners.get(event) && listeners.get(event).size)) pendingOpen = data;
     for (const fn of listeners.get(event) || []) {
       try {
         fn(data);
@@ -480,7 +480,7 @@
       // A new id for something a module stores: short, and unlikely to repeat.
       id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       // A pointer's identity as one string, for keeping and comparing them.
-      refKey: (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|'),
+      objectKey: (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|'),
       // A time of day ("22:30", as modules store one) the way the server shows times: "10:30 PM" on a 12-hour clock
       // (the default, see host.locale()), "22:30" on a 24-hour one. Anything that is not HH:MM comes back as it is.
       time: (hhmm) => {
@@ -832,13 +832,17 @@
 
     // AI, asked of the server (declare the `ai` hook; the admin approves it like the others). The admin chooses the service and
     // keeps its key on the server; a page never sees either. `available()` -> { available, why } (say why a button is hidden);
-    // `ask({ task, question, items })` where task is 'summarise', 'ask' or 'tags' and items are pointers ({ module, kind, scope, id }),
-    // read by the server as the person asking. Answers: { text, cards, used, tags, tokens }. `text` holds the model's words with a
-    // line {{card:0}} where each card goes; `cards` are checked ({ icon, title, content, tags, place, date, links, sources }, sources
-    // as pointers). Nothing is kept by the server. The model has no tools and nothing it says is run.
+    // `ask({ task, question, objects })` where task is 'summarise', 'ask' or 'tags' and objects are pointers ({ module, kind, scope, id }),
+    // read by the server as the person asking. Answers: { text, summaries, used, tags, tokens }. `text` holds the model's words with a
+    // line {{summary:0}} where each summary goes; `summaries` are checked ({ icon, title, content, tags, place, date, links, sources },
+    // sources as pointers). Nothing is kept by the server. The model has no tools and nothing it says is run.
     ai: {
       available: () => call('ai.available'),
-      ask: (o) => call('ai.ask', { task: o && o.task, question: o && o.question, items: o && o.items }),
+      ask: (o) => {
+        // The hard break (plan-names step 7): the pointers are `objects`; `items` is refused, never translated.
+        if (o && o.items !== undefined) return Promise.reject(Object.assign(new Error('host.ai.ask: "items" is an old name; use objects'), { status: 400 }));
+        return call('ai.ask', { task: o && o.task, question: o && o.question, objects: o && o.objects });
+      },
     },
 
     // Pictures people add (a module declares `uploads` in module.json). The server checks each from its own bytes and takes out
@@ -848,7 +852,7 @@
     //   thumb(id, blob, { scope })                the thumbnail for a file you put
     //   list({ scope }), remove(id, { scope }), url(id, { thumb, scope })  (the address to use as an <img> source)
     // `hasPosition` says the photo carried one, so you can offer to keep it (put it again with keepPosition). Remove a file when
-    // you remove the item that shows it.
+    // you remove the object that shows it.
     uploads: {
       put: (file, o) => call('uploads.put', { file, name: o && o.name, keepPosition: !!(o && o.keepPosition), scope: o && o.scope }),
       inspect: (file, o) => call('uploads.inspect', { head: file, scope: o && o.scope }), // -> { type, taken, camera, hasPosition, position }: read before you resize, which loses them
@@ -936,12 +940,6 @@
       regenerate: () => call('access.regenerate'),
     },
 
-    // Refs: pointing at another module's items without reaching into its data. A module lists what
-    // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
-    // the latter. A pointer is { module, kind, id, scope: 'space' | 'environment' | 'person', space? }: store it, never
-    // a copy of the item. resolve() asks the host for the item's card (title, subtitle, when, end,
-    // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
-    // a pointer is only ever as revealing as the viewer's own access.
     // The module's own page. `open(hash)` asks the host to open it at a place in it ("day=2026-09-24": letters,
     // digits and = & _ . : , - only), which a widget uses for a click that means "show me this in full";
     // `onHash(fn)` is called on the page with that place when it is opened that way (and again if it changes).
@@ -950,12 +948,18 @@
       onHash: (fn) => host.on('pagehash', (e) => fn(e.hash)),
     },
 
-    refs: {
-      // A pointer to one of this module's own items, for a drag or to store.
+    // Objects: pointing at another module's objects without reaching into its data. A module lists what
+    // it shares (produces) and what it wants to link to (consumes) in module.json (its `refs` section); an admin approves
+    // the latter. A pointer is { module, kind, id, scope: 'space' | 'environment' | 'person', space? }: store it, never
+    // a copy of the object. resolve() asks the host for the object's summary (title, subtitle, when, end,
+    // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
+    // a pointer is only ever as revealing as the viewer's own access.
+    objects: {
+      // A pointer to one of this module's own objects, for a drag or to store.
       make: (kind, id, o) => {
-        refuseOld(o, 'host.refs.make');
+        refuseOld(o, 'host.objects.make');
         const ctx = (info && info.context) || {};
-        // { space } names another space's item (a module's environment page showing the spaces it belongs to).
+        // { space } names another space's object (a module's environment page showing the spaces it belongs to).
         const otherSpace = o && o.space;
         const personal = o && o.scope === 'person';
         const environment = !personal && !otherSpace && ((o && o.scope === 'environment') || ctx.scope !== 'space');
@@ -963,25 +967,25 @@
         if (!environment && !personal) ref.space = otherSpace || ctx.spaceId;
         return ref;
       },
-      // One pointer, or a list, to cards. A list keeps its order.
-      resolve: async (refs) => {
-        const list = Array.isArray(refs) ? refs : [refs];
+      // One pointer, or a list, to summaries. A list keeps its order.
+      resolve: async (pointers) => {
+        const list = Array.isArray(pointers) ? pointers : [pointers];
         // the host answers up to 50 at a time.
-        const cards = [];
-        for (let i = 0; i < list.length; i += 50) cards.push(...await call('refs.resolve', { refs: list.slice(i, i + 50) }));
-        return Array.isArray(refs) ? cards : cards[0];
+        const summaries = [];
+        for (let i = 0; i < list.length; i += 50) summaries.push(...await call('objects.resolve', { refs: list.slice(i, i + 50) }));
+        return Array.isArray(pointers) ? summaries : summaries[0];
       },
-      // The kinds of other modules' items this module may link to: [{ module, moduleName, icon, kind, name, open }].
+      // The kinds of other modules' objects this module may link to: [{ module, moduleName, icon, kind, name, open }].
       // A module written after this one appears here with no change to this one, so use it (and the
-      // cards' own module and kind) rather than naming other modules in your code.
-      kinds: () => call('refs.kinds', {}),
-      // Show an item in the module that owns it (it opens on the canvas, and it is asked to show the item). The
-      // card says whether it can: card.open.
-      open: (ref) => call('refs.open', { ref }),
-      // For a module that owns items: called when someone asks to see one of them (host.refs.open from
-      // another module): open it. The pointer is checked for shape and points at one of your own items.
+      // summaries' own module and kind) rather than naming other modules in your code.
+      kinds: () => call('objects.kinds', {}),
+      // Show an object in the module that owns it (it opens on the canvas, and it is asked to show the object). The
+      // summary says whether it can: summary.open.
+      open: (ref) => call('objects.open', { ref }),
+      // For a module that owns objects: called when someone asks to see one of them (host.objects.open from
+      // another module): open it. The pointer is checked for shape and points at one of your own objects.
       onOpen: (fn) => {
-        const off = host.on('refopen', (e) => {
+        const off = host.on('objectopen', (e) => {
           const ref = e && e.ref && cleanRef(e.ref);
           if (ref) fn(ref);
         });
@@ -992,42 +996,42 @@
         }
         return off;
       },
-      // Tell the host what one of your items points at (`from` is a pointer to it, from make(); `to` is the
-      // list of pointers it now points at, replacing the last), so the items pointed at can ask what points
+      // Tell the host what one of your objects points at (`from` is a pointer to it, from make(); `to` is the
+      // list of pointers it now points at, replacing the last), so the objects pointed at can ask what points
       // at them. Only pointers are kept, and only what the viewer may see is ever shown.
-      setLinks: (from, to) => call('refs.setLinks', { from, to }),
-      // What points at one of your items (its kind must have "backlinks": true in module.json), and what
-      // one points at: cards. The 'links' event says when to ask again.
-      linksTo: (ref) => call('refs.links', { ref, dir: 'to' }),
-      linksFrom: (ref) => call('refs.links', { ref, dir: 'from' }),
-      // Items this module may link to (kinds it consumes), matching the text, in this place
-      // or (from a space) { scope: 'environment' }. Each is a card with its pointer in card.ref.
-      search: (text, o) => call('refs.search', { q: text || '', ...opts(o) }),
-      // Start a drag carrying a pointer to one of this module's items: call it from a dragstart handler.
+      setLinks: (from, to) => call('objects.setLinks', { from, to }),
+      // What points at one of your objects (its kind must have "backlinks": true in module.json), and what
+      // one points at: summaries. The 'links' event says when to ask again.
+      linksTo: (ref) => call('objects.links', { ref, dir: 'to' }),
+      linksFrom: (ref) => call('objects.links', { ref, dir: 'from' }),
+      // Objects this module may link to (kinds it consumes), matching the text, in this place
+      // or (from a space) { scope: 'environment' }. Each is a summary with its pointer in summary.ref.
+      search: (text, o) => call('objects.search', { q: text || '', ...opts(o) }),
+      // Start a drag carrying a pointer to one of this module's objects: call it from a dragstart handler.
       drag: (event, kind, id, o) => {
-        const ref = host.refs.make(kind, id, o);
-        event.dataTransfer.setData(REF_MIME, JSON.stringify(ref));
+        const ref = host.objects.make(kind, id, o);
+        event.dataTransfer.setData(OBJECT_MIME, JSON.stringify(ref));
         if (o && o.label) event.dataTransfer.setData('text/plain', String(o.label));
         event.dataTransfer.effectAllowed = 'copyLink';
         // Tell the host, which brokers the drop onto the other modules on the page (see dropTarget).
-        call('refs.dragStart', { ref }).catch(() => {});
-        event.target.addEventListener('dragend', () => call('refs.dragEnd', {}).catch(() => {}), { once: true });
+        call('objects.dragStart', { ref }).catch(() => {});
+        event.target.addEventListener('dragend', () => call('objects.dragEnd', {}).catch(() => {}), { once: true });
         return ref;
       },
       // A line on the page's drag trace, when tracing is on (open the host with ?debug=1); does nothing otherwise.
       trace: (msg) => {
-        if (info && info.debug) call('refs.trace', { msg: String(msg).slice(0, 160) }).catch(() => {});
+        if (info && info.debug) call('objects.trace', { msg: String(msg).slice(0, 160) }).catch(() => {});
       },
       // The element of this module under a point given by dropTarget (its own coordinates), or null.
       elementAt: (pt) => env.elementAt(pt),
-      // Make items draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
-      // element is: { kind, id, label, ...the options make() takes } for one of your items, or, for something
-      // you have not stored (an answer's card), { card: { title, kind?, content?, place?, date? }, label? }, or null. The drag
+      // Make objects draggable onto other modules: `root` holds them, and `resolve(target)` says what the pressed
+      // element is: { kind, id, label, ...the options make() takes } for one of your objects, or, for something
+      // you have not stored (an answer the AI wrote), { summary: { title, kind?, content?, place?, date? }, label? }, or null. The drag
       // is driven by the pointer (press, move a few pixels, let go), not the browser's drag and drop, which is
       // unreliable between sandboxed frames; the host shows the label at the pointer and hands the drop to
       // the module under it (see dropTarget). Mouse and pen; on a touch screen search is the way to link.
       draggable: (root, resolve) => {
-        const say = (msg) => host.refs.trace(msg);
+        const say = (msg) => host.objects.trace(msg);
         // The pointer in the module's own coordinates (a frame's are already; in the page they are shifted).
         const local = (e) => (env.localPoint ? env.localPoint(e.clientX, e.clientY) : { x: e.clientX, y: e.clientY });
         say('draggable ready');
@@ -1036,20 +1040,20 @@
         let sent = 0;
         let payload = null;
         // Over this module's own frame the host has nothing to do (it hands a drag to the *other* modules): the
-        // drag is delivered here directly, as dropTarget's over, leave and drop, so a module's own items can be
-        // dropped on itself (an item of a plan moved between its days) through the one dropTarget it already has.
+        // drag is delivered here directly, as dropTarget's over, leave and drop, so a module's own objects can be
+        // dropped on itself (an object of a plan moved between its days) through the one dropTarget it already has.
         let insideOwn = false;
         const overOwn = (e) => {
           const r = env.rootElement && env.rootElement.getBoundingClientRect ? env.rootElement.getBoundingClientRect() : null;
           return Boolean(r) && e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
         };
-        const own = (type, e) => emit('refsdrag', { type, ...(type === 'leave' ? {} : { ...local(e), ref: payload.ref || null, card: payload.card || null }) });
+        const own = (type, e) => emit('objectdrag', { type, ...(type === 'leave' ? {} : { ...local(e), ref: payload.ref || null, summary: payload.summary || null }) });
         root.addEventListener('pointerdown', (e) => {
           if (e.button !== 0 || e.pointerType === 'touch' || e.target.closest('input, textarea, select')) return;
-          const item = resolve(e.target);
-          say(item ? `pressed ${item.kind} ${item.id}` : 'pressed something that is not draggable');
-          if (!item) return;
-          down = { id: e.pointerId, x: e.clientX, y: e.clientY, item, el: e.target };
+          const pressed = resolve(e.target);
+          say(pressed ? (pressed.summary ? 'pressed a summary' : `pressed ${pressed.kind} ${pressed.id}`) : 'pressed something that is not draggable');
+          if (!pressed) return;
+          down = { id: e.pointerId, x: e.clientX, y: e.clientY, pressed, el: e.target };
           // Follow the pointer from the first press, even when it leaves this module's frame at once.
           try { e.target.setPointerCapture(e.pointerId); } catch (err) { /* it is followed while inside */ }
         });
@@ -1059,11 +1063,11 @@
             if (Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) return;
             dragging = true;
             say('moved far enough: telling the page a drag began');
-            // One of this module's items ({ kind, id, ... }), or a card it has not stored ({ card: { title, ... } }).
-            const { kind, id, card, label, ...where } = down.item;
-            payload = card ? { card, label: label || card.title } : { ref: host.refs.make(kind, id, where), label };
+            // One of this module's objects ({ kind, id, ... }), or a summary of one it has not stored ({ summary: { title, ... } }).
+            const { kind, id, summary, label, ...where } = down.pressed;
+            payload = summary ? { summary, label: label || summary.title } : { ref: host.objects.make(kind, id, where), label };
             insideOwn = false;
-            call('refs.ptrStart', { ...payload, ...local(e) }).catch(() => {});
+            call('objects.ptrStart', { ...payload, ...local(e) }).catch(() => {});
           }
           const now = Date.now();
           if (now - sent < 30) return;
@@ -1072,18 +1076,18 @@
           if (inside) own('over', e);
           else if (insideOwn) own('leave', e);
           insideOwn = inside;
-          call('refs.ptrMove', local(e)).catch(() => {});
+          call('objects.ptrMove', local(e)).catch(() => {});
         });
         const finish = (e, dropped) => {
           if (!down || e.pointerId !== down.id) return;
           say(dragging ? (dropped ? 'released: sending the drop' : 'pointer cancelled') : 'released without dragging');
           if (dragging) {
-            if (dropped && overOwn(e)) { own('drop', e); call('refs.dragEnd', {}).catch(() => {}); }
-            else if (dropped) call('refs.ptrDrop', local(e)).catch(() => {});
-            else call('refs.dragEnd', {}).catch(() => {});
+            if (dropped && overOwn(e)) { own('drop', e); call('objects.dragEnd', {}).catch(() => {}); }
+            else if (dropped) call('objects.ptrDrop', local(e)).catch(() => {});
+            else call('objects.dragEnd', {}).catch(() => {});
             if (insideOwn && !(dropped && overOwn(e))) own('leave', e);
             insideOwn = false;
-            // The release would otherwise count as a click on the item.
+            // The release would otherwise count as a click on the object.
             const stop = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
             window.addEventListener('click', stop, { capture: true, once: true });
             setTimeout(() => window.removeEventListener('click', stop, { capture: true }), 100);
@@ -1099,12 +1103,12 @@
       // this module's own page, for document.elementFromPoint. Call this rather than (or as well as)
       // listening for dragover and drop yourself: a drag between two module frames reaches only this.
       // `ref` is the pointer dragged, or null; the third argument is what was dragged in full, { ref } or
-      // { card } (a card carried by a module with nothing stored), for dropMenu.
-      dropTarget: (handlers) => host.on('refsdrag', (e) => {
+      // { summary } (a summary carried by a module with nothing stored), for dropMenu.
+      dropTarget: (handlers) => host.on('objectdrag', (e) => {
         const ref = e.ref && cleanRef(e.ref);
-        const dragged = { ref, card: (!ref && e.card && typeof e.card.title === 'string') ? e.card : null };
+        const dragged = { ref, summary: (!ref && e.summary && typeof e.summary.title === 'string') ? e.summary : null };
         const point = { x: e.x, y: e.y };
-        if (e.type !== 'over') host.refs.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : dragged.card ? 'a card' : 'no valid pointer'})`);
+        if (e.type !== 'over') host.objects.trace(`drag ${e.type} received (${ref ? ref.module + ':' + ref.kind : dragged.summary ? 'a summary' : 'no valid pointer'})`);
         if (e.type === 'over') handlers.over && handlers.over(point, ref, dragged);
         else if (e.type === 'leave') handlers.leave && handlers.leave();
         else if (e.type === 'drop') {
@@ -1113,70 +1117,72 @@
         }
       }),
       // The fill rules: what a drop can fill of an action's inputs, from what was dragged and what is under
-      // the pointer (the drop context: { card, target?, date?, time?, place? }). Returns the input to request
-      // the action with, or null when a required input cannot be filled or nothing of the dropped item was
-      // used (an action unrelated to the item is never offered just because a day was under the pointer).
+      // the pointer (the drop context: { summary, target?, date?, time?, place? }). Returns the input to request
+      // the action with, or null when a required input cannot be filled or nothing of the dropped object was
+      // used (an action unrelated to the object is never offered just because a day was under the pointer).
       // Pure: tools/check-drop.mjs runs it against every case.
       fillFor: (action, dragged, context) => fillFor(action, dragged, context),
       // What the modules around this one can do with what was dropped: [{ id, label, hint, action, input }],
-      // each ready to request. `dragged` is what dropTarget gave ({ ref } or { card }); `context` is what
-      // this module says is under the pointer. Resolves the ref into a card unless context.card is given.
+      // each ready to request. `dragged` is what dropTarget gave ({ ref } or { summary }); `context` is what
+      // this module says is under the pointer. Resolves the ref into its summary unless context.summary is given.
       offersFor: async (dragged, context) => {
         const d = normalizeDragged(dragged);
         const ctx = { ...(context || {}) };
-        if (!ctx.card) {
+        if (!ctx.summary) {
           if (d.ref) {
-            const card = await host.refs.resolve(d.ref);
-            if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
-            ctx.card = card;
-          } else ctx.card = d.card || {};
+            const summary = await host.objects.resolve(d.ref);
+            if (!summary || summary.error) throw new Error((summary && summary.error) || `that ${host.util.word('object')} is not available`);
+            ctx.summary = summary;
+          } else ctx.summary = d.summary || {};
         }
-        // A drop is about the item and what is here. Beyond what this module offers of its own (`own`, in dropMenu),
-        // the only actions offered are the dropped item's own module's, taking it by its exact kind and doing something
+        // A drop is about the object and what is here. Beyond what this module offers of its own (`own`, in dropMenu),
+        // the only actions offered are the dropped object's own module's, taking it by its exact kind and doing something
         // with what is under the pointer: set this task's due date to this day, link this task to this event, put this
-        // place at this spot on the map. A third module making something new of the item (an event from a note dropped
-        // on a plan) is not about here; that belongs where the item lives, not in a drop between two other modules. A
-        // card the drag carried has no module of its own, so only this module's own offers apply to it.
+        // place at this spot on the map. A third module making something new of the object (an event from a note dropped
+        // on a plan) is not about here; that belongs where the object lives, not in a drop between two other modules. A
+        // summary the drag carried has no module of its own, so only this module's own offers apply to it.
         if (!d.ref) return [];
         let list = [];
         try { list = await host.actions.list({ accepts: `${d.ref.module}:${d.ref.kind}` }); } catch (err) { list = []; }
         const offers = [];
         const kindType = `ref:${d.ref.module}:${d.ref.kind}`;
         for (const a of list) {
-          if (a.module !== d.ref.module) { host.refs.trace(`drop: ${a.action} not offered (not the item's own module's)`); continue; }
-          if (!Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === kindType)) { host.refs.trace(`drop: ${a.action} not offered (takes the item only as any ref)`); continue; }
-          // What the action says the item must have (a position, a date, text): declared as `needs` on the action.
-          const lacks = (a.needs || []).find((f) => !ctx.card[f]);
-          if (lacks) { host.refs.trace(`drop: ${a.action} not offered (the item has no ${lacks})`); continue; }
+          if (a.module !== d.ref.module) { host.objects.trace(`drop: ${a.action} not offered (not the object's own module's)`); continue; }
+          if (!Object.values(a.input || {}).some((t) => String(t).replace(/\?$/, '') === kindType)) { host.objects.trace(`drop: ${a.action} not offered (takes the object only as any ref)`); continue; }
+          // What the action says the object must have (a position, a date, text): declared as `needs` on the action.
+          const lacks = (a.needs || []).find((f) => !ctx.summary[f]);
+          if (lacks) { host.objects.trace(`drop: ${a.action} not offered (the object has no ${lacks})`); continue; }
           const input = fillFor(a, d, ctx);
-          if (!input) { host.refs.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
-          if (!usesHere(input, ctx)) { host.refs.trace(`drop: ${a.action} not offered (nothing from under the pointer would be used)`); continue; }
+          if (!input) { host.objects.trace(`drop: ${a.action} not offered (${whyNot(a, d, ctx)})`); continue; }
+          if (!usesHere(input, ctx)) { host.objects.trace(`drop: ${a.action} not offered (nothing from under the pointer would be used)`); continue; }
           offers.push({ id: a.action, label: a.label, hint: a.moduleName, icon: a.icon, action: a, input });
         }
         return offers;
       },
       // The one decision, shared by every module: what dropping this here can do. Shows the module's own
       // offers (`own`, first: [{ id, label, hint?, run(ctx), when?(ctx) }], an offer whose `when` says no
-      // for this card is left out) and every action the modules around it can fill from the drop context,
+      // for this summary is left out) and every action the modules around it can fill from the drop context,
       // lets the person choose (actions.pick, with `remember` as its key alongside the dropped kind), and
       // runs it. Resolves to the offer taken, or null if dismissed; throws when nothing can be done, or it failed.
       dropMenu: async (dragged, point, { context, own, remember, wait } = {}) => {
         const d = normalizeDragged(dragged);
         const ctx = { ...(context || {}) };
-        // The card first, once, so the module's own offers and the actions' fill see the same one.
-        if (!ctx.card) {
+        // The summary first, once, so the module's own offers and the actions' fill see the same one.
+        if (!ctx.summary) {
           if (d.ref) {
-            const card = await host.refs.resolve(d.ref);
-            if (!card || card.error) throw new Error((card && card.error) || 'that item is not available');
-            ctx.card = card;
-          } else ctx.card = d.card || {};
+            const summary = await host.objects.resolve(d.ref);
+            if (!summary || summary.error) throw new Error((summary && summary.error) || `that ${host.util.word('object')} is not available`);
+            ctx.summary = summary;
+          } else ctx.summary = d.summary || {};
         }
         // An own offer wears this module's icon unless it names one; the actions wear their module's.
         const mine = info && info.module && info.module.icon;
         const offers = (own || []).filter((o) => o && (!o.when || o.when(ctx))).map((o) => (o.icon || !mine ? o : { ...o, icon: mine }));
-        offers.push(...await host.refs.offersFor(d, ctx));
-        host.refs.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
+        offers.push(...await host.objects.offersFor(d, ctx));
+        host.objects.trace(`drop offers: ${offers.map((o) => o.label).join(' | ') || 'none'}`);
         if (!offers.length) throw new Error('Nothing can be done with that here.');
+        // A summary with nothing stored behind it keeps the key 'card' for the remembered choice, so a choice kept in a
+        // browser before the rename is still offered first.
         const kind = d.ref ? `${d.ref.module}:${d.ref.kind}` : 'card';
         const chosen = await host.actions.pick(offers, point, remember ? { remember: `${kind}:${remember}` } : undefined);
         if (!chosen) return null;
@@ -1188,12 +1194,12 @@
         return chosen;
       },
       // Whether a drag over this module carries a pointer (call preventDefault on dragover to accept it).
-      accepts: (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes(REF_MIME),
+      accepts: (event) => Array.from((event.dataTransfer && event.dataTransfer.types) || []).includes(OBJECT_MIME),
       // The pointer dropped, checked for shape, or null. It says nothing about whether the viewer may
-      // see the item: resolve() does that.
+      // see the object: resolve() does that.
       parse: (event) => {
         try {
-          return cleanRef(JSON.parse(event.dataTransfer.getData(REF_MIME)));
+          return cleanRef(JSON.parse(event.dataTransfer.getData(OBJECT_MIME)));
         } catch (err) {
           return null;
         }
@@ -1290,7 +1296,7 @@
         if (list.length < 2) return resolve(list[0] || null);
         // The same look as host.menu.show (its styles, an icon, the label, a hint): one menu, wherever it is asked.
         ensureUiStyles();
-        const host = host.rootElement;
+        const rootEl = host.rootElement;
         const menu = document.createElement('div');
         menu.className = 'sdk-menu';
         menu.setAttribute('role', 'menu');
@@ -1318,9 +1324,9 @@
         }
         // Inside the module's own root (a shadow root in the page), placed by the page's coordinates.
         (env.root === document ? document.body : env.root).appendChild(menu);
-        const box = host.getBoundingClientRect();
-        const w = host.clientWidth || 400;
-        const h = host.clientHeight || 400;
+        const box = rootEl.getBoundingClientRect();
+        const w = rootEl.clientWidth || 400;
+        const h = rootEl.clientHeight || 400;
         menu.style.left = box.left + Math.max(4, Math.min(((at && at.x) || 0), w - menu.offsetWidth - 4)) + 'px';
         menu.style.top = box.top + Math.max(4, Math.min(((at && at.y) || 0), h - menu.offsetHeight - 4)) + 'px';
         document.addEventListener('keydown', key, true);
@@ -1490,6 +1496,12 @@
       return () => listeners.get(event).delete(fn);
     },
   };
+
+  // The hard break (plan-names step 7): refs became objects. A module that still reaches for the old names is told
+  // which to use, instead of failing later on an undefined. Not enumerable, so nothing that walks the SDK trips on them.
+  const renamed = (what, use) => ({ enumerable: false, get() { throw Object.assign(new Error(`${what} is an old name; use ${use}`), { status: 400 }); } });
+  Object.defineProperty(host, 'refs', renamed('host.refs', 'host.objects'));
+  Object.defineProperty(host.util, 'refKey', renamed('host.util.refKey', 'host.util.objectKey'));
 
   return { host, emit };
   }

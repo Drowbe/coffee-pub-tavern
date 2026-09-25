@@ -1,12 +1,12 @@
 
   // The plan itself: the trip and its items, kept in the module's own store and live for everyone. No page in it,
-  // so the page, the widget and the checks can all use it. Each item is its own stored value (`item:<id>`) and the
+  // so the page, the widget and the checks can all use it. Each item is its own stored value (`plan:<id>`) and the
   // trip is one (`trip`), so two people editing different items never collide; an edit to an item someone else
   // changed meanwhile is refused with `error.conflict` and the newer copy is loaded.
   function createPlan(host) {
-    const refKey = host.util.refKey;
-    const items = new Map(); // id -> { item, version }
-    const cards = new Map(); // pointer key -> card, or { error } when it is gone or not for this viewer
+    const objectKey = host.util.objectKey;
+    const items = new Map(); // id -> { item, version, key }: `key` is where it is stored (see PLAN_PREFIX)
+    const summaries = new Map(); // pointer key -> the summary of the object it points at, or { error } when it is gone or not for this viewer
     let trip = null;
     let tripVersion = null;
     let suggested = [];
@@ -17,65 +17,105 @@
       if (key === TRIP_KEY) {
         trip = value ? cleanTrip(value) : null;
         tripVersion = value ? version : null;
-      } else if (key.startsWith('item:')) {
-        const item = value ? cleanItem({ ...value, id: key.slice(5) }) : null;
-        if (item) items.set(item.id, { item, version });
-        else items.delete(key.slice(5));
+      } else {
+        const id = planIdOf(key);
+        if (id === null) return;
+        // An item still under its old key while it has one under the new: the new one is the item.
+        if (key.startsWith(OLD_PLAN_PREFIX) && items.has(id) && items.get(id).key.startsWith(PLAN_PREFIX)) return;
+        const item = value ? cleanItem({ ...value, id }) : null;
+        if (item) items.set(id, { item, version, key });
+        else if ((items.get(id) || {}).key === key) items.delete(id);
       }
     };
 
+    // Move one item from its old key to `plan:<id>`: written only where nothing is yet, then the old key removed as it was read.
+    // Anyone else doing the same at the same time is harmless: whichever write lands second is refused. When `plan:<id>` is
+    // already there with a different value, the old key is left where it is, never deleted: the plan shows the new one, and
+    // nothing anyone wrote is lost.
+    async function moveOld(entry) {
+      const id = entry.key.slice(OLD_PLAN_PREFIX.length);
+      try {
+        await host.storage.set(PLAN_PREFIX + id, entry.value, { version: 0 });
+      } catch (err) {
+        if (!err || err.status !== 409) throw err;
+        const there = await host.storage.get(PLAN_PREFIX + id);
+        if (there && JSON.stringify(there.value) !== JSON.stringify(entry.value)) return;
+      }
+      try {
+        await host.storage.delete(entry.key, { version: entry.version });
+      } catch (err) {
+        if (!err || err.status !== 409) throw err; // changed meanwhile (an old page still open): moved on its next change
+      }
+    }
+    // The plan's old `item:` keys renamed to `plan:` (plan-names decision 19), once in each place, recorded under MOVED_KEY. Someone
+    // who cannot edit moves nothing and records nothing; the plan reads both kinds of key, so they see it all the same.
+    async function moveOldKeys() {
+      try {
+        if (await host.storage.get(MOVED_KEY)) return;
+        for (const entry of await host.storage.list(OLD_PLAN_PREFIX)) await moveOld(entry);
+        await host.storage.set(MOVED_KEY, { at: new Date().toISOString() }, { version: 0 });
+      } catch (err) {
+        // not allowed to write here, or it failed part way: tried again on the next load; nothing is lost meanwhile
+      }
+    }
+
     async function load() {
+      await moveOldKeys();
       const t = await host.storage.get(TRIP_KEY);
       remember(TRIP_KEY, t ? t.value : null, t ? t.version : null);
       items.clear();
-      for (const it of await host.storage.list('item:')) remember(it.key, it.value, it.version);
+      for (const it of await host.storage.list(PLAN_PREFIX)) remember(it.key, it.value, it.version);
+      for (const it of await host.storage.list(OLD_PLAN_PREFIX)) remember(it.key, it.value, it.version);
       changed();
-      resolveCards().catch(() => {});
+      resolveSummaries().catch(() => {});
     }
 
     host.on('change', (e) => {
       if (e.scope === 'spaces') return;
-      if (e.key !== TRIP_KEY && !String(e.key).startsWith('item:')) return;
+      if (e.key !== TRIP_KEY && planIdOf(e.key) === null) return;
       remember(e.key, e.deleted ? null : e.value, e.version);
       changed();
-      if (String(e.key).startsWith('item:')) resolveCards().catch(() => {});
+      if (planIdOf(e.key) === null) return;
+      resolveSummaries().catch(() => {});
+      // An old page still open wrote under the old key: move it along, when this person may.
+      if (!e.deleted && String(e.key).startsWith(OLD_PLAN_PREFIX)) moveOld({ key: e.key, value: e.value, version: e.version }).catch(() => {});
     });
 
-    // The cards of the items other modules hold that this plan points at.
-    // `all` asks again for every one (an item may have been changed or deleted where it lives), not just the new ones.
-    async function resolveCards(all) {
-      const want = [...items.values()].map((x) => x.item).filter((i) => i.ref && (all || !cards.has(refKey(i.ref)))).map((i) => i.ref);
+    // The summaries of the objects other modules hold that this plan points at.
+    // `all` asks again for every one (an object may have been changed or deleted where it lives), not just the new ones.
+    async function resolveSummaries(all) {
+      const want = [...items.values()].map((x) => x.item).filter((i) => i.ref && (all || !summaries.has(objectKey(i.ref)))).map((i) => i.ref);
       if (!want.length) return;
       let got;
       try {
-        got = await host.refs.resolve(want);
+        got = await host.objects.resolve(want);
       } catch (err) {
         if (all) return; // asking again failed: what was shown stays as it was
         got = want.map(() => ({ error: 'unavailable' }));
       }
-      want.forEach((r, i) => cards.set(refKey(r), got[i] || { error: 'unavailable' }));
+      want.forEach((r, i) => summaries.set(objectKey(r), got[i] || { error: 'unavailable' }));
       changed();
     }
 
-    // The day of an item: its own, or for a pointer with no place of its own the day of the item it points at. An item on the
+    // The day of an item: its own, or for a pointer with no place of its own the day of the object it points at. An item on the
     // line (at a joint) has no day.
     const dayOf = (item) => {
       if (item.date) return item.date;
       if (item.after !== null && item.after !== undefined) return null;
-      const c = item.ref ? cards.get(refKey(item.ref)) : null;
-      const w = c && !c.error ? cardWhen(c) : null;
+      const c = item.ref ? summaries.get(objectKey(item.ref)) : null;
+      const w = c && !c.error ? summaryWhen(c) : null;
       return w ? w.day : null;
     };
     // The joint an item is at on the line ('' the head, else the day it follows), or null when it is on a day.
     const jointOf = (item) => lineOf(item, dayOf(item));
 
     const list = () => [...items.values()].map((x) => x.item);
-    // An item as it is placed in a day: a pointer with no time of its own takes the time its card gives, so it sorts
+    // An item as it is placed in a day: a pointer with no time of its own takes the time its object's summary gives, so it sorts
     // where that time says.
     const timed = (item) => {
       if (item.time || !item.ref) return item;
-      const c = cards.get(refKey(item.ref));
-      const w = c && !c.error ? cardWhen(c) : null;
+      const c = summaries.get(objectKey(item.ref));
+      const w = c && !c.error ? summaryWhen(c) : null;
       return w && w.time ? { ...item, time: w.time } : item;
     };
     // The items on days (what the days see); items on the line are not among them.
@@ -105,27 +145,30 @@
       const item = cleanItem({ ...fields, id, order: fields.order ?? (onTheLine ? nextJointOrder(fields.after || '') : nextOrder(fields.date)), by: host.user.name });
       if (!item) throw new Error('that needs a title');
       const { id: _drop, ...value } = item;
-      const saved = await host.storage.set(`item:${id}`, value, {});
-      items.set(id, { item, version: saved.version });
+      const saved = await host.storage.set(PLAN_PREFIX + id, value, {});
+      items.set(id, { item, version: saved.version, key: PLAN_PREFIX + id });
       changed();
-      if (item.ref) resolveCards().catch(() => {});
+      if (item.ref) resolveSummaries().catch(() => {});
       return item;
     }
 
     async function updateItem(id, patch) {
       const cur = items.get(id);
-      if (!cur) throw new Error('that item is not here any more');
+      if (!cur) throw new Error(`that ${host.util.word('object')} is not here any more`);
       const item = cleanItem({ ...cur.item, ...patch, id });
       if (!item) throw new Error('that needs a title');
       const { id: _drop, ...value } = item;
       try {
-        const saved = await host.storage.set(`item:${id}`, value, { version: cur.version });
-        items.set(id, { item, version: saved.version });
+        // Still under its old key (someone who could not move it loaded it): saved under the new one, and the old one goes.
+        const moving = cur.key !== PLAN_PREFIX + id;
+        const saved = await host.storage.set(PLAN_PREFIX + id, value, moving ? {} : { version: cur.version });
+        if (moving) await host.storage.delete(cur.key).catch(() => {});
+        items.set(id, { item, version: saved.version, key: PLAN_PREFIX + id });
         changed();
         return item;
       } catch (err) {
         if (err && err.status === 409) {
-          const fresh = await host.storage.get(`item:${id}`).catch(() => null);
+          const fresh = await host.storage.get(PLAN_PREFIX + id).catch(() => null);
           if (fresh) remember(fresh.key, fresh.value, fresh.version); else items.delete(id);
           changed();
           const conflict = new Error('someone changed this first');
@@ -139,7 +182,7 @@
     async function removeItem(id) {
       const cur = items.get(id);
       if (!cur) return;
-      await host.storage.delete(`item:${id}`);
+      await host.storage.delete(cur.key || PLAN_PREFIX + id);
       items.delete(id);
       changed();
     }
@@ -219,23 +262,23 @@
       await moveToJoint(id, next, direction < 0 ? 1e6 : 0);
     }
 
-    // A pointer to another module's item, put at a place: `{ date }` a day, `{ after }` a joint on the line, or nothing (the
-    // pointed-at item's own day when it has one, else the head of the line).
+    // A pointer to another module's object, put at a place: `{ date }` a day, `{ after }` a joint on the line, or nothing (the
+    // pointed-at object's own day when it has one, else the head of the line).
     const addLink = (ref, place, title) => addItem({ kind: 'link', ref, ...placeFields(place), title: title || '' });
 
-    // Dated items other modules hold in this space, on days of the trip, that the plan does not already point at:
+    // Dated objects other modules hold in this space, on days of the trip, that the plan does not already point at:
     // what the plan could take in. Nothing is stored until one is added.
     async function suggest() {
       const tripDaysList = days();
       if (!tripDaysList.length) { suggested = []; changed(); return suggested; }
       let found = [];
       try {
-        found = await host.refs.search('');
+        found = await host.objects.search('');
       } catch (err) {
         found = [];
       }
-      const pinned = new Set(list().filter((i) => i.ref).map((i) => refKey(i.ref)));
-      suggested = found.filter((c) => c && c.ref && c.module && c.module.id !== 'travel' && !pinned.has(refKey(c.ref)) && tripDaysList.includes((cardWhen(c) || {}).day));
+      const pinned = new Set(list().filter((i) => i.ref).map((i) => objectKey(i.ref)));
+      suggested = found.filter((c) => c && c.ref && c.module && c.module.id !== 'travel' && !pinned.has(objectKey(c.ref)) && tripDaysList.includes((summaryWhen(c) || {}).day));
       changed();
       return suggested;
     }
@@ -249,23 +292,24 @@
           const item = input.ref
             ? await addLink(input.ref, date, input.title)
             : await addItem({ kind: 'stop', title: input.title, date, notes: input.notes || '' });
-          return { ref: host.refs.make('plan', item.id) };
+          return { ref: host.objects.make('plan', item.id) };
         },
         addToDay: async (input) => {
-          const item = await addLink(input.item, isYmd(input.date) ? input.date : null);
-          return { ref: host.refs.make('plan', item.id) };
+          // `item` is what the input was called before the rename (a request queued then is still carried out).
+          const item = await addLink(input.object || input.item, isYmd(input.date) ? input.date : null);
+          return { ref: host.objects.make('plan', item.id) };
         },
-        // A suggestion from anywhere (an AI's typed card, another module's idea): placed as the right kind of item when its
+        // A suggestion from anywhere (an AI's typed summary, another module's idea): placed as the right kind of item when its
         // `kind` is one of the everyday words a journey, a stay or a stop already knows (a flight, a hotel, a sight...); an
         // unrecognised or missing kind is an ordinary stop, the same as addStop. Found by name and input shape, never by
         // whoever asks for it.
         acceptSuggestion: async (input) => {
           const item = await addItem(fromSuggestion(input));
-          return { ref: host.refs.make('plan', item.id) };
+          return { ref: host.objects.make('plan', item.id) };
         },
       });
     }
-    // The item a suggestion becomes ({ title, kind?, content?, place?, date? }, an AI's card or a card dropped here):
+    // The item a suggestion becomes ({ title, kind?, content?, place?, date? }, an AI's summary or a summary dropped here):
     // the right kind when `kind` is one of the everyday words a journey, a stay or a stop already knows, else a stop.
     function fromSuggestion(input) {
       const title = clip(input.title, 120);
@@ -280,7 +324,7 @@
     }
 
     return {
-      refreshCards: () => resolveCards(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, addRoundTrip, returnFor, outboundFor, extraReturns, removeLeg, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
+      refreshSummaries: () => resolveSummaries(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, summaries, suggest, provide, saveTrip, addItem, updateItem, removeItem, addRoundTrip, returnFor, outboundFor, extraReturns, removeLeg, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

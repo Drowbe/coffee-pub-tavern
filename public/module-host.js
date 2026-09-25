@@ -213,9 +213,9 @@ async function watchMedia({ key, audio = false, video = true, space: startSpace 
   };
 }
 
-// --- dragging an item from one module onto another ---------------------------------------------
+// --- dragging an object from one module onto another ---------------------------------------------
 // A drag that starts in one module frame does not reliably carry its data into another, so the host
-// brokers it. The source says a drag of a pointer began (host.refs.drag), the host puts an invisible
+// brokers it. The source says a drag of a pointer began (host.objects.drag), the host puts an invisible
 // layer over every other module frame on the page for the length of the drag, and the layer, being in
 // the host's own page, receives the drag. It tells the frame under it where the pointer is and, on a
 // drop, which pointer was dropped, in the frame's own coordinates. The frame decides what that means
@@ -234,7 +234,7 @@ function endDrag() {
   clearTimeout(activeDrag.timer);
   for (const { el, target } of activeDrag.layers) {
     el.remove();
-    target.send('refsdrag', { type: 'leave' });
+    target.send('objectdrag', { type: 'leave' });
   }
   activeDrag = null;
 }
@@ -254,12 +254,12 @@ function beginDrag(source, ref) {
     el.addEventListener('dragover', (e) => {
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'link';
-      target.send('refsdrag', { type: 'over', ...at(e), ref });
+      target.send('objectdrag', { type: 'over', ...at(e), ref });
     });
-    el.addEventListener('dragleave', () => target.send('refsdrag', { type: 'leave' }));
+    el.addEventListener('dragleave', () => target.send('objectdrag', { type: 'leave' }));
     el.addEventListener('drop', (e) => {
       e.preventDefault();
-      target.send('refsdrag', { type: 'drop', ...at(e), ref });
+      target.send('objectdrag', { type: 'drop', ...at(e), ref });
       endDrag();
     });
     // A click on the layer means no drag is going on (a module cannot keep the layers up).
@@ -304,35 +304,35 @@ function trace(text) {
 }
 
 // A drag driven by the pointer instead of the browser's drag and drop, which is unreliable between
-// sandboxed frames. The source frame (host.refs.draggable) tells the host when a drag begins, where
+// sandboxed frames. The source frame (host.objects.draggable) tells the host when a drag begins, where
 // the pointer is as it moves, and where it lets go, in its own coordinates; the host turns those into
 // the page's, finds the module frame under the pointer, and forwards over, leave and drop to it in
 // that frame's coordinates, drawing a small label at the pointer meanwhile.
-let ptrDrag = null; // { source, ref, card, label, ghost, over, timer, doc }
+let ptrDrag = null; // { source, ref, summary, label, ghost, over, timer, doc }
 
-// A card carried by a drag instead of a pointer (a module with nothing stored, Assistant's answers): only the
+// A summary carried by a drag instead of a pointer (a module with nothing stored, Assistant's answers): only the
 // fields a target can fill an action from, checked for shape and size, or null.
-function cleanCard(c) {
+function cleanSummary(c) {
   if (!c || typeof c !== 'object' || typeof c.title !== 'string' || !c.title.trim()) return null;
-  const card = { title: c.title.trim().slice(0, 200) };
-  if (typeof c.kind === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.kind)) card.kind = c.kind;
-  if (typeof c.content === 'string' && c.content.trim()) card.text = c.content.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000);
-  if (typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date)) card.date = c.date;
+  const summary = { title: c.title.trim().slice(0, 200) };
+  if (typeof c.kind === 'string' && /^[a-z][a-z0-9-]{0,39}$/.test(c.kind)) summary.kind = c.kind;
+  if (typeof c.content === 'string' && c.content.trim()) summary.text = c.content.replace(/\p{Cc}(?<!\n)/gu, ' ').slice(0, 8000);
+  if (typeof c.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date)) summary.date = c.date;
   const p = c.place;
   if (p && typeof p === 'object' && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180) {
-    card.place = { lat: p.lat, lng: p.lng, ...(typeof p.name === 'string' && p.name.trim() ? { name: p.name.trim().slice(0, 120) } : {}) };
+    summary.place = { lat: p.lat, lng: p.lng, ...(typeof p.name === 'string' && p.name.trim() ? { name: p.name.trim().slice(0, 120) } : {}) };
   }
-  return card;
+  return summary;
 }
 
-// What a drag carries, as a target's refsdrag event gets it: a pointer, or a card.
-const dragged = () => ({ ref: ptrDrag.ref || null, card: ptrDrag.card || null });
+// What a drag carries, as a target's objectdrag event gets it: a pointer, or a summary.
+const dragged = () => ({ ref: ptrDrag.ref || null, summary: ptrDrag.summary || null });
 
 function ptrEnd() {
   if (!ptrDrag) return;
   clearTimeout(ptrDrag.timer);
   ptrDrag.ghost.remove();
-  if (ptrDrag.over) ptrDrag.over.send('refsdrag', { type: 'leave' });
+  if (ptrDrag.over) ptrDrag.over.send('objectdrag', { type: 'leave' });
   ptrDrag = null;
 }
 
@@ -351,8 +351,8 @@ function ptrPoint(x, y) {
   return { px: r.left + x, py: r.top + y };
 }
 
-function ptrBegin(source, { ref = null, card = null }, label, x, y) {
-  trace(`host: drag begins from ${source.module.id} (${ref ? `${ref.kind} ${ref.id}` : `a card "${card.title.slice(0, 30)}"`}) at ${x},${y}; ${[...mounted].filter((t) => t !== source).map((t) => t.module.id).join(', ') || 'no other module frames'} to drop on`);
+function ptrBegin(source, { ref = null, summary = null }, label, x, y) {
+  trace(`host: drag begins from ${source.module.id} (${ref ? `${ref.kind} ${ref.id}` : `a summary "${summary.title.slice(0, 30)}"`}) at ${x},${y}; ${[...mounted].filter((t) => t !== source).map((t) => t.module.id).join(', ') || 'no other module frames'} to drop on`);
   ptrEnd();
   endDrag();
   const doc = source.frame.ownerDocument;
@@ -360,7 +360,7 @@ function ptrBegin(source, { ref = null, card = null }, label, x, y) {
   ghost.textContent = String(label || '').slice(0, 40);
   ghost.style.cssText = 'position:fixed;z-index:2147483001;pointer-events:none;padding:3px 9px;border-radius:6px;background:#c8873a;color:#1a1206;font:600 12px sans-serif;max-width:220px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.4)';
   doc.body.appendChild(ghost);
-  ptrDrag = { source, ref, card, label, ghost, over: null, doc, timer: setTimeout(ptrEnd, 60000) };
+  ptrDrag = { source, ref, summary, label, ghost, over: null, doc, timer: setTimeout(ptrEnd, 60000) };
   ptrMove(x, y);
 }
 
@@ -371,13 +371,13 @@ function ptrMove(x, y) {
   ptrDrag.ghost.style.top = `${py + 12}px`;
   const hit = ptrTarget(px, py);
   if (ptrDrag.over && (!hit || hit.target !== ptrDrag.over)) {
-    ptrDrag.over.send('refsdrag', { type: 'leave' });
+    ptrDrag.over.send('objectdrag', { type: 'leave' });
     ptrDrag.over = null;
   }
   if (hit && ptrDrag.over !== hit.target) trace(`host: pointer is over ${hit.target.module.id} at ${hit.x},${hit.y}`);
   if (hit) {
     ptrDrag.over = hit.target;
-    hit.target.send('refsdrag', { type: 'over', x: hit.x, y: hit.y, ...dragged() });
+    hit.target.send('objectdrag', { type: 'over', x: hit.x, y: hit.y, ...dragged() });
   }
 }
 
@@ -389,7 +389,7 @@ function ptrDrop(x, y) {
   const { px, py } = ptrPoint(x, y);
   const hit = ptrTarget(px, py);
   trace(hit ? `host: released over ${hit.target.module.id} at ${hit.x},${hit.y}: dropping` : `host: released at page ${Math.round(px)},${Math.round(py)}, over no module frame`);
-  if (hit) hit.target.send('refsdrag', { type: 'drop', x: hit.x, y: hit.y, ...dragged() });
+  if (hit) hit.target.send('objectdrag', { type: 'drop', x: hit.x, y: hit.y, ...dragged() });
   ptrDrag.over = null; // the drop already ended it for the target
   ptrEnd();
 }
@@ -560,20 +560,20 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       if (sc === 'spaces') return (await api('GET', url('/spaces-data', sc, { prefix }))).items;
       return (await api('GET', url('/data', sc, { prefix }))).items;
     },
-    // Refs: cards for pointers to other modules' items, and a search for items this module may link to.
+    // Objects: summaries for pointers to other modules' objects, and a search for objects this module may link to.
     // Always asked on this module's behalf (`from`), so the server can check it was approved for them.
-    async 'refs.resolve'({ refs }) {
+    async 'objects.resolve'({ refs }) {
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return (await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).cards;
+      return (await api('POST', `/api/objects/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).summaries;
     },
-    // The kinds of other modules' items this module may link to, so it need not know them by name.
-    async 'refs.kinds'() {
+    // The kinds of other modules' objects this module may link to, so it need not know them by name.
+    async 'objects.kinds'() {
       const p = new URLSearchParams({ from: module.id });
       if (guestToken) p.set('guest', guestToken);
-      return (await api('GET', `/api/refs/kinds?${p}`)).kinds;
+      return (await api('GET', `/api/objects/kinds?${p}`)).kinds;
     },
-    // Show an item in the module that owns it (the page decides how: the canvas, a page).
-    async 'refs.open'({ ref }) {
+    // Show an object in the module that owns it (the page decides how: the canvas, a page).
+    async 'objects.open'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
       return Boolean(await onOpenRef(cleanPointer(ref)));
@@ -595,18 +595,18 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       if (!onOpenPage) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
       return Boolean(await onOpenPage(h));
     },
-    // Tell the host what one of this module's items points at (all of it: the list replaces the last).
-    async 'refs.setLinks'({ from, to }) {
+    // Tell the host what one of this module's objects points at (all of it: the list replaces the last).
+    async 'objects.setLinks'({ from, to }) {
       if (!REF_SHAPE(from)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return api('POST', `/api/refs/links${q}`, { module: module.id, from: cleanPointer(from), to: (Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20).map(cleanPointer) });
+      return api('POST', `/api/objects/links${q}`, { module: module.id, from: cleanPointer(from), to: (Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20).map(cleanPointer) });
     },
-    // What points at one of this module's items ('to'), or what it points at ('from'): cards.
-    async 'refs.links'({ ref, dir }) {
+    // What points at one of this module's objects ('to'), or what it points at ('from'): summaries.
+    async 'objects.links'({ ref, dir }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(cleanPointer(ref)), dir: dir === 'from' ? 'from' : 'to' });
       if (guestToken) p.set('guest', guestToken);
-      return (await api('GET', `/api/refs/links?${p}`)).cards;
+      return (await api('GET', `/api/objects/links?${p}`)).summaries;
     },
     // Events and actions between modules (see the SDK's host.events and host.actions). Always in this
     // module's own place, and always on its behalf: the server checks what it declared and was approved for.
@@ -641,13 +641,13 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     async 'actions.status'({ id }) {
       return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
     },
-    async 'refs.search'({ q, scope: s }) {
-      const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private items of a kind they may link to
+    async 'objects.search'({ q, scope: s }) {
+      const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private objects of a kind they may link to
       if (sc === 'spaces') throw Object.assign(new Error('search one place at a time'), { status: 400 });
       const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: sc });
       if (sc === 'space') p.set('space', spaceId);
       if (guestToken) p.set('guest', guestToken);
-      return (await api('GET', `/api/refs/search?${p}`)).cards;
+      return (await api('GET', `/api/objects/search?${p}`)).summaries;
     },
     async spaces() {
       return (await api('GET', url('/spaces-data', 'spaces', { info: 1 }))).spaces;
@@ -665,8 +665,8 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     async 'ai.available'() {
       return api('GET', url('/ai', scopeOf()));
     },
-    async 'ai.ask'({ task, question, items }) {
-      return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: Array.isArray(items) ? items.slice(0, 12) : [] });
+    async 'ai.ask'({ task, question, objects }) {
+      return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), objects: Array.isArray(objects) ? objects.slice(0, 12) : [] });
     },
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {
@@ -1031,37 +1031,37 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       const full = `${module.id}:${String(id ?? '')}`;
       return navIds.has(full) && navBar.setBadge(full, Number(n) || 0);
     },
-    // A drag of a pointer to one of this module's items began or ended (see host.refs.drag).
-    async 'refs.dragStart'({ ref }) {
+    // A drag of a pointer to one of this module's objects began or ended (see host.objects.drag).
+    async 'objects.dragStart'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       beginDrag(mine, cleanPointer(ref));
       return true;
     },
-    async 'refs.dragEnd'() {
+    async 'objects.dragEnd'() {
       if (activeDrag && activeDrag.source === mine) endDrag();
       if (ptrDrag && ptrDrag.source === mine) ptrEnd();
       return true;
     },
     // A line for the on-screen trace (see the top of this file), from a module that was told tracing is on.
-    async 'refs.trace'({ msg }) {
+    async 'objects.trace'({ msg }) {
       trace(`${module.id}: ${String(msg).slice(0, 160)}`);
       return true;
     },
-    // The pointer-driven drag (see host.refs.draggable): begin, move, and let go.
-    // What is dragged is a pointer to one of this module's items, or, for a module with nothing stored (an answer
-    // the assistant wrote), the card itself.
-    async 'refs.ptrStart'({ ref, card, label, x, y }) {
-      const carried = ref ? null : cleanCard(card);
+    // The pointer-driven drag (see host.objects.draggable): begin, move, and let go.
+    // What is dragged is a pointer to one of this module's objects, or, for a module with nothing stored (an answer
+    // the assistant wrote), a summary of it.
+    async 'objects.ptrStart'({ ref, summary, label, x, y }) {
+      const carried = ref ? null : cleanSummary(summary);
       if (ref && !REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
-      if (!ref && !carried) throw Object.assign(new Error('nothing valid to drag: a reference or a card with a title'), { status: 400 });
-      ptrBegin(mine, ref ? { ref: cleanPointer(ref) } : { card: carried }, label, Number(x) || 0, Number(y) || 0);
+      if (!ref && !carried) throw Object.assign(new Error('nothing valid to drag: a reference or a summary with a title'), { status: 400 });
+      ptrBegin(mine, ref ? { ref: cleanPointer(ref) } : { summary: carried }, label, Number(x) || 0, Number(y) || 0);
       return true;
     },
-    async 'refs.ptrMove'({ x, y }) {
+    async 'objects.ptrMove'({ x, y }) {
       if (ptrDrag && ptrDrag.source === mine) ptrMove(Number(x) || 0, Number(y) || 0);
       return true;
     },
-    async 'refs.ptrDrop'({ x, y }) {
+    async 'objects.ptrDrop'({ x, y }) {
       if (ptrDrag && ptrDrag.source === mine) ptrDrop(Number(x) || 0, Number(y) || 0);
       return true;
     },
@@ -1265,8 +1265,8 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     // For tests: start a brokered drag of `ref` from this module, as its SDK would.
     beginDragForTest: (ref) => beginDrag(mine, ref),
     // For tests: run the pointer-driven drag from this module as its SDK would (steps: start, move, drop).
-    ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref && ref.card ? { card: cleanCard(ref.card) } : { ref }, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
-    // An event for the module from the page (a pointer to open, refopen; a place in its page, pagehash).
+    ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref && ref.summary ? { summary: cleanSummary(ref.summary) } : { ref }, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
+    // An event for the module from the page (a pointer to open, objectopen; a place in its page, pagehash).
     deliver,
     destroy() {
       if (!pageMode) hostWin.removeEventListener('message', onMessage);

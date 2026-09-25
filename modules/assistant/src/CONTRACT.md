@@ -23,7 +23,7 @@ A normal bundled module (`panel: { dock, float }`, poppable into its own window 
 
 ## Context
 
-`#ask-chips` holds one `tpl-ask-chip` per item the answer may use (an icon, its title, a remove button). **Add context** opens `#ask-picker`: a checklist (`tpl-pick-row`, one per reachable item, grouped or not) with a live count and **Done**. With no chips, the model answers from its own knowledge; with some, it uses them too. Opening Assistant through the `askAssistant` action with items pre-fills the chips (see Conduits); the header's own open (from the space's bar) starts with none.
+`#ask-chips` holds one `tpl-ask-chip` per object the answer may use (an icon, its title, a remove button). **Add context** opens `#ask-picker`: a checklist (`tpl-pick-row`, one per reachable object, grouped or not) with a live count and **Done**. With no chips, the model answers from its own knowledge; with some, it uses them too. Opening Assistant through the `askAssistant` action with items pre-fills the chips (see Conduits); the header's own open (from the space's bar) starts with none.
 
 ## The conversation
 
@@ -39,12 +39,12 @@ Keeping a card asks whichever module offers a matching action, found by name and
 
 ## Send all to plan (see `plan-smart-cards.md`)
 
-`tpl-send-all` (`div.send-all`, `button[data-action=send-all]`, `[data-slot=count]`) sits under a reply's `.parts` when it has more than one card and something could keep at least one of them, with a count ("3 items"). Clicking it confirms once, naming what is about to go out grouped by kind ("2 hotels, 1 sight, 1 note": a card with a `kind` nothing here recognises, or no `kind` at all, counts as a note), then keeps each not-already-`.kept` card in order, the same way that card's own **keep** button would (a card already kept, from a person clicking it by hand first, is skipped). `.send-all button[disabled]` is styled for while it runs. The button stays after every card is kept (clicking it again is a harmless no-op); it is not removed live as individual cards are kept by hand.
+`tpl-send-all` (`div.send-all`, `button[data-action=send-all]`, `[data-slot=count]`) sits under a reply's `.parts` when it has more than one card and something could keep at least one of them, with a count ("3 in all"). Clicking it confirms once, naming what is about to go out grouped by kind ("2 hotels, 1 sight, 1 note": a card with a `kind` nothing here recognises, or no `kind` at all, counts as a note), then keeps each not-already-`.kept` card in order, the same way that card's own **keep** button would (a card already kept, from a person clicking it by hand first, is skipped). `.send-all button[disabled]` is styled for while it runs. The button stays after every card is kept (clicking it again is a harmless no-op); it is not removed live as individual cards are kept by hand.
 
 ## Conduits
 
-- **Provides** `askAssistant({ items?: ref[], question?: string })`: opens Assistant (wherever it already is, docked if it has never been opened) with `items` as starting context, and sends `question` at once if given.
-- **Consumes** `"*"`: anything with a card can be added as context, or dropped onto Assistant: the shared drop menu (`host.refs.dropMenu`, see `api-module-sdk.md`, "Dragging") offers **Use it as context** and **Ask about it** (Assistant's own), then whatever the modules around offer for an item of that kind. Assistant's own answer cards drag out as cards, not pointers (nothing here is stored): the module they land on makes of them what takes a title, a kind, text, a place or a date.
+- **Provides** `askAssistant({ ref?: ref, question?: string })`: opens Assistant (wherever it already is, docked if it has never been opened) with the object `ref` points at as starting context, and sends `question` at once if given.
+- **Consumes** `"*"`: any object with a summary can be added as context, or dropped onto Assistant: the shared drop menu (`host.objects.dropMenu`, see `api-module-sdk.md`, "Dragging") offers **Use it as context** and **Ask about it** (Assistant's own), then whatever the modules around offer for an item of that kind. Assistant's own answer cards drag out as cards, not pointers (nothing here is stored): the module they land on makes of them what takes a title, a kind, text, a place or a date.
 - **Uses** `"*"`: to find a save action for a kept card.
 - **Hooks:** `ai`.
 

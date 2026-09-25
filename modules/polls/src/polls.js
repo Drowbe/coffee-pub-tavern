@@ -20,7 +20,7 @@
   const word = host.util.word; // the environment's word for a level or role (host.locale().words)
 
   const $ = (id) => root.getElementById(id);
-  const { esc, refKey, id: newId } = host.util;
+  const { esc, objectKey, id: newId } = host.util;
 
   let info;
   try {
@@ -40,15 +40,15 @@
   const canCreate = host.can('create');
   const MAX_OPTIONS = 20;
 
-  // An option can point at an item in another module (a place to stay, a date on the calendar): drop the item
-  // on the option. When the poll closes, the item the winning option points at goes out with the result, for
+  // An option can point at an object in another module (a place to stay, a date on the calendar): drop the object
+  // on the option. When the poll closes, the object the winning option points at goes out with the result, for
   // whoever follows the poll to use. What may be linked is whatever other modules share and the host allows.
   let consumable = new Set();
   const linkable = (r) => Boolean(r) && consumable.has(r.module + ':' + r.kind);
-  const optCards = new Map(); // pointer key -> card, or { error }
+  const optSummaries = new Map(); // pointer key -> summary, or { error }
   async function loadKinds() {
     try {
-      consumable = new Set((await host.refs.kinds()).map((k) => k.module + ':' + k.kind));
+      consumable = new Set((await host.objects.kinds()).map((k) => k.module + ':' + k.kind));
     } catch (err) {
       consumable = new Set();
     }
@@ -121,33 +121,33 @@
 
   // --- what links to a poll, and being opened from a link ---------------------
   // Other modules (a to-do, say) can point at a poll. The host says what points at it, only what the
-  // viewer may see (host.refs.linksTo), and a link to a poll can ask for it to be shown
-  // (host.refs.onOpen). Nothing here knows which modules those are.
+  // viewer may see (host.objects.linksTo), and a link to a poll can ask for it to be shown
+  // (host.objects.onOpen). Nothing here knows which modules those are.
 
-  const backlinks = new Map(); // poll key -> cards
+  const backlinks = new Map(); // poll key -> summaries
   const asked = new Set();
   function askBacklinks() {
-    if (!host.refs || !host.refs.linksTo) return;
+    if (!host.objects || !host.objects.linksTo) return;
     for (const x of polls.values()) {
       if (asked.has(x.key)) continue;
       asked.add(x.key);
-      const ref = host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
-      host.refs.linksTo(ref).then((cards) => {
-        if (JSON.stringify(cards.map((c) => c.ref)) === JSON.stringify((backlinks.get(x.key) || []).map((c) => c.ref)) && backlinks.has(x.key)) return;
-        backlinks.set(x.key, cards);
+      const ref = host.objects.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
+      host.objects.linksTo(ref).then((summaries) => {
+        if (JSON.stringify(summaries.map((c) => c.ref)) === JSON.stringify((backlinks.get(x.key) || []).map((c) => c.ref)) && backlinks.has(x.key)) return;
+        backlinks.set(x.key, summaries);
         render();
       }).catch(() => backlinks.set(x.key, []));
     }
   }
   const backlinksHtml = (x) => {
-    const cards = backlinks.get(x.key) || [];
-    if (!cards.length) return '';
-    return `<div class="meta">Linked from ${cards.map((c) => (c.open
+    const summaries = backlinks.get(x.key) || [];
+    if (!summaries.length) return '';
+    return `<div class="meta">Linked from ${summaries.map((c) => (c.open
       ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`
       : `<span class="tag"><b>${esc(c.kindName || c.module.name)}</b> ${esc(c.title)}</span>`)).join(' ')}</div>`;
   };
-  if (host.refs && host.refs.onOpen) {
-    host.refs.onOpen((ref) => {
+  if (host.objects && host.objects.onOpen) {
+    host.objects.onOpen((ref) => {
       const key = polls.has('own:' + ref.id) ? 'own:' + ref.id : `spaces:${ref.space}:${ref.id}`;
       if (!polls.has(key)) return;
       show = 'all';
@@ -197,7 +197,7 @@
   const mayManage = (x) => canCreate && x.scope === 'own' && (x.p.byKey === me || manageAny);
   function optionLinkHtml(x, o) {
     if (!o.link) return '';
-    const c = optCards.get(refKey(o.link));
+    const c = optSummaries.get(objectKey(o.link));
     const remove = mayManage(x) && !isClosed(x.p) ? `<button class="x" type="button" data-unlink="${esc(x.key)}|${esc(o.id)}" aria-label="Remove link">&times;</button>` : '';
     if (!c) return '<div class="optlink"><span class="tag">Loading...</span></div>';
     if (c.error) return `<div class="optlink"><span class="tag" title="Deleted, or not something you can see">Not available</span>${remove}</div>`;
@@ -205,29 +205,29 @@
     return `<div class="optlink">${c.open ? `<span class="tag ref" role="button" tabindex="0" data-ref="${esc(JSON.stringify(c.ref))}">${body}</span>` : `<span class="tag">${body}</span>`}${remove}</div>`;
   }
   async function resolveOptionLinks() {
-    if (!host.refs || !host.refs.resolve) return;
+    if (!host.objects || !host.objects.resolve) return;
     const want = new Map();
-    for (const x of polls.values()) for (const o of x.p.options) if (o.link && !optCards.has(refKey(o.link))) want.set(refKey(o.link), o.link);
+    for (const x of polls.values()) for (const o of x.p.options) if (o.link && !optSummaries.has(objectKey(o.link))) want.set(objectKey(o.link), o.link);
     if (!want.size) return;
     const list = [...want.values()].slice(0, 50);
     try {
-      const got = await host.refs.resolve(list);
-      list.forEach((r, i) => optCards.set(refKey(r), got[i] || { error: 'unavailable' }));
+      const got = await host.objects.resolve(list);
+      list.forEach((r, i) => optSummaries.set(objectKey(r), got[i] || { error: 'unavailable' }));
     } catch (err) {
-      list.forEach((r) => optCards.set(refKey(r), { error: 'unavailable' }));
+      list.forEach((r) => optSummaries.set(objectKey(r), { error: 'unavailable' }));
     }
     render();
   }
-  // Tell the host what this poll points at (all its options' links, as one list), so those items can show it.
+  // Tell the host what this poll points at (all its options' links, as one list), so those objects can show it.
   const syncedOptionLinks = new Map();
   async function syncOptionLinks(x) {
-    if (!host.refs || !host.refs.setLinks || x.scope !== 'own') return;
+    if (!host.objects || !host.objects.setLinks || x.scope !== 'own') return;
     const links = x.p.options.filter((o) => o.link).map((o) => o.link);
-    const sig = JSON.stringify(links.map(refKey));
+    const sig = JSON.stringify(links.map(objectKey));
     if (syncedOptionLinks.get(x.id) === sig || (!links.length && !syncedOptionLinks.has(x.id))) return;
     syncedOptionLinks.set(x.id, sig);
     try {
-      await host.refs.setLinks(host.refs.make('poll', x.id), links);
+      await host.objects.setLinks(host.objects.make('poll', x.id), links);
     } catch (err) {
       syncedOptionLinks.delete(x.id);
     }
@@ -352,7 +352,7 @@
     const { winner } = winnerOf(x);
     const input = { title: winner ? `${x.p.question}: ${winner}` : x.p.question };
     if (a.input.notes) input.notes = x.p.question;
-    if (a.input.ref) input.ref = host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
+    if (a.input.ref) input.ref = host.objects.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
     try {
       await host.actions.request(action, input);
       showNote(`Sent to ${a.moduleName}: ${a.label}`, true);
@@ -395,7 +395,7 @@
     const top = max > 0 ? x.p.options.filter((o) => counts.get(o.id).length === max) : [];
     return { winner: top.length === 1 ? top[0].text : null, tied: top.length > 1 ? top.map((o) => o.text).slice(0, 5) : [] };
   }
-  // The item the winning option points at, when there is one winner and it points at something.
+  // The object the winning option points at, when there is one winner and it points at something.
   function pickOf(x) {
     const { winner } = winnerOf(x);
     const o = winner ? x.p.options.find((opt) => opt.text === winner) : null;
@@ -409,10 +409,10 @@
   const announcing = new Set();
   async function announceClosed(x) {
     try {
-      await host.events.publish('closed', { ref: host.refs.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x), ...pickOf(x) } });
+      await host.events.publish('closed', { ref: host.objects.make('poll', x.id), data: { ...winnerOf(x), summary: summaryOf(x), ...pickOf(x) } });
     } catch (err) {
       // nobody may hear it, or this person cannot publish: the poll is closed either way
-      if (host.refs && host.refs.trace) host.refs.trace('polls: could not announce the close: ' + err.message);
+      if (host.objects && host.objects.trace) host.objects.trace('polls: could not announce the close: ' + err.message);
     }
   }
   // A poll that closes by its time closes with nobody clicking: whoever sees it first announces it, once.
@@ -635,8 +635,8 @@
     render();
   });
   // A poll's question can be dragged onto another module that links to polls (a to-do, say).
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable($('body'), (target) => {
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable($('body'), (target) => {
       const h = target.closest('[data-drag]');
       const x = h && polls.get(h.dataset.drag);
       return x ? { kind: 'poll', id: x.id, label: x.p.question, ...(x.scope === 'spaces' ? { space: x.spaceId } : {}) } : null;
@@ -669,7 +669,7 @@
       return void runAction(k, a);
     }
     const link = e.target.closest('[data-ref]');
-    if (link && host.refs) return void host.refs.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
+    if (link && host.objects) return void host.objects.open(JSON.parse(link.dataset.ref)).catch((err) => showNote(err.message));
     const v = e.target.closest('[data-vote]');
     if (v) {
       const [key, option] = v.dataset.vote.split('|');
@@ -688,9 +688,9 @@
     const key = input.dataset.addtext;
     addOption(key, input.value);
   });
-  // An item dragged from another module onto an option links the option to it.
+  // An object dragged from another module onto an option links the option to it.
   const optionAt = (pt) => {
-    const el = host.refs.elementAt(pt);
+    const el = host.objects.elementAt(pt);
     const opt = el && el.closest('[data-vote]');
     if (!opt) return null;
     const [key, id] = opt.dataset.vote.split('|');
@@ -698,10 +698,10 @@
     return x && mayManage(x) && !isClosed(x.p) ? { el: opt, key, id } : null;
   };
   const clearDrop = () => { for (const e of root.querySelectorAll('.opt.drop')) e.classList.remove('drop'); };
-  // What the drop can do is the shared decision (host.refs.dropMenu): linking the option to it is this module's
-  // own offer, and whatever the modules around offer for an item of that kind comes after, with this poll as the target.
-  if (host.refs && host.refs.dropTarget) {
-    host.refs.dropTarget({
+  // What the drop can do is the shared decision (host.objects.dropMenu): linking the option to it is this module's
+  // own offer, and whatever the modules around offer for an object of that kind comes after, with this poll as the target.
+  if (host.objects && host.objects.dropTarget) {
+    host.objects.dropTarget({
       over: (pt, ref) => {
         clearDrop();
         const at = ref ? optionAt(pt) : null;
@@ -710,13 +710,13 @@
       leave: clearDrop,
       drop: async (ref, pt, dragged) => {
         clearDrop();
-        if (!ref) return host.refs.trace('drop ignored: only a pointer can be linked to an option');
+        if (!ref) return host.objects.trace('drop ignored: only a pointer can be linked to an option');
         const at = optionAt(pt);
-        if (!at) return host.refs.trace('drop ignored: no option of yours under the pointer');
+        if (!at) return host.objects.trace('drop ignored: no option of yours under the pointer');
         const x = polls.get(at.key);
         try {
-          const chosen = await host.refs.dropMenu(dragged, pt, {
-            context: { target: host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined) },
+          const chosen = await host.objects.dropMenu(dragged, pt, {
+            context: { target: host.objects.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined) },
             own: linkable(ref) ? [{ id: 'link', label: 'Link it to this option', run: () => setOptionLink(at.key, at.id, ref) }] : [],
             remember: 'option',
           });
@@ -740,7 +740,8 @@
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
   // A poll with a closing time closes on its own: redraw now and then to show it.
-  setInterval(() => { render(); announceIfDue(); }, 30000);
+  // Stopped once this module is closed (in the page, its elements go and the timer would draw into nothing).
+  const redraw = setInterval(() => { if (!$('app')) return void clearInterval(redraw); render(); announceIfDue(); }, 30000);
 
   $('add').hidden = !canCreate;
   try {

@@ -20,7 +20,9 @@ const { word, fill } = require('./words');
 // its description, the dashboard widget's title, its permissions' labels, its settings' labels and help (and their
 // options'), its events' and actions' labels, and what its kinds of item are called. The module's name is a name and
 // is not filled. Answers the manifest itself when it has no placeholder, else a filled copy.
-const PLACEHOLDER_RE = /\{(?:(?:a|an|A|An) )?[A-Za-z]+\}/;
+// `{name}` is not a word: in a kind's name it stands for the module's shown name, filled where the kind is named
+// (kindNameOf in index.js), so it never counts here and fill() leaves it as it is.
+const PLACEHOLDER_RE = /\{(?:(?:a|an|A|An) )?(?!name\})[A-Za-z]+\}/;
 function manifestTexts(m) {
   const out = [];
   const at = (obj, key) => { if (obj && typeof obj[key] === 'string') out.push([obj, key]); };
@@ -58,15 +60,15 @@ const ALLOWED_EXT = new Set([
   '.woff', '.woff2', '.ttf', '.otf',
 ]);
 const HOOKS = ['schedule', 'notify', 'ai'];
-// What a card (the small summary another module may show of an item) can carry, and which of the
-// producing module's own stored fields fill it. See documentation/api/api-module-sdk.md ("Refs").
-const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category', 'text'];
+// What an object's summary (what another module may show of it) can carry, and which of the producing module's own
+// stored fields fill it (`refs.produces[].summary`). See documentation/api/api-module-sdk.md ("Objects").
+const SUMMARY_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category', 'text'];
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['environment', 'space', 'person'];
 // Plan-names step 5c, the hard break: a manifest speaks only the new names. One that still uses an old one (a scope
 // `room` or `server`, a setting's scope `room` or `server`, `install.settingsFrom: "server"`, a permission default
-// keyed `user`, and from step 6 `surfaces.panel`) is refused at install with a sentence naming the field and what to use instead; one already
+// keyed `user`, from step 6 `surfaces.panel`, and from step 7 a kind's `card`) is refused at install with a sentence naming the field and what to use instead; one already
 // installed does not run (see ModuleManager.outdated) and its card says so.
 const OLD_SCOPE_NAMES = {
   room: { use: 'space', why: 'Magpie renamed rooms to spaces' },
@@ -77,6 +79,8 @@ const OUTDATED_TEXT = 'This {module} was built for an older Magpie and needs an 
 const OUTDATED = fill(OUTDATED_TEXT, null);
 // The old name of surfaces.canvas (plan-names decision 13), named only so a manifest that still uses it is refused.
 const OLD_CANVAS_SURFACE = 'panel';
+// The old name of a kind's summary (plan-names decision 6), named only so a manifest that still uses it is refused.
+const OLD_SUMMARY = 'card';
 const isOldScope = (s) => typeof s === 'string' && Object.prototype.hasOwnProperty.call(OLD_SCOPE_NAMES, s);
 // The first old name a raw manifest uses, as the sentence that refuses it, or null when it uses none.
 function oldNameIn(raw) {
@@ -97,6 +101,12 @@ function oldNameIn(raw) {
   // Plan-names step 6: a module's docked or floating surface is on the canvas (surfaces.canvas), no longer a panel.
   if (raw.surfaces && typeof raw.surfaces === 'object' && Object.prototype.hasOwnProperty.call(raw.surfaces, OLD_CANVAS_SURFACE)) {
     return `module.json uses the old surfaces.${OLD_CANVAS_SURFACE}; use surfaces.canvas (Magpie renamed a module's panel to its place on the canvas).`;
+  }
+  // Plan-names step 7: what a kind of object shows of itself is its summary, no longer a card.
+  for (const p of Array.isArray(raw.refs?.produces) ? raw.refs.produces : []) {
+    if (p && typeof p === 'object' && Object.prototype.hasOwnProperty.call(p, OLD_SUMMARY)) {
+      return `module.json: refs kind "${String(p.kind ?? '')}" uses the old ${OLD_SUMMARY}; use summary (Magpie renamed an object's ${OLD_SUMMARY} to its summary).`;
+    }
   }
   return null;
 }
@@ -192,8 +202,8 @@ const clamp = (value, min, max, fallback) => (Number.isFinite(Number(value)) ? M
 
 // The validated manifest we keep, or a ModuleError saying what's wrong.
 // Anything the manifest says beyond these fields is ignored.
-// Refs: items a module lets other modules point at (`produces`), and other modules' items it wants
-// to point at (`consumes`, approved by an admin like permissions and hooks are). Always returns both
+// Refs: the kinds of object a module lets other modules point at (`produces`), and other modules' objects it
+// wants to point at (`consumes`, approved by an admin like permissions and hooks are). Always returns both
 // lists; throws on a bad declaration. The stored module.json is the author's original, so this runs
 // again whenever a manifest is read (see manifestOf).
 function cleanRefs(rawRefs, id) {
@@ -205,18 +215,18 @@ function cleanRefs(rawRefs, id) {
     // The stored key an item lives under: a fixed prefix then {id}, such as "event:{id}".
     const key = typeof p.key === 'string' ? p.key : '';
     if (!/^[a-z][a-z0-9_-]{0,23}:\{id\}$/.test(key)) throw new ModuleError(`module.json: refs "${kind}" needs a "key" like "event:{id}"`);
-    const card = {};
-    for (const field of CARD_FIELDS) {
-      const from = p.card?.[field];
+    const summary = {};
+    for (const field of SUMMARY_FIELDS) {
+      const from = p.summary?.[field];
       if (from === undefined || from === null) continue;
-      if (typeof from !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(from)) throw new ModuleError(`module.json: refs "${kind}" card.${field} must name a stored field`);
-      card[field] = from;
+      if (typeof from !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(from)) throw new ModuleError(`module.json: refs "${kind}" summary.${field} must name a stored field`);
+      summary[field] = from;
     }
-    if (!card.title) throw new ModuleError(`module.json: refs "${kind}" needs a card.title`);
-    // What a person sees it called; whether the module can open one of its items when asked (it
-    // handles host.refs.onOpen); whether it shows what links to its items (host.refs.linksTo).
+    if (!summary.title) throw new ModuleError(`module.json: refs "${kind}" needs a summary.title`);
+    // What a person sees it called; whether the module can open one of its objects when asked (it
+    // handles host.objects.onOpen); whether it shows what links to its objects (host.objects.linksTo).
     const name = String(p.name ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 40) || kind.charAt(0).toUpperCase() + kind.slice(1);
-    refs.produces.push({ kind, name, key, card, open: Boolean(p.open), backlinks: Boolean(p.backlinks) });
+    refs.produces.push({ kind, name, key, summary, open: Boolean(p.open), backlinks: Boolean(p.backlinks) });
   }
   // "*" means whatever other modules share, so a module can link to the items of a module written
   // after it without either being changed; otherwise named kinds, "module:kind".
@@ -237,6 +247,31 @@ const EVENT_NAME_RE = /^[a-z][a-zA-Z0-9]{0,31}$/;
 const FIELD_RE = /^[a-z][a-zA-Z0-9]{0,23}$/;
 const FIELD_TYPES = ['string', 'text', 'date', 'datetime', 'boolean', 'number', 'ref'];
 const BUS_USE_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-zA-Z0-9]{0,31}$/;
+
+// Stored keys a module's author renamed (`storage.renamed: [{ from, to }]`, each a key prefix, applied in the order
+// listed): whenever the module's running version declares a rename, the server moves every stored key starting with
+// `from` to the same key starting with `to`, in every scope of the module's data (syncStoredKeys in index.js). A prefix
+// uses a key's own characters; a pair's `to` must not start with, or be the start of, its own `from` or an earlier
+// pair's (so a rename never applies to its own result and no set of renames moves a key back: a:→b: with b:→a: is
+// refused, a chain a:→b: then b:→c: is not), and a prefix is renamed from only once. Always returns a list.
+const STORAGE_PREFIX_RE = /^[A-Za-z0-9_.:/-]{1,64}$/;
+function cleanStorage(raw) {
+  if (raw === undefined || raw === null) return { renamed: [] };
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json: "storage" must be an object, such as { "renamed": [{ "from": "item:", "to": "plan:" }] }.');
+  const list = raw.renamed === undefined ? [] : raw.renamed;
+  if (!Array.isArray(list) || list.length > 10) throw new ModuleError('module.json: storage.renamed must be a list of at most 10 { "from", "to" } key prefixes.');
+  const renamed = [];
+  for (const r of list) {
+    if (!r || typeof r !== 'object' || typeof r.from !== 'string' || typeof r.to !== 'string') throw new ModuleError('module.json: each storage.renamed entry needs a "from" and a "to" key prefix.');
+    if (!STORAGE_PREFIX_RE.test(r.from) || !STORAGE_PREFIX_RE.test(r.to)) throw new ModuleError(`module.json: storage.renamed "${r.from}" to "${r.to}": a key prefix is 1 to 64 letters, digits and . _ : / -.`);
+    if (r.from.startsWith(r.to) || r.to.startsWith(r.from)) throw new ModuleError(`module.json: storage.renamed "${r.from}" to "${r.to}": one prefix must not start with the other.`);
+    if (renamed.some((x) => x.from === r.from)) throw new ModuleError(`module.json: storage.renamed lists "${r.from}" more than once.`);
+    const back = renamed.find((x) => r.to.startsWith(x.from) || x.from.startsWith(r.to));
+    if (back) throw new ModuleError(`module.json: storage.renamed "${r.from}" to "${r.to}" would move keys back under "${back.from}", which an earlier entry renames from.`);
+    renamed.push({ from: r.from, to: r.to });
+  }
+  return { renamed };
+}
 
 function cleanBus(rawEvents, rawActions, id) {
   const events = { publishes: [], subscribes: [] };
@@ -502,6 +537,7 @@ function cleanManifest(raw, files) {
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
 
   const refs = cleanRefs(raw.refs, id);
+  const storage = cleanStorage(raw.storage);
   const { events, actions } = cleanBus(raw.events, raw.actions, id);
 
   // Which of the module's own permissions guards reading and writing its data.
@@ -536,7 +572,7 @@ function cleanManifest(raw, files) {
     ? { auto: raw.install.auto === true, settingsFrom: raw.install.settingsFrom === 'environment' ? 'environment' : null }
     : null;
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, storage, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -550,7 +586,7 @@ function permissionDefaults(d) {
 
 // Whether what an update newly asks for (pendingFor's answer) is only permissions that are off for every role, so
 // approving it gives nobody but owners (and the admin) anything new. Used only by the bundled update at start
-// (updateOutdatedBundled in index.js); anything else new, or a new permission on for some role, is not.
+// (updateBundled in index.js); anything else new, or a new permission on for some role, is not.
 function pendingWidensNothing(pending, permissions) {
   if (!pending || pending.hooks.length || pending.refs.length || pending.events.length || pending.actions.length) return false;
   return pending.permissions.every((key) => {
@@ -589,6 +625,20 @@ class ModuleManager {
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(this.registry, null, 2));
     fs.renameSync(tmp, this.file);
+  }
+
+  // The stored-key renames in effect for a module's data ([{ from, to, at }], storage.renamed; syncStoredKeys in
+  // index.js), kept on its registry entry so they travel with a backup, and setting them.
+  appliedRenames(id) {
+    const entry = this.registry.modules[id];
+    return entry && Array.isArray(entry.renamed) ? entry.renamed.filter((r) => r && typeof r.from === 'string' && typeof r.to === 'string') : [];
+  }
+
+  setAppliedRenames(id, list) {
+    const entry = this.registry.modules[id];
+    if (!entry) return;
+    entry.renamed = list;
+    this.save();
   }
 
   versionDir(id, version) {
@@ -659,6 +709,11 @@ class ModuleManager {
         manifest.refs = cleanRefs(manifest.refs, id);
       } catch {
         manifest.refs = { produces: [], consumes: [] };
+      }
+      try {
+        manifest.storage = cleanStorage(manifest.storage);
+      } catch {
+        manifest.storage = { renamed: [] };
       }
       try {
         const bus = cleanBus(manifest.events, manifest.actions, id);
@@ -880,6 +935,17 @@ class ModuleManager {
     return entry.source === 'bundled' ? 'page' : 'sandbox';
   }
 
+  // What installing this zip over the installed module would newly ask for, without installing anything: { manifest,
+  // pending } (pending as pendingFor answers it, or null when the module is not installed). Refuses as install would.
+  async preview(buffer) {
+    const files = stripWrapperFolder(await readZip(buffer));
+    const manifestFile = files.get('module.json');
+    if (!manifestFile) throw new ModuleError('module.json is missing from the zip');
+    const manifest = cleanManifest(JSON.parse(manifestFile.toString('utf8')), files);
+    const entry = this.registry.modules[manifest.id];
+    return { manifest, pending: entry ? this.pendingFor(entry, manifest) : null };
+  }
+
   async install(buffer, { source = 'upload' } = {}) {
     if (!buffer || !buffer.length) throw new ModuleError('choose a zip file to install');
     if (buffer.length > LIMITS.zipBytes) throw new ModuleError(`the zip is larger than ${LIMITS.zipBytes / MB} MB`);
@@ -1062,4 +1128,4 @@ class ModuleManager {
   }
 }
 
-module.exports = { ModuleManager, ModuleError, fillManifest, manifestTexts, cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, fillManifest, manifestTexts, cleanManifest, cleanStorage, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

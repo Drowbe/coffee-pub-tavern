@@ -1,6 +1,6 @@
 // Assistant: a normal bundled module (dock, float, popout), a place to have an open-ended conversation with the AI the admin set
-// up. It keeps no data of its own: a person may add context (anything with a card, from any module this one may consume), and a
-// card the model writes worth keeping is saved by whichever module offers a note-shaped save action, found by name and input
+// up. It keeps no data of its own: a person may add context (any object with a summary, from any module this one may consume), and a
+// summary the model writes worth keeping is saved by whichever module offers a note-shaped save action, found by name and input
 // shape (never by naming a module). The conversation itself is never stored, on the server or here; closing the pane, or New
 // conversation, drops it. This page draws into the markup in assistant.html by cloning its templates and filling their [data-slot]
 // and [data-icon] hooks, and toggles the state classes and data attributes CONTRACT.md lists. It builds no markup from strings and
@@ -64,25 +64,26 @@
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   const placeText = (p) => (p ? p.name || geo.coordsText(p.lat, p.lng) : '');
-  const refKey = (r) => `${r.module}:${r.kind}:${r.scope || 'space'}:${r.space || ''}:${r.id}`;
+  const objectKey = (r) => `${r.module}:${r.kind}:${r.scope || 'space'}:${r.space || ''}:${r.id}`;
 
   const state = {
     ai: false,
     aiWhy: '',
     asking: false,
     context: [], // [{ ref, title, icon }]
-    saveAction: null, // a note-shaped action (a title, a body of text) to keep a card with, or null when nothing offers one
-    suggestAction: null, // a suggestion-shaped action (a title, a kind) that places a typed card properly, or null when nothing offers one
+    saveAction: null, // a note-shaped action (a title, a body of text) to keep an answer's summary with, or null when nothing offers one
+    suggestAction: null, // a suggestion-shaped action (a title, a kind) that places a typed summary properly, or null when nothing offers one
   };
+  host.util.fillWords($('ask-empty')); // its data-word marks, in this environment's words
   const emptyNode = $('ask-empty'); // the "ask anything" line, moved back into #thread by New conversation
 
-  // --- context: chips, and the picker of anything reachable (this space's items, and the viewer's own) ----------------------
+  // --- context: chips, and the picker of anything reachable (this space's objects, and the viewer's own) ----------------------
 
   const MAX_CONTEXT = 12;
   function drawContext() {
     $('ask-chips').replaceChildren(...state.context.map((it) => {
       const c = clone('tpl-ask-chip');
-      c.dataset.key = refKey(it.ref);
+      c.dataset.key = objectKey(it.ref);
       setIcon(c.querySelector('.ic[data-icon]'), it.icon);
       fill(c, { label: it.title });
       return c;
@@ -90,37 +91,37 @@
     hydrate($('ask-context'));
   }
   function addContext(it) {
-    if (state.context.some((x) => refKey(x.ref) === refKey(it.ref)) || state.context.length >= MAX_CONTEXT) return;
+    if (state.context.some((x) => objectKey(x.ref) === objectKey(it.ref)) || state.context.length >= MAX_CONTEXT) return;
     state.context.push(it);
     drawContext();
   }
   function removeContext(key) {
-    state.context = state.context.filter((x) => refKey(x.ref) !== key);
+    state.context = state.context.filter((x) => objectKey(x.ref) !== key);
     drawContext();
   }
-  // Everything this pane can offer as context: this space's items, and the viewer's own (a person's private items are never
+  // Everything this module can offer as context: this space's objects, and the viewer's own (a person's private objects are never
   // linked, but they may still ask about them here). Search rather than a stored list, as any module reaching for another's
-  // items does; no query text, since the picker has no search field of its own.
+  // objects does; no query text, since the picker has no search field of its own.
   async function drawPicker() {
     const list = $('ask-picker-list');
     list.replaceChildren();
-    let cards = [];
+    let summaries = [];
     try {
-      const [here, mine] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => [])]);
+      const [here, mine] = await Promise.all([host.objects.search(''), host.objects.search('', { scope: 'person' }).catch(() => [])]);
       const seen = new Set();
-      for (const c of [...here, ...mine]) { const k = refKey(c.ref); if (!seen.has(k)) { seen.add(k); cards.push(c); } }
+      for (const c of [...here, ...mine]) { const k = objectKey(c.ref); if (!seen.has(k)) { seen.add(k); summaries.push(c); } }
     } catch (err) {
-      cards = [];
+      summaries = [];
     }
-    list.replaceChildren(...cards.map((c) => {
+    list.replaceChildren(...summaries.map((c) => {
       const r = clone('tpl-pick-row');
-      const key = refKey(c.ref);
+      const key = objectKey(c.ref);
       r.dataset.key = key;
       r.dataset.ref = JSON.stringify(c.ref);
       r.dataset.title = c.title || '';
       r.dataset.iconName = (c.module && c.module.icon) || 'note';
       const box = r.querySelector('input');
-      box.checked = state.context.some((x) => refKey(x.ref) === key);
+      box.checked = state.context.some((x) => objectKey(x.ref) === key);
       box.disabled = !box.checked && state.context.length >= MAX_CONTEXT;
       setIcon(r.querySelector('.ic[data-icon]'), r.dataset.iconName);
       fill(r, { title: c.title, kind: c.kindName || c.kind || '' });
@@ -150,10 +151,10 @@
   function sourcePill(ref) {
     const el = clone('tpl-source');
     fill(el, { label: '…' });
-    host.refs.resolve(ref).then((card) => {
-      fill(el, { label: card && !card.error ? card.title : 'that item' });
-      el.classList.toggle('gone', Boolean(card && card.error));
-    }).catch(() => { fill(el, { label: 'that item' }); el.classList.add('gone'); });
+    host.objects.resolve(ref).then((summary) => {
+      fill(el, { label: summary && !summary.error ? summary.title : `that ${word('object')}` });
+      el.classList.toggle('gone', Boolean(summary && summary.error));
+    }).catch(() => { fill(el, { label: `that ${word('object')}` }); el.classList.add('gone'); });
     return el;
   }
   const tagNode = (t) => { const el = clone('tpl-tag'); fill(el, { label: t }); return el; };
@@ -179,7 +180,7 @@
     const placer = c.kind && state.suggestAction ? state.suggestAction : state.saveAction;
     if (!placer) {
       keepBtn.disabled = true;
-      keepBtn.title = 'Nothing here can save a kept card yet.';
+      keepBtn.title = 'Nothing here can keep an answer yet.';
       el.append(clone('tpl-state-nowhere-to-save'));
     }
     // Keep this one card: used by its own button, and by Send all's per-card loop. Returns true once it is kept (already
@@ -218,10 +219,10 @@
     if (action === state.suggestAction) {
       return { title: c.title, kind: c.kind || '', content: c.content, place: c.place && c.place.name ? c.place.name : '', date: c.date || '' };
     }
-    // Name the sources for real (the pills above resolve the same way), so the kept item's own words read as the card does.
+    // Name the sources for real (the pills above resolve the same way), so the kept object's own words read as the card does.
     const sources = c.sources || [];
     const named = new Map();
-    await Promise.all(sources.map(async (r) => { try { const card = await host.refs.resolve(r); named.set(r, card && !card.error ? card.title : ''); } catch (err) { named.set(r, ''); } }));
+    await Promise.all(sources.map(async (r) => { try { const summary = await host.objects.resolve(r); named.set(r, summary && !summary.error ? summary.title : ''); } catch (err) { named.set(r, ''); } }));
     return keepInput(c, question, (r) => named.get(r) || '');
   }
   // How to call a card's kind in one line, plural or not: "3 hotels", "1 sight", "2 notes" (anything without a kind, or
@@ -232,8 +233,8 @@
     fill(msg, { who: 'AI' });
     const parts = msg.querySelector('.parts');
     const cardEls = [];
-    for (const p of answerParts(reply.text, (reply.cards || []).length)) {
-      if (p.card !== undefined) { const el = aiCard(reply.cards[p.card], question); cardEls.push(el); parts.append(el); }
+    for (const p of answerParts(reply.text, (reply.summaries || []).length)) {
+      if (p.summary !== undefined) { const el = aiCard(reply.summaries[p.summary], question); cardEls.push(el); parts.append(el); }
       else { const t = clone('tpl-msg-text'); t.innerHTML = host.util.markdown(p.text); parts.append(t); }
     }
     if (cardEls.length > 1 && (state.saveAction || state.suggestAction)) parts.append(sendAllNode(cardEls));
@@ -246,7 +247,7 @@
     const btn = el.querySelector('[data-action="send-all"]');
     const notKept = () => cardEls.filter((c) => !c.querySelector('[data-action="keep-card"]').classList.contains('kept'));
     const refresh = () => {
-      fill(el, { count: `${cardEls.length} items` });
+      fill(el, { count: `${cardEls.length} in all` });
       hide(el, !notKept().length);
     };
     refresh();
@@ -255,8 +256,8 @@
       if (!left.length) return;
       const counts = new Map();
       for (const c of left) { const k = c.keepCard.kind && state.suggestAction ? c.keepCard.kind : 'note'; counts.set(k, (counts.get(k) || 0) + 1); }
-      const summary = [...counts].map(([k, n]) => `${n} ${n === 1 ? k : KIND_PLURAL[k]}`).join(', ');
-      if (!window.confirm(`Send ${summary} to your plan?`)) return;
+      const what = [...counts].map(([k, n]) => `${n} ${n === 1 ? k : KIND_PLURAL[k]}`).join(', ');
+      if (!window.confirm(`Send ${what} to your plan?`)) return;
       btn.disabled = true;
       let ok = 0;
       for (const c of left) if (await c.keepOne()) ok += 1;
@@ -278,7 +279,7 @@
     hydrate(thread());
     scrollDown();
     try {
-      const reply = await host.ai.ask({ task: 'ask', question: q, items: state.context.map((it) => it.ref) });
+      const reply = await host.ai.ask({ task: 'ask', question: q, objects: state.context.map((it) => it.ref) });
       waiting.replaceWith(showReply(q, reply));
     } catch (err) {
       const t = clone('tpl-msg-text');
@@ -363,33 +364,33 @@
   root.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !$('ask-picker').hidden) hide($('ask-picker'), true); });
 
   // A card the model wrote can be dragged onto another module. Assistant stores nothing, so there is no pointer to
-  // drag: the card itself travels (title, kind, content, place, date), and the module it lands on offers whatever
+  // drag: its summary travels (title, kind, content, place, date), and the module it lands on offers whatever
   // it can make of that -- "Send all to plan", one card at a time, by hand.
-  if (host.refs && host.refs.draggable) {
-    host.refs.draggable(root, (target) => {
+  if (host.objects && host.objects.draggable) {
+    host.objects.draggable(root, (target) => {
       const el = target.closest && target.closest('.aicard');
       if (!el || !el.keepCard || target.closest('button, a')) return null;
       const c = el.keepCard;
-      return { card: { title: c.title, kind: c.kind || '', content: c.content || '', place: c.place || null, date: c.date || '' }, label: c.title };
+      return { summary: { title: c.title, kind: c.kind || '', content: c.content || '', place: c.place || null, date: c.date || '' }, label: c.title };
     });
   }
   // Something from another module dropped here: use it as context for the next question, or ask about it at once.
-  // A carried card (another answer) has no pointer and cannot be context; only the modules around can offer for it.
-  if (host.refs && host.refs.dropTarget) {
+  // A carried summary (another answer) has no pointer and cannot be context; only the modules around can offer for it.
+  if (host.objects && host.objects.dropTarget) {
     const showDrop = (yes) => $('app').classList.toggle('drop-target', yes);
-    host.refs.dropTarget({
-      over: (_pt, ref, dragged) => showDrop(state.ai && Boolean(ref || dragged.card)),
+    host.objects.dropTarget({
+      over: (_pt, ref, dragged) => showDrop(state.ai && Boolean(ref || dragged.summary)),
       leave: () => showDrop(false),
       drop: async (ref, pt, dragged) => {
         showDrop(false);
-        if (!state.ai || !(ref || dragged.card)) return;
+        if (!state.ai || !(ref || dragged.summary)) return;
         try {
-          const asContext = (ctx) => addContext({ ref, title: ctx.card.title, icon: (ctx.card.module && ctx.card.module.icon) || 'note' });
+          const asContext = (ctx) => addContext({ ref, title: ctx.summary.title, icon: (ctx.summary.module && ctx.summary.module.icon) || 'note' });
           const own = ref ? [
             { id: 'context', label: 'Use it as context', hint: 'for the next question', run: asContext },
-            { id: 'ask', label: 'Ask about it', run: (ctx) => { asContext(ctx); ask(`What should I know about ${ctx.card.title}?`); } },
+            { id: 'ask', label: 'Ask about it', run: (ctx) => { asContext(ctx); ask(`What should I know about ${ctx.summary.title}?`); } },
           ] : [];
-          const chosen = await host.refs.dropMenu(dragged, pt, { context: {}, own, remember: 'pane' });
+          const chosen = await host.objects.dropMenu(dragged, pt, { context: {}, own, remember: 'pane' });
           if (chosen && chosen.id !== 'context' && chosen.id !== 'ask') say(`${chosen.label}: done`, 3000);
         } catch (err) { say('It could not do that: ' + message(err), 4000); }
       },
@@ -399,13 +400,13 @@
   if (host.actions && host.actions.provide) {
     host.actions.provide({
       // A local view: carried out only by the requester's own open Assistant, never someone else's (see module.json). Adds the
-      // given item (if any) as context and, with a question, asks it at once.
+      // given object (if any) as context and, with a question, asks it at once.
       askAssistant: async (input) => {
         const i = input || {};
         if (i.ref) {
           try {
-            const card = await host.refs.resolve(i.ref);
-            if (card && !card.error) addContext({ ref: i.ref, title: card.title, icon: (card.module && card.module.icon) || 'note' });
+            const summary = await host.objects.resolve(i.ref);
+            if (summary && !summary.error) addContext({ ref: i.ref, title: summary.title, icon: (summary.module && summary.module.icon) || 'note' });
           } catch (err) { /* not visible here */ }
         }
         if (typeof i.question === 'string' && i.question.trim()) ask(i.question.trim().slice(0, 1000));

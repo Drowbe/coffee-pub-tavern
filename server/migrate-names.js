@@ -324,7 +324,7 @@ function spacesPart() {
 // the same way, by shape, through its events and actions: an event's `data` is a module's own values, carried as they
 // were published, so one published before step 5c can hold an old pointer (names-spaces rewrote the host's own fields
 // there, but data published after it, until 5c, still came in the old shape). Step 7's other renames (refs to
-// objects, card to summary) are still step 7's.
+// objects, card to summary) are names-objects', below.
 const isOldPointer = (v) => isPlainObject(v) && typeof v.module === 'string' && typeof v.kind === 'string' && typeof v.id === 'string'
   && (v.scope === 'server' || (v.scope === 'room' && typeof v.room === 'string'));
 function oldPointersRewritten(value) {
@@ -369,9 +369,24 @@ const pointersPart = {
   },
 };
 
+// names-objects (plan-names step 7: host.refs becomes host.objects, a card an object's summary, the manifest's
+// refs.produces[].card its summary, the AI's items and cards its objects and summaries). None of these names is stored
+// by the host: links.json, bus.json, schedules.json and notifications.json hold pointers ({ module, kind, id, scope,
+// space? }, their names unchanged) and a module's own values, never a summary; a summary is made afresh on every
+// request; an installed module's module.json is its author's original, which is never rewritten (one still saying
+// `card` is kept but can't run until its author updates it, and a bundled one updates itself on start); and a
+// module's own keys that say item or card (the Planner's `item:` keys) are the module's to rename (decision 19). So
+// the part moves and rewrites nothing. It is still recorded, like every part, so that data from after step 7 is
+// refused by a build from before it rather than read by one that expects the old manifest names.
+const objectsPart = {
+  id: 'names-objects',
+  files: () => [],
+  run() {},
+};
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart, objectsPart];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.

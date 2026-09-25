@@ -36,7 +36,7 @@ function fakeHost() {
     },
     on: () => () => {},
     util: { id: () => `id${(n += 1)}` },
-    refs: { make: (kind, id) => ({ module: 'places', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
+    objects: { make: (kind, id) => ({ module: 'places', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
   return { host, data, handlers, links };
@@ -98,7 +98,7 @@ await test('a place needs a name; the point is optional and checked', () => {
   assert.equal(lib.cleanPlace('a', { title: 'x', ref: { module: 'm' } }).ref, null);
 });
 
-await test('what is stored leaves out the point when there is none (so its card has no place)', () => {
+await test('what is stored leaves out the point when there is none (so its summary has no place)', () => {
   const withNone = lib.placeValue(lib.cleanPlace('a', { title: 'x', address: 'y' }));
   assert.ok(!('point' in withNone));
   assert.ok(!('ref' in withNone));

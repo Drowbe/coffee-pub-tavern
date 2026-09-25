@@ -1,6 +1,6 @@
   // The Places module's model: no page in it, so the page and the checks can both use it. A place is one stored value
   // (`place:<id>`): { title, category, address, point?, notes, owners, by, ref? }. `point` is a field of its own so the
-  // module's card can name it (a card's `place`); a place with only an address has none. The page defines `geo`
+  // module's summary can name it (a summary's `place`); a place with only an address has none. The page defines `geo`
   // (host.util.geo) ahead of this code, as the check does.
   const PLACE_PREFIX = 'place:';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
@@ -32,7 +32,7 @@
       ref,
     };
   }
-  // What is stored for a place (no `point` at all when it has none, so its card carries no place).
+  // What is stored for a place (no `point` at all when it has none, so its summary carries no place).
   const placeValue = (p) => ({
     title: p.title,
     category: p.category,
@@ -67,17 +67,17 @@
   function createPlaces(host, opts) {
     const scope = (opts && opts.scope) || 'space';
     const at = { scope };
-    const items = new Map(); // id -> { place, version }
+    const byId = new Map(); // id -> { place, version }
     const listeners = new Set();
     const changed = () => { for (const fn of listeners) fn(); };
 
     const remember = (id, value, version) => {
       const p = value ? cleanPlace(id, value) : null;
-      if (p) items.set(id, { place: p, version });
-      else items.delete(id);
+      if (p) byId.set(id, { place: p, version });
+      else byId.delete(id);
     };
     async function load() {
-      items.clear();
+      byId.clear();
       for (const it of await host.storage.list(PLACE_PREFIX, at)) remember(it.key.slice(PLACE_PREFIX.length), it.value, it.version);
       changed();
     }
@@ -87,9 +87,9 @@
       changed();
     });
 
-    const list = () => [...items.values()].map((x) => x.place).sort((a, b) => a.title.localeCompare(b.title));
-    const get = (id) => (items.get(id) || {}).place || null;
-    const versionOf = (id) => (items.get(id) || {}).version;
+    const list = () => [...byId.values()].map((x) => x.place).sort((a, b) => a.title.localeCompare(b.title));
+    const get = (id) => (byId.get(id) || {}).place || null;
+    const versionOf = (id) => (byId.get(id) || {}).version;
 
     // Save a place (a new one when it has no id). A stale edit is refused with the store's 409.
     async function save(p, version) {
@@ -97,21 +97,21 @@
       const value = placeValue({ ...p, id });
       const saved = await host.storage.set(PLACE_PREFIX + id, value, version === undefined ? at : { ...at, version });
       const place = cleanPlace(id, value);
-      items.set(id, { place, version: saved && saved.version });
+      byId.set(id, { place, version: saved && saved.version });
       // Personal places are private, so nothing is linked to or from them.
-      if (place.ref && scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), [place.ref]).catch(() => {});
+      if (place.ref && scope !== 'person') host.objects.setLinks(host.objects.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), [place.ref]).catch(() => {});
       changed();
       return place;
     }
     async function remove(id) {
-      await host.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
-      items.delete(id);
-      if (scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), []).catch(() => {});
+      await host.storage.delete(PLACE_PREFIX + id, byId.has(id) ? { ...at, version: byId.get(id).version } : at);
+      byId.delete(id);
+      if (scope !== 'person') host.objects.setLinks(host.objects.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), []).catch(() => {});
       changed();
     }
     // Give a place a point (or take it away with null).
     async function setPoint(id, pt) {
-      const cur = items.get(id);
+      const cur = byId.get(id);
       if (!cur) throw new Error('there is no such place');
       if (pt && !geo.inRange(Number(pt.lat), Number(pt.lng))) throw new Error('the coordinates are out of range');
       return save({ ...cur.place, point: pt ? { lat: geo.round6(Number(pt.lat)), lng: geo.round6(Number(pt.lng)) } : null }, cur.version);
@@ -123,13 +123,13 @@
       host.actions.provide({
         addPlace: async (input, ctx) => {
           const place = await save(placeFromRequest(input, me || (ctx && ctx.by) || ''));
-          return { ref: host.refs.make('place', place.id) };
+          return { ref: host.objects.make('place', place.id) };
         },
         setPlacePoint: async (input) => {
           const r = input && input.place;
           if (!r || r.kind !== 'place') throw new Error('that is not a place');
           const place = await setPoint(String(r.id), { lat: input.lat, lng: input.lng });
-          return { ref: host.refs.make('place', place.id) };
+          return { ref: host.objects.make('place', place.id) };
         },
       });
     }

@@ -2,7 +2,7 @@
 
 **Audience:** whoever writes `places.js` (the modules side) and whoever styles it (`places.html`, `places.css`; the interface side).
 
-**What Places is.** The space's saved places: named locations (a hotel, a restaurant, a viewpoint) with an address, an optional position, notes, a category and owners. It needs no map and no map file. Other modules point at a place through the links conduit (a trip stop, an event, a task); a place with a position also gives its card a `place`, so the Maps module draws it. Maps stores no places of its own.
+**What Places is.** The space's saved places: named locations (a hotel, a restaurant, a viewpoint) with an address, an optional position, notes, a category and owners. It needs no map and no map file. Other modules point at a place through the links conduit (a trip stop, an event, a task); a place with a position also gives its summary a `place`, so the Maps module draws it. Maps stores no places of its own.
 
 **Canonical markup.** The elements a script clones are the `<template>` elements in `places.html` (`tpl-chip`, `tpl-group`, `tpl-place`, `tpl-owner`, `tpl-link`, `tpl-conflict`, `tpl-readonly`, `tpl-state-*`). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `host.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win. `design/places.html` is the reference rendering: open it in a browser for every state, dark and light, at phone, pane and wide sizes.
 
@@ -58,7 +58,7 @@ The host's bottom bar quick-add (`host.bar.set` with a `quickadd` item, placehol
 
 ## What the map shows
 
-A place with a position gives its card a `place` (`{ lat, lng, name }`), so it appears on the Maps module's map with this module's icon; opening it there brings you here. A place with only an address is listed here and opens its address in the person's maps app, and can be given a position later. That is why "On the map" and "No position yet" are shown: they say whether the map has it.
+A place with a position gives its summary a `place` (`{ lat, lng, name }`), so it appears on the Maps module's map with this module's icon; opening it there brings you here. A place with only an address is listed here and opens its address in the person's maps app, and can be given a position later. That is why "On the map" and "No position yet" are shown: they say whether the map has it.
 
 ## Views: mine, this space, everyone
 

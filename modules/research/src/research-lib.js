@@ -1,7 +1,7 @@
   // The Research module's model: no page in it, so the page and the checks can both use it. An item is one stored value, kept under
   // `<kind>:<id>` (note, link, photo or answer):
   //   { kind, title, body|excerpt|content (by kind), text, sub, url, site, tags, date, point?, file?, by, at, ai? }
-  // `text` is the item's plain words (what the AI reads and a card carries), `sub` its subtitle (a link's site), `date` a day
+  // `text` is the object's plain words (what the AI reads and its summary carries), `sub` its subtitle (a link's site), `date` a day
   // (YYYY-MM-DD) or '', `point` a place on a map, `file` a photo's picture ({ id, hasThumb }), `ai` an answer's { question, sources }.
   // The page defines `geo` (host.util.geo) ahead of this code, as the check does.
   const KINDS = ['note', 'link', 'photo', 'answer'];
@@ -84,7 +84,7 @@
   }
   // The plain words of an item, for a search and for the AI.
   const textOf = (it) => (it.kind === 'photo' ? it.title : it[BODY_FIELD[it.kind]] || '');
-  // What is stored for an item: only what its kind uses, plus the derived `text` and `sub` its card carries.
+  // What is stored for an item: only what its kind uses, plus the derived `text` and `sub` its summary carries.
   function itemValue(it) {
     const v = { kind: it.kind, title: it.title, tags: it.tags, date: it.date, by: it.by, at: it.at, text: textOf(it), sub: it.kind === 'link' ? it.site : '' };
     if (it.kind === 'note') v.body = it.body;
@@ -163,13 +163,13 @@
     const list = () => [...items.values()].map((x) => x.item);
     const get = (id) => (items.get(id) || {}).item || null;
     const versionOf = (id) => (items.get(id) || {}).version;
-    const refOf = (kind, id) => host.refs.make(kind, id, scope === 'person' ? { scope: 'person' } : undefined);
+    const refOf = (kind, id) => host.objects.make(kind, id, scope === 'person' ? { scope: 'person' } : undefined);
 
     // Save an item (a new one when it has no id). A stale edit is refused with the store's 409.
     async function save(p, version) {
       const id = p.id && p.id !== 'new' ? p.id : host.util.id();
       const item = cleanItem(p.kind, id, { ...p, by: p.by, at: p.at || new Date().toISOString() });
-      if (!item) throw new Error('that is not a whole item');
+      if (!item) throw new Error('that is not complete, or not valid');
       const saved = await host.storage.set(`${item.kind}:${id}`, itemValue(item), version === undefined ? at : { ...at, version });
       items.set(id, { item, version: saved && saved.version });
       changed();
@@ -182,17 +182,17 @@
       await host.storage.delete(`${cur.item.kind}:${id}`, { ...at, version: cur.version });
       items.delete(id);
       if (cur.item.file) host.uploads.remove(cur.item.file.id, at).catch(() => {});
-      if (scope !== 'person') host.refs.setLinks(refOf(cur.item.kind, id), []).catch(() => {});
+      if (scope !== 'person') host.objects.setLinks(refOf(cur.item.kind, id), []).catch(() => {});
       changed();
     }
 
-    // What other modules may ask of this one: save a note or a link, optionally about an item of theirs.
+    // What other modules may ask of this one: save a note or a link, optionally about an object of theirs.
     function provide(me) {
       if (!host.actions || !host.actions.provide) return;
-      const link = (item, ref) => { if (ref && scope !== 'person') host.refs.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
+      const link = (item, ref) => { if (ref && scope !== 'person') host.objects.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
       host.actions.provide({
         // tags is a plain comma- or space-separated string, as the field in the dialog reads it, so any module (or Assistant,
-        // keeping a card) can offer tags without knowing this module's shape.
+        // keeping an answer) can offer tags without knowing this module's shape.
         saveNote: async (input, ctx) => {
           const i = input || {};
           const title = geo.oneLine(i.title, 120);

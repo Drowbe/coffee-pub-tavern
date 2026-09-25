@@ -1,5 +1,5 @@
 // The Maps module's page: a map of every place the space has, from the admin's map file. Maps keeps no data of its own: it draws
-// every card in the space that carries a `place` (through the cards conduit), each with its own module's icon and grouped by
+// every summary in the space that carries a `place` (through the objects conduit), each with its own module's icon and grouped by
 // module, and it saves a new place by asking whichever module provides the `addPlace` action. This page draws into the markup
 // in maps.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes
 // and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (the map library positions the
@@ -38,11 +38,11 @@
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
 
   const state = {
-    items: [], // the cards in this space that carry a place
+    found: [], // the summaries in this space (and the viewer's own, and the environment's) that carry a place
     settings: { maps: [], web: false }, // the map files to draw (names on this server, or one https address when `web`)
     candidates: [], // search results drawn as pins to pick from
     searcher: null, // the action that searches for a place, if some module provides one
-    selected: null, // the id of the card that is open
+    selected: null, // the id of the summary that is open
     adding: false,
     draft: null, // { lat, lng }: where a new place would go
     adder: null, // the action that saves a place, if some module provides one
@@ -88,22 +88,22 @@
     return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : String(w).slice(0, 40);
   };
 
-  // --- the places (cards) -------------------------------------------------------------------------------------------
+  // --- the places (summaries) -------------------------------------------------------------------------------------------
 
-  const cardId = (c) => host.util.refKey(c.ref);
-  // A place kept by the module that owns places is drawn as a place; anything else with a position is an item.
-  const kindOf = (c) => (c.kind === 'place' ? 'place' : 'item');
+  const summaryId = (c) => host.util.objectKey(c.ref);
+  // A place kept by the module that owns places is drawn as a place; anything else with a position is an object.
+  const kindOf = (c) => (c.kind === 'place' ? 'place' : 'object');
   const moduleName = (c) => (c.module && c.module.name) || 'Other';
-  const current = () => (state.selected ? state.items.find((c) => cardId(c) === state.selected) || null : null);
-  async function loadItems() {
-    if (!host.refs || !host.refs.search) return;
+  const current = () => (state.selected ? state.found.find((c) => summaryId(c) === state.selected) || null : null);
+  async function loadFound() {
+    if (!host.objects || !host.objects.search) return;
     try {
       // This space's, the person's own (private to them) and everyone's in this environment (a guest has neither of the last, so those answer with nothing).
-      const [here, mine, everyone] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => []), host.refs.search('', { scope: 'environment' }).catch(() => [])]);
+      const [here, mine, everyone] = await Promise.all([host.objects.search(''), host.objects.search('', { scope: 'person' }).catch(() => []), host.objects.search('', { scope: 'environment' }).catch(() => [])]);
       const found = [...here, ...mine, ...everyone];
-      state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
+      state.found = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
-      state.items = [];
+      state.found = [];
     }
   }
   // What the module that keeps places offers: a dialog for a new place at a position (`newPlace`) and a search by name
@@ -193,7 +193,7 @@
     if (!state.map || !state.mapReady) return;
     clearPins();
     const map = state.map;
-    const all = state.items.map((c) => ({ kind: kindOf(c), id: cardId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, cat: c.category || '', scope: c.ref.scope === 'person' ? 'person' : '', icon: (c.module && c.module.icon) || 'location-dot' }));
+    const all = state.found.map((c) => ({ kind: kindOf(c), id: summaryId(c), lat: c.place.lat, lng: c.place.lng, title: c.title, cat: c.category || '', scope: c.ref.scope === 'person' ? 'person' : '', icon: (c.module && c.module.icon) || 'location-dot' }));
     const picked = all.filter((x) => x.id === state.selected);
     const rest = all.filter((x) => !picked.includes(x));
     for (const g of clusterPoints(rest, (lat, lng) => map.project([lng, lat]), 36)) {
@@ -252,16 +252,16 @@
     setAdding(false);
     state.candidates = [];
     if (state.map) state.map.easeTo({ center: [lng, lat], zoom: Math.max(state.map.getZoom(), 14), duration: 500 });
-    const before = state.items.length;
+    const before = state.found.length;
     const a = o || {};
     host.actions.request(state.adder.action, { lat, lng, ...(a.title ? { title: a.title } : {}), ...(a.address ? { address: a.address } : {}), ...(a.notes ? { notes: a.notes } : {}), ...(a.origin ? { origin: a.origin } : {}) }).catch((err) => { state.draft = null; drawDraft(); say('It could not be started: ' + ((err && err.message) || err)); });
-    waitForCard(before).then(() => { if (state.draft && state.draft.lat === lat && state.draft.lng === lng) { state.draft = null; drawDraft(); render(); } });
+    waitForSummary(before).then(() => { if (state.draft && state.draft.lat === lat && state.draft.lng === lng) { state.draft = null; drawDraft(); render(); } });
   }
-  async function waitForCard(before) {
+  async function waitForSummary(before) {
     for (let i = 0; i < 30; i += 1) {
       await new Promise((r) => setTimeout(r, 2000));
-      await loadItems();
-      if (state.items.length > before) return true;
+      await loadFound();
+      if (state.found.length > before) return true;
     }
     return false;
   }
@@ -441,7 +441,7 @@
     map.once('load', () => {
       state.mapReady = true;
       showState(null);
-      const b = boundsOf(state.items.map((c) => c.place));
+      const b = boundsOf(state.found.map((c) => c.place));
       if (b && (b[0][0] !== b[1][0] || b[0][1] !== b[1][1])) map.fitBounds(b, { padding: 70, maxZoom: 14, animate: false });
       else if (b) map.jumpTo({ center: b[0], zoom: 13 });
       else map.fitBounds([[header.minLon, header.minLat], [header.maxLon, header.maxLat]], { padding: 20, animate: false });
@@ -505,34 +505,34 @@
     else if (a === 'cancel') setAdding(false);
     else if (a === 'copy-coords' && c) {
       try { await navigator.clipboard.writeText(coordsText(c.place.lat, c.place.lng)); say('Coordinates copied.'); setTimeout(() => say(''), 2000); } catch (err) { say('Copy them from the place: ' + coordsText(c.place.lat, c.place.lng)); }
-    } else if (a === 'open' && c) host.refs.open(c.ref).catch(() => say('That item could not be opened.'));
+    } else if (a === 'open' && c) host.objects.open(c.ref).catch(() => say(`That ${word('object')} could not be opened.`));
   });
   root.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (state.adding) setAdding(false); else if (hits.length || state.searchMessage) { hits = []; state.searchMessage = ''; state.candidates = []; drawPins(); drawResults(); } else if (state.selected) select(null);
   });
 
-  // An item dropped on the map: one that already has a pin is shown. Anything else goes to the shared decision
-  // (host.refs.dropMenu) with the map position under the pointer as the place: whichever module offers to put
-  // its item at a position, or to save a place there, is offered, by what it declares, not by name. The map has
+  // An object dropped on the map: one that already has a pin is shown. Anything else goes to the shared decision
+  // (host.objects.dropMenu) with the map position under the pointer as the place: whichever module offers to put
+  // its object at a position, or to save a place there, is offered, by what it declares, not by name. The map has
   // nothing of its own to offer.
-  if (host.refs && host.refs.dropTarget) {
-    host.refs.dropTarget({
+  if (host.objects && host.objects.dropTarget) {
+    host.objects.dropTarget({
       over: () => {},
       leave: () => {},
       drop: async (ref, pt, dragged) => {
-        if (!(ref || dragged.card) || !canEdit || !state.map || !state.mapReady) return;
+        if (!(ref || dragged.summary) || !canEdit || !state.map || !state.mapReady) return;
         const hr = host.rootElement.getBoundingClientRect();
         const mr = $('map').getBoundingClientRect();
         const at = state.map.unproject([pt.x + hr.left - mr.left, pt.y + hr.top - mr.top]);
         if (ref) {
-          const known = state.items.find((c) => cardId(c) === host.util.refKey(ref));
-          if (known) return select(cardId(known));
+          const known = state.found.find((c) => summaryId(c) === host.util.objectKey(ref));
+          if (known) return select(summaryId(known));
         }
         try {
-          const chosen = await host.refs.dropMenu(dragged, pt, { context: { place: { lat: round6(at.lat), lng: round6(at.lng) } }, remember: 'map' });
+          const chosen = await host.objects.dropMenu(dragged, pt, { context: { place: { lat: round6(at.lat), lng: round6(at.lng) } }, remember: 'map' });
           if (!chosen) return;
-          await loadItems();
+          await loadFound();
           render();
         } catch (err) {
           say((err && err.message) || String(err));
@@ -563,28 +563,28 @@
     });
   }
 
-  // Show an item on the map for the person who asked (a view: only their own page does it). The request waits for the page to
-  // have started, and the item must be one that has a place.
+  // Show an object on the map for the person who asked (a view: only their own page does it). The request waits for the page to
+  // have started, and the object must be one that has a place.
   let startedResolve;
   const startedPromise = new Promise((r) => { startedResolve = r; });
   if (host.actions && host.actions.provide) {
     host.actions.provide({
       showOnMap: async (input) => {
         await startedPromise;
-        const id = host.util.refKey(input.ref);
-        if (!state.items.some((c) => cardId(c) === id)) { await loadItems(); render(); }
-        if (!state.items.some((c) => cardId(c) === id)) throw new Error('that place is not on the map');
+        const id = host.util.objectKey(input.ref);
+        if (!state.found.some((c) => summaryId(c) === id)) { await loadFound(); render(); }
+        if (!state.found.some((c) => summaryId(c) === id)) throw new Error('that place is not on the map');
         if (state.mapReady) select(id); else state.openWanted = id;
         return {};
       },
     });
   }
 
-  // Asked to show an item on the map (the map shows what has a place): select it when it is there.
-  if (host.refs && host.refs.onOpen) {
-    host.refs.onOpen((ref) => {
-      const id = host.util.refKey(ref);
-      if (state.mapReady) select(state.items.some((c) => cardId(c) === id) ? id : null); else state.openWanted = id;
+  // Asked to show an object on the map (the map shows what has a place): select it when it is there.
+  if (host.objects && host.objects.onOpen) {
+    host.objects.onOpen((ref) => {
+      const id = host.util.objectKey(ref);
+      if (state.mapReady) select(state.found.some((c) => summaryId(c) === id) ? id : null); else state.openWanted = id;
     });
   }
 
@@ -605,8 +605,8 @@
   }
   host.settings.onChange((s) => applySettings(s || {}));
 
-  // Other modules' items change without telling this page: look again now and then, and when the page comes back.
-  const refresh = async () => { await Promise.all([loadItems(), findAdder()]); setBar(); if (state.started) render(); };
+  // Other modules' objects change without telling this page: look again now and then, and when the page comes back.
+  const refresh = async () => { await Promise.all([loadFound(), findAdder()]); setBar(); if (state.started) render(); };
   const timer = setInterval(() => { if (!host.rootElement.isConnected) clearInterval(timer); else refresh(); }, 90000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 
@@ -615,7 +615,7 @@
   try {
     for (const name of new Set([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).concat(['location-dot', 'map-location-dot', 'link']))) if (name) wantIcon(name);
     applySettings((await host.settings.get()) || {});
-    await Promise.all([loadItems(), findAdder()]);
+    await Promise.all([loadFound(), findAdder()]);
     setBar();
     $('msg').hidden = true;
     $('app').hidden = false;

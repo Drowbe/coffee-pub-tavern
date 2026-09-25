@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.17.12",
+  "version": "1.17.14",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole {environment} and for each {space}, with reminders.",
   "author": "Coffee Pub",
@@ -121,7 +121,7 @@
         "open": true,
         "backlinks": true,
         "key": "event:{id}",
-        "card": {
+        "summary": {
           "title": "title",
           "subtitle": "desc",
           "when": "start",

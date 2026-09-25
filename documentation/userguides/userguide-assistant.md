@@ -2,7 +2,7 @@
 
 **Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Magpie server, and an owner setting it up.
 
-Assistant is a place for an open-ended conversation with the AI the owner set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add anything with a card as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
+Assistant is a place for an open-ended conversation with the AI the owner set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add any object (a note, a place, an event) as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (owner)
 
@@ -15,11 +15,11 @@ Assistant is a place for an open-ended conversation with the AI the owner set up
 
 Type a question and send it. With no context, it answers from what the AI already knows; add context (**Add context**, a checklist of everything reachable here: this room's items and your own) to have it draw on your notes, places, plans and anything else, and it says which parts of the answer came from them. **New conversation** clears the thread; closing the pane does the same. Nothing here is stored, on the server or on your device.
 
-When the AI writes something worth keeping, it appears as a card inside its answer: a title, the text (which may use headings, **bold**, lists and links), tags, and where it came from. Asked for several things at once (an itinerary, a few hotel options), it writes one card per thing rather than folding them into prose. The bookmark keeps it: a card that is plainly a flight, a hotel, a sight and so on is placed as that proper kind of item if Planner is installed, on the day the card names; any other card, or without Planner, is saved as a note (a module that keeps notes, such as Research, must be installed; without one, the button is disabled and says so). The copy button copies its text, and, like any card, it can be dragged onto a plan or anywhere else that takes one.
+When the AI writes something worth keeping, it appears as an answer of its own: a title, the text (which may use headings, **bold**, lists and links), tags, and where it came from. Asked for several things at once (an itinerary, a few hotel options), it writes one answer per thing rather than folding them into prose. The bookmark keeps it: an answer that is plainly a flight, a hotel, a sight and so on is placed as that proper kind of object if Planner is installed, on the day it names; any other answer, or without Planner, is saved as a note (a module that keeps notes, such as Research, must be installed; without one, the button is disabled and says so). The copy button copies its text, and it can be dragged onto a plan or anywhere else that takes one.
 
 ## Research this
 
-Another module's item menu may offer **Research this** (Research's does): it opens Assistant with that one item already added as context, so you can ask about it straight away.
+Another module's object menu may offer **Research this** (Research's does): it opens Assistant with that one object already added as context, so you can ask about it straight away.
 
 ## For module authors
 

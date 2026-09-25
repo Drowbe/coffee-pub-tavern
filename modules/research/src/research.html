@@ -14,7 +14,7 @@
     [data-slot=name]        set its textContent, or hide it when there is no value; a [data-slot=name-wrap] is hidden when [data-slot=name] inside it is empty
     [data-icon=name]        replace its content with host.ui.icon(name)
   and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no style (exceptions:
-  a tag's colour, --tag; the item menu placed under its button). The reference renderings are design/pane.html and design/ask.html.
+  a tag's colour, --tag; the object menu placed under its button). The reference renderings are design/pane.html and design/ask.html.
 -->
 <div id="app" class="rs" hidden>
   <header class="rs-head">
@@ -39,7 +39,7 @@
   <main id="body" class="rs-body"></main>
 
 
-  <!-- an item, in a dialog. One form for all four kinds: the script sets data-kind on .editor-card and the CSS shows the rows that kind uses. -->
+  <!-- an object, in a dialog. One form for all four kinds: the script sets data-kind on .editor-card and the CSS shows the rows that kind uses. -->
   <div id="editor" class="editor" hidden>
     <form id="form" class="editor-card" data-kind="note">
       <h3 id="editor-title">Note</h3>
@@ -71,9 +71,9 @@
 <!-- ============================ templates ============================ -->
 
 <template id="tpl-chip-tag"><button class="rs-chip tag on" type="button" title="Stop filtering by this tag"><span data-slot="label"></span><span class="x" aria-hidden="true">&times;</span></button></template>
-<!-- someone changed the item while it is open (as in Places) -->
+<!-- someone changed the object while it is open (as in Places) -->
 <template id="tpl-conflict"><div class="conflict-bar" role="alert"><span data-slot="text"></span><button class="btn" type="button" data-action="use-theirs">Use theirs</button><button class="btn" type="button" data-action="keep-mine">Keep mine</button></div></template>
-<!-- a source of an answer, and anything else that points at another item: a small pill; .gone when the item is no longer there -->
+<!-- a source of an answer, and anything else that points at another object: a small pill; .gone when the object is no longer there -->
 <template id="tpl-source"><span class="link"><span data-slot="label"></span></span></template>
 <!-- where a card is used: one pill per group of linkers (all the plans that use it, all the tasks), with the linker module's icon. One linker: its kind and title; several: "2 plans". The title attribute lists them. A "+N" pill when there are more groups than fit. -->
 <template id="tpl-backlink"><button class="backlink" type="button" data-action="open-backlink"><span class="ic" data-slot="icon-holder" data-icon=""></span><span data-slot="label"></span></button></template>
@@ -84,7 +84,7 @@
 <template id="tpl-card">
   <article class="rcard" tabindex="0">
     <img class="thumb" data-slot="thumb" alt="" hidden>
-    <div class="top"><span class="kind"><span class="ic" data-icon=""></span></span><span class="kicker"><span data-slot="kind"></span><span class="ai-mark" data-slot="ai" hidden>AI</span></span><button class="menu" type="button" data-action="menu" aria-label="Item menu"><span class="ic" data-icon="ellipsis-vertical"></span></button></div>
+    <div class="top"><span class="kind"><span class="ic" data-icon=""></span></span><span class="kicker"><span data-slot="kind"></span><span class="ai-mark" data-slot="ai" hidden>AI</span></span><button class="menu" type="button" data-action="menu" aria-label="Menu"><span class="ic" data-icon="ellipsis-vertical"></span></button></div>
     <h3 data-slot="title"></h3>
     <div class="site" data-slot="site-wrap"><span class="ic" data-icon="globe"></span><span data-slot="site"></span></div>
     <p class="excerpt" data-slot="excerpt"></p>

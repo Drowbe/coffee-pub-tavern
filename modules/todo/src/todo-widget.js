@@ -1,6 +1,6 @@
 // The To-do's dashboard widget: tasks that are due within the week (or overdue) and not done, across every space
 // the viewer is in and the environment's own list. It shows and opens; it never edits. Clicking a task takes the person
-// to it (host.refs.open); the widget's heading opens the full list.
+// to it (host.objects.open); the widget's heading opens the full list.
 (async () => {
   'use strict';
 
@@ -48,14 +48,14 @@
 
   function render() {
     const limit = ymd(new Date(Date.now() + DAYS_AHEAD * 24 * 60 * 60 * 1000));
-    const items = [...tasks.values()]
+    const shown = [...tasks.values()]
       .filter((x) => x.t.due && !x.t.done && x.t.due <= limit)
       .sort((a, b) => (a.t.due < b.t.due ? -1 : a.t.due > b.t.due ? 1 : 0))
       .slice(0, MAX_ITEMS);
-    $('msg').hidden = items.length > 0;
+    $('msg').hidden = shown.length > 0;
     $('msg').textContent = 'Nothing due in the next week.';
-    $('list').hidden = items.length === 0;
-    $('list').innerHTML = items.map((x) => {
+    $('list').hidden = shown.length === 0;
+    $('list').innerHTML = shown.map((x) => {
       const r = x.spaceId ? spaces.get(x.spaceId) : null;
       const w = whenOf(x.t.due);
       return `<button type="button" class="item" data-task="${esc(x.spaceId || '')}|${esc(x.id)}" title="${esc(x.t.title)}${r ? ' - ' + esc(r.name) : ''}">
@@ -77,7 +77,7 @@
     const b = e.target.closest('[data-task]');
     if (!b) return;
     const [space, id] = b.dataset.task.split('|');
-    host.refs.open(host.refs.make('task', id, space ? { space } : undefined)).catch(() => {});
+    host.objects.open(host.objects.make('task', id, space ? { space } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;

@@ -1,4 +1,4 @@
-// The links between modules' items: "this task points at that event". A module stores its own
+// The links between modules' objects: "this task points at that event". A module stores its own
 // pointers; this registry is where the host learns of them, so that the item pointed at can ask what
 // points at it (backlinks) without the host knowing anything about tasks, events or polls. It holds
 // only pointers ({ module, kind, id, scope, space? }), never an item's content, and every answer is
@@ -79,4 +79,4 @@ class ModuleLinks extends EventEmitter {
   }
 }
 
-module.exports = { ModuleLinks, refKey: key };
+module.exports = { ModuleLinks, objectKey: key };

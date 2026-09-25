@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.36",
+  "version": "0.7.37",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your {space} already has.",
   "author": "Coffee Pub",
@@ -74,7 +74,7 @@
         "name": "addToDay",
         "label": "Put it on the trip's itinerary",
         "input": {
-          "item": "ref",
+          "object": "ref",
           "date": "date?"
         }
       },
@@ -94,6 +94,11 @@
       "*"
     ]
   },
+  "storage": {
+    "renamed": [
+      { "from": "item:", "to": "plan:" }
+    ]
+  },
   "refs": {
     "produces": [
       {
@@ -102,7 +107,7 @@
         "open": true,
         "backlinks": true,
         "key": "trip:{id}",
-        "card": {
+        "summary": {
           "title": "title",
           "subtitle": "destination",
           "when": "start",
@@ -111,11 +116,11 @@
       },
       {
         "kind": "plan",
-        "name": "Trip item",
+        "name": "{name}",
         "open": true,
         "backlinks": true,
-        "key": "item:{id}",
-        "card": {
+        "key": "plan:{id}",
+        "summary": {
           "title": "title",
           "subtitle": "place",
           "when": "date",
