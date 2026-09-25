@@ -171,9 +171,9 @@ A day is a `tpl-day-head` and an `ol.timeline` of rows, replacing the old `.day-
 
 | `data-type` | Template | Kicker | Badge icon | Fields the card shows |
 |---|---|---|---|---|
-| `flight` | `tpl-card-flight` (boarding pass) | Flight | plane | `operator` + `number` (title), `fromCode`, `toCode`, `from`, `to`, `time`, arrival, duration, `seat`, `gate`, `travelClass` |
-| `train` | `tpl-card-train` (ticket) | Train | train | `operator` + `number`, `from`, `to`, `time`, arrival, `platform`, `carriage` + `seat`, duration, `confirm` |
-| `ferry`, `bus`, `car` | `tpl-card-transit` | Ferry, Bus, Rental car | ship, bus, car | `title`, `operator` (in the kicker), `time`, `to`, `confirm` |
+| `flight` | `tpl-card-flight` (boarding pass; `.side` says "Departs" over the left end and "Arrives" over the right) | Flight | plane | `operator` + `number` (title), `fromCode`, `toCode`, `from`, `to`, `time`, arrival, duration, `seat`, `gate`, `travelClass` |
+| `train` | `tpl-card-train` (ticket; the same "Departs" and "Arrives" over its two stations) | Train | train | `operator` + `number`, `from`, `to`, `time`, arrival, `platform`, `carriage` + `seat`, duration, `confirm` |
+| `ferry`, `bus`, `car`, `taxi`, `rideshare`, `shuttle` | `tpl-card-transit` | Ferry, Bus, Rental car, Taxi, Ride share, Shuttle | ship, bus, car, taxi, car-side, van-shuttle | `title`, `operator` (in the kicker), `time`, `to`, `confirm` |
 | `hotel` (a stay of any `type`) | `tpl-card-hotel` (the first day); `tpl-card-hotel-mid` for the nights between; `tpl-card-hotel-out` (`data-span="end"`, kicker "Check out", the time big on the right) for the last morning | Hotel, Rental, Hostel, Camp | bed | `title`, `address`, nights, check-in and check-out, `roomType`, `guests`, `confirm` |
 | `restaurant`, `cafe`, `bar` | `tpl-card-meal` (reservation) | Restaurant, Café, Bar (or a note's own label, e.g. "Sundowner") | utensils, mug-hot, martini-glass | `title`, `address`, `partySize` ("Table for 4"), `reservationName` ("under Thomas"), `time`, `minutes` |
 | `sight`, `museum`, `tour` (also `hike`, `beach`, `shop`, `spa` as plain activity cards) | `tpl-card-activity` (pass with a stamp) | Sight, Museum, Tour, Hike, Beach, Shop, Spa | monument, building-columns, person-hiking, person-hiking, umbrella-beach, bag-shopping, spa | `title`, `address`, `minutes`, `admissionCount` ("4 tickets"), `confirm` |
@@ -184,7 +184,7 @@ A day is a `tpl-day-head` and an `ol.timeline` of rows, replacing the old `.day-
 
 Empty slots hide (`[data-slot]` with no value gets `hidden`), so a card with few fields stays tidy. `[data-slot=owners]` is the same `.owner` initials as before. Every card except a note has `button.menu-btn[data-action=move-menu]` (the item menu, unchanged).
 
-**Colour families** (`--turn`, degrees added to the accent's hue): flight 195, train 150, ferry 120, bus 100, car 45, hotel 255, restaurant 0, cafe 345, bar 320, sight 95, museum 285, tour 65, show 305, note 25, place 130; `link` is the dimmed text colour. The stylesheet sets these; the script only sets `data-type`.
+**Colour families** (`--turn`, degrees added to the accent's hue): flight 195, train 150, ferry 120, bus 100, car 45, taxi 170, rideshare 220, shuttle 80, hotel 255, restaurant 0, cafe 345, bar 320, sight 95, museum 285, tour 65, show 305, note 25, place 130; `link` is the dimmed text colour. The stylesheet sets these; the script only sets `data-type`.
 
 **Narrow** (`.app.narrow`, under 720px): the time moves above its card so the card has the whole width, and legs stay between cards. The boarding pass and the show ticket keep their stub beside the main part -- the perforated stub with the barcode is the card -- down to **tiny** (`.app.tiny`, under 480px, set beside `.narrow`), where they stack it under the main part, barcode kept across the strip.
 
@@ -248,19 +248,19 @@ Neither state opens the editor, and a click on the card does nothing; the only a
 
 The same dialog (`#editor > form#form.editor-card`), rebuilt around **what kind of thing it is**. `tpl-editor2` in `travel.html` is the new form; the script fills `#editor` from it when it opens (the old form goes when the switch is done). `design/editor.html` is the reference (a harness for each type, dark and light, phone to wide).
 
-**The type picker** (`#f-types`): one `button.tile[data-type]` per kind of thing, in groups (Getting there: flight, train, ferry, bus, car; Stay: hotel; Eat and drink: restaurant, cafe, bar; See and do: sight, museum, tour, show; Other: note). A tile is the family's colour and icon, the same as its card; `.on` marks the chosen one. Choosing a tile changes the type of the item (and with it `kind`, `mode` or `type` in the data), keeps the fields they share and shows the fields that type needs. The script builds the tiles' icons with `host.ui.icon` from `data-icon`.
+**The type picker** (`#f-types`): one `button.tile[data-type]` per kind of thing, in groups (Getting there: flight, train, ferry, bus, car, taxi, rideshare, shuttle; Stay: hotel; Eat and drink: restaurant, cafe, bar; See and do: sight, museum, tour, show; Other: note). A tile is the family's colour and icon, the same as its card; `.on` marks the chosen one. Choosing a tile changes the type of the item (and with it `kind`, `mode` or `type` in the data), keeps the fields they share and shows the fields that type needs. The script builds the tiles' icons with `host.ui.icon` from `data-icon`.
 
 **Fields appear by type.** Every field wrapper carries `data-types="flight train ..."`; the script adds `.on-type` to those whose list includes the chosen type, and the stylesheet hides the rest (`[data-types]:not(.on-type)`). Groups (`.fieldgroup`) hold a title and their fields and use the same attribute, so a group with nothing to show disappears. All inputs have ids `f-<name>` and the data model's field names as `name`:
 
 | Group | Fields (type) |
 |---|---|
-| Top | `f-title`, `f-date`, `f-time` (all but note; labelled "Check in" for hotel, "Time" otherwise), `f-minutes` (length or duration; not for hotel, note), `f-checkout`, `f-checkOutTime` (hotel) |
-| Journey | `f-operator`, `f-number`, `f-fromCode`, `f-toCode` (flight), `f-from`, `f-to`, `f-pickup`, `f-dropoff` (car), `f-terminal`, `f-gate` (flight), `f-platform`, `f-carriage` (train), `f-seat` (flight, train), `f-travelClass` (flight) |
+| Top | `f-title`, `f-date`, `f-time` (all but note), `f-hours` + `f-minutes` (the length as hours and minutes, stored as `minutes`; not for hotel, note), `#f-arrives` (a journey's arrival, worked out), `f-checkout` (a date input: any day after check-in) and `f-checkOutTime` (hotel). The labels of `f-date`, `f-time`, the length, `f-operator`, `f-number`, `f-from` and `f-to` are spans (`f-<name>-label`) the script words for the chosen type: "Check in" for a stay, "Departure day" / "Departure time" / "Flight time" for a flight, "Pick-up time" for a taxi, else "When", "Time", "How long" |
+| Journey | `f-operator`, `f-number` (not taxi, rideshare, car), `f-fromCode`, `f-toCode` (flight), `f-from`, `f-to` (not car), `f-pickup`, `f-dropoff` (car), `f-terminal`, `f-gate` (flight), `f-platform`, `f-carriage` (train), `f-seat` (flight, train), `f-travelClass` (flight) |
 | Stay | `f-address`, `f-roomType`, `f-guests` (hotel) |
 | Where and who | `f-address-stop`, `f-partySize`, `f-reservationName` (meals), `f-admissionCount` (sight, museum, tour, show), `f-gate-show` (show's entry, saved as `gate`) |
 | Booking | `f-confirm`, `f-cost`, `f-paidBy` (all but note) |
 | Everything | `f-notes` (all), `#f-owners` (a `label.check` per traveller) |
-| Getting to this stop | `#f-travelMode` (`button.mode[data-mode=walk|drive|transit|bike|taxi]`, `.on` on the chosen one, none chosen means no leg) and `f-travelMinutes` |
+| Getting to this stop | `#f-travelMode` (`button.mode[data-mode=walk|drive|transit|bike|taxi|rideshare]`, `.on` on the chosen one, none chosen means no leg) and `f-travelHours` + `f-travelMinutes` (stored as `travelMinutes`) |
 
 `#f-by`, `#f-error`, `#f-save`, `#f-cancel` and `#f-delete` are as before. A codebox (`.codebox`) is monospaced and upper-case for airport codes. Each type has a placeholder for the title (for example "Flight to Lisbon", "Dinner at Cervejaria Ramiro") set by the script.
 

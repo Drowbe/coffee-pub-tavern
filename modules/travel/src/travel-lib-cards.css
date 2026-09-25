@@ -15,6 +15,9 @@
 .entry[data-type="ferry"] { --turn: 120; }
 .entry[data-type="bus"] { --turn: 100; }
 .entry[data-type="car"] { --turn: 45; }
+.entry[data-type="taxi"] { --turn: 170; }
+.entry[data-type="rideshare"] { --turn: 220; }
+.entry[data-type="shuttle"] { --turn: 80; }
 .entry[data-type="hotel"] { --turn: 255; }
 .entry[data-type="restaurant"] { --turn: 0; }
 .entry[data-type="cafe"] { --turn: 345; }
@@ -159,6 +162,8 @@
 .pass .end.to { text-align: right; }
 .pass .iata { font-size: 28px; font-weight: 700; letter-spacing: 0.04em; line-height: 1; }
 .pass .city { color: var(--text-dim); font-size: 11px; }
+/* which end is which: "Departs" over the left end of a flight or a train, "Arrives" over the right */
+.pass .side, .ticket .st .side { display: block; margin-bottom: 2px; color: var(--text-dim); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
 .pass .t { margin-top: 2px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pass .path { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--tone); }
 .pass .path .line { display: block; width: 100%; border-top: 2px dashed color-mix(in srgb, var(--tone) 55%, transparent); }

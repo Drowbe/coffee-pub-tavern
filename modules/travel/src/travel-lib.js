@@ -9,10 +9,10 @@
   // What an item is, for how it is drawn (the page decides how; the model only keeps a known value). A journey has a `mode`,
   // a stop and a stay a `type`, and any item may say how you get to it (`travelMode`, `travelMinutes`: the leg from the
   // item before), which a person sets now and a routing service could fill later.
-  const MODES = ['flight', 'train', 'bus', 'ferry', 'car', 'other'];
+  const MODES = ['flight', 'train', 'bus', 'ferry', 'car', 'taxi', 'rideshare', 'shuttle', 'other'];
   const STOP_TYPES = ['restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'hike', 'beach', 'shop', 'spa', 'other'];
   const STAY_TYPES = ['hotel', 'rental', 'hostel', 'camp', 'other'];
-  const TRAVEL_MODES = ['walk', 'drive', 'transit', 'bike', 'taxi', 'none'];
+  const TRAVEL_MODES = ['walk', 'drive', 'transit', 'bike', 'taxi', 'rideshare', 'none'];
   const MAX_DAYS = 60;
   const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -243,6 +243,19 @@
     const m = minutes % 60;
     return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`;
   }
+  // A length as the editor shows it, hours and minutes ({ hours: 8, minutes: 15 } for 495), and back: the stored value stays
+  // whole minutes. Nothing entered is null; either part may be left empty.
+  function splitMinutes(total) {
+    if (!Number.isFinite(total) || total <= 0) return { hours: null, minutes: null };
+    const t = Math.round(total);
+    return { hours: Math.floor(t / 60) || null, minutes: t % 60 || null };
+  }
+  function joinMinutes(hours, minutes) {
+    const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
+    const m = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+    const total = Math.round(h * 60 + m);
+    return total > 0 ? Math.min(total, 24 * 60) : null;
+  }
 
   // A stay covers the nights from its date up to (not including) its check-out day.
   function stayNights(item) {
@@ -324,8 +337,8 @@
   // --- what an item is, for its card and its editor ---------------------------------------------------------------
   // The editor's tiles, one per kind of thing, and the card's colour family and silhouette for each. A card's family is what
   // the stylesheet colours by (`data-type` on the row), so the kinds without a colour of their own borrow one.
-  const TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'note'];
-  const JOURNEY_TILES = ['flight', 'train', 'ferry', 'bus', 'car'];
+  const TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'taxi', 'rideshare', 'shuttle', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show', 'note'];
+  const JOURNEY_TILES = ['flight', 'train', 'ferry', 'bus', 'car', 'taxi', 'rideshare', 'shuttle'];
   const STOP_TILES = ['restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show'];
   // The tile an item shows under in the editor. A link (another module's item) has none.
   function tileOf(item) {
@@ -353,8 +366,8 @@
     return { kind: 'stop', type: keep && item.type ? item.type : tile, category: tile === 'restaurant' || tile === 'cafe' || tile === 'bar' ? 'eat' : 'do' };
   }
   // How an item is drawn: its card template, the colour family on its row, the kicker and the badge icon.
-  const KICKERS = { flight: 'Flight', train: 'Train', ferry: 'Ferry', bus: 'Bus', car: 'Rental car', restaurant: 'Restaurant', cafe: 'Café', bar: 'Bar', sight: 'Sight', museum: 'Museum', tour: 'Tour', hike: 'Hike', beach: 'Beach', shop: 'Shop', spa: 'Spa', show: 'Show', other: 'Stop' };
-  const BADGES = { flight: 'plane', train: 'train', ferry: 'ship', bus: 'bus', car: 'car', restaurant: 'utensils', cafe: 'mug-hot', bar: 'martini-glass', sight: 'monument', museum: 'building-columns', tour: 'person-hiking', hike: 'person-hiking', beach: 'umbrella-beach', shop: 'bag-shopping', spa: 'spa', show: 'masks-theater', other: 'location-dot' };
+  const KICKERS = { flight: 'Flight', train: 'Train', ferry: 'Ferry', bus: 'Bus', car: 'Rental car', taxi: 'Taxi', rideshare: 'Ride share', shuttle: 'Shuttle', restaurant: 'Restaurant', cafe: 'Café', bar: 'Bar', sight: 'Sight', museum: 'Museum', tour: 'Tour', hike: 'Hike', beach: 'Beach', shop: 'Shop', spa: 'Spa', show: 'Show', other: 'Stop' };
+  const BADGES = { flight: 'plane', train: 'train', ferry: 'ship', bus: 'bus', car: 'car', taxi: 'taxi', rideshare: 'car-side', shuttle: 'van-shuttle', restaurant: 'utensils', cafe: 'mug-hot', bar: 'martini-glass', sight: 'monument', museum: 'building-columns', tour: 'person-hiking', hike: 'person-hiking', beach: 'umbrella-beach', shop: 'bag-shopping', spa: 'spa', show: 'masks-theater', other: 'location-dot' };
   const STAY_KICKERS = { hotel: 'Hotel', rental: 'Rental', hostel: 'Hostel', camp: 'Camp', other: 'Stay' };
   function cardOf(item, card) {
     if (item.kind === 'link') return { card: card && !card.error && card.kind === 'place' ? 'place' : 'link', family: card && !card.error && card.kind === 'place' ? 'place' : 'link', kicker: '', badge: '' };
@@ -373,7 +386,7 @@
     return { card: cardName, family, kicker: KICKERS[t] || 'Stop', badge: BADGES[t] || 'location-dot' };
   }
   // The icon for the way to a stop.
-  const LEG_ICONS = { walk: 'person-walking', drive: 'car', transit: 'bus', bike: 'bicycle', taxi: 'taxi' };
+  const LEG_ICONS = { walk: 'person-walking', drive: 'car', transit: 'bus', bike: 'bicycle', taxi: 'taxi', rideshare: 'car-side' };
 
   // The first and last booked items of a plan: where the trip itself starts and ends (as opposed to the days planned for it).
   // "Booked" is a journey, a stay, or anything with a confirmation; with none of those, the first and last timed item. Only items

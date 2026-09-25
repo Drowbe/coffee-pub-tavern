@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -312,7 +312,7 @@ test('details for the cards: a journey has a mode, a stop and a stay a type, any
   assert.equal(leg.travelMinutes, 12);
   assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'teleport', travelMinutes: -5 }).travelMode, null);
   assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'teleport', travelMinutes: -5 }).travelMinutes, null);
-  assert.equal(lib.MODES.length, 6);
+  assert.equal(lib.MODES.length, 9);
   assert.ok(lib.STOP_TYPES.includes('cafe') && lib.STAY_TYPES.includes('camp') && lib.TRAVEL_MODES.includes('none'));
 });
 
@@ -431,6 +431,56 @@ test('an item dropped among others at a joint gets an order between its neighbou
   assert.equal(lib.jointOrder(others, 'a', 'after'), 1500);
   assert.equal(lib.jointOrder(others, 'b', 'before'), 1500);
   assert.equal(lib.jointOrder(others, 'b', 'after'), 3000);
+});
+
+test('a length is typed as hours and minutes and stored as minutes, and shown as "8 h 15 min"', () => {
+  assert.deepEqual(lib.splitMinutes(495), { hours: 8, minutes: 15 });
+  assert.deepEqual(lib.splitMinutes(45), { hours: null, minutes: 45 });
+  assert.deepEqual(lib.splitMinutes(120), { hours: 2, minutes: null });
+  assert.deepEqual(lib.splitMinutes(null), { hours: null, minutes: null });
+  assert.equal(lib.joinMinutes(8, 15), 495);
+  assert.equal(lib.joinMinutes(8, null), 480);
+  assert.equal(lib.joinMinutes(null, 90), 90, 'minutes past 59 still count');
+  assert.equal(lib.joinMinutes(null, null), null, 'nothing entered');
+  assert.equal(lib.joinMinutes(0, 0), null);
+  assert.equal(lib.joinMinutes(30, 0), 24 * 60, 'at most a day, as cleanItem keeps');
+  assert.equal(lib.gapText(495), '8 h 15 min');
+  assert.equal(lib.gapText(480), '8 h');
+  // A length saved before (whole minutes) reads back the same: the stored shape did not change.
+  assert.equal(lib.cleanItem({ id: 'f', kind: 'journey', mode: 'flight', title: 'x', minutes: 495 }).minutes, 495);
+  assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'taxi', travelMinutes: 20 }).travelMinutes, 20);
+});
+
+test('taxi, ride share and shuttle are journeys with a tile and a card, and ride share is a way to a stop', () => {
+  const it = (o) => lib.cleanItem({ id: 'x', title: 't', ...o });
+  for (const mode of ['taxi', 'rideshare', 'shuttle']) {
+    assert.ok(lib.MODES.includes(mode) && lib.JOURNEY_TILES.includes(mode) && lib.TILES.includes(mode), mode);
+    assert.equal(it({ kind: 'journey', mode }).mode, mode);
+    assert.equal(lib.tileOf(it({ kind: 'journey', mode })), mode);
+    assert.deepEqual(lib.fromTile(mode), { kind: 'journey', mode, category: 'travel' });
+    const c = lib.cardOf(it({ kind: 'journey', mode }));
+    assert.equal(c.card, 'transit');
+    assert.equal(c.family, mode);
+    assert.ok(c.kicker && c.badge, mode);
+  }
+  assert.equal(lib.cardOf(it({ kind: 'journey', mode: 'rideshare' })).kicker, 'Ride share');
+  assert.ok(lib.TRAVEL_MODES.includes('rideshare') && lib.LEG_ICONS.rideshare);
+});
+
+test('the page: every journey kind has its tile and colours, lengths are hours and minutes, a stay checks out on any date', () => {
+  const html = read('travel.html');
+  const cards = read('travel-lib-cards.css');
+  const editor = read('travel-lib-editor.css');
+  for (const t of lib.JOURNEY_TILES) {
+    assert.ok(html.includes(`class="tile" type="button" data-type="${t}"`), `a tile for ${t}`);
+    assert.ok(cards.includes(`.entry[data-type="${t}"]`), `a card colour for ${t}`);
+    assert.ok(editor.includes(`.tile[data-type="${t}"]`), `a tile colour for ${t}`);
+  }
+  for (const m of Object.keys(lib.LEG_ICONS)) assert.ok(html.includes(`data-mode="${m}"`), `a way-to-a-stop button for ${m}`);
+  assert.ok(!/\(minutes\)|Minutes from/.test(html), 'no length is asked for in minutes alone');
+  for (const id of ['f-hours', 'f-minutes', 'f-travelHours', 'f-travelMinutes']) assert.ok(html.includes(`id="${id}"`), id);
+  assert.match(html, /id="f-checkout" name="checkOut" type="date"/, 'a checkout is a date, not a list of the trip\'s days');
+  assert.ok(html.includes('<span class="side">Departs</span>') && html.includes('<span class="side">Arrives</span>'), 'a flight card says which end departs and which arrives');
 });
 
 console.log(`check-travel: OK (${n} checks)`);

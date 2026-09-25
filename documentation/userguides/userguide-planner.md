@@ -1,24 +1,31 @@
 # Planner
 
-**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Magpie server, and an admin setting it up.
+**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Magpie server, and an owner setting it up.
 
 The Planner module plans one trip for a room, day by day. The room's Calendar events, to-dos and polls that fall on the trip's days join the plan, and the module adds what a trip needs on top: stops, stays, journeys and notes. Install and enable it first; see [Modules](userguide-modules.md).
 
-## Set it up (admin)
+## Set it up (owner)
 
 1. On the Modules tab, choose **Install** beside Planner under **Available with this server**, then **Approve and enable**. It asks to add two permissions to the Roles tab, to link to other modules' items and to ask other modules to do things.
 2. Tick **Available in every room** on its card, or tick it per room on the room's own page.
-3. On the Roles tab, under **Module: Planner**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, users and moderators can plan, and guests can see but not plan.
+3. On the Roles tab, under **Module: Planner**, choose who can **See the trip** and who can **Plan the trip**. By default everyone can see it, members and moderators can plan, and guests can see but not plan.
 
 ## Start a trip
 
-Open the Planner pane in a room. With no trip yet it offers **Start planning**: give the trip a name, where it is, and its first and last day. The days appear as one list from top to bottom, however long the trip, with a strip of days at the top to jump to one and each day's heading staying in view as you scroll. **Edit trip** changes the name or the dates.
+Open the Planner pane in a room. With no trip yet it offers **Start planning**: give the trip a **Name**, **Where** it is, its **First day** and its **Last day**. The days appear as one list from top to bottom, however long the trip, with a strip of days at the top to jump to one and each day's heading staying in view as you scroll. **Edit trip** changes the name or the dates.
 
 ## Add to a day
 
 - Type in the field at the bottom of the pane (with the plus button) and press Enter to add a stop to the day in view: "lunch at the pier at 1pm" adds "lunch at the pier" at 13:00, and a day of the trip in what you type ("museum oct 3 at 2pm") puts it on that day instead. Press the plus with nothing typed for the full form. When the pane has no bottom bar, each day has its own add row.
-- In the form, first choose what it is, from the tiles: for getting there, a **flight**, **train**, **ferry**, **bus** or **car**; a **stay**; for eating and drinking, a **restaurant**, **café** or **bar**; for seeing and doing, a **sight**, **museum**, **tour** or **show**; or a **note**. The fields you need then appear: a flight has its airline, number, airport codes, terminal, gate, seat and class; a train its operator, number, platform, coach and seat; a stay its address, room, guests, check-out day and check-out time (its own day and time also serve as check-in); a meal its party size and the name it is booked under; a sight, museum, tour or show its number of tickets (and a show its entry). Every kind takes a day, a time and a length where they make sense, a booking reference, a cost and who paid, notes and the people it belongs to. Each kind has its own card in the day, in its own colour, so you can tell a flight from a dinner at a glance.
-- **Getting to a stop.** Under **Getting to this stop**, choose how you get there (walk, drive, transit, bike or taxi) and how many minutes it takes from the stop before. A line between the two cards then shows the mode and the time, and the day's heading adds up the time spent getting around.
+- In the form, first choose what it is, from the tiles: for getting there, a **flight**, **train**, **ferry**, **bus**, **car** (a rental), **taxi**, **ride share** or **shuttle**; a **stay**; for eating and drinking, a **restaurant**, **café** or **bar**; for seeing and doing, a **sight**, **museum**, **tour** or **show**; or a **note**. The fields you need then appear, named for what you chose:
+  - A **flight**: **Departure day**, **Departure time**, **Flight time**, **Airline**, **Flight number**, **Departure airport** and **Arrival airport** (the codes), **Departs from** and **Arrives at**, **Departure terminal**, **Departure gate**, seat and class.
+  - A **train**: the same departure day, time and **Travel time**, **Train company**, **Train number**, **Departs from**, **Arrives at**, platform, **Coach** and seat. A **ferry**, **bus** or **shuttle** has the departure day and time, the travel time, and where it departs from and arrives at.
+  - A **car**: **Pick-up day**, **Pick-up time**, **Rental company**, and where you pick it up and drop it off. A **taxi** or **ride share**: **Pick-up time**, **Travel time**, **Pick up at** and **Drop off at**.
+  - A **stay**: **Check in** (the day) and **Check-in time**, **Check out** (any date after check-in, even after the trip's last day) and **Check-out time**, the address, **Room** and guests.
+  - A meal: its party size and the name it is booked under. A sight, museum, tour or show: its number of tickets (and a show its entry).
+
+  Every kind takes a day, a time and a length where they make sense, a booking reference, a cost and who paid, notes and the people it belongs to. A length is entered as hours and minutes (up to 24 hours) and shown as "8 h 15 min". Once a journey has a time and a length, the form shows when it arrives ("Arrives" and the time, with "the next day" when it runs past midnight) (time zones are not taken into account). Each kind has its own card in the day, in its own colour, so you can tell a flight from a dinner at a glance; a flight's and a train's card say **Departs** and **Arrives** over their two ends.
+- **Getting to a stop.** Under **Getting to this stop**, choose how you get there (walk, drive, transit, bike, taxi or ride share) and how long it takes from the stop before, in hours and minutes. A line between the two cards then shows the mode and the time, and the day's heading adds up the time spent getting around.
 - **The line.** Not everything has a day yet. Anything can sit on the plan's line *between* two days instead of in one: an idea near the first day, a few more near the tenth, a poll between two days to decide where to go. Items before the first day are the ideas with no place yet. Drop anything on a joint (the line between two days opens up while you drag), choose a joint under **Move to** in an item's menu ("Before the first day", "Between Oct 1 and Oct 2", "After the last day"), pick one in the editor's **Where**, or add straight to a joint with its **+**. **Back to the line** in an item's menu takes it off its day. On the line an item keeps its order by hand and shows no time; on a day it goes by time.
 
 Items with no time come first in a day, in the order you put them; items with a time follow, by time. An item from another module takes the time that item has (a Calendar event's start), so it sorts among the timed ones. Between two timed items a small line shows the gap, such as "45 min".
@@ -48,7 +55,7 @@ Items with no time come first in a day, in the order you put them; items with a 
 
 ## Bookings
 
-The **Bookings** view lists the stays and journeys in date order, each with its dates, where, how many nights and its booking reference, and an **Open** button to edit it: everything you need at the front desk or the airport, in one place.
+The **Bookings** view lists the stays and journeys in date order, each with its dates (a stay as a range from its check-in day to its check-out day, with how many nights), where, and its booking reference, and an **Open** button to edit it: everything you need at the front desk or the airport, in one place.
 
 ## Money
 

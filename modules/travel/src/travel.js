@@ -21,7 +21,7 @@
     return;
   }
   if (info.context.scope !== 'room') {
-    $('msg').textContent = 'A trip belongs to a room. Open the room, then Planner from its panes; the dashboard lists your trips.';
+    $('msg').textContent = 'A trip belongs to a space. Open the space, then Planner there; the dashboard lists your trips.';
     return;
   }
 
@@ -91,7 +91,7 @@
   // A stored time ("22:30") the way the server shows times (host.util.time: "10:30 PM" on the default 12-hour clock).
   const tt = (t) => (t ? host.util.time(t) : '');
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-  const lengthText = (m) => (m ? (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) : ''}` : `${m} min`) : '');
+  const lengthText = gapText; // "8 h 15 min", "45 min"
   // One letter, or two when another traveller of the room starts with the same one.
   const initial = (key) => {
     const name = nameOf(key);
@@ -150,7 +150,7 @@
     if (c.card === 'flight') {
       put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, fromCode: item.fromCode, toCode: item.toCode, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, duration, seat: item.seat, gate: item.gate, travelClass: item.travelClass });
     } else if (c.card === 'train') {
-      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Car ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
+      put(el, { title: [item.operator, item.number].filter(Boolean).join(' ') || item.title, from: item.from, to: item.to, time: tt(item.time), arrival: arrive, platform: item.platform ? `Platform ${item.platform}` : '', seat: [item.carriage && `Coach ${item.carriage}`, item.seat && `Seat ${item.seat}`].filter(Boolean).join(' · '), duration, confirm: item.confirm });
     } else if (c.card === 'transit') {
       const to = item.to || item.dropoff || '';
       put(el, { kicker: [c.kicker, item.operator].filter(Boolean).join(' · '), title: item.title, time: tt(item.time), to, confirm: item.confirm });
@@ -158,7 +158,7 @@
       if (go && !item.time && !to && !item.confirm) go.hidden = true;
     } else if (c.card === 'hotel' && span !== 'end' && span !== 'middle') {
       const nights = stayNights(item);
-      put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), tt(item.time)].filter(Boolean).join(' · '), checkout: item.checkOut ? dayShort(item.checkOut) : '', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
+      put(el, { kicker: c.kicker, title: item.title, address: where, nights: words(nights, 'night', 'nights'), checkin: [item.date && dayShort(item.date), tt(item.time)].filter(Boolean).join(' · '), checkout: item.checkOut ? [dayShort(item.checkOut), tt(item.checkOutTime)].filter(Boolean).join(' · ') : 'Not set', roomType: item.roomType, guests: words(item.guests, 'guest', 'guests'), confirm: item.confirm });
     } else if (span === 'end') {
       put(el, { title: item.title, address: where, time: tt(item.checkOutTime), nights: words(stayNights(item), 'night', 'nights') });
     } else if (span === 'middle') {
@@ -212,7 +212,7 @@
     add('Booking', item.confirm, 'confirm');
     add('Terminal', item.terminal, 'terminal');
     add('Platform', item.platform, 'platform');
-    add('Carriage', item.carriage, 'carriage');
+    add('Coach', item.carriage, 'carriage');
     add('Seat', item.seat, 'seat');
     add('Class', item.travelClass, 'travelClass');
     add('Pick up', item.pickup, 'pickup');
@@ -710,9 +710,9 @@
       for (const i of mine) {
         const nights = stayNights(i);
         const line = kind === 'stay'
-          ? [dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address].filter(Boolean).join(' · ')
+          ? [i.checkOut && i.date ? `${dayShort(i.date)} – ${dayShort(i.checkOut)}` : dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address].filter(Boolean).join(' · ')
           : [dayTime(i), [i.from, i.to].filter(Boolean).join(' → ')].filter(Boolean).join(' · ');
-        row(ul, { icon: kind === 'stay' ? 'bed' : 'plane', title: i.title, sub: line, code: i.confirm, button: 'Open', id: i.id });
+        row(ul, { icon: kind === 'stay' ? 'bed' : cardOf(i).badge || 'route', title: i.title, sub: line, code: i.confirm, button: 'Open', id: i.id });
       }
     }
   }
@@ -1275,19 +1275,41 @@
   // --- the editor ---------------------------------------------------------------------------------------------
 
   // A placeholder for the title of each kind of thing.
-  const TITLES = { flight: 'Flight to Lisbon', train: 'Train to Porto', ferry: 'Ferry to the island', bus: 'Bus to the airport', car: 'Rental car', hotel: 'Hotel Avenida', restaurant: 'Dinner at Cervejaria Ramiro', cafe: 'Coffee at the pier', bar: 'Drinks at the rooftop', sight: 'Belem Tower', museum: 'The tile museum', tour: 'Walking tour', show: 'Fado night', note: 'Remember to...' };
-  // The days a stay can check out on: none yet, or any day after the one it checks in on.
-  function checkoutOptions(select, after) {
-    select.replaceChildren();
-    const none = document.createElement('option'); none.value = ''; none.textContent = 'Not set'; select.append(none);
-    for (const d of plan.days()) {
-      if (after && d <= after) continue;
-      const o = document.createElement('option');
-      o.value = d;
-      o.textContent = dayShort(d);
-      select.append(o);
-    }
+  const TITLES = { flight: 'Flight to Lisbon', train: 'Train to Porto', ferry: 'Ferry to the island', bus: 'Bus to the airport', car: 'Rental car', taxi: 'Taxi to the hotel', rideshare: 'Ride to the airport', shuttle: 'Shuttle to the airport', hotel: 'Hotel Avenida', restaurant: 'Dinner at Cervejaria Ramiro', cafe: 'Coffee at the pier', bar: 'Drinks at the rooftop', sight: 'Belem Tower', museum: 'The tile museum', tour: 'Walking tour', show: 'Fado night', note: 'Remember to...' };
+  // The earliest a stay can check out: the day after it checks in (the editor's day), or any day while it has none. A date of its
+  // own rather than a list of the trip's days, so a stay can check out after the trip's last day, and it follows the check-in.
+  function checkoutMin() {
+    const input = $('f-checkout');
+    if (!input) return;
+    const { date } = parsePlace($('f-date').value);
+    input.min = date ? ymd(new Date(parseYmd(date).getFullYear(), parseYmd(date).getMonth(), parseYmd(date).getDate() + 1)) : '';
   }
+  // A length in the editor is hours and minutes side by side; stored, it stays whole minutes.
+  const setLength = (hoursId, minutesId, total) => { const p = splitMinutes(total); $(hoursId).value = p.hours ?? ''; $(minutesId).value = p.minutes ?? ''; };
+  const lengthOf = (hoursId, minutesId) => (shown(minutesId) ? joinMinutes(num(hoursId), num(minutesId)) : null);
+  // Under a journey's departure: when it arrives, from its departure time and how long it takes.
+  function showArrival() {
+    const out = $('f-arrives');
+    if (!out) return;
+    const t = $('f-time').value;
+    const m = lengthOf('f-hours', 'f-minutes');
+    const end = t && m ? minutesOfDay(t) + m : null;
+    out.textContent = end === null ? '' : `Arrives ${tt(hm(end))}${end >= 24 * 60 ? ' the next day' : ''}`;
+    out.hidden = end === null;
+  }
+  // What the shared fields are called for each kind of thing: a stay checks in, a flight departs, a taxi picks up.
+  const FIELD_WORDS = {
+    hotel: { date: 'Check in', time: 'Check-in time' },
+    flight: { date: 'Departure day', time: 'Departure time', length: 'Flight time', operator: 'Airline', number: 'Flight number', from: 'Departs from', to: 'Arrives at' },
+    train: { date: 'Departure day', time: 'Departure time', length: 'Travel time', operator: 'Train company', number: 'Train number', from: 'Departs from', to: 'Arrives at' },
+    ferry: { date: 'Departure day', time: 'Departure time', length: 'Travel time', from: 'Departs from', to: 'Arrives at' },
+    bus: { date: 'Departure day', time: 'Departure time', length: 'Travel time', from: 'Departs from', to: 'Arrives at' },
+    shuttle: { date: 'Departure day', time: 'Departure time', length: 'Travel time', from: 'Departs from', to: 'Arrives at' },
+    car: { date: 'Pick-up day', time: 'Pick-up time', operator: 'Rental company' },
+    taxi: { time: 'Pick-up time', length: 'Travel time', from: 'Pick up at', to: 'Drop off at' },
+    rideshare: { time: 'Pick-up time', length: 'Travel time', from: 'Pick up at', to: 'Drop off at' },
+  };
+  const FIELD_DEFAULTS = { date: 'When', time: 'Time', length: 'How long', operator: 'Company', number: 'Number', from: 'From', to: 'To' };
   function ownerBoxes(selected) {
     const box = $('f-owners');
     box.replaceChildren();
@@ -1325,7 +1347,10 @@
     const noLength = ['block:meet-up', 'block:leave-by'].includes(tile); // a moment, not a stretch of time
     const lengthLabel = $('f-minutes').closest('label');
     if (lengthLabel) lengthLabel.hidden = noLength;
-    if ($('f-time-label')) $('f-time-label').textContent = key === 'hotel' ? 'Check in' : 'Time'; // the same field; a stay's own words for it
+    // The same fields in each kind's own words (a stay's day is its check-in, a flight's time its departure).
+    const labels = { ...FIELD_DEFAULTS, ...(FIELD_WORDS[key] || {}) };
+    for (const [name, id] of [['date', 'f-date-label'], ['time', 'f-time-label'], ['length', 'f-minutes-label'], ['operator', 'f-operator-label'], ['number', 'f-number-label'], ['from', 'f-from-label'], ['to', 'f-to-label']]) if ($(id)) $(id).textContent = labels[name];
+    showArrival();
     for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
     $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : key === 'lane' ? markerType(tile.slice(5)).label : TITLES[tile] || '';
   }
@@ -1388,12 +1413,12 @@
       hide($('f-delete'), !item);
       applyType(item ? tileOf(item) || 'sight' : 'sight');
       $('f-date').value = placeValue(item ? placeOf(item) : place);
-      checkoutOptions($('f-checkout'), item ? item.date : place && place.date);
+      checkoutMin();
       const v = item || {};
       setVal('f-checkout', v.checkOut);
       setVal('f-checkOutTime', v.checkOutTime);
       $('f-time').value = v.time || '';
-      $('f-minutes').value = v.minutes || '';
+      setLength('f-hours', 'f-minutes', v.minutes);
       $('f-title').value = item ? item.title : '';
       for (const f of ['operator', 'number', 'fromCode', 'toCode', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'roomType', 'partySize', 'reservationName', 'admissionCount', 'guests']) setVal(`f-${f}`, v[f]);
       setVal('f-travelClass', v.travelClass);
@@ -1407,7 +1432,8 @@
       paidByOptions(item ? item.paidBy : info.user.key);
       ownerBoxes(v.owners || []);
       for (const b of $('f-travelMode').querySelectorAll('.mode')) b.classList.toggle('on', b.dataset.mode === v.travelMode);
-      setVal('f-travelMinutes', v.travelMinutes);
+      setLength('f-travelHours', 'f-travelMinutes', v.travelMinutes);
+      showArrival();
       $('f-by').textContent = item && item.by ? `Added by ${item.by}` : '';
     }
     hydrate($('editor'));
@@ -1441,13 +1467,13 @@
         notes: $('f-notes').value.trim(),
         owners: [...$('f-owners').querySelectorAll('input:checked')].map((i) => i.value),
         travelMode: shown('f-travelMode') ? chosenMode() : null,
-        travelMinutes: num('f-travelMinutes'),
+        travelMinutes: lengthOf('f-travelHours', 'f-travelMinutes'),
         cost: num('f-cost'),
       };
       common.paidBy = common.cost ? $('f-paidBy').value : '';
       let fields;
       if (ed.isLink) {
-        fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: num('f-minutes') };
+        fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: lengthOf('f-hours', 'f-minutes') };
       } else {
         const t = fromTile(ed.tile, item);
         if (t.kind === 'lane') { common.date = null; common.travelMode = null; common.travelMinutes = null; common.owners = []; common.cost = null; common.paidBy = ''; }
@@ -1457,7 +1483,7 @@
         // context picker, a ref search, a backlink), not just in this module's own rendering, which already
         // falls back to the type's label on its own.
         if ((t.kind === 'lane' || t.kind === 'block') && !common.title) common.title = markerType(t.type).label;
-        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : num('f-minutes') };
+        fields = { ...common, ...t, time: shown('f-time') ? $('f-time').value || null : t.kind === 'stay' && item ? item.time : null, minutes: ['block:meet-up', 'block:leave-by'].includes(ed.tile) || ed.tile.startsWith('lane:') ? null : lengthOf('f-hours', 'f-minutes') };
         if (t.kind === 'journey') {
           for (const f of ['operator', 'number', 'from', 'to', 'pickup', 'dropoff', 'terminal', 'platform', 'carriage', 'seat', 'travelClass']) fields[f] = get(`f-${f}`);
           fields.fromCode = get('f-fromCode');
@@ -1466,6 +1492,8 @@
           fields.confirm = get('f-confirm');
         } else if (t.kind === 'stay') {
           fields.checkOut = $('f-checkout').value || null;
+          if (fields.checkOut && !fields.date) return fail('Choose the day it checks in.');
+          if (fields.checkOut && fields.checkOut <= fields.date) return fail('Check out is on or before check in.');
           fields.checkOutTime = get('f-checkOutTime') || null;
           fields.address = get('f-address');
           fields.roomType = get('f-roomType');
@@ -1505,6 +1533,9 @@
 
   // The dialog's buttons, by delegation (its form is made afresh each time it opens).
   $('editor').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
+  // A journey's arrival follows its departure and length as they are typed; a stay's checkout follows its check-in day.
+  $('editor').addEventListener('input', (e) => { if (['f-time', 'f-hours', 'f-minutes'].includes(e.target.id)) showArrival(); });
+  $('editor').addEventListener('change', (e) => { if (e.target.id === 'f-date') checkoutMin(); });
   let deleteArmedInEditor = false;
   $('editor').addEventListener('click', (e) => {
     if (e.target === $('editor')) return closeEditor();

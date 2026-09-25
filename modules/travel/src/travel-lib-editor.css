@@ -8,6 +8,7 @@
 @supports (color: oklch(from red l c h)) { .tile { --tone: oklch(from var(--accent) l calc(c * 0.95) calc(h + var(--turn))); } }
 .tile[data-type="flight"] { --turn: 195; } .tile[data-type="train"] { --turn: 150; } .tile[data-type="ferry"] { --turn: 120; }
 .tile[data-type="bus"] { --turn: 100; } .tile[data-type="car"] { --turn: 45; } .tile[data-type="hotel"] { --turn: 255; }
+.tile[data-type="taxi"] { --turn: 170; } .tile[data-type="rideshare"] { --turn: 220; } .tile[data-type="shuttle"] { --turn: 80; }
 .tile[data-type="restaurant"] { --turn: 0; } .tile[data-type="cafe"] { --turn: 345; } .tile[data-type="bar"] { --turn: 320; }
 .tile[data-type="sight"] { --turn: 95; } .tile[data-type="museum"] { --turn: 285; } .tile[data-type="tour"] { --turn: 65; }
 .tile[data-type="free-time"] { --turn: 140; } .tile[data-type="rest"] { --turn: 225; } .tile[data-type="buffer"] { --turn: 45; } .tile[data-type="meet-up"] { --turn: 330; } .tile[data-type="leave-by"] { --turn: 15; }
@@ -37,4 +38,9 @@
 .mode.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 .gettingthere { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
 .gettingthere .minutes { flex: 1; min-width: 140px; }
-.gettingthere .minutes input { max-width: 120px; }
+.gettingthere .minutes .hm { max-width: 200px; }
+/* a length as hours and minutes: two small number fields side by side, each with its unit */
+.editor-card .hm { display: flex; align-items: center; gap: 6px; color: var(--text-dim); }
+.editor-card .hm input:not([type="checkbox"]) { width: auto; flex: 1 1 0; min-width: 0; }
+/* a journey's arrival, worked out from its departure and how long it takes */
+.editor-card .arrives { margin: -4px 0 0; font-size: 12px; }

@@ -1,9 +1,9 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.26",
+  "version": "0.7.27",
   "icon": "suitcase-rolling",
-  "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your room already has.",
+  "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your space already has.",
   "author": "Coffee Pub",
   "scope": [
     "server",
@@ -41,7 +41,7 @@
     },
     {
       "key": "edit",
-      "label": "Plan the trip: add, change and move items",
+      "label": "Plan the trip: add, change and move things on it",
       "default": {
         "user": true,
         "guest": false,
