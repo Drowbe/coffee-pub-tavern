@@ -1,6 +1,6 @@
 {
   "name": "coffee-pub-magpie",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Self-hosted voice and video for the Coffee Pub table, with per-player OBS views.",
   "private": true,
   "license": "MIT",

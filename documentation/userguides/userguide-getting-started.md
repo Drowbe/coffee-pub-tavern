@@ -52,8 +52,10 @@ Without `ADMIN_PASSWORD`, a brand-new server makes an admin called `admin` (or `
 password and prints it in the log once. A server that already has accounts makes nothing and changes nobody;
 the log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
 
-**Older names.** `ADMIN_USER` (and `TAVERN_ADMIN_USER`) are now `ADMIN_LOGIN`, and `TAVERN_ADMIN_PASSWORD` and
-`TAVERN_ADMIN_KEY` are now `ADMIN_PASSWORD`; each still works for now, and the log says to change it.
+**Older names.** `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are now `ADMIN_PASSWORD`; each still works for
+now, and the log says to change it. `ADMIN_USER` and `TAVERN_ADMIN_USER` are no longer read, from version 0.4.0:
+if your compose file still sets one, the admin's login is `admin` until you set `ADMIN_LOGIN`, and the log says
+"ADMIN_USER is no longer read: use ADMIN_LOGIN instead." on every start.
 `OWNER_PASSWORD`, from the previous version, is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage.
 Use ADMIN_PASSWORD for the server's admin." If you set it in that version, put the same login and password in
 `ADMIN_LOGIN` and `ADMIN_PASSWORD`, and that account becomes the admin again on the next start; without them,
@@ -106,10 +108,11 @@ To switch environments on, with the server already running as above:
    Recreate the container. On that start the existing data moves into `environments/<slug>/` on the same
    volume and the environment is recorded; everyone's accounts, spaces and layouts come with it, at
    `https://<slug>.<base>`, and the install's admin becomes that environment's owner. The host admin's
-   password is reset to `ADMIN_PASSWORD` on every start; other host admins are left alone. `HOST_ADMIN_LOGIN`
-   and `HOST_ADMIN_PASSWORD` are the old names and still work for now, with a line in the log (if
-   `ADMIN_PASSWORD` and `HOST_ADMIN_PASSWORD` differ, `ADMIN_PASSWORD` is used, with a warning). If you used the older name, `MIGRATE_TENANT_SLUG`, it still works for now, and the
-   log says to change it.
+   password is reset to `ADMIN_PASSWORD` on every start; other host admins are left alone. The old names
+   `HOST_ADMIN_LOGIN`, `HOST_ADMIN_PASSWORD` and `MIGRATE_TENANT_SLUG` are no longer read, from version 0.4.0,
+   and the log names the one to use instead. A server that still sets only `HOST_ADMIN_*` keeps its existing
+   host admins, but no host admin is created or has its password reset until you set `ADMIN_LOGIN` and
+   `ADMIN_PASSWORD`. `MIGRATE_TENANT_SLUG` moves nothing: use `MIGRATE_ENVIRONMENT_SLUG`.
 
 **Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
 compose file, `"true"` by default) says whether the server offers a second step at all; with it off nobody is
@@ -145,7 +148,9 @@ deletion out from the console.
 A server that already had environments before this version renames its folders on its first start:
 `tenants/` becomes `environments/` and `tenants-deleted/` becomes `environments-deleted/`. Nothing else
 changes, the change is noted in `host.json`, and a copy of `host.json` as it was is kept in
-`pre-names-host/names-environment/`. If the start stops with a line saying `host.json` lists environments
+`pre-names-host/`. From version 0.4.0 these copies (the host's `pre-names-host/` and each environment's
+`pre-names/`) are deleted on the start after the one that made them; take your own copy of the data first if
+you want to keep one. If the start stops with a line saying `host.json` lists environments
 under both "tenants" and "environments", open `host.json`, remove whichever list is out of date, and start again.
 
 From there: `https://admin.<base>` is the host console (create an environment with its first owner, set its

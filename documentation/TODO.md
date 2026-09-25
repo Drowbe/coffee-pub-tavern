@@ -6,8 +6,6 @@ side of things.
 
 ## In progress
 
-- **Names** ([plan-names](plans/plan-names.md)): steps 1 to 9 are built (September 24 and 25, 2026). Step 10
-  (the aliases going) waits for Coffee Pub Studio's release: #24.
 - **Environment templates** ([plan-environment-templates](plans/plan-environment-templates.md)): done, except the live verification of addendum 2's steps 3a and 3b (#68).
   (September 25, 2026).
 
@@ -17,6 +15,7 @@ side of things.
 - #2 The first time: guidance, welcome cards, an owner's setup checklist ([plan-entering](plans/plan-entering.md)).
 - #12 Object status: action required, tentative, confirmed ([plan-object-status](plans/plan-object-status.md)).
 - #13 Planner changes shown in the Calendar.
+- The call-name fallback goes: `server/call-names.js` still reads the call names from before Names step 3 ([plan-names](plans/plan-names.md), step 10).
 
 ## Verify in a real call
 

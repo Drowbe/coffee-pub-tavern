@@ -1,7 +1,7 @@
 # Environments Architecture
 
 **Audience:** developers changing `server/index.js`, `server/environment.js`, `server/host-registry.js`,
-`server/migrate-names.js` or `server/studio-alias.js`, or adding a new module-level singleton to the server.
+`server/migrate-names.js`, or adding a new module-level singleton to the server.
 
 What this is for and the decisions behind it are [plan-environments](../plans/plan-environments.md) (phases 1 to 5
 are built; the plan was written as "tenants" and renamed with the [Names plan](../plans/plan-names.md)). This document is what you can only learn from the code: how the seam actually
@@ -185,7 +185,8 @@ people already in a call when the server upgrades are still found, placed, muted
 really in, and the calls cap still counts them. An id this environment really has is read as itself first (a
 space whose id is `table` is that space), a dotted name is never an old one, and when a longer slug of another
 environment also matches (`acme-table-table` is environment `acme-table`'s old Lobby), the name is that
-environment's. The old shapes go after that release, in step 10 at the latest. New tokens are only ever minted
+environment's. The plan had the old shapes go by step 10; they are still read after it (0.4.0) and go in a later
+release. New tokens are only ever minted
 for the new names.
 
 ## The console
@@ -207,7 +208,10 @@ to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-env
   files it will rewrite; `ctx` has `dir`, `copyRoot` (where this part's originals were copied), `read(rel)`,
   `write(rel, value)` and `move(fromRel, toRel)`. `write`
   refuses a path `files()` did not list, since only those were copied first. Writes and moves are staged and
-  applied after `run` returns. A part must change nothing when run over data it has already changed.
+  applied after `run` returns. A part must change nothing when run over data it has already changed. `ctx` also
+  has `remove(rel)` (a folder deleted, staged like the rest and applied after the moves, before the writes),
+  `ranThisStart` (the ids of the parts that ran before it in this start) and `wait()` (the part is not recorded
+  this start and runs again on the next).
 - **The record.** Parts run in list order, and a part the record names never runs again. An environment's
   record is `app.json`: `version` goes from 1 to 2 (`NAMES_VERSION`) only when a part runs, and
   `migrations: [{ id, at, moved: [{ from, to }] }]` gains one entry per part. The host's is `host.json`'s
@@ -217,7 +221,8 @@ to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-env
 - **The copy.** Before a part writes, every file it listed and the record file are copied to
   `<environment>/pre-names/<part>/`, keeping their paths; the host's go to `DATA_DIR/pre-names-host/<part>/`,
   which the pre-environment move (`migrateIfNeeded()`) leaves where it is. A copy already there, from an
-  attempt that stopped part-way, is kept. Folders a part only moves are listed in `moved`, not copied.
+  attempt that stopped part-way, is kept. Folders a part only moves are listed in `moved`, not copied. A part
+  declared with `copies: false` keeps no copy; only `names-copies-removed` (below) is.
 - **The commit.** Everything is checked first: each value serialises, no write lands on a folder, no move's
   target exists or is shared. Each write goes to a `.names-tmp` file beside its target. Then the folders move,
   then the writes are renamed into place, the record last. A failed move puts back the moves already made and
@@ -350,7 +355,20 @@ in it, and anyone still in one when the server upgrades is back in a space after
 space loses `ephemeral`, `origin` and `private` (which every space carried as false, null and false), the rest of
 the row and the order kept. An aside never had chat history, pictures, modules or settings, so nothing else
 changes. Over data already in the new shape it writes nothing. The original `app.json` is kept in
-`pre-names/names-asides/`.
+`pre-names/names-asides/` until `names-copies-removed` deletes it.
+
+### The last part: `names-copies-removed`
+
+Step 10's part is last in both `HOST_PARTS` and `ENVIRONMENT_PARTS` (plan-names decision 18). It deletes the
+copies every earlier part kept: an environment's `pre-names/` as a whole, or the host's `DATA_DIR/pre-names-host/`.
+It keeps no copy of its own (`copies: false`) and rewrites no file but the record. With no copy folder there, it
+only records itself. The log line reads `Names migration: ran "names-copies-removed" in <dir>; removed <folder>.`
+
+When any other part ran in the same start (data upgraded straight from before the rename), it calls `wait()`: it
+is not recorded, and it deletes the copies on the next start. So the copies survive the start that changed the
+data, and are gone after the start after it. This departs from the plan, which had the copies go with the part's
+first run; the project manager chose the extra start. A delete that fails part-way is not recorded, and the next
+start deletes what is left.
 
 ### Bundled modules built for an older Magpie
 
@@ -377,10 +395,8 @@ rename), `migrateIfNeeded()` refuses to start until told which environment the d
 
 With `MIGRATE_ENVIRONMENT_SLUG` set, everything at the root except `host.json`, `fontawesome-pro`,
 `environments`, `environments-deleted` and `pre-names-host` moves to `DATA_DIR/environments/<slug>/`, and the
-environment is added to the registry. The old name, `MIGRATE_TENANT_SLUG`, is still read (the new name wins
-when both are set) and logs one line to stderr on every start while it is set:
-"MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release." It goes
-in step 10 of the plan.
+environment is added to the registry. The old name, `MIGRATE_TENANT_SLUG`, is no longer read (0.4.0): set, it
+moves nothing, and each start logs "MIGRATE_TENANT_SLUG is no longer read: use MIGRATE_ENVIRONMENT_SLUG instead."
 
 ## Roles
 
@@ -410,10 +426,9 @@ page), and a module asks `host.can()` rather than reading the role; an owner has
 `ADMIN_LOGIN` and `ADMIN_PASSWORD` make the server's admin on every install, and reset its password on each
 start when it differs (plan-names decision 7, amended):
 
-- **Hosted:** the host admin (`host.json`); other host admins are untouched. `HOST_ADMIN_LOGIN` and
-  `HOST_ADMIN_PASSWORD` are read as old names, with a line each start; if `ADMIN_PASSWORD` and
-  `HOST_ADMIN_PASSWORD` differ, `ADMIN_PASSWORD` wins with a warning. `ADMIN_USER`, `ADMIN_KEY` and
-  `TAVERN_ADMIN_*` are ignored there, with one line.
+- **Hosted:** the host admin (`host.json`); other host admins are untouched. `ADMIN_KEY`,
+  `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are ignored there, with one line. With no `ADMIN_PASSWORD`, a
+  hosted server creates and resets no host admin; the existing ones keep their passwords.
 - **Single install:** `buildEnvironment()` makes the default environment's admin: role `admin`, every right, not
   an owner (`store.setServerAdmin()`, `store.serverAdmins()`). It is locked, per the table above. An account
   already under that login (an owner, after step 4) becomes the admin again. There is no "keep at least one
@@ -421,9 +436,13 @@ start when it differs (plan-names decision 7, amended):
 - **No `ADMIN_PASSWORD`:** a brand-new install with no accounts gets an admin (`ADMIN_LOGIN`, default `admin`)
   with a random password logged once; an install with accounts gets nothing made and nobody promoted, and the
   log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
-- **Old names:** `ADMIN_USER` and `TAVERN_ADMIN_USER` are read as `ADMIN_LOGIN`, `TAVERN_ADMIN_PASSWORD` and
-  `TAVERN_ADMIN_KEY` as `ADMIN_PASSWORD`, each logging "`<old>` is now `<new>`; the old name stops working in a
-  later release." `ADMIN_KEY`, the pre-account password, is still accepted, without a line. `OWNER_PASSWORD`
+- **Old names still read:** on a single install, `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are read as
+  `ADMIN_PASSWORD`, each logging "`<old>` is now `<new>`; the old name stops working in a later release."
+  `ADMIN_KEY`, the pre-account password, is still accepted, without a line.
+- **Old names no longer read** (0.4.0, plan-names decision 20): `ADMIN_USER`, `TAVERN_ADMIN_USER` and
+  `HOST_ADMIN_LOGIN` (for `ADMIN_LOGIN`), `HOST_ADMIN_PASSWORD` (for `ADMIN_PASSWORD`) and `MIGRATE_TENANT_SLUG`
+  (for `MIGRATE_ENVIRONMENT_SLUG`). Set, each logs "`<old>` is no longer read: use `<new>` instead." on every
+  start (`REMOVED_CONFIG_NAMES` in `server/index.js`). With no `ADMIN_LOGIN` the admin's login is `admin`. `OWNER_PASSWORD`
   (step 4) is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's
   admin."
 - **The pre-environment move** makes the install's admin the new environment's owner.
@@ -659,28 +678,10 @@ Both imports sit behind `sameOriginOnly`.
 
 ## The Studio alias
 
-`server/studio-alias.js` is where the old names Coffee Pub Studio still reads are added back while the code
-moves to the new ones (plan-names, "What Studio reads" and decision 21). `GET /api/me` and `GET /api/status`
-pass their answer through `studioAlias.me()` and `studioAlias.status()`, which change it only when a bearer
-token actually signed the request in, the way Studio signs in; the pages use the cookie and never see an old
-name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receives only
-`{ role, hostAdmin, environmentName }` or `{ environmentName, asideName }`, never the account record. What it adds now:
-
-- `tableName` in both answers, set to the environment's name (step 3), since `branding()` no longer sends it.
-- The old role values (step 4): `user.role` in `/api/me` and `users[].role` in `/api/status` are `admin` for an
-  owner or the server's admin and `user` for a member. `streamKey` needs no entry: the server sends it to
-  owners and the host admin already.
-- The old space names (step 5a): `serverName` in both answers, set to the environment's name; and in
-  `/api/status`, `rooms` (the `spaces` rows), `activeRoom` (= `activeSpace`) and
-  `users[].online.room` (= `users[].online.space`).
-- The aside rows (step 8): asides are their own record now, but Studio still finds them in `rooms`, marked
-  `ephemeral: true`. Each aside is added to `rooms` after the spaces, in the shape such a row had (its id,
-  members, origin, private and createdAt, the other space fields at the values an aside row always had), named
-  with the environment's word for an aside ("Aside" unless the template renames it). The space rows in `rooms`
-  carry `ephemeral: false`, `origin: null` and `private: false`, as before. `STATUS` entries receive
-  `{ environmentName, asideName }`.
-
-Since step 5c the pages' own answers use `isOwner`, `ownerOnline` and, on the aside pull topic, `byOwner`. The later steps add the fields they rename, and step 10 removes the file.
+Removed in 0.4.0 (plan-names step 10). `server/studio-alias.js` added the old names Coffee Pub Studio read
+(`tableName`, `serverName`, `rooms`, `activeRoom`, the old role values) to the answers of bearer-token requests.
+Now `GET /api/me` and `GET /api/status` answer a bearer request exactly as they answer the pages, with roles
+`admin`, `owner` and `member`. `tools/check-host-registry.mjs` asserts none of the old names comes back.
 
 ## The host's managed AI and shared files
 

@@ -959,6 +959,8 @@ function migrationCheck() {
   const fixture = path.join(ROOT, 'tools', 'fixtures', 'names-v1');
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'check-names-'));
   const quiet = () => {};
+  // Plan-names step 10's part, last in both lists: it deletes the copies the others kept, a start after they ran.
+  const COPIES_REMOVED = 'names-copies-removed';
   let n = 0;
   const test = (name, fn) => {
     try { fn(); n += 1; } catch (err) { fail(`check-names --migration: ${name}: ${err.message}`); }
@@ -997,23 +999,24 @@ function migrationCheck() {
       assert.ok(original[MODULE_FILE], 'the fixture has a module data file');
     });
 
-    test('this server\'s own parts, run twice: every part recorded once and nothing else changed', () => {
+    test('this server\'s own parts, run three times: every renaming part on the first, the copies deleted on the second, nothing on the third', () => {
       const dir = copyFixture();
+      const renaming = names.ENVIRONMENT_PARTS.map((p) => p.id).filter((id) => id !== COPIES_REMOVED);
       const first = names.migrateEnvironment(dir, { log: quiet });
       const afterFirst = snapshot(dir);
-      const second = names.migrateEnvironment(dir, { log: quiet });
-      assert.deepEqual(second, [], 'the second run runs nothing');
-      assert.deepEqual(snapshot(dir), afterFirst, 'the second run changes nothing');
+      assert.deepEqual(first, renaming, 'the first run renames, and the copies wait for the next start');
       const record = JSON.parse(afterFirst['app.json']);
-      assert.deepEqual(names.recordedParts(record), names.ENVIRONMENT_PARTS.map((p) => p.id), 'every part recorded, in order');
-      assert.deepEqual(first, names.ENVIRONMENT_PARTS.map((p) => p.id));
-      if (!names.ENVIRONMENT_PARTS.length) {
-        // No parts yet (step 1): the directory is exactly the fixture, with no version change, no record and no copy.
-        assert.deepEqual(afterFirst, original);
-      } else {
-        assert.equal(record.version, names.NAMES_VERSION);
-        for (const id of first) assert.ok(fs.existsSync(path.join(dir, names.ENVIRONMENT_COPY_DIR, id, 'app.json')), `pre-names/${id}/app.json`);
-      }
+      assert.deepEqual(names.recordedParts(record), renaming, 'every renaming part recorded, in order');
+      assert.equal(record.version, names.NAMES_VERSION);
+      for (const id of first) assert.ok(fs.existsSync(path.join(dir, names.ENVIRONMENT_COPY_DIR, id, 'app.json')), `pre-names/${id}/app.json`);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [COPIES_REMOVED], 'the second run deletes the copies');
+      const afterSecond = snapshot(dir);
+      assert.equal(fs.existsSync(path.join(dir, names.ENVIRONMENT_COPY_DIR)), false, 'pre-names/ is gone');
+      const outsideCopies = (snap) => Object.fromEntries(Object.entries(snap).filter(([rel]) => !rel.startsWith(`${names.ENVIRONMENT_COPY_DIR}/`) && rel !== 'app.json'));
+      assert.deepEqual(outsideCopies(afterSecond), outsideCopies(afterFirst), 'nothing else changed but the record');
+      assert.deepEqual(names.recordedParts(JSON.parse(afterSecond['app.json'])), names.ENVIRONMENT_PARTS.map((p) => p.id), 'every part recorded, in order');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the third run runs nothing');
+      assert.deepEqual(snapshot(dir), afterSecond, 'and changes nothing');
     });
 
     // The frame itself, driven by a part made up for this check (the real parts arrive with the plan's later
@@ -1145,10 +1148,11 @@ function migrationCheck() {
       const dir = path.join(base, 'host');
       fs.mkdirSync(dir);
       new HostRegistry(dir).addEnvironment({ slug: 'acme', name: 'Acme' });
-      assert.deepEqual(names.migrateHost(dir, { log: quiet }), names.HOST_PARTS.map((p) => p.id));
+      const hostRenaming = names.HOST_PARTS.filter((p) => p.id !== COPIES_REMOVED);
+      assert.deepEqual(names.migrateHost(dir, { parts: hostRenaming, log: quiet }), hostRenaming.map((p) => p.id));
       const before = snapshot(dir);
       const hostPart = { id: 'names-frame-check', files: () => [], run() {} };
-      const parts = [...names.HOST_PARTS, hostPart];
+      const parts = [...hostRenaming, hostPart];
       assert.deepEqual(names.migrateHost(dir, { parts, log: quiet }), ['names-frame-check']);
       const afterFirst = snapshot(dir);
       assert.equal(afterFirst['pre-names-host/names-frame-check/host.json'], before['host.json']);
@@ -1156,7 +1160,7 @@ function migrationCheck() {
       assert.deepEqual(names.migrateHost(dir, { parts, log: quiet }), []);
       assert.deepEqual(snapshot(dir), afterFirst);
       const registry = new HostRegistry(dir);
-      assert.deepEqual(names.recordedParts(JSON.parse(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'))), [...names.HOST_PARTS.map((p) => p.id), 'names-frame-check']);
+      assert.deepEqual(names.recordedParts(JSON.parse(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'))), [...hostRenaming.map((p) => p.id), 'names-frame-check']);
       assert.equal(registry.listEnvironments().length, 1);
     });
 
@@ -1166,8 +1170,8 @@ function migrationCheck() {
     const noteOf = (dir) => path.join(dir, names.HOST_COPY_DIR, 'names-environment.moved.json');
     const BOTH_MOVES = [{ from: 'tenants', to: 'environments' }, { from: 'tenants-deleted', to: 'environments-deleted' }];
 
-    test('names-environment is the host\'s first part', () => {
-      assert.deepEqual(names.HOST_PARTS.map((p) => p.id), ['names-environment']);
+    test('names-environment is the host\'s first part, and names-copies-removed its last', () => {
+      assert.deepEqual(names.HOST_PARTS.map((p) => p.id), ['names-environment', COPIES_REMOVED]);
     });
 
     test('names-environment on an old-format host: the folders move, host.json\'s key is renamed in place, recorded once, the copy kept', () => {
@@ -1193,22 +1197,28 @@ function migrationCheck() {
       assert.ok(!fs.existsSync(noteOf(dir)), 'no note left once recorded');
       assert.ok(!Object.keys(after).some((rel) => rel.endsWith('.names-tmp')), 'no staged file left');
       assert.equal(logged.length, 1, 'one line in the log');
-      assert.deepEqual(names.migrateHost(dir, { log: quiet }), [], 'the second start runs nothing');
-      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), [COPIES_REMOVED], 'the second start deletes the copy');
+      assert.equal(fs.existsSync(path.join(dir, names.HOST_COPY_DIR)), false, 'pre-names-host/ is gone');
+      const afterSecond = snapshot(dir);
+      const { [names.HOST_COPY_DIR + '/names-environment/host.json']: _copy, 'host.json': _record, ...liveAfter } = after;
+      const { 'host.json': _record2, ...liveSecond } = afterSecond;
+      assert.deepEqual(liveSecond, liveAfter, 'and changes nothing else but the record');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), [], 'the third start runs nothing');
+      assert.deepEqual(snapshot(dir), afterSecond, 'and changes nothing');
       const registry = new HostRegistry(dir);
       assert.deepEqual(registry.listEnvironments().map((e) => e.slug), ['acme', 'bravo']);
-      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment'], 'HostRegistry keeps the record through its save');
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment', COPIES_REMOVED], 'HostRegistry keeps the record through its save');
       assert.equal('tenants' in hostJson(dir), false);
     });
 
     test('names-environment on a new host: nothing to move, recorded as run, no copy', () => {
       const dir = path.join(base, 'host-fresh');
-      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment']);
-      assert.deepEqual(hostJson(dir).migrations.map((m) => [m.id, m.moved]), [['names-environment', []]]);
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment', COPIES_REMOVED]);
+      assert.deepEqual(hostJson(dir).migrations.map((m) => [m.id, m.moved]), [['names-environment', []], [COPIES_REMOVED, []]]);
       assert.equal(fs.existsSync(path.join(dir, names.HOST_COPY_DIR)), false);
       const registry = new HostRegistry(dir);
       registry.addEnvironment({ slug: 'acme', name: 'Acme' });
-      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment']);
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment', COPIES_REMOVED]);
       assert.deepEqual(names.migrateHost(dir, { log: quiet }), []);
     });
 
@@ -1229,11 +1239,11 @@ function migrationCheck() {
     test('names-environment before the pre-environment move: a single install\'s data dir gains only host.json\'s record', () => {
       const dir = copyFixture();
       const before = snapshot(dir);
-      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment']);
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment', COPIES_REMOVED]);
       const after = snapshot(dir);
       assert.deepEqual(Object.keys(after).sort(), [...Object.keys(before), 'host.json'].sort(), 'only host.json is new');
       for (const rel of Object.keys(before)) assert.equal(after[rel], before[rel], `${rel} untouched`);
-      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment']);
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment', COPIES_REMOVED]);
     });
 
     test('names-environment: a host.json recording a part this server does not know is still refused, and nothing moves', () => {
@@ -1654,6 +1664,8 @@ function migrationCheck() {
     // --- names-roles, the role values (plan-names step 4) ---
     const ROLES_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-roles');
     const ALL_PARTS = names.ENVIRONMENT_PARTS.map((p) => p.id);
+    // What one start records over old data: every part but the one that deletes the copies, which waits a start.
+    const RENAMING_PARTS = ALL_PARTS.filter((id) => id !== COPIES_REMOVED);
 
     test('names-roles is the second environment part, after names-table', () => {
       assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 2), ['names-table', 'names-roles']);
@@ -1737,7 +1749,7 @@ function migrationCheck() {
       assert.equal(store.ownerCount(), 1, 'the stand-in is not an owner');
       store.save();
       const app = appOf(dir);
-      assert.deepEqual(names.recordedParts(app), ALL_PARTS);
+      assert.deepEqual(names.recordedParts(app), RENAMING_PARTS);
       assert.deepEqual(app.users.map((u) => u.role), ['owner', 'member', 'admin']);
     });
 
@@ -1957,8 +1969,11 @@ function migrationCheck() {
       // Read back as the module sees it.
       const { ModuleData } = require('../server/module-data.js');
       assert.deepEqual(new ModuleData(path.join(dir, 'modules')).get('todo', 'space:keep01', 'list:main').value.tasks[0].link.scope, 'space');
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
-      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [COPIES_REMOVED], 'the second start only deletes the copies');
+      assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false);
+      const settled = snapshot(dir);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the third start runs nothing');
+      assert.deepEqual(snapshot(dir), settled, 'and changes nothing');
     });
 
     test('names-pointers rewrites old pointers a module published in a bus event\'s data after names-spaces, by shape, and copies the bus record', () => {
@@ -2057,11 +2072,12 @@ function migrationCheck() {
       assert.deepEqual(rest, restBefore, 'nothing else in app.json changed');
       assert.deepEqual(snapshot(dir, (rel) => rel === 'app.json' || rel.startsWith('pre-names/names-asides')), before, 'no other file written or moved');
       assert.equal(fs.readFileSync(path.join(dir, 'pre-names', 'names-asides', 'app.json'), 'utf8'), recordBefore, 'the original copied first');
-      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(app.migrations.map((m) => m.id), RENAMING_PARTS);
       assert.deepEqual(app.migrations.find((m) => m.id === 'names-asides').moved, []);
       assert.ok(logged.some((m) => m.includes('"names-asides"')), logged.join('\n'));
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [COPIES_REMOVED], 'the second start only deletes the copies');
       const settled = snapshot(dir);
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the third start runs nothing');
       assert.deepEqual(snapshot(dir), settled, 'and changes nothing');
     });
 
@@ -2079,7 +2095,67 @@ function migrationCheck() {
     });
 
     test('names-asides: a build from before step 8 refuses data that records it', () => {
-      assert.deepEqual(names.unknownParts({ version: 2, migrations: ALL_PARTS.map((id) => ({ id })) }, UP_TO_OBJECTS), ['names-asides']);
+      assert.deepEqual(names.unknownParts({ version: 2, migrations: RENAMING_PARTS.map((id) => ({ id })) }, UP_TO_OBJECTS), ['names-asides']);
+    });
+
+    // --- names-copies-removed (plan-names step 10, decision 18): the copies go once the Studio alias has ---
+    test('names-copies-removed is the last part of both lists', () => {
+      assert.equal(ALL_PARTS[ALL_PARTS.length - 1], COPIES_REMOVED);
+      assert.equal(names.HOST_PARTS[names.HOST_PARTS.length - 1].id, COPIES_REMOVED);
+    });
+
+    test('names-copies-removed on data step 9 left: one start deletes pre-names/ as a whole, records itself, keeps no copy, and changes nothing else', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: names.ENVIRONMENT_PARTS.filter((p) => p.id !== COPIES_REMOVED), log: quiet });
+      fs.writeFileSync(path.join(dir, 'pre-names', 'names-roles.moved.json'), '[]\n'); // a leftover note goes with it
+      const before = snapshot(dir);
+      assert.ok(Object.keys(before).some((rel) => rel.startsWith('pre-names/')), 'the copies are there');
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), [COPIES_REMOVED]);
+      assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false, 'pre-names/ is gone');
+      const after = snapshot(dir);
+      const live = (snap) => Object.fromEntries(Object.entries(snap).filter(([rel]) => rel !== 'app.json' && !rel.startsWith('pre-names/')));
+      assert.deepEqual(live(after), live(before), 'nothing else changed');
+      const { migrations, ...app } = appOf(dir);
+      const { migrations: _m, ...appBefore } = JSON.parse(before['app.json']);
+      assert.deepEqual(app, appBefore, 'app.json changed only in its record');
+      assert.deepEqual(migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(migrations[migrations.length - 1].moved, []);
+      assert.ok(logged.some((m) => m.includes(`"${COPIES_REMOVED}"`) && m.includes(`removed ${path.join(dir, 'pre-names')}`) && !m.includes('originals in')), logged.join('\n'));
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the next start runs nothing');
+    });
+
+    test('names-copies-removed waits a start when other parts ran in the same start, so the originals outlive the start that changed them', () => {
+      const dir = copyFixture();
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), RENAMING_PARTS);
+      assert.ok(fs.existsSync(path.join(dir, 'pre-names', 'names-table', 'app.json')), 'the copies kept');
+      assert.equal(names.recordedParts(appOf(dir)).includes(COPIES_REMOVED), false, 'and it is not recorded yet');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [COPIES_REMOVED]);
+      assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false);
+    });
+
+    test('names-copies-removed with no copies there: recorded, nothing else written', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: names.ENVIRONMENT_PARTS.filter((p) => p.id !== COPIES_REMOVED), log: quiet });
+      fs.rmSync(path.join(dir, 'pre-names'), { recursive: true, force: true });
+      const before = snapshot(dir, (rel) => rel === 'app.json');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [COPIES_REMOVED]);
+      assert.deepEqual(snapshot(dir, (rel) => rel === 'app.json'), before);
+      assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false, 'and makes no folder of its own');
+    });
+
+    test('names-copies-removed on the host: pre-names-host/ goes, the environments stay', () => {
+      const dir = copyHostFixture();
+      names.migrateHost(dir, { log: quiet });
+      assert.ok(fs.existsSync(path.join(dir, names.HOST_COPY_DIR)));
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), [COPIES_REMOVED]);
+      assert.equal(fs.existsSync(path.join(dir, names.HOST_COPY_DIR)), false);
+      assert.ok(fs.existsSync(path.join(dir, 'environments', 'acme', 'app.json')));
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment', COPIES_REMOVED]);
+    });
+
+    test('names-copies-removed: a build from before step 10 refuses data that records it', () => {
+      assert.deepEqual(names.unknownParts({ version: 2, migrations: ALL_PARTS.map((id) => ({ id })) }, names.ENVIRONMENT_PARTS.slice(0, 6)), [COPIES_REMOVED]);
     });
 
     test('the Store keeps asides in their own record: never a space, swept once empty, a removed account taken out of them', () => {
@@ -2109,44 +2185,14 @@ function migrationCheck() {
       assert.throws(() => store.updateSpace(aside.id, { name: 'x' }), (err) => err.status === 404, 'no settings');
     });
 
-    test('the Studio alias, step 8: each aside as a row in rooms with ephemeral: true, after the spaces, for a bearer request only', () => {
-      const alias = require('../server/studio-alias.js');
-      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
-      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }];
-      const asides = [{ id: 'aside1', members: ['k', 'm'], origin: 'lobby', private: true, createdAt: '2026-01-03T00:00:00.000Z' }];
-      const status = { environmentName: 'Acme', users: [], spaces, asides, activeSpace: 'lobby' };
-      const sent = alias.status(req({ authorization: 'Bearer good' }), status, { signedIn: { key: 'k' }, environmentName: 'Acme', asideName: 'Aside' });
-      assert.deepEqual(sent.rooms.map((r) => [r.id, r.ephemeral, r.private, r.origin]), [['lobby', false, false, null], ['aside1', true, true, 'lobby']], 'the spaces as their rows were, then the asides');
-      const row = sent.rooms[1];
-      assert.deepEqual([row.name, row.ephemeral, row.private, row.origin, row.members, row.isLobby, row.hasImage, row.description, row.profile], ['Aside', true, true, 'lobby', ['k', 'm'], false, false, '', 'roleplaying']);
-      assert.deepEqual([sent.spaces, sent.asides], [spaces, asides], 'the new names as they were');
-      assert.equal(alias.status(req({ authorization: 'Bearer good' }), status, { signedIn: { key: 'k' }, environmentName: 'Acme', asideName: 'Sidebar' }).rooms[1].name, 'Sidebar', 'named with the environment\'s word');
-      assert.equal(alias.status(req({ cookie: 'session=x' }), status, { signedIn: { key: 'k' } }), status, 'the pages\' cookie request: exactly the answer');
-    });
-
     test('names-spaces on a hosted environment: its module data and the rest take the new names', () => {
       const dir = copyHostFixture();
       names.migrateHost(dir, { log: quiet });
       const envDir = path.join(dir, 'environments', 'acme');
-      assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), ALL_PARTS);
+      assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), RENAMING_PARTS);
       assert.equal(fs.readFileSync(path.join(envDir, 'modules', 'todo', 'data', 'space-lobby.json'), 'utf8'), originalHost['tenants/acme/modules/todo/data/room-lobby.json']);
       const app = appOf(envDir);
       assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Acme Adventures');
-    });
-
-    test('the Studio alias, step 5a: serverName, rooms, activeRoom and users[].online.room beside the new names, for a bearer request only', () => {
-      const alias = require('../server/studio-alias.js');
-      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
-      const bearer = req({ authorization: 'Bearer good' });
-      const cookie = req({ cookie: 'session=x' });
-      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }, { id: 'keep01', name: 'The Keep', isLobby: false }];
-      const status = { environmentName: 'Acme', users: [{ key: 'k', role: 'owner', online: { key: 'k', space: 'aside1', micOn: true, cameraOn: false } }, { key: 'm', role: 'member', online: null }], spaces, asides: [], activeSpace: 'lobby' };
-      const sent = alias.status(bearer, status, { signedIn: { key: 'k' }, environmentName: 'Acme' });
-      assert.deepEqual([sent.serverName, sent.rooms, sent.activeRoom], ['Acme', spaces.map((r) => ({ ...r, ephemeral: false, origin: null, private: false })), 'lobby']);
-      assert.deepEqual([sent.environmentName, sent.spaces, sent.activeSpace], ['Acme', spaces, 'lobby'], 'the new names too');
-      assert.deepEqual(sent.users.map((u) => [u.role, u.online && u.online.room, u.online && u.online.space]), [['admin', 'aside1', 'aside1'], ['user', null, null]]);
-      assert.equal(alias.me(bearer, { environmentName: 'Acme' }, { signedIn: { key: 'k' }, role: 'owner', environmentName: 'Acme' }).serverName, 'Acme');
-      assert.equal(alias.status(cookie, status, { signedIn: { key: 'k' }, environmentName: 'Acme' }), status, 'the pages\' cookie request: exactly the answer');
     });
 
     test('the Store takes only owner and member by hand, lets an environment have no owner, and never changes an admin\'s role or sign-in', () => {
@@ -2182,40 +2228,6 @@ function migrationCheck() {
       fs.writeFileSync(path.join(dir, 'app.json'), '{ not json');
       assert.throws(() => names.migrateEnvironment(dir, { log: quiet }), (err) => err instanceof names.MigrationError && err.reason === 'unreadable' && err.file === path.join(dir, 'app.json'));
       assert.equal(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'), '{ not json');
-    });
-
-    test('the Studio alias answers only a request its bearer token signed in, and never sees the account', () => {
-      const alias = require('../server/studio-alias.js');
-      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
-      let seen = null;
-      const entry = (_answer, ctx) => { seen = ctx; return { oldName: true }; };
-      alias.ME.push(entry);
-      alias.STATUS.push(entry);
-      try {
-        const answer = { a: 1 };
-        assert.deepEqual(alias.me(req({ authorization: 'Bearer good' }), answer, { signedIn: { passwordHash: 'x' }, role: 'admin', environmentName: 'Ours' }), { a: 1, tableName: 'Ours', serverName: 'Ours', oldName: true });
-        assert.deepEqual(seen, { role: 'admin', environmentName: 'Ours' }, 'the entry gets what it was given, not the account');
-        assert.equal(alias.status(req({ authorization: 'Bearer junk' }), answer, { signedIn: null }), answer, 'a bearer header that signed nobody in (the stream key let it in)');
-        assert.equal(alias.me(req({ cookie: 'session=x' }), answer, { signedIn: { key: 'k' } }), answer, 'the pages\' cookie');
-      } finally {
-        alias.ME.pop();
-        alias.STATUS.pop();
-      }
-      assert.equal(alias.me(req({ authorization: 'Bearer good' }), { a: 1 }, { signedIn: {} }).oldName, undefined, 'an entry taken out is gone');
-    });
-
-    // --- What Studio reads, entry by entry (plan-names, "What Studio reads") ---
-    test('the Studio alias, step 3: tableName is the environment\'s name, on /api/me and /api/status, for a bearer request only', () => {
-      const alias = require('../server/studio-alias.js');
-      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
-      const bearer = req({ authorization: 'Bearer good' });
-      const cookie = req({ cookie: 'session=x' });
-      const context = { signedIn: { key: 'k' }, role: 'admin', hostAdmin: false, environmentName: 'Acme Adventures' };
-      assert.deepEqual(alias.me(bearer, { environmentName: 'Acme Adventures' }, context), { environmentName: 'Acme Adventures', tableName: 'Acme Adventures', serverName: 'Acme Adventures' });
-      assert.deepEqual(alias.status(bearer, { users: [] }, { signedIn: { key: 'k' }, environmentName: 'Acme Adventures' }), { users: [], tableName: 'Acme Adventures', serverName: 'Acme Adventures' });
-      const answer = { environmentName: 'Acme Adventures' };
-      assert.equal(alias.me(cookie, answer, context), answer, 'the pages\' cookie request: exactly the answer, no tableName');
-      assert.equal(alias.status(cookie, answer, context), answer);
     });
 
     test('a record naming a part this server does not know is from a newer Magpie', () => {

@@ -3,7 +3,7 @@
  * check-auth.mjs -- server/auth.js on its own: TOTP (RFC 6238), the secret's own encryption at rest,
  * recovery codes, the pending token, and mfa.version folded into a session's own stamp
  * (documentation/plans/plan-mfa.md). Then the roles (documentation/plans/plan-names.md, step 4): who has an owner's
- * rights, the roles an account can hold, and the old role values the Studio alias answers a bearer request with.
+ * rights and the roles an account can hold, and that the Studio alias is gone (step 10).
  * Last, the server's own settings a person picks from a list: the currency is a known ISO 4217 code (GitHub #4).
  */
 import assert from 'node:assert/strict';
@@ -12,12 +12,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const auth = require('../server/auth.js');
 const { ROLES, ASSIGNABLE_ROLES, hasOwnerRights } = require('../server/store.js');
 const { buildEnvironment, flushEnvironment } = require('../server/environment.js');
-const studioAlias = require('../server/studio-alias.js');
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
@@ -143,24 +143,12 @@ test('an owner and the host admin\'s stand-in (admin) have an owner\'s rights; a
   assert.equal(hasOwnerRights(null), false);
 });
 
-test('the Studio alias answers a bearer request with the old role values, and the pages\' cookie with the new', () => {
-  const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
-  const bearer = req({ authorization: 'Bearer good' });
-  const cookie = req({ cookie: 'session=x' });
-  assert.deepEqual(['owner', 'admin', 'member', 'guest'].map(studioAlias.oldRole), ['admin', 'admin', 'user', 'guest']);
-  const me = (role) => ({ user: { key: 'k', role }, streamKey: role === 'member' ? undefined : 'sk' });
-  const ctx = { signedIn: { key: 'k' }, environmentName: 'Ours' };
-  assert.equal(studioAlias.me(bearer, me('owner'), ctx).user.role, 'admin');
-  assert.equal(studioAlias.me(bearer, me('owner'), ctx).streamKey, 'sk', 'the stream key rides along unchanged');
-  assert.equal(studioAlias.me(bearer, me('admin'), ctx).user.role, 'admin');
-  assert.equal(studioAlias.me(bearer, me('member'), ctx).user.role, 'user');
-  const answer = me('owner');
-  assert.equal(studioAlias.me(cookie, answer, ctx), answer, 'a cookie request: the very same answer');
-  const status = { users: [{ key: 'a', role: 'owner' }, { key: 'b', role: 'member' }, { key: 'c', role: 'admin' }] };
-  assert.deepEqual(studioAlias.status(bearer, status, ctx).users.map((u) => u.role), ['admin', 'user', 'admin']);
-  assert.deepEqual(status.users.map((u) => u.role), ['owner', 'member', 'admin'], 'the answer itself is not changed in place');
-  assert.equal(studioAlias.status(cookie, status, ctx), status);
-  assert.equal(studioAlias.status(req({ authorization: 'Bearer junk' }), status, { signedIn: null }), status, 'a bearer header that signed nobody in (the stream key let it in)');
+test('the Studio alias is gone (plan-names step 10): no file, and nothing in the server loads it', () => {
+  const server = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'server');
+  assert.equal(fs.existsSync(path.join(server, 'studio-alias.js')), false);
+  for (const file of fs.readdirSync(server).filter((f) => f.endsWith('.js'))) {
+    assert.equal(/studio-alias|studioAlias/.test(fs.readFileSync(path.join(server, file), 'utf8')), false, file);
+  }
 });
 
 test('the server currency is a known code; an unknown one is refused, an old one already set is kept', () => {

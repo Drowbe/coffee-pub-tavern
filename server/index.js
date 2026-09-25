@@ -37,7 +37,6 @@ const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
 const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError, recordedParts } = require('./migrate-names');
-const studioAlias = require('./studio-alias');
 const callNames = require('./call-names');
 const { mountOldLinks } = require('./old-links');
 const { currencyCodes } = require('./currencies');
@@ -53,19 +52,14 @@ const {
   // host admin in host.json; on a single-environment install the one environment's `admin` account.
   ADMIN_LOGIN = '',
   ADMIN_PASSWORD = '',
-  ADMIN_USER = '', // the old name of ADMIN_LOGIN: still read, with a line on start, until a later release
   ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
   OWNER_PASSWORD = '', // built in step 4 and dropped: ignored, with a line on start
-  TAVERN_ADMIN_USER = '', // deprecated: use ADMIN_LOGIN
   TAVERN_ADMIN_PASSWORD = '', // deprecated: use ADMIN_PASSWORD
   TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_PASSWORD
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
   MIGRATE_ENVIRONMENT_SLUG = '',
-  MIGRATE_TENANT_SLUG = '', // the old name of MIGRATE_ENVIRONMENT_SLUG: still read, with a line on start, until a later release
-  HOST_ADMIN_LOGIN = '', // hosted: the old name of ADMIN_LOGIN, still read with a line on start
-  HOST_ADMIN_PASSWORD = '', // hosted: the old name of ADMIN_PASSWORD, likewise
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
   // Seed the host's managed AI service, per company (documentation/plans/plan-environments.md, "Managed AI, per
@@ -105,31 +99,25 @@ const {
 } = process.env;
 
 // The server's admin (plan-names decisions 7, 15 and 20): ADMIN_LOGIN and ADMIN_PASSWORD, on every kind of install.
-// The old names are still read, a new name always winning when both are set, and each old name read says so on every
-// start. On a single-environment install those are ADMIN_USER and TAVERN_ADMIN_* (with ADMIN_KEY, the pre-account
-// password, still accepted); on a hosted server, HOST_ADMIN_LOGIN and HOST_ADMIN_PASSWORD, the host admin's names
-// before. Each kind reads only its own old names, as it always has: a hosted server never read ADMIN_USER or
-// TAVERN_ADMIN_*, which named the single install's account, and a single install never read HOST_ADMIN_*.
-const oldConfigNames = BASE_DOMAIN
-  ? [['HOST_ADMIN_LOGIN', 'ADMIN_LOGIN', HOST_ADMIN_LOGIN], ['HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD', HOST_ADMIN_PASSWORD]]
-  : [['ADMIN_USER', 'ADMIN_LOGIN', ADMIN_USER], ['TAVERN_ADMIN_USER', 'ADMIN_LOGIN', TAVERN_ADMIN_USER], ['TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', 'ADMIN_PASSWORD', TAVERN_ADMIN_KEY]];
+// On a single-environment install TAVERN_ADMIN_PASSWORD and TAVERN_ADMIN_KEY (with ADMIN_KEY, the pre-account
+// password) are still read for the password, each saying so on every start; a hosted server never read them.
+const oldConfigNames = BASE_DOMAIN ? [] : [['TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', 'ADMIN_PASSWORD', TAVERN_ADMIN_KEY]];
 for (const [old, now, value] of oldConfigNames) if (value) console.warn(`${old} is now ${now}; the old name stops working in a later release.`);
+// The old names that went in plan-names step 10 (decision 20) are no longer read at all; set, each says so on every
+// start, with the name to use instead, so an install that still sets one is not left guessing why it has no effect.
+const REMOVED_CONFIG_NAMES = [['ADMIN_USER', 'ADMIN_LOGIN'], ['TAVERN_ADMIN_USER', 'ADMIN_LOGIN'], ['HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'], ['HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'], ['MIGRATE_TENANT_SLUG', 'MIGRATE_ENVIRONMENT_SLUG']];
+for (const [old, now] of REMOVED_CONFIG_NAMES) if (process.env[old]) console.warn(`${old} is no longer read: use ${now} instead.`);
 // A hosted server never read the single install's own names; set there, they are said to be ignored, once per start.
 if (BASE_DOMAIN) {
-  const ignored = [['ADMIN_USER', ADMIN_USER], ['ADMIN_KEY', ADMIN_KEY], ['TAVERN_ADMIN_USER', TAVERN_ADMIN_USER], ['TAVERN_ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', TAVERN_ADMIN_KEY]].filter(([, v]) => v).map(([k]) => k);
+  const ignored = [['ADMIN_KEY', ADMIN_KEY], ['TAVERN_ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', TAVERN_ADMIN_KEY]].filter(([, v]) => v).map(([k]) => k);
   if (ignored.length) console.warn(`${ignored.join(', ')} ${ignored.length === 1 ? 'is' : 'are'} ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.`);
 }
 if (OWNER_PASSWORD) console.warn("OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.");
-const adminLogin = ADMIN_LOGIN || (BASE_DOMAIN ? HOST_ADMIN_LOGIN : ADMIN_USER || TAVERN_ADMIN_USER) || 'admin';
-const adminPassword = ADMIN_PASSWORD || (BASE_DOMAIN ? HOST_ADMIN_PASSWORD : TAVERN_ADMIN_PASSWORD || ADMIN_KEY || TAVERN_ADMIN_KEY);
-if (BASE_DOMAIN && ADMIN_PASSWORD && HOST_ADMIN_PASSWORD && ADMIN_PASSWORD !== HOST_ADMIN_PASSWORD) {
-  console.warn(`ADMIN_PASSWORD and HOST_ADMIN_PASSWORD are both set and differ: ADMIN_PASSWORD is used for the host admin "${adminLogin}". Remove HOST_ADMIN_PASSWORD.`);
-}
+const adminLogin = ADMIN_LOGIN || 'admin';
+const adminPassword = ADMIN_PASSWORD || (BASE_DOMAIN ? '' : TAVERN_ADMIN_PASSWORD || ADMIN_KEY || TAVERN_ADMIN_KEY);
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
-// The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names
-// decisions 15 and 20): the new name wins when both are set, and the old one says so on every start it is set.
-const migrateEnvironmentSlug = MIGRATE_ENVIRONMENT_SLUG || MIGRATE_TENANT_SLUG;
-if (MIGRATE_TENANT_SLUG) console.warn('MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release.');
+// The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names decision 15).
+const migrateEnvironmentSlug = MIGRATE_ENVIRONMENT_SLUG;
 const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP === 'on';
 // The bundled templates, checked now: an invalid one stops the start, naming the file and what is wrong.
 try {
@@ -2758,7 +2746,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/me', requireUser, (req, res) => {
   const user = currentUser(req);
-  res.json(studioAlias.me(req, {
+  res.json({
     user: publicUser(req, user, { self: true }),
     ...branding(),
     // `owner`: this account is one of the environment's owners -- never the host admin's own cross sign-in stand-in
@@ -2773,7 +2761,7 @@ app.get('/api/me', requireUser, (req, res) => {
     mfaEnrolled: Boolean(user.mfa),
     mfaRequired: !user.mfa && mfaPolicyRequires(user),
     mfaBypass: mfaBypassApplies(user),
-  }, { signedIn: user, role: user.role, hostAdmin: Boolean(user.hostAdmin), environmentName: store.settings.environmentName }));
+  });
 });
 
 // The signed-in person's own account settings. So far only themeMode (GitHub #62): 'light' or 'dark', or null to
@@ -3145,7 +3133,7 @@ app.get('/api/status', requireStream, async (req, res) => {
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
   store.pruneAsides(byKey);
-  res.json(studioAlias.status(req, {
+  res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u, { link: false }), online: withoutCall(byKey.get(u.key)) })),
     spaces: store.spaces.map((r) => shownSpace(req, r)),
@@ -3153,7 +3141,7 @@ app.get('/api/status', requireStream, async (req, res) => {
     activeSpace: activeSpaceId(byKey),
     ownerOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
-  }, { signedIn: currentUser(req), environmentName: store.settings.environmentName, asideName: word('aside', { cap: true }) }));
+  });
 });
 
 // What a keyed page (public/keyed.html) needs to mount the module that claims its path: the surface's own entry

@@ -52,8 +52,7 @@ services:
       # The server's admin. Made on first start, and its password reset to this on every start, so if you
       # ever forget it, change it here and restart the container. On one environment this admin runs it
       # (owners are made in Manage); with several environments it is the host admin, who signs in to the
-      # host console at admin.<base domain>. (ADMIN_USER and HOST_ADMIN_LOGIN/HOST_ADMIN_PASSWORD are the
-      # old names, still read for now.)
+      # host console at admin.<base domain>.
       ADMIN_LOGIN: "CHANGE_ME_ADMIN_LOGIN"
       ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
       # Several environments on one server (see the getting-started guide, "Environments"): set the base

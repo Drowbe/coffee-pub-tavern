@@ -432,7 +432,7 @@ try {
 
   // --- roles (plan-names step 4), in acme as the fixture left it: an owner, a member, the host admin's stand-in ---
   const cookieOf = (res) => [].concat(res.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
-  await liveTest('live: roles in an environment: the owner and the host admin\'s sign-in have every right, a member does not, an environment may have no owner, and Studio\'s bearer requests get the old role values', async () => {
+  await liveTest('live: roles in an environment: the owner and the host admin\'s sign-in have every right, a member does not, an environment may have no owner, and Studio\'s bearer requests get the same new role values as the pages', async () => {
     const signIn = async (login, password) => {
       const res = await call(server, 'acme', 'POST', '/api/login', { body: { login, password } });
       assert.equal(res.status, 200, `${login} signs in: ${res.text}`);
@@ -503,16 +503,21 @@ try {
     assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'owner' } })).json.user.role, 'owner');
     assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: boss.cookie, body: { role: 'member' } })).json.user.role, 'member', 'with two owners, one can step down');
 
-    // The Studio alias: a bearer request answers the old role values, the pages' cookie request the new ones.
+    // The Studio alias is gone (plan-names step 10): a bearer request (Studio's) answers exactly what the pages' cookie
+    // request does, the new names only.
     const bearerMe = (await call(server, 'acme', 'GET', '/api/me', { bearer: owner.token })).json;
-    assert.deepEqual([bearerMe.user.role, typeof bearerMe.streamKey], ['admin', 'string'], 'Studio reads admin for an owner, and gets the stream key');
+    assert.deepEqual([bearerMe.user.role, typeof bearerMe.streamKey], ['owner', 'string'], 'Studio reads owner for an owner, and gets the stream key');
+    for (const old of ['tableName', 'serverName']) assert.equal(old in bearerMe, false, `no ${old} on /api/me`);
     assert.equal((await call(server, 'acme', 'GET', '/api/me', { bearer: boss.token })).json.user.role, 'admin');
-    assert.equal((await call(server, 'acme', 'GET', '/api/me', { bearer: member.token })).json.user.role, 'user');
+    assert.equal((await call(server, 'acme', 'GET', '/api/me', { bearer: member.token })).json.user.role, 'member');
     const bearerStatus = (await call(server, 'acme', 'GET', '/api/status', { bearer: owner.token })).json;
     const cookieStatus = (await call(server, 'acme', 'GET', '/api/status', { cookie: owner.cookie })).json;
     const byLogin = (st) => Object.fromEntries(st.users.map((u) => [u.login, u.role]));
-    assert.deepEqual(byLogin(bearerStatus), { owner: 'admin', pat: 'user', boss: 'admin', newbie: 'user' });
-    assert.deepEqual(byLogin(cookieStatus), { owner: 'owner', pat: 'member', boss: 'admin', newbie: 'member' });
+    assert.deepEqual(byLogin(bearerStatus), { owner: 'owner', pat: 'member', boss: 'admin', newbie: 'member' });
+    assert.deepEqual(byLogin(cookieStatus), byLogin(bearerStatus));
+    assert.deepEqual(Object.keys(bearerStatus).sort(), Object.keys(cookieStatus).sort(), 'the same fields as the pages get');
+    for (const old of ['tableName', 'serverName', 'rooms', 'activeRoom']) assert.equal(old in bearerStatus, false, `no ${old} on /api/status`);
+    assert.equal(bearerStatus.users.some((u) => u.online && 'room' in u.online), false, 'no users[].online.room');
     assert.equal((await call(server, 'acme', 'GET', '/api/status', { bearer: member.token })).status, 403, 'a member\'s bearer token is no stream access');
     const streamKey = ownerMe.streamKey;
     const byKey = (await call(server, 'acme', 'GET', `/api/status?s=${encodeURIComponent(streamKey)}`)).json;
@@ -667,35 +672,61 @@ try {
     server = null;
     const before = fs.readFileSync(path.join(data, 'host.json'), 'utf8');
     server = await startServer(data, hostedEnv);
-    assert.deepEqual(names.recordedParts(readJson(path.join(data, 'host.json'))), ['names-environment'], 'a later start records nothing more');
-    assert.equal(JSON.parse(before).migrations.length, 1);
+    // The first start kept the copies (asserted above); a start after it deleted them (plan-names step 10).
+    assert.deepEqual(names.recordedParts(readJson(path.join(data, 'host.json'))), ['names-environment', 'names-copies-removed'], 'the later starts deleted the copies and recorded only that');
+    assert.deepEqual(names.recordedParts(JSON.parse(before)), ['names-environment', 'names-copies-removed']);
+    assert.equal(fs.existsSync(path.join(data, 'pre-names-host')), false, 'pre-names-host/ is gone');
+    assert.equal(fs.existsSync(path.join(data, 'environments', 'acme', 'pre-names')), false, 'and each environment\'s pre-names/');
+    assert.equal(names.recordedParts(readJson(path.join(data, 'environments', 'acme', 'app.json'))).at(-1), 'names-copies-removed');
+    await server.stop();
+    server = null;
+    const settled = fs.readFileSync(path.join(data, 'host.json'), 'utf8');
+    server = await startServer(data, hostedEnv);
+    assert.equal(fs.readFileSync(path.join(data, 'host.json'), 'utf8'), settled, 'a later start records nothing more');
     await server.stop();
     server = null;
   });
 
-  const moves = [
-    ['MIGRATE_TENANT_SLUG', { MIGRATE_TENANT_SLUG: 'keep' }, true],
-    ['MIGRATE_ENVIRONMENT_SLUG', { MIGRATE_ENVIRONMENT_SLUG: 'keep' }, false],
-    ['both set, the new name winning', { MIGRATE_ENVIRONMENT_SLUG: 'keep', MIGRATE_TENANT_SLUG: 'old-name' }, true],
-  ];
-  for (const [what, vars, logs] of moves) {
-    await liveTest(`live: the pre-environment move with ${what}`, async () => {
-      const single = path.join(liveDir, `single-${what.replace(/\W+/g, '-')}`);
-      fs.cpSync(FIXTURE, single, { recursive: true, filter: (src) => !path.relative(FIXTURE, src).startsWith('host') });
-      server = await startServer(single, { ...hostedEnv, ...vars });
-      assert.equal(/MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release\./.test(server.output()), logs, server.output());
-      assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'app.json')) && !fs.existsSync(path.join(single, 'app.json')));
-      assert.ok(!fs.existsSync(path.join(single, 'environments', 'old-name')), 'only the new name is used');
-      assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'modules', 'todo', 'data', 'space-keep01.json')), 'the module data moved with it, then took its new name when the environment was built');
-      const host = readJson(path.join(single, 'host.json'));
-      assert.deepEqual(host.environments.map((e) => e.slug), ['keep']);
-      assert.deepEqual(host.migrations.map((m) => [m.id, m.moved]), [['names-environment', []]]);
-      assert.equal(fs.existsSync(path.join(single, 'pre-names-host')), false, 'nothing old to copy');
-      assert.equal((await call(server, 'keep', 'GET', '/api/me')).status, 401, 'the moved environment opens');
-      await server.stop();
-      server = null;
-    });
-  }
+  const NO_LONGER_READ = (old, now) => `${old} is no longer read: use ${now} instead.`;
+  await liveTest('live: the pre-environment move with MIGRATE_ENVIRONMENT_SLUG', async () => {
+    const single = path.join(liveDir, 'single-MIGRATE_ENVIRONMENT_SLUG');
+    fs.cpSync(FIXTURE, single, { recursive: true, filter: (src) => !path.relative(FIXTURE, src).startsWith('host') });
+    server = await startServer(single, { ...hostedEnv, MIGRATE_ENVIRONMENT_SLUG: 'keep' });
+    assert.ok(!server.output().includes('MIGRATE_TENANT_SLUG'), server.output());
+    assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'app.json')) && !fs.existsSync(path.join(single, 'app.json')));
+    assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'modules', 'todo', 'data', 'space-keep01.json')), 'the module data moved with it, then took its new name when the environment was built');
+    const host = readJson(path.join(single, 'host.json'));
+    assert.deepEqual(host.environments.map((e) => e.slug), ['keep']);
+    assert.deepEqual(host.migrations.map((m) => [m.id, m.moved]), [['names-environment', []], ['names-copies-removed', []]]);
+    assert.equal(fs.existsSync(path.join(single, 'pre-names-host')), false, 'nothing old to copy');
+    assert.equal((await call(server, 'keep', 'GET', '/api/me')).status, 401, 'the moved environment opens');
+    await server.stop();
+    server = null;
+  });
+
+  // MIGRATE_TENANT_SLUG is no longer read (plan-names step 10): set alone, the start says so and the data stays where it
+  // is; beside the new name, only the new name is used, and the old one is still named.
+  await liveTest('live: MIGRATE_TENANT_SLUG alone is no longer read: the start names it, and nothing moves', async () => {
+    const single = path.join(liveDir, 'single-old-slug-name');
+    fs.cpSync(FIXTURE, single, { recursive: true, filter: (src) => !path.relative(FIXTURE, src).startsWith('host') });
+    const stopped = await startServer(single, { ...hostedEnv, MIGRATE_TENANT_SLUG: 'keep' }).then((s) => { server = s; return null; }, (err) => err);
+    const output = stopped ? stopped.message : server.output();
+    assert.ok(output.includes(NO_LONGER_READ('MIGRATE_TENANT_SLUG', 'MIGRATE_ENVIRONMENT_SLUG')), output);
+    assert.ok(!fs.existsSync(path.join(single, 'environments', 'keep')), 'nothing moved under the old name');
+    assert.ok(fs.existsSync(path.join(single, 'app.json')), 'the install\'s data is where it was');
+    if (server) { await server.stop(); server = null; }
+  });
+
+  await liveTest('live: MIGRATE_TENANT_SLUG beside MIGRATE_ENVIRONMENT_SLUG: the new name is used, the old one named', async () => {
+    const single = path.join(liveDir, 'single-both-slugs');
+    fs.cpSync(FIXTURE, single, { recursive: true, filter: (src) => !path.relative(FIXTURE, src).startsWith('host') });
+    server = await startServer(single, { ...hostedEnv, MIGRATE_ENVIRONMENT_SLUG: 'keep', MIGRATE_TENANT_SLUG: 'old-name' });
+    assert.ok(server.output().includes(NO_LONGER_READ('MIGRATE_TENANT_SLUG', 'MIGRATE_ENVIRONMENT_SLUG')), server.output());
+    assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'app.json')));
+    assert.ok(!fs.existsSync(path.join(single, 'environments', 'old-name')), 'only the new name is used');
+    await server.stop();
+    server = null;
+  });
 
   // --- call names against a stand-in LiveKit (plan-names decision 14; QA on step 3) ---
   // A small Twirp JSON server answering ListRooms and ListParticipants from `calls` ({ name: [identity, ...] }), so
@@ -786,18 +817,25 @@ try {
 
   // --- the server's admin (plan-names decision 7, amended): ADMIN_LOGIN and ADMIN_PASSWORD on every install ---
   const OLD_LINE = (old, now) => `${old} is now ${now}; the old name stops working in a later release.`;
+  const GONE_LINE = (old, now) => `${old} is no longer read: use ${now} instead.`; // plan-names step 10
   const OWNER_IGNORED = "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.";
   const signInSingle = async (login, password) => {
     const res = await call(server, '', 'POST', '/api/login', { body: { login, password } });
     return res.status === 200 ? { cookie: cookieOf(res), key: res.json.user.key, role: res.json.user.role } : res.status;
   };
 
-  await liveTest('live: hosted: ADMIN_LOGIN and ADMIN_PASSWORD make the host admin and reset its password on each start, leaving other host admins alone; HOST_ADMIN_* still work, logged; OWNER_PASSWORD is ignored', async () => {
+  await liveTest('live: hosted: ADMIN_LOGIN and ADMIN_PASSWORD make the host admin and reset its password on each start, leaving other host admins alone; HOST_ADMIN_* are no longer read, and say so; OWNER_PASSWORD is ignored', async () => {
     const hosted = path.join(liveDir, 'hosted-admin');
     const hostIn = async (login, password) => (await call(server, 'admin', 'POST', '/api/host/login', { body: { login, password } })).status;
-    // Only the old names: they still make the host admin, and say so.
+    // Only the old names: no longer read (plan-names step 10). The start says so, and makes no host admin from them.
     server = await startServer(hosted, { BASE_DOMAIN: 'localhost', HOST_ADMIN_LOGIN: 'boss', HOST_ADMIN_PASSWORD: 'host-password-1', OWNER_PASSWORD: 'never-used-1' });
-    for (const line of [OLD_LINE('HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'), OLD_LINE('HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'), OWNER_IGNORED, 'Host admin "boss" created from the environment.']) assert.ok(server.output().includes(line), `${line}\n${server.output()}`);
+    for (const line of [GONE_LINE('HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'), GONE_LINE('HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'), OWNER_IGNORED]) assert.ok(server.output().includes(line), `${line}\n${server.output()}`);
+    assert.ok(!/Host admin "boss" created/.test(server.output()), server.output());
+    assert.equal(await hostIn('boss', 'host-password-1'), 401, 'the old names make nobody');
+    await server.stop();
+    // The new names make the host admin.
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-1' });
+    assert.ok(server.output().includes('Host admin "boss" created from the environment.'), server.output());
     assert.equal(await hostIn('boss', 'host-password-1'), 200);
     const bossCookie = cookieOf(await call(server, 'admin', 'POST', '/api/host/login', { body: { login: 'boss', password: 'host-password-1' } }));
     assert.equal((await call(server, 'admin', 'POST', '/api/host/admins', { cookie: bossCookie, body: { login: 'second', password: 'second-password-1' } })).status, 201, 'a second host admin, made on the console');
@@ -806,7 +844,7 @@ try {
     const before = readJson(path.join(hosted, 'host.json')).hostAdmins.find((a) => a.login === 'second');
     server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2' });
     assert.ok(server.output().includes('Host admin "boss" password reset from the environment.'), server.output());
-    assert.ok(!/is now ADMIN_/.test(server.output()), 'no old name set, no line');
+    assert.ok(!/is now ADMIN_|is no longer read/.test(server.output()), 'no old name set, no line');
     assert.equal(await hostIn('boss', 'host-password-1'), 401);
     assert.equal(await hostIn('boss', 'host-password-2'), 200);
     assert.equal(await hostIn('second', 'second-password-1'), 200, 'the other host admin still signs in');
@@ -816,13 +854,13 @@ try {
     // The same again: nothing to do. A new login: another host admin made beside the others.
     server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2', TAVERN_ADMIN_USER: 'x', TAVERN_ADMIN_PASSWORD: 'y', ADMIN_MFA_LOCKOUT_BYPASS: 'true' });
     assert.ok(!/Host admin "boss" (created|password reset)/.test(server.output()), server.output());
-    assert.ok(server.output().includes('TAVERN_ADMIN_USER, TAVERN_ADMIN_PASSWORD are ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), server.output());
+    assert.ok(server.output().includes(GONE_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN')), server.output());
+    assert.ok(server.output().includes('TAVERN_ADMIN_PASSWORD is ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), server.output());
     assert.ok(server.output().includes('The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips'), 'hosted: the host admins');
     await server.stop();
     server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'chief', ADMIN_PASSWORD: 'chief-password-1', ADMIN_USER: 'ignored-here' });
     assert.ok(server.output().includes('Host admin "chief" created from the environment.'));
-    assert.ok(!server.output().includes('ADMIN_USER is now'), 'a hosted server does not read ADMIN_USER, as before');
-    assert.ok(server.output().includes('ADMIN_USER is ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), 'and says it is ignored');
+    assert.ok(server.output().includes(GONE_LINE('ADMIN_USER', 'ADMIN_LOGIN')), 'ADMIN_USER is read nowhere now, and says so');
     assert.deepEqual(readJson(path.join(hosted, 'host.json')).hostAdmins.map((a) => a.login), ['boss', 'second', 'chief']);
     assert.equal(await hostIn('boss', 'host-password-2'), 200);
     await server.stop();
@@ -926,18 +964,20 @@ try {
     server = null;
   });
 
+  // ADMIN_USER and TAVERN_ADMIN_USER are no longer read (plan-names step 10): the login is ADMIN_LOGIN, or "admin".
+  // TAVERN_ADMIN_PASSWORD is not among the names the plan removes, and is still read, logged.
   const oldSingle = [
-    ['ADMIN_USER', { ADMIN_USER: 'gm', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
-    ['ADMIN_LOGIN beside ADMIN_USER, the new name winning', { ADMIN_LOGIN: 'gm', ADMIN_USER: 'old', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
-    ['TAVERN_ADMIN_USER and TAVERN_ADMIN_PASSWORD', { TAVERN_ADMIN_USER: 'gm', TAVERN_ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN'), OLD_LINE('TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD')]],
+    ['ADMIN_USER', { ADMIN_USER: 'gm', ADMIN_PASSWORD: 'admin-password-1' }, 'admin', 'admin-password-1', [GONE_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
+    ['ADMIN_LOGIN beside ADMIN_USER', { ADMIN_LOGIN: 'gm', ADMIN_USER: 'old', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [GONE_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
+    ['TAVERN_ADMIN_USER and TAVERN_ADMIN_PASSWORD', { TAVERN_ADMIN_USER: 'gm', TAVERN_ADMIN_PASSWORD: 'admin-password-1' }, 'admin', 'admin-password-1', [GONE_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN'), OLD_LINE('TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD')]],
   ];
   for (const [what, vars, login, password, lines] of oldSingle) {
-    await liveTest(`live: a single install with ${what}: the admin, with the old names logged`, async () => {
+    await liveTest(`live: a single install with ${what}: the old login name is not read, and the start says so`, async () => {
       const single = path.join(liveDir, `single-old-${what.replace(/\W+/g, '-')}`);
       server = await startServer(single, vars);
       for (const line of lines) assert.ok(server.output().includes(line), `${line}\n${server.output()}`);
       assert.equal((await signInSingle(login, password)).role, 'admin');
-      if (vars.ADMIN_USER && vars.ADMIN_LOGIN) assert.equal(await signInSingle(vars.ADMIN_USER, password), 401, 'the old name is not used');
+      for (const old of [vars.ADMIN_USER, vars.TAVERN_ADMIN_USER]) if (old && old !== login) assert.equal(await signInSingle(old, password), 401, `${old}: the old name is not used`);
       await server.stop();
       server = null;
     });
@@ -981,7 +1021,10 @@ try {
     const after = fs.readFileSync(path.join(single, 'app.json'), 'utf8');
     server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'step4-password-1' });
     assert.ok(!/Admin "gm" (created|updated)/.test(server.output()), 'the next start has nothing to do');
-    assert.equal(fs.readFileSync(path.join(single, 'app.json'), 'utf8'), after, 'and changes nothing');
+    // Only the copies go on this start (plan-names step 10: they wait one start after the parts that made them).
+    const withoutCopiesPart = (text) => { const a = JSON.parse(text); return { ...a, migrations: a.migrations.filter((m) => m.id !== 'names-copies-removed') }; };
+    assert.deepEqual(withoutCopiesPart(fs.readFileSync(path.join(single, 'app.json'), 'utf8')), JSON.parse(after), 'and changes nothing else');
+    assert.equal(fs.existsSync(path.join(single, 'pre-names')), false, 'pre-names/ gone');
     await server.stop();
     // With no password set, an install with accounts gets nothing made and nobody promoted: step 4's data as it was
     // (the compose account an owner, login the default "admin" too), started with no variables at all.

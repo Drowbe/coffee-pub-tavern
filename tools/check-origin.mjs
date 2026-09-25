@@ -53,7 +53,7 @@ await test('the rule runs for every write before any body is parsed, and only PO
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-origin-'));
 const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
   cwd: ROOT,
-  env: { PATH: process.env.PATH, HOME: process.env.HOME, PORT: '0', DATA_DIR: dataDir, BASE_DOMAIN: BASE, LIVEKIT_API_KEY: 'devkey', LIVEKIT_API_SECRET: 'devsecretdevsecret', HOST_ADMIN_LOGIN: 'host', HOST_ADMIN_PASSWORD: 'hostpass1234' },
+  env: { PATH: process.env.PATH, HOME: process.env.HOME, PORT: '0', DATA_DIR: dataDir, BASE_DOMAIN: BASE, LIVEKIT_API_KEY: 'devkey', LIVEKIT_API_SECRET: 'devsecretdevsecret', ADMIN_LOGIN: 'host', ADMIN_PASSWORD: 'hostpass1234' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let out = '';

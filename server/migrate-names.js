@@ -3,7 +3,8 @@
 // recorded part per step of that plan. This file is the frame only: the version, the record of parts, the copy
 // into pre-names/ and the refusal of a newer backup. The parts themselves land with the steps that need them
 // (names-environment for the host; names-table, names-roles, names-spaces, names-pointers, names-objects,
-// names-asides for an environment) and are added to HOST_PARTS and ENVIRONMENT_PARTS below, in the order they run.
+// names-asides for an environment; names-copies-removed, last in both, deletes the copies again) and are added to
+// HOST_PARTS and ENVIRONMENT_PARTS below, in the order they run.
 //
 // An environment's record lives in its own app.json: `version` goes from 1 to NAMES_VERSION with the first part
 // that runs, and `migrations: [{ id, at, moved }]` gains one entry per part. The host's lives in host.json the
@@ -23,10 +24,13 @@
 // later, that environment) is refused with the file and the part named, the same way a restore refuses such a
 // backup (backupRefusal below).
 //
-// A part is { id, files(dir) -> [relative paths of the JSON files it will rewrite], run(ctx) -> nothing }.
+// A part is { id, files(dir) -> [relative paths of the JSON files it will rewrite], run(ctx) -> nothing, copies? }
+// (copies: false keeps no copy first; only the part that deletes the copies uses it).
 // ctx: { dir, copyRoot (where this part's originals were copied), read(rel) (parsed JSON, or undefined when the file
-// is not there), write(rel, value), move(fromRel, toRel) }. write only takes a path files() listed (or the record file), since only those were copied first. write
-// and move are staged and applied after run returns. A part must be idempotent by shape: run over data it has
+// is not there), write(rel, value), move(fromRel, toRel), remove(rel) (a folder deleted), ranThisStart (the ids of
+// the parts that ran before it in this start), wait() (not recorded now; it runs again on the next start) }. write
+// only takes a path files() listed (or the record file), since only those were copied first. write, move and remove
+// are staged and applied after run returns. A part must be idempotent by shape: run over data it has
 // already changed, it changes nothing.
 'use strict';
 
@@ -405,9 +409,26 @@ const asidesPart = {
   },
 };
 
+// names-copies-removed (plan-names step 10, decision 18): the copies every earlier part kept are deleted, the
+// environment's pre-names/ (or the host's pre-names-host/) as a whole, now that the Studio alias is gone. It keeps no
+// copy of its own (`copies: false`). When any other part ran in the same start (data upgraded straight from before
+// the rename), the copies that start made are kept for one more start: the part waits, unrecorded, and deletes them
+// on the next start, so data never loses its originals in the very start that changed it. With no copies there it
+// only records itself.
+const copiesRemovedPart = (copyDir) => ({
+  id: 'names-copies-removed',
+  copies: false,
+  files: () => [],
+  run(ctx) {
+    if (ctx.ranThisStart.length) return ctx.wait();
+    if (fs.existsSync(path.join(ctx.dir, copyDir))) ctx.remove(copyDir);
+    return undefined;
+  },
+});
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
-const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart, objectsPart, asidesPart];
+const HOST_PARTS = [environmentPart, copiesRemovedPart(HOST_COPY_DIR)];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart, objectsPart, asidesPart, copiesRemovedPart(ENVIRONMENT_COPY_DIR)];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.
@@ -565,9 +586,11 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
     const listed = new Set(files);
 
     // The copy, before anything is written. A copy already there is the original from an earlier attempt that
-    // stopped part-way, and is kept rather than overwritten with what that attempt left behind.
+    // stopped part-way, and is kept rather than overwritten with what that attempt left behind. A part that keeps no
+    // copy (`copies: false`, the one that deletes them) skips this.
+    const keepsCopy = part.copies !== false;
     const copyRoot = path.join(dir, copyDir, part.id);
-    for (const rel of files) {
+    for (const rel of keepsCopy ? files : []) {
       const from = inside(dir, rel);
       const to = inside(copyRoot, rel);
       if (!fs.existsSync(from) || fs.existsSync(to)) continue;
@@ -583,9 +606,14 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
     // The part runs against staged writes and moves; nothing on disk changes until it has finished.
     const writes = new Map();
     const moves = [];
+    const removes = [];
+    let waiting = false;
     const ctx = {
       dir,
       copyRoot,
+      ranThisStart: [...ran], // the parts that ran before this one in this same start
+      wait: () => { waiting = true; }, // not recorded this start; the part runs again on the next
+      remove: (rel) => { inside(dir, rel); removes.push(normalRel(rel)); }, // a folder deleted, after the moves
       read: (rel) => {
         const key = normalRel(rel);
         return writes.has(key) ? structuredClone(writes.get(key)) : readJson(inside(dir, key));
@@ -604,6 +632,7 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
       const file = err.file || recordFile;
       throw new MigrationError(`The names migration part "${part.id}" stopped at ${file}: ${err.message}`, file);
     }
+    if (waiting) continue;
 
     // The record entry rides with the part's own writes, written last. `moved` is every folder this part has moved:
     // this attempt's, after any an earlier attempt moved before it stopped (its note, below).
@@ -617,13 +646,13 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
     writes.delete(recordName);
     writes.set(recordName, next);
     try {
-      commit(dir, writes, moves, { copyRoot, noteMoves: (pairs) => writeMovedNote(notePath, mergeMoved(earlier, pairs)) });
+      commit(dir, writes, moves, { removes, copyRoot: keepsCopy ? copyRoot : null, noteMoves: (pairs) => writeMovedNote(notePath, mergeMoved(earlier, pairs)) });
     } catch (err) {
       if (err instanceof MigrationError) throw new MigrationError(`The names migration part "${part.id}" was not applied: ${err.message}`, err.file);
       throw err;
     }
     try { fs.rmSync(notePath, { force: true }); } catch { /* the record now lists these moves; a note left behind is harmless */ }
-    log(`Names migration: ran "${part.id}" in ${dir}${moved.length ? ` (moved ${moved.length})` : ''}; originals in ${copyRoot}.`);
+    log(`Names migration: ran "${part.id}" in ${dir}${moved.length ? ` (moved ${moved.length})` : ''}${keepsCopy ? `; originals in ${copyRoot}` : ''}${removes.length ? `; removed ${removes.map((rel) => path.join(dir, rel)).join(', ')}` : ''}.`);
     ran.push(part.id);
   }
   return ran;
@@ -665,7 +694,7 @@ function mergeMoved(earlier, later) {
 // made ([{ from, to }], relative), so a process that stops between two moves has them on disk.
 // `copyRoot` is where the part's originals were copied (pre-names/<part>/, or pre-names-host/<part>/ for the host),
 // named when a late write fails.
-function commit(dir, writes, moves, { noteMoves = null, copyRoot = null } = {}) {
+function commit(dir, writes, moves, { removes = [], noteMoves = null, copyRoot = null } = {}) {
   const texts = [];
   for (const [rel, value] of writes) {
     const file = inside(dir, rel);
@@ -727,6 +756,16 @@ function commit(dir, writes, moves, { noteMoves = null, copyRoot = null } = {}) 
       done.push(entry);
     } catch (err) {
       throw undo(`Could not move ${from} to ${to}: ${err.message}`, from);
+    }
+  }
+  // Then the folders a part deletes (the copies, in names-copies-removed), before the record says it ran: one that
+  // stops part-way is not recorded, and the next start deletes what is left.
+  for (const rel of removes) {
+    const target = inside(dir, rel);
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+    } catch (err) {
+      throw undo(`Could not delete ${target}: ${err.message}`, target);
     }
   }
   // Then the writes are renamed into place, the record last. A failure this late leaves the originals in
