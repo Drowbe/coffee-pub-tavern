@@ -83,13 +83,14 @@ To switch environments on, with the server already running as above:
    add:
    ```yaml
    BASE_DOMAIN: "magpie.example.com"
-   MIGRATE_TENANT_SLUG: "thepub"      # what your existing server becomes; used once
+   MIGRATE_ENVIRONMENT_SLUG: "thepub" # what your existing server becomes; used once
    HOST_ADMIN_LOGIN: "yourlogin"       # the host console account; seeded once
    HOST_ADMIN_PASSWORD: "a strong one"
    ```
-   Recreate the container. On that start the existing data moves into `tenants/<slug>/` on the same
+   Recreate the container. On that start the existing data moves into `environments/<slug>/` on the same
    volume and the environment is recorded; everyone's accounts, spaces and layouts come with it, at
-   `https://<slug>.<base>`.
+   `https://<slug>.<base>`. If you used the older name, `MIGRATE_TENANT_SLUG`, it still works for now, and the
+   log says to change it.
 
 **Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
 compose file, `"true"` by default) says whether the server offers a second step at all; with it off nobody is
@@ -122,8 +123,15 @@ download a copy of their environment and ask for its deletion from Manage; a hos
 deletion out from the console.
 4. **Then** remove the last three variables, keep `BASE_DOMAIN`, and recreate again. They were read once.
 
+A server that already had environments before this version renames its folders on its first start:
+`tenants/` becomes `environments/` and `tenants-deleted/` becomes `environments-deleted/`. Nothing else
+changes, the change is noted in `host.json`, and a copy of `host.json` as it was is kept in
+`pre-names-host/names-environment/`. If the start stops with a line saying `host.json` lists environments
+under both "tenants" and "environments", open `host.json`, remove whichever list is out of date, and start again.
+
 From there: `https://admin.<base>` is the host console (create an environment with its first owner, set its
-plan, back it up and restore it, suspend or delete it aside), `https://<slug>.<base>` each environment, and the bare
+plan, back it up and restore it, suspend it and **Resume** it, or delete it aside, which keeps its data under
+`environments-deleted/`), `https://<slug>.<base>` each environment, and the bare
 `https://<base>` the product page. Two optional variables feed that page: `PRODUCT_NAME` (the name it shows;
 the default is the app's own) and `CONTACT_EMAIL` (where "ask for an environment" writes to). If the base
 domain ever changes, set the new one as `BASE_DOMAIN` and list the old one in `PREVIOUS_BASE_DOMAINS`;

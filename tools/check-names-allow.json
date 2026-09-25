@@ -3,6 +3,8 @@
   { "file": "server/studio-alias.js", "level": "*", "pattern": ".", "reason": "The Studio alias sends the old names Coffee Pub Studio still reads, until step 10 removes it." },
   { "file": "tools/check-names.mjs", "level": "*", "pattern": ".", "reason": "The check holds the old names it searches for." },
   { "file": "tools/fixtures/names-v1/**", "level": "*", "pattern": ".", "reason": "An old-format data directory, kept old on purpose for the --migration check." },
+  { "file": "tools/check-host-registry.mjs", "level": "environment", "pattern": "^(tenants|tenants-deleted|oldHost\\.tenants\\.map|api/host/tenants|MIGRATE_TENANT_SLUG)$", "reason": "The check asserts the old folders, key and route are gone after the host's migration, and that the old configuration name is still read." },
+  { "file": "server/index.js", "level": "environment", "pattern": "^MIGRATE_TENANT_SLUG$", "reason": "The old name of MIGRATE_ENVIRONMENT_SLUG, still read with a line on start until step 10 (plan-names decisions 15 and 20)." },
   { "file": "**", "level": "space", "pattern": "^(\\w+\\.)?(Room|RoomEvent|RoomServiceClient)(\\.\\w+)?$", "reason": "The LiveKit SDK's own names (Room, RoomEvent, RoomServiceClient), not ours." },
   { "file": "server/index.js", "level": "space", "pattern": "^roomJoin$", "reason": "The LiveKit grant's own roomJoin field in mintToken's addGrant." },
   { "file": "server/index.js", "level": "space", "pattern": "^room$", "line": "^\\s*room,\\s*$", "reason": "The LiveKit grant's own room field in mintToken's addGrant({ room, ... })." },

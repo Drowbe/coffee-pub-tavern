@@ -14,15 +14,18 @@
 // install's own pre-names/ and the host's never share a folder when the pre-environment move carries DATA_DIR's
 // contents into an environment's folder), keeping their paths. Folders a part only moves are listed in `moved`.
 // A part stages its writes and moves; nothing is committed until the whole part has run without an error and every
-// write and move has been checked, and any error stops the start with the file named.
+// write and move has been checked, and any error stops the start with the file named. Before each folder moves, the
+// move is noted beside the copy (pre-names/<part>.moved.json), so an attempt that stops part-way (a failed write,
+// or the process killed between two moves) leaves the next start's attempt able to record every folder the part
+// moved, not only its own.
 //
 // A record naming a part this server does not know is from a newer Magpie: the start (or, for an environment built
 // later, that environment) is refused with the file and the part named, the same way a restore refuses such a
 // backup (backupRefusal below).
 //
 // A part is { id, files(dir) -> [relative paths of the JSON files it will rewrite], run(ctx) -> nothing }.
-// ctx: { dir, read(rel) (parsed JSON, or undefined when the file is not there), write(rel, value), move(fromRel,
-// toRel) }. write only takes a path files() listed (or the record file), since only those were copied first. write
+// ctx: { dir, copyRoot (where this part's originals were copied), read(rel) (parsed JSON, or undefined when the file
+// is not there), write(rel, value), move(fromRel, toRel) }. write only takes a path files() listed (or the record file), since only those were copied first. write
 // and move are staged and applied after run returns. A part must be idempotent by shape: run over data it has
 // already changed, it changes nothing.
 'use strict';
@@ -36,10 +39,7 @@ const LEGACY_ENVIRONMENT_RECORD = 'tavern.json'; // Store renames this to app.js
 const HOST_RECORD = 'host.json';
 const ENVIRONMENT_COPY_DIR = 'pre-names';
 const HOST_COPY_DIR = 'pre-names-host';
-
-// Every part this server knows, in the order they run. Empty until step 2 of the plan adds the first.
-const HOST_PARTS = [];
-const ENVIRONMENT_PARTS = [];
+const { isDeepStrictEqual } = require('util');
 
 // `reason` is 'newer' (the data records a part this server does not know) or 'failed' (a part could not finish).
 class MigrationError extends Error {
@@ -50,6 +50,39 @@ class MigrationError extends Error {
     this.reason = reason;
   }
 }
+
+// names-environment (plan-names step 2): the host's own words. DATA_DIR/tenants/ becomes environments/,
+// tenants-deleted/ becomes environments-deleted/, and host.json's `tenants` becomes `environments`, in the same
+// place among its keys; everything else in host.json is kept as it is. Over a host already in the new shape
+// (by an earlier run, or by hand) it changes nothing.
+const HOST_FOLDERS = [['tenants', 'environments'], ['tenants-deleted', 'environments-deleted']];
+const environmentPart = {
+  id: 'names-environment',
+  files: () => [HOST_RECORD],
+  run(ctx) {
+    const host = ctx.read(HOST_RECORD);
+    if (host && typeof host === 'object' && !Array.isArray(host) && Object.prototype.hasOwnProperty.call(host, 'tenants')) {
+      const had = host.environments;
+      if (Array.isArray(had) && had.length && !isDeepStrictEqual(had, host.tenants)) {
+        const file = path.join(ctx.dir, HOST_RECORD);
+        throw new MigrationError(`it lists environments under both "tenants" and "environments", and they differ, so it cannot tell which to keep. Nothing was changed: remove the out-of-date key from ${file} and start again (a copy of the file as it was is in ${ctx.copyRoot}).`, file);
+      }
+      const next = {};
+      for (const [key, value] of Object.entries(host)) {
+        if (key === 'environments') continue;
+        next[key === 'tenants' ? 'environments' : key] = value;
+      }
+      ctx.write(HOST_RECORD, next);
+    }
+    for (const [from, to] of HOST_FOLDERS) {
+      if (fs.existsSync(path.join(ctx.dir, from))) ctx.move(from, to);
+    }
+  },
+};
+
+// Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
+const HOST_PARTS = [environmentPart];
+const ENVIRONMENT_PARTS = [];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.
@@ -90,6 +123,9 @@ function readRecordLeniently(file) {
 }
 
 const serialize = (value) => `${JSON.stringify(value, null, 2)}\n`;
+// A message as a whole sentence, so another can follow it: a message from the file system or a part often has no
+// full stop of its own.
+const endSentence = (text) => { const t = String(text).trim(); return /[.!?]$/.test(t) ? t : `${t}.`; };
 
 // A path a part named, as one spelling ("./a//b.json" and "a/b.json" are the same file), kept inside `dir`.
 function normalRel(rel) {
@@ -190,6 +226,7 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
     const moves = [];
     const ctx = {
       dir,
+      copyRoot,
       read: (rel) => {
         const key = normalRel(rel);
         return writes.has(key) ? structuredClone(writes.get(key)) : readJson(inside(dir, key));
@@ -209,8 +246,11 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
       throw new MigrationError(`The names migration part "${part.id}" stopped at ${file}: ${err.message}`, file);
     }
 
-    // The record entry rides with the part's own writes, written last.
-    const moved = moves.filter(([fromRel]) => fs.existsSync(inside(dir, fromRel))).map(([from, to]) => ({ from, to }));
+    // The record entry rides with the part's own writes, written last. `moved` is every folder this part has moved:
+    // this attempt's, after any an earlier attempt moved before it stopped (its note, below).
+    const notePath = path.join(dir, copyDir, `${part.id}.moved.json`);
+    const earlier = readMovedNote(dir, notePath);
+    const moved = mergeMoved(earlier, moves.filter(([fromRel]) => fs.existsSync(inside(dir, fromRel))).map(([from, to]) => ({ from, to })));
     const current = writes.has(recordName) ? writes.get(recordName) : (readJson(recordFile) || {});
     const next = { ...current };
     if (versioned) next.version = NAMES_VERSION;
@@ -218,23 +258,55 @@ function runParts(dir, { parts, recordName, copyDir, versioned, log }) {
     writes.delete(recordName);
     writes.set(recordName, next);
     try {
-      commit(dir, writes, moves);
+      commit(dir, writes, moves, { copyRoot, noteMoves: (pairs) => writeMovedNote(notePath, mergeMoved(earlier, pairs)) });
     } catch (err) {
       if (err instanceof MigrationError) throw new MigrationError(`The names migration part "${part.id}" was not applied: ${err.message}`, err.file);
       throw err;
     }
+    try { fs.rmSync(notePath, { force: true }); } catch { /* the record now lists these moves; a note left behind is harmless */ }
     log(`Names migration: ran "${part.id}" in ${dir}${moved.length ? ` (moved ${moved.length})` : ''}; originals in ${copyRoot}.`);
     ran.push(part.id);
   }
   return ran;
 }
 
+// The note of folders an attempt was about to move ([{ from, to }], relative to the directory), written before each
+// move and kept beside the part's copy until the part is recorded. Read back, it answers only the moves that really
+// happened: the folder gone from where it was and present where it was going (a move noted but never made, or put
+// back, is left out).
+function readMovedNote(dir, file) {
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((m) => m && typeof m.from === 'string' && typeof m.to === 'string')
+    .map(({ from, to }) => ({ from, to }))
+    .filter(({ from, to }) => { try { return !fs.existsSync(inside(dir, from)) && fs.existsSync(inside(dir, to)); } catch { return false; } });
+}
+function writeMovedNote(file, list) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.names-tmp`, serialize(list));
+  fs.renameSync(`${file}.names-tmp`, file);
+}
+function mergeMoved(earlier, later) {
+  const seen = new Set();
+  return [...earlier, ...later].filter((m) => { const k = `${m.from}\n${m.to}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 // Applies one part's staged writes and moves. Everything is checked first (each value serialises, no write lands
 // on a folder, each move's target is free and no two moves share one), then every write goes to a temporary file
-// beside its target; only when all of that has succeeded does anything live change: the writes are renamed into
-// place, then the folders move. A move whose source is already gone is skipped (it ran before). The last write
+// beside its target; only when all of that has succeeded does anything live change: the folders move, then the
+// writes are renamed into place. A move whose source is already gone is skipped (it ran before). The last write
 // in `writes` is renamed last (the record, when a part commits).
-function commit(dir, writes, moves) {
+// `noteMoves(pairs)`, when given, is told before each folder moves every move made so far and the one about to be
+// made ([{ from, to }], relative), so a process that stops between two moves has them on disk.
+// `copyRoot` is where the part's originals were copied (pre-names/<part>/, or pre-names-host/<part>/ for the host),
+// named when a late write fails.
+function commit(dir, writes, moves, { noteMoves = null, copyRoot = null } = {}) {
   const texts = [];
   for (const [rel, value] of writes) {
     const file = inside(dir, rel);
@@ -252,7 +324,7 @@ function commit(dir, writes, moves) {
     if (!fs.existsSync(from)) continue;
     if (fs.existsSync(to) || targets.has(to)) throw new MigrationError(`Could not move ${from} to ${to}: ${to} is already there.`, to);
     targets.add(to);
-    due.push([from, to]);
+    due.push([from, to, normalRel(fromRel), normalRel(toRel)]);
   }
   // Staged: every write to a temporary file beside its target. A failure here removes them and changes nothing.
   const temps = [];
@@ -269,17 +341,32 @@ function commit(dir, writes, moves) {
     throw new MigrationError(`Could not write ${file}: ${err.message}`, file);
   }
   // The folders move first, so a move that fails (a read-only parent, say) has changed no live JSON: the moves
-  // already made are put back, the staged files removed, and the error names the folder.
+  // already made are put back, the staged files removed, and the error names the folder. A folder that cannot be
+  // put back is named too, since then something was changed after all.
   const done = [];
-  for (const [from, to] of due) {
+  const undo = (what, file) => {
+    const stuck = [];
+    for (const entry of done.reverse()) { try { fs.renameSync(entry[1], entry[0]); } catch { stuck.push(entry); } }
+    dropTemps();
+    const tail = !stuck.length ? ' Nothing was changed.'
+      : ` ${stuck.length === 1 ? 'This folder was moved and could not be put back, so it is' : 'These folders were moved and could not be put back, so they are'} still at the new place: ${stuck.map(([a, b]) => `${b} (was ${a})`).join(', ')}.`;
+    return new MigrationError(`${endSentence(what)}${tail}`, file);
+  };
+  for (const entry of due) {
+    const [from, to] = entry;
+    if (noteMoves) {
+      try {
+        noteMoves([...done, entry].map(([, , fromRel, toRel]) => ({ from: fromRel, to: toRel })));
+      } catch (err) {
+        throw undo(`Could not note the move of ${from} to ${to} before making it (${err.message}), so no folder was left moved`, from);
+      }
+    }
     try {
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.renameSync(from, to);
-      done.push([from, to]);
+      done.push(entry);
     } catch (err) {
-      for (const [a, b] of done.reverse()) { try { fs.renameSync(b, a); } catch { /* listed in the error below */ } }
-      dropTemps();
-      throw new MigrationError(`Could not move ${from} to ${to}: ${err.message}. Nothing was changed.`, from);
+      throw undo(`Could not move ${from} to ${to}: ${err.message}`, from);
     }
   }
   // Then the writes are renamed into place, the record last. A failure this late leaves the originals in
@@ -291,7 +378,7 @@ function commit(dir, writes, moves) {
       fs.renameSync(`${file}.names-tmp`, file);
     } catch (err) {
       for (const rest of order.slice(k)) { try { fs.rmSync(`${rest}.names-tmp`, { force: true }); } catch { /* best effort */ } }
-      throw new MigrationError(`Could not write ${file}: ${err.message}. The originals are in the pre-names folder.`, file);
+      throw new MigrationError(`Could not write ${file}: ${err.message}.${copyRoot ? ` The originals are in ${copyRoot}.` : ''}`, file);
     }
   }
 }
@@ -344,7 +431,7 @@ function refusedAtStartup(err, { hosted, log = console.error, stop = (code) => p
     stop(1);
     return false;
   }
-  log(`${err.message} This environment is skipped and answers 503 until its data is restored or fixed; the others run as usual.`);
+  log(`${endSentence(err.message)} This environment is skipped and answers 503 until its data is restored or fixed; the others run as usual.`);
   return true;
 }
 

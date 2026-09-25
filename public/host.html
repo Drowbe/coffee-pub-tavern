@@ -104,7 +104,7 @@
       <template id="tpl-plan-row">
         <div class="plan-row">
           <div class="fields">
-            <label>Id<input name="id" type="text" class="plan-id" maxlength="20" pattern="[a-z0-9-]+" required></label>
+            <label>Id<input name="id" type="text" class="plan-id" maxlength="20" pattern="[a-z0-9\-]+" required></label>
             <label>Name<input name="name" type="text" maxlength="40" required></label>
             <label>Members<input name="members" type="number" min="1" placeholder="no cap"></label>
             <label>Storage (GB)<input name="storageGb" type="number" min="0.5" step="0.5" placeholder="no cap"></label>
@@ -122,7 +122,7 @@
       <section class="panel">
         <div class="section-head">
           <h1>Environments</h1>
-          <span class="status" id="tenants-status"></span>
+          <span class="status" id="environments-status" tabindex="-1" aria-live="polite"></span>
           <button class="btn btn-primary btn-small" id="create-toggle" type="button">New environment</button>
         </div>
         <p class="hint">Each environment is its own people, spaces, settings and modules, at <code id="base-hint"></code>. The counts are the whole of what the host sees of one.</p>
@@ -131,7 +131,7 @@
       <form class="panel" id="create-form" hidden>
         <h2>New environment</h2>
         <div class="fields">
-          <label>Slug<input id="new-slug" type="text" minlength="3" maxlength="30" pattern="[a-z0-9-]+" placeholder="stayingblonde" required autocapitalize="off" autocomplete="off"></label>
+          <label>Slug<input id="new-slug" type="text" minlength="3" maxlength="30" pattern="[a-z0-9\-]+" placeholder="stayingblonde" required autocapitalize="off" autocomplete="off"></label>
           <label>Name<input id="new-name" type="text" maxlength="60" placeholder="Staying Blonde" required autocomplete="off"></label>
         </div>
         <h3>The first owner</h3>
@@ -148,7 +148,7 @@
         </div>
       </form>
 
-      <div id="tenants" class="tenants"></div>
+      <div id="environments" class="environments"></div>
       </section>
 
       <section class="tab-stack" id="tab-ai" hidden>
@@ -259,8 +259,8 @@
     </div>
   </main>
 
-  <template id="tpl-tenant">
-    <section class="panel tenant">
+  <template id="tpl-environment">
+    <section class="panel environment">
       <div class="section-head">
         <h2><a data-slot="link" target="_blank" rel="noopener"><span data-slot="name"></span></a> <code data-slot="slug"></code></h2>
         <span class="tag" data-slot="status"></span>

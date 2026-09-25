@@ -21,10 +21,3 @@ Workaround: restore a good backup over it. Before restoring a zip you are unsure
 On the host console at phone width, the Maps tab runs past the right edge of the screen.
 
 Workaround: use a wider window or turn the phone sideways.
-
-## Two buttons on a console card say "Restore"
-
-An environment card on the host console has **Restore backup**, and, for a suspended environment, a button
-labelled **Restore** that takes it out of suspension. They do different things: the second changes no data.
-Whether to rename it (to **Resume**) is still to be decided.
-

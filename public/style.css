@@ -259,7 +259,7 @@ body.host-console .host-logo {
   margin: -12px 0;
 }
 
-body.host-console .tenant .section-head h2 code {
+body.host-console .environment .section-head h2 code {
   margin-left: 8px;
   color: var(--text-dim);
   font-size: 12px;
@@ -286,29 +286,29 @@ body.host-console #host-facts dd {
 
 /* The environments: spaced cards, each with an edge in its status's colour, the facts as tiles with a bar
    where the plan has a cap, and the plan form opening under a rule. */
-body.host-console .tenants {
+body.host-console .environments {
   display: grid;
   gap: 16px;
 }
 
-body.host-console .tenant {
+body.host-console .environment {
   border-left: 4px solid var(--ok);
 }
 
-body.host-console .tenant[data-status="pastDue"] {
+body.host-console .environment[data-status="pastDue"] {
   border-left-color: var(--danger);
 }
 
-body.host-console .tenant[data-status="suspended"] {
+body.host-console .environment[data-status="suspended"] {
   border-left-color: var(--text-dim);
 }
 
-body.host-console .tenant[data-status="refused"] {
+body.host-console .environment[data-status="refused"] {
   border-left-color: var(--danger);
 }
 
 /* A refused environment: why it won't open, the file and since when, and what to do. */
-body.host-console .tenant .refused {
+body.host-console .environment .refused {
   margin-top: 14px;
   padding: 10px 12px;
   border: 1px solid var(--danger);
@@ -316,42 +316,42 @@ body.host-console .tenant .refused {
   background: color-mix(in srgb, var(--danger) 10%, var(--bg-card));
 }
 
-body.host-console .tenant .refused p {
+body.host-console .environment .refused p {
   margin: 0;
 }
 
-body.host-console .tenant .refused p + p {
+body.host-console .environment .refused p + p {
   margin-top: 4px;
 }
 
-body.host-console .tenant .refused-what {
+body.host-console .environment .refused-what {
   font-weight: 600; /* in --text: the danger edge and wash carry the colour, readable on a light theme too */
 }
 
-body.host-console .tenant .refused-where code {
+body.host-console .environment .refused-where code {
   overflow-wrap: anywhere;
 }
 
-body.host-console .tenant .section-head {
+body.host-console .environment .section-head {
   flex-wrap: wrap;
   gap: 8px;
 }
 
-body.host-console .tenant .section-head h2 {
+body.host-console .environment .section-head h2 {
   margin: 0;
   font-size: 18px;
 }
 
-body.host-console .tenant .section-head h2 a {
+body.host-console .environment .section-head h2 a {
   color: var(--text);
   text-decoration: none;
 }
 
-body.host-console .tenant .section-head h2 a:hover {
+body.host-console .environment .section-head h2 a:hover {
   color: var(--accent);
 }
 
-body.host-console .tenant .facts {
+body.host-console .environment .facts {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
   margin-top: 14px;

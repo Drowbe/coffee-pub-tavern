@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -48,7 +49,7 @@ const runMigration = onlyMigration || (!onlyWords);
 // 'report' or 'enforce' (null: that mode has no pattern for this level). `step` is the plan's step that
 // switches the level to enforce.
 const LEVELS = [
-  { id: 'environment', step: '2', code: 'report', words: null, codePatterns: [/tenant/gi] },
+  { id: 'environment', step: '2', code: 'enforce', words: 'enforce', codePatterns: [/tenant/gi], wordPatterns: [/\btenants?\b/gi] },
   {
     id: 'table', step: '3', code: 'report', words: 'report',
     codePatterns: [/(?<![A-Za-z])table|(?<=[a-z])Table|TABLE/g],
@@ -408,6 +409,11 @@ function scannerCheck() {
   };
   const { entries: realAllow, problems } = validateAllow(JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'check-names-allow.json'), 'utf8')));
 
+  test('"tenant" in a sentence a person reads is an environment hit; a config name or code is not a word hit', () => {
+    const text = "say('This tenant is full.');\nthrow new Error('no such tenants here');\nconsole.warn('MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name goes.');\nconst tenantId = 1;\n";
+    assert.deepEqual(hitsOf('server/scratch.js', text, 'words', []).environment, ['1:tenant', '2:tenants']);
+  });
+
   test('an allow entry covers only its own level and its own match; the rest of the line still counts', () => {
     assert.deepEqual(problems, []);
     const text = "el.innerHTML = '<table>'; roomList.push(tenantId);\nicon.className = 'fa-table'; stagePane(roomId);\n";
@@ -501,12 +507,30 @@ function migrationCheck() {
     try { fn(); n += 1; } catch (err) { fail(`check-names --migration: ${name}: ${err.message}`); }
   };
   let copies = 0;
+  // The fixture's root is an old-format environment; host/ beside it is an old-format hosted DATA_DIR.
+  const HOST_FIXTURE = 'host';
+  const notHost = (rel) => rel === HOST_FIXTURE || rel.startsWith(`${HOST_FIXTURE}/`);
   const copyFixture = () => {
     const dir = path.join(base, `env-${copies += 1}`);
-    fs.cpSync(fixture, dir, { recursive: true });
+    fs.cpSync(fixture, dir, { recursive: true, filter: (src) => !notHost(path.relative(fixture, src).split(path.sep).join('/')) });
     return dir;
   };
-  const original = snapshot(fixture);
+  const copyHostFixture = () => {
+    const dir = path.join(base, `host-${copies += 1}`);
+    fs.cpSync(path.join(fixture, HOST_FIXTURE), dir, { recursive: true });
+    return dir;
+  };
+  const original = snapshot(fixture, notHost);
+  const originalHost = snapshot(path.join(fixture, HOST_FIXTURE));
+  // Runs fn with fs.renameSync failing (EACCES) for the renames `fails(from, to)` picks.
+  const withFailingRename = (fails, fn) => {
+    const real = fs.renameSync;
+    fs.renameSync = (from, to) => {
+      if (fails(String(from), String(to))) throw Object.assign(new Error(`EACCES: permission denied, rename '${from}' -> '${to}'`), { code: 'EACCES' });
+      return real(from, to);
+    };
+    try { return fn(); } finally { fs.renameSync = real; }
+  };
   const MODULE_FILE = 'modules/todo/data/room-keep01.json';
 
   try {
@@ -629,20 +653,228 @@ function migrationCheck() {
     test('the host: recorded in host.json once, the copy in pre-names-host/, and HostRegistry keeps the record', () => {
       const dir = path.join(base, 'host');
       fs.mkdirSync(dir);
-      new HostRegistry(dir).addTenant({ slug: 'acme', name: 'Acme' });
-      const before = snapshot(dir);
+      new HostRegistry(dir).addEnvironment({ slug: 'acme', name: 'Acme' });
       assert.deepEqual(names.migrateHost(dir, { log: quiet }), names.HOST_PARTS.map((p) => p.id));
-      if (!names.HOST_PARTS.length) assert.deepEqual(snapshot(dir), before, 'no host parts yet: host.json untouched');
+      const before = snapshot(dir);
       const hostPart = { id: 'names-frame-check', files: () => [], run() {} };
-      assert.deepEqual(names.migrateHost(dir, { parts: [hostPart], log: quiet }), ['names-frame-check']);
+      const parts = [...names.HOST_PARTS, hostPart];
+      assert.deepEqual(names.migrateHost(dir, { parts, log: quiet }), ['names-frame-check']);
       const afterFirst = snapshot(dir);
       assert.equal(afterFirst['pre-names-host/names-frame-check/host.json'], before['host.json']);
       assert.equal('version' in JSON.parse(afterFirst['host.json']), false, 'host.json has no version');
-      assert.deepEqual(names.migrateHost(dir, { parts: [hostPart], log: quiet }), []);
+      assert.deepEqual(names.migrateHost(dir, { parts, log: quiet }), []);
       assert.deepEqual(snapshot(dir), afterFirst);
       const registry = new HostRegistry(dir);
-      assert.deepEqual(names.recordedParts(JSON.parse(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'))), ['names-frame-check']);
-      assert.equal(registry.listTenants().length, 1);
+      assert.deepEqual(names.recordedParts(JSON.parse(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'))), [...names.HOST_PARTS.map((p) => p.id), 'names-frame-check']);
+      assert.equal(registry.listEnvironments().length, 1);
+    });
+
+    // --- names-environment, the host's part (plan-names step 2) ---
+    const hostJson = (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'));
+    const oldHost = JSON.parse(originalHost['host.json']);
+    const noteOf = (dir) => path.join(dir, names.HOST_COPY_DIR, 'names-environment.moved.json');
+    const BOTH_MOVES = [{ from: 'tenants', to: 'environments' }, { from: 'tenants-deleted', to: 'environments-deleted' }];
+
+    test('names-environment is the host\'s first part', () => {
+      assert.deepEqual(names.HOST_PARTS.map((p) => p.id), ['names-environment']);
+    });
+
+    test('names-environment on an old-format host: the folders move, host.json\'s key is renamed in place, recorded once, the copy kept', () => {
+      const dir = copyHostFixture();
+      assert.ok(originalHost['tenants/acme/app.json'] && originalHost['tenants-deleted/gone-1767225600000/app.json'] && Array.isArray(oldHost.tenants), 'the fixture is an old-format host');
+      const logged = [];
+      assert.deepEqual(names.migrateHost(dir, { log: (m) => logged.push(m) }), ['names-environment']);
+      const after = snapshot(dir);
+      assert.equal(after['environments/acme/app.json'], originalHost['tenants/acme/app.json']);
+      assert.equal(after['environments/acme/modules/todo/data/room-lobby.json'], originalHost['tenants/acme/modules/todo/data/room-lobby.json']);
+      assert.equal(after['environments-deleted/gone-1767225600000/app.json'], originalHost['tenants-deleted/gone-1767225600000/app.json']);
+      assert.ok(!fs.existsSync(path.join(dir, 'tenants')) && !fs.existsSync(path.join(dir, 'tenants-deleted')), 'the old folders are gone');
+      const host = hostJson(dir);
+      assert.deepEqual(Object.keys(host), [...Object.keys(oldHost).map((k) => (k === 'tenants' ? 'environments' : k)), 'migrations'], 'the key renamed where it was, the record last');
+      assert.deepEqual(host.environments, oldHost.tenants, 'every environment kept as it was');
+      const { environments, migrations, ...rest } = host;
+      const { tenants, ...oldRest } = oldHost;
+      assert.deepEqual(rest, oldRest, 'nothing else in host.json changed');
+      assert.equal(migrations.length, 1);
+      assert.equal(migrations[0].id, 'names-environment');
+      assert.deepEqual(migrations[0].moved, BOTH_MOVES);
+      assert.equal(after['pre-names-host/names-environment/host.json'], originalHost['host.json'], 'the original host.json copied first');
+      assert.ok(!fs.existsSync(noteOf(dir)), 'no note left once recorded');
+      assert.ok(!Object.keys(after).some((rel) => rel.endsWith('.names-tmp')), 'no staged file left');
+      assert.equal(logged.length, 1, 'one line in the log');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+      const registry = new HostRegistry(dir);
+      assert.deepEqual(registry.listEnvironments().map((e) => e.slug), ['acme']);
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment'], 'HostRegistry keeps the record through its save');
+      assert.equal('tenants' in hostJson(dir), false);
+    });
+
+    test('names-environment on a new host: nothing to move, recorded as run, no copy', () => {
+      const dir = path.join(base, 'host-fresh');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment']);
+      assert.deepEqual(hostJson(dir).migrations.map((m) => [m.id, m.moved]), [['names-environment', []]]);
+      assert.equal(fs.existsSync(path.join(dir, names.HOST_COPY_DIR)), false);
+      const registry = new HostRegistry(dir);
+      registry.addEnvironment({ slug: 'acme', name: 'Acme' });
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment']);
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), []);
+    });
+
+    test('names-environment on a host already in the new shape: recorded, nothing else changed', () => {
+      const dir = path.join(base, 'host-by-hand');
+      fs.mkdirSync(path.join(dir, 'environments', 'acme'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'environments', 'acme', 'app.json'), '{}');
+      const registry = new HostRegistry(dir);
+      registry.addEnvironment({ slug: 'acme', name: 'Acme' });
+      const before = hostJson(dir);
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment']);
+      const { migrations, ...rest } = hostJson(dir);
+      assert.deepEqual(rest, before);
+      assert.deepEqual(migrations.map((m) => [m.id, m.moved]), [['names-environment', []]]);
+      assert.equal(fs.readFileSync(path.join(dir, 'environments', 'acme', 'app.json'), 'utf8'), '{}');
+    });
+
+    test('names-environment before the pre-environment move: a single install\'s data dir gains only host.json\'s record', () => {
+      const dir = copyFixture();
+      const before = snapshot(dir);
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment']);
+      const after = snapshot(dir);
+      assert.deepEqual(Object.keys(after).sort(), [...Object.keys(before), 'host.json'].sort(), 'only host.json is new');
+      for (const rel of Object.keys(before)) assert.equal(after[rel], before[rel], `${rel} untouched`);
+      assert.deepEqual(names.recordedParts(hostJson(dir)), ['names-environment']);
+    });
+
+    test('names-environment: a host.json recording a part this server does not know is still refused, and nothing moves', () => {
+      const dir = copyHostFixture();
+      fs.writeFileSync(path.join(dir, 'host.json'), JSON.stringify({ ...oldHost, migrations: [{ id: 'names-environment', at: '', moved: [] }, { id: 'names-from-the-future', at: '', moved: [] }] }));
+      const before = snapshot(dir);
+      assert.throws(() => names.migrateHost(dir, { log: quiet }), (err) => err instanceof names.MigrationError && err.reason === 'newer' && err.file === path.join(dir, 'host.json') && err.message.includes('names-from-the-future'));
+      assert.deepEqual(snapshot(dir), before);
+    });
+
+    test('names-environment: an environments/ folder already beside tenants/ stops the part, naming it, with nothing changed', () => {
+      const dir = copyHostFixture();
+      fs.mkdirSync(path.join(dir, 'environments'));
+      const before = snapshot(dir);
+      assert.throws(() => names.migrateHost(dir, { log: quiet }), (err) => err instanceof names.MigrationError && err.reason === 'failed' && err.file === path.join(dir, 'environments'));
+      assert.deepEqual(snapshot(dir, (rel) => rel.startsWith(names.HOST_COPY_DIR)), before, 'every live file where it was, nothing recorded');
+      assert.ok(fs.existsSync(path.join(dir, 'tenants', 'acme', 'app.json')));
+    });
+
+    test('names-environment: host.json listing different environments under both keys stops the part, naming host.json', () => {
+      const dir = copyHostFixture();
+      fs.writeFileSync(path.join(dir, 'host.json'), JSON.stringify({ ...oldHost, environments: [{ slug: 'other', name: 'Other' }] }));
+      const before = snapshot(dir);
+      assert.throws(() => names.migrateHost(dir, { log: quiet }), (err) => err instanceof names.MigrationError && err.file === path.join(dir, 'host.json')
+        && /both "tenants" and "environments", and they differ, so it cannot tell which to keep\. Nothing was changed: remove the out-of-date key from /.test(err.message)
+        && err.message.endsWith(`start again (a copy of the file as it was is in ${path.join(dir, names.HOST_COPY_DIR, 'names-environment')}).`)
+        && fs.existsSync(path.join(dir, names.HOST_COPY_DIR, 'names-environment', 'host.json')));
+      assert.deepEqual(snapshot(dir, (rel) => rel.startsWith(names.HOST_COPY_DIR)), before);
+      const same = copyHostFixture();
+      fs.writeFileSync(path.join(same, 'host.json'), JSON.stringify({ ...oldHost, environments: [] }));
+      names.migrateHost(same, { log: quiet });
+      assert.deepEqual(hostJson(same).environments, oldHost.tenants, 'an empty "environments" beside "tenants" takes the old list');
+    });
+
+    test('names-environment: an unreadable host.json stops the start, naming it', () => {
+      const dir = copyHostFixture();
+      fs.writeFileSync(path.join(dir, 'host.json'), '{ not json');
+      assert.throws(() => names.migrateHost(dir, { log: quiet }), (err) => err instanceof names.MigrationError && err.file === path.join(dir, 'host.json'));
+      assert.ok(fs.existsSync(path.join(dir, 'tenants', 'acme')), 'nothing moved');
+    });
+
+    test('a part that fails after its folders moved runs again, and its record lists the first attempt\'s moves too', () => {
+      const dir = copyHostFixture();
+      const hostFile = path.join(dir, 'host.json');
+      assert.throws(
+        () => withFailingRename((from, to) => from === `${hostFile}.names-tmp` && to === hostFile, () => names.migrateHost(dir, { log: quiet })),
+        (err) => err instanceof names.MigrationError && err.file === hostFile && err.message.endsWith(`The originals are in ${path.join(dir, names.HOST_COPY_DIR, 'names-environment')}.`),
+      );
+      assert.ok(fs.existsSync(path.join(dir, 'environments', 'acme')), 'the folders moved before the write failed');
+      assert.equal(fs.readFileSync(hostFile, 'utf8'), originalHost['host.json'], 'host.json not rewritten, nothing recorded');
+      assert.deepEqual(JSON.parse(fs.readFileSync(noteOf(dir), 'utf8')), BOTH_MOVES, 'the moves noted beside the copy');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment'], 'the next start runs it again');
+      assert.deepEqual(hostJson(dir).migrations[0].moved, BOTH_MOVES, 'every folder the part moved, from both attempts');
+      assert.deepEqual(hostJson(dir).environments, oldHost.tenants);
+      assert.equal(snapshot(dir)['pre-names-host/names-environment/host.json'], originalHost['host.json'], 'the first attempt\'s copy of the true original kept');
+      assert.ok(!fs.existsSync(noteOf(dir)), 'the note goes once recorded');
+    });
+
+    test('a start killed part-way through the host\'s folder moves: the next start\'s record lists every folder moved', () => {
+      // A real SIGKILL of a child process running the migration, at three points: just before the first move, just
+      // after it, and just before the second (tenants/ moved, tenants-deleted/ not yet).
+      const script = `
+        const fs = require('fs');
+        const real = fs.renameSync;
+        const { point, target } = JSON.parse(process.env.KILL);
+        fs.renameSync = (from, to) => {
+          if (point === 'before' && from === target) process.kill(process.pid, 'SIGKILL');
+          real(from, to);
+          if (point === 'after' && from === target) process.kill(process.pid, 'SIGKILL');
+        };
+        require(process.env.MIGRATE).migrateHost(process.env.DIR, { log() {} });
+      `;
+      for (const [point, which] of [['before', 'tenants'], ['after', 'tenants'], ['before', 'tenants-deleted']]) {
+        const dir = copyHostFixture();
+        const run = spawnSync(process.execPath, ['-e', script], {
+          env: { PATH: process.env.PATH, KILL: JSON.stringify({ point, target: path.join(dir, which) }), MIGRATE: path.join(ROOT, 'server', 'migrate-names.js'), DIR: dir },
+          encoding: 'utf8',
+        });
+        const where = `killed ${point} moving ${which}`;
+        assert.equal(run.signal, 'SIGKILL', `${where}: the child was killed (${run.stderr})`);
+        assert.equal(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'), originalHost['host.json'], `${where}: host.json not rewritten, nothing recorded`);
+        assert.equal(fs.existsSync(path.join(dir, 'environments')), !(point === 'before' && which === 'tenants'), `${where}: tenants/ moved or not, as expected`);
+        assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment'], `${where}: the next start runs the part again`);
+        assert.deepEqual(hostJson(dir).migrations[0].moved, BOTH_MOVES, `${where}: every folder moved, once each`);
+        assert.deepEqual(hostJson(dir).environments, oldHost.tenants);
+        assert.ok(fs.existsSync(path.join(dir, 'environments', 'acme', 'app.json')) && fs.existsSync(path.join(dir, 'environments-deleted', 'gone-1767225600000', 'app.json')));
+        assert.ok(!fs.existsSync(noteOf(dir)), `${where}: the note goes once recorded`);
+      }
+    });
+
+    test('a note naming a move that never happened, or was put back, is not recorded as moved', () => {
+      const dir = copyHostFixture();
+      fs.mkdirSync(path.join(dir, names.HOST_COPY_DIR), { recursive: true });
+      fs.writeFileSync(noteOf(dir), JSON.stringify([{ from: 'tenants', to: 'environments' }, { from: 'nowhere', to: 'somewhere' }]));
+      fs.rmSync(path.join(dir, 'tenants-deleted'), { recursive: true });
+      names.migrateHost(dir, { log: quiet });
+      assert.deepEqual(hostJson(dir).migrations[0].moved, [{ from: 'tenants', to: 'environments' }], 'only the move this attempt made; the note\'s other entry never happened');
+    });
+
+    test('a folder move that fails and cannot be put back names the folder left moved, and does not say nothing changed', () => {
+      const dir = copyHostFixture();
+      const tenants = path.join(dir, 'tenants');
+      const environments = path.join(dir, 'environments');
+      let err = null;
+      try {
+        withFailingRename((from, to) => from === path.join(dir, 'tenants-deleted') || (from === environments && to === tenants), () => names.migrateHost(dir, { log: quiet }));
+      } catch (e) { err = e; }
+      assert.ok(err instanceof names.MigrationError, 'a MigrationError');
+      assert.equal(err.file, path.join(dir, 'tenants-deleted'));
+      assert.ok(!err.message.includes('Nothing was changed'), err.message);
+      assert.ok(err.message.includes(`${environments} (was ${tenants})`), `names the folder left moved: ${err.message}`);
+      assert.ok(fs.existsSync(path.join(environments, 'acme')) && fs.existsSync(path.join(dir, 'tenants-deleted')));
+      assert.equal(fs.readFileSync(path.join(dir, 'host.json'), 'utf8'), originalHost['host.json'], 'host.json not rewritten');
+      assert.deepEqual(names.migrateHost(dir, { log: quiet }), ['names-environment'], 'the next start finishes it');
+      assert.deepEqual(hostJson(dir).migrations[0].moved, BOTH_MOVES, 'and records both moves');
+      // A move that fails and is put back still says nothing was changed.
+      const clean = copyHostFixture();
+      let plain = null;
+      try {
+        withFailingRename((from) => from === path.join(clean, 'tenants-deleted'), () => names.migrateHost(clean, { log: quiet }));
+      } catch (e) { plain = e; }
+      assert.ok(plain instanceof names.MigrationError && plain.message.endsWith('Nothing was changed.'), plain && plain.message);
+      assert.ok(fs.existsSync(path.join(clean, 'tenants', 'acme')) && !fs.existsSync(path.join(clean, 'environments')), 'put back');
+    });
+
+    test('the log line for an environment skipped at startup is two whole sentences', () => {
+      const logged = [];
+      const opts = { hosted: true, log: (m) => logged.push(m), stop: () => {} };
+      names.refusedAtStartup(new names.MigrationError('The names migration part "x" stopped at /d/app.json: this value is not a shape the part knows', '/d/app.json'), opts);
+      names.refusedAtStartup(new names.MigrationError('/d/app.json records the migration part "y", which this version of Magpie does not know: so it will not be opened here.', '/d/app.json', 'newer'), opts);
+      assert.ok(logged[0].includes('the part knows. This environment is skipped'), logged[0]);
+      assert.ok(logged[1].includes('opened here. This environment is skipped') && !logged[1].includes('..'), logged[1]);
     });
 
     test('a move whose target is taken stops the part before any live file changes', () => {

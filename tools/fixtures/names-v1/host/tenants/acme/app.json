@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "secrets": {
+    "session": "fixture-acme-session-secret-not-real-0",
+    "stream": "fixture-acme-stream-0"
+  },
+  "settings": {
+    "serverName": "Acme Adventures",
+    "tableName": "The Table",
+    "room": "table"
+  },
+  "users": [],
+  "rooms": [
+    { "id": "lobby", "name": "Lobby", "description": "", "members": [], "createdAt": "2026-01-01T00:00:00.000Z" }
+  ]
+}

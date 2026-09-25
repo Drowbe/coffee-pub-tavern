@@ -13,7 +13,7 @@ const COOKIE = 'app_session';
 // The cookie's old name, from before the rename: read as a fallback so an existing session survives it, never
 // written again -- setSessionCookie always sets the new name, and clearSessionCookie clears both.
 const LEGACY_COOKIE = 'tavern_session';
-// The host admin's own session -- a separate cookie, never a tenant's, so the two can never be confused even on
+// The host admin's own session -- a separate cookie, never an environment's, so the two can never be confused even on
 // the same browser (the host console and an environment are different subdomains anyway; this is belt and braces).
 const HOST_COOKIE = 'host_session';
 const SESSION_DAYS = 30;
@@ -149,9 +149,9 @@ function setPendingCookie(req, res, token) {
   res.cookie(PENDING_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: isSecure(req), maxAge: PENDING_MINUTES * 60000, path: '/' });
 }
 
-// Session token from the cookie or, for the Studio app, a bearer header. `cookieName` picks a tenant's own
+// Session token from the cookie or, for the Studio app, a bearer header. `cookieName` picks an environment's own
 // (the default) or the host admin's (auth.HOST_COOKIE) -- never both read from the same request's bearer header,
-// since only a tenant's session is ever handed out as a bearer token. A tenant's own cookie falls back to its
+// since only an environment's session is ever handed out as a bearer token. An environment's own cookie falls back to its
 // old name (LEGACY_COOKIE) when the new one is not there, so a session issued before the rename still works.
 function sessionToken(req, cookieName = COOKIE) {
   const bearer = req.get('authorization') || '';

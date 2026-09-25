@@ -50,7 +50,8 @@ const {
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
-  MIGRATE_TENANT_SLUG = '',
+  MIGRATE_ENVIRONMENT_SLUG = '',
+  MIGRATE_TENANT_SLUG = '', // the old name of MIGRATE_ENVIRONMENT_SLUG: still read, with a line on start, until a later release
   HOST_ADMIN_LOGIN = '',
   HOST_ADMIN_PASSWORD = '',
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
@@ -93,6 +94,10 @@ const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
 const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
+// The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names
+// decisions 15 and 20): the new name wins when both are set, and the old one says so on every start it is set.
+const migrateEnvironmentSlug = MIGRATE_ENVIRONMENT_SLUG || MIGRATE_TENANT_SLUG;
+if (MIGRATE_TENANT_SLUG) console.warn('MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release.');
 const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP === 'on';
 const mfaOffered = ENABLE_MFA !== 'false';
 const adminMfaLockoutBypass = ADMIN_MFA_LOCKOUT_BYPASS === 'true';
@@ -112,7 +117,7 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
 
 // --- environments (one host, many environments: documentation/plans/plan-tenants.md, phase 1) -----------------
 // With no BASE_DOMAIN there is exactly one environment, built straight from DATA_DIR: today's install, unchanged.
-// With BASE_DOMAIN set, one environment per tenant (DATA_DIR/tenants/<slug>/), resolved from the request's
+// With BASE_DOMAIN set, one environment per slug (DATA_DIR/environments/<slug>/), resolved from the request's
 // hostname by the resolver middleware below (see "the door"). Either way, request handlers keep reading `store`,
 // `modules` and the rest by the names they use today: those names are Proxies that forward to whichever
 // environment the current request (or, outside a request, an explicit envContext.run call) resolved.
@@ -171,7 +176,7 @@ const roomIconSvgs = proxyFor('roomIconSvgs');
 const moduleActivity = proxyFor('moduleActivity');
 function noteActivity(...args) { return currentEnvironment().noteActivity(...args); }
 
-// The registry of environments (DATA_DIR/host.json): which tenants exist, their plans, the host admins. Only
+// The registry of environments (DATA_DIR/host.json): which environments exist, their plans, the host admins. Only
 // built when BASE_DOMAIN is set -- a self-hosted install with no base domain never has this file.
 // The host's Names migration part (documentation/plans/plan-names.md, "The migration") runs first, before
 // host.json is read and before any environment is built; a failure stops the start with the file named.
@@ -195,25 +200,25 @@ if (hostRegistry) {
 // built in buildEnvironment) is untouched; this is the host's own, only reachable from hostRouter.
 const sharedRegionCutJobs = BASE_DOMAIN ? new RegionCutJobs(path.join(DATA_DIR, 'shared'), undefined, { under: '' }) : null;
 
-// First start with BASE_DOMAIN set and data still at DATA_DIR's own root (a pre-tenant install -- its settings
+// First start with BASE_DOMAIN set and data still at DATA_DIR's own root (a pre-environment install -- its settings
 // file is app.json now, or still tavern.json if it has not been started since that rename): refuses to start
 // until told which environment that data becomes.
 function migrateIfNeeded() {
-  const preTenant = fs.existsSync(path.join(DATA_DIR, 'app.json')) || fs.existsSync(path.join(DATA_DIR, 'tavern.json'));
-  if (!BASE_DOMAIN || !preTenant) return;
-  if (!MIGRATE_TENANT_SLUG) {
-    console.error(`BASE_DOMAIN is set and ${DATA_DIR} is a pre-tenant install. Set MIGRATE_TENANT_SLUG=<slug> for one start to move it to that environment, then remove it.`);
+  const preEnvironment = fs.existsSync(path.join(DATA_DIR, 'app.json')) || fs.existsSync(path.join(DATA_DIR, 'tavern.json'));
+  if (!BASE_DOMAIN || !preEnvironment) return;
+  if (!migrateEnvironmentSlug) {
+    console.error(`BASE_DOMAIN is set and ${DATA_DIR} is a single-environment install. Set MIGRATE_ENVIRONMENT_SLUG=<slug> for one start to move it to that environment, then remove it.`);
     process.exit(1);
   }
-  const slug = cleanSlug(MIGRATE_TENANT_SLUG);
-  const dest = path.join(DATA_DIR, 'tenants', slug);
+  const slug = cleanSlug(migrateEnvironmentSlug);
+  const dest = path.join(DATA_DIR, 'environments', slug);
   if (fs.existsSync(dest)) throw new Error(`${dest} already exists; migration already ran`);
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(DATA_DIR)) {
-    if (['host.json', 'fontawesome-pro', 'tenants', 'tenants-deleted', 'pre-names-host'].includes(entry)) continue;
+    if (['host.json', 'fontawesome-pro', 'environments', 'environments-deleted', 'pre-names-host'].includes(entry)) continue;
     fs.renameSync(path.join(DATA_DIR, entry), path.join(dest, entry));
   }
-  hostRegistry.addTenant({ slug, name: slug, plan: { modules: 'all' } });
+  hostRegistry.addEnvironment({ slug, name: slug, plan: { modules: 'all' } });
   console.log(`Migrated the existing install to the "${slug}" environment (${dest}).`);
 }
 migrateIfNeeded();
@@ -226,7 +231,7 @@ migrateIfNeeded();
 // shared location.
 function migrateSharedFolders() {
   if (!BASE_DOMAIN) return;
-  const envDataDirs = hostRegistry.listTenants().map((t) => path.join(DATA_DIR, 'tenants', t.slug));
+  const envDataDirs = hostRegistry.listEnvironments().map((t) => path.join(DATA_DIR, 'environments', t.slug));
   for (const { module: moduleId, folder } of bundledSharedFolders()) {
     const sharedDir = path.resolve(DATA_DIR, 'shared', moduleId, folder);
     if (fs.existsSync(sharedDir)) continue;
@@ -337,7 +342,7 @@ function environmentFor(slug) {
   const key = slug || DEFAULT_SLUG;
   let env = environments.get(key);
   if (env) return env;
-  const dataDir = slug ? path.join(DATA_DIR, 'tenants', slug) : DATA_DIR;
+  const dataDir = slug ? path.join(DATA_DIR, 'environments', slug) : DATA_DIR;
   try {
     env = buildEnvironment(dataDir, {
       slug: slug || null,
@@ -351,10 +356,10 @@ function environmentFor(slug) {
   refusals.delete(key);
   // An environment's own name is its server name (the author's call). Still on the shipped sentinel default --
   // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
-  // right here: the default environment gets the product's own name, a tenant its registry name. Runs on every
+  // right here: the default environment gets the product's own name, an environment its registry name. Runs on every
   // build, not just the first, so an install that skipped a few versions catches up on its next start too.
   if (env.store.settings.serverName === 'Coffee Pub Tavern') {
-    env.store.updateSettings({ serverName: slug ? (hostRegistry.findTenant(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
+    env.store.updateSettings({ serverName: slug ? (hostRegistry.findEnvironment(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
   }
   environments.set(key, env);
   // An environment that just migrated its own old custom AI setting to "managed" (see Ai's constructor) gives
@@ -423,7 +428,7 @@ function buildAtStartup(slug) {
 if (!BASE_DOMAIN) {
   buildAtStartup(DEFAULT_SLUG); // the one environment, built eagerly, exactly as today
 } else {
-  for (const t of hostRegistry.listTenants()) buildAtStartup(t.slug); // every existing tenant, built at startup
+  for (const t of hostRegistry.listEnvironments()) buildAtStartup(t.slug); // every existing environment, built at startup
   if (HOST_ADMIN_LOGIN && HOST_ADMIN_PASSWORD && hostRegistry.listAdmins().length === 0) {
     hostRegistry.addAdmin({ login: HOST_ADMIN_LOGIN, passwordHash: auth.hashPassword(HOST_ADMIN_PASSWORD) });
     console.log(`Host admin "${HOST_ADMIN_LOGIN}" created from the environment.`);
@@ -605,7 +610,7 @@ function resolveLoginUser(login, password) {
 
 // --- two-step sign-in (documentation/plans/plan-mfa.md) -----------------------------------------------------
 
-// The key that encrypts every TOTP secret at rest: the host's own, shared across every tenant, on a host with
+// The key that encrypts every TOTP secret at rest: the host's own, shared across every environment, on a host with
 // environments (host.json's secretsKey -- an owner's export or the console's backup never carries host.json
 // at all); a single file beside the store on a self-hosted install (there is no host.json), made on first use.
 // Cached after the first call -- neither source ever changes once the server is up.
@@ -830,8 +835,8 @@ const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_
 
 // --- the host console and its API (documentation/plans/plan-tenants.md) ----------------------------------------
 // A separate mini-app, reached only at admin.<base>: never mounted on the main app directly, so a request routed
-// here can never fall through to a tenant's own routes below (which need an environment resolved, and none is,
-// for the host admin -- see requireHostAdmin, its own session, auth.HOST_COOKIE, never a tenant's).
+// here can never fall through to an environment's own routes below (which need an environment resolved, and none is,
+// for the host admin -- see requireHostAdmin, its own session, auth.HOST_COOKIE, never an environment's).
 const hostRouter = express.Router();
 const hostLimiter = new auth.LoginLimiter();
 
@@ -853,10 +858,10 @@ hostRouter.use(express.static(publicDir, { index: false }));
 hostRouter.get('/', (_req, res) => res.sendFile(page('host.html')));
 
 // The host admins' own second step (documentation/plans/plan-mfa.md): HOST_MFA_REQUIRED makes it mandatory,
-// same shape as a tenant's own gate but keyed on hostRegistry's session secret and its own admin records,
-// never a tenant's -- 'host' is a reserved slug (see RESERVED_SLUGS), so it can never collide with a real
+// same shape as an environment's own gate but keyed on hostRegistry's session secret and its own admin records,
+// never an environment's -- 'host' is a reserved slug (see RESERVED_SLUGS), so it can never collide with a real
 // environment's own pending tokens even though the cookie names are shared. Every host admin is eligible for
-// the lockout bypass (there is no separate role to check, unlike a tenant's own admins).
+// the lockout bypass (there is no separate role to check, unlike an environment's own admins).
 function hostMfaGate(req, admin) {
   if (!mfaOffered || adminMfaLockoutBypass) return null;
   const enrolled = Boolean(admin.mfa);
@@ -970,8 +975,8 @@ hostRouter.post('/api/host/me/mfa/reset', requireMfaOffered, requireHostAdmin, (
 });
 // A host admin resets an owner's factor from the console -- by login, never a key, since the console never
 // learns an environment's own user keys (a peer session's amendment to the contract).
-hostRouter.delete('/api/host/tenants/:slug/owners/:login/mfa', requireHostAdmin, (req, res) => {
-  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+hostRouter.delete('/api/host/environments/:slug/owners/:login/mfa', requireHostAdmin, (req, res) => {
+  if (!hostRegistry.findEnvironment(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
   const env = environmentFor(req.params.slug);
   const owner = env.store.userByLogin(req.params.login);
   if (!owner || owner.role !== 'admin' || owner.hostAdmin) return res.status(404).json({ error: 'no owner with that login there' });
@@ -979,10 +984,10 @@ hostRouter.delete('/api/host/tenants/:slug/owners/:login/mfa', requireHostAdmin,
   res.json({ ok: true });
 });
 
-// What a tenant is using, from its own already-built environment (building it if it is not running yet -- an
+// What an environment is using, from its own already-built services (building them if it is not running yet -- an
 // admin looking at the list is reason enough to have it up). Storage isn't walked here (a real figure needs
 // reading the whole directory); left null until that is worth the cost.
-function tenantUsage(slug) {
+function environmentUsage(slug) {
   let env;
   try {
     env = environmentFor(slug);
@@ -995,37 +1000,37 @@ function tenantUsage(slug) {
   }
   return { members: env.store.users.length, storageBytes: null, aiCallsThisMonth: env.ai.usageView?.().callsThisMonth ?? null, spaces: env.store.rooms.length };
 }
-hostRouter.get('/api/host/tenants', requireHostAdmin, (_req, res) => {
+hostRouter.get('/api/host/environments', requireHostAdmin, (_req, res) => {
   // `refused`: null, or why this environment is not opening (see refusalView), for the console to show.
-  res.json({ tenants: hostRegistry.listTenants().map((t) => { const usage = tenantUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug) }; }) });
+  res.json({ environments: hostRegistry.listEnvironments().map((t) => { const usage = environmentUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug) }; }) });
 });
-hostRouter.post('/api/host/tenants', requireHostAdmin, (req, res) => {
+hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
   try {
-    const tenant = hostRegistry.addTenant({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan });
-    const env = environmentFor(tenant.slug); // the fresh directory and its services, built now
+    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan });
+    const env = environmentFor(environment.slug); // the fresh directory and its services, built now
     const owner = req.body?.owner;
     if (owner?.login && owner?.password) env.store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
-    res.status(201).json({ tenant });
+    res.status(201).json({ environment });
   } catch (err) {
     sendHostError(err, res);
   }
 });
-hostRouter.patch('/api/host/tenants/:slug', requireHostAdmin, (req, res) => {
+hostRouter.patch('/api/host/environments/:slug', requireHostAdmin, (req, res) => {
   try {
-    res.json({ tenant: hostRegistry.updateTenant(req.params.slug, req.body || {}) });
+    res.json({ environment: hostRegistry.updateEnvironment(req.params.slug, req.body || {}) });
   } catch (err) {
     sendHostError(err, res);
   }
 });
-hostRouter.delete('/api/host/tenants/:slug', requireHostAdmin, (req, res) => {
+hostRouter.delete('/api/host/environments/:slug', requireHostAdmin, (req, res) => {
   try {
-    if (!hostRegistry.findTenant(req.params.slug)) throw new HostError('no such environment', 404);
-    hostRegistry.removeTenant(req.params.slug);
+    if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
+    hostRegistry.removeEnvironment(req.params.slug);
     const env = environments.get(req.params.slug);
     if (env) { flushEnvironment(env); environments.delete(req.params.slug); }
-    const from = path.join(DATA_DIR, 'tenants', req.params.slug);
+    const from = path.join(DATA_DIR, 'environments', req.params.slug);
     if (fs.existsSync(from)) {
-      const to = path.join(DATA_DIR, 'tenants-deleted', `${req.params.slug}-${Date.now()}`);
+      const to = path.join(DATA_DIR, 'environments-deleted', `${req.params.slug}-${Date.now()}`);
       fs.mkdirSync(path.dirname(to), { recursive: true });
       fs.renameSync(from, to);
     }
@@ -1035,8 +1040,8 @@ hostRouter.delete('/api/host/tenants/:slug', requireHostAdmin, (req, res) => {
   }
 });
 
-// A tenant's whole directory, walked into [name, bytes] pairs for zipFiles (server/module-build.js), or read back
-// out of a zip on restore (a general-purpose reader, not modules.js's own readZip -- a tenant's own data is
+// An environment's whole directory, walked into [name, bytes] pairs for zipFiles (server/module-build.js), or read back
+// out of a zip on restore (a general-purpose reader, not modules.js's own readZip -- an environment's own data is
 // whatever shape it is, not the narrow set of file types a module's zip is allowed).
 function walkFiles(dir, base = dir, out = []) {
   for (const name of fs.readdirSync(dir)) {
@@ -1048,7 +1053,7 @@ function walkFiles(dir, base = dir, out = []) {
   return out;
 }
 // Total bytes in a directory tree, without reading any file's contents -- walkFiles reads every file (for
-// zipping) and would be wasteful just to measure a tenant's own storage use (plan-tenants.md, "Phase 3").
+// zipping) and would be wasteful just to measure an environment's own storage use (plan-tenants.md, "Phase 3").
 function dirSize(dir) {
   let total = 0;
   let names;
@@ -1063,11 +1068,11 @@ function dirSize(dir) {
   return total;
 }
 const STORAGE_MEASURE_MS = 60000;
-// A tenant's storage use, remeasured at most once a minute and cached on the registry entry
-// (HostRegistry.recordStorageUsage) so a page reading it often (the Environment panel, the console's tenant
+// An environment's storage use, remeasured at most once a minute and cached on the registry entry
+// (HostRegistry.recordStorageUsage) so a page reading it often (the Environment panel, the console's environment
 // list) never pays for a fresh directory walk itself.
-function tenantStorageBytes(slug, dataDir) {
-  const cached = hostRegistry.findTenant(slug)?.usage;
+function environmentStorageBytes(slug, dataDir) {
+  const cached = hostRegistry.findEnvironment(slug)?.usage;
   if (cached?.measuredAt && Date.now() - new Date(cached.measuredAt).getTime() < STORAGE_MEASURE_MS) return cached.storageBytes;
   const bytes = dirSize(dataDir);
   hostRegistry.recordStorageUsage(slug, bytes);
@@ -1087,12 +1092,12 @@ async function liveCallCount() {
 }
 
 // --- plan caps (plan-tenants.md, "Phase 3: the caps, enforced at the seam") --------------------------------
-// A cap is null for none. Self-hosted (no BASE_DOMAIN, or a slug the registry somehow has no tenant for) is
-// nobody's tenant, so it is never capped -- every planCap() reads null there, same as an uncapped plan.
+// A cap is null for none. Self-hosted (no BASE_DOMAIN, or a slug the registry somehow has no environment for) is
+// nobody's environment, so it is never capped -- every planCap() reads null there, same as an uncapped plan.
 function planCap(name) {
   if (!BASE_DOMAIN || !hostRegistry) return null;
-  const tenant = hostRegistry.findTenant(currentEnvironment().slug);
-  return tenant ? tenant.plan[name] : null;
+  const environment = hostRegistry.findEnvironment(currentEnvironment().slug);
+  return environment ? environment.plan[name] : null;
 }
 function gbText(bytes) {
   const gb = bytes / (1024 ** 3);
@@ -1110,7 +1115,7 @@ function refuseOverStorage(res) {
   const cap = planCap('storageBytes');
   if (cap === null) return false;
   const env = currentEnvironment();
-  if (tenantStorageBytes(env.slug, env.dataDir) < cap) return false;
+  if (environmentStorageBytes(env.slug, env.dataDir) < cap) return false;
   res.status(403).json({ error: `This environment has used its ${gbText(cap)} GB of storage.` });
   return true;
 }
@@ -1156,7 +1161,7 @@ async function refuseOverCalls(res, room) {
   res.status(403).json({ error: `This environment's plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
   return true;
 }
-function readTenantZip(buffer) {
+function readEnvironmentZip(buffer) {
   return new Promise((resolve, reject) => {
     const MAX_FILES = 20000;
     const MAX_TOTAL = 500 * 1024 * 1024;
@@ -1187,21 +1192,21 @@ function readTenantZip(buffer) {
     });
   });
 }
-hostRouter.post('/api/host/tenants/:slug/backup', requireHostAdmin, (req, res) => {
-  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+hostRouter.post('/api/host/environments/:slug/backup', requireHostAdmin, (req, res) => {
+  if (!hostRegistry.findEnvironment(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
   const env = environments.get(req.params.slug);
   if (env) flushEnvironment(env); // every debounced write is on disk before it is zipped
-  const dir = path.join(DATA_DIR, 'tenants', req.params.slug);
+  const dir = path.join(DATA_DIR, 'environments', req.params.slug);
   const zip = zipFiles(fs.existsSync(dir) ? walkFiles(dir) : []);
   res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="${req.params.slug}-backup.zip"` });
   res.send(zip);
 });
 const rawHostZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: 500 * 1024 * 1024 });
-hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip, async (req, res) => {
-  if (!hostRegistry.findTenant(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
+hostRouter.post('/api/host/environments/:slug/restore', requireHostAdmin, rawHostZip, async (req, res) => {
+  if (!hostRegistry.findEnvironment(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'choose a zip file to restore' });
   try {
-    const files = await readTenantZip(req.body);
+    const files = await readEnvironmentZip(req.body);
     // A backup whose app.json (or older tavern.json) records a Names migration part this server does not know was
     // made by a newer Magpie, and would be read here in a shape this server does not understand. Checked on what
     // would actually land: names as written to disk, the last of any repeated entry.
@@ -1209,7 +1214,7 @@ hostRouter.post('/api/host/tenants/:slug/restore', requireHostAdmin, rawHostZip,
     if (refusal) return res.status(400).json({ error: refusal });
     const env = environments.get(req.params.slug);
     if (env) { flushEnvironment(env); environments.delete(req.params.slug); } // rebuilt fresh from the restored files, next asked for
-    const dir = path.join(DATA_DIR, 'tenants', req.params.slug);
+    const dir = path.join(DATA_DIR, 'environments', req.params.slug);
     fs.rmSync(dir, { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     for (const [name, data] of files) {
@@ -1256,8 +1261,8 @@ hostRouter.post('/api/host/billing', (req, res) => {
   const wanted = Buffer.from(expected, 'hex');
   if (given.length !== wanted.length || !crypto.timingSafeEqual(given, wanted)) return res.status(401).json({ error: 'bad signature' });
   try {
-    const tenant = hostRegistry.applyBillingEvent(String(req.body?.slug || ''), String(req.body?.plan || ''), String(req.body?.event || ''));
-    res.json({ tenant });
+    const environment = hostRegistry.applyBillingEvent(String(req.body?.slug || ''), String(req.body?.plan || ''), String(req.body?.event || ''));
+    res.json({ environment });
   } catch (err) {
     sendHostError(err, res);
   }
@@ -1354,10 +1359,10 @@ hostRouter.delete('/api/host/shared/:module/:folder/files/:name', requireHostAdm
 // inside its own envContext.run so moduleSettings and modules resolve to that one environment, the same as a
 // request to it would -- admin.<base> never otherwise resolves one.
 async function findRegionBoxAcrossEnvironments(q) {
-  // Every real tenant, never DEFAULT_SLUG -- this route only ever runs with BASE_DOMAIN set, where the default
+  // Every real environment, never DEFAULT_SLUG -- this route only ever runs with BASE_DOMAIN set, where the default
   // (root DATA_DIR) environment is not a real one anybody uses, so building it just to find it has no geocoder
   // configured would be pure waste.
-  const slugs = hostRegistry.listTenants().map((t) => t.slug);
+  const slugs = hostRegistry.listEnvironments().map((t) => t.slug);
   for (const slug of slugs) {
     let env;
     try {
@@ -1479,9 +1484,9 @@ function productEnvironment(req, res) {
   } catch {
     return res.status(404).json({ error: 'not found' });
   }
-  const tenant = hostRegistry.findTenant(slug);
-  if (!tenant || (tenant.status !== 'active' && tenant.status !== 'pastDue')) return res.status(404).json({ error: 'not found' });
-  res.json({ slug: tenant.slug, name: tenant.name });
+  const environment = hostRegistry.findEnvironment(slug);
+  if (!environment || (environment.status !== 'active' && environment.status !== 'pastDue')) return res.status(404).json({ error: 'not found' });
+  res.json({ slug: environment.slug, name: environment.name });
 }
 hostRouter.get('/api/product/environment', productEnvironment);
 // The same, as a list, for the product page's own Sign in dropdown: every active or pastDue environment, sorted
@@ -1489,7 +1494,7 @@ hostRouter.get('/api/product/environment', productEnvironment);
 function productEnvironments(_req, res) {
   if (!hostRegistry) return res.json({ environments: [] });
   const environments = hostRegistry
-    .listTenants()
+    .listEnvironments()
     .filter((t) => (t.status === 'active' || t.status === 'pastDue') && !refusals.has(t.slug)) // a refused one cannot be signed in to
     .map((t) => ({ slug: t.slug, name: t.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -1534,7 +1539,7 @@ if (BASE_DOMAIN) {
     }
     if (host.endsWith(`.${BASE_DOMAIN}`)) {
       const slug = host.slice(0, host.length - BASE_DOMAIN.length - 1);
-      if (!hostRegistry.findTenant(slug)) return res.status(404).type('text').send('not found');
+      if (!hostRegistry.findEnvironment(slug)) return res.status(404).type('text').send('not found');
       return envContext.run(environmentFor(slug), next);
     }
     return res.status(404).type('text').send('not found');
@@ -1560,12 +1565,12 @@ app.post('/api/product/signup', (req, res) => {
     const owner = req.body?.owner;
     if (!owner?.login || !owner?.password) throw new HostError('an owner login and password are required');
     const free = hostRegistry.plansCatalog().free;
-    const tenant = hostRegistry.addTenant({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
-    environmentFor(tenant.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
+    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
+    environmentFor(environment.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
     // The new environment's own port, carried through the same way the PREVIOUS_BASE_DOMAINS redirect above
     // does: invisible behind a real proxy (the port is implicit there), but wrong in local development, where
     // BASE_DOMAIN is often "localhost" at some other port than 80/443.
-    const newHost = `${tenant.slug}.${BASE_DOMAIN}`;
+    const newHost = `${environment.slug}.${BASE_DOMAIN}`;
     const requestHost = req.get('host') || '';
     const port = requestHost.includes(':') ? requestHost.slice(requestHost.lastIndexOf(':')) : '';
     res.status(201).json({ url: `${auth.isSecure(req) ? 'https' : 'http'}://${newHost}${newHost.includes(':') ? '' : port}/` });
@@ -4242,32 +4247,32 @@ app.patch('/api/settings', requireAdmin, (req, res) => {
 });
 
 // This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
-// 2: the owner role and the split"). Only with a base domain -- a self-hosted install is not a tenant of
-// anything, so it has no plan or usage of its own to show.
+// 2: the owner role and the split"). Only with a base domain -- a self-hosted install is on no host's plan,
+// so it has no plan or usage of its own to show.
 app.get('/api/environment', requireAdmin, async (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   const env = currentEnvironment();
-  const tenant = hostRegistry.findTenant(env.slug);
-  if (!tenant) return res.status(404).json({ error: 'not hosted' }); // defensive: every resolved environment has a registry entry
+  const environment = hostRegistry.findEnvironment(env.slug);
+  if (!environment) return res.status(404).json({ error: 'not hosted' }); // defensive: every resolved environment has a registry entry
   res.json({
-    slug: tenant.slug,
-    name: tenant.name,
+    slug: environment.slug,
+    name: environment.name,
     baseDomain: BASE_DOMAIN,
-    status: tenant.status,
-    pastDueSince: tenant.pastDueSince,
-    graceEndsAt: tenant.pastDueSince ? new Date(new Date(tenant.pastDueSince).getTime() + 14 * 86400000).toISOString() : null,
-    deleteRequestedAt: tenant.deleteRequestedAt,
-    deleteRequestReason: tenant.deleteRequestReason,
-    plan: { name: tenant.plan.name || null, modules: tenant.plan.modules, members: tenant.plan.members, storageBytes: tenant.plan.storageBytes, aiCallsPerMonth: tenant.plan.aiCallsPerMonth, calls: tenant.plan.calls },
+    status: environment.status,
+    pastDueSince: environment.pastDueSince,
+    graceEndsAt: environment.pastDueSince ? new Date(new Date(environment.pastDueSince).getTime() + 14 * 86400000).toISOString() : null,
+    deleteRequestedAt: environment.deleteRequestedAt,
+    deleteRequestReason: environment.deleteRequestReason,
+    plan: { name: environment.plan.name || null, modules: environment.plan.modules, members: environment.plan.members, storageBytes: environment.plan.storageBytes, aiCallsPerMonth: environment.plan.aiCallsPerMonth, calls: environment.plan.calls },
     usage: {
       members: store.users.length,
-      storageBytes: tenantStorageBytes(env.slug, env.dataDir),
+      storageBytes: environmentStorageBytes(env.slug, env.dataDir),
       aiCallsThisMonth: hostRegistry.aiCallsThisMonth(env.slug),
       callsNow: await liveCallCount(),
     },
   });
 });
-// The tenant's own copy of its data, the same zip the host console's own backup makes -- any environment admin
+// The environment's own copy of its data, the same zip the host console's own backup makes -- any environment admin
 // may ask for it, not only a host admin (plan-tenants.md, "Phase 2": Download a copy).
 app.get('/api/environment/export', requireAdmin, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
@@ -4282,7 +4287,7 @@ app.get('/api/environment/export', requireAdmin, (req, res) => {
 app.post('/api/environment/delete-request', requireAdmin, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   try {
-    res.json(hostRegistry.requestTenantDeletion(currentEnvironment().slug, req.body?.reason));
+    res.json(hostRegistry.requestEnvironmentDeletion(currentEnvironment().slug, req.body?.reason));
   } catch (err) {
     sendHostError(err, res);
   }
@@ -4290,7 +4295,7 @@ app.post('/api/environment/delete-request', requireAdmin, (req, res) => {
 app.delete('/api/environment/delete-request', requireAdmin, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   try {
-    hostRegistry.withdrawTenantDeletion(currentEnvironment().slug);
+    hostRegistry.withdrawEnvironmentDeletion(currentEnvironment().slug);
     res.json({ ok: true });
   } catch (err) {
     sendHostError(err, res);
@@ -4384,8 +4389,8 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'server error' });
 });
 
-// The grace: a tenant pastDue for 14 days is degraded to the free plan once an hour, never deleted
-// (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no tenants to sweep.
+// The grace: an environment pastDue for 14 days is degraded to the free plan once an hour, never deleted
+// (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no environments to sweep.
 if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 
 // Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): the lockout bypass excuses every

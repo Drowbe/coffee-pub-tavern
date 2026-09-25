@@ -1,5 +1,5 @@
-// The host's own registry: which environments (tenants) exist, their slugs and plans, and the host admins who run
-// the deployment itself (a different kind of account from any environment's users -- a member of no tenant).
+// The host's own registry: which environments exist, their slugs and plans, and the host admins who run
+// the deployment itself (a different kind of account from any environment's users -- a member of no environment).
 // Persists to DATA_DIR/host.json. Only built and read when BASE_DOMAIN is set; a self-hosted install with no base
 // domain never has this file at all (see documentation/plans/plan-tenants.md).
 'use strict';
@@ -36,14 +36,14 @@ function cleanSlug(value) {
   return s;
 }
 
-// modules: the ids a tenant may enable, or 'all' (today's single-tenant install, and any tenant an admin has not
+// modules: the ids an environment may enable, or 'all' (today's single-environment install, and any environment an admin has not
 // capped yet). The rest are caps a later phase enforces; null means uncapped. Nothing here is billing -- just what
 // is stored and shown in phase 1.
 const STATUSES = ['active', 'pastDue', 'suspended'];
 const defaultCaps = () => ({ modules: 'all', members: null, storageBytes: null, aiCallsPerMonth: null, calls: null });
 const defaultPlan = () => ({ name: null, ...defaultCaps() });
 
-// The five caps alone -- shared between a tenant's own plan (cleanPlan, below) and a plans-catalog entry
+// The five caps alone -- shared between an environment's own plan (cleanPlan, below) and a plans-catalog entry
 // (cleanPlansCatalog, "Phase 5: self-serve, plans and billing"), which carries the same caps under its own name.
 function cleanCaps(raw, fallback) {
   const base = fallback || defaultCaps();
@@ -53,9 +53,9 @@ function cleanCaps(raw, fallback) {
   return { modules, members: cap(raw.members, base.members), storageBytes: cap(raw.storageBytes, base.storageBytes), aiCallsPerMonth: cap(raw.aiCallsPerMonth, base.aiCallsPerMonth), calls: cap(raw.calls, base.calls) };
 }
 
-// A tenant's own plan: the catalog key it was copied from (`name`, null for one hand-set rather than assigned
-// from the catalog) beside its own caps, which may since have been adjusted per tenant (plan-tenants.md,
-// "Phase 5": "copied from the catalog at assignment and may be adjusted per tenant").
+// An environment's own plan: the catalog key it was copied from (`name`, null for one hand-set rather than assigned
+// from the catalog) beside its own caps, which may since have been adjusted per environment (plan-tenants.md,
+// "Phase 5": "copied from the catalog at assignment and may be adjusted per environment").
 function cleanPlan(raw, fallback) {
   if (!raw || typeof raw !== 'object') return fallback || defaultPlan();
   const base = fallback || defaultPlan();
@@ -81,7 +81,7 @@ function cleanPlansCatalog(raw) {
 
 // The host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per company"):
 // { openai: { model, key }, anthropic: { model, key }, compatible: { address, model, key } }, any subset --
-// lenient like cleanTenantRecord, not the way a PUT is (applyManagedFields, used by setManagedAi): corrupt data
+// lenient like cleanEnvironmentRecord, not the way a PUT is (applyManagedFields, used by setManagedAi): corrupt data
 // for one company just drops that company's slot rather than crashing the registry.
 function cleanHostAi(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
@@ -129,7 +129,7 @@ function cleanSharedFolders(raw) {
   return out;
 }
 
-function cleanTenantRecord(raw) {
+function cleanEnvironmentRecord(raw) {
   if (!raw || typeof raw !== 'object' || typeof raw.slug !== 'string') return null;
   let slug;
   try {
@@ -144,7 +144,7 @@ function cleanTenantRecord(raw) {
     plan: cleanPlan(raw.plan),
     status: STATUSES.includes(raw.status) ? raw.status : 'active',
     pastDueSince: typeof raw.pastDueSince === 'string' ? raw.pastDueSince : null,
-    // Set once, by the hourly sweep, the moment a pastDue tenant is degraded to the free plan's caps
+    // Set once, by the hourly sweep, the moment a pastDue environment is degraded to the free plan's caps
     // (plan-tenants.md, "Phase 5: the grace") -- never cleared except by a fresh "paid" billing event.
     degradedAt: typeof raw.degradedAt === 'string' ? raw.degradedAt : null,
     // Asked for by the environment's own admin (POST /api/environment/delete-request), carried out by a host
@@ -185,10 +185,10 @@ class HostRegistry {
       // host.<one of these> redirect to the same path at the current baseDomain. See "Previous base domains" in
       // documentation/plans/plan-tenants.md.
       previousBaseDomains: Array.isArray(raw.previousBaseDomains) ? [...new Set(raw.previousBaseDomains.filter((d) => typeof d === 'string' && d))] : [],
-      // Signs a host admin's own session cookie (never a tenant's own secret, kept in that tenant's own store).
+      // Signs a host admin's own session cookie (never an environment's own secret, kept in that environment's own store).
       // `key` encrypts every environment's own TOTP secret at rest (documentation/plans/plan-mfa.md): one key
-      // for the whole host, shared across every tenant, since the host already has admin access to all of
-      // them -- never inside any one tenant's own exportable directory, so an owner's export or the console's
+      // for the whole host, shared across every environment, since the host already has admin access to all of
+      // them -- never inside any one environment's own exportable directory, so an owner's export or the console's
       // backup carries only the ciphertext, useless without it.
       secrets: {
         session: raw.secrets?.session || randomToken(32),
@@ -198,7 +198,7 @@ class HostRegistry {
         ? raw.hostAdmins.filter((a) => a && typeof a.key === 'string' && typeof a.login === 'string' && typeof a.passwordHash === 'string')
           .map((a) => ({ key: a.key, login: a.login, passwordHash: a.passwordHash, mfa: sanitizeMfa(a.mfa) }))
         : [],
-      tenants: Array.isArray(raw.tenants) ? raw.tenants.map(cleanTenantRecord).filter(Boolean) : [],
+      environments: Array.isArray(raw.environments) ? raw.environments.map(cleanEnvironmentRecord).filter(Boolean) : [],
       ai: cleanHostAi(raw.ai),
       shared: cleanSharedFolders(raw.shared),
       plans: cleanPlansCatalog(raw.plans),
@@ -285,63 +285,63 @@ class HostRegistry {
     return this.data.shared[moduleId][folder];
   }
 
-  // tenants -------------------------------------------------------------------------------------------------
-  listTenants() {
-    return this.data.tenants.map((t) => ({ ...t, plan: { ...t.plan } }));
+  // environments -------------------------------------------------------------------------------------------------
+  listEnvironments() {
+    return this.data.environments.map((t) => ({ ...t, plan: { ...t.plan } }));
   }
 
-  findTenant(slug) {
-    const t = this.data.tenants.find((x) => x.slug === slug);
+  findEnvironment(slug) {
+    const t = this.data.environments.find((x) => x.slug === slug);
     return t ? { ...t, plan: { ...t.plan } } : null;
   }
 
   // { slug, name, plan? }. plan defaults to uncapped, every module -- the shape a migrated install gets, and a
   // reasonable starting point for one the host console creates (an admin narrows it after).
-  addTenant({ slug, name, plan }) {
+  addEnvironment({ slug, name, plan }) {
     const clean = cleanSlug(slug);
-    if (this.data.tenants.some((t) => t.slug === clean)) throw new HostError(`"${clean}" is already in use`, 409);
-    // Built through cleanTenantRecord so a brand new tenant carries the same defaults (usage, the delete-request
-    // fields) a loaded-from-disk one does -- the registry's other methods all assume tenant.usage exists.
-    const tenant = cleanTenantRecord({ slug: clean, name, createdAt: new Date().toISOString(), plan: cleanPlan(plan) });
-    this.data.tenants.push(tenant);
+    if (this.data.environments.some((t) => t.slug === clean)) throw new HostError(`"${clean}" is already in use`, 409);
+    // Built through cleanEnvironmentRecord so a brand new environment carries the same defaults (usage, the delete-request
+    // fields) a loaded-from-disk one does -- the registry's other methods all assume environment.usage exists.
+    const environment = cleanEnvironmentRecord({ slug: clean, name, createdAt: new Date().toISOString(), plan: cleanPlan(plan) });
+    this.data.environments.push(environment);
     this.save();
-    return { ...tenant, plan: { ...tenant.plan }, usage: { ...tenant.usage } };
+    return { ...environment, plan: { ...environment.plan }, usage: { ...environment.usage } };
   }
 
-  updateTenant(slug, patch) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) throw new HostError('no such environment', 404);
+  updateEnvironment(slug, patch) {
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) throw new HostError('no such environment', 404);
     if (patch && typeof patch === 'object') {
-      if (patch.name !== undefined) tenant.name = cleanText(patch.name, 80) || tenant.name;
-      if (patch.plan !== undefined) tenant.plan = cleanPlan(patch.plan, tenant.plan);
+      if (patch.name !== undefined) environment.name = cleanText(patch.name, 80) || environment.name;
+      if (patch.plan !== undefined) environment.plan = cleanPlan(patch.plan, environment.plan);
       if (patch.status !== undefined) {
         if (!STATUSES.includes(patch.status)) throw new HostError(`status must be one of ${STATUSES.join(', ')}`);
-        if (patch.status === 'pastDue' && tenant.status !== 'pastDue') tenant.pastDueSince = new Date().toISOString();
-        else if (patch.status !== 'pastDue') tenant.pastDueSince = null;
-        tenant.status = patch.status;
+        if (patch.status === 'pastDue' && environment.status !== 'pastDue') environment.pastDueSince = new Date().toISOString();
+        else if (patch.status !== 'pastDue') environment.pastDueSince = null;
+        environment.status = patch.status;
       }
     }
     this.save();
-    return { ...tenant, plan: { ...tenant.plan } };
+    return { ...environment, plan: { ...environment.plan } };
   }
 
   // Asked for by the environment's own admin (POST /api/environment/delete-request); withdrawn the same way
-  // (DELETE), or carried out by a host admin on the console (removeTenant, the existing Delete) -- never by
+  // (DELETE), or carried out by a host admin on the console (removeEnvironment, the existing Delete) -- never by
   // itself. Marking it is not a queue or a timer, just a flag a host admin sees and acts on when they choose.
-  requestTenantDeletion(slug, reason) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) throw new HostError('no such environment', 404);
-    tenant.deleteRequestedAt = new Date().toISOString();
-    tenant.deleteRequestReason = cleanText(reason, 500) || '';
+  requestEnvironmentDeletion(slug, reason) {
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) throw new HostError('no such environment', 404);
+    environment.deleteRequestedAt = new Date().toISOString();
+    environment.deleteRequestReason = cleanText(reason, 500) || '';
     this.save();
-    return { deleteRequestedAt: tenant.deleteRequestedAt, deleteRequestReason: tenant.deleteRequestReason };
+    return { deleteRequestedAt: environment.deleteRequestedAt, deleteRequestReason: environment.deleteRequestReason };
   }
 
-  withdrawTenantDeletion(slug) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) throw new HostError('no such environment', 404);
-    tenant.deleteRequestedAt = null;
-    tenant.deleteRequestReason = '';
+  withdrawEnvironmentDeletion(slug) {
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) throw new HostError('no such environment', 404);
+    environment.deleteRequestedAt = null;
+    environment.deleteRequestReason = '';
     this.save();
   }
 
@@ -350,26 +350,26 @@ class HostRegistry {
   // what it found. aiMonth/aiCalls: one call counted per successful host.ai.ask, rolled over to 0 on a new
   // month the same way Ai's own per-environment usage already is.
   recordStorageUsage(slug, bytes) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) return;
-    tenant.usage.storageBytes = Math.max(0, Math.round(bytes));
-    tenant.usage.measuredAt = new Date().toISOString();
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) return;
+    environment.usage.storageBytes = Math.max(0, Math.round(bytes));
+    environment.usage.measuredAt = new Date().toISOString();
     this.save();
   }
 
   recordAiCall(slug) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) return;
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) return;
     const thisMonth = new Date().toISOString().slice(0, 7);
-    if (tenant.usage.aiMonth !== thisMonth) { tenant.usage.aiMonth = thisMonth; tenant.usage.aiCalls = 0; }
-    tenant.usage.aiCalls += 1;
+    if (environment.usage.aiMonth !== thisMonth) { environment.usage.aiMonth = thisMonth; environment.usage.aiCalls = 0; }
+    environment.usage.aiCalls += 1;
     this.save();
   }
 
   aiCallsThisMonth(slug) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) return 0;
-    return tenant.usage.aiMonth === new Date().toISOString().slice(0, 7) ? tenant.usage.aiCalls : 0;
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) return 0;
+    return environment.usage.aiMonth === new Date().toISOString().slice(0, 7) ? environment.usage.aiCalls : 0;
   }
 
   // the plan catalog and billing (plan-tenants.md, "Phase 5: self-serve, plans and billing") -------------------
@@ -385,53 +385,53 @@ class HostRegistry {
 
   // The webhook's three events (POST /api/host/billing, signature checked by the caller): "paid" takes the
   // named plan's caps from the catalog (a snapshot, same as any assignment -- the catalog may move on without
-  // touching an already-paid tenant until its next event); "lapsed" and "cancelled" both start the same 14-day
+  // touching an already-paid environment until its next event); "lapsed" and "cancelled" both start the same 14-day
   // grace (the sweep below degrades it once that runs out), the grace clock only starting once, not restarted
-  // by a second webhook call for a tenant already pastDue.
+  // by a second webhook call for an environment already pastDue.
   applyBillingEvent(slug, planId, event) {
-    const tenant = this.data.tenants.find((t) => t.slug === slug);
-    if (!tenant) throw new HostError('no such environment', 404);
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    if (!environment) throw new HostError('no such environment', 404);
     if (event === 'paid') {
       const entry = this.data.plans[planId];
       if (!entry) throw new HostError(`no such plan: ${planId}`);
-      tenant.plan = { name: planId, ...entry.caps };
-      tenant.status = 'active';
-      tenant.pastDueSince = null;
-      tenant.degradedAt = null;
+      environment.plan = { name: planId, ...entry.caps };
+      environment.status = 'active';
+      environment.pastDueSince = null;
+      environment.degradedAt = null;
     } else if (event === 'lapsed' || event === 'cancelled') {
-      if (tenant.status !== 'pastDue') tenant.pastDueSince = new Date().toISOString();
-      tenant.status = 'pastDue';
+      if (environment.status !== 'pastDue') environment.pastDueSince = new Date().toISOString();
+      environment.status = 'pastDue';
     } else {
       throw new HostError(`event must be paid, lapsed or cancelled`);
     }
     this.save();
-    return { ...tenant, plan: { ...tenant.plan } };
+    return { ...environment, plan: { ...environment.plan } };
   }
 
-  // The grace: a tenant pastDue for 14 days is degraded to the free plan's caps rather than left capped at
+  // The grace: an environment pastDue for 14 days is degraded to the free plan's caps rather than left capped at
   // whatever it lapsed from -- nothing about billing ever deletes anything. Called once an hour by index.js.
   degradeStalePastDue(graceMs = 14 * 86400000) {
     const now = Date.now();
     let changed = false;
-    for (const tenant of this.data.tenants) {
-      if (tenant.status !== 'pastDue' || !tenant.pastDueSince) continue;
-      if (now - new Date(tenant.pastDueSince).getTime() < graceMs) continue;
+    for (const environment of this.data.environments) {
+      if (environment.status !== 'pastDue' || !environment.pastDueSince) continue;
+      if (now - new Date(environment.pastDueSince).getTime() < graceMs) continue;
       const free = this.data.plans.free;
-      tenant.plan = { name: 'free', ...free.caps };
-      tenant.status = 'active';
-      tenant.pastDueSince = null;
-      tenant.degradedAt = new Date().toISOString();
+      environment.plan = { name: 'free', ...free.caps };
+      environment.status = 'active';
+      environment.pastDueSince = null;
+      environment.degradedAt = new Date().toISOString();
       changed = true;
     }
     if (changed) this.save();
   }
 
-  // Only the registry entry -- the directory move (to tenants-deleted/) is the caller's job, since this class
+  // Only the registry entry -- the directory move (to environments-deleted/) is the caller's job, since this class
   // knows nothing about environments' built services or their data directories beyond the slug.
-  removeTenant(slug) {
-    const before = this.data.tenants.length;
-    this.data.tenants = this.data.tenants.filter((t) => t.slug !== slug);
-    if (this.data.tenants.length === before) throw new HostError('no such environment', 404);
+  removeEnvironment(slug) {
+    const before = this.data.environments.length;
+    this.data.environments = this.data.environments.filter((t) => t.slug !== slug);
+    if (this.data.environments.length === before) throw new HostError('no such environment', 404);
     this.save();
   }
 
@@ -467,7 +467,7 @@ class HostRegistry {
   }
 
   // --- the host admins' own second factor (documentation/plans/plan-mfa.md) -- the same five operations as
-  // Store's, mirrored here since a host admin is not a tenant's user record at all (see /api/host/me/mfa/*,
+  // Store's, mirrored here since a host admin is not an environment's user record at all (see /api/host/me/mfa/*,
   // POST /api/host/login/verify, and the owner reset below).
   hostAdminMfaStart(key, secretCipher) {
     const admin = this.findAdminByKey(key);

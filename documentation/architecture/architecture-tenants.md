@@ -34,7 +34,7 @@ from the zip, or overwritten by a stale in-memory copy right after).
 An environment's own name is its server name (the author's call). `environmentFor()` in `index.js` runs one
 check every time it builds an environment, not just the first: still on the shipped sentinel default ("Coffee
 Pub Tavern", from before an install's name was ever set, or before `serverName` existed at all) means the
-default environment gets `PRODUCT_NAME` and a tenant gets `hostRegistry.findTenant(slug).name`, written with
+default environment gets `PRODUCT_NAME` and a hosted environment gets `hostRegistry.findEnvironment(slug).name`, written with
 `store.updateSettings`. The same check covers a brand new environment (still on the sentinel right after
 `buildEnvironment`) and an old one catching up on its next start after skipping a few versions -- one code path,
 not two.
@@ -62,7 +62,7 @@ and it would break.
 The "door" is one middleware, registered right after `express.json()`, before any route:
 
 - **No `BASE_DOMAIN`:** `app.use((req, res, next) => envContext.run(environmentFor(''), next))`. Every request
-  gets the one environment. This is the whole of the multi-tenant machinery's effect on a self-hosted install:
+  gets the one environment. This is the whole of the several-environments machinery's effect on a self-hosted install:
   one extra `AsyncLocalStorage.run` wrapping every request, resolving to the same environment every time.
 - **`BASE_DOMAIN` set:** the hostname picks a branch -- `admin.<base>` dispatches to `hostRouter` (a separate
   `express.Router()`, never mounted on `app` directly, so a request there can never fall through to a route that
@@ -73,7 +73,7 @@ The "door" is one middleware, registered right after `express.json()`, before an
   `envContext.getStore()` is empty, the same as any environment that has not set its own (for `siteIcon` that
   bundled default, and the one `/manifest.webmanifest` offers alongside any environment's own custom icon, is
   `public/assets/images/brand/brandmark-color.png` -- the one file a rebrand replaces, not a copy of it);
-  `<slug>.<base>` resolves that tenant's environment the same way the no-base-domain case resolves the default
+  `<slug>.<base>` resolves that slug's environment the same way the no-base-domain case resolves the default
   one; anything else is a plain 404. A hostname matching `PREVIOUS_BASE_DOMAINS` 301s to the same path at the
   current base first. `PRODUCT_NAME` (default "Coffee Pub Magpie") and `CONTACT_EMAIL` (default none) are
   configuration, never code, since the product's own name is not settled yet -- `GET /api/product` (registered on
@@ -83,7 +83,7 @@ The "door" is one middleware, registered right after `express.json()`, before an
 Two more pieces exist only to let the product page's own **Sign in** send someone to the right place, without the
 host ever learning who anyone is (accounts live inside each environment, not in `host.json`):
 
-- On every real tenant sign-in (`GET /j/:token`, `POST /api/login`, `POST /api/register`,
+- On every real sign-in to an environment (`GET /j/:token`, `POST /api/login`, `POST /api/register`,
   `POST /api/invites/:token/accept` -- never the host admin's own `POST /api/host/login`), `setEnvHint(req, res)`
   sets a cookie `env_hint` on the parent `BASE_DOMAIN`: a comma-separated list of slugs, most recent first,
   deduplicated, capped at five, `Path=/`, `SameSite=Lax`, `Secure` when the request is, a year long, **not**
@@ -91,12 +91,12 @@ host ever learning who anyone is (accounts live inside each environment, not in 
   and it names no person. A no-op without `BASE_DOMAIN`.
 - `GET /api/product/environment?slug=` (registered on both the main app and `hostRouter`, and in
   `BARE_BASE_PATHS`, so it answers at the bare base domain too) answers `{ slug, name }` for an `active` or
-  `pastDue` tenant and a plain 404 for anything else -- unknown, suspended, or a slug that fails `cleanSlug`'s own
+  `pastDue` environment and a plain 404 for anything else -- unknown, suspended, or a slug that fails `cleanSlug`'s own
   shape check before it ever reaches the registry. Suspended and unknown look identical on purpose: a slug is
-  already a public address (it is the tenant's own subdomain), so confirming one exists reveals nothing a browser
+  already a public address (it is the environment's own subdomain), so confirming one exists reveals nothing a browser
   couldn't already see by just visiting it.
 - `GET /api/product/environments` (same registration pattern) answers `{ environments: [{ slug, name }] }` for
-  the page's own dropdown: every `active` or `pastDue` tenant that is not refused (see "Refused environments"),
+  the page's own dropdown: every `active` or `pastDue` environment that is not refused (see "Refused environments"),
   sorted by name, suspended ones left out entirely
   (not even a slug -- unlike the single lookup above, there is no address a visitor already has here to confirm).
   `{ environments: [] }` when there is no `hostRegistry` at all.
@@ -142,12 +142,12 @@ long-lived connection that registers listeners and cleans them up on `'close'`, 
 
 ## `server/host-registry.js`: the one thing that is never per-environment
 
-`DATA_DIR/host.json` -- which tenants exist, their plans, the host admins -- is built once, only when
+`DATA_DIR/host.json` -- which environments exist (its `environments` list), their plans, the host admins -- is built once, only when
 `BASE_DOMAIN` is set, and is never wrapped in the Proxy machinery above: it is the one piece of state that is
 explicitly *not* scoped to an environment, by definition. A host admin's own session is a structurally identical
-but entirely separate mechanism from a tenant's (`auth.HOST_COOKIE` instead of `auth.COOKIE`, `hostRegistry.
-sessionSecret` instead of any tenant's `store.sessionSecret`, `hostRegistry.findAdminByKey` instead of any
-tenant's `store.userByKey`) -- see `currentHostAdmin`/`requireHostAdmin` in `server/index.js`. The two cookies
+but entirely separate mechanism from an environment's (`auth.HOST_COOKIE` instead of `auth.COOKIE`, `hostRegistry.
+sessionSecret` instead of any environment's `store.sessionSecret`, `hostRegistry.findAdminByKey` instead of any
+environment's `store.userByKey`) -- see `currentHostAdmin`/`requireHostAdmin` in `server/index.js`. The two cookies
 can never be confused for one another even if somehow set on the same browser, because nothing ever reads one
 where it expects the other.
 
@@ -164,29 +164,30 @@ take over someone else's account.
 
 ## LiveKit room names
 
-One `RoomServiceClient`, shared by every environment (the plan's phase 4 territory is a per-tenant call-name
-scheme and per-tenant concurrent-call limits; not built yet). `livekitRoomName()`/`roomIdOfLivekit()` already
+One `RoomServiceClient`, shared by every environment (the plan's phase 4 territory is a per-environment call-name
+scheme and per-environment concurrent-call limits; not built yet). `livekitRoomName()`/`roomIdOfLivekit()` already
 prefix the room name with the current environment's own slug when one is resolved (`env.slug`, null for the
 default environment), so two environments with the same `room` setting cannot collide in LiveKit today, even
 before phase 4's fuller scheme.
 
 ## The console
 
-`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. A tenant's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip`; **Restore backup** opens a file picker, then arms as **Replace its data?** for eight seconds and posts the zip to `POST /api/host/tenants/:slug/restore` on the second click (the chosen files are held in `restoreFiles`, by slug, and dropped whenever the list is drawn again); Delete arms on the first click and acts on the second. A card whose `refused` is set (see "Refused environments" below) shows the tag "won't open" (`data-status="refused"`), the reason, the file and the time, what to do, and a dash for every usage count. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. An environment's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip` (the server's own `Content-Disposition` name, `<slug>-backup.zip`, is not used); **Restore backup** opens a file picker, then arms as **Replace its data?** for eight seconds and posts the zip to `POST /api/host/environments/:slug/restore` on the second click (the chosen files are held in `restoreFiles`, by slug, and dropped whenever the list is drawn again), and focus returns to that card's **Restore backup** afterwards; Delete arms on the first click and acts on the second, and focus then goes to `#environments-status` (`tabindex="-1"`, `aria-live="polite"`), which says "<slug> moved aside (its data is kept under environments-deleted)."; **Suspend** reads **Resume** on a suspended environment. **Save plans** stops at the first field the browser's own validation refuses (a plan id of lower-case letters, digits and hyphens; a name that is not blank) and shows its message; the New environment form's slug is checked the same way. A card whose `refused` is set (see "Refused environments" below) shows the tag "won't open" (`data-status="refused"`), the reason, the file and the time, what to do, and a dash for every usage count, and hides the owner's second-factor reset, which could not reach the environment. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
 
 ## The Names migration
 
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
-files and folders renamed from the old words to the new, one recorded part per step of that plan. Step 1
-built the frame only; `HOST_PARTS` and `ENVIRONMENT_PARTS` are empty, and each later step adds its part to the
-end of its list.
+files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
+to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
+`ENVIRONMENT_PARTS` is still empty.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
   With `BASE_DOMAIN` set, `migrateHost(DATA_DIR)` runs once at startup, before `host.json` is read and before
   any environment is built; a single-environment install has no `host.json` and never runs it.
 - **A part.** `{ id, files(dir), run(ctx) }`. `files()` answers the paths (from the directory) of the JSON
-  files it will rewrite; `ctx` has `dir`, `read(rel)`, `write(rel, value)` and `move(fromRel, toRel)`. `write`
+  files it will rewrite; `ctx` has `dir`, `copyRoot` (where this part's originals were copied), `read(rel)`,
+  `write(rel, value)` and `move(fromRel, toRel)`. `write`
   refuses a path `files()` did not list, since only those were copied first. Writes and moves are staged and
   applied after `run` returns. A part must change nothing when run over data it has already changed.
 - **The record.** Parts run in list order, and a part the record names never runs again. An environment's
@@ -200,23 +201,88 @@ end of its list.
   which the pre-environment move (`migrateIfNeeded()`) leaves where it is. A copy already there, from an
   attempt that stopped part-way, is kept. Folders a part only moves are listed in `moved`, not copied.
 - **The commit.** Everything is checked first: each value serialises, no write lands on a folder, no move's
-  target exists or is shared. Each write goes to a `.names-tmp` file beside its target. Then the folders move
-  (a failed move puts back the moves already made and removes the staged files), then the writes are renamed
-  into place, the record last. A failure this late leaves the originals in `pre-names/` and no record entry, so
-  the part runs again on the next start.
+  target exists or is shared. Each write goes to a `.names-tmp` file beside its target. Then the folders move,
+  then the writes are renamed into place, the record last. A failed move puts back the moves already made and
+  removes the staged files; a folder that cannot be put back is named in the error ("This folder was moved and
+  could not be put back, so it is still at the new place: `<to>` (was `<from>`)."). A failed write names the
+  part's own copy folder (`pre-names/<part>` or `pre-names-host/<part>`) as where the originals are. Either way
+  there is no record entry, so the part runs again on the next start.
+- **The moved-folders note.** Before each folder moves, the moves so far are written to
+  `pre-names/<part>.moved.json` (the host's: `pre-names-host/<part>.moved.json`). When the part is recorded, the
+  note is read back, keeping only moves that really happened (the folder gone from where it was and present
+  where it went), merged with the attempt's own, and deleted. So a part stopped between two moves, by an error or
+  by the process being killed, still records every folder it moved when it runs again.
 - **The error.** Every failure is a `MigrationError` with `file` and `reason`: `newer` (the record names a
   part this server does not know) or `failed` (a part could not finish). The newer check runs whether or not a
   part is due, and reads the record leniently: an `app.json` that is not valid JSON is not refused here, and
-  `Store` reads it as empty, as it always has. With no parts yet, only `newer` can happen.
+  `Store` reads it as empty, as it always has. Until an environment part exists, an environment can only be
+  refused as `newer`.
 
 `tools/check-names.mjs` (in `npm run check`) holds the frame to this: `--migration` copies
 `tools/fixtures/names-v1/` to the system's temporary folder and runs the frame twice over it with stand-in
-parts. Its other modes report the old names left in the code, level by level (environment, table, role,
-space, canvas, module, object, aside); in step 1 every level only reports, and each later step switches its
-own to fail. `--words` reports "room", "rooms" and "table" in what people read, and `--list[=level]` lists
+parts and with the real ones, including runs killed part-way. Its other modes report the old names left in the
+code, level by level (environment, table, role, space, canvas, module, object, aside); a level only reports
+until its step switches it to fail. The environment level (`tenant`, `tenants`) fails, in code and in words,
+from step 2. `--words` reports "room", "rooms" and "table" in what people read, and `--list[=level]` lists
 every hit. The allow-list is `tools/check-names-allow.json`: `{ file, level, pattern, line?, reason }`, the
 pattern tested against the hit's own name; an entry with no reason fails, `level: "*"` or a pattern that
 matches anything is allowed only for one exact file or under `tools/fixtures/`, and unused entries are listed.
+
+### The host's part: `names-environment`
+
+The first real part, in `HOST_PARTS`, run by `migrateHost(DATA_DIR)` on a hosted server only (a
+single-environment install runs no host part). It renames:
+
+- `DATA_DIR/tenants/` to `DATA_DIR/environments/`, and `tenants-deleted/` to `environments-deleted/`;
+- `host.json`'s `tenants` key to `environments`, in the same place among its keys, every other key untouched.
+
+It is recorded in `host.json`'s `migrations` with
+`moved: [{ from: "tenants", to: "environments" }, { from: "tenants-deleted", to: "environments-deleted" }]`
+(only the folders that were there), and the original `host.json` is kept at
+`DATA_DIR/pre-names-host/names-environment/host.json`. Over a host already in the new shape it changes
+nothing. A `host.json` with no record yet (a brand-new host) records the part as run, moving nothing.
+
+One refusal: a `host.json` with both `tenants` and a non-empty `environments` that differs from it stops the
+start, since the part cannot tell which list to keep:
+
+> The names migration part "names-environment" stopped at `<DATA_DIR>/host.json`: it lists environments under both "tenants" and "environments", and they differ,
+> so it cannot tell which to keep. Nothing was changed: remove the out-of-date key from
+> `<DATA_DIR>/host.json` and start again (a copy of the file as it was is in
+> `<DATA_DIR>/pre-names-host/names-environment`).
+
+An `environments` key that is empty or the same as `tenants` is replaced by `tenants`' list without a refusal.
+
+### A pre-environment install
+
+With `BASE_DOMAIN` set and data still at `DATA_DIR`'s own root (`app.json`, or `tavern.json` from before that
+rename), `migrateIfNeeded()` refuses to start until told which environment the data becomes:
+
+> BASE_DOMAIN is set and `<DATA_DIR>` is a single-environment install. Set MIGRATE_ENVIRONMENT_SLUG=`<slug>` for
+> one start to move it to that environment, then remove it.
+
+With `MIGRATE_ENVIRONMENT_SLUG` set, everything at the root except `host.json`, `fontawesome-pro`,
+`environments`, `environments-deleted` and `pre-names-host` moves to `DATA_DIR/environments/<slug>/`, and the
+environment is added to the registry. The old name, `MIGRATE_TENANT_SLUG`, is still read (the new name wins
+when both are set) and logs one line to stderr on every start while it is set:
+"MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release." It goes
+in step 10 of the plan.
+
+## The host API: environments
+
+Served only at `admin.<base>` by `hostRouter`; the same paths reached from an environment's own host answer
+404. Every route but billing needs a host admin's session and answers 401 `{ error: "sign in first" }` without
+one. The old `/api/host/tenants...` paths are gone and answer 404; there is no alias.
+
+| Route | Answer |
+|---|---|
+| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused }] }` |
+| `POST /api/host/environments` `{ slug, name, plan?, owner?: { login, displayName, password } }` | 201 `{ environment }`; 409 `"<slug>" is already in use`; a bad slug answers `cleanSlug`'s own error |
+| `PATCH /api/host/environments/:slug` `{ name?, plan?, status? }` | `{ environment }`; 404 `no such environment`; 400 for a status not in the list |
+| `DELETE /api/host/environments/:slug` | `{ ok: true }`, the data moved to `DATA_DIR/environments-deleted/<slug>-<ms>/`, never removed; 404 `no such environment` |
+| `POST /api/host/environments/:slug/backup` | the environment's folder as a zip (`Content-Disposition` `<slug>-backup.zip`); 404 `no such environment` |
+| `POST /api/host/environments/:slug/restore` | see "Refused environments", Restore |
+| `DELETE /api/host/environments/:slug/owners/:login/mfa` | `{ ok: true }`; 404 `no such environment` or `no owner with that login there` |
+| `POST /api/host/billing` `{ slug, plan, event }` | `{ environment }` (was `{ tenant }`); no session, a signature: 401 `bad signature`, 404 when `BILLING_SECRET` is not set |
 
 ## Refused environments
 
@@ -229,18 +295,19 @@ than read in a shape this server does not understand (plan-names decision 22).
   newer version of Magpie, so it will not be opened here.`
 - **On a hosted server, one environment.** `buildAtStartup()` in `index.js` skips an environment whose build
   throws a `MigrationError`; the others and the console keep running. `environmentFor()` keeps the refusal in
-  `refusals` (by slug: `reason`, `file` relative to `DATA_DIR`, the full `message`, the sentence, `at`), logs
+  `refusals` (by slug: `reason`, `file` relative to `DATA_DIR`, such as `environments/beta/app.json`, the full `message`, the sentence, `at`), logs
   the message once per refusal, and tries to build again on every request, so a fixed or restored environment
-  opens without a restart. Until it builds, the error handler answers 503 with
+  opens without a restart. The log line for a skipped environment adds "This environment is skipped and answers 503
+  until its data is restored or fixed; the others run as usual." Until it builds, the error handler answers 503 with
   `{ error: "This environment's data is from a newer version of Magpie." }` (`newer`) or
   `{ error: "This environment's data could not be updated. The host admin has been told." }` (`failed`), or a
   plain HTML page with the same sentence for a browser asking for a page. The file and the detail go to the log
   and the console only. A refused environment is left out of `GET /api/product/environments`, and the console's
   map-region search skips it.
-- **The console's list.** `GET /api/host/tenants` gives each environment
+- **The console's list.** `GET /api/host/environments` gives each environment
   `refused: null | { reason: 'newer' | 'failed', file, message, at }`, and every `usage` count is `null` while
   it is refused.
-- **Restore.** `POST /api/host/tenants/:slug/restore` checks the zip before touching anything: when the
+- **Restore.** `POST /api/host/environments/:slug/restore` checks the zip before touching anything: when the
   `app.json` or `tavern.json` that would land (names normalised, the last of a repeated entry) records an
   unknown part, it answers 400 `{ error: "This backup is from a newer version of Magpie." }` and the
   environment is unchanged. Otherwise it replaces the environment's folder, builds it at once, and answers
@@ -270,7 +337,7 @@ The console page for both is `public/host.js` with the form and the region cut s
 
 ## Phases 2 to 5: the owner, the caps, the calls, self-serve and billing
 
-Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `admin` role under another name on a hosted server (`GET /api/me`'s `environment.hosted`; the pages read Owner, the Roles grid's fixed column included), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the tenant directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and a tenant's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, off with `SIGNUP=off`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades a tenant past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the tenant's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
+Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `admin` role under another name on a hosted server (`GET /api/me`'s `environment.hosted`; the pages read Owner, the Roles grid's fixed column included), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the environment's directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and an environment's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, and off unless `SIGNUP=on`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades an environment past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the environment's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
 
 ## Adding a new module-level singleton
 

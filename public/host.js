@@ -13,11 +13,11 @@ const slot = (el, name) => el.querySelector(`[data-slot="${name}"]`);
 
 let settings = { baseDomain: '', version: '', hostAdmins: [], plans: {} };
 const PLAN_ORDER = (plans) => Object.keys(plans || {}).sort((a, b) => (a === 'free' ? -1 : b === 'free' ? 1 : a.localeCompare(b)));
-let tenants = [];
+let environments = [];
 
 const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB` : '0');
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
-const tenantUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}${location.port ? `:${location.port}` : ''}`; // the port only in development
+const environmentUrl = (slug) => `${location.protocol}//${slug}.${settings.baseDomain}${location.port ? `:${location.port}` : ''}`; // the port only in development
 
 let hostMe = null; // the signed-in host admin: mfaEnrolled, mfaRequired, mfaOffered, mfaBypass
 async function load() {
@@ -33,13 +33,13 @@ async function load() {
   $('host-main').hidden = false;
   try {
     settings = await api('GET', '/api/host/settings');
-    tenants = (await api('GET', '/api/host/tenants')).tenants;
+    environments = (await api('GET', '/api/host/environments')).environments;
   } catch (err) {
-    say($('tenants-status'), err.message, true);
+    say($('environments-status'), err.message, true);
     return;
   }
   $('base-hint').textContent = `<slug>.${settings.baseDomain}`;
-  renderTenants();
+  renderEnvironments();
   renderAdmins();
   renderFacts();
   renderPlans();
@@ -210,30 +210,30 @@ $('shared-files').addEventListener('click', async (e) => {
 
 function renderFacts() {
   const webhook = settings.baseDomain ? `${location.protocol}//admin.${settings.baseDomain}${location.port ? ':' + location.port : ''}/api/host/billing` : '';
-  $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${tenants.length}</dd><dt>Sign-up</dt><dd>${settings.signup === false ? 'off (SIGNUP=off)' : 'on, at the base domain, on the free plan'}</dd><dt>Billing webhook</dt><dd>${webhook ? `<code>${escapeHtml(webhook)}</code>, a JSON body { slug, plan, event: paid | lapsed | cancelled } signed with <code>BILLING_SECRET</code> (x-billing-signature, HMAC-SHA256 of the body, hex)${settings.billingSecretSet === false ? '; <strong>BILLING_SECRET is not set</strong>, so the webhook refuses everything' : ''}` : 'needs a base domain'}</dd>`;
+  $('host-facts').innerHTML = `<dt>Base domain</dt><dd>${escapeHtml(settings.baseDomain || '(none: one environment)')}</dd><dt>Version</dt><dd>${escapeHtml(settings.version || '')}</dd><dt>Environments</dt><dd>${environments.length}</dd><dt>Sign-up</dt><dd>${settings.signup === false ? 'off (SIGNUP=off)' : 'on, at the base domain, on the free plan'}</dd><dt>Billing webhook</dt><dd>${webhook ? `<code>${escapeHtml(webhook)}</code>, a JSON body { slug, plan, event: paid | lapsed | cancelled } signed with <code>BILLING_SECRET</code> (x-billing-signature, HMAC-SHA256 of the body, hex)${settings.billingSecretSet === false ? '; <strong>BILLING_SECRET is not set</strong>, so the webhook refuses everything' : ''}` : 'needs a base domain'}</dd>`;
 }
 
-// Why a refused environment won't open (GET /api/host/tenants' `refused.reason`).
+// Why a refused environment won't open (GET /api/host/environments' `refused.reason`).
 const REFUSED_WORDS = {
   newer: "Won't open: its data is from a newer version of Magpie.",
   failed: "Won't open: its data could not be updated.",
 };
 
-function renderTenants() {
-  const box = $('tenants');
+function renderEnvironments() {
+  const box = $('environments');
   box.replaceChildren();
   restoreFiles.clear(); // a fresh card has no zip chosen
-  if (!tenants.length) { box.innerHTML = '<p class="hint">No environments yet.</p>'; return; }
-  for (const t of tenants) {
-    const el = clone('tpl-tenant');
+  if (!environments.length) { box.innerHTML = '<p class="hint">No environments yet.</p>'; return; }
+  for (const t of environments) {
+    const el = clone('tpl-environment');
     el.dataset.slug = t.slug;
     slot(el, 'name').textContent = t.name || t.slug;
-    slot(el, 'link').href = tenantUrl(t.slug);
+    slot(el, 'link').href = environmentUrl(t.slug);
     slot(el, 'slug').textContent = `${t.slug}.${settings.baseDomain}`;
     const status = slot(el, 'status');
     status.textContent = t.status === 'pastDue' ? 'past due' : t.status || 'active';
     status.dataset.status = t.status || 'active';
-    el.querySelector('[data-action="suspend"]').textContent = t.status === 'suspended' ? 'Restore' : 'Suspend';
+    el.querySelector('[data-action="suspend"]').textContent = t.status === 'suspended' ? 'Resume' : 'Suspend';
     // Refused (its data is from a newer Magpie, or its data update could not finish): it answers its visitors with
     // a 503 until a good backup is restored, so the card says so and why, and has nothing to count.
     const refused = t.refused || null;
@@ -247,6 +247,7 @@ function renderTenants() {
         + `<p class="hint">${refused.reason === 'newer' ? 'Restore a good backup, or run a newer version of Magpie.' : 'Restore a good backup. The server log has the details.'}</p>`;
       box.title = refused.message || '';
       box.hidden = false;
+      slot(el, 'owner-reset').hidden = true; // nothing inside it can be reached until a good backup is restored
     }
     const u = refused ? {} : t.usage || {};
     const p = t.plan || {};
@@ -302,28 +303,28 @@ function renderAdmins() {
   }));
 }
 
-// --- the tenants' own controls, by delegation -----------------------------------------------------------------
+// --- the environments' own controls, by delegation -----------------------------------------------------------------
 const armed = new Map(); // slug -> the delete button armed for a second click
-$('tenants').addEventListener('click', async (e) => {
+$('environments').addEventListener('click', async (e) => {
   const b = e.target.closest('[data-action]');
   if (!b) return;
-  const card = b.closest('.tenant');
+  const card = b.closest('.environment');
   const slug = card.dataset.slug;
-  const t = tenants.find((x) => x.slug === slug);
+  const t = environments.find((x) => x.slug === slug);
   const action = b.dataset.action;
   if (action === 'plan') { slot(card, 'plan-form').hidden = false; return; }
   if (action === 'plan-cancel') { slot(card, 'plan-form').hidden = true; return; }
   if (action === 'suspend') {
     try {
-      await api('PATCH', `/api/host/tenants/${encodeURIComponent(slug)}`, { status: t.status === 'suspended' ? 'active' : 'suspended' });
+      await api('PATCH', `/api/host/environments/${encodeURIComponent(slug)}`, { status: t.status === 'suspended' ? 'active' : 'suspended' });
       await load();
-    } catch (err) { say($('tenants-status'), err.message, true); }
+    } catch (err) { say($('environments-status'), err.message, true); }
     return;
   }
   if (action === 'backup') {
     b.disabled = true;
     try {
-      const res = await fetch(`/api/host/tenants/${encodeURIComponent(slug)}/backup`, { method: 'POST' });
+      const res = await fetch(`/api/host/environments/${encodeURIComponent(slug)}/backup`, { method: 'POST' });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `backup failed (${res.status})`);
       const blob = await res.blob();
       const a = document.createElement('a');
@@ -331,7 +332,7 @@ $('tenants').addEventListener('click', async (e) => {
       a.download = `${slug}-${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-    } catch (err) { say($('tenants-status'), err.message, true); }
+    } catch (err) { say($('environments-status'), err.message, true); }
     b.disabled = false;
     return;
   }
@@ -343,28 +344,33 @@ $('tenants').addEventListener('click', async (e) => {
     b.disabled = true;
     b.textContent = 'Restoring\u2026';
     try {
-      const res = await api('POST', `/api/host/tenants/${encodeURIComponent(slug)}/restore`, file, 'application/zip');
-      if (res.refused) say($('tenants-status'), `${slug} was restored, but still won't open: ${(REFUSED_WORDS[res.refused.reason] || REFUSED_WORDS.failed).replace(/^Won't open: /, '')} Try an older backup.`, true);
-      else say($('tenants-status'), `${slug} was restored from ${file.name}.`);
-    } catch (err) { say($('tenants-status'), `${slug} was not restored: ${err.message}`, true); }
+      const res = await api('POST', `/api/host/environments/${encodeURIComponent(slug)}/restore`, file, 'application/zip');
+      if (res.refused) say($('environments-status'), `${slug} was restored, but still won't open: ${(REFUSED_WORDS[res.refused.reason] || REFUSED_WORDS.failed).replace(/^Won't open: /, '')} Try an older backup.`, true);
+      else say($('environments-status'), `${slug} was restored from ${file.name}.`);
+    } catch (err) { say($('environments-status'), `${slug} was not restored: ${err.message}`, true); }
     await load();
+    // The list was drawn afresh, so keyboard focus goes back to this environment's Restore backup button, or to the
+    // status line if the environment is no longer listed.
+    const again = [...$('environments').querySelectorAll('.environment')].find((c) => c.dataset.slug === slug);
+    (again ? again.querySelector('[data-action="restore"]') : $('environments-status')).focus();
     return;
   }
   if (action === 'delete') {
     if (armed.get(slug) !== b) { armed.set(slug, b); b.textContent = 'Really delete?'; setTimeout(() => { if (armed.get(slug) === b) { armed.delete(slug); b.textContent = 'Delete'; } }, 4000); return; }
     armed.delete(slug);
     try {
-      await api('DELETE', `/api/host/tenants/${encodeURIComponent(slug)}`);
-      say($('tenants-status'), `${slug} moved aside (its data is kept under tenants-deleted).`);
+      await api('DELETE', `/api/host/environments/${encodeURIComponent(slug)}`);
+      say($('environments-status'), `${slug} moved aside (its data is kept under environments-deleted).`);
       await load();
-    } catch (err) { say($('tenants-status'), err.message, true); }
+    } catch (err) { say($('environments-status'), err.message, true); }
+    $('environments-status').focus(); // its card is gone (or redrawn), so keyboard focus goes to what was said
   }
 });
 // The zip chosen for a restore, by slug, until the armed button is clicked again (or it disarms).
 const restoreFiles = new Map();
-$('tenants').addEventListener('change', (e) => {
+$('environments').addEventListener('change', (e) => {
   if (e.target.dataset.slot !== 'restore-file') return;
-  const card = e.target.closest('.tenant');
+  const card = e.target.closest('.environment');
   const slug = card.dataset.slug;
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -382,7 +388,7 @@ $('tenants').addEventListener('change', (e) => {
     b.classList.remove('danger');
   }, 8000);
 });
-$('tenants').addEventListener('change', (e) => {
+$('environments').addEventListener('change', (e) => {
   const form = e.target.closest('form');
   if (e.target.name === 'planName') {
     const caps = (settings.plans[e.target.value] || {}).caps;
@@ -399,11 +405,11 @@ $('tenants').addEventListener('change', (e) => {
   if (e.target.name !== 'modules') return;
   slot(form, 'modules-list').hidden = e.target.value !== 'list';
 });
-$('tenants').addEventListener('submit', async (e) => {
+$('environments').addEventListener('submit', async (e) => {
   const form = e.target.closest('.plan-form');
   if (!form) return;
   e.preventDefault();
-  const card = form.closest('.tenant');
+  const card = form.closest('.environment');
   const f = form.elements;
   const num = (el) => (el.value === '' ? null : Number(el.value));
   const plan = {
@@ -415,7 +421,7 @@ $('tenants').addEventListener('submit', async (e) => {
     calls: num(f.calls),
   };
   try {
-    await api('PATCH', `/api/host/tenants/${encodeURIComponent(card.dataset.slug)}`, { name: f.name.value.trim(), plan });
+    await api('PATCH', `/api/host/environments/${encodeURIComponent(card.dataset.slug)}`, { name: f.name.value.trim(), plan });
     say(slot(form, 'plan-status'), 'saved');
     await load();
   } catch (err) { say(slot(form, 'plan-status'), err.message, true); }
@@ -428,7 +434,7 @@ $('create-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   say($('create-error'), '');
   try {
-    await api('POST', '/api/host/tenants', {
+    await api('POST', '/api/host/environments', {
       slug: $('new-slug').value.trim().toLowerCase(),
       name: $('new-name').value.trim(),
       owner: { login: $('new-owner-login').value.trim(), displayName: $('new-owner-name').value.trim(), password: $('new-owner-password').value },
@@ -484,6 +490,14 @@ $('plans-editor').addEventListener('click', (e) => {
   if (b && !b.disabled) b.closest('.plan-row').remove();
 });
 $('plans-save').addEventListener('click', async () => {
+  // The rows are not a form, so each is checked here: the first field the browser rejects (an id that is not lower-case
+  // letters, digits and hyphens, a cap under its minimum) says why and nothing is saved. A new row left without an id is
+  // skipped, as before.
+  for (const row of $('plans-editor').querySelectorAll('.plan-row')) {
+    if (!row.querySelector('[name="id"]').value.trim()) continue;
+    const bad = [...row.querySelectorAll('input')].find((i) => !i.checkValidity());
+    if (bad) { bad.reportValidity(); bad.focus(); return; }
+  }
   const plans = {};
   for (const row of $('plans-editor').querySelectorAll('.plan-row')) {
     const v = (name) => row.querySelector(`[name="${name}"]`).value.trim();
@@ -599,15 +613,15 @@ $('host-mfa-off').addEventListener('click', () => {
   mountDisable($('host-mfa-block'), { disable: '/api/host/me/mfa/disable', onDone: async () => { say($('host-mfa-status'), 'off'); await load(); } });
 });
 // An environment's owner, reset from its card (by login: the console never learns an environment's keys).
-$('tenants').addEventListener('submit', async (e) => {
+$('environments').addEventListener('submit', async (e) => {
   const form = e.target.closest('.owner-reset');
   if (!form) return;
   e.preventDefault();
-  const slug = form.closest('.tenant').dataset.slug;
+  const slug = form.closest('.environment').dataset.slug;
   const login = form.elements.login.value.trim();
   const status = slot(form, 'owner-reset-status');
   try {
-    await api('DELETE', `/api/host/tenants/${encodeURIComponent(slug)}/owners/${encodeURIComponent(login)}/mfa`);
+    await api('DELETE', `/api/host/environments/${encodeURIComponent(slug)}/owners/${encodeURIComponent(login)}/mfa`);
     form.reset();
     say(status, `${login}'s second factor is reset`);
   } catch (err) { say(status, err.message, true); }

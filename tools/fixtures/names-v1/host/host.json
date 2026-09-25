@@ -1,0 +1,28 @@
+{
+  "baseDomain": "localhost",
+  "previousBaseDomains": [],
+  "secrets": {
+    "session": "fixture-host-session-secret-not-real-0",
+    "key": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+  },
+  "hostAdmins": [],
+  "tenants": [
+    {
+      "slug": "acme",
+      "name": "Acme Adventures",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "plan": { "name": null, "modules": "all", "members": null, "storageBytes": null, "aiCallsPerMonth": null, "calls": null },
+      "status": "active",
+      "pastDueSince": null,
+      "degradedAt": null,
+      "deleteRequestedAt": null,
+      "deleteRequestReason": "",
+      "usage": { "storageBytes": 0, "measuredAt": null, "aiMonth": "", "aiCalls": 0 }
+    }
+  ],
+  "ai": {},
+  "shared": {},
+  "plans": {
+    "free": { "name": "Free", "caps": { "modules": "all", "members": null, "storageBytes": null, "aiCallsPerMonth": null, "calls": null } }
+  }
+}

@@ -3,12 +3,12 @@
 // regionCutJobs, and the smaller in-memory state beside them), built once from one data directory. This is
 // phase 1 of documentation/plans/plan-tenants.md: with no BASE_DOMAIN there is exactly one environment, built
 // from DATA_DIR directly -- this file is what that construction always was, factored out so index.js can build
-// the same set again for each tenant's own directory (DATA_DIR/tenants/<slug>/), and index.js's request handlers
+// the same set again for each environment's own directory (DATA_DIR/environments/<slug>/), and index.js's request handlers
 // keep reading `store`, `modules` and the rest by the names they use today (see the AsyncLocalStorage + Proxy
 // wiring in index.js, right after this file's exports are required).
 //
 // What is NOT built here, because it is the host's, not any one environment's: the LiveKit room-service client
-// (one call service, shared -- phase 4 prefixes its room names per tenant), the pre-made backgrounds and Font
+// (one call service, shared -- phase 4 prefixes its room names per environment), the pre-made backgrounds and Font
 // Awesome files (part of the app itself, or an admin's own Pro package at DATA_DIR/fontawesome-pro -- see the
 // migration note in plan-tenants.md: that folder and host.json are the two things a migration never moves).
 'use strict';
@@ -42,13 +42,13 @@ function moduleCan(manifest, perms, need) {
 
 // Builds and wires one environment's full set of services from its own data directory: everything that used to
 // run once, globally, at server startup now runs here -- once per environment, whether that is the single
-// default environment (no BASE_DOMAIN) or one tenant's own directory.
+// default environment (no BASE_DOMAIN) or one environment's own directory.
 //
 // `admin`, when given `{ login, password }`, bootstraps the first admin the same way ADMIN_USER/PASSWORD
 // always has (updates an existing admin's password to match, or creates one, or -- with no password given at
 // all -- makes a random one the first time there is no admin yet). This only ever runs for the default
-// environment; a tenant's first admin comes from the host API's own tenant-creation flow instead (its password
-// is that owner's own choice, not a value every tenant would otherwise share).
+// environment; an environment's first admin comes from the host API's own environment-creation flow instead (its password
+// is that owner's own choice, not a value every environment would otherwise share).
 //
 // `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
 // AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
@@ -176,7 +176,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
 }
 
 // Every write this environment might still owe the disk, at shutdown or when it is set aside (suspended, or
-// moved to tenants-deleted/): each singleton here already writes synchronously on every change except these
+// moved to environments-deleted/): each singleton here already writes synchronously on every change except these
 // four, which only debounce and flush on the way out.
 function flushEnvironment(env) {
   env.chatHistory.flush();

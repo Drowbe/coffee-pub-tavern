@@ -12,6 +12,7 @@ order:
 
 1. The check and the migration's frame. **Built** (September 24, 2026).
 2. Environment: the host-level migration part, `/api/host/environments`, the console's code names.
+   **Built** (September 24, 2026).
 3. Table out, and the call's name.
 4. Roles: `owner`, `member` and the host's stand-in `admin`.
 5. Space and the environment scope: the server and data (5a), the pages (5b), the SDK, the manifest and the
@@ -22,17 +23,15 @@ order:
 9. The documentation: renamed files and wiki pages, and the text.
 10. The aliases go, once a Coffee Pub Studio release reads the new names.
 
-Carried from step 1 into step 2:
+Open, found while building steps 1 and 2:
 
-- A folder move that fails and cannot be put back still ends its message with "Nothing was changed."
-  (`commit()` in `server/migrate-names.js`); it should say which folders are left where.
-- After a part fails late and runs again on the next start, its record's `moved` lists only the second
-  attempt's moves, not the folders the first attempt already moved.
-- On the console, keyboard focus is lost after a restore (the list is drawn again).
-- The start's log line for a skipped environment runs two sentences together.
-- A refused environment's card still offers **Reset their second factor**, which answers 503.
-- Checks for the above, as quality-assurance proposed them, plus a `check-host-registry.mjs` group for
-  hand-made restore zips and a group for a refused environment on a hosted server.
+- A check that compiles every `pattern` attribute in `public/*.html` and in the pages' JS templates with the
+  `v` flag, as browsers do, so a pattern that breaks there is caught (today's: `host.html:107`,
+  `host.html:134`, `landing.html:122`, `mfa-enrol.js:31`).
+- `host.js`'s Save plans still falls back to the plan's id (`v('name') || id`) when the name is blank. That
+  can no longer happen, since a blank name is refused, so the fallback can go.
+- On the host console, the shared top bar makes requests that answer 404 there. This was so before the
+  Names plan.
 
 Waiting on this plan: [environment templates](plans/plan-environment-templates.md) is reworked on top of it
 and builds after step 5.
