@@ -327,16 +327,24 @@
       }
     });
   }
+  // A pointer can arrive before the events have loaded (a #ref link on a fresh page, a pane just opened on a
+  // space's canvas): it waits until they have, then the event is shown.
+  let loaded = false;
+  let waitingRef = null;
+  function showRef(ref) {
+    const x = events.get(keyOf('here', ref.id)) || events.get(keyOf('environment', ref.id)) || events.get(keyOf('spaces', ref.id, ref.space));
+    if (!x) return;
+    const d = startOf(x.ev);
+    cursor = new Date(d.getFullYear(), d.getMonth(), 1);
+    anchor = d;
+    view = 'month';
+    render();
+    openEditor(x);
+  }
   if (host.refs && host.refs.onOpen) {
     host.refs.onOpen((ref) => {
-      const x = events.get(keyOf('here', ref.id)) || events.get(keyOf('environment', ref.id)) || events.get(keyOf('spaces', ref.id, ref.space));
-      if (!x) return;
-      const d = startOf(x.ev);
-      cursor = new Date(d.getFullYear(), d.getMonth(), 1);
-      anchor = d;
-      view = 'month';
-      render();
-      openEditor(x);
+      if (loaded) showRef(ref);
+      else waitingRef = ref;
     });
     host.on('links', (e) => {
       if (e.ref && e.ref.kind === 'event' && editing && events.get(backlinksFor) && events.get(backlinksFor).id === e.ref.id) showBacklinks(events.get(backlinksFor));
@@ -648,6 +656,12 @@
   $('app').hidden = false;
   fit();
   render();
+  loaded = true;
+  if (waitingRef) {
+    const ref = waitingRef;
+    waitingRef = null;
+    showRef(ref);
+  }
 
   // An event that has passed is announced once, for the modules that follow it (a task that is done when the
   // event is over, say). Whoever has the calendar open first after it ends announces it, marking the event so
