@@ -11,7 +11,7 @@ wireOverlayBack();
 try {
   const me = (await api('GET', '/api/me')).user;
   $('whoami').textContent = me.displayName;
-  const { rooms } = await api('GET', '/api/presence');
+  const { spaces: rooms } = await api('GET', '/api/presence');
   const r = rooms.find((x) => x.id === roomId);
   if (r) $('title').textContent = `${r.name}: module settings`;
 } catch {

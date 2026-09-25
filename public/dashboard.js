@@ -40,7 +40,7 @@ function openRef(ref) {
     return true;
   }
   const q = new URLSearchParams();
-  if (ref.scope === 'room') q.set('moduleRoom', ref.room);
+  if (ref.scope === 'room') q.set('space', ref.room);
   location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}#ref=${encodeURIComponent(JSON.stringify(ref))}`;
   return true;
 }
@@ -99,7 +99,7 @@ function renderWho(presence) {
   const here = (presence.users || []).filter((u) => u.present || u.online);
   const people = here.map((u) => {
     const mine = u.key === presence.me;
-    const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
+    const where = u.space && rooms.get(u.space) ? rooms.get(u.space).name : '';
     const label = escapeHtml(u.displayName || u.login || 'Someone');
     // One cell of the grid: who, where they are, and what can be done (in the call, invite).
     const actions = `${u.inCall ? '<i class="fa-solid fa-video fa-fw dashboard-person-call" title="In the call" aria-hidden="true"></i>' : ''}${!mine && joinRoom ? `<button type="button" class="dashboard-invite" data-invite="${escapeHtml(u.key)}" title="Invite ${label} to a private conversation" aria-label="Invite ${label} to a private conversation"><i class="fa-solid fa-people-arrows fa-fw" aria-hidden="true"></i></button>` : ''}`;

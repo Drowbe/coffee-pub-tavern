@@ -19,7 +19,7 @@ async function start() {
   if (page.module.runMode !== 'page') throw new Error(`the ${page.module.name} module must run in the page to serve this`);
   document.title = page.module.name;
   mountModule({
-    module: { id: page.module.id, version: page.module.version, scope: ['server'] },
+    module: { id: page.module.id, version: page.module.version, scope: ['environment'] },
     container: document.getElementById('module-frame'),
     scope: 'server',
     entry: page.entry,

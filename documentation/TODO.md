@@ -15,8 +15,8 @@ order:
    **Built** (September 24, 2026).
 3. Table out, and the call's name. **Built** (September 24, 2026).
 4. Roles: `owner`, `member` and the host's stand-in `admin`. **Built** (September 24, 2026).
-5. Space and the environment scope: the server and data (5a), the pages (5b), the SDK, the manifest and the
-   bundled modules (5c).
+5. Space and the environment scope: the server and data (5a, **built** September 24, 2026), the pages (5b,
+   next), the SDK, the manifest and the bundled modules (5c).
 6. Canvas and module.
 7. Object.
 8. Asides.

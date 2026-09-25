@@ -53,9 +53,14 @@ from the room they were pulled out of.
 The view page reads its pictures from `GET /img/<key>/<slot>`, which accepts the stream key as `s`.
 Two optional query parameters matter to callers:
 
-- `room=<room id>` resolves the slot the way the view page does for that room.
-- `roomOnly=1` returns only a picture set specifically for that room, and 404 otherwise, with no
+- `space=<space id>` resolves the slot the way the view page does for that space.
+- `spaceOnly=1` returns only a picture set specifically for that space, and 404 otherwise, with no
   fallback to the player's defaults.
+
+These were `room=` and `roomOnly=1` before step 5a of the Names plan. An address with the old names still
+works: it answers a permanent redirect (301) to the same address with `space=` and `spaceOnly=1`, keeping the
+rest of the query, so an OBS source or a Studio setting made earlier keeps working. A space's own picture is
+`GET /img/space/<id>`; `/img/room/<id>` redirects to it the same way.
 
 Slots are `profile`, `background`, `playerOffline`, `player`, `playerTalking`, `playerMuted`,
 `playerAside`, `playerPrivate`, `characterOffline`, `character`, `talking`, `muted`,

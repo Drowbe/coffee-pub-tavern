@@ -73,7 +73,7 @@ function render() {
 
   const img = $('room-image');
   img.hidden = !room.hasImage;
-  if (room.hasImage) img.src = `/img/room/${room.id}?v=${Date.now()}`;
+  if (room.hasImage) img.src = `/img/space/${room.id}?v=${Date.now()}`;
   $('room-image-slot').querySelector('.unset').hidden = room.hasImage;
   $('room-image-clear').hidden = !room.hasImage;
 
@@ -100,8 +100,8 @@ function renderGuestLink() {
 
 async function setGuestLink(body) {
   try {
-    if (body === null) room = (await api('DELETE', `/api/rooms/${room.id}/guest-link`)).room;
-    else room = (await api('POST', `/api/rooms/${room.id}/guest-link`, body)).room;
+    if (body === null) room = (await api('DELETE', `/api/spaces/${room.id}/guest-link`)).space;
+    else room = (await api('POST', `/api/spaces/${room.id}/guest-link`, body)).space;
     renderGuestLink();
   } catch (err) {
     say($('guest-link-status'), err.message, true);
@@ -149,7 +149,7 @@ $('members').addEventListener('change', async (event) => {
   input.closest('.member-toggle').classList.toggle('online', input.checked);
   try {
     const members = [...$('members').querySelectorAll('input:checked')].map((i) => i.closest('[data-member]').dataset.member);
-    room = (await api('PATCH', `/api/rooms/${room.id}`, { members })).room;
+    room = (await api('PATCH', `/api/spaces/${room.id}`, { members })).space;
     renderMembers();
   } catch (err) {
     input.checked = !input.checked;
@@ -163,14 +163,14 @@ $('members').addEventListener('change', async (event) => {
 let roomModules = [];
 async function loadRoomModules() {
   try {
-    roomModules = (await api('GET', '/api/modules')).modules.filter((m) => m.enabled && m.scope.includes('room'));
+    roomModules = (await api('GET', '/api/modules')).modules.filter((m) => m.enabled && m.scope.includes('space'));
   } catch {
     roomModules = [];
   }
   $('section-modules').hidden = roomModules.length === 0;
   $('room-modules').innerHTML = roomModules.map((m) => {
-    const everywhere = m.allRooms;
-    const on = everywhere || m.rooms.includes(room.id);
+    const everywhere = m.allSpaces;
+    const on = everywhere || m.spaces.includes(room.id);
     return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ' <span class="hint">(on for every space)</span>' : ''}</label>`;
   }).join('');
 }
@@ -178,11 +178,11 @@ $('room-modules').addEventListener('change', async (event) => {
   const box = event.target;
   const m = roomModules.find((x) => x.id === box.dataset.module);
   if (!m) return;
-  const rooms = new Set(m.rooms);
+  const rooms = new Set(m.spaces);
   if (box.checked) rooms.add(room.id); else rooms.delete(room.id);
   try {
-    const { module } = await api('PATCH', `/api/modules/${m.id}`, { rooms: [...rooms] });
-    m.rooms = module.rooms;
+    const { module } = await api('PATCH', `/api/modules/${m.id}`, { spaces: [...rooms] });
+    m.spaces = module.spaces;
     say($('room-modules-status'), 'saved');
     // The module's own settings for this room appear (or go) with it.
     renderModuleSettings($('module-settings'), { scope: 'room', room: roomId }).then(() => { $('section-module-settings').hidden = $('module-settings').hidden; syncModulesTab(); });
@@ -204,7 +204,7 @@ function renderCrumb() {
 $('save-btn').addEventListener('click', async () => {
   try {
     const patch = { name: $('e-name').value, description: $('e-description').value, profile: $('e-profile').value, link: $('e-link').value, linkIcon: selectedLinkIcon };
-    room = (await api('PATCH', `/api/rooms/${room.id}`, patch)).room;
+    room = (await api('PATCH', `/api/spaces/${room.id}`, patch)).space;
     render();
     renderCrumb();
     say($('save-status'), 'saved');
@@ -215,7 +215,7 @@ $('save-btn').addEventListener('click', async () => {
 
 $('e-ai-off').addEventListener('change', async (event) => {
   try {
-    room = (await api('PATCH', `/api/rooms/${room.id}`, { aiOff: event.target.checked })).room;
+    room = (await api('PATCH', `/api/spaces/${room.id}`, { aiOff: event.target.checked })).space;
   } catch (err) {
     event.target.checked = Boolean(room.aiOff);
     say($('ai-off-status'), err.message, true);
@@ -224,7 +224,7 @@ $('e-ai-off').addEventListener('change', async (event) => {
 
 $('e-allow-guests').addEventListener('change', async (event) => {
   try {
-    room = (await api('PATCH', `/api/rooms/${room.id}`, { allowGuests: event.target.checked })).room;
+    room = (await api('PATCH', `/api/spaces/${room.id}`, { allowGuests: event.target.checked })).space;
     renderGuestLink();
   } catch (err) {
     event.target.checked = room.allowGuests;
@@ -238,7 +238,7 @@ $('room-image-file').addEventListener('change', async () => {
   if (!file) return;
   try {
     say($('status'), 'uploading...');
-    room = (await api('PUT', `/api/rooms/${room.id}/image`, file, file.type)).room;
+    room = (await api('PUT', `/api/spaces/${room.id}/image`, file, file.type)).space;
     render();
     say($('status'), 'image saved');
   } catch (err) {
@@ -248,7 +248,7 @@ $('room-image-file').addEventListener('change', async () => {
 
 $('room-image-clear').addEventListener('click', async () => {
   try {
-    room = (await api('DELETE', `/api/rooms/${room.id}/image`)).room;
+    room = (await api('DELETE', `/api/spaces/${room.id}/image`)).space;
     render();
     say($('status'), 'image removed');
   } catch (err) {
@@ -263,7 +263,7 @@ $('guest-link-copy').addEventListener('click', () => copy($('guest-link-value').
 
 $('make-invite').addEventListener('click', async () => {
   try {
-    const { invite } = await api('POST', '/api/invites', { rooms: [room.id] });
+    const { invite } = await api('POST', '/api/invites', { spaces: [room.id] });
     $('invite-link').textContent = invite.url;
     $('invite-link-row').hidden = false;
     say($('invite-status'), 'link made');
@@ -276,7 +276,7 @@ $('invite-copy').addEventListener('click', () => copy($('invite-link').textConte
 $('delete-btn').addEventListener('click', async () => {
   if (!window.confirm(`Delete the space "${room.name}"? Its members stay in the Lobby.`)) return;
   try {
-    await api('DELETE', `/api/rooms/${room.id}`);
+    await api('DELETE', `/api/spaces/${room.id}`);
     location.href = '/admin#rooms';
   } catch (err) {
     say($('status'), err.message, true);
@@ -323,8 +323,8 @@ async function init() {
     $('whoami-img').src = imgUrl(me.key, 'profile');
     $('whoami-img').hidden = false;
     $('admin-link').hidden = false;
-    const [roomRes, usersRes] = await Promise.all([api('GET', `/api/rooms/${roomId}`), api('GET', '/api/users')]);
-    room = roomRes.room;
+    const [roomRes, usersRes] = await Promise.all([api('GET', `/api/spaces/${roomId}`), api('GET', '/api/users')]);
+    room = roomRes.space;
     users = usersRes.users;
     renderCrumb();
     await loadRoomModules();

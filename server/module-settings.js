@@ -1,6 +1,6 @@
 // The settings a module declares (module.json `settings`) and the values people choose for them. A setting has a
-// scope that says who chooses it and where it is kept: the whole `server` (an admin), one `room` (an admin or that
-// room's moderators), or each `person` (themselves). The host draws the forms and keeps the values; a module only
+// scope that says who chooses it and where it is kept: the whole `environment` (an owner), one `space` (an owner or
+// that space's moderators), or each `person` (themselves). The host draws the forms and keeps the values; a module only
 // reads them. Values are plain data (a yes/no, a choice, a number or a short text), never secrets. Persists to
 // DATA_DIR/modules/settings.json.
 
@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 
-const SCOPES = ['server', 'room', 'person'];
+const SCOPES = ['environment', 'space', 'person'];
 const { cleanRows } = require('./setting-list');
 const TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color', 'note'];
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
@@ -80,10 +80,10 @@ class ModuleSettings extends EventEmitter {
     super();
     this.setMaxListeners(0);
     this.file = path.join(modulesDir, 'settings.json');
-    this.data = { server: {}, rooms: {}, people: {} };
+    this.data = { environment: {}, spaces: {}, people: {} };
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      if (raw && typeof raw === 'object') this.data = { server: raw.server || {}, rooms: raw.rooms || {}, people: raw.people || {} };
+      if (raw && typeof raw === 'object') this.data = { environment: raw.environment || {}, spaces: raw.spaces || {}, people: raw.people || {} };
     } catch {
       // nothing yet
     }
@@ -99,8 +99,8 @@ class ModuleSettings extends EventEmitter {
   // Where a scope's values for one module are kept.
   bucket(moduleId, scope, ctx, create = false) {
     let holder;
-    if (scope === 'server') holder = this.data.server;
-    else if (scope === 'room') holder = (this.data.rooms[ctx.roomId] ||= {});
+    if (scope === 'environment') holder = this.data.environment;
+    else if (scope === 'space') holder = (this.data.spaces[ctx.spaceId] ||= {});
     else holder = (this.data.people[ctx.userKey] ||= {});
     if (!holder[moduleId] && create) holder[moduleId] = {};
     return holder[moduleId] || {};
@@ -122,11 +122,11 @@ class ModuleSettings extends EventEmitter {
     return out;
   }
 
-  // Everything a module sees for this viewer: server, room and person values together.
-  effective(manifest, { roomId, userKey }) {
+  // Everything a module sees for this viewer: environment, space and person values together.
+  effective(manifest, { spaceId, userKey }) {
     return {
-      ...this.values(manifest, 'server', {}),
-      ...(roomId ? this.values(manifest, 'room', { roomId }) : Object.fromEntries((manifest.settings || []).filter((d) => d.scope === 'room').map((d) => [d.key, d.default]))),
+      ...this.values(manifest, 'environment', {}),
+      ...(spaceId ? this.values(manifest, 'space', { spaceId }) : Object.fromEntries((manifest.settings || []).filter((d) => d.scope === 'space').map((d) => [d.key, d.default]))),
       ...(userKey ? this.values(manifest, 'person', { userKey }) : Object.fromEntries((manifest.settings || []).filter((d) => d.scope === 'person').map((d) => [d.key, d.default]))),
     };
   }
@@ -147,21 +147,21 @@ class ModuleSettings extends EventEmitter {
     Object.assign(bucket, clean);
     if (changed.length) {
       this.save();
-      this.emit('change', { module: manifest.id, scope, roomId: ctx.roomId || null, userKey: ctx.userKey || null, keys: changed, by: by || null });
+      this.emit('change', { module: manifest.id, scope, spaceId: ctx.spaceId || null, userKey: ctx.userKey || null, keys: changed, by: by || null });
     }
     return { values: this.values(manifest, scope, ctx), changed };
   }
 
   forgetModule(moduleId) {
-    delete this.data.server[moduleId];
-    for (const r of Object.values(this.data.rooms)) delete r[moduleId];
+    delete this.data.environment[moduleId];
+    for (const r of Object.values(this.data.spaces)) delete r[moduleId];
     for (const p of Object.values(this.data.people)) delete p[moduleId];
     this.save();
   }
 
-  forgetRoom(roomId) {
-    if (this.data.rooms[roomId]) {
-      delete this.data.rooms[roomId];
+  forgetSpace(spaceId) {
+    if (this.data.spaces[spaceId]) {
+      delete this.data.spaces[spaceId];
       this.save();
     }
   }

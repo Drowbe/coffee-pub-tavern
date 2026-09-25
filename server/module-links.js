@@ -1,7 +1,7 @@
 // The links between modules' items: "this task points at that event". A module stores its own
 // pointers; this registry is where the host learns of them, so that the item pointed at can ask what
 // points at it (backlinks) without the host knowing anything about tasks, events or polls. It holds
-// only pointers ({ module, kind, id, scope, room? }), never an item's content, and every answer is
+// only pointers ({ module, kind, id, scope, space? }), never an item's content, and every answer is
 // filtered to what the asking person may see. Persists to DATA_DIR/modules/links.json.
 
 'use strict';
@@ -12,8 +12,8 @@ const { EventEmitter } = require('events');
 
 const LIMITS = { perItem: 20, total: 20000 };
 
-const key = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
-const plain = (r) => ({ module: r.module, kind: r.kind, id: r.id, scope: r.scope, ...(r.scope === 'room' ? { room: r.room } : {}) });
+const key = (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|');
+const plain = (r) => ({ module: r.module, kind: r.kind, id: r.id, scope: r.scope, ...(r.scope === 'space' ? { space: r.space } : {}) });
 
 class ModuleLinks extends EventEmitter {
   constructor(modulesDir) {

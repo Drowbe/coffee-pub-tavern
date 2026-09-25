@@ -163,7 +163,7 @@ async function refreshLive() {
 async function loadUsers() {
   const status = await api('GET', '/api/status');
   users = status.users;
-  rooms = status.rooms || rooms;
+  rooms = status.spaces || rooms;
   renderUsers();
 }
 
@@ -227,13 +227,13 @@ const PROFILE_LABELS = { roleplaying: 'Roleplaying', participants: 'Participants
 function fillRoomRow(row, room, index) {
   const img = row.querySelector('[data-thumb]');
   img.hidden = !room.hasImage;
-  if (room.hasImage) img.src = `/img/room/${room.id}?v=${Date.now()}`;
+  if (room.hasImage) img.src = `/img/space/${room.id}?v=${Date.now()}`;
   row.querySelector('[data-thumb-fallback]').hidden = room.hasImage;
   row.querySelector('[data-name]').textContent = room.name;
   const count = room.isLobby ? users.length : room.members.length;
   const who = room.isLobby ? 'Everyone' : `${count} member${count === 1 ? '' : 's'}`;
   row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[room.profile] || 'Roleplaying'}`;
-  row.querySelector('[data-action="edit"]').href = `/rooms/${encodeURIComponent(room.id)}`;
+  row.querySelector('[data-action="edit"]').href = `/spaces/${encodeURIComponent(room.id)}`;
   row.classList.toggle('lobby', room.isLobby);
   // The Lobby always sits first and isn't reorderable; among the rest, hide
   // whichever arrow would be a no-op at that end of the list.
@@ -259,7 +259,7 @@ function renderRooms() {
 
 async function saveRoomOrder() {
   try {
-    await api('POST', '/api/rooms/order', { order: rooms.filter((r) => !r.isLobby).map((r) => r.id) });
+    await api('POST', '/api/spaces/order', { order: rooms.filter((r) => !r.isLobby).map((r) => r.id) });
   } catch (err) {
     say($('rooms-status'), err.message, true);
   }
@@ -279,8 +279,8 @@ $('rooms').addEventListener('click', (event) => {
 
 $('add-room').addEventListener('click', async () => {
   try {
-    const { room } = await api('POST', '/api/rooms', { name: `Room ${rooms.length}`, description: '', members: [] });
-    location.href = `/rooms/${encodeURIComponent(room.id)}`; // set up members and an image right away
+    const { space: room } = await api('POST', '/api/spaces', { name: `Room ${rooms.length}`, description: '', members: [] });
+    location.href = `/spaces/${encodeURIComponent(room.id)}`; // set up members and an image right away
   } catch (err) {
     say($('rooms-status'), err.message, true);
   }
@@ -318,7 +318,7 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
 // Language, time and money: the currency list is the one every picker uses (window.hostCurrency, from /sdk/host.js): the
 // common ones first, then every other the server takes, by name, plus whatever is set if it is in neither (so a code chosen
 // elsewhere is shown, not lost). Without the server's list it falls back to the browser's.
@@ -612,7 +612,7 @@ $('invite-rooms').addEventListener('change', (event) => {
 $('make-invite').addEventListener('click', async () => {
   try {
     const roomIds = [...$('invite-rooms').querySelectorAll('input:checked')].map((i) => i.closest('[data-room]').dataset.room);
-    const { invite } = await api('POST', '/api/invites', { rooms: roomIds });
+    const { invite } = await api('POST', '/api/invites', { spaces: roomIds });
     $('invite-link').textContent = invite.url;
     $('invite-link-row').hidden = false;
     say($('invite-status'), 'link made');
@@ -716,7 +716,7 @@ function bundledNeeds(b) {
 }
 
 function moduleCard(m) {
-  const scopes = m.scope.map((s) => (s === 'server' ? 'Server page' : 'Space panel')).join(' + ');
+  const scopes = m.scope.map((s) => (s === 'environment' ? 'Server page' : 'Space panel')).join(' + ');
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
@@ -745,9 +745,9 @@ function moduleCard(m) {
       <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
       ${m.source === 'bundled' || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
-    ${m.scope.includes('room') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allRooms ? 'checked' : ''}> Available in every space</label>` : ''}
+    ${m.scope.includes('space') ? `<label class="check"><input type="checkbox" data-module-all-rooms ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
     <div class="row">
-      ${(m.settings || []).some((d) => d.scope === 'server') ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does on this server"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
+      ${(m.settings || []).some((d) => d.scope === 'environment') ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does on this server"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
       <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && m.missing?.length ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
       ${!m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map((r) => r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r)} installed and turned on`).join(', and ')} first.</span>` : ''}
       ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
@@ -865,7 +865,7 @@ async function loadAi() {
 let moduleFilter = 'all';
 const hasUpdate = (id) => bundledModules.some((b) => b.id === id && b.update);
 // A module can be configured when it has settings the admin chooses for the server (what Module Configuration shows).
-const isConfigurable = (m) => (m.settings || []).some((d) => d.scope === 'server');
+const isConfigurable = (m) => (m.settings || []).some((d) => d.scope === 'environment');
 const moduleMatches = (m) => moduleFilter === 'updates' ? hasUpdate(m.id) : moduleFilter === 'configurable' ? isConfigurable(m) : true;
 function syncModuleFilters() {
   const updates = installedModules.filter((m) => hasUpdate(m.id)).length;
@@ -1054,7 +1054,7 @@ $('modules-list').addEventListener('change', async (event) => {
   if (!event.target.matches('[data-module-all-rooms]')) return;
   const id = event.target.closest('.module-card').dataset.id;
   try {
-    await api('PATCH', `/api/modules/${id}`, { allRooms: event.target.checked });
+    await api('PATCH', `/api/modules/${id}`, { allSpaces: event.target.checked });
     await loadModules();
     await loadRoles(); // a module's permissions join the Roles grid when it is on
   } catch (err) {
@@ -1416,7 +1416,7 @@ async function init() {
     if (info.mfaBypass) mfaBypassBanner();
     $('set-mfa-row').hidden = info.mfaOffered === false;
     const { settings } = await api('GET', '/api/settings');
-    $('set-server').value = settings.serverName;
+    $('set-server').value = settings.environmentName;
     $('set-language').value = settings.language || 'en';
     $('set-clock').value = settings.clock === '24' ? '24' : '12';
     fillCurrencies(settings.currency || 'USD');

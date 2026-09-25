@@ -379,7 +379,7 @@ try {
       const envDir = path.join(data, 'environments', slug);
       const app = readJson(path.join(envDir, 'app.json'));
       assert.equal(app.version, 2, `${slug}: version 2`);
-      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles'], `${slug}: each environment part recorded once`);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces'], `${slug}: each environment part recorded once`);
       assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
       assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
     }
@@ -393,7 +393,7 @@ try {
     assert.equal(made.json.environment.slug, 'beta');
     assert.ok(fs.existsSync(path.join(data, 'environments', 'beta', 'app.json')));
     const betaApp = readJson(path.join(data, 'environments', 'beta', 'app.json'));
-    assert.deepEqual(betaApp.migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]], 'a new environment records its parts as run, moving nothing');
+    assert.deepEqual(betaApp.migrations.map((m) => [m.id, m.moved]), names.ENVIRONMENT_PARTS.map((p) => [p.id, []]), 'a new environment records its parts as run, moving nothing');
     assert.deepEqual(betaApp.users.map((u) => [u.login, u.role]), [['owner', 'owner']], 'the owner the console makes is an owner');
     assert.ok(!fs.existsSync(path.join(data, 'environments', 'beta', 'pre-names')), 'and keeps no copy');
     const again = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'beta', name: 'Beta' } });
@@ -548,6 +548,74 @@ try {
     assert.equal((await call(server, 'beta', 'GET', '/api/me')).status, 401, 'opens again, without a restart');
   });
 
+  await liveTest('live: restoring a backup made before names-spaces migrates it, and it reads back through the new routes', async () => {
+    // The fixture's environment as a backup from before the upgrade: rooms, users[].rooms, images/rooms/, room-<id>.json.
+    const entries = [];
+    const walk = (rel) => {
+      for (const e of fs.readdirSync(path.join(FIXTURE, rel), { withFileTypes: true })) {
+        const child = rel ? `${rel}/${e.name}` : e.name;
+        if (child === 'host') continue;
+        if (e.isDirectory()) walk(child); else entries.push([child, fs.readFileSync(path.join(FIXTURE, child))]);
+      }
+    };
+    walk('');
+    const restored = await call(server, 'admin', 'POST', '/api/host/environments/bravo/restore', { cookie, body: zipFiles(entries), type: 'application/zip' });
+    assert.deepEqual([restored.status, restored.json], [200, { ok: true }]);
+    const s = 'fixture-stream-key-0';
+    const presence = await call(server, 'bravo', 'GET', `/api/presence?s=${s}`);
+    assert.equal(presence.status, 200, presence.text);
+    assert.deepEqual(presence.json.spaces.map((r) => r.id), ['lobby', 'keep01'], 'the spaces, read back (the fixture\'s empty aside is swept away by the read, as any empty aside is)');
+    assert.equal(presence.json.spaces.find((r) => r.id === 'keep01').hasImage, true);
+    assert.equal((await call(server, 'bravo', 'GET', `/img/space/keep01?s=${s}`)).text, 'a space picture (fixture)\n', 'the space\'s picture at its new address');
+    assert.equal((await call(server, 'bravo', 'GET', `/img/memberkey1/player?space=keep01&spaceOnly=1&s=${s}`)).text, 'a member\'s picture in The Keep (fixture)\n', 'a member\'s picture in the space');
+    const redirected = await call(server, 'bravo', 'GET', `/img/room/keep01?s=${s}`);
+    assert.deepEqual([redirected.status, redirected.headers.location], [301, `/img/space/keep01?s=${s}`]);
+    const envDir = path.join(data, 'environments', 'bravo');
+    const app = readJson(path.join(envDir, 'app.json'));
+    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces']);
+    assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Fixture Table');
+    for (const rel of ['modules/todo/data/space-keep01.json', 'modules/todo/data/environment.json', 'modules/research/uploads/space-keep01', 'chat.json']) assert.ok(fs.existsSync(path.join(envDir, rel)), rel);
+    assert.ok('spaces' in readJson(path.join(envDir, 'chat.json')));
+  });
+
+  await liveTest('live: a module scope other than environment, space, spaces or person is refused, never read as the environment', async () => {
+    const made = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'scopes', name: 'Scopes', owner: { login: 'owner', password: 'owner-password-1' } } });
+    assert.equal(made.status, 201, made.text);
+    const owner = cookieOf(await call(server, 'scopes', 'POST', '/api/login', { body: { login: 'owner', password: 'owner-password-1' } }));
+    const as = (method, url, body) => call(server, 'scopes', method, url, { cookie: owner, body });
+    const keep = (await as('POST', '/api/spaces', { name: 'The Keep' })).json.space.id;
+    assert.ok((await as('POST', '/api/modules/bundled/todo/install')).status < 300);
+    assert.equal((await as('PATCH', '/api/modules/todo', { enabled: true, spaces: [keep] })).status, 200);
+    const BAD = { error: 'scope must be environment, space, spaces or person' };
+    const envFile = path.join(data, 'environments', 'scopes', 'modules', 'todo', 'data', 'environment.json');
+    for (const q of [`scope=room&room=${keep}`, 'scope=server', 'scope=bogus']) {
+      const put = await as('PUT', `/api/modules/todo/data/task:t9?${q}`, { value: { title: 'x' } });
+      assert.deepEqual([put.status, put.json], [400, BAD], `PUT ${q}`);
+      const get = await as('GET', `/api/modules/todo/data/task:t9?${q}`);
+      assert.deepEqual([get.status, get.json], [400, BAD], `GET ${q}`);
+      assert.deepEqual([(await as('GET', `/api/modules/todo/uploads?${q}`)).status, (await as('GET', `/api/refs/search?from=todo&${q}`)).status], [400, 400], `uploads and search, ${q}`);
+    }
+    const spaces = await as('PUT', '/api/modules/todo/data/task:t9?scope=spaces', { value: { title: 'x' } });
+    assert.deepEqual([spaces.status, spaces.json], [400, { error: 'scope must be environment, space or person here' }]);
+    assert.ok(!fs.existsSync(envFile), 'nothing was written to the environment\'s data');
+    for (const scope of ['room', 'server', 'bogus']) {
+      const pub = await as('POST', '/api/bus/publish', { module: 'todo', name: 'changed', scope, room: keep });
+      assert.deepEqual([pub.status, pub.json], [400, BAD], `publish, scope ${scope}`);
+      assert.equal((await as('GET', `/api/bus/events?module=todo&scope=${scope}&room=${keep}`)).status, 400);
+    }
+    const busPerson = await as('POST', '/api/bus/publish', { module: 'todo', name: 'changed', scope: 'person' });
+    assert.deepEqual([busPerson.status, busPerson.json], [400, { error: 'scope must be environment or space here' }]);
+    for (const to of ['room', 'server']) {
+      const note = await as('POST', `/api/modules/todo/notify?scope=space&space=${keep}`, { to, title: 'Hello' });
+      assert.deepEqual([note.status, note.json], [400, { error: 'to must be space, environment or a person\'s key' }], `notify to ${to}`);
+      const sched = await as('POST', `/api/modules/todo/schedule?scope=space&space=${keep}`, { key: 'k', at: Date.now() + 60000, notify: { to, title: 'Hello' } });
+      assert.deepEqual([sched.status, sched.json], [400, { error: 'to must be space, environment or a person\'s key' }], `schedule notify to ${to}`);
+    }
+    assert.equal((await as('PUT', `/api/modules/todo/data/task:t9?scope=space&space=${keep}`, { value: { title: 'x' } })).status, 200, 'the new names still work');
+    assert.equal((await as('POST', `/api/modules/todo/notify?scope=space&space=${keep}`, { to: 'space', title: 'Hello' })).status, 200);
+    assert.ok(!fs.existsSync(envFile));
+  });
+
   await liveTest('live: delete moves the environment to environments-deleted/', async () => {
     const res = await call(server, 'admin', 'DELETE', '/api/host/environments/beta', { cookie });
     assert.deepEqual([res.status, res.json], [200, { ok: true }]);
@@ -576,7 +644,7 @@ try {
       assert.equal(/MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release\./.test(server.output()), logs, server.output());
       assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'app.json')) && !fs.existsSync(path.join(single, 'app.json')));
       assert.ok(!fs.existsSync(path.join(single, 'environments', 'old-name')), 'only the new name is used');
-      assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'modules', 'todo', 'data', 'room-keep01.json')));
+      assert.ok(fs.existsSync(path.join(single, 'environments', 'keep', 'modules', 'todo', 'data', 'space-keep01.json')), 'the module data moved with it, then took its new name when the environment was built');
       const host = readJson(path.join(single, 'host.json'));
       assert.deepEqual(host.environments.map((e) => e.slug), ['keep']);
       assert.deepEqual(host.migrations.map((m) => [m.id, m.moved]), [['names-environment', []]]);
@@ -620,17 +688,17 @@ try {
       const signIn = await call(server, 'acme', 'POST', '/api/login', { body: { login: 'owner', password: 'owner-password-1' } });
       const owner = [].concat(signIn.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
       const ownerKey = signIn.json.user.key;
-      const keep = (await call(server, 'acme', 'POST', '/api/rooms', { cookie: owner, body: { name: 'The Keep' } })).json.room.id;
+      const keep = (await call(server, 'acme', 'POST', '/api/spaces', { cookie: owner, body: { name: 'The Keep' } })).json.space.id;
       const callsNow = async () => (await call(server, 'acme', 'GET', '/api/environment', { cookie: owner })).json.usage.callsNow;
-      const token = (room) => call(server, 'acme', 'POST', '/api/token', { cookie: owner, body: { room } });
+      const token = (space) => call(server, 'acme', 'POST', '/api/token', { cookie: owner, body: { space } });
 
       // Other environments' calls only: new names of acme-aside and acme-table, their old shapes, and QA's acme-table-lobby.
       setCalls({ 'acme-aside.lobby': ['x1'], 'acme-table.lobby': ['x2'], 'acme-aside-table': ['x3'], 'acme-table-table': ['x4'], [`acme-table-table-${keep}`]: ['x5'], 'acme-table-lobby': ['x6'], lobby: ['x7'] });
       assert.equal(await callsNow(), 0, 'none of them is acme\'s');
       const first = await token('lobby');
       assert.equal(first.status, 200, `acme's owner is not refused by other environments' calls: ${first.text}`);
-      assert.equal(first.json.room, 'acme.lobby', 'the new hosted name');
-      assert.equal((await token(keep)).json.room, `acme.${keep}`);
+      assert.equal(first.json.call, 'acme.lobby', 'the new hosted name');
+      assert.equal((await token(keep)).json.call, `acme.${keep}`);
       const presence = (await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json;
       assert.equal(presence.users.find((u) => u.key === ownerKey).online, false, 'nobody in another environment\'s call is placed here');
 
@@ -641,14 +709,14 @@ try {
       assert.deepEqual([refused.status, refused.json], [403, { error: 'This environment\'s plan allows 1 call at once; one is running in The Keep' }]);
       assert.equal((await token(keep)).status, 200, 'joining the running call is never refused');
       const placed = (await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json.users.find((u) => u.key === ownerKey);
-      assert.deepEqual([placed.online, placed.room], [true, keep]);
+      assert.deepEqual([placed.online, placed.space], [true, keep]);
 
       // acme's own call under its old name (someone in it across the upgrade): counted and placed, and joining it is joining.
       setCalls({ 'acme-table': [ownerKey], 'acme-aside-table': ['x3'] });
       assert.equal(await callsNow(), 1);
       assert.equal((await token('lobby')).status, 200, 'the Lobby\'s call is running under its old name: joining');
       assert.equal((await token(keep)).status, 403, 'a second call is refused');
-      assert.equal((await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json.users.find((u) => u.key === ownerKey).room, 'lobby');
+      assert.equal((await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json.users.find((u) => u.key === ownerKey).space, 'lobby');
       await server.stop();
       server = null;
     });
@@ -816,7 +884,7 @@ try {
     const hash = require('../server/auth.js').hashPassword('step4-password-1');
     fs.writeFileSync(path.join(single, 'app.json'), JSON.stringify({
       version: 2,
-      migrations: names.ENVIRONMENT_PARTS.map((p) => ({ id: p.id, at: '2026-09-24T00:00:00.000Z', moved: [] })),
+      migrations: ['names-table', 'names-roles'].map((id) => ({ id, at: '2026-09-24T00:00:00.000Z', moved: [] })),
       settings: {},
       users: [
         { key: 'gmkey00001', login: 'gm', displayName: 'GM', role: 'owner', passwordHash: hash, rooms: {} },

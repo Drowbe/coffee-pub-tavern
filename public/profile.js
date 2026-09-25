@@ -71,8 +71,8 @@ async function reload() {
 const canImg = (slot) => !!editingKey || !!user.permissions?.[`image_${slot}`];
 const canRoomImages = () => !!editingKey || Object.entries(user.permissions || {}).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background');
 const imgApi = (slot, roomId) => editingKey
-  ? `/api/users/${user.key}${roomId ? `/rooms/${roomId}` : ''}/images/${slot}`
-  : `/api/me${roomId ? `/rooms/${roomId}` : ''}/images/${slot}`;
+  ? `/api/users/${user.key}${roomId ? `/spaces/${roomId}` : ''}/images/${slot}`
+  : `/api/me${roomId ? `/spaces/${roomId}` : ''}/images/${slot}`;
 
 function render() {
   const editing = !!editingKey;
@@ -231,7 +231,7 @@ function fillRoomSection(section, room, roomImages) {
   token.hidden = !room.hasImage;
   if (room.hasImage && token.dataset.for !== `${room.id}`) {
     token.dataset.for = room.id;
-    token.src = `/img/room/${encodeURIComponent(room.id)}?v=${Date.now()}`;
+    token.src = `/img/space/${encodeURIComponent(room.id)}?v=${Date.now()}`;
   }
   section.querySelector('[data-action="room-remove"]').hidden = !editing;
 
@@ -265,7 +265,7 @@ function fillRoomSection(section, room, roomImages) {
     const hasEffective = hasOwn || !!user.images[name];
     const img = slot.querySelector('img');
     img.hidden = !hasEffective;
-    if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?room=${encodeURIComponent(room.id)}&v=${Date.now()}`;
+    if (hasEffective) img.src = `/img/${encodeURIComponent(user.key)}/${name}?space=${encodeURIComponent(room.id)}&v=${Date.now()}`;
     slot.querySelector('.unset').hidden = hasEffective;
     slot.classList.toggle('set', hasOwn);
     slot.querySelector('.slot-pick').classList.toggle('still', !canImg(name));
@@ -274,7 +274,7 @@ function fillRoomSection(section, room, roomImages) {
 }
 
 function renderRoomSections() {
-  const userRooms = user.rooms || {};
+  const userRooms = user.spaces || {};
   const keep = new Set(Object.keys(userRooms));
   for (const [roomId, roomImages] of Object.entries(userRooms)) {
     const room = roomsById.get(roomId);
@@ -295,7 +295,7 @@ $('room-sections').addEventListener('change', (event) => {
       ? { permissions: { [event.target.dataset.permission]: event.target.checked } }
       : { useDefaultImages: event.target.checked };
     run(async () => {
-      user = (await api('PATCH', editingKey ? `/api/users/${user.key}/rooms/${roomId0}` : `/api/me/rooms/${roomId0}`, patch)).user;
+      user = (await api('PATCH', editingKey ? `/api/users/${user.key}/spaces/${roomId0}` : `/api/me/spaces/${roomId0}`, patch)).user;
       render();
     });
     return;
@@ -321,7 +321,7 @@ $('room-sections').addEventListener('click', (event) => {
     const name = section.querySelector('.room-section-title').textContent;
     if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the space's Members tab.`)) return;
     run(async () => {
-      user = (await api('DELETE', `/api/rooms/${section.dataset.room}/members/${user.key}`)).user;
+      user = (await api('DELETE', `/api/spaces/${section.dataset.room}/members/${user.key}`)).user;
       render();
     });
     return;
@@ -634,7 +634,7 @@ async function init() {
       me = mine.user;
       if (!hasOwnerRights(me)) { location.href = '/'; return; }
     }
-    const [, { rooms }] = await Promise.all([reload(), api('GET', '/api/rooms')]);
+    const [, { spaces: rooms }] = await Promise.all([reload(), api('GET', '/api/spaces')]);
     roomsById = new Map(rooms.map((r) => [r.id, r]));
   } catch (err) {
     location.href = editingKey ? '/admin' : '/login?next=/profile';

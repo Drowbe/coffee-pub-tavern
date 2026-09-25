@@ -62,7 +62,7 @@ const ghostTiles = new Map(); // identity -> tile element, for room members asid
 const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
 let spaceName = 'Coffee Pub'; // the space I am in, once joined; the environment's name before that
-const presenceUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/presence
+const presenceUsers = new Map(); // key -> { displayName, borderColor, online, space, ... } from /api/presence
 let presenceRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
 // Reloading the page keeps you in your room: the room is remembered for this tab (not across tabs or restarts) and rejoined when the
@@ -112,12 +112,12 @@ function imgUrl(key, slot, params = {}) {
 function roomPortraitUrl(key) {
   const roomId = currentRoom?.ephemeral ? currentRoom.origin : currentRoom?.id;
   if (!roomId || roomId === LOBBY || key.startsWith(GUEST_PREFIX)) return imgUrl(key, 'profile');
-  return imgUrl(key, 'player', { room: roomId, roomOnly: 1 });
+  return imgUrl(key, 'player', { space: roomId, spaceOnly: 1 });
 }
 
 async function loadPresence() {
   try {
-    const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
+    const { users, spaces: rooms, activeSpace: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
     presenceUsers.clear();
     for (const u of users) presenceUsers.set(u.key, u);
     presenceRooms = rooms || [];
@@ -303,7 +303,7 @@ function reconcileGhostTiles() {
       continue;
     }
     const user = presenceUsers.get(key);
-    const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? presenceRooms.find((r) => r.id === user.room) : null;
+    const asideRoom = user?.online && user.space && user.space !== currentRoom.id ? presenceRooms.find((r) => r.id === user.space) : null;
     if (asideRoom?.ephemeral) {
       const tile = ghostTile(key);
       const isPrivate = Boolean(asideRoom.private);
@@ -363,10 +363,10 @@ function renderRooms() {
     card.querySelector('[data-join-with]').hidden = Boolean(r.ephemeral);
     const edit = card.querySelector('[data-edit]');
     edit.hidden = r.ephemeral || !hasOwnerRights(me);
-    edit.href = `/rooms/${encodeURIComponent(r.id)}`;
+    edit.href = `/spaces/${encodeURIComponent(r.id)}`;
     // A moderator cannot open the room's page, but changes what its modules do here.
     const modSettings = card.querySelector('[data-module-settings]');
-    modSettings.hidden = r.ephemeral || hasOwnerRights(me) || !me?.rooms?.[r.id]?.permissions?.moderator;
+    modSettings.hidden = r.ephemeral || hasOwnerRights(me) || !me?.spaces?.[r.id]?.permissions?.moderator;
     modSettings.href = `/module-settings?room=${encodeURIComponent(r.id)}`;
     const link = card.querySelector('[data-link]');
     link.hidden = !r.link;
@@ -378,14 +378,14 @@ function renderRooms() {
     card.querySelector('.room-choice-desc').textContent = r.description;
     card.querySelector('.room-choice-desc').hidden = !r.description || r.ephemeral;
     const img = card.querySelector('.room-choice-image');
-    const src = !r.ephemeral && r.hasImage ? `/img/room/${encodeURIComponent(r.id)}` : '';
+    const src = !r.ephemeral && r.hasImage ? `/img/space/${encodeURIComponent(r.id)}` : '';
     img.hidden = !src;
     if (src && img.dataset.src !== src) {
       img.dataset.src = src;
       img.src = src;
     }
     const members = r.members.map((k) => presenceUsers.get(k)).filter(Boolean);
-    const here = members.filter((u) => u.online && u.room === r.id).length;
+    const here = members.filter((u) => u.online && u.space === r.id).length;
     card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
     renderMembers(card.querySelector('.members'), members, r.id);
   }
@@ -410,7 +410,7 @@ function renderMembers(list, members, roomId) {
       el.append(img, dot, name);
       list.appendChild(el);
     }
-    const here = Boolean(u.online) && u.room === roomId;
+    const here = Boolean(u.online) && u.space === roomId;
     // This room's Online/Offline picture when they've set one here (Use
     // Default Profile Images off); otherwise their profile photo.
     const img = el.querySelector('img');
@@ -419,12 +419,12 @@ function renderMembers(list, members, roomId) {
       img.dataset.slot = slot;
       const profile = imgUrl(u.key, 'profile');
       img.onerror = () => { img.onerror = null; img.src = profile; };
-      img.src = roomId && roomId !== LOBBY && !u.key.startsWith(GUEST_PREFIX) ? imgUrl(u.key, slot, { room: roomId, roomOnly: 1 }) : profile;
+      img.src = roomId && roomId !== LOBBY && !u.key.startsWith(GUEST_PREFIX) ? imgUrl(u.key, slot, { space: roomId, spaceOnly: 1 }) : profile;
     }
     el.querySelector('.member-name').textContent = u.displayName;
     el.querySelector('.dot').classList.toggle('online', here);
     el.classList.toggle('online', here);
-    const elsewhere = u.online && !here ? presenceRooms.find((r) => r.id === u.room) : null;
+    const elsewhere = u.online && !here ? presenceRooms.find((r) => r.id === u.space) : null;
     el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
     // Off stream: this member is online but not in the room the stream
     // currently hears (wherever the admin/GM actually is); "aside" is the
@@ -432,8 +432,8 @@ function renderMembers(list, members, roomId) {
     // stream too. Only meaningful when an admin is actually online -- with
     // none, activeRoom is just the Lobby fallback, not a real "here's where
     // the stream is" signal, so nobody should read as off stream against it.
-    const inAside = u.online && presenceRooms.find((r) => r.id === u.room)?.ephemeral;
-    const offStream = u.online && adminOnline && u.room !== activeRoom;
+    const inAside = u.online && presenceRooms.find((r) => r.id === u.space)?.ephemeral;
+    const offStream = u.online && adminOnline && u.space !== activeRoom;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
       if (!badge) {
@@ -466,7 +466,7 @@ async function joinInPopout(roomId) {
 // "Join with": which panes a room opens with, remembered for that room (see joinPanes in
 // room-modules.js). The list is the conference, the chat and the room's modules.
 const roomModuleList = new Map(); // room id -> the modules on for it, fetched once
-const canIn = (roomId, permission) => hasOwnerRights(me) || !!(me?.rooms?.[roomId]?.effective || me?.permissions || {})[permission];
+const canIn = (roomId, permission) => hasOwnerRights(me) || !!(me?.spaces?.[roomId]?.effective || me?.permissions || {})[permission];
 
 async function toggleJoinWith(card, roomId) {
   const open = card.querySelector('.join-with');
@@ -478,7 +478,7 @@ async function toggleJoinWith(card, roomId) {
   card.appendChild(pop);
   if (!roomModuleList.has(roomId)) {
     try {
-      roomModuleList.set(roomId, (await api('GET', `/api/modules/for-room?room=${encodeURIComponent(roomId)}`)).modules);
+      roomModuleList.set(roomId, (await api('GET', `/api/modules/for-space?space=${encodeURIComponent(roomId)}`)).modules);
     } catch {
       roomModuleList.set(roomId, []);
     }
@@ -535,7 +535,7 @@ $('guest-join').addEventListener('submit', async (event) => {
   const submit = $('guest-join').querySelector('button[type="submit"]');
   submit.disabled = true;
   try {
-    const { token, livekitUrl, identity, roomId, roomName, permissions } = await api('POST', '/api/guest-join', { token: guestToken, name });
+    const { token, livekitUrl, identity, spaceId: roomId, spaceName: roomName, permissions } = await api('POST', '/api/guest-join', { token: guestToken, name });
     me = { key: identity, displayName: name, role: 'guest', permissions };
     await joinAsGuest(token, livekitUrl, roomId, roomName);
   } catch (err) {
@@ -586,7 +586,7 @@ function updateBackgroundPlaceholder(tile, key) {
 // outside a room the server has no per-room entry for (an aside, a guest).
 function canDo(permission) {
   if (hasOwnerRights(me)) return true;
-  const inRoom = currentRoom && me?.rooms?.[currentRoom.id]?.effective;
+  const inRoom = currentRoom && me?.spaces?.[currentRoom.id]?.effective;
   return !!(inRoom || me?.permissions || {})[permission];
 }
 // Everything a permission hides or shows on the page. Reruns once who I am
@@ -862,7 +862,7 @@ syncSnapBar();
 document.addEventListener('app:notification', (event) => {
   const n = event.detail;
   if (roomModules.handleNotification(n)) event.preventDefault();
-  else if (n.scope === 'server' && document.body.classList.contains('in-space')) {
+  else if (n.scope === 'environment' && document.body.classList.contains('in-space')) {
     event.preventDefault();
     openOverlay(`/modules/${encodeURIComponent(n.module)}`);
   }
@@ -1261,14 +1261,14 @@ function chatClearedAt(roomId) {
 }
 async function fetchChatHistory(roomId) {
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-  const { messages } = await api('GET', `/api/rooms/${encodeURIComponent(roomId)}/chat${q}`);
+  const { messages } = await api('GET', `/api/spaces/${encodeURIComponent(roomId)}/chat${q}`);
   return messages.map((m) => ({ who: m.who, text: m.text, at: new Date(m.at).toISOString() }));
 }
 // Tell the server what was just said, so the room's history has it. Best effort: the message already went out live.
 function postChatMessage(text) {
   if (!currentRoom || currentRoom.ephemeral) return;
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-  api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/chat${q}`, { text, name: me?.displayName || room.localParticipant.name }).catch(() => {});
+  api('POST', `/api/spaces/${encodeURIComponent(currentRoom.id)}/chat${q}`, { text, name: me?.displayName || room.localParticipant.name }).catch(() => {});
 }
 // Called once per join, after the stage is up but before anything live has
 // arrived -- fills #messages with whatever this room already said, so it
@@ -1866,37 +1866,37 @@ room
       // An admin's word is final -- just go. A peer's "Privately" needs
       // this end to actually agree to it first. Deferred a tick so this
       // event's own dispatch finishes first.
-      else if (topic === 'aside-pull' && data.type === 'aside-pull' && data.roomId) {
+      else if (topic === 'aside-pull' && data.type === 'aside-pull' && data.spaceId) {
         if (data.byAdmin) {
-          setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
+          setTimeout(() => reconnectTo(data.spaceId, 'pulled aside...'), 0);
         } else {
           setTimeout(() => {
             if (window.confirm(`${data.from || 'Someone'} wants ${data.private === false ? 'to step aside with you' : 'to have a private word'}. Join them?`)) {
-              reconnectTo(data.roomId, data.private === false ? 'stepping aside...' : 'stepping aside privately...');
+              reconnectTo(data.spaceId, data.private === false ? 'stepping aside...' : 'stepping aside privately...');
             }
           }, 0);
         }
       }
       // The other member of a pull-aside room clicked "Rejoin call";
       // follow them there instead of being left behind.
-      else if (topic === 'aside-return' && data.type === 'aside-return' && data.roomId) {
-        setTimeout(() => reconnectTo(data.roomId, 'back to the call...'), 0);
+      else if (topic === 'aside-return' && data.type === 'aside-return' && data.spaceId) {
+        setTimeout(() => reconnectTo(data.spaceId, 'back to the call...'), 0);
       }
       // Someone just got pulled into a private aside, myself excluded: prime
       // the local data so their tile can turn into an "in an aside"
       // placeholder right away, without waiting for the next /api/presence poll.
-      else if (topic === 'aside-started' && data.type === 'aside-started' && data.roomId && Array.isArray(data.members)) {
-        if (!presenceRooms.some((r) => r.id === data.roomId)) presenceRooms.push({ id: data.roomId, name: 'Aside', members: data.members, ephemeral: true });
+      else if (topic === 'aside-started' && data.type === 'aside-started' && data.spaceId && Array.isArray(data.members)) {
+        if (!presenceRooms.some((r) => r.id === data.spaceId)) presenceRooms.push({ id: data.spaceId, name: 'Aside', members: data.members, ephemeral: true });
         for (const key of data.members) {
           const user = presenceUsers.get(key);
-          if (user) { user.online = true; user.room = data.roomId; }
+          if (user) { user.online = true; user.space = data.spaceId; }
         }
         reconcileGhostTiles();
       }
       // The admin clicked "Pull Participants Back" in the room this Private
       // Conversation came from: warn, don't yank -- a countdown, then go.
-      else if (topic === 'aside-recall' && data.type === 'aside-recall' && data.roomId) {
-        startRecallCountdown(data.roomId, data.roomName);
+      else if (topic === 'aside-recall' && data.type === 'aside-recall' && data.spaceId) {
+        startRecallCountdown(data.spaceId, data.spaceName);
       }
     } catch (err) {
       // not ours
@@ -1988,7 +1988,7 @@ async function joinInvitedRoom(roomId) {
 // An invitation accepted on this page (the toast in brand.js asks; a page that handles it says so).
 document.addEventListener('app:invite-accept', (event) => {
   event.preventDefault();
-  joinInvitedRoom(event.detail.roomId);
+  joinInvitedRoom(event.detail.spaceId);
 });
 
 async function openInRoom(roomId, moduleId, ref) {
@@ -2048,7 +2048,7 @@ function cancelAsideSelection() {
 // recorded, just muted/dimmed on the main feed while it's happening).
 async function pullAside(identities, priv = false) {
   try {
-    const { room: asideRoom } = await api('POST', '/api/asides', { with: identities, private: priv });
+    const { aside: asideRoom } = await api('POST', '/api/asides', { with: identities, private: priv });
     asideSelection.clear();
     await reconnectTo(asideRoom.id, priv ? 'stepping aside privately...' : 'stepping aside...');
   } catch (err) {
@@ -2061,7 +2061,7 @@ async function pullAside(identities, priv = false) {
 // is still in there with me.
 async function returnFromAside() {
   try {
-    const { room: homeRoom } = await api('POST', '/api/asides/return');
+    const { space: homeRoom } = await api('POST', '/api/asides/return');
     await reconnectTo(homeRoom.id, 'back to the call...');
   } catch (err) {
     setStatus(`rejoin call: ${err.message}`, true);
@@ -2131,7 +2131,7 @@ async function join(roomId = 'lobby') {
   for (const b of document.querySelectorAll('[data-join]')) b.disabled = true;
   try {
     setStatus('connecting...');
-    const { token, livekitUrl } = await api('POST', '/api/token', { room: roomId });
+    const { token, livekitUrl } = await api('POST', '/api/token', { space: roomId });
     // Fresh permissions each join -- an admin may have changed them since
     // this page loaded.
     me = (await api('GET', '/api/me')).user;
@@ -2788,8 +2788,8 @@ function renderGuestLink() {
 }
 async function setGuestLink(body) {
   try {
-    if (body === null) await api('DELETE', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`);
-    else await api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
+    if (body === null) await api('DELETE', `/api/spaces/${encodeURIComponent(currentRoom.id)}/guest-link`);
+    else await api('POST', `/api/spaces/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
     await loadPresence();
     renderGuestLink();
   } catch (err) {
@@ -3303,7 +3303,7 @@ function applyFeatureFlags() {
 
 async function init() {
   const branding = await loadBranding();
-  spaceName = branding.serverName || spaceName;
+  spaceName = branding.environmentName || spaceName;
   features = {
     maxQuality: branding.maxQuality || 720,
     allowScreenShare: branding.allowScreenShare !== false,
@@ -3339,10 +3339,10 @@ async function init() {
     $('settings-links').hidden = true;
     try {
       const info = await api('GET', `/api/guest-link/${encodeURIComponent(guestToken)}`);
-      $('guest-room-name').textContent = `Join ${info.roomName}`;
+      $('guest-room-name').textContent = `Join ${info.spaceName}`;
       $('guest-join').hidden = false;
-      $('guest-join').dataset.roomId = info.roomId;
-      $('guest-join').dataset.roomName = info.roomName;
+      $('guest-join').dataset.roomId = info.spaceId;
+      $('guest-join').dataset.roomName = info.spaceName;
     } catch (err) {
       $('guest-room-name').textContent = 'This link is off';
       $('guest-join-error').textContent = err.message;

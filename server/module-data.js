@@ -1,9 +1,9 @@
 // Per-module data: a small key-value store for each module, per scope (the
-// whole server, or one room), with a version on every key and a change event
+// whole environment, one space, or one person), with a version on every key and a change event
 // on every write so the server can push updates live. See
 // documentation/architecture/architecture-modules.md.
 //
-// Files live under DATA_DIR/modules/<id>/data/: server.json and room-<id>.json.
+// Files live under DATA_DIR/modules/<id>/data/: environment.json, space-<id>.json and person-<key>.json.
 // Each is loaded once, kept in memory, and rewritten whole on a change -- a
 // module's data is small by design (a 5 MB cap per module).
 
@@ -13,7 +13,7 @@ const { EventEmitter } = require('events');
 const { StoreError } = require('./store');
 
 const KEY_RE = /^[A-Za-z0-9_.:/-]{1,128}$/;
-const ROOM_RE = /^[a-z0-9]{4,16}$/;
+const SPACE_RE = /^[a-z0-9]{4,16}$/;
 const PERSON_RE = /^[a-z0-9]{4,40}$/; // a person's key
 const LIMITS = {
   valueBytes: 60 * 1024, // one key's value, serialized
@@ -28,12 +28,12 @@ class ModuleData extends EventEmitter {
     this.cache = new Map(); // "id|scopeKey" -> Map(key -> { value, version, updatedAt, by })
   }
 
-  // scopeKey is 'server' or 'room:<room id>'.
+  // scopeKey is 'environment', 'space:<space id>' or 'person:<key>'.
   fileFor(id, scopeKey) {
     const base = path.join(this.dir, id, 'data');
-    if (scopeKey === 'server') return path.join(base, 'server.json');
-    const m = /^room:(.+)$/.exec(scopeKey);
-    if (m && ROOM_RE.test(m[1])) return path.join(base, `room-${m[1]}.json`);
+    if (scopeKey === 'environment') return path.join(base, 'environment.json');
+    const m = /^space:(.+)$/.exec(scopeKey);
+    if (m && SPACE_RE.test(m[1])) return path.join(base, `space-${m[1]}.json`);
     const p = /^person:(.+)$/.exec(scopeKey);
     if (p && PERSON_RE.test(p[1])) return path.join(base, `person-${p[1]}.json`);
     throw new StoreError('bad scope');

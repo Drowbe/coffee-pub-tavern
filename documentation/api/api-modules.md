@@ -67,7 +67,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 |---|---|
 | `GET /api/modules` | `{ modules, limits }`: installed modules, their state, versions, and what awaits approval |
 | `POST /api/modules` | Body is the zip, sent as `application/zip`. Returns 201 and `{ module }`, disabled until approved |
-| `PATCH /api/modules/:id` | `{ enabled }`, `{ allRooms }` or `{ rooms: [room ids] }`; returns `{ module }` |
+| `PATCH /api/modules/:id` | `{ enabled }`, `{ allSpaces }` or `{ spaces: [space ids] }`; returns `{ module }` |
 | `POST /api/modules/:id/rollback` | `{ version }`; returns `{ module }` |
 | `DELETE /api/modules/:id?keepData=0` or `=1` | Uninstall; `keepData` defaults to keeping the data |
 
@@ -76,7 +76,7 @@ A module in the list has the manifest fields plus:
 | Field | Meaning |
 |---|---|
 | `enabled` | Whether it is on |
-| `allRooms`, `rooms` | Where a room module is available |
+| `allSpaces`, `spaces` | Where a space module is available (`allRooms` and `rooms` until step 5a of the Names plan) |
 | `versions` | Installed versions, newest first |
 | `needsApproval`, `pending` | Whether the active version asks for permissions, hooks, refs to consume, events to hear or actions to ask for that are not yet approved, and which |
 | `installedAt`, `updatedAt` | Timestamps |
@@ -86,48 +86,50 @@ A module in the list has the manifest fields plus:
 - An upload must be newer than every installed version of that `id`; otherwise it is refused with 400.
 - Enabling a module records that the owner approved the permissions and hooks it lists. An upgrade or
   rollback that asks for anything not yet approved comes back with `enabled: false`.
-- `allRooms` and `rooms` are refused unless the module has a room scope.
+- `allSpaces` and `spaces` are refused unless the module has a space scope (a manifest's `room` scope, until step 5c).
 - The upload limits are 10 MB for the zip, 500 files, 10 MB for any one file and 40 MB unpacked. A zip
   over the limit gets 413.
 
 ## Runtime routes
 
-These serve a running module. The page hosting a module's frame calls them for it (see [api-module-sdk](api-module-sdk.md)); they need a signed-in session, or for a room a guest link token in `guest=`. Data routes take `scope=server` (the default) or `scope=room&room=<id>`. A module must be enabled, and for a room it must be on for that room and the caller in it. The module's `access` permissions decide who may read and write.
+These are the server's routes, and since step 5a of the [Names plan](../plans/plan-names.md) they use the new names: `environment` for what was `server`, `space` for `room`. A module's own code does not see this yet: the SDK (`host.*`, `info.context`, a pointer's `scope`) still speaks `server`, `room` and `roomId` until step 5c, and the host page translates between the two. A manifest's `scope` and a setting's `scope` are still written `server` and `room` until then, and answers give them as `environment` and `space`.
+
+These serve a running module. The page hosting a module's frame calls them for it (see [api-module-sdk](api-module-sdk.md)); they need a signed-in session, or for a space a guest link token in `guest=`. Data routes take `scope=environment` (the default, when no scope is given), `scope=space&space=<id>`, `scope=person`, or, where a route reads across the caller's spaces, `scope=spaces`. The old values `server` and `room` and the `room=` parameter are refused (400 "scope must be environment, space, spaces or person"; a route that takes one place answers "scope must be environment, space or person here", and the bus "scope must be environment or space here"). A module must be enabled, and for a space it must be on for that space and the caller in it. The module's `access` permissions decide who may read and write.
 
 | Call | Purpose |
 |---|---|
 | `GET /m/:id/:version/*path` | A file of the active version of an enabled module, with a sandbox content security policy. HTML pages get the SDK and base styles injected |
 | `GET /api/modules/nav` | Modules with a page this person can open, for the header |
 | `GET /api/modules/widgets` | Modules with a dashboard widget this person may read, in order: `{ widgets: [{ id, name, icon, version, scope, runMode, title, size, order, entry }] }`. Guests get none |
-| `GET /api/modules/for-room?room=<id>` | Modules with a panel in that room this person can see |
-| `GET /api/modules/:id/settings/values?scope=&room=` | The settings as they apply to the caller here: `{ values }`, with the module's default for what nobody has chosen (server, this room and the person's own together) |
-| `GET /api/module-settings/:scope?room=` | The modules that have settings of a scope (`server`: an owner; `room`: an owner or that room's moderators, with `room=`; `person`: anyone signed in) with each setting and its value, for the forms. Anyone else, reading or changing them, gets 403 "only an owner changes the server's settings" or "only an owner or the room's moderators change its settings" |
-| `GET /api/modules/:id/files/:name?scope=&room=` (a `file` setting in the settings routes also carries `available`, the usable names, `folder`, `exists` and `skipped: [{ name, reason }]` for what the folder holds that was ignored; the server logs the same at startup) | A file the operator placed in `DATA_DIR/modules/<module id>/<folder>/` (the `folder` the module's `file` setting names), read by range (`Range` requests answer `206`), for anyone who may read the module's data in that place. Only files in that folder, by a plain name (letters, digits, dot, dash, underscore), are reachable; `Cache-Control: private` |
+| `GET /api/modules/for-space?space=<id>` | Modules with a panel in that space this person can see (was `for-room?room=`, now 404) |
+| `GET /api/modules/:id/settings/values?scope=&space=` | The settings as they apply to the caller here: `{ values }`, with the module's default for what nobody has chosen (the environment, this space and the person's own together) |
+| `GET /api/module-settings/:scope?space=` | The modules that have settings of a scope (`environment`: an owner; `space`: an owner or that space's moderators, with `space=`; `person`: anyone signed in) with each setting and its value, for the forms. Anyone else, reading or changing them, gets 403 "only an owner changes the environment's settings" or "only an owner or the space's moderators change its settings". The old scopes `server` and `room` answer 404 "no such kind of setting" |
+| `GET /api/modules/:id/files/:name?scope=&space=` (a `file` setting in the settings routes also carries `available`, the usable names, `folder`, `exists` and `skipped: [{ name, reason }]` for what the folder holds that was ignored; the server logs the same at startup) | A file the operator placed in `DATA_DIR/modules/<module id>/<folder>/` (the `folder` the module's `file` setting names), read by range (`Range` requests answer `206`), for anyone who may read the module's data in that place. Only files in that folder, by a plain name (letters, digits, dot, dash, underscore), are reachable; `Cache-Control: private` |
 | `DELETE /api/modules/:id/files/:name` | Owners only. Removes the file for good, and un-ticks it from any `files` setting (or clears a `file` setting) that named it, so nothing keeps pointing at a file that is gone |
-| `PUT /api/modules/:id/settings/:scope` | Body `{ values, room? }`; the same people as above. Only settings the module declares for that scope are taken, each checked against its type and limits (400 otherwise). Server and room changes are noted in the activity list |
+| `PUT /api/modules/:id/settings/:scope` | Body `{ values, space? }`; the same people as above. Only settings the module declares for that scope are taken, each checked against its type and limits (400 otherwise). Environment and space changes are noted in the activity list |
 | `GET /api/modules/:id/context` | Who is asking and their permissions in the module |
 | `GET /api/modules/:id/data?prefix=` | `{ items }`, each `{ key, value, version, updatedAt, by }` |
 | `GET /api/modules/:id/data/:key` | `{ item }`, or 404 |
 | `PUT /api/modules/:id/data/:key` | Body `{ value, version? }`; returns `{ item }`, or 409 with `{ error, current }` if `version` is stale |
 | `DELETE /api/modules/:id/data/:key?version=` | Delete a key |
-| `POST /api/refs/resolve` | Body `{ from, refs: [{ module, kind, id, scope, room? }] }` (`from` is the asking module, up to 50 refs). Returns `{ cards }` in the same order: a card, or `{ ref, error, status, state? }` for each that is missing, invalid or not allowed; `state` says what to draw: `gone` (the item no longer exists) or `hidden` (it exists, or may, but this viewer may not see it, which is all the viewer is told) |
-| `POST /api/bus/publish` | Body `{ module, name, ref?, data?, scope, room? }`: the module says one of its declared events happened. Needs write access to the module; `ref` must be one of its own items in the same place; `data` at most 2 KB |
-| `GET /api/bus/events?module=&scope=&room=&after=` | The events the module may hear (declared and approved) after event `after`, about modules the person can see here, at most 100; `after=now` returns just where things stand |
-| `GET /api/bus/actions?from=&scope=&room=&accepts=&self=1` | The actions the asking module may request, only those the person could do themselves. `accepts=module:kind` keeps those that take a pointer to that kind of item; `self=1` adds the asking module's own, marked `own` |
-| `POST /api/bus/actions/request` | Body `{ from, action: "module:name", input, scope, room? }`; the input is checked against the action's declared types. Returns `{ id, status }` |
+| `POST /api/refs/resolve` | Body `{ from, refs: [{ module, kind, id, scope, space? }] }` (`scope` is `environment`, `space` or `person`) (`from` is the asking module, up to 50 refs). Returns `{ cards }` in the same order: a card, or `{ ref, error, status, state? }` for each that is missing, invalid or not allowed; `state` says what to draw: `gone` (the item no longer exists) or `hidden` (it exists, or may, but this viewer may not see it, which is all the viewer is told) |
+| `POST /api/bus/publish` | Body `{ module, name, ref?, data?, scope, space? }`: the module says one of its declared events happened. Needs write access to the module; `ref` must be one of its own items in the same place; `data` at most 2 KB |
+| `GET /api/bus/events?module=&scope=&space=&after=` | The events the module may hear (declared and approved) after event `after`, about modules the person can see here, at most 100; `after=now` returns just where things stand |
+| `GET /api/bus/actions?from=&scope=&space=&accepts=&self=1` | The actions the asking module may request, only those the person could do themselves. `accepts=module:kind` keeps those that take a pointer to that kind of item; `self=1` adds the asking module's own, marked `own` |
+| `POST /api/bus/actions/request` | Body `{ from, action: "module:name", input, scope, space? }`; the input is checked against the action's declared types. Returns `{ id, status }` |
 | `GET /api/bus/actions/pending`, `POST /api/bus/actions/claim`, `POST /api/bus/actions/complete`, `GET /api/bus/actions/status` | The providing module's page takes a waiting request (one page only), reports the result; the asking module reads the status. Need write access to the providing module |
 | `GET /api/refs/kinds?from=` | The kinds of other modules' items the asking module may link to: `{ kinds: [{ module, moduleName, icon, kind, name, open, events: [{ name, label, data }] }] }`, where `events` is what that kind of item can report. A module installed later appears here with no change to anything else |
 | `POST /api/refs/links` | Body `{ module, from, to: [refs] }`: the asking module says what one of its own items points at (the whole list). Targets the viewer cannot see, or the module may not link to, are left out. Needs write access to the module |
 | `GET /api/refs/links?from=&ref=&dir=to\|from` | What points at (`to`, only for a kind with `backlinks`) or is pointed at by (`from`) one of the asking module's own items: cards, each only for what the viewer may see |
-| `GET /api/refs/search?from=&scope=&room=&q=` | Cards for items `from` may link to in one scope: every kind it was approved to consume, matching `q`, newest `when` first, up to 50 |
-| `GET /api/modules/:id/refs/:kind/:refId?from=&scope=&room=` | One card, `{ card }`, or an error |
+| `GET /api/refs/search?from=&scope=&space=&q=` | Cards for items `from` may link to in one scope: every kind it was approved to consume, matching `q`, newest `when` first, up to 50 |
+| `GET /api/modules/:id/refs/:kind/:refId?from=&scope=&space=` | One card, `{ card }`, or an error |
 | `POST /api/modules/bundled/:id/install` | Owners only. Builds one of the modules that ship with this Magpie (a folder under `modules/` next to the server) into a zip and installs it as an upload would be, so it is the same validation, approval and versioning; 404 for anything that is not a bundled module. `GET /api/modules` lists them as `bundled`: `{ id, name, icon, description, version, installed, update }` |
-| `GET /api/modules/:id/rooms-data?prefix=` | For a module's server page: `{ rooms, items }` across the caller's own rooms (a member, module on for the room, role can read it), each item with its `roomId`, each room `{ id, name, icon, svg }`. `?info=1` returns just `{ rooms }`. Guests get 403 |
-| `GET /api/modules/stream?room=` | One server-sent stream for all modules on a page: `change` and `schedule` events with `module`, `scope` (`room` and `server` with a room; `server` and `rooms` without) and `roomId`, filtered to what the caller may read |
-| `GET /api/modules/:id/events` | Server-sent events: `change` for data changes and `schedule` when one fires. `?scope=rooms` streams changes from all the caller's rooms, each with a `roomId` |
+| `GET /api/modules/:id/spaces-data?prefix=` | For a module's environment page: `{ spaces, items }` across the caller's own spaces (a member, module on for the space, role can read it), each item with its `spaceId`, each space `{ id, name, icon, svg }`. `?info=1` returns just `{ spaces }`. Guests get 403. (Was `rooms-data`, now 404) |
+| `GET /api/modules/stream?space=` | One server-sent stream for all modules on a page: `change` and `schedule` events with `module`, `scope` (`space`, `environment` and `person` with a space; `environment`, `person` and `spaces` without) and `spaceId`, filtered to what the caller may read |
+| `GET /api/modules/:id/events` | Server-sent events: `change` for data changes and `schedule` when one fires. `?scope=spaces` streams changes from all the caller's spaces, each with a `spaceId` |
 | `POST /api/modules/:id/schedule` | `{ key, at, payload?, notify? }`; needs the `schedule` hook |
 | `DELETE /api/modules/:id/schedule/:key` | Cancel a schedule |
-| `POST /api/modules/:id/notify` | `{ to, title, body }`; needs the `notify` hook |
+| `POST /api/modules/:id/notify` | `{ to, title, body }`, `to` being `space`, `environment` or a person's key (otherwise 400 "to must be space, environment or a person's key"); needs the `notify` hook |
 | `GET /api/notifications` | The signed-in person's notifications, with unread counts by module |
 | `POST /api/notifications/read` | `{ module }` or `{ id }` marks them read |
 | `GET /api/notifications/stream` | Server-sent events: `notification` |

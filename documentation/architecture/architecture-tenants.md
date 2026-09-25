@@ -31,9 +31,9 @@ synchronously on every change (`chatHistory`, `ai`, `geocodeCache`, the activity
 (every built environment) and before a backup or a restore (that one environment, so nothing recent is missing
 from the zip, or overwritten by a stale in-memory copy right after).
 
-An environment's own name is its server name (the author's call). `environmentFor()` in `index.js` runs one
+An environment's own name is its `environmentName` setting (the author's call; `serverName` before step 5a). `environmentFor()` in `index.js` runs one
 check every time it builds an environment, not just the first: still on the shipped sentinel default ("Coffee
-Pub Tavern", from before an install's name was ever set, or before `serverName` existed at all) means the
+Pub Tavern", from before an install's name was ever set, or before the setting existed at all) means the
 default environment gets `PRODUCT_NAME` and a hosted environment gets `hostRegistry.findEnvironment(slug).name`, written with
 `store.updateSettings`. The same check covers a brand new environment (still on the sentinel right after
 `buildEnvironment`) and an old one catching up on its next start after skipping a few versions -- one code path,
@@ -197,7 +197,7 @@ for the new names.
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` holds `names-table` (step 3) and `names-roles` (step 4), both below.
+`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4) and `names-spaces` (step 5a), all below.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -302,6 +302,27 @@ Step 4's part, after `names-table`. In `app.json`:
 - `invites[].role` values are renamed the same way.
 
 The original is kept in `pre-names/names-roles/app.json`.
+
+### The environment part: `names-spaces`
+
+Step 5a's part, after `names-roles`. It renames an environment's stored data:
+
+| Where | Old | New |
+|---|---|---|
+| `app.json` | `rooms`, `users[].rooms`, `invites[].rooms`, `settings.serverName` | `spaces`, `users[].spaces`, `invites[].spaces`, `settings.environmentName` |
+| `chat.json` | `rooms` | `spaces` |
+| `images/` | `images/rooms/`, `images/<key>/rooms/` | `images/spaces/`, `images/<key>/spaces/` |
+| `modules/registry.json` | `allRooms`, `rooms` | `allSpaces`, `spaces` |
+| `modules/settings.json` | `{ server, rooms, people }` | `{ environment, spaces, people }` |
+| a module's data | `data/server.json`, `data/room-<id>.json` | `data/environment.json`, `data/space-<id>.json` (moved; pointers inside a module's own values wait for step 7) |
+| a module's uploads | `uploads/server/`, `uploads/room-<id>/` | `uploads/environment/`, `uploads/space-<id>/` |
+| `modules/links.json`, `bus.json` | scope keys and pointers (`server`, `room:<id>`, `scope: 'room'`, `room`) | `environment`, `space:<id>`, `scope: 'space'`, `space` |
+| `modules/schedules.json` | `scopeKey`, `id`, `roomId`, `notify.to` | the same with the new scope names, and `spaceId` |
+| `modules/notifications.json`, `activity.json` | scope `server`/`room`, `roomId` | `environment`/`space`, `spaceId` |
+
+Where an old and a new key (or file) are both there and differ, it stops with the file named: "... Nothing was
+changed: remove the out-of-date one and start again (...pre-names/names-spaces)". The JSON originals are kept
+in `pre-names/names-spaces/`, and every folder and file it moves is listed in the record's `moved`.
 
 ### A pre-environment install
 
@@ -435,9 +456,12 @@ name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receiv
 - The old role values (step 4): `user.role` in `/api/me` and `users[].role` in `/api/status` are `admin` for an
   owner or the server's admin and `user` for a member. `streamKey` needs no entry: the server sends it to
   owners and the host admin already.
+- The old space names (step 5a): `serverName` in both answers, set to the environment's name; and in
+  `/api/status`, `rooms` (the `spaces` rows, asides included), `activeRoom` (= `activeSpace`) and
+  `users[].online.room` (= `users[].online.space`).
 
-`isAdmin`, `adminOnline` and `byAdmin` keep their names until steps 5a and 5c; their values mean an owner or the
-host admin. The later steps add the fields they rename, and step 10 removes the file.
+`isAdmin`, `adminOnline` and `byAdmin` keep their names until step 5c; their values mean an owner or the
+server's admin. The later steps add the fields they rename, and step 10 removes the file.
 
 ## The host's managed AI and shared files
 

@@ -13,30 +13,42 @@ const { cleanManifest, permissionDefaults, PERMISSION_KEY_RE, ModuleError } = cr
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
-// The smallest manifest cleanManifest will accept: a server-scope module with one page.
-const base = () => ({ id: 'thing', name: 'Thing', version: '1.0.0', scope: ['server'], surfaces: { page: { entry: 'page.html' } } });
-const files = new Set(['page.html']);
+// The smallest manifest cleanManifest will accept: an environment-scope module with one page.
+const base = () => ({ id: 'thing', name: 'Thing', version: '1.0.0', scope: ['environment'], surfaces: { page: { entry: 'page.html' } } });
+const files = new Set(['page.html', 'panel.html']);
 
 test('a setting keeps a help paragraph longer than a one-line hint', () => {
   const long = 'A world PMTiles file to cut a region from with "Add a region", below. the host reads only the part it cuts, over https range requests, never the whole file. Protomaps publishes a daily build at https://maps.protomaps.com/builds; its address is dated and changes most days (for example https://build.protomaps.com/20260921.pmtiles), so check that page for todays, or point this at your own stable copy. Left empty, cutting a region is off.';
   assert.ok(long.length > 200 && long.length <= 600, 'the fixture itself must sit between the old and new ceilings');
-  const m = cleanManifest({ ...base(), settings: [{ key: 'worldSource', label: 'World file', type: 'url', scope: 'server', default: '', help: long }] }, files);
+  const m = cleanManifest({ ...base(), settings: [{ key: 'worldSource', label: 'World file', type: 'url', scope: 'environment', default: '', help: long }] }, files);
   assert.equal(m.settings[0].help, long); // not cut off mid-sentence
 });
 
 test('an absurdly long help is still capped, not unbounded', () => {
-  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'boolean', scope: 'server', default: false, help: 'y'.repeat(1000) }] }, files);
+  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'boolean', scope: 'environment', default: false, help: 'y'.repeat(1000) }] }, files);
   assert.equal(m.settings[0].help.length, 600);
 });
 
 test('line breaks in a setting\'s help are kept, not collapsed', () => {
-  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'boolean', scope: 'server', default: false, help: 'First line.\n\nSecond line.' }] }, files);
+  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'boolean', scope: 'environment', default: false, help: 'First line.\n\nSecond line.' }] }, files);
   assert.equal(m.settings[0].help, 'First line.\n\nSecond line.');
 });
 
 test('a choice option\'s own help is unaffected (already had the wider ceiling)', () => {
-  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'choice', scope: 'server', default: 'a', options: [{ value: 'a', label: 'A', help: 'z'.repeat(700) }, { value: 'b', label: 'B' }] }] }, files);
+  const m = cleanManifest({ ...base(), settings: [{ key: 'x', label: 'X', type: 'choice', scope: 'environment', default: 'a', options: [{ value: 'a', label: 'A', help: 'z'.repeat(700) }, { value: 'b', label: 'B' }] }] }, files);
   assert.equal(m.settings[0].options[0].help.length, 600);
+});
+
+test('a manifest\'s scopes are environment, space and person; the old names are read as them until plan-names step 5c', () => {
+  const both = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
+  const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }] }, files);
+  assert.deepEqual(m.scope, ['environment', 'space', 'person']);
+  assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment'], 'a setting with no scope is the environment\'s');
+  const old = cleanManifest({ ...base(), scope: ['server', 'room'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'room' }, { key: 'n', label: 'N', type: 'note', scope: 'server' }], install: { auto: true, settingsFrom: 'server' } }, files);
+  assert.deepEqual([old.scope, old.settings.map((d) => d.scope), old.install.settingsFrom], [['environment', 'space'], ['space', 'environment'], 'environment']);
+  assert.throws(() => cleanManifest({ ...base(), scope: ['nowhere'] }, files), /"scope" must include "environment", "space", or both/);
+  assert.throws(() => cleanManifest({ ...base(), scope: ['space'] }, files), /the "space" scope needs a surfaces.panel/);
+  assert.throws(() => cleanManifest({ ...base(), settings: [{ key: 'f', label: 'F', type: 'file', scope: 'space' }] }, files), /its scope must be "environment"/);
 });
 
 test('bad input still throws a ModuleError, same as before', () => {

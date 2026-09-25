@@ -54,6 +54,8 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 
 ## Pages and the SDK
 
+The SDK keeps its names for now: `server`, `room` and `roomId` in `info.context`, a pointer's `scope`, the storage scopes and `host.presence`. The server's routes and stored data say `environment` and `space` since step 5a of the [Names plan](../plans/plan-names.md), and the host page translates between the two; the SDK and manifests move to the new names, with every bundled module, in step 5c. Nothing below changes until then.
+
 Magpie adds the SDK and a base stylesheet to each of your HTML pages when it serves them, so a page needs no `<script>` or `<link>` for them. To keep the base styles out, add `<meta name="sdk-base" content="none">`. The SDK defines `window.host`.
 
 ```js

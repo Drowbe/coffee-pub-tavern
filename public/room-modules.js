@@ -918,7 +918,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     const pane = panes.get(id);
     const m = pane?.m || available.find((x) => x.id === id);
     if (!m) return;
-    const q = new URLSearchParams({ moduleRoom: roomId, popout: '1' });
+    const q = new URLSearchParams({ space: roomId, popout: '1' });
     if (guestToken) q.set('guest', guestToken);
     const width = Math.max(320, Math.min(m.panel.width, screen.availWidth));
     const height = Math.max(240, Math.min(m.panel.height + HEAD_H, screen.availHeight));
@@ -1129,9 +1129,9 @@ export function createRoomModules({ guestToken = null } = {}) {
     available = [];
     if (id) {
       try {
-        const q = new URLSearchParams({ room: id });
+        const q = new URLSearchParams({ space: id });
         if (guestToken) q.set('guest', guestToken);
-        available = (await api('GET', `/api/modules/for-room?${q}`)).modules;
+        available = (await api('GET', `/api/modules/for-space?${q}`)).modules;
       } catch {
         available = [];
       }
@@ -1211,7 +1211,7 @@ export function createRoomModules({ guestToken = null } = {}) {
     nativeMode: (id) => panes.get(id)?.mode || null,
     // A notification's toast asks the call to open the module's pane.
     handleNotification(n) {
-      if (n.scope !== 'room' || n.roomId !== roomId) return false;
+      if (n.scope !== 'space' || n.spaceId !== roomId) return false;
       const m = available.find((x) => x.id === n.module);
       if (!m) return false;
       openModule(m);

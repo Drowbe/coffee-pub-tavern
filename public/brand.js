@@ -62,7 +62,7 @@ function migrateStoredKeys() {
 migrateStoredKeys();
 
 export async function loadBranding() {
-  let b = { serverName: 'Coffee Pub', loginText: '', hasIcon: false };
+  let b = { environmentName: 'Coffee Pub', loginText: '', hasIcon: false };
   try {
     const res = await fetch('/api/branding');
     if (res.ok) b = await res.json();
@@ -72,7 +72,7 @@ export async function loadBranding() {
   ICONS = Array.isArray(b.icons) ? b.icons : [];
   clockHour12 = b.clock !== '24';
   if (byId('topbar-clock')) startClock();
-  qsa('[data-brand="serverName"]').forEach((el) => (el.textContent = b.serverName));
+  qsa('[data-brand="serverName"]').forEach((el) => (el.textContent = b.environmentName));
   qsa('[data-brand="home-icon"]').forEach((el) => {
     el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
     el.dataset.iconId = b.homeIcon || 'couch';
@@ -81,8 +81,8 @@ export async function loadBranding() {
   document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
   // The page's own title ("Sign in", "Manage", or "<old server name> - Manage" on a second load) gets the server's name in front.
   const parts = document.title.split(' - ');
-  const page = parts.length > 1 ? parts.slice(1).join(' - ') : ['Coffee Pub', b.serverName].includes(document.title.trim()) ? '' : document.title.trim();
-  document.title = page ? `${b.serverName} - ${page}` : b.serverName;
+  const page = parts.length > 1 ? parts.slice(1).join(' - ') : ['Coffee Pub', b.environmentName].includes(document.title.trim()) ? '' : document.title.trim();
+  document.title = page ? `${b.environmentName} - ${page}` : b.environmentName;
   let icon = document.querySelector('link[rel="icon"]');
   if (!icon) {
     icon = document.createElement('link');
@@ -264,7 +264,7 @@ function showToast(n) {
   toast.addEventListener('click', () => {
     // The call page handles opening a room module's panel; anything else goes to the module's page.
     const handled = !document.dispatchEvent(new CustomEvent('app:notification', { detail: n, cancelable: true }));
-    if (!handled && n.scope === 'server') window.location.href = `/modules/${encodeURIComponent(n.module)}`;
+    if (!handled && n.scope === 'environment') window.location.href = `/modules/${encodeURIComponent(n.module)}`;
     dismiss();
   });
   layer.appendChild(toast);
@@ -335,7 +335,7 @@ function showInvite(invite) {
     if (!b) return;
     if (b.dataset.invite === 'join') {
       const taken = !document.dispatchEvent(new CustomEvent('app:invite-accept', { detail: invite, cancelable: true }));
-      if (!taken) window.location.href = `/#join=${encodeURIComponent(invite.roomId)}`;
+      if (!taken) window.location.href = `/#join=${encodeURIComponent(invite.spaceId)}`;
     } else {
       fetch(`/api/asides/invite/${encodeURIComponent(invite.id)}/decline`, { method: 'POST' }).catch(() => {});
     }

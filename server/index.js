@@ -10,7 +10,7 @@ const yauzl = require('yauzl');
 const { AsyncLocalStorage } = require('async_hooks');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const QRCode = require('qrcode');
-const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions } = require('./modules');
+const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions, manifestScope } = require('./modules');
 const { buildModule, bundledModules, zipFiles } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { Backgrounds } = require('./backgrounds');
@@ -27,13 +27,14 @@ const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require(
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
-const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, hasOwnerRights, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
+const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, hasOwnerRights, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
 const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError, recordedParts } = require('./migrate-names');
 const studioAlias = require('./studio-alias');
 const callNames = require('./call-names');
+const { mountOldLinks } = require('./old-links');
 const { currencyCodes } = require('./currencies');
 
 const {
@@ -194,7 +195,7 @@ const limiter = proxyFor('limiter');
 const presence = proxyFor('presence');
 const invites = proxyFor('invites');
 const inviteEvents = proxyFor('inviteEvents');
-const roomIconSvgs = proxyFor('roomIconSvgs');
+const iconSvgs = proxyFor('iconSvgs');
 const moduleActivity = proxyFor('moduleActivity');
 function noteActivity(...args) { return currentEnvironment().noteActivity(...args); }
 
@@ -391,12 +392,12 @@ function environmentFor(slug) {
     throw err;
   }
   refusals.delete(key);
-  // An environment's own name is its server name (the author's call). Still on the shipped sentinel default --
+  // An environment's own name (settings.environmentName). Still on the shipped sentinel default --
   // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
   // right here: the default environment gets the product's own name, an environment its registry name. Runs on every
   // build, not just the first, so an install that skipped a few versions catches up on its next start too.
-  if (env.store.settings.serverName === 'Coffee Pub Tavern') {
-    env.store.updateSettings({ serverName: slug ? (hostRegistry.findEnvironment(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
+  if (env.store.settings.environmentName === 'Coffee Pub Tavern') {
+    env.store.updateSettings({ environmentName: slug ? (hostRegistry.findEnvironment(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
   }
   environments.set(key, env);
   // An environment that just migrated its own old custom AI setting to "managed" (see Ai's constructor) gives
@@ -416,7 +417,7 @@ function environmentFor(slug) {
 // A bundled module with install.auto (see cleanManifest in modules.js) gets installed and enabled once, ever,
 // per environment, so a server updated to a version where some core feature moved into a module is never left
 // without it. Never runs again for a module once it has, even if an admin later uninstalls it (modules.
-// autoInstalled/markAutoInstalled). settingsFrom: "server" copies each declared server-scope setting whose key
+// autoInstalled/markAutoInstalled). settingsFrom: "environment" copies each declared environment-scope setting whose key
 // exists in store.settings into the module's own settings, on that same install, for one whose fields used to
 // live there -- a value that fails to validate against its declared type is skipped rather than failing the
 // whole install (logged either way).
@@ -433,14 +434,14 @@ async function autoInstallBundled(env) {
       continue; // not marked -- it never actually installed, so the next start tries again
     }
     env.modules.markAutoInstalled(bundled.id);
-    if (bundled.install.settingsFrom === 'server') {
+    if (manifestScope(bundled.install.settingsFrom) === 'environment') {
       try {
         const manifest = env.modules.manifestOf(bundled.id, installed.version);
         const values = {};
         for (const def of manifest.settings || []) {
-          if (def.scope === 'server' && env.store.settings[def.key] !== undefined) values[def.key] = env.store.settings[def.key];
+          if (def.scope === 'environment' && env.store.settings[def.key] !== undefined) values[def.key] = env.store.settings[def.key];
         }
-        if (Object.keys(values).length) env.moduleSettings.set(manifest, 'server', {}, values, null);
+        if (Object.keys(values).length) env.moduleSettings.set(manifest, 'environment', {}, values, null);
       } catch (err) {
         console.error(`Auto-installed "${bundled.id}" but could not carry its settings over: ${err.message}`);
       }
@@ -501,18 +502,18 @@ function livekitApiUrl() {
   return `${local ? 'http' : 'https'}://${LIVEKIT_HOST}`;
 }
 
-const roomService = new RoomServiceClient(livekitApiUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+const callService = new RoomServiceClient(livekitApiUrl(), LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 
 // `media` is whether they may send and receive the conference's audio and video
 // (the "See and join the conference" permission); without it they still connect,
 // for chat and the modules, and are online, but carry no media. `inCall` is
 // whether they start in the conference: everyone else sees a person who is not
-// in it as present in the room, with no tile.
-async function mintToken({ identity, name, room, publisher, media = publisher, inCall = media }) {
+// in it as present in the space, with no tile. `call` is the call's name at the call service (callName).
+async function mintToken({ identity, name, call, publisher, media = publisher, inCall = media }) {
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity, name, ttl: publisher ? '24h' : '12h' });
   if (publisher) token.attributes = { call: media && inCall ? 'on' : 'off' };
   token.addGrant({
-    room,
+    room: call,
     roomJoin: true,
     canPublish: media,
     canSubscribe: publisher ? media : true,
@@ -527,12 +528,12 @@ async function mintToken({ identity, name, room, publisher, media = publisher, i
 // 14): worked out from the environment's slug and the space, never stored.
 function callName(spaceId) {
   const id = spaceId || LOBBY;
-  return callNames.callName({ slug: currentEnvironment().slug, spaceId: id, aside: Boolean(store.roomById(id)?.ephemeral) });
+  return callNames.callName({ slug: currentEnvironment().slug, spaceId: id, aside: Boolean(store.spaceById(id)?.ephemeral) });
 }
 function spaceIdOfCall(name) {
   return callNames.spaceIdOfCall(name, {
     slug: currentEnvironment().slug,
-    hasSpace: (id) => Boolean(store.roomById(id)),
+    hasSpace: (id) => Boolean(store.spaceById(id)),
     slugs: () => (hostRegistry ? hostRegistry.listEnvironments().map((e) => e.slug) : []),
   });
 }
@@ -541,12 +542,12 @@ function spaceIdOfCall(name) {
 // to it (it may be a name from before the upgrade); it is never sent in an answer (see withoutCall).
 async function participants() {
   try {
-    const active = await roomService.listRooms();
+    const active = await callService.listRooms();
     const out = [];
     for (const lk of active) {
-      const roomId = spaceIdOfCall(lk.name);
-      if (!roomId) continue;
-      const list = await roomService.listParticipants(lk.name).catch(() => []);
+      const spaceId = spaceIdOfCall(lk.name);
+      if (!spaceId) continue;
+      const list = await callService.listParticipants(lk.name).catch(() => []);
       for (const p of list) {
         if (p.permission?.hidden) continue;
         const tracks = p.tracks || [];
@@ -555,7 +556,7 @@ async function participants() {
         out.push({
           key: p.identity,
           name: p.name,
-          room: roomId,
+          space: spaceId,
           call: lk.name,
           joinedAt: Number(p.joinedAt || 0),
           inCall: p.attributes?.call !== 'off',
@@ -583,33 +584,33 @@ async function callOf(key) {
   return p ? p.call : null;
 }
 
-// The room the stream currently hears: the first online owner's room (the
+// The space the stream currently hears: the first online owner's space (the
 // host admin's stand-in counts as one), or the Lobby if no owner is in a call.
 // With the usual single GM this is exactly "wherever the GM is"; with more
 // than one online owner, whichever is earliest in the user list wins.
-function activeRoomId(online) {
+function activeSpaceId(online) {
   for (const u of store.users) {
     if (!hasOwnerRights(u)) continue;
     const p = online.get(u.key);
-    if (p) return followableRoomId(p.room);
+    if (p) return followableSpaceId(p.space);
   }
   return LOBBY;
 }
 
 // A private aside is off the record entirely -- the stream should keep
 // hearing wherever the admin was a moment ago, not cut away to (or hide
-// behind) a room Studio is told to treat as not-recording. Walk back to the
+// behind) an aside Studio is told to treat as not-recording. Walk back to the
 // nearest non-private ancestor, normally just the one `origin` hop.
-function followableRoomId(roomId) {
-  const room = store.roomById(roomId);
-  if (room?.private && room.origin) return followableRoomId(room.origin);
-  return roomId;
+function followableSpaceId(spaceId) {
+  const space = store.spaceById(spaceId);
+  if (space?.private && space.origin) return followableSpaceId(space.origin);
+  return spaceId;
 }
 
-// Whether activeRoom actually means anything right now: with no owner
+// Whether activeSpace actually means anything right now: with no owner
 // online there's no "wherever the GM is" to compare against, and view.js's
-// aside dim treatment needs to know that rather than reading activeRoom's
-// Lobby fallback as a real room everyone else is suddenly "aside" from.
+// aside dim treatment needs to know that rather than reading activeSpace's
+// Lobby fallback as a real space everyone else is suddenly "aside" from.
 function hasOnlineOwner(online) {
   return store.users.some((u) => hasOwnerRights(u) && online.has(u.key));
 }
@@ -763,13 +764,13 @@ function hasStreamAccess(req) {
 }
 
 // A guest's own reads (the presence roster, everyone's pictures): any request
-// carrying a room's current guest token, on top of a real session or the
-// stream key. Not scoped to that one room -- same broad-but-low-stakes
+// carrying a space's current guest token, on top of a real session or the
+// stream key. Not scoped to that one space -- same broad-but-low-stakes
 // trust as the stream key above, and lets a guest see the call they're
-// actually in without an account to check room membership against.
+// actually in without an account to check space membership against.
 function hasGuestAccess(req) {
   const token = req.query.guest;
-  return typeof token === 'string' && !!store.roomByGuestToken(token);
+  return typeof token === 'string' && !!store.spaceByGuestToken(token);
 }
 
 function requireUser(req, res, next) {
@@ -789,18 +790,18 @@ function requireStream(req, res, next) {
 }
 
 function publicUser(req, u) {
-  // Every room this person actually belongs to right now (never the Lobby --
-  // per-room images are for the rooms an admin picked them into, not the
+  // Every space this person actually belongs to right now (never the Lobby --
+  // per-space images are for the spaces an owner picked them into, not the
   // one everyone is always in), each with which of their own images override
   // the defaults there.
-  const rooms = {};
-  for (const room of store.rooms) {
-    if (room.isLobby || !room.members.includes(u.key)) continue;
-    rooms[room.id] = {
-      images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.rooms[room.id]?.images?.[slot]])),
-      useDefaultImages: u.rooms[room.id]?.useDefaultImages !== false,
-      permissions: store.roomFlags(u.key, room.id), // the stored ticks, for the profile page
-      effective: store.roomPermissions(u.key, room.id), // what they can actually do there
+  const spaces = {};
+  for (const space of store.spaces) {
+    if (space.isLobby || !space.members.includes(u.key)) continue;
+    spaces[space.id] = {
+      images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.spaces[space.id]?.images?.[slot]])),
+      useDefaultImages: u.spaces[space.id]?.useDefaultImages !== false,
+      permissions: store.spaceFlags(u.key, space.id), // the stored ticks, for the profile page
+      effective: store.spacePermissions(u.key, space.id), // what they can actually do there
     };
   }
   return {
@@ -813,8 +814,8 @@ function publicUser(req, u) {
     mfaEnrolled: Boolean(u.mfa), // the only mfa field a person other than the account itself ever sees
     link: u.linkToken ? `${baseUrl(req)}/j/${u.linkToken}` : null,
     images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])),
-    rooms,
-    permissions: store.roomPermissions(u.key, null), // their role's, outside any one room
+    spaces,
+    permissions: store.spacePermissions(u.key, null), // their role's, outside any one space
     player: { ...u.player, effective: store.effectivePlayer(u) },
     callPrefs: u.callPrefs,
     viewUrl: `${baseUrl(req)}/view/${u.key}`,
@@ -831,7 +832,7 @@ function presenceUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -1048,7 +1049,7 @@ function environmentUsage(slug) {
     logRefusalOnce(slug);
     return { members: null, storageBytes: null, aiCallsThisMonth: null, spaces: null };
   }
-  return { members: env.store.users.length, storageBytes: null, aiCallsThisMonth: env.ai.usageView?.().callsThisMonth ?? null, spaces: env.store.rooms.length };
+  return { members: env.store.users.length, storageBytes: null, aiCallsThisMonth: env.ai.usageView?.().callsThisMonth ?? null, spaces: env.store.spaces.length };
 }
 hostRouter.get('/api/host/environments', requireHostAdmin, (_req, res) => {
   // `refused`: null, or why this environment is not opening (see refusalView), for the console to show.
@@ -1134,7 +1135,7 @@ function environmentStorageBytes(slug, dataDir) {
 // spaceIdOfCall already scopes to the current environment's own calls (null for anything else).
 async function liveCallCount() {
   try {
-    const active = await roomService.listRooms();
+    const active = await callService.listRooms();
     return active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0).length;
   } catch {
     return 0;
@@ -1202,14 +1203,14 @@ async function refuseOverCalls(res, spaceId) {
   if (cap === null) return false;
   let active;
   try {
-    active = await roomService.listRooms();
+    active = await callService.listRooms();
   } catch {
     return false; // can't ask LiveKit -- fail open, same as liveCallCount()
   }
   const live = active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0);
   if (live.some((lk) => spaceIdOfCall(lk.name) === spaceId)) return false;
   if (live.length < cap) return false;
-  const runningName = store.roomById(spaceIdOfCall(live[0].name))?.name || 'another space';
+  const runningName = store.spaceById(spaceIdOfCall(live[0].name))?.name || 'another space';
   res.status(403).json({ error: `This environment's plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
   return true;
 }
@@ -1378,7 +1379,7 @@ hostRouter.get('/api/host/shared', requireHostAdmin, (_req, res) => {
       files: inspected.files.map((f) => ({ name: f, size: inspected.sizes[f], ...(inspected.zooms[f] ? { zoom: inspected.zooms[f] } : {}) })),
       address: hostRegistry.sharedFolderAddress(module, folder),
       exists: inspected.exists,
-      cutting: Boolean(sharedRegionCutJobs.runningFor(module, 'server')),
+      cutting: Boolean(sharedRegionCutJobs.runningFor(module, 'environment')),
     };
   });
   res.json({ folders });
@@ -1465,7 +1466,7 @@ hostRouter.post('/api/host/shared/:module/:folder/region-cut', requireHostAdmin,
   try {
     const out = await sharedRegionCutJobs.start({
       moduleId: found.module,
-      scopeKey: 'server',
+      scopeKey: 'environment',
       source: hostRegistry.sharedFolderAddress(found.module, found.folder),
       folder: found.folder,
       name: String(req.body?.name || ''),
@@ -1632,6 +1633,10 @@ app.post('/api/product/signup', (req, res) => {
   }
 });
 
+// Links saved under the old names (/rooms/<id>, /img/room/<id>, ?room= on a picture, ?moduleRoom= on a pop-out):
+// a permanent redirect to the new name, ahead of the routes below (server/old-links.js).
+mountOldLinks(app);
+
 // Pages ----------------------------------------------------------------------
 
 app.get('/', (req, res) => {
@@ -1754,10 +1759,10 @@ app.get('/admin', (req, res) => {
   res.sendFile(page('admin.html'));
 });
 
-// A room's own page, the same idea as a user's profile page: click it in
-// Manage > Rooms and land here instead of editing it inline in the list.
-app.get('/rooms/:id', (req, res) => {
-  if (!currentUser(req)) return res.redirect(`/login?next=/rooms/${encodeURIComponent(req.params.id)}`);
+// A space's own settings page, the same idea as a user's profile page: click it in
+// Manage > Spaces and land here instead of editing it inline in the list.
+app.get('/spaces/:id', (req, res) => {
+  if (!currentUser(req)) return res.redirect(`/login?next=/spaces/${encodeURIComponent(req.params.id)}`);
   if (!isOwner(req)) return res.status(403).send('Owners only.');
   res.sendFile(page('roomconfig.html'));
 });
@@ -1787,17 +1792,17 @@ app.get('/img/site/background', (_req, res) => {
   res.status(404).end();
 });
 
-// A room's picture: nothing until one is set.
-app.get('/img/room/:id', (req, res) => {
+// A space's picture: nothing until one is set.
+app.get('/img/space/:id', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(403).end();
-  const file = store.roomImagePath(req.params.id);
+  const file = store.spaceImagePath(req.params.id);
   if (file) return sendImage(res, file);
   res.status(404).end();
 });
 
 // The shared guest picture set (see the guest-link routes): one Participant
 // box, standing in for every guest's own images since they have none. The
-// room tile asks for 'profile' the same way it does for a real member, so
+// call's tile asks for 'profile' the same way it does for a real member, so
 // that falls back to the Online picture (or the generic glyph) same as it.
 app.get('/img/guest/:slot', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(403).end();
@@ -1810,7 +1815,7 @@ app.get('/img/guest/:slot', (req, res) => {
 });
 
 // The server-wide Default Images set -- what effectiveImage() falls back
-// to for any member who (and whose room, if any) hasn't set their own.
+// to for any member who (and whose space, if any) hasn't set their own.
 // For previewing the set itself on the Settings page; 404s when unset,
 // same as any other optional slot.
 app.get('/img/default/:slot', (req, res) => {
@@ -1825,23 +1830,23 @@ app.get('/img/default/:slot', (req, res) => {
 // A user's image for a slot. The profile photo always renders (an initials
 // plate when none is set); every other slot is optional and 404s when unset,
 // so overlays and the Participant/Character boxes stay transparent. Signed-in
-// users, stream key holders and guests with a valid room link. ?room=<id>
-// resolves that room's own picture for this slot if it has one, falling
-// back to the default the same as OBS would -- 'profile' never has a room
-// override, so the param is ignored for it.
+// users, stream key holders and guests with a valid guest link. ?space=<id>
+// resolves that space's own picture for this slot if it has one, falling
+// back to the default the same as OBS would -- 'profile' never has a space
+// override, so the param is ignored for it. (?room= is the old name: server/old-links.js.)
 app.get('/img/:key/:slot', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(403).end();
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).end();
   const wanted = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   const slot = SLOTS.includes(wanted) ? wanted : 'profile';
-  const roomId = slot !== 'profile' && typeof req.query.room === 'string' ? req.query.room : null;
-  if (req.query.roomOnly === '1') {
-    // Just this room's own picture -- no fallback to the member's global or default one.
-    const own = roomId && store.usesRoomImages(user.key, roomId) && store.resolveImage(user.key, slot, roomId);
+  const spaceId = slot !== 'profile' && typeof req.query.space === 'string' ? req.query.space : null;
+  if (req.query.spaceOnly === '1') {
+    // Just this space's own picture -- no fallback to the member's global or default one.
+    const own = spaceId && store.usesSpaceImages(user.key, spaceId) && store.resolveImage(user.key, slot, spaceId);
     return own ? sendImage(res, own.file) : res.status(404).end();
   }
-  const resolved = store.effectiveImage(user.key, slot, roomId);
+  const resolved = store.effectiveImage(user.key, slot, spaceId);
   if (resolved) return sendImage(res, resolved.file);
   if (slot !== 'profile' || req.query.fallback === 'none') return res.status(404).end();
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
@@ -1856,9 +1861,9 @@ app.get('/manifest.webmanifest', (_req, res) => {
   if (custom && /\.png$/.test(custom)) icons.push({ src: '/img/site/icon', sizes: 'any', type: 'image/png' });
   icons.push({ src: '/assets/images/brand/brandmark-color.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' });
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
-    name: s.serverName,
-    short_name: s.serverName.length > 12 ? s.serverName.slice(0, 12) : s.serverName,
-    description: `${s.serverName}: voice and video calls`,
+    name: s.environmentName,
+    short_name: s.environmentName.length > 12 ? s.environmentName.slice(0, 12) : s.environmentName,
+    description: `${s.environmentName}: voice and video calls`,
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -2007,17 +2012,17 @@ app.post('/api/register', (req, res) => {
   res.status(201).json({ user: publicUser(req, user) });
 });
 
-// An admin-made invite: signs someone up straight into the rooms it was
+// An owner-made invite: signs someone up straight into the spaces it was
 // made with. Works even while general sign-up is off -- an admin handed
 // this out on purpose.
 app.post('/api/invites', requireOwner, (req, res) => {
-  const invite = store.createInvite((req.body || {}).rooms);
+  const invite = store.createInvite((req.body || {}).spaces);
   res.status(201).json({ invite: { ...invite, url: `${baseUrl(req)}/invite/${invite.token}` } });
 });
 app.get('/api/invites/:token', (req, res) => {
   const invite = store.inviteByToken(req.params.token);
   if (!invite) return res.status(404).json({ error: 'this invite is gone or has expired' });
-  res.json({ invite: { rooms: invite.rooms.map((id) => store.roomById(id)).filter(Boolean).map((r) => r.name), expiresAt: invite.expiresAt } });
+  res.json({ invite: { spaces: invite.spaces.map((id) => store.spaceById(id)).filter(Boolean).map((r) => r.name), expiresAt: invite.expiresAt } });
 });
 app.post('/api/invites/:token/accept', (req, res) => {
   const invite = store.inviteByToken(req.params.token);
@@ -2026,9 +2031,9 @@ app.post('/api/invites/:token/accept', (req, res) => {
   const { login, displayName, password } = req.body || {};
   if (!password) throw new StoreError('a password is required');
   const user = store.addUser({ login, displayName, role: 'member', passwordHash: auth.hashPassword(password) });
-  for (const roomId of invite.rooms) {
-    const room = store.roomById(roomId);
-    if (room) store.updateRoom(roomId, { members: [...room.members, user.key] });
+  for (const spaceId of invite.spaces) {
+    const space = store.spaceById(spaceId);
+    if (space) store.updateSpace(spaceId, { members: [...space.members, user.key] });
   }
   store.removeInvite(invite.token);
   const token = auth.issueSession(store.sessionSecret, user);
@@ -2049,7 +2054,7 @@ app.get('/api/me', requireUser, (req, res) => {
     ...branding(),
     // `owner`: this account is one of the environment's owners -- never the host admin's own cross sign-in stand-in
     // (role admin), which has an owner's rights but is not one.
-    environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.serverName, owner: user.role === 'owner', hostAdmin: Boolean(user.hostAdmin) },
+    environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.environmentName, owner: user.role === 'owner', hostAdmin: Boolean(user.hostAdmin) },
     livekitUrl: livekitWsUrl(req),
     streamKey: hasOwnerRights(user) ? store.streamKey : undefined,
     // documentation/plans/plan-mfa.md: mfaEnrolled also rides along inside `user` (publicUser, for everyone
@@ -2059,7 +2064,7 @@ app.get('/api/me', requireUser, (req, res) => {
     mfaEnrolled: Boolean(user.mfa),
     mfaRequired: !user.mfa && mfaPolicyRequires(user),
     mfaBypass: mfaBypassApplies(user),
-  }, { signedIn: user, role: user.role, hostAdmin: Boolean(user.hostAdmin), environmentName: store.settings.serverName }));
+  }, { signedIn: user, role: user.role, hostAdmin: Boolean(user.hostAdmin), environmentName: store.settings.environmentName }));
 });
 
 // Enrolment (documentation/plans/plan-mfa.md): for the signed-in person, or -- with no session yet -- whoever
@@ -2071,7 +2076,7 @@ app.post('/api/me/mfa/start', requireMfaOffered, async (req, res) => {
   if (!user) return res.status(401).json({ error: 'sign in first' });
   const secret = auth.totpSecret();
   store.mfaStart(user.key, auth.encryptSecret(secret, secretsKeyBuf()));
-  const otpauth = auth.otpauthUrl(store.settings.serverName, user.login, secret);
+  const otpauth = auth.otpauthUrl(store.settings.environmentName, user.login, secret);
   const qr = await QRCode.toString(otpauth, { type: 'svg' });
   res.json({ otpauth, qr, secret });
 });
@@ -2149,45 +2154,45 @@ app.delete('/api/users/:key/mfa', requireOwner, (req, res) => {
   res.json({ ok: true });
 });
 
-// LiveKit token for a room (the Lobby unless asked): players need a session
-// and must belong to the room; OBS viewers need the stream key.
+// A token for the call service, for a space (the Lobby unless asked, as `space`): players need a session and must
+// belong to the space; OBS viewers need the stream key. `call` in the answer is the call's own name there.
 app.post('/api/token', async (req, res) => {
-  const roomId = typeof req.body?.room === 'string' && req.body.room ? req.body.room : LOBBY;
-  const theRoom = store.roomById(roomId);
-  if (!theRoom) return res.status(404).json({ error: 'no such room' });
-  const room = callName(roomId);
+  const spaceId = typeof req.body?.space === 'string' && req.body.space ? req.body.space : LOBBY;
+  const theSpace = store.spaceById(spaceId);
+  if (!theSpace) return res.status(404).json({ error: 'no such space' });
+  const call = callName(spaceId);
   if (req.body?.role === 'viewer') {
     if (!hasStreamAccess(req)) return res.status(403).json({ error: 'stream key required' });
     const identity = `obs-${Date.now().toString(36)}-${randomToken(4)}`;
-    return res.json({ token: await mintToken({ identity, name: 'OBS', room, publisher: false }), livekitUrl: livekitWsUrl(req), identity, room, roomId });
+    return res.json({ token: await mintToken({ identity, name: 'OBS', call, publisher: false }), livekitUrl: livekitWsUrl(req), identity, call, spaceId });
   }
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
-  if (!theRoom.members.includes(user.key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that room' });
-  if (req.body?.call !== false && (await refuseOverCalls(res, roomId))) return;
-  const media = Boolean(store.roomPermissions(user.key, roomId).conference);
-  const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId, conference: media });
+  if (!theSpace.members.includes(user.key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that space' });
+  if (req.body?.call !== false && (await refuseOverCalls(res, spaceId))) return;
+  const media = Boolean(store.spacePermissions(user.key, spaceId).conference);
+  const token = await mintToken({ identity: user.key, name: user.displayName, call, publisher: true, media, inCall: req.body?.call !== false });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, call, spaceId, conference: media });
 });
 
-// Guests: no account, just a name and a room's guest link (see the
+// Guests: no account, just a name and a space's guest link (see the
 // guest-link routes above). Public -- there's nothing to sign in with.
 app.get('/api/guest-link/:token', (req, res) => {
-  const theRoom = store.roomByGuestToken(req.params.token);
-  if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
-  res.json({ roomId: theRoom.id, roomName: theRoom.name });
+  const theSpace = store.spaceByGuestToken(req.params.token);
+  if (!theSpace) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  res.json({ spaceId: theSpace.id, spaceName: theSpace.name });
 });
 app.post('/api/guest-join', async (req, res) => {
-  const theRoom = store.roomByGuestToken(req.body?.token);
-  if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  const theSpace = store.spaceByGuestToken(req.body?.token);
+  if (!theSpace) return res.status(404).json({ error: 'that guest link is off or wrong' });
   const name = cleanText(req.body?.name, 40);
   if (!name) return res.status(400).json({ error: 'a name is required' });
-  const room = callName(theRoom.id);
-  if (req.body?.call !== false && (await refuseOverCalls(res, theRoom.id))) return;
+  const call = callName(theSpace.id);
+  if (req.body?.call !== false && (await refuseOverCalls(res, theSpace.id))) return;
   const identity = `guest-${randomToken(8)}`;
   const permissions = store.roleSet('guest');
-  const token = await mintToken({ identity, name, room, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
-  res.json({ token, livekitUrl: livekitWsUrl(req), identity, room, roomId: theRoom.id, roomName: theRoom.name, guestToken: req.body.token, permissions });
+  const token = await mintToken({ identity, name, call, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
+  res.json({ token, livekitUrl: livekitWsUrl(req), identity, call, spaceId: theSpace.id, spaceName: theSpace.name, guestToken: req.body.token, permissions });
 });
 
 // A user may replace or clear their own profile photo. This is separate from
@@ -2212,29 +2217,29 @@ app.delete('/api/me/images/:slot', requireUser, requireImageRight, (req, res) =>
   store.removeImage(currentUser(req).key, req.imageSlot);
   res.json({ ok: true });
 });
-// The same for a room's own pictures, and the switch that turns them on.
-function requireOwnRoom(req, res, next) {
-  const room = store.roomById(req.params.roomId);
-  if (!room || !room.members.includes(currentUser(req).key)) return res.status(403).json({ error: 'not a member of that room' });
+// The same for a space's own pictures, and the switch that turns them on.
+function requireOwnSpace(req, res, next) {
+  const space = store.spaceById(req.params.spaceId);
+  if (!space || !space.members.includes(currentUser(req).key)) return res.status(403).json({ error: 'not a member of that space' });
   next();
 }
-app.put('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/me/spaces/:spaceId/images/:slot', requireUser, requireOwnSpace, requireImageRight, rawImage, checkStorageCap, (req, res) => {
   const user = currentUser(req);
-  store.setImage(user.key, req.imageSlot, req.body, req.get('content-type'), req.params.roomId);
+  store.setImage(user.key, req.imageSlot, req.body, req.get('content-type'), req.params.spaceId);
   res.json({ user: publicUser(req, store.userByKey(user.key)) });
 });
-app.delete('/api/me/rooms/:roomId/images/:slot', requireUser, requireOwnRoom, requireImageRight, (req, res) => {
+app.delete('/api/me/spaces/:spaceId/images/:slot', requireUser, requireOwnSpace, requireImageRight, (req, res) => {
   const user = currentUser(req);
-  store.removeImage(user.key, req.imageSlot, req.params.roomId);
+  store.removeImage(user.key, req.imageSlot, req.params.spaceId);
   res.json({ user: publicUser(req, store.userByKey(user.key)) });
 });
-app.patch('/api/me/rooms/:roomId', requireUser, requireOwnRoom, (req, res) => {
+app.patch('/api/me/spaces/:spaceId', requireUser, requireOwnSpace, (req, res) => {
   const user = currentUser(req);
   const set = store.roleSet(user.role);
   if (!Object.entries(set).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background')) {
-    return res.status(403).json({ error: 'your role can\'t change room images' });
+    return res.status(403).json({ error: 'your role can\'t change a space\'s images' });
   }
-  store.setRoomPrefs(user.key, req.params.roomId, { useDefaultImages: req.body?.useDefaultImages });
+  store.setSpacePrefs(user.key, req.params.spaceId, { useDefaultImages: req.body?.useDefaultImages });
   res.json({ user: publicUser(req, store.userByKey(user.key)) });
 });
 
@@ -2278,14 +2283,14 @@ app.post('/api/asides/invite', requireUser, (req, res) => {
   const to = store.userByKey(String(req.body?.to || ''));
   if (!to || to.key === me.key) return res.status(400).json({ error: 'pick someone else to invite' });
   if (store.settings.allowPrivate === false) return res.status(403).json({ error: 'private conversations are turned off' });
-  if (!store.roomPermissions(me.key, null).privateCall) return res.status(403).json({ error: "you can't start a private conversation" });
+  if (!store.spacePermissions(me.key, null).privateCall) return res.status(403).json({ error: "you can't start a private conversation" });
   if (!isPresent(to.key)) return res.status(409).json({ error: `${to.displayName} is not online right now` });
-  const room = store.addAsideRoom([me.key, to.key], null, true);
-  const invite = { id: randomToken(), from: me.key, to: to.key, roomId: room.id, at: Date.now() };
+  const aside = store.addAside([me.key, to.key], null, true);
+  const invite = { id: randomToken(), from: me.key, to: to.key, spaceId: aside.id, at: Date.now() };
   invites.set(invite.id, invite);
   for (const [id, i] of invites) if (Date.now() - i.at > INVITE_MS) invites.delete(id);
   inviteEvents.emit('invite', { ...invite, fromName: me.displayName });
-  res.json({ room, invite: { id: invite.id } });
+  res.json({ aside, invite: { id: invite.id } });
 });
 // Declining just ends the invitation; the inviter is not told anything unfriendly, the aside simply stays empty.
 app.post('/api/asides/invite/:id/decline', requireUser, (req, res) => {
@@ -2299,12 +2304,12 @@ app.get('/api/presence', async (req, res) => {
   if (!user && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(401).json({ error: 'sign in first' });
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
-  store.pruneAsideRooms(byKey);
+  store.pruneAsides(byKey);
   res.json({
     ...branding(),
-    users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
-    rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
-    activeRoom: activeRoomId(byKey),
+    users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), space: byKey.get(u.key)?.space || null, inCall: byKey.get(u.key)?.inCall ?? false })),
+    spaces: store.spaces.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
+    activeSpace: activeSpaceId(byKey),
     adminOnline: hasOnlineOwner(byKey),
   });
 });
@@ -2331,23 +2336,23 @@ app.post('/api/asides', requireUser, async (req, res) => {
     const initiatorCall = here.get(initiator.key)?.call;
     if (!initiatorCall) return res.status(400).json({ error: 'you need to be in a call yourself to pull someone aside' });
     const originId = spaceIdOfCall(initiatorCall);
-    const perms = store.roomPermissions(initiator.key, originId);
+    const perms = store.spacePermissions(initiator.key, originId);
     if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
     for (const target of targets) {
       const there = here.get(target.key);
       if (!there || there.call !== initiatorCall) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
       if (!there.inCall) return res.status(409).json({ error: `${target.displayName} is not in the conference right now` });
     }
-    const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], originId, priv);
+    const aside = store.addAside([initiator.key, ...targets.map((t) => t.key)], originId, priv);
     // byAdmin tells the target's page whether to just go (an admin's call) or ask first.
-    const payload = asidePayload(ASIDE_TOPICS.pull, { roomId: room.id, byAdmin: hasOwnerRights(initiator), private: priv, from: initiator.displayName });
-    await roomService.sendData(initiatorCall, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: ASIDE_TOPICS.pull });
+    const payload = asidePayload(ASIDE_TOPICS.pull, { spaceId: aside.id, byAdmin: hasOwnerRights(initiator), private: priv, from: initiator.displayName });
+    await callService.sendData(initiatorCall, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: ASIDE_TOPICS.pull });
     // Everyone left behind: a private word is private from the others, not invisible to them -- this is what lets
     // their tiles turn into "in an aside" placeholders right away instead of just looking like they hung up until
     // the next poll catches up.
-    const bystanderPayload = asidePayload(ASIDE_TOPICS.started, { roomId: room.id, members: room.members });
-    await roomService.sendData(initiatorCall, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.started }).catch(() => {});
-    res.json({ room });
+    const bystanderPayload = asidePayload(ASIDE_TOPICS.started, { spaceId: aside.id, members: aside.members });
+    await callService.sendData(initiatorCall, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.started }).catch(() => {});
+    res.json({ aside });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -2364,16 +2369,16 @@ app.post('/api/asides/recall', requireOwner, async (req, res) => {
     const adminCall = online.find((p) => p.key === admin.key)?.call;
     if (!adminCall) return res.status(400).json({ error: 'you need to be in a call yourself to recall anyone' });
     const originId = spaceIdOfCall(adminCall);
-    const destRoom = store.roomById(originId);
-    const privateRooms = store.rooms.filter((r) => r.ephemeral && r.private && r.origin === originId);
-    if (!privateRooms.length) return res.status(400).json({ error: 'nobody is off in a private conversation from here right now' });
-    const payload = asidePayload(ASIDE_TOPICS.recall, { roomId: originId, roomName: destRoom?.name || 'the call' });
+    const destSpace = store.spaceById(originId);
+    const privateAsides = store.spaces.filter((r) => r.ephemeral && r.private && r.origin === originId);
+    if (!privateAsides.length) return res.status(400).json({ error: 'nobody is off in a private conversation from here right now' });
+    const payload = asidePayload(ASIDE_TOPICS.recall, { spaceId: originId, spaceName: destSpace?.name || 'the call' });
     // Each private aside's call by its name, and by whatever name the people in it are really in (a call from
     // before the upgrade, for that one release).
-    const ids = new Set(privateRooms.map((r) => r.id));
-    const calls = new Set([...privateRooms.map((r) => callName(r.id)), ...online.filter((p) => ids.has(p.room)).map((p) => p.call)]);
-    await Promise.all([...calls].map((call) => roomService.sendData(call, payload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.recall }).catch(() => {})));
-    res.json({ recalled: privateRooms.length });
+    const ids = new Set(privateAsides.map((r) => r.id));
+    const calls = new Set([...privateAsides.map((r) => callName(r.id)), ...online.filter((p) => ids.has(p.space)).map((p) => p.call)]);
+    await Promise.all([...calls].map((call) => callService.sendData(call, payload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.recall }).catch(() => {})));
+    res.json({ recalled: privateAsides.length });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -2387,18 +2392,18 @@ app.post('/api/asides/return', requireUser, async (req, res) => {
     const me = currentUser(req);
     const mine = (await participants()).find((p) => p.key === me.key);
     if (!mine) return res.status(400).json({ error: 'you need to be in a call' });
-    const current = store.roomById(mine.room);
+    const current = store.spaceById(mine.space);
     if (!current || !current.ephemeral) return res.status(400).json({ error: 'you are not in an aside' });
-    const dest = (current.origin && store.roomById(current.origin)) || store.roomById(LOBBY);
+    const dest = (current.origin && store.spaceById(current.origin)) || store.spaceById(LOBBY);
     const others = current.members.filter((k) => k !== me.key);
     if (others.length) {
-      const payload = asidePayload(ASIDE_TOPICS.return, { roomId: dest.id });
+      const payload = asidePayload(ASIDE_TOPICS.return, { spaceId: dest.id });
       // Best-effort: I still get to leave even if the others cannot be nudged.
-      await roomService
+      await callService
         .sendData(mine.call, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: others, topic: ASIDE_TOPICS.return })
         .catch(() => {});
     }
-    res.json({ room: dest });
+    res.json({ space: dest });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -2409,15 +2414,15 @@ app.post('/api/asides/return', requireUser, async (req, res) => {
 app.get('/api/status', requireStream, async (req, res) => {
   const online = await participants();
   const byKey = new Map(online.map((p) => [p.key, p]));
-  store.pruneAsideRooms(byKey);
+  store.pruneAsides(byKey);
   res.json(studioAlias.status(req, {
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u), online: withoutCall(byKey.get(u.key)) })),
-    rooms: store.rooms,
-    activeRoom: activeRoomId(byKey),
+    spaces: store.spaces,
+    activeSpace: activeSpaceId(byKey),
     adminOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
-  }, { signedIn: currentUser(req), environmentName: store.settings.serverName }));
+  }, { signedIn: currentUser(req), environmentName: store.settings.environmentName }));
 });
 
 // What a keyed page (public/keyed.html) needs to mount the module that claims its path: the surface's own entry
@@ -2429,65 +2434,65 @@ app.get('/api/pages/:path', requireStream, (req, res) => {
   res.json({ page: { path: req.params.path, entry: manifest.surfaces.keyed.entry, module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, runMode } } });
 });
 
-// Rooms: the Lobby (everyone) plus the rooms an admin curates. Signed-in
-// users and stream key holders can read them; admins change them.
-app.get('/api/rooms', (req, res) => {
+// Spaces: the Lobby (everyone) plus the spaces an owner curates. Signed-in
+// users and stream key holders can read them; owners change them.
+app.get('/api/spaces', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
-  res.json({ rooms: store.rooms });
+  res.json({ spaces: store.spaces });
 });
-app.post('/api/rooms', requireOwner, (req, res) => {
+app.post('/api/spaces', requireOwner, (req, res) => {
   const { name, description, members, profile, link, linkIcon } = req.body || {};
-  res.json({ room: store.addRoom({ name, description, members, profile, link, linkIcon }) });
+  res.json({ space: store.addSpace({ name, description, members, profile, link, linkIcon }) });
 });
-app.post('/api/rooms/order', requireOwner, (req, res) => {
-  res.json({ rooms: store.reorderRooms((req.body || {}).order) });
+app.post('/api/spaces/order', requireOwner, (req, res) => {
+  res.json({ spaces: store.reorderSpaces((req.body || {}).order) });
 });
-app.get('/api/rooms/:id', requireOwner, (req, res) => {
-  const room = store.roomById(req.params.id);
-  if (!room) return res.status(404).json({ error: 'no such room' });
-  res.json({ room });
+app.get('/api/spaces/:id', requireOwner, (req, res) => {
+  const space = store.spaceById(req.params.id);
+  if (!space) return res.status(404).json({ error: 'no such space' });
+  res.json({ space });
 });
-app.patch('/api/rooms/:id', requireOwner, (req, res) => {
-  res.json({ room: store.updateRoom(req.params.id, req.body || {}) });
+app.patch('/api/spaces/:id', requireOwner, (req, res) => {
+  res.json({ space: store.updateSpace(req.params.id, req.body || {}) });
 });
-app.delete('/api/rooms/:id', requireOwner, (req, res) => {
-  store.removeRoom(req.params.id);
-  moduleSettings.forgetRoom(req.params.id);
-  chatHistory.forgetRoom(req.params.id);
+app.delete('/api/spaces/:id', requireOwner, (req, res) => {
+  store.removeSpace(req.params.id);
+  moduleSettings.forgetSpace(req.params.id);
+  chatHistory.forgetSpace(req.params.id);
   res.json({ ok: true });
 });
-app.put('/api/rooms/:id/image', requireOwner, rawImage, checkStorageCap, (req, res) => {
-  store.setRoomImage(req.params.id, req.body, req.get('content-type'));
-  res.json({ room: store.roomById(req.params.id) });
+app.put('/api/spaces/:id/image', requireOwner, rawImage, checkStorageCap, (req, res) => {
+  store.setSpaceImage(req.params.id, req.body, req.get('content-type'));
+  res.json({ space: store.spaceById(req.params.id) });
 });
-app.delete('/api/rooms/:id/image', requireOwner, (req, res) => {
-  store.removeRoomImage(req.params.id);
-  res.json({ room: store.roomById(req.params.id) });
+app.delete('/api/spaces/:id/image', requireOwner, (req, res) => {
+  store.removeSpaceImage(req.params.id);
+  res.json({ space: store.spaceById(req.params.id) });
 });
 
-// A room's guest link: anyone actually in the room can turn it on, copy it,
+// A space's guest link: anyone actually in the space can turn it on, copy it,
 // regenerate it or turn it off -- there's no account behind a guest to gate
 // this on, unlike everything else admin-only above. create/regenerate
 // (POST) mirror the personal-link routes above; DELETE turns it off.
-function requireRoomMember(req, res, next) {
-  const room = store.roomById(req.params.id);
-  if (!room) return res.status(404).json({ error: 'no such room' });
-  if (!room.members.includes(currentUser(req).key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that room' });
+function requireSpaceMember(req, res, next) {
+  const space = store.spaceById(req.params.id);
+  if (!space) return res.status(404).json({ error: 'no such space' });
+  if (!space.members.includes(currentUser(req).key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that space' });
   next();
 }
-// Managing the link needs Can Invite for that room (admins always can) --
-// being in the room alone no longer is enough.
+// Managing the link needs Can Invite for that space (owners always can) --
+// being in the space alone no longer is enough.
 function requireCanInvite(req, res, next) {
-  if (!store.roomPermissions(currentUser(req).key, req.params.id).canInvite) return res.status(403).json({ error: 'you can\'t invite people to this room' });
+  if (!store.spacePermissions(currentUser(req).key, req.params.id).canInvite) return res.status(403).json({ error: 'you can\'t invite people to this space' });
   next();
 }
-app.post('/api/rooms/:id/guest-link', requireUser, requireRoomMember, requireCanInvite, (req, res) => {
+app.post('/api/spaces/:id/guest-link', requireUser, requireSpaceMember, requireCanInvite, (req, res) => {
   const guestToken = req.body?.regenerate ? store.regenerateGuestLink(req.params.id) : store.enableGuestLink(req.params.id);
-  res.json({ room: store.roomById(req.params.id), guestUrl: `${baseUrl(req)}/guest/${guestToken}` });
+  res.json({ space: store.spaceById(req.params.id), guestUrl: `${baseUrl(req)}/guest/${guestToken}` });
 });
-app.delete('/api/rooms/:id/guest-link', requireUser, requireRoomMember, requireCanInvite, (req, res) => {
+app.delete('/api/spaces/:id/guest-link', requireUser, requireSpaceMember, requireCanInvite, (req, res) => {
   store.disableGuestLink(req.params.id);
-  res.json({ room: store.roomById(req.params.id) });
+  res.json({ space: store.spaceById(req.params.id) });
 });
 
 // Admin API -------------------------------------------------------------------
@@ -2556,51 +2561,51 @@ app.delete('/api/users/:key/images/:slot', requireOwner, (req, res) => {
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 
-// A room-specific override for one of that same person's image slots --
-// stands in for their default only inside that one room (someone in two
+// A space's own override for one of that same person's image slots --
+// stands in for their default only inside that one space (someone in two
 // campaigns with two different characters). Admin-only, same as the
 // defaults themselves.
-// Per-room settings for one member: which pictures apply there, and what
-// they're allowed to do (Permissions on their profile's Rooms tab).
-app.patch('/api/users/:key/rooms/:roomId', requireOwner, (req, res) => {
-  store.setRoomPrefs(req.params.key, req.params.roomId, req.body || {});
+// Per-space settings for one member: which pictures apply there, and what
+// they're allowed to do (Permissions on their profile's Spaces tab).
+app.patch('/api/users/:key/spaces/:spaceId', requireOwner, (req, res) => {
+  store.setSpacePrefs(req.params.key, req.params.spaceId, req.body || {});
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.delete('/api/rooms/:id/members/:key', requireOwner, (req, res) => {
+app.delete('/api/spaces/:id/members/:key', requireOwner, (req, res) => {
   store.removeMember(req.params.id, req.params.key);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.put('/api/users/:key/rooms/:roomId/images/:slot', requireOwner, rawImage, checkStorageCap, (req, res) => {
-  store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.roomId);
+app.put('/api/users/:key/spaces/:spaceId/images/:slot', requireOwner, rawImage, checkStorageCap, (req, res) => {
+  store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.spaceId);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireOwner, (req, res) => {
+app.delete('/api/users/:key/spaces/:spaceId/images/:slot', requireOwner, (req, res) => {
   const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
-  store.removeImage(req.params.key, slot, req.params.roomId);
+  store.removeImage(req.params.key, slot, req.params.spaceId);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
 
-// Admin, or a member the admin gave Can Kick / Can Mute for the room both of
+// Admin, or a member the admin gave Can Kick / Can Mute for the space both of
 // them are in right now (never against an admin) -- see Permissions on a
-// user's profile, Rooms tab.
+// user's profile, Spaces tab.
 async function canModerate(req, targetKey, permission) {
   const actor = currentUser(req);
-  const room = await callOf(targetKey);
-  if (!room) return { error: [404, 'not in a call'] };
-  if (hasOwnerRights(actor)) return { room };
+  const call = await callOf(targetKey);
+  if (!call) return { error: [404, 'not in a call'] };
+  if (hasOwnerRights(actor)) return { call };
   const target = store.userByKey(targetKey);
   if (!target || hasOwnerRights(target) || target.key === actor.key) return { error: [403, 'not allowed'] };
-  if ((await callOf(actor.key)) !== room) return { error: [403, 'not allowed'] };
-  if (!store.roomPermissions(actor.key, spaceIdOfCall(room))[permission]) return { error: [403, 'not allowed'] };
-  return { room };
+  if ((await callOf(actor.key)) !== call) return { error: [403, 'not allowed'] };
+  if (!store.spacePermissions(actor.key, spaceIdOfCall(call))[permission]) return { error: [403, 'not allowed'] };
+  return { call };
 }
 
 app.post('/api/users/:key/kick', requireUser, async (req, res) => {
   try {
-    const { room, error } = await canModerate(req, req.params.key, 'canKick');
+    const { call, error } = await canModerate(req, req.params.key, 'canKick');
     if (error) return res.status(error[0]).json({ error: error[1] });
-    await roomService.removeParticipant(room, req.params.key);
+    await callService.removeParticipant(call, req.params.key);
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
@@ -2609,12 +2614,12 @@ app.post('/api/users/:key/kick', requireUser, async (req, res) => {
 
 app.post('/api/users/:key/mute', requireUser, async (req, res) => {
   try {
-    const { room, error } = await canModerate(req, req.params.key, 'canMute');
+    const { call, error } = await canModerate(req, req.params.key, 'canMute');
     if (error) return res.status(error[0]).json({ error: error[1] });
-    const info = await roomService.getParticipant(room, req.params.key);
+    const info = await callService.getParticipant(call, req.params.key);
     const mic = (info.tracks || []).find((t) => t.source === 2);
     if (!mic) return res.status(404).json({ error: 'no microphone track' });
-    await roomService.mutePublishedTrack(room, req.params.key, mic.sid, req.body?.muted !== false);
+    await callService.mutePublishedTrack(call, req.params.key, mic.sid, req.body?.muted !== false);
     res.json({ ok: true });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
@@ -2627,8 +2632,8 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 // The two panes that ship with the app, listed beside the installed modules. They are always on and
 // cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
 const BUILTIN_MODULES = [
-  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the room: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every room. Chat, presence and modules keep working.', turnOn: 'Voice and video for the room. It needs a LiveKit server.' },
-  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the room, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
+  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the space: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every space. Chat, presence and modules keep working.', turnOn: 'Voice and video for the space. It needs a LiveKit server.' },
+  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the space, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
 ];
 // Modules that ship with this deployment (the modules/ folder), and where each stands:
 // not installed, installed and current, or installed with a newer version available. Installing or
@@ -2680,7 +2685,7 @@ app.patch('/api/modules/:id', requireOwner, (req, res) => {
     const current = modules.list().find((m) => m.id === req.params.id);
     if (current && refuseModuleNotInPlan(res, current.id, current.name)) return;
   }
-  res.json({ module: modules.update(req.params.id, req.body || {}, { roomExists: (id) => !!store.roomById(id) }) });
+  res.json({ module: modules.update(req.params.id, req.body || {}, { spaceExists: (id) => !!store.spaceById(id) }) });
 });
 app.post('/api/modules/:id/rollback', requireOwner, (req, res) => {
   res.json({ module: modules.rollback(req.params.id, String(req.body?.version || '')) });
@@ -2704,28 +2709,51 @@ app.delete('/api/modules/:id', requireOwner, (req, res) => {
 // module's frame makes these calls on the frame's behalf (see
 // public/module-host.js); the frame itself never talks to the server.
 
-// Who is asking: a signed-in user, a guest carrying a room's guest token, or -- carrying the access key and no
+// Who is asking: a signed-in user, a guest carrying a space's guest token, or -- carrying the access key and no
 // session -- a keyed viewer: a module's own keyed page (see moduleAccess below), never a person, so it reads
 // only, and only a module with a keyed surface.
 function moduleViewer(req) {
   const user = currentUser(req);
-  if (user) return { user, guestRoom: null };
+  if (user) return { user, guestSpace: null };
   const token = req.query.guest;
-  const guestRoom = typeof token === 'string' ? store.roomByGuestToken(token) : null;
-  if (guestRoom) return { user: null, guestRoom };
-  return hasStreamKey(req) ? { user: null, guestRoom: null, keyed: true } : null;
+  const guestSpace = typeof token === 'string' ? store.spaceByGuestToken(token) : null;
+  if (guestSpace) return { user: null, guestSpace };
+  return hasStreamKey(req) ? { user: null, guestSpace: null, keyed: true } : null;
 }
 
-// Whether someone may see a room's module at all: on for that room, and in it.
-function moduleRoomAccess(entry, who, room) {
-  if (!(entry.allRooms || entry.rooms.includes(room.id))) return false;
-  if (who.user) return hasOwnerRights(who.user) || room.members.includes(who.user.key);
-  return who.guestRoom.id === room.id;
+// Whether someone may see a module in a space at all: on for that space, and in it.
+function moduleSpaceAccess(entry, who, space) {
+  if (!(entry.allSpaces || entry.spaces.includes(space.id))) return false;
+  if (who.user) return hasOwnerRights(who.user) || space.members.includes(who.user.key);
+  return who.guestSpace.id === space.id;
 }
 
-function modulePerms(who, roomId) {
+// A module's scope as a request names it (?scope=): 'environment' (also when none is named), 'space', 'spaces' (a
+// module's page reading across the viewer's spaces) or 'person'. Anything else -- the old 'room' and 'server' from a
+// page open across the upgrade, say -- is refused rather than read as the environment, so nothing a page meant for a
+// space lands in the environment's data. Answers the scope, or null after sending the 400.
+const SCOPE_NAMES = ['environment', 'space', 'spaces', 'person'];
+const BAD_SCOPE = 'scope must be environment, space, spaces or person';
+function askedScope(value, res, allowed = SCOPE_NAMES) {
+  const scope = value === undefined || value === '' ? 'environment' : value;
+  if (!SCOPE_NAMES.includes(scope)) return void res.status(400).json({ error: BAD_SCOPE });
+  if (!allowed.includes(scope)) return void res.status(400).json({ error: `scope must be ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')} here` });
+  return scope;
+}
+// Who a notification goes to: everyone in the space, everyone in the environment, or one person by key. Anything
+// else (the old 'room' and 'server') would be kept and reach nobody, so it is refused.
+function refuseNotifyTo(to, res) {
+  if (to === undefined || to === null || to === '' || to === 'space' || to === 'environment') return false;
+  if (typeof to === 'string' && store.userByKey(to)) return false;
+  res.status(400).json({ error: 'to must be space, environment or a person\'s key' });
+  return true;
+}
+// Where a scope's data, uploads and events are kept for a module: 'environment', 'space:<id>' or 'person:<key>'.
+const scopeKeyOf = (scope, { spaceId = null, userKey = null } = {}) => (scope === 'space' ? `space:${spaceId}` : scope === 'person' ? `person:${userKey}` : 'environment');
+
+function modulePerms(who, spaceId) {
   if (who.keyed) return {};
-  return who.user ? store.roomPermissions(who.user.key, roomId) : store.roleSet('guest');
+  return who.user ? store.spacePermissions(who.user.key, spaceId) : store.roleSet('guest');
 }
 
 function moduleCan(manifest, perms, need) {
@@ -2742,65 +2770,66 @@ function moduleAccess(req, res, need) {
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
   // The access key stands in for a session only on a module's own keyed page, and only to read it: the key is
-  // the permission, so there is no room, person or fine-grained access.read to check beyond that.
+  // the permission, so there is no space, person or fine-grained access.read to check beyond that.
   if (who.keyed) {
     if (need !== 'read' || !manifest.surfaces.keyed) return void res.status(403).json({ error: 'the access key only reads a module with a keyed page' });
-    return { manifest, entry, scope: 'server', roomId: null, scopeKey: 'server', who, perms: {}, by: 'keyed' };
+    return { manifest, entry, scope: 'environment', spaceId: null, scopeKey: 'environment', who, perms: {}, by: 'keyed' };
   }
-  const scope = req.query.scope === 'room' ? 'room' : req.query.scope === 'person' ? 'person' : 'server';
+  const scope = askedScope(req.query.scope, res, ['environment', 'space', 'person']);
+  if (!scope) return;
   if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this module has no ${scope} scope` });
-  let roomId = null;
+  let spaceId = null;
   if (scope === 'person') {
     // A person's own data (their profile's): only they can reach it, not even an administrator, because the place it is kept
     // is named by who is asking.
     if (!who.user) return void res.status(403).json({ error: 'guests have no personal data' });
-  } else if (scope === 'room') {
-    const room = store.roomById(String(req.query.room || ''));
-    if (!room) return void res.status(404).json({ error: 'no such room' });
-    if (!moduleRoomAccess(entry, who, room)) return void res.status(403).json({ error: 'this module is not available in that room for you' });
-    roomId = room.id;
+  } else if (scope === 'space') {
+    const space = store.spaceById(String(req.query.space || ''));
+    if (!space) return void res.status(404).json({ error: 'no such space' });
+    if (!moduleSpaceAccess(entry, who, space)) return void res.status(403).json({ error: 'this module is not available in that space for you' });
+    spaceId = space.id;
   } else if (!who.user) {
-    return void res.status(403).json({ error: 'guests can only use room modules' });
+    return void res.status(403).json({ error: 'guests can only use a module in a space' });
   }
-  const perms = modulePerms(who, roomId);
+  const perms = modulePerms(who, spaceId);
   if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
-  return { manifest, entry, scope, roomId, scopeKey: scope === 'room' ? `room:${roomId}` : scope === 'person' ? `person:${who.user.key}` : 'server', who, perms, by: who.user?.key || 'guest' };
+  return { manifest, entry, scope, spaceId, scopeKey: scopeKeyOf(scope, { spaceId, userKey: who.user?.key }), who, perms, by: who.user?.key || 'guest' };
 }
 
 // --- chat history --------------------------------------------------------------------------------
 // Chat travels live over LiveKit; the sender also posts the text here so someone who joins later reads what
-// was said (see server/chat-history.js for what is kept and for how long). Only a real room keeps history, never
+// was said (see server/chat-history.js for what is kept and for how long). Only a real space keeps history, never
 // an aside. Reading needs the "open and read the chat" permission, posting "send chat messages", and the person
-// must be in the room (or an admin, or a guest of that room).
-function chatRoomFor(req, res, permission) {
+// must be in the space (or an owner, or a guest of that space).
+function chatSpaceFor(req, res, permission) {
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
-  const room = store.roomById(req.params.id);
-  if (!room) return void res.status(404).json({ error: 'no such room' });
-  const allowed = who.user ? hasOwnerRights(who.user) || room.members.includes(who.user.key) : who.guestRoom.id === room.id;
-  if (!allowed) return void res.status(403).json({ error: 'you are not in that room' });
-  const perms = who.user ? store.roomPermissions(who.user.key, room.id) : store.roleSet('guest');
+  const space = store.spaceById(req.params.id);
+  if (!space) return void res.status(404).json({ error: 'no such space' });
+  const allowed = who.user ? hasOwnerRights(who.user) || space.members.includes(who.user.key) : who.guestSpace.id === space.id;
+  if (!allowed) return void res.status(403).json({ error: 'you are not in that space' });
+  const perms = who.user ? store.spacePermissions(who.user.key, space.id) : store.roleSet('guest');
   if (!perms[permission]) return void res.status(403).json({ error: 'your role cannot do that' });
-  return { who, room };
+  return { who, space };
 }
 
-app.get('/api/rooms/:id/chat', (req, res) => {
-  const found = chatRoomFor(req, res, 'chatRead');
+app.get('/api/spaces/:id/chat', (req, res) => {
+  const found = chatSpaceFor(req, res, 'chatRead');
   if (!found) return;
-  res.json({ messages: found.room.ephemeral ? [] : chatHistory.list(found.room.id) });
+  res.json({ messages: found.space.ephemeral ? [] : chatHistory.list(found.space.id) });
 });
 
-app.post('/api/rooms/:id/chat', (req, res) => {
-  const found = chatRoomFor(req, res, 'chat');
+app.post('/api/spaces/:id/chat', (req, res) => {
+  const found = chatSpaceFor(req, res, 'chat');
   if (!found) return;
-  const { who, room } = found;
-  if (room.ephemeral) return res.json({ message: null });
-  const key = who.user ? who.user.key : `guest:${room.id}`;
+  const { who, space } = found;
+  if (space.ephemeral) return res.json({ message: null });
+  const key = who.user ? who.user.key : `guest:${space.id}`;
   const now = Date.now();
   const recent = (chatPosts.get(key) || []).filter((t) => now - t < 10000);
   if (recent.length >= 30) return res.status(429).json({ error: 'too many messages, slow down' });
   chatPosts.set(key, [...recent, now]);
-  const message = chatHistory.add(room.id, {
+  const message = chatHistory.add(space.id, {
     by: who.user ? who.user.key : 'guest',
     who: who.user ? who.user.displayName : req.body?.name,
     text: req.body?.text,
@@ -2808,21 +2837,21 @@ app.post('/api/rooms/:id/chat', (req, res) => {
   res.json({ message });
 });
 
-// --- a module's page reading every room the viewer belongs to ---------------
-// A module with a server page and a room panel (the Calendar) can show, on its page, what is
-// stored in each of the viewer's rooms. Only rooms the viewer is a member of count (not every
-// room an admin could open), the module must be on for the room, and the viewer's role must
+// --- a module's page reading every space the viewer belongs to ---------------
+// A module with a server page and a space panel (the Calendar) can show, on its page, what is
+// stored in each of the viewer's spaces. Only spaces the viewer is a member of count (not every
+// space an owner could open), the module must be on for the space, and the viewer's role must
 // be allowed to read it there. Read-only: writes always go to one scope.
 
 // A Font Awesome icon as inline SVG, for a module's sandboxed frame, which cannot load the icon font.
 function iconSvg(id) {
-  if (roomIconSvgs.has(id)) return roomIconSvgs.get(id);
+  if (iconSvgs.has(id)) return iconSvgs.get(id);
   const icon = (store.settings.icons || []).find((i) => i.id === id);
   const classes = icon?.classes || `fa-solid fa-${id}`;
   const style = /fa-brands/.test(classes) ? 'brands' : /fa-regular/.test(classes) ? 'regular' : 'solid';
   const name = classes.split(/\s+/).filter((c) => c.startsWith('fa-')).map((c) => c.slice(3)).find((n) => !['solid', 'regular', 'brands', 'fw'].includes(n));
   const svg = name && /^[a-z0-9-]+$/.test(name) ? faSvg(style, name) : null;
-  roomIconSvgs.set(id, svg);
+  iconSvgs.set(id, svg);
   return svg;
 }
 
@@ -2849,32 +2878,32 @@ app.get('/api/icons/:style/:name', requireUser, (req, res) => {
   res.type('image/svg+xml').set('Cache-Control', 'private, max-age=86400').send(svg);
 });
 
-// The viewer's rooms for this module, or null after sending the error.
-function moduleRoomsFor(req, res) {
+// The viewer's spaces for this module, or null after sending the error.
+function moduleSpacesFor(req, res) {
   const found = modules.enabled(req.params.id);
   if (!found) return void res.status(404).json({ error: 'no such module' });
   const who = moduleViewer(req);
-  if (!who?.user) return void res.status(403).json({ error: 'guests can only use room modules' });
+  if (!who?.user) return void res.status(403).json({ error: 'guests can only use a module in a space' });
   const { manifest, entry } = found;
-  if (!manifest.scope.includes('room')) return void res.status(400).json({ error: 'this module has no room scope' });
+  if (!manifest.scope.includes('space')) return void res.status(400).json({ error: 'this module has no space scope' });
   if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
-  const rooms = store.rooms.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
-    && (entry.allRooms || entry.rooms.includes(r.id)) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
-  return { manifest, rooms };
+  const spaces = store.spaces.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
+    && (entry.allSpaces || entry.spaces.includes(r.id)) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
+  return { manifest, spaces };
 }
-const roomSummary = (r) => {
+const spaceSummary = (r) => {
   const icon = r.linkIcon && r.linkIcon !== 'link' ? r.linkIcon : 'message';
   return { id: r.id, name: r.name, icon, svg: iconSvg(icon) };
 };
 
-app.get('/api/modules/:id/rooms-data', (req, res) => {
-  const found = moduleRoomsFor(req, res);
+app.get('/api/modules/:id/spaces-data', (req, res) => {
+  const found = moduleSpacesFor(req, res);
   if (!found) return;
-  const rooms = found.rooms.map(roomSummary);
-  if (req.query.info) return res.json({ rooms });
+  const spaces = found.spaces.map(spaceSummary);
+  if (req.query.info) return res.json({ spaces });
   const prefix = typeof req.query.prefix === 'string' ? req.query.prefix : '';
-  const items = found.rooms.flatMap((r) => moduleData.list(found.manifest.id, `room:${r.id}`, prefix).map((item) => ({ ...item, roomId: r.id })));
-  res.json({ rooms, items });
+  const items = found.spaces.flatMap((r) => moduleData.list(found.manifest.id, scopeKeyOf('space', { spaceId: r.id }), prefix).map((item) => ({ ...item, spaceId: r.id })));
+  res.json({ spaces, items });
 });
 
 // --- refs: one module pointing at another's items ---------------------------
@@ -2883,18 +2912,21 @@ app.get('/api/modules/:id/rooms-data', (req, res) => {
 // at (`refs.produces`: a kind, the stored key its items live under, which stored fields make up a
 // small card, and whether it can open one or show what links to it) and which kinds it wants to point
 // at (`refs.consumes`: named kinds, or "*" for whatever other modules share; approved by an admin).
-// The consumer stores only a pointer ({ module, kind, id, scope, room }) and asks the host for the card
+// The consumer stores only a pointer ({ module, kind, id, scope, space? }) and asks the host for the card
 // whenever it draws it. The host answers only what the viewer could already see in the producing
 // module: it must be enabled, the viewer must hold its read permission in that scope (and be in the
-// room), and the consumer must have been approved for that kind. What comes back is the card, never
+// space), and the consumer must have been approved for that kind. What comes back is the card, never
 // the stored record. Nothing here names a module: a module installed tomorrow takes part by declaring.
 
 const refError = (status, message) => Object.assign(new Error(message), { status });
 const REF_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
-const refScopeKey = (ref) => (ref.scope === 'room' ? `room:${ref.room}` : 'server');
+// A pointer's scope is 'environment', 'person', or 'space' with the space's id in `space`.
+const refScopeKey = (ref) => (ref.scope === 'space' ? scopeKeyOf('space', { spaceId: ref.space }) : 'environment');
 const refShape = (r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && REF_ID_RE.test(String(r.id ?? ''))
-  && (r.scope === 'server' || r.scope === 'person' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+  && (r.scope === 'environment' || r.scope === 'person' || (r.scope === 'space' && typeof r.space === 'string' && r.space.length <= 64));
+// A pointer as the host keeps and answers it: only its own fields.
+const plainRef = (r) => ({ module: r.module, kind: r.kind, id: String(r.id), scope: r.scope, ...(r.scope === 'space' ? { space: r.space } : {}) });
 
 // Whether the consumer's manifest declares, and the admin approved, linking to provider:kind.
 function consumerMayLink(consumer, provider, kind) {
@@ -2907,7 +2939,7 @@ function consumerMayLink(consumer, provider, kind) {
 // Check that this viewer may look at one scope of `provider`'s items of `kind`. Through a consumer
 // (`from`, which must have been approved for the kind), or, for backlinks, with no consumer at all
 // (`skipConsumer`): a module may always see what points at its own items, as far as the viewer may.
-function refScope(who, { provider, kind, scope, room, from, skipConsumer = false }) {
+function refScope(who, { provider, kind, scope, space, from, skipConsumer = false }) {
   const found = modules.enabled(provider);
   if (!found) throw refError(404, 'no such module');
   const produce = found.manifest.refs.produces.find((p) => p.kind === kind);
@@ -2922,15 +2954,15 @@ function refScope(who, { provider, kind, scope, room, from, skipConsumer = false
   const { manifest, entry } = found;
   let scopeKey;
   let perms;
-  if (scope === 'room') {
-    const r = store.roomById(String(room || ''));
-    if (!r) throw refError(404, 'no such room');
-    if (!manifest.scope.includes('room')) throw refError(400, 'that module has no room scope');
-    if (!moduleRoomAccess(entry, who, r)) throw refError(403, 'that module is not available in that room for you');
-    // The asking module must itself be on in that room, and readable by the viewer.
-    if (consumer && (!moduleRoomAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, 'the linking module is not available in that room for you');
+  if (scope === 'space') {
+    const r = store.spaceById(String(space || ''));
+    if (!r) throw refError(404, 'no such space');
+    if (!manifest.scope.includes('space')) throw refError(400, 'that module has no space scope');
+    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, 'that module is not available in that space for you');
+    // The asking module must itself be on in that space, and readable by the viewer.
+    if (consumer && (!moduleSpaceAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, 'the linking module is not available in that space for you');
     perms = modulePerms(who, r.id);
-    scopeKey = `room:${r.id}`;
+    scopeKey = scopeKeyOf('space', { spaceId: r.id });
   } else if (scope === 'person') {
     // The viewer's own items, kept for them alone; a pointer to someone else's simply finds nothing here.
     if (!who.user) throw refError(403, 'guests have no personal data');
@@ -2939,14 +2971,14 @@ function refScope(who, { provider, kind, scope, room, from, skipConsumer = false
     perms = modulePerms(who, null);
     scopeKey = `person:${who.user.key}`;
   } else {
-    if (!who.user) throw refError(403, 'guests can only use room modules');
-    if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
+    if (!who.user) throw refError(403, 'guests can only use a module in a space');
+    if (!manifest.scope.includes('environment')) throw refError(400, 'that module has no environment scope');
     if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
     perms = modulePerms(who, null);
-    scopeKey = 'server';
+    scopeKey = 'environment';
   }
   if (!moduleCan(manifest, perms, 'read')) throw refError(403, 'your role can\'t see that module');
-  return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'room' ? 'room' : scope === 'person' ? 'person' : 'server', ...(scope === 'room' ? { room: String(room) } : {}) } };
+  return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'space' ? 'space' : scope === 'person' ? 'person' : 'environment', ...(scope === 'space' ? { space: String(space) } : {}) } };
 }
 
 // The card for one stored item: only the fields the producer named, trimmed and typed.
@@ -2984,7 +3016,7 @@ function refCard({ manifest, produce, ref }, id, value, withText = false) {
 
 function resolveRef(who, ref, from, opts = {}) {
   if (!refShape(ref)) throw refError(400, 'that is not a valid reference');
-  const at = refScope(who, { provider: ref.module, kind: ref.kind, scope: ref.scope, room: ref.room, from, ...opts });
+  const at = refScope(who, { provider: ref.module, kind: ref.kind, scope: ref.scope, space: ref.space, from, ...opts });
   const item = moduleData.get(at.manifest.id, at.scopeKey, at.produce.key.replace('{id}', String(ref.id)));
   if (!item || !item.value) throw refError(404, 'that item is no longer there');
   return refCard(at, String(ref.id), item.value, opts.withText === true);
@@ -3035,13 +3067,14 @@ app.get('/api/refs/search', (req, res) => {
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.query.from || '');
   if (!modules.enabled(from)) return res.status(404).json({ error: 'no such module' });
-  const scope = req.query.scope === 'room' ? 'room' : req.query.scope === 'person' ? 'person' : 'server';
+  const scope = askedScope(req.query.scope, res, ['environment', 'space', 'person']);
+  if (!scope) return;
   const q = String(req.query.q || '').trim().toLowerCase();
   const cards = [];
   for (const k of consumableKinds(from)) {
     let at;
     try {
-      at = refScope(who, { provider: k.module, kind: k.kind, scope, room: req.query.room, from });
+      at = refScope(who, { provider: k.module, kind: k.kind, scope, space: req.query.space, from });
     } catch {
       continue; // not on for this scope, or not for this viewer
     }
@@ -3062,7 +3095,7 @@ app.get('/api/refs/search', (req, res) => {
 app.get('/api/modules/:id/refs/:kind/:refId', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
-  const out = refAnswer(() => ({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, room: req.query.room }, String(req.query.from || '')) }));
+  const out = refAnswer(() => ({ card: resolveRef(who, { module: req.params.id, kind: req.params.kind, id: req.params.refId, scope: req.query.scope, space: req.query.space }, String(req.query.from || '')) }));
   res.status(out.status || 200).json(out);
 });
 
@@ -3082,12 +3115,12 @@ app.post('/api/refs/links', (req, res) => {
   if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: 'that module does not share that kind of item' });
   // The viewer must be allowed to change the asking module's data in that scope.
   let perms;
-  if (from.scope === 'room') {
-    const r = store.roomById(String(from.room || ''));
-    if (!r || !moduleRoomAccess(found.entry, who, r)) return res.status(403).json({ error: 'that module is not available in that room for you' });
+  if (from.scope === 'space') {
+    const r = store.spaceById(String(from.space || ''));
+    if (!r || !moduleSpaceAccess(found.entry, who, r)) return res.status(403).json({ error: 'that module is not available in that space for you' });
     perms = modulePerms(who, r.id);
   } else {
-    if (!who.user) return res.status(403).json({ error: 'guests can only use room modules' });
+    if (!who.user) return res.status(403).json({ error: 'guests can only use a module in a space' });
     perms = modulePerms(who, null);
   }
   if (!moduleCan(found.manifest, perms, 'write')) return res.status(403).json({ error: 'your role can\'t do that in this module' });
@@ -3155,33 +3188,39 @@ const busMay = (rules, approved, want) => (rules.includes('*') || rules.includes
 const mayHear = ({ manifest, entry }, publisher, name) => busMay(manifest.events.subscribes, entry.approved?.events || [], `${publisher}:${name}`);
 const mayUse = ({ manifest, entry }, provider, action) => busMay(manifest.actions.uses, entry.approved?.actions || [], `${provider}:${action}`);
 
-// Resolve one module's place (the server, or a room) for this viewer with the permission needed.
-function busPlace(who, moduleId, scope, room, need) {
+// Resolve one module's place (the environment, or a space) for this viewer with the permission needed.
+function busPlace(who, moduleId, scope, space, need) {
   const found = modules.enabled(moduleId);
   if (!found) throw refError(404, 'no such module');
   const { manifest, entry } = found;
   let scopeKey;
   let perms;
-  let roomId = null;
-  if (scope === 'room') {
-    const r = store.roomById(String(room || ''));
-    if (!r) throw refError(404, 'no such room');
-    if (!manifest.scope.includes('room')) throw refError(400, 'that module has no room scope');
-    if (!moduleRoomAccess(entry, who, r)) throw refError(403, 'that module is not available in that room for you');
+  let spaceId = null;
+  if (scope === 'space') {
+    const r = store.spaceById(String(space || ''));
+    if (!r) throw refError(404, 'no such space');
+    if (!manifest.scope.includes('space')) throw refError(400, 'that module has no space scope');
+    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, 'that module is not available in that space for you');
     perms = modulePerms(who, r.id);
-    scopeKey = `room:${r.id}`;
-    roomId = r.id;
+    scopeKey = scopeKeyOf('space', { spaceId: r.id });
+    spaceId = r.id;
   } else {
-    if (!who.user) throw refError(403, 'guests can only use room modules');
-    if (!manifest.scope.includes('server')) throw refError(400, 'that module has no server scope');
+    if (!who.user) throw refError(403, 'guests can only use a module in a space');
+    if (!manifest.scope.includes('environment')) throw refError(400, 'that module has no environment scope');
     perms = modulePerms(who, null);
-    scopeKey = 'server';
+    scopeKey = 'environment';
   }
   if (!moduleCan(manifest, perms, need)) throw refError(403, 'your role can\'t do that in this module');
-  return { found, scopeKey, roomId, perms };
+  return { found, scopeKey, spaceId, perms };
 }
 
-const busScope = (v) => (v === 'room' ? 'room' : 'server');
+// The bus works in one place: the environment (also when none is named) or a space; any other scope is refused.
+function busScope(v) {
+  const scope = v === undefined || v === '' ? 'environment' : v;
+  if (!SCOPE_NAMES.includes(scope)) throw refError(400, BAD_SCOPE);
+  if (scope !== 'environment' && scope !== 'space') throw refError(400, 'scope must be environment or space here');
+  return scope;
+}
 const busRoute = (fn) => (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
@@ -3198,8 +3237,8 @@ const publicAction = (a) => ({ id: a.id, at: a.at, from: a.from, name: a.action,
 // A module says something happened. It must have declared the event, and the person must be able to
 // change that module here (they are the reason it happened).
 app.post('/api/bus/publish', busRoute((who, req) => {
-  const { module: id, name, ref, data, scope, room } = req.body || {};
-  const at = busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  const { module: id, name, ref, data, scope, space } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), space, 'write');
   if (overLimit(at.found.manifest.id, who.user?.key, 'event')) throw refError(429, limitMessage);
   if (!at.found.manifest.events.publishes.some((p) => p.name === name)) throw refError(400, 'that module does not publish that event');
   let pointer = null;
@@ -3207,7 +3246,7 @@ app.post('/api/bus/publish', busRoute((who, req) => {
     if (!refShape(ref) || ref.module !== id || !at.found.manifest.refs.produces.some((p) => p.kind === ref.kind) || refScopeKey(ref) !== at.scopeKey) {
       throw refError(400, 'an event can only point at one of its module\'s own items, in the same place');
     }
-    pointer = { module: ref.module, kind: ref.kind, id: String(ref.id), scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) };
+    pointer = plainRef(ref);
   }
   const event = moduleBus.publish({ module: id, name, ref: pointer, data, scopeKey: at.scopeKey, by: who.user?.key || 'guest' });
   if (!event) throw refError(400, 'the event\'s data is too large');
@@ -3217,14 +3256,14 @@ app.post('/api/bus/publish', busRoute((who, req) => {
 // What a module missed, in its own place: the events it may hear (declared and approved) about
 // modules the person can see. `after=now` says where things stand, to start listening from.
 app.get('/api/bus/events', busRoute((who, req) => {
-  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'read');
+  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.space, 'read');
   if (req.query.after === 'now') return { events: [], latest: moduleBus.latestEvent(at.scopeKey) };
   const after = Number(req.query.after) || 0;
   const events = [];
   for (const e of moduleBus.eventsAfter(at.scopeKey, after)) {
     if (!mayHear(at.found, e.module, e.name)) continue;
     try {
-      busPlace(who, e.module, busScope(req.query.scope), req.query.room, 'read');
+      busPlace(who, e.module, busScope(req.query.scope), req.query.space, 'read');
     } catch {
       continue; // a module the person cannot see here
     }
@@ -3238,7 +3277,7 @@ app.get('/api/bus/events', busRoute((who, req) => {
 app.get('/api/bus/actions', busRoute((who, req) => {
   const from = String(req.query.from || '');
   const scope = busScope(req.query.scope);
-  const asker = busPlace(who, from, scope, req.query.room, 'read');
+  const asker = busPlace(who, from, scope, req.query.space, 'read');
   // `accepts=module:kind` keeps the actions that take a pointer to that kind of item; `self=1` also lists the
   // asking module's own, which it may always use.
   const accepts = String(req.query.accepts || '');
@@ -3252,7 +3291,7 @@ app.get('/api/bus/actions', busRoute((who, req) => {
       if (!own) {
         if (!mayUse(asker.found, manifest.id, a.name)) continue;
         try {
-          busPlace(who, manifest.id, scope, req.query.room, a.local ? 'read' : 'write'); // you can ask only for what you could do yourself
+          busPlace(who, manifest.id, scope, req.query.space, a.local ? 'read' : 'write'); // you can ask only for what you could do yourself
         } catch {
           continue;
         }
@@ -3296,7 +3335,7 @@ function busInput(who, shape, input) {
       if (!refShape(v)) throw refError(400, `${field} must be a reference`);
       if (base !== 'ref' && base !== `ref:${v.module}:${v.kind}`) throw refError(400, `${field} must be a ${base.slice(4).replace(':', ' ')}`);
       resolveRef(who, v, null, { skipConsumer: true }); // the asker must be able to see what it points at
-      out[field] = { module: v.module, kind: v.kind, id: String(v.id), scope: v.scope, ...(v.scope === 'room' ? { room: v.room } : {}) };
+      out[field] = plainRef(v);
     }
   }
   return out;
@@ -3304,41 +3343,41 @@ function busInput(who, shape, input) {
 
 // One module asks another to do something. Queued for the module that owns the action.
 app.post('/api/bus/actions/request', busRoute((who, req) => {
-  const { from, action, input, scope, room } = req.body || {};
+  const { from, action, input, scope, space } = req.body || {};
   const [providerId, name] = String(action || '').split(':');
   const sc = busScope(scope);
-  const asker = busPlace(who, String(from || ''), sc, room, 'read');
+  const asker = busPlace(who, String(from || ''), sc, space, 'read');
   if (overLimit(asker.found.manifest.id, who.user?.key, 'action')) throw refError(429, limitMessage);
-  const provider = busPlace(who, String(providerId || ''), sc, room, 'read');
+  const provider = busPlace(who, String(providerId || ''), sc, space, 'read');
   const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
   if (!def) throw refError(404, 'that module does not offer that action');
   if (!mayUse(asker.found, providerId, name)) throw refError(403, 'that module has not been approved to ask for that');
-  if (!def.local) busPlace(who, String(providerId), sc, room, 'write'); // asking for a change takes the right to make it
+  if (!def.local) busPlace(who, String(providerId), sc, space, 'write'); // asking for a change takes the right to make it
   const request = moduleBus.request({ from, provider: providerId, action: name, input: busInput(who, def.input, input), scopeKey: provider.scopeKey, by: who.user?.key || 'guest', local: def.local });
   return { id: request.id, status: request.status };
 }));
 
 // The providing module's page: what is waiting, take one, say how it went.
 app.get('/api/bus/actions/pending', busRoute((who, req) => {
-  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'read');
+  const at = busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.space, 'read');
   let canWrite = true;
-  try { busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.room, 'write'); } catch { canWrite = false; }
+  try { busPlace(who, String(req.query.module || ''), busScope(req.query.scope), req.query.space, 'write'); } catch { canWrite = false; }
   // A view (`local`) is for the person who asked, from their own page; anything else waits for a page that may make the change.
   return { actions: moduleBus.pending(String(req.query.module), at.scopeKey).filter((a) => (a.local ? a.by === (who.user?.key || 'guest') : canWrite)).map(publicAction) };
 }));
 app.post('/api/bus/actions/claim', busRoute((who, req) => {
-  const { module: id, id: requestId, scope, room } = req.body || {};
-  const at = busPlace(who, String(id || ''), busScope(scope), room, 'read');
+  const { module: id, id: requestId, scope, space } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), space, 'read');
   const waiting = moduleBus.actionById(Number(requestId));
-  if (waiting && waiting.local) { if (waiting.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  if (waiting && waiting.local) { if (waiting.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), space, 'write');
   const request = moduleBus.claim(Number(requestId), id, at.scopeKey);
   return request ? { ok: true, action: publicAction(request) } : { ok: false };
 }));
 app.post('/api/bus/actions/complete', busRoute((who, req) => {
-  const { module: id, id: requestId, scope, room, result } = req.body || {};
-  const at = busPlace(who, String(id || ''), busScope(scope), room, 'read');
+  const { module: id, id: requestId, scope, space, result } = req.body || {};
+  const at = busPlace(who, String(id || ''), busScope(scope), space, 'read');
   const done = moduleBus.actionById(Number(requestId));
-  if (done && done.local) { if (done.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), room, 'write');
+  if (done && done.local) { if (done.by !== (who.user?.key || 'guest')) return { ok: false }; } else busPlace(who, String(id || ''), busScope(scope), space, 'write');
   const clean = { ok: Boolean(result?.ok) };
   if (typeof result?.error === 'string') clean.error = result.error.slice(0, 200);
   // A small piece of plain data may come back with the result (up to about 8 KB of JSON), for a view that asks a question.
@@ -3348,13 +3387,13 @@ app.post('/api/bus/actions/complete', busRoute((who, req) => {
       if (text && text.length <= 8000) clean.data = JSON.parse(text);
     } catch (err) { /* not plain data: left out */ }
   }
-  if (refShape(result?.ref) && result.ref.module === id) clean.ref = { module: result.ref.module, kind: result.ref.kind, id: String(result.ref.id), scope: result.ref.scope, ...(result.ref.scope === 'room' ? { room: result.ref.room } : {}) };
+  if (refShape(result?.ref) && result.ref.module === id) clean.ref = plainRef(result.ref);
   return { ok: Boolean(moduleBus.complete(Number(requestId), id, at.scopeKey, clean)) };
 }));
 // The asking module: how did it go?
 app.get('/api/bus/actions/status', busRoute((who, req) => {
   const from = String(req.query.from || '');
-  const at = busPlace(who, from, busScope(req.query.scope), req.query.room, 'read');
+  const at = busPlace(who, from, busScope(req.query.scope), req.query.space, 'read');
   const request = moduleBus.actionById(Number(req.query.id));
   if (!request || request.from !== from || request.scopeKey !== at.scopeKey) throw refError(404, 'no such request');
   return { status: request.status, result: request.result };
@@ -3400,7 +3439,7 @@ app.get('/api/modules/nav', (req, res) => {
   const perms = modulePerms(who, null);
   res.json({
     modules: modules.enabledAll()
-      .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
+      .filter(({ manifest }) => manifest.scope.includes('environment') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
       .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget), nav: Boolean(manifest.surfaces.page.nav) })),
   });
 });
@@ -3412,7 +3451,7 @@ app.get('/api/modules/widgets', (req, res) => {
   if (!who?.user) return res.json({ widgets: [] });
   const perms = modulePerms(who, null);
   const widgets = modules.enabledAll()
-    .filter(({ manifest }) => manifest.scope.includes('server') && manifest.surfaces.widget && moduleCan(manifest, perms, 'read'))
+    .filter(({ manifest }) => manifest.scope.includes('environment') && manifest.surfaces.widget && moduleCan(manifest, perms, 'read'))
     .map(({ manifest, entry }) => ({
       id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry),
       title: manifest.surfaces.widget.title || manifest.name, size: manifest.surfaces.widget.size, order: manifest.surfaces.widget.order, entry: manifest.surfaces.widget.entry,
@@ -3466,9 +3505,9 @@ function aiAllowed(ctx) {
   const user = ctx.who.user;
   if (!user) return { ok: false, why: 'guests cannot use AI' };
   if (!ai.ready()) return { ok: false, why: 'AI is not set up on this server' };
-  const room = ctx.roomId ? store.roomById(ctx.roomId) : null;
-  if (room && room.aiOff) return { ok: false, why: 'AI is turned off in this room' };
-  const perms = ctx.roomId ? store.roomPermissions(user.key, ctx.roomId) : store.roleSet(user.role);
+  const space = ctx.spaceId ? store.spaceById(ctx.spaceId) : null;
+  if (space && space.aiOff) return { ok: false, why: 'AI is turned off in this space' };
+  const perms = ctx.spaceId ? store.spacePermissions(user.key, ctx.spaceId) : store.roleSet(user.role);
   if (!perms.useAi) return { ok: false, why: 'your role may not use AI' };
   return { ok: true };
 }
@@ -3592,7 +3631,7 @@ function geocodeAccess(req, res, need) {
 // Where this module's search goes now: { name, address, credit } or null when none is chosen.
 function geocodeSetup(manifest) {
   const g = manifest.geocoder;
-  const values = moduleSettings.values(manifest, 'server', {});
+  const values = moduleSettings.values(manifest, 'environment', {});
   const chosen = values[g.provider];
   const known = g.providers[chosen];
   if (known) return { name: known.name, address: known.address, credit: known.credit, save: g.save ? values[g.save] === true : false };
@@ -3656,7 +3695,7 @@ function sendRegionCutError(err, res) {
 function regionSourceOf(manifest) {
   const r = manifest.regionSource;
   if (!r) return null;
-  const address = moduleSettings.values(manifest, 'server', {})[r.address];
+  const address = moduleSettings.values(manifest, 'environment', {})[r.address];
   return typeof address === 'string' && address ? { address, folder: r.folder } : null;
 }
 function regionCutSetup(req, res) {
@@ -3717,7 +3756,7 @@ app.post('/api/modules/:id/region-cut', requireOwner, async (req, res) => {
   try {
     const out = await regionCutJobs.start({
       moduleId: ctx.manifest.id,
-      scopeKey: 'server',
+      scopeKey: 'environment',
       source: ctx.setup.address,
       folder: ctx.setup.folder,
       name: String(req.body?.name || ''),
@@ -3869,12 +3908,12 @@ app.delete('/api/modules/:id/files/:name', requireOwner, (req, res) => {
     return res.status(500).json({ error: `the file could not be removed: ${err.message}` });
   }
   const by = currentUser(req)?.key || null;
-  const values = moduleSettings.values(found.manifest, 'server', {});
+  const values = moduleSettings.values(found.manifest, 'environment', {});
   for (const d of found.manifest.settings || []) {
     if (d.type === 'files' && Array.isArray(values[d.key]) && values[d.key].includes(name)) {
-      moduleSettings.set(found.manifest, 'server', {}, { [d.key]: values[d.key].filter((n) => n !== name) }, by);
+      moduleSettings.set(found.manifest, 'environment', {}, { [d.key]: values[d.key].filter((n) => n !== name) }, by);
     } else if (d.type === 'file' && values[d.key] === name) {
-      moduleSettings.set(found.manifest, 'server', {}, { [d.key]: '' }, by);
+      moduleSettings.set(found.manifest, 'environment', {}, { [d.key]: '' }, by);
     }
   }
   res.json({ ok: true });
@@ -3893,7 +3932,7 @@ function sharedValue(manifest, def) {
 app.get('/api/modules/:id/settings/values', (req, res) => {
   const ctx = moduleAccess(req, res, 'read');
   if (!ctx) return;
-  const values = moduleSettings.effective(ctx.manifest, { roomId: ctx.roomId, userKey: ctx.who.user?.key || null });
+  const values = moduleSettings.effective(ctx.manifest, { spaceId: ctx.spaceId, userKey: ctx.who.user?.key || null });
   for (const d of ctx.manifest.settings || []) if (settingIsShared(ctx.manifest, d)) values[d.key] = sharedValue(ctx.manifest, d);
   res.json({ values });
 });
@@ -3902,17 +3941,17 @@ app.get('/api/modules/:id/settings/values', (req, res) => {
 function settingsPlace(req, res, scope) {
   const user = currentUser(req);
   if (!user) return void res.status(401).json({ error: 'sign in first' });
-  if (scope === 'server') {
-    if (!hasOwnerRights(user)) return void res.status(403).json({ error: 'only an owner changes the server\'s settings' });
+  if (scope === 'environment') {
+    if (!hasOwnerRights(user)) return void res.status(403).json({ error: 'only an owner changes the environment\'s settings' });
     return { user, ctx: {} };
   }
   if (scope === 'person') return { user, ctx: { userKey: user.key } };
-  if (scope === 'room') {
-    const room = store.roomById(String(req.query.room || req.body?.room || ''));
-    if (!room) return void res.status(404).json({ error: 'no such room' });
-    // A moderator is a member ticked as one in that room (an admin ticks it on the member's profile).
-    if (!(hasOwnerRights(user) || (room.members.includes(user.key) && store.roomFlags(user.key, room.id).moderator))) return void res.status(403).json({ error: 'only an owner or the room\'s moderators change its settings' });
-    return { user, ctx: { roomId: room.id }, room };
+  if (scope === 'space') {
+    const space = store.spaceById(String(req.query.space || req.body?.space || ''));
+    if (!space) return void res.status(404).json({ error: 'no such space' });
+    // A moderator is a member ticked as one in that space (an owner ticks it on the member's profile).
+    if (!(hasOwnerRights(user) || (space.members.includes(user.key) && store.spaceFlags(user.key, space.id).moderator))) return void res.status(403).json({ error: 'only an owner or the space\'s moderators change its settings' });
+    return { user, ctx: { spaceId: space.id }, space };
   }
   return void res.status(404).json({ error: 'no such kind of setting' });
 }
@@ -3935,7 +3974,7 @@ app.get('/api/module-settings/:scope', (req, res) => {
   if (!place) return;
   const scope = req.params.scope;
   const out = modules.enabledAll()
-    .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'room' || entry.allRooms || entry.rooms.includes(place.room.id)))
+    .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'space' || entry.allSpaces || entry.spaces.includes(place.space.id)))
     .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, settings: withValues(manifest, scope, place.ctx) }));
   res.json({ modules: out });
 });
@@ -3979,24 +4018,24 @@ app.get('/api/modules/:id/context', (req, res) => {
   });
 });
 
-// Modules with a panel in one room, for the call's Modules button.
-app.get('/api/modules/for-room', (req, res) => {
+// Modules with a panel in one space, for the call's Modules button.
+app.get('/api/modules/for-space', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
-  const room = store.roomById(String(req.query.room || ''));
-  if (!room) return res.status(404).json({ error: 'no such room' });
-  const perms = modulePerms(who, room.id);
+  const space = store.spaceById(String(req.query.space || ''));
+  if (!space) return res.status(404).json({ error: 'no such space' });
+  const perms = modulePerms(who, space.id);
   res.json({
     modules: modules.enabledAll()
-      .filter(({ manifest, entry }) => manifest.scope.includes('room') && manifest.surfaces.panel && moduleRoomAccess(entry, who, room) && moduleCan(manifest, perms, 'read'))
+      .filter(({ manifest, entry }) => manifest.scope.includes('space') && manifest.surfaces.panel && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
       .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
   });
 });
 
 // One module's own page, for its full-width server page: the shell page
 // (public/module.html) reads the module id from the address.
-// A room panel popped out into its own window opens the same page with the
-// room in the query (and a guest's link token, if that is who is looking).
+// A space's panel popped out into its own window opens the same page with the
+// space in the query, ?space=<id> (and a guest's link token, if that is who is looking).
 app.get('/modules/:id', (req, res) => {
   if (!currentUser(req) && !hasGuestAccess(req)) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
   res.sendFile(page('module.html'));
@@ -4102,6 +4141,7 @@ function sendHookError(err, res) {
 app.post('/api/modules/:id/schedule', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx || !requireHook(ctx, res, 'schedule')) return;
+  if (req.body?.notify && typeof req.body.notify === 'object' && refuseNotifyTo(req.body.notify.to, res)) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'schedule');
   if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
@@ -4118,11 +4158,12 @@ app.delete('/api/modules/:id/schedule/:key', (req, res) => {
 app.post('/api/modules/:id/notify', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx || !requireHook(ctx, res, 'notify')) return;
+  if (refuseNotifyTo(req.body?.to, res)) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'notify');
   if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
   try {
-    const to = typeof req.body?.to === 'string' ? req.body.to : ctx.scope === 'room' ? 'room' : 'server';
-    res.json({ delivered: moduleHooks.deliver({ module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId }, { ...req.body, to }, { by: ctx.by }) });
+    const to = typeof req.body?.to === 'string' ? req.body.to : ctx.scope === 'space' ? 'space' : 'environment';
+    res.json({ delivered: moduleHooks.deliver({ module: ctx.manifest.id, scopeKey: ctx.scopeKey, spaceId: ctx.spaceId }, { ...req.body, to }, { by: ctx.by }) });
   } catch (err) {
     sendHookError(err, res);
   }
@@ -4154,7 +4195,7 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
   moduleHooks.on('notification', onNote);
   const onInvite = (invite) => {
     if (invite.to !== key || Date.now() - invite.at > INVITE_MS) return;
-    res.write(`event: invite\ndata: ${JSON.stringify({ id: invite.id, roomId: invite.roomId, fromName: invite.fromName })}\n\n`);
+    res.write(`event: invite\ndata: ${JSON.stringify({ id: invite.id, spaceId: invite.spaceId, fromName: invite.fromName })}\n\n`);
   };
   inviteEvents.on('invite', onInvite);
   const beat = setInterval(() => res.write(': ping\n\n'), 25000);
@@ -4166,18 +4207,18 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
 });
 
 // One live stream for every module on a page. A browser allows only a handful of long-lived
-// connections to one site (six over HTTP/1.1), and a stream per module (two for a room panel) used
+// connections to one site (six over HTTP/1.1), and a stream per module (two for a space's panel) used
 // up all of them with three modules open, so nothing else could load. This carries every module's
 // changes and fired schedules, each labelled with its module and where it happened, and filtered
 // to what the viewer may read:
-//   with ?room=<id>   scope 'room' (that room) and 'server'   -- a room's panes
-//   without a room    scope 'server' and 'rooms' (the viewer's own rooms) -- a module's server page
+//   with ?space=<id>   scope 'space' (that space) and 'environment'   -- a space's panes
+//   without a space    scope 'environment' and 'spaces' (the viewer's own spaces) -- a module's environment page
 app.get('/api/modules/stream', (req, res) => {
   const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
-  const room = req.query.room ? store.roomById(String(req.query.room)) : null;
-  if (req.query.room && !room) return res.status(404).json({ error: 'no such room' });
+  const space = req.query.space ? store.spaceById(String(req.query.space)) : null;
+  if (req.query.space && !space) return res.status(404).json({ error: 'no such space' });
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 3000\n\n');
@@ -4186,21 +4227,21 @@ app.get('/api/modules/stream', (req, res) => {
     const found = modules.enabled(moduleId);
     if (!found) return null;
     const { manifest, entry } = found;
-    if (scopeKey === 'server') {
-      return who.user && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'server', roomId: null } : null;
+    if (scopeKey === 'environment') {
+      return who.user && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'environment', spaceId: null } : null;
     }
     if (scopeKey.startsWith('person:')) {
       // Someone's own data: told only to that person, on whatever page of theirs shows the module.
-      return who.user && scopeKey === `person:${who.user.key}` && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'person', roomId: null } : null;
+      return who.user && scopeKey === `person:${who.user.key}` && moduleCan(manifest, modulePerms(who, null), 'read') ? { scope: 'person', spaceId: null } : null;
     }
-    if (!scopeKey.startsWith('room:')) return null;
-    const r = store.roomById(scopeKey.slice(5));
+    if (!scopeKey.startsWith('space:')) return null;
+    const r = store.spaceById(scopeKey.slice(6));
     if (!r) return null;
-    if (room) {
-      return r.id === room.id && moduleRoomAccess(entry, who, r) && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'room', roomId: r.id } : null;
+    if (space) {
+      return r.id === space.id && moduleSpaceAccess(entry, who, r) && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'space', spaceId: r.id } : null;
     }
-    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && (entry.allRooms || entry.rooms.includes(r.id));
-    return mine && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'rooms', roomId: r.id } : null;
+    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && (entry.allSpaces || entry.spaces.includes(r.id));
+    return mine && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'spaces', spaceId: r.id } : null;
   };
   const onChange = (change) => {
     const at = place(change.module, change.scopeKey);
@@ -4208,7 +4249,7 @@ app.get('/api/modules/stream', (req, res) => {
   };
   const onFire = (fire) => {
     const at = place(fire.module, fire.scopeKey);
-    if (at && at.scope !== 'rooms') res.write(`event: schedule\ndata: ${JSON.stringify({ module: fire.module, key: fire.key, payload: fire.payload, ...at })}\n\n`);
+    if (at && at.scope !== 'spaces') res.write(`event: schedule\ndata: ${JSON.stringify({ module: fire.module, key: fire.key, payload: fire.payload, ...at })}\n\n`);
   };
   // What points at (or from) an item changed: only the pointers go, and the module asks again for what it may see.
   const onLinks = ({ refs }) => {
@@ -4233,8 +4274,8 @@ app.get('/api/modules/stream', (req, res) => {
   // A setting of a module changed: its pages here read their values again.
   const onSettings = (c) => {
     if (c.scope === 'person' && c.userKey !== who.user?.key) return;
-    if (c.scope === 'room' && !(room && room.id === c.roomId) && !(who.user && store.roomById(c.roomId)?.members.includes(who.user.key))) return;
-    res.write(`event: settings\ndata: ${JSON.stringify({ module: c.module, scope: c.scope, roomId: c.roomId })}\n\n`);
+    if (c.scope === 'space' && !(space && space.id === c.spaceId) && !(who.user && store.spaceById(c.spaceId)?.members.includes(who.user.key))) return;
+    res.write(`event: settings\ndata: ${JSON.stringify({ module: c.module, scope: c.scope, spaceId: c.spaceId })}\n\n`);
   };
   moduleSettings.on('change', onSettings);
   moduleData.on('change', onChange);
@@ -4256,27 +4297,27 @@ app.get('/api/modules/stream', (req, res) => {
 
 app.get('/api/modules/:id/events', (req, res) => {
   const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
-  // scope=rooms: changes in any of the viewer's rooms (a module's page showing them all).
-  const all = req.query.scope === 'rooms' ? moduleRoomsFor(req, res) : null;
-  if (req.query.scope === 'rooms' && !all) return;
+  // scope=spaces: changes in any of the viewer's spaces (a module's page showing them all).
+  const all = req.query.scope === 'spaces' ? moduleSpacesFor(req, res) : null;
+  if (req.query.scope === 'spaces' && !all) return;
   const ctx = all ? { manifest: all.manifest, scopeKey: null } : moduleAccess(req, res, 'read');
   if (!ctx) return;
-  const roomIds = all ? new Set(all.rooms.map((r) => r.id)) : null;
+  const spaceIds = all ? new Set(all.spaces.map((r) => r.id)) : null;
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 3000\n\n');
   const onChange = (change) => {
     if (change.module !== ctx.manifest.id) return;
-    if (roomIds) {
-      const roomId = change.scopeKey.startsWith('room:') ? change.scopeKey.slice(5) : null;
-      if (!roomIds.has(roomId)) return;
-      return void res.write(`event: change\ndata: ${JSON.stringify({ ...change, roomId })}\n\n`);
+    if (spaceIds) {
+      const spaceId = change.scopeKey.startsWith('space:') ? change.scopeKey.slice(6) : null;
+      if (!spaceIds.has(spaceId)) return;
+      return void res.write(`event: change\ndata: ${JSON.stringify({ ...change, spaceId })}\n\n`);
     }
     if (change.scopeKey !== ctx.scopeKey) return;
     res.write(`event: change\ndata: ${JSON.stringify(change)}\n\n`);
   };
   const onFire = (fire) => {
-    if (roomIds || fire.module !== ctx.manifest.id || fire.scopeKey !== ctx.scopeKey) return;
+    if (spaceIds || fire.module !== ctx.manifest.id || fire.scopeKey !== ctx.scopeKey) return;
     res.write(`event: schedule\ndata: ${JSON.stringify({ key: fire.key, payload: fire.payload })}\n\n`);
   };
   moduleData.on('change', onChange);
@@ -4458,7 +4499,7 @@ const listener = app.listen(Number(PORT), () => {
   const port = listener.address().port;
   if (!BASE_DOMAIN) {
     envContext.run(environmentFor(DEFAULT_SLUG), () => {
-      console.log(`${store.settings.serverName} ${VERSION} listening on :${port}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
+      console.log(`${store.settings.environmentName} ${VERSION} listening on :${port}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
       // A module that takes a file the operator supplies: say where it looks and what it found, once.
       for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m, d.folder)}`);
       if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);

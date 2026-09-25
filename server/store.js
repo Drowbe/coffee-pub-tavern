@@ -1,10 +1,10 @@
 'use strict';
 
-// Users, rooms, settings and images live in DATA_DIR (a Docker volume in production):
-//   app.json             users, rooms, settings, secrets
+// Users, spaces, settings and images live in DATA_DIR (a Docker volume in production):
+//   app.json             users, spaces, settings, secrets
 //   images/<key>/<slot>  one image per user slot (player, character, talking, muted...)
 //   images/site/<name>   the server icon and the sign-in background
-//   images/rooms/<id>    a room's picture
+//   images/spaces/<id>    a space's picture
 // Everything is loaded once and written back whole; a group's worth of users
 // does not need a database.
 
@@ -29,11 +29,11 @@ const CHARACTER_SLOTS = ['characterOffline', 'character', 'talking', 'muted', 'c
 // the call itself (an alternative to blur) -- unrelated to the OBS
 // Participant/Character boxes above, but self-service the same way 'profile' is.
 const SLOTS = ['profile', 'background', ...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS];
-// A room's profile decides which of the two image groups above are even
-// offered for it, on a member's per-room section and (eventually) in
+// A space's profile decides which of the two image groups above are even
+// offered for it, on a member's per-space section and (eventually) in
 // Studio's publish UI: Roleplaying wants both, the other two just one.
-const ROOM_PROFILES = ['roleplaying', 'participants', 'characters'];
-// A room's optional "launch" link (their VTT, wiki, playlist, whatever) --
+const SPACE_PROFILES = ['roleplaying', 'participants', 'characters'];
+// A space's optional "launch" link (their VTT, wiki, playlist, whatever) --
 // shown as a button next to Join and in the in-call toolbar. The icon is
 // picked from the admin's Font Awesome list (Theme tab), stored as that
 // icon's id, so a bad value can't render nothing. This is the starting list.
@@ -43,9 +43,9 @@ const STARTER_ICONS = [
   'comments', 'wand-magic-sparkles', 'chess', 'users', 'house', 'star', 'couch',
 ];
 const DEFAULT_ICONS = STARTER_ICONS.map((name) => ({ id: name, classes: `fa-solid fa-${name}`, label: name.replace(/-/g, ' ') }));
-const DEFAULT_ROOM_LINK_ICON = 'link';
+const DEFAULT_SPACE_LINK_ICON = 'link';
 const DEFAULT_HOME_ICON = 'couch';
-const ROOM_PROFILE_SLOTS = {
+const SPACE_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
   participants: PARTICIPANT_SLOTS,
   characters: CHARACTER_SLOTS,
@@ -71,11 +71,11 @@ const ASSIGNABLE_ROLES = ['owner', 'member'];
 // Who has every right in the environment: its owners, and the admin.
 const OWNER_RIGHTS = ['owner', 'admin'];
 const hasOwnerRights = (user) => Boolean(user) && OWNER_RIGHTS.includes(user.role);
-// Per-room grants on a member (user.rooms[roomId].permissions). Just one:
+// Per-space grants on a member (user.spaces[spaceId].permissions). Just one:
 // Moderator, which gives them the whole Moderator role (Settings > Roles)
-// in that room only -- anything else is a role-level permission, not a
-// per-room one.
-const ROOM_PERMISSIONS = ['moderator'];
+// in that space only -- anything else is a role-level permission, not a
+// per-space one.
+const SPACE_PERMISSIONS = ['moderator'];
 // The four roles (Settings > Roles): no custom roles yet. Owner always has
 // every permission and can't be edited; the other three are a grid of
 // on/off per permission, defaults below. The last group are enforced by
@@ -85,15 +85,15 @@ const ROOM_PERMISSIONS = ['moderator'];
 const ROLE_PERMISSIONS = [
   { key: 'conference', label: 'See and join the conference', group: 'Panes' },
   { key: 'chatRead', label: 'Open and read the chat', group: 'Panes' },
-  { key: 'chat', label: 'Send chat messages', group: 'In the Room' },
-  { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the Room' },
-  { key: 'react', label: 'Use reactions', group: 'In the Room' },
-  { key: 'shareScreen', label: 'Share their screen', group: 'In the Room' },
+  { key: 'chat', label: 'Send chat messages', group: 'In the Space' },
+  { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the Space' },
+  { key: 'react', label: 'Use reactions', group: 'In the Space' },
+  { key: 'shareScreen', label: 'Share their screen', group: 'In the Space' },
   { key: 'privateCall', label: 'Start a private conversation', group: 'Asides' },
   { key: 'startAside', label: 'Step aside with someone (recorded)', group: 'Asides' },
   { key: 'canMute', label: 'Mute other people', group: 'Moderation' },
   { key: 'canKick', label: 'Kick other people', group: 'Moderation' },
-  { key: 'canInvite', label: "Manage a room's guest link", group: 'Moderation' },
+  { key: 'canInvite', label: "Manage a space's guest link", group: 'Moderation' },
   { key: 'useAi', label: 'Use AI in modules (needs an AI service set up)', group: 'AI' },
   { key: 'image_profile', label: 'Profile photo', group: 'Images' },
   { key: 'image_background', label: 'Call background', group: 'Images' },
@@ -120,8 +120,8 @@ const ROLE_DEFAULTS = {
   member: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(true) },
   guest: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(false) },
 };
-function cleanRoomPermissions(p) {
-  return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
+function cleanSpacePermissions(p) {
+  return Object.fromEntries(SPACE_PERMISSIONS.map((k) => [k, Boolean(p?.[k])]));
 }
 // A user's own second factor (documentation/plans/plan-mfa.md), or null. `secret` and `pending.secret` are
 // already encrypted by the time they reach here -- this only checks the shape, never the plaintext, which
@@ -186,7 +186,7 @@ const LANGUAGES = ['en'];
 // The currencies the server setting accepts: the ISO 4217 codes Node's own Intl knows (the page lists the same ones).
 const CURRENCIES = new Set(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : []);
 const DEFAULT_SETTINGS = {
-  serverName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
+  environmentName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
   homeIcon: DEFAULT_HOME_ICON,
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
   // Self-service sign-up at /register, off by default. A self-registered
@@ -206,7 +206,7 @@ const DEFAULT_SETTINGS = {
   allowPrivate: true,
   allowReactions: true,
   // The video and voice conference. Off, nobody (an admin included) has the "See and join the conference" permission, so joins carry
-  // no media and the room page shows no conference; chat, presence and the modules carry on.
+  // no media and the space page shows no conference; chat, presence and the modules carry on.
   conferenceEnabled: true,
   // Language, time and money: how the server and every module show them. The clock is 12-hour by default; the
   // currency is the one amounts are shown in unless a trip says otherwise; only English is available so far.
@@ -254,7 +254,7 @@ const DEFAULT_SETTINGS = {
   pictureScale: 100,
   // Dim and tint the OBS view (view.js) renders for a Participant/Character
   // box whose person isn't actually "here" right now: offline entirely,
-  // online but in a pulled-aside room while the stream is following someone
+  // online but in a pulled-aside space while the stream is following someone
   // else (see activeRoom), or in a Private Conversation specifically (its
   // own separate set, since that one also forces the live video off
   // unconditionally -- see isPrivate in view.js -- and an admin may want it
@@ -427,7 +427,7 @@ function cleanLogin(value) {
 // Accepts a bare domain ("example.com") as well as a full URL, and only
 // ever returns http(s) links -- anything else (or unparseable) is dropped
 // rather than stored, since it's rendered straight into a link href.
-function cleanRoomLink(value) {
+function cleanSpaceLink(value) {
   let link = cleanText(value, 500);
   if (!link) return null;
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(link)) link = `https://${link}`;
@@ -486,11 +486,11 @@ class Store {
       },
       settings: { ...DEFAULT_SETTINGS, ...migrateMfaSettings(raw.settings) },
       users: Array.isArray(raw.users) ? raw.users.map((u) => this.sanitizeUser(u)).filter(Boolean) : [],
-      rooms: Array.isArray(raw.rooms) ? raw.rooms.map((r) => this.sanitizeRoom(r)).filter(Boolean) : [],
+      spaces: Array.isArray(raw.spaces) ? raw.spaces.map((r) => this.sanitizeSpace(r)).filter(Boolean) : [],
       invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
     };
-    if (!data.rooms.some((r) => r.id === LOBBY)) {
-      data.rooms.unshift(this.sanitizeRoom({ id: LOBBY, name: 'Lobby', description: 'Where everyone meets.', members: [], createdAt: new Date().toISOString() }));
+    if (!data.spaces.some((r) => r.id === LOBBY)) {
+      data.spaces.unshift(this.sanitizeSpace({ id: LOBBY, name: 'Lobby', description: 'Where everyone meets.', members: [], createdAt: new Date().toISOString() }));
     }
     // Ships BUILTIN_THEMES exactly once -- a flag rather than "seed
     // whatever's missing by id" every load, so deleting one (an admin
@@ -539,48 +539,48 @@ class Store {
       data.settings.iconsSeeded = true;
       seededIcons = true;
     }
-    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.rooms) || seededThemes || seededIcons) {
+    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.spaces) || seededThemes || seededIcons) {
       this.data = data;
       this.save();
     }
     return data;
   }
 
-  sanitizeRoom(r) {
+  sanitizeSpace(r) {
     if (!r || typeof r !== 'object') return null;
     const id = typeof r.id === 'string' && /^[a-z0-9]{4,16}$/.test(r.id) ? r.id : null;
     if (!id) return null;
     return {
       id,
-      name: cleanText(r.name, 40) || (id === LOBBY ? 'Lobby' : 'Room'),
+      name: cleanText(r.name, 40) || (id === LOBBY ? 'Lobby' : 'Space'),
       description: String(r.description ?? '').trim().slice(0, 300),
       members: Array.isArray(r.members) ? [...new Set(r.members.filter((k) => typeof k === 'string'))] : [],
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
-      // A "pull aside" room: not shown on the manage page's Rooms tab, not
+      // A "pull aside" space: not shown on the manage page's Spaces tab, not
       // hand-editable, and swept away once nobody online is actually in it.
       ephemeral: Boolean(r.ephemeral),
-      // The room an ephemeral room was pulled out of, so leaving the aside
+      // The space an ephemeral space was pulled out of, so leaving the aside
       // can return everyone there instead of always landing on the Lobby.
       origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
       // An aside is still part of the recording -- Studio mutes/dims the
       // members who stepped out, but the two of them stay on stream. A
       // *private* aside is a real off-the-record word: Studio hides those
       // sources entirely, and the admin stepping into one must not drag the
-      // stream's "follow the admin" room along with them (see activeRoomId
-      // in server/index.js). Only meaningful on an ephemeral room.
+      // stream's "follow the admin" space along with them (see activeRoomId
+      // in server/index.js). Only meaningful on an ephemeral space.
       private: Boolean(r.private),
-      // Which image sections a member's per-room section (and Studio) offer
-      // for this room -- see ROOM_PROFILE_SLOTS.
-      profile: ROOM_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
+      // Which image sections a member's per-space section (and Studio) offer
+      // for this space -- see SPACE_PROFILE_SLOTS.
+      profile: SPACE_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
       // An optional external link (their VTT, wiki, playlist...) offered as
       // a button next to Join and in the in-call toolbar. null when unset.
-      link: cleanRoomLink(r.link),
-      linkIcon: typeof r.linkIcon === 'string' && /^[a-z0-9-]{1,40}$/.test(r.linkIcon) ? r.linkIcon : DEFAULT_ROOM_LINK_ICON,
-      // A standing door code: anyone with this room's guest link joins it
+      link: cleanSpaceLink(r.link),
+      linkIcon: typeof r.linkIcon === 'string' && /^[a-z0-9-]{1,40}$/.test(r.linkIcon) ? r.linkIcon : DEFAULT_SPACE_LINK_ICON,
+      // A standing door code: anyone with this space's guest link joins it
       // with just a name, no account. null while off. See enableGuestLink.
       guestToken: typeof r.guestToken === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(r.guestToken) ? r.guestToken : null,
-      // Whether this room allows a guest link at all. Default on: existing
-      // rooms from before this setting existed keep working as before.
+      // Whether this space allows a guest link at all. Default on: existing
+      // spaces from before this setting existed keep working as before.
       allowGuests: r.allowGuests === undefined ? true : Boolean(r.allowGuests),
     };
   }
@@ -603,24 +603,24 @@ class Store {
     for (const slot of SLOTS) {
       if (typeof u.images?.[slot] === 'string') images[slot] = u.images[slot];
     }
-    // Per-room image overrides: a room's picture set stands in for the
-    // defaults above only for that room, so the same person can be one
+    // Per-space image overrides: a space's picture set stands in for the
+    // defaults above only for that space, so the same person can be one
     // character in one campaign and another in a different one.
-    const rooms = {};
-    if (u.rooms && typeof u.rooms === 'object') {
-      for (const [roomId, r] of Object.entries(u.rooms)) {
+    const spaces = {};
+    if (u.spaces && typeof u.spaces === 'object') {
+      for (const [spaceId, r] of Object.entries(u.spaces)) {
         if (!r || typeof r !== 'object') continue;
-        const roomImages = {};
+        const spaceImages = {};
         for (const slot of SLOTS) {
-          if (typeof r.images?.[slot] === 'string') roomImages[slot] = r.images[slot];
+          if (typeof r.images?.[slot] === 'string') spaceImages[slot] = r.images[slot];
         }
-        // Existing rooms that already have their own pictures keep using them
-        // (an unset flag reads as "custom" for those); a room with none yet
+        // Existing spaces that already have their own pictures keep using them
+        // (an unset flag reads as "custom" for those); a space with none yet
         // starts on the account defaults.
-        rooms[roomId] = {
-          images: roomImages,
-          useDefaultImages: typeof r.useDefaultImages === 'boolean' ? r.useDefaultImages : Object.keys(roomImages).length === 0,
-          permissions: cleanRoomPermissions(r.permissions),
+        spaces[spaceId] = {
+          images: spaceImages,
+          useDefaultImages: typeof r.useDefaultImages === 'boolean' ? r.useDefaultImages : Object.keys(spaceImages).length === 0,
+          permissions: cleanSpacePermissions(r.permissions),
         };
       }
     }
@@ -639,7 +639,7 @@ class Store {
       linkToken: typeof u.linkToken === 'string' && u.linkToken ? u.linkToken : null,
       mfa: sanitizeMfa(u.mfa),
       images,
-      rooms,
+      spaces,
       player: {}, // borders and the plate are server-wide now; older per-user values are dropped
       callPrefs: this.sanitizeCallPrefs(u.callPrefs),
       createdAt: typeof u.createdAt === 'string' ? u.createdAt : new Date().toISOString(),
@@ -713,7 +713,7 @@ class Store {
   // (a StoreError) leaves the settings exactly as they were, the other fields in the patch included.
   updateSettings(patch) {
     const s = { ...this.data.settings };
-    if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
+    if (patch.environmentName !== undefined) s.environmentName = cleanText(patch.environmentName, 60) || DEFAULT_SETTINGS.environmentName;
     if (patch.homeIcon !== undefined) {
       if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
       s.homeIcon = patch.homeIcon;
@@ -1061,7 +1061,7 @@ class Store {
     if (!user) throw new StoreError('no such user', 404);
     if (user.role === 'admin' && !user.hostAdmin) throw new StoreError("this account is the server's admin, so it can't be removed here");
     this.data.users = this.data.users.filter((u) => u.key !== key);
-    for (const room of this.data.rooms) room.members = room.members.filter((k) => k !== key);
+    for (const space of this.data.spaces) space.members = space.members.filter((k) => k !== key);
     this.save();
     fs.rmSync(path.join(this.imagesDir, key), { recursive: true, force: true });
     return user;
@@ -1090,106 +1090,106 @@ class Store {
     return this.data.users.filter((u) => u.role === 'admin' && !u.hostAdmin);
   }
 
-  // --- rooms --------------------------------------------------------------
-  // The Lobby holds everyone; other rooms hold the members an admin picks.
+  // --- spaces --------------------------------------------------------------
+  // The Lobby holds everyone; other spaces hold the members an admin picks.
 
-  get rooms() {
+  get spaces() {
     const everyone = this.data.users.map((u) => u.key);
-    return this.data.rooms.map((r) => ({
+    return this.data.spaces.map((r) => ({
       ...r,
       members: r.id === LOBBY ? everyone : r.members.filter((k) => everyone.includes(k)),
       isLobby: r.id === LOBBY,
-      hasImage: !!this.roomImagePath(r.id),
+      hasImage: !!this.spaceImagePath(r.id),
     }));
   }
 
-  roomById(id) {
-    return this.rooms.find((r) => r.id === id) || null;
+  spaceById(id) {
+    return this.spaces.find((r) => r.id === id) || null;
   }
 
-  // The Rooms tab's own order (the Lobby always stays first): reorder to
-  // match `order`, a full or partial list of room ids -- anything named
+  // The Spaces tab's own order (the Lobby always stays first): reorder to
+  // match `order`, a full or partial list of space ids -- anything named
   // that exists moves into that order, anything left out keeps its place
   // relative to the rest, nothing is ever dropped.
-  reorderRooms(order) {
-    if (!Array.isArray(order)) throw new StoreError('order must be a list of room ids');
-    const rest = this.data.rooms.filter((r) => r.id !== LOBBY);
+  reorderSpaces(order) {
+    if (!Array.isArray(order)) throw new StoreError('order must be a list of space ids');
+    const rest = this.data.spaces.filter((r) => r.id !== LOBBY);
     const wanted = order.filter((id) => id !== LOBBY && rest.some((r) => r.id === id));
     const byId = new Map(rest.map((r) => [r.id, r]));
     const reordered = [...wanted.map((id) => byId.get(id)), ...rest.filter((r) => !wanted.includes(r.id))];
-    const lobby = this.data.rooms.find((r) => r.id === LOBBY);
-    this.data.rooms = lobby ? [lobby, ...reordered] : reordered;
+    const lobby = this.data.spaces.find((r) => r.id === LOBBY);
+    this.data.spaces = lobby ? [lobby, ...reordered] : reordered;
     this.save();
-    return this.rooms;
+    return this.spaces;
   }
 
-  addRoom({ name, description, members, profile, link, linkIcon }) {
+  addSpace({ name, description, members, profile, link, linkIcon }) {
     let id;
     do id = randomKey();
-    while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: name || 'New room', description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
-    room.members = room.members.filter((k) => this.userByKey(k));
-    this.data.rooms.push(room);
+    while (this.data.spaces.some((r) => r.id === id));
+    const space = this.sanitizeSpace({ id, name: name || 'New space', description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
+    space.members = space.members.filter((k) => this.userByKey(k));
+    this.data.spaces.push(space);
     this.save();
-    return this.roomById(id);
+    return this.spaceById(id);
   }
 
-  // A "pull aside" room for exactly the members given (typically an admin
+  // A "pull aside" space for exactly the members given (typically an admin
   // and one player). No name worth keeping server-side; the client builds
-  // one from the other member's display name. `origin` is the room they
+  // one from the other member's display name. `origin` is the space they
   // were pulled out of, so they can all be sent back to it later. `priv`
   // marks a real off-the-record word rather than an in-fiction private
-  // moment -- see the `private` field's comment in sanitizeRoom.
-  addAsideRoom(members, origin, priv = false) {
+  // moment -- see the `private` field's comment in sanitizeSpace.
+  addAside(members, origin, priv = false) {
     let id;
     do id = randomKey();
-    while (this.data.rooms.some((r) => r.id === id));
-    const room = this.sanitizeRoom({ id, name: 'Aside', description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
-    room.members = room.members.filter((k) => this.userByKey(k));
-    this.data.rooms.push(room);
+    while (this.data.spaces.some((r) => r.id === id));
+    const space = this.sanitizeSpace({ id, name: 'Aside', description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
+    space.members = space.members.filter((k) => this.userByKey(k));
+    this.data.spaces.push(space);
     this.save();
-    return this.roomById(id);
+    return this.spaceById(id);
   }
 
-  // Sweep aside rooms nobody is actually in any more. `online` is the
-  // key -> { room, ... } map this request already built from LiveKit, so
+  // Sweep aside spaces nobody is actually in any more. `online` is the
+  // key -> { space, ... } map this request already built from LiveKit, so
   // this costs nothing extra to call on every /api/presence and /api/status.
-  // A room this young is spared even if it looks empty: the members who are
+  // A space this young is spared even if it looks empty: the members who are
   // meant to be in it were only just told to reconnect there (a disconnect,
   // a fresh token and a new WebRTC connect all take a moment), and the very
   // first poll after creation would otherwise see nobody there yet and
   // delete it before anyone arrives.
-  pruneAsideRooms(online) {
+  pruneAsides(online) {
     const GRACE_MS = 20000;
     const now = Date.now();
-    const before = this.data.rooms.length;
-    this.data.rooms = this.data.rooms.filter((r) => {
+    const before = this.data.spaces.length;
+    this.data.spaces = this.data.spaces.filter((r) => {
       if (!r.ephemeral) return true;
       if (now - new Date(r.createdAt).getTime() < GRACE_MS) return true;
-      return r.members.some((k) => online.get(k)?.room === r.id);
+      return r.members.some((k) => online.get(k)?.space === r.id);
     });
-    if (this.data.rooms.length !== before) this.save();
+    if (this.data.spaces.length !== before) this.save();
   }
 
-  updateRoom(id, patch) {
-    const room = this.data.rooms.find((r) => r.id === id);
-    if (!room) throw new StoreError('no such room', 404);
+  updateSpace(id, patch) {
+    const space = this.data.spaces.find((r) => r.id === id);
+    if (!space) throw new StoreError('no such space', 404);
     // Checked into a draft, applied at the end: a refused field changes nothing.
-    const draft = { ...room };
+    const draft = { ...space };
     if (patch.name !== undefined) draft.name = cleanText(patch.name, 40) || draft.name;
     if (patch.description !== undefined) draft.description = String(patch.description ?? '').trim().slice(0, 300);
     if (patch.members !== undefined && id !== LOBBY) {
       if (!Array.isArray(patch.members)) throw new StoreError('members must be a list of user keys');
       draft.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
     }
-    if (patch.aiOff !== undefined) draft.aiOff = patch.aiOff === true; // this room does not use AI, whatever a role may do
+    if (patch.aiOff !== undefined) draft.aiOff = patch.aiOff === true; // this space does not use AI, whatever a role may do
     if (patch.profile !== undefined) {
-      if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
+      if (!SPACE_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
       draft.profile = patch.profile;
     }
     if (patch.link !== undefined) {
       if (patch.link) {
-        const link = cleanRoomLink(patch.link);
+        const link = cleanSpaceLink(patch.link);
         if (!link) throw new StoreError('link must be a valid http(s) URL');
         draft.link = link;
       } else {
@@ -1204,63 +1204,63 @@ class Store {
       draft.allowGuests = Boolean(patch.allowGuests);
       if (!draft.allowGuests && draft.guestToken) draft.guestToken = null;
     }
-    Object.assign(room, draft);
+    Object.assign(space, draft);
     this.save();
-    return this.roomById(id);
+    return this.spaceById(id);
   }
 
-  removeRoom(id) {
+  removeSpace(id) {
     if (id === LOBBY) throw new StoreError('the Lobby cannot be deleted');
-    const room = this.data.rooms.find((r) => r.id === id);
-    if (!room) throw new StoreError('no such room', 404);
-    this.data.rooms = this.data.rooms.filter((r) => r.id !== id);
+    const space = this.data.spaces.find((r) => r.id === id);
+    if (!space) throw new StoreError('no such space', 404);
+    this.data.spaces = this.data.spaces.filter((r) => r.id !== id);
     this.save();
-    this.removeRoomImage(id);
-    return room;
+    this.removeSpaceImage(id);
+    return space;
   }
 
   // --- guests -----------------------------------------------------------
-  // A room's guest link: reusable until turned off or regenerated, unlike
-  // the sign-up invites above. Anyone already in the room can manage it --
+  // A space's guest link: reusable until turned off or regenerated, unlike
+  // the sign-up invites above. Anyone already in the space can manage it --
   // there's no account behind it to gate on.
 
   enableGuestLink(id) {
-    const room = this.data.rooms.find((r) => r.id === id);
-    if (!room) throw new StoreError('no such room', 404);
-    if (!room.allowGuests) throw new StoreError('this room does not allow guests', 403);
-    if (!room.guestToken) {
-      room.guestToken = randomToken(20);
+    const space = this.data.spaces.find((r) => r.id === id);
+    if (!space) throw new StoreError('no such space', 404);
+    if (!space.allowGuests) throw new StoreError('this space does not allow guests', 403);
+    if (!space.guestToken) {
+      space.guestToken = randomToken(20);
       this.save();
     }
-    return room.guestToken;
+    return space.guestToken;
   }
 
   regenerateGuestLink(id) {
-    const room = this.data.rooms.find((r) => r.id === id);
-    if (!room) throw new StoreError('no such room', 404);
-    if (!room.allowGuests) throw new StoreError('this room does not allow guests', 403);
-    room.guestToken = randomToken(20);
+    const space = this.data.spaces.find((r) => r.id === id);
+    if (!space) throw new StoreError('no such space', 404);
+    if (!space.allowGuests) throw new StoreError('this space does not allow guests', 403);
+    space.guestToken = randomToken(20);
     this.save();
-    return room.guestToken;
+    return space.guestToken;
   }
 
   disableGuestLink(id) {
-    const room = this.data.rooms.find((r) => r.id === id);
-    if (!room) throw new StoreError('no such room', 404);
-    if (room.guestToken) {
-      room.guestToken = null;
+    const space = this.data.spaces.find((r) => r.id === id);
+    if (!space) throw new StoreError('no such space', 404);
+    if (space.guestToken) {
+      space.guestToken = null;
       this.save();
     }
   }
 
-  roomByGuestToken(token) {
+  spaceByGuestToken(token) {
     if (typeof token !== 'string' || !token) return null;
-    return this.data.rooms.find((r) => r.guestToken && r.guestToken === token) || null;
+    return this.data.spaces.find((r) => r.guestToken && r.guestToken === token) || null;
   }
 
   // --- invites --------------------------------------------------------------
   // A link an admin hands out that signs someone up and drops them straight
-  // into the rooms picked when it was made (the Lobby always, everyone is
+  // into the spaces picked when it was made (the Lobby always, everyone is
   // there already). Single use, expires on its own after a week.
 
   sanitizeInvite(i) {
@@ -1269,7 +1269,7 @@ class Store {
     if (!token) return null;
     return {
       token,
-      rooms: Array.isArray(i.rooms) ? [...new Set(i.rooms.filter((id) => typeof id === 'string'))] : [],
+      spaces: Array.isArray(i.spaces) ? [...new Set(i.spaces.filter((id) => typeof id === 'string'))] : [],
       createdAt: typeof i.createdAt === 'string' ? i.createdAt : new Date().toISOString(),
       expiresAt: typeof i.expiresAt === 'string' ? i.expiresAt : new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
     };
@@ -1286,9 +1286,9 @@ class Store {
     return live;
   }
 
-  createInvite(rooms) {
-    const wanted = (Array.isArray(rooms) ? rooms : []).filter((id) => id !== LOBBY && this.data.rooms.some((r) => r.id === id));
-    const invite = this.sanitizeInvite({ token: randomToken(24), rooms: wanted });
+  createInvite(spaces) {
+    const wanted = (Array.isArray(spaces) ? spaces : []).filter((id) => id !== LOBBY && this.data.spaces.some((r) => r.id === id));
+    const invite = this.sanitizeInvite({ token: randomToken(24), spaces: wanted });
     this.data.invites.push(invite);
     this.save();
     return invite;
@@ -1303,47 +1303,47 @@ class Store {
     this.save();
   }
 
-  roomImagePath(id) {
-    const dir = path.join(this.imagesDir, 'rooms');
+  spaceImagePath(id) {
+    const dir = path.join(this.imagesDir, 'spaces');
     if (!/^[a-z0-9]{4,16}$/.test(id) || !fs.existsSync(dir)) return null;
     const file = fs.readdirSync(dir).find((f) => f.startsWith(`${id}.`));
     return file ? path.join(dir, file) : null;
   }
 
-  setRoomImage(id, buffer, contentType) {
-    if (!this.data.rooms.some((r) => r.id === id)) throw new StoreError('no such room', 404);
+  setSpaceImage(id, buffer, contentType) {
+    if (!this.data.spaces.some((r) => r.id === id)) throw new StoreError('no such space', 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
     if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
-    this.removeRoomImage(id);
-    const dir = path.join(this.imagesDir, 'rooms');
+    this.removeSpaceImage(id);
+    const dir = path.join(this.imagesDir, 'spaces');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, `${id}.${ext}`), buffer);
   }
 
-  removeRoomImage(id) {
-    const existing = this.roomImagePath(id);
+  removeSpaceImage(id) {
+    const existing = this.spaceImagePath(id);
     if (existing) fs.rmSync(existing, { force: true });
   }
 
   // --- images -------------------------------------------------------------
-  // A slot's file lives at images/<key>/<file>, or images/<key>/rooms/<roomId>/<file>
-  // for a room-specific override -- a second, independent picture set for
-  // the same slot, that only applies inside that one room.
+  // A slot's file lives at images/<key>/<file>, or images/<key>/spaces/<spaceId>/<file>
+  // for a space-specific override -- a second, independent picture set for
+  // the same slot, that only applies inside that one space.
 
-  imageDir(key, roomId) {
-    return roomId ? path.join(this.imagesDir, key, 'rooms', roomId) : path.join(this.imagesDir, key);
+  imageDir(key, spaceId) {
+    return spaceId ? path.join(this.imagesDir, key, 'spaces', spaceId) : path.join(this.imagesDir, key);
   }
 
-  roomEntry(user, roomId) {
-    return (user.rooms[roomId] ??= { images: {}, useDefaultImages: true, permissions: cleanRoomPermissions() });
+  spaceEntry(user, spaceId) {
+    return (user.spaces[spaceId] ??= { images: {}, useDefaultImages: true, permissions: cleanSpacePermissions() });
   }
 
-  // Whether this room's own pictures (if any) stand in for the account's
+  // Whether this space's own pictures (if any) stand in for the account's
   // defaults -- off by default, see "Use Default Profile Images".
-  usesRoomImages(key, roomId) {
-    const entry = this.userByKey(key)?.rooms?.[roomId];
+  usesSpaceImages(key, spaceId) {
+    const entry = this.userByKey(key)?.spaces?.[spaceId];
     return !!entry && entry.useDefaultImages === false;
   }
 
@@ -1388,61 +1388,61 @@ class Store {
     return this.roles();
   }
 
-  // What someone can actually do in one room: their role's permissions,
+  // What someone can actually do in one space: their role's permissions,
   // plus the whole Moderator role if they're marked Moderator there.
-  roomPermissions(key, roomId) {
+  spacePermissions(key, spaceId) {
     const user = this.userByKey(key);
     if (!user) return this.roleSet('guest');
     if (hasOwnerRights(user)) return this.roleSet('owner');
     const set = this.roleSet(user.role);
-    const flags = cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
+    const flags = cleanSpacePermissions(user.spaces?.[spaceId]?.permissions);
     if (flags.moderator) Object.assign(set, Object.fromEntries(Object.entries(this.roleSet('moderator')).filter(([, v]) => v)));
     return set;
   }
 
-  // The stored per-room ticks themselves, for editing (owners read as all on).
-  roomFlags(key, roomId) {
+  // The stored per-space ticks themselves, for editing (owners read as all on).
+  spaceFlags(key, spaceId) {
     const user = this.userByKey(key);
-    if (!user) return cleanRoomPermissions();
-    if (hasOwnerRights(user)) return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, true]));
-    return cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
+    if (!user) return cleanSpacePermissions();
+    if (hasOwnerRights(user)) return Object.fromEntries(SPACE_PERMISSIONS.map((k) => [k, true]));
+    return cleanSpacePermissions(user.spaces?.[spaceId]?.permissions);
   }
 
-  setRoomPrefs(key, roomId, patch) {
+  setSpacePrefs(key, spaceId, patch) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
-    const room = this.roomById(roomId);
-    if (!room || room.isLobby) throw new StoreError('no such room', 404);
-    if (!room.members.includes(key)) throw new StoreError('not a member of that room');
-    const entry = this.roomEntry(user, roomId);
+    const space = this.spaceById(spaceId);
+    if (!space || space.isLobby) throw new StoreError('no such space', 404);
+    if (!space.members.includes(key)) throw new StoreError('not a member of that space');
+    const entry = this.spaceEntry(user, spaceId);
     if (patch.useDefaultImages !== undefined) entry.useDefaultImages = Boolean(patch.useDefaultImages);
     if (patch.permissions && typeof patch.permissions === 'object') {
-      for (const k of ROOM_PERMISSIONS) if (patch.permissions[k] !== undefined) entry.permissions[k] = Boolean(patch.permissions[k]);
+      for (const k of SPACE_PERMISSIONS) if (patch.permissions[k] !== undefined) entry.permissions[k] = Boolean(patch.permissions[k]);
     }
     this.save();
     return entry;
   }
 
-  removeMember(roomId, key) {
-    const room = this.data.rooms.find((r) => r.id === roomId);
-    if (!room || room.id === LOBBY) throw new StoreError('no such room', 404);
-    if (!room.members.includes(key)) throw new StoreError('not in that room', 404);
-    room.members = room.members.filter((k) => k !== key);
+  removeMember(spaceId, key) {
+    const space = this.data.spaces.find((r) => r.id === spaceId);
+    if (!space || space.id === LOBBY) throw new StoreError('no such space', 404);
+    if (!space.members.includes(key)) throw new StoreError('not in that space', 404);
+    space.members = space.members.filter((k) => k !== key);
     this.save();
-    return this.roomById(roomId);
+    return this.spaceById(spaceId);
   }
 
-  imageBucket(user, roomId) {
-    if (!roomId) return user.images;
-    return this.roomEntry(user, roomId).images;
+  imageBucket(user, spaceId) {
+    if (!spaceId) return user.images;
+    return this.spaceEntry(user, spaceId).images;
   }
 
-  imagePath(key, slot, roomId) {
+  imagePath(key, slot, spaceId) {
     const user = this.userByKey(key);
     if (!user) return null;
-    const file = roomId ? user.rooms[roomId]?.images?.[slot] : user.images[slot];
+    const file = spaceId ? user.spaces[spaceId]?.images?.[slot] : user.images[slot];
     if (!file) return null;
-    const full = path.join(this.imageDir(key, roomId), file);
+    const full = path.join(this.imageDir(key, spaceId), file);
     return fs.existsSync(full) ? full : null;
   }
 
@@ -1451,35 +1451,35 @@ class Store {
   // a Participant slot falls back further, to the server-wide Default
   // Images set below, before finally going transparent; every other slot
   // (Character, background) is simply absent when unset.
-  resolveImage(key, slot, roomId) {
-    const full = this.imagePath(key, slot, roomId);
+  resolveImage(key, slot, spaceId) {
+    const full = this.imagePath(key, slot, spaceId);
     return full ? { file: full, slot } : null;
   }
 
-  // The room's own picture if it has one for this slot, else this same
-  // user's own picture (no room override), else -- Participant slots only
+  // The space's own picture if it has one for this slot, else this same
+  // user's own picture (no space override), else -- Participant slots only
   // -- the server-wide Default Images picture, else nothing at all. What
-  // OBS actually wants to show for a given user in a given room.
-  effectiveImage(key, slot, roomId) {
-    const own = (roomId && this.usesRoomImages(key, roomId) && this.resolveImage(key, slot, roomId)) || this.resolveImage(key, slot);
+  // OBS actually wants to show for a given user in a given space.
+  effectiveImage(key, slot, spaceId) {
+    const own = (spaceId && this.usesSpaceImages(key, spaceId) && this.resolveImage(key, slot, spaceId)) || this.resolveImage(key, slot);
     if (own) return own;
     if (!PARTICIPANT_SLOTS.includes(slot)) return null;
     const file = this.defaultImagePath(slot);
     return file ? { file, slot } : null;
   }
 
-  setImage(key, slot, buffer, contentType, roomId) {
+  setImage(key, slot, buffer, contentType, spaceId) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
     if (!SLOTS.includes(slot)) throw new StoreError('unknown image slot');
-    if (roomId && !this.roomById(roomId)) throw new StoreError('no such room', 404);
+    if (spaceId && !this.spaceById(spaceId)) throw new StoreError('no such space', 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
     if (buffer.length > MAX_IMAGE_BYTES) throw new StoreError(`image is larger than ${MAX_IMAGE_BYTES / (1024 * 1024)} MB`);
-    const dir = this.imageDir(key, roomId);
+    const dir = this.imageDir(key, spaceId);
     fs.mkdirSync(dir, { recursive: true });
-    const bucket = this.imageBucket(user, roomId);
+    const bucket = this.imageBucket(user, spaceId);
     const previous = bucket[slot];
     const file = `${slot}-${Date.now().toString(36)}.${ext}`;
     fs.writeFileSync(path.join(dir, file), buffer);
@@ -1489,14 +1489,14 @@ class Store {
     return file;
   }
 
-  removeImage(key, slot, roomId) {
+  removeImage(key, slot, spaceId) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
-    const bucket = roomId ? user.rooms[roomId]?.images : user.images;
+    const bucket = spaceId ? user.spaces[spaceId]?.images : user.images;
     const previous = bucket?.[slot];
     if (bucket) delete bucket[slot];
     this.save();
-    if (previous) fs.rmSync(path.join(this.imageDir(key, roomId), previous), { force: true });
+    if (previous) fs.rmSync(path.join(this.imageDir(key, spaceId), previous), { force: true });
   }
 
   // Site images: images/site/<name>.<ext>. "icon" is the server icon and
@@ -1560,7 +1560,7 @@ class Store {
 
   // Default images: images/default/<slot>.<ext>, the server-wide Participant
   // picture a member's own effectiveImage() falls back to once they (and
-  // their room, if any) have neither set one -- see effectiveImage above.
+  // their space, if any) have neither set one -- see effectiveImage above.
   defaultImagePath(slot) {
     if (!PARTICIPANT_SLOTS.includes(slot)) return null;
     const dir = path.join(this.imagesDir, 'default');
@@ -1595,7 +1595,7 @@ class StoreError extends Error {
 }
 
 module.exports = {
-  Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
+  Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
   sanitizeMfa, CURRENCIES,
 };

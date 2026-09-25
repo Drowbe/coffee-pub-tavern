@@ -26,11 +26,22 @@ const oldRole = (role) => OLD_ROLE[role] || role;
 const meRole = (answer) => (answer.user ? { user: { ...answer.user, role: oldRole(answer.user.role) } } : {});
 const statusRoles = (answer) => (Array.isArray(answer.users) ? { users: answer.users.map((u) => ({ ...u, role: oldRole(u.role) })) } : {});
 
+// Step 5a: a space is no longer a room and the environment's name is no longer the server's. Studio still reads
+// serverName (both answers), and from /api/status the spaces as `rooms` (every row, the asides among them, exactly
+// as `spaces` has them), the space the stream hears as `activeRoom`, and where each person is online as
+// users[].online.room (micOn and cameraOn are unchanged).
+const serverName = (_answer, { environmentName }) => ({ serverName: environmentName });
+const statusSpaces = (answer) => ({
+  ...(Array.isArray(answer.spaces) ? { rooms: answer.spaces } : {}),
+  ...('activeSpace' in answer ? { activeRoom: answer.activeSpace } : {}),
+  ...(Array.isArray(answer.users) ? { users: answer.users.map((u) => (u && u.online && typeof u.online === 'object' ? { ...u, online: { ...u.online, room: u.online.space } } : u)) } : {}),
+});
+
 // GET /api/me. Context: { role, hostAdmin, environmentName } -- the few values an entry needs, never the account
 // record itself (it holds the password hash and the two-step secret).
-const ME = [tableName, meRole];
+const ME = [tableName, meRole, serverName];
 // GET /api/status. Context: { environmentName }; the rest is in the answer.
-const STATUS = [tableName, statusRoles];
+const STATUS = [tableName, statusRoles, serverName, statusSpaces];
 
 // Whether this request signed in the way Studio does: by a bearer token that actually signed someone in, rather
 // than the pages' cookie. A bearer header is read before any cookie (auth.sessionToken), so a request carrying one

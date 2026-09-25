@@ -83,14 +83,14 @@ test('the system stays ahead of a module without coordinating numbers', () => {
   const system = [
     { id: 'dock-all', group: 'space', groupOrder: 1, order: 1, seq: 1 },
     { id: 'fullscreen-toggle', group: 'space', order: 11, seq: 2 },
-    { id: 'leave-room', group: 'leave', groupOrder: 999, order: 999, seq: 3 },
+    { id: 'leave-space', group: 'leave', groupOrder: 999, order: 999, seq: 3 },
   ];
   const mod = cleanModuleTools('calendar', [
     { id: 'today', icon: 'calendar-day', label: 'Today', order: 1 }, // asks for 1, gets the band's floor
     { id: 'add', icon: 'plus', label: 'Add', order: 5000, groupOrder: 1 },
   ]);
   const groups = arrange([...system, ...mod.map((t, i) => ({ ...t, seq: 10 + i }))]);
-  assert.deepEqual(ids(groups), [['dock-all', 'fullscreen-toggle'], ['calendar:today', 'calendar:add'], ['leave-room']]);
+  assert.deepEqual(ids(groups), [['dock-all', 'fullscreen-toggle'], ['calendar:today', 'calendar:add'], ['leave-space']]);
   assert.equal(mod[0].order, BANDS.module[0]);
   assert.equal(mod[1].order, BANDS.module[1]);
   assert.equal(mod[1].groupOrder, BANDS.module[0]);
@@ -138,8 +138,8 @@ test('a module\'s tools are namespaced: ids and groups carry the module id, and 
 
 test('a module cannot name another module\'s or the system\'s ids', () => {
   assert.throws(() => cleanModuleTools('todo', [{ id: 'calendar:today', icon: 'x', label: 'x' }]), /letters, digits and hyphens/);
-  const [t] = cleanModuleTools('todo', [{ id: 'leave-room', icon: 'x', label: 'x' }]);
-  assert.equal(t.id, 'todo:leave-room', 'the system\'s leave-room is untouched: the module\'s tool is its own');
+  const [t] = cleanModuleTools('todo', [{ id: 'leave-space', icon: 'x', label: 'x' }]);
+  assert.equal(t.id, 'todo:leave-space', 'the system\'s leave-space is untouched: the module\'s tool is its own');
 });
 
 test('a registration needs an id, an icon and a label, once each', () => {

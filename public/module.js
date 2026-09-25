@@ -3,7 +3,7 @@
 //
 // Two ways in:
 //   /modules/<id>                          the module's server page
-//   /modules/<id>?moduleRoom=<room>&popout=1   a room panel in a window of its own
+//   /modules/<id>?space=<space>&popout=1   a space's panel in a window of its own (?moduleRoom= redirects here)
 //                                          (add &guest=<token> for a guest)
 // (Not "room": a module page opened over a call already carries room=<name of the room>.)
 import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights } from '/brand.js';
@@ -12,7 +12,7 @@ import { mountModule } from '/module-host.js';
 const $ = (id) => document.getElementById(id);
 const id = decodeURIComponent(location.pathname.split('/')[2] || '');
 const params = new URLSearchParams(location.search);
-const roomId = params.get('moduleRoom');
+const roomId = params.get('space');
 const guestToken = params.get('guest');
 const popout = params.get('popout') === '1';
 
@@ -41,9 +41,9 @@ async function start() {
   let entry;
   if (roomId) {
     scope = 'room';
-    const q = new URLSearchParams({ room: roomId });
+    const q = new URLSearchParams({ space: roomId });
     if (guestToken) q.set('guest', guestToken);
-    const found = (await api('GET', `/api/modules/for-room?${q}`)).modules.find((m) => m.id === id);
+    const found = (await api('GET', `/api/modules/for-space?${q}`)).modules.find((m) => m.id === id);
     if (found) {
       mod = { ...found, entry: found.panel.entry };
       entry = found.panel.entry;
@@ -84,8 +84,8 @@ async function start() {
     }
     const q = new URLSearchParams(location.search);
     q.delete('popout');
-    q.delete('moduleRoom');
-    if (ref.scope === 'room') q.set('moduleRoom', ref.room);
+    q.delete('space');
+    if (ref.scope === 'room') q.set('space', ref.room);
     location.href = `/modules/${encodeURIComponent(ref.module)}${q.toString() ? '?' + q : ''}${refHash(ref)}`;
     return true;
   };

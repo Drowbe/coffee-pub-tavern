@@ -94,10 +94,12 @@ function fileHint(def) {
 
 export async function renderModuleSettings(container, { scope, room = null, only = '', heading = true }) {
   container.hidden = true;
+  // The server's names for the scopes (plan-names step 5a); this page's callers still say server and room until 5b.
+  const wireScope = { server: 'environment', room: 'space' }[scope] || scope;
   let modules;
   try {
-    const q = room ? `?room=${encodeURIComponent(room)}` : '';
-    modules = (await api('GET', `/api/module-settings/${scope}${q}`)).modules;
+    const q = room ? `?space=${encodeURIComponent(room)}` : '';
+    modules = (await api('GET', `/api/module-settings/${wireScope}${q}`)).modules;
   } catch {
     return; // not something this person may set here
   }
@@ -158,7 +160,7 @@ export async function renderModuleSettings(container, { scope, room = null, only
     status.classList.remove('error');
     status.textContent = 'saving...';
     try {
-      await api('PUT', `/api/modules/${encodeURIComponent(module.id)}/settings/${scope}`, { values, ...(room ? { room } : {}) });
+      await api('PUT', `/api/modules/${encodeURIComponent(module.id)}/settings/${wireScope}`, { values, ...(room ? { space: room } : {}) });
       status.textContent = 'saved';
     } catch (err) {
       status.textContent = err.message;

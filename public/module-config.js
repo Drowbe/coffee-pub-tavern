@@ -29,9 +29,9 @@ if (!m) {
   $('cfg-state').textContent = m.enabled ? 'Enabled' : 'Disabled';
   $('cfg-state').classList.add(m.enabled ? 'on' : 'warn');
   $('cfg-desc').textContent = m.description || '';
-  const mine = (scope) => (m.settings || []).filter((d) => d.scope === scope).length;
+  const mine = (scope) => (m.settings || []).filter((d) => d.scope === scope).length; // the server's scope names (plan-names step 5a)
   const showSettings = () => renderModuleSettings($('settings'), { scope: 'server', only: m.id, heading: false });
-  if (!mine('server')) {
+  if (!mine('environment')) {
     $('cfg-none').hidden = false;
   } else if (!m.enabled) {
     $('cfg-off').hidden = false;
@@ -104,10 +104,10 @@ function wireRegion(m, showSettings) {
     onDone: async (name) => {
       if (filesDef) {
         try {
-          const mine = (await api('GET', '/api/module-settings/server')).modules.find((x) => x.id === m.id);
+          const mine = (await api('GET', '/api/module-settings/environment')).modules.find((x) => x.id === m.id);
           const current = mine?.settings.find((d) => d.key === filesDef.key)?.value;
           const list = Array.isArray(current) ? current : [];
-          if (!list.includes(name)) await api('PUT', `/api/modules/${encodeURIComponent(m.id)}/settings/server`, { values: { [filesDef.key]: [...list, name] } });
+          if (!list.includes(name)) await api('PUT', `/api/modules/${encodeURIComponent(m.id)}/settings/environment`, { values: { [filesDef.key]: [...list, name] } });
         } catch (err) {
           // the file is cut and on disk either way; the admin can tick it by hand if this could not be saved
         }

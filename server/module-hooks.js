@@ -97,7 +97,7 @@ class ModuleHooks extends EventEmitter {
     super();
     this.setMaxListeners(0);
     this.dir = modulesDir;
-    this.resolveRecipients = resolveRecipients; // ({ module, scopeKey, roomId }, to) -> [user keys]
+    this.resolveRecipients = resolveRecipients; // ({ module, scopeKey, spaceId }, to) -> [user keys]
     this.schedulesFile = path.join(modulesDir, 'schedules.json');
     this.notificationsFile = path.join(modulesDir, 'notifications.json');
     this.schedules = this.read(this.schedulesFile, []);
@@ -140,7 +140,7 @@ class ModuleHooks extends EventEmitter {
     return `${module}|${scopeKey}|${key}`;
   }
 
-  // ctx: { manifest, scope, scopeKey, roomId, by }
+  // ctx: { manifest, scope, scopeKey, spaceId, by }
   schedule(ctx, spec) {
     const key = clean(spec?.key, 128);
     if (!/^[A-Za-z0-9_.:/-]{1,128}$/.test(key)) throw new StoreError('a schedule key is 1 to 128 letters, digits and . _ : / -');
@@ -155,7 +155,7 @@ class ModuleHooks extends EventEmitter {
     if (spec.notify) {
       if (!ctx.manifest.hooks.notify) throw new StoreError('this module did not ask for the notify hook', 403);
       notify = {
-        to: clean(spec.notify.to, 40) || (ctx.scope === 'room' ? 'room' : 'server'),
+        to: clean(spec.notify.to, 40) || (ctx.scope === 'space' ? 'space' : 'environment'),
         title: clean(spec.notify.title, LIMITS.title),
         body: clean(spec.notify.body, LIMITS.body),
       };
@@ -166,7 +166,7 @@ class ModuleHooks extends EventEmitter {
     const mine = this.schedules.filter((s) => s.module === ctx.manifest.id);
     if (!mine.some((s) => s.id === id) && mine.length >= LIMITS.schedulesPerModule) throw new StoreError('this module has too many schedules', 413);
     this.schedules = this.schedules.filter((s) => s.id !== id);
-    this.schedules.push({ id, module: ctx.manifest.id, scopeKey: ctx.scopeKey, roomId: ctx.roomId, key, at, payload, notify, repeat, by: ctx.by });
+    this.schedules.push({ id, module: ctx.manifest.id, scopeKey: ctx.scopeKey, spaceId: ctx.spaceId, key, at, payload, notify, repeat, by: ctx.by });
     this.write(this.schedulesFile, this.schedules);
     return { key, at, repeat: Boolean(repeat) };
   }
@@ -193,7 +193,7 @@ class ModuleHooks extends EventEmitter {
     for (const s of due) {
       if (s.repeat) this.requeue(s, now);
       if (now - s.at > LIMITS.lateFireMs) continue; // missed while the server was off, and too late to matter
-      if (s.notify) this.deliver({ module: s.module, scopeKey: s.scopeKey, roomId: s.roomId }, s.notify, { by: 'schedule' });
+      if (s.notify) this.deliver({ module: s.module, scopeKey: s.scopeKey, spaceId: s.spaceId }, s.notify, { by: 'schedule' });
       this.emit('fire', { module: s.module, scopeKey: s.scopeKey, key: s.key, payload: s.payload, at: s.at });
     }
     if (due.some((s) => s.repeat)) this.write(this.schedulesFile, this.schedules);
@@ -210,7 +210,7 @@ class ModuleHooks extends EventEmitter {
 
   // --- notifications ------------------------------------------------------
 
-  // ctx: { module, scopeKey, roomId }; note: { to, title, body }
+  // ctx: { module, scopeKey, spaceId }; note: { to, title, body }
   deliver(ctx, note, { by = '' } = {}) {
     const title = clean(note.title, LIMITS.title);
     if (!title) throw new StoreError('a notification needs a title');
@@ -222,8 +222,8 @@ class ModuleHooks extends EventEmitter {
       const n = {
         id: `${at.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
         module: ctx.module,
-        scope: ctx.scopeKey === 'server' ? 'server' : 'room',
-        roomId: ctx.roomId || null,
+        scope: ctx.scopeKey === 'environment' ? 'environment' : 'space',
+        spaceId: ctx.spaceId || null,
         title,
         body: clean(note.body, LIMITS.body),
         at,

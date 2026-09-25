@@ -7,8 +7,8 @@
 // keep reading `store`, `modules` and the rest by the names they use today (see the AsyncLocalStorage + Proxy
 // wiring in index.js, right after this file's exports are required).
 //
-// What is NOT built here, because it is the host's, not any one environment's: the LiveKit room-service client
-// (one call service, shared -- phase 4 prefixes its room names per environment), the pre-made backgrounds and Font
+// What is NOT built here, because it is the host's, not any one environment's: the LiveKit client for the call
+// service (one call service, shared -- each environment's calls are named apart, see server/call-names.js), the pre-made backgrounds and Font
 // Awesome files (part of the app itself, or an admin's own Pro package at DATA_DIR/fontawesome-pro -- see the
 // migration note in plan-tenants.md: that folder and host.json are the two things a migration never moves).
 'use strict';
@@ -67,14 +67,14 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
 
   // Who a module notification reaches: people who could see that module in that place.
   const moduleHooks = new ModuleHooks(modules.dir, {
-    resolveRecipients: ({ module, roomId }, to) => {
+    resolveRecipients: ({ module, spaceId }, to) => {
       const found = modules.enabled(module);
       if (!found) return [];
       let keys = [];
-      if (to === 'room') keys = roomId ? store.roomById(roomId)?.members || [] : [];
-      else if (to === 'server') keys = store.users.map((u) => u.key);
+      if (to === 'space') keys = spaceId ? store.spaceById(spaceId)?.members || [] : [];
+      else if (to === 'environment') keys = store.users.map((u) => u.key);
       else keys = store.userByKey(to) ? [to] : [];
-      return keys.filter((k) => store.userByKey(k) && moduleCan(found.manifest, store.roomPermissions(k, roomId), 'read'));
+      return keys.filter((k) => store.userByKey(k) && moduleCan(found.manifest, store.spacePermissions(k, spaceId), 'read'));
     },
   });
   moduleHooks.start();
@@ -117,12 +117,12 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   // Who is on the site right now (POST /api/presence) and pending two-person invitations -- both in memory only,
   // never meeting another environment's.
   const presence = new Map(); // user key -> last time a page said it was open
-  const invites = new Map(); // id -> { id, from, to, roomId, at }
+  const invites = new Map(); // id -> { id, from, to, spaceId, at }
   const inviteEvents = new EventEmitter();
   inviteEvents.setMaxListeners(0);
 
   const chatHistory = new ChatHistory(dataDir);
-  const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a room's history
+  const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a space's history
 
   const moduleLinks = new ModuleLinks(modules.dir);
   const moduleBus = new ModuleBus(modules.dir);
@@ -137,7 +137,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
 
   // A Font Awesome icon as inline SVG, cached by id -- keyed off this environment's own custom icons
   // (store.settings.icons), so two environments' same id can mean two different icons.
-  const roomIconSvgs = new Map();
+  const iconSvgs = new Map();
 
   // What modules have been doing (DATA_DIR/modules/activity.json), for the admin's activity list. Written a few
   // seconds after a change and on the way out (see flushEnvironment).
@@ -172,7 +172,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   moduleBus.on('action', (a) => noteActivity(a.from, `asked ${a.provider} to ${a.action}`, a.by, a.scopeKey));
   moduleSettings.on('change', (c) => {
     if (c.scope === 'person') return;
-    const where = c.scope === 'room' ? ` for ${store.roomById(c.roomId)?.name || 'a room'}` : '';
+    const where = c.scope === 'space' ? ` for ${store.spaceById(c.spaceId)?.name || 'a space'}` : '';
     noteActivity(c.module, `changed the ${c.scope} settings${where}: ${c.keys.join(', ')}`, c.by, null);
   });
   regionCutJobs.on('done', (id) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `cut a map region: ${j.name}`, j.by, null); });
@@ -181,7 +181,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   return {
     slug, dataDir,
     store, modules, moduleData, moduleHooks, chatHistory, moduleLinks, moduleBus, moduleSettings, ai, moduleUploads,
-    geocodeCache, regionCutJobs, moduleLimits, limiter, presence, invites, inviteEvents, chatPosts, roomIconSvgs,
+    geocodeCache, regionCutJobs, moduleLimits, limiter, presence, invites, inviteEvents, chatPosts, iconSvgs,
     moduleActivity, noteActivity, saveActivity,
   };
 }

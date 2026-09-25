@@ -24,6 +24,36 @@ export function readTheme() {
   return theme;
 }
 
+// --- the server's names and the SDK's (plan-names step 5a) -------------------------------------------
+// The server speaks of the environment and a space (scope 'environment', 'space', 'spaces'; a pointer's `space`;
+// `spaceId`); the SDK and the modules keep 'server', 'room', 'rooms', `room` and `roomId` until plan-names step 5c.
+// This file is where the two meet, so it translates both ways here and nowhere else.
+const WIRE_SCOPE = { server: 'environment', room: 'space', rooms: 'spaces' };
+const SDK_SCOPE = { environment: 'server', space: 'room', spaces: 'rooms' };
+const toWireScope = (sc) => WIRE_SCOPE[sc] || sc;
+const toSdkScope = (sc) => SDK_SCOPE[sc] || sc;
+const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
+const isPointer = (v) => isPlainObject(v) && typeof v.module === 'string' && typeof v.kind === 'string' && (typeof v.id === 'string' || typeof v.id === 'number');
+// Every pointer in a value, in the server's shape (toWire) or the SDK's (toSdk); anything else as it is.
+function pointersIn(value, toWire) {
+  if (Array.isArray(value)) return value.map((v) => pointersIn(v, toWire));
+  if (!isPlainObject(value)) return value;
+  if (isPointer(value) && typeof value.scope === 'string') {
+    const [from, to, fromKey, toKey] = toWire ? ['room', 'space', 'room', 'space'] : ['space', 'room', 'space', 'room'];
+    const scope = toWire ? toWireScope(value.scope) : toSdkScope(value.scope);
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === 'scope') out.scope = scope;
+      else if (k === fromKey) { if (value.scope === from || scope === to) out[toKey] = v; }
+      else if (k !== toKey) out[k] = v;
+    }
+    return out;
+  }
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, pointersIn(v, toWire)]));
+}
+const toWire = (value) => pointersIn(value, true);
+const toSdk = (value) => pointersIn(value, false);
+
 // One live stream per page (and room) is shared by every module frame on it. Browsers allow only a
 // few long-lived connections to one site, so a stream per module would starve everything else once
 // a handful of modules were open. See GET /api/modules/stream in server/index.js.
@@ -33,7 +63,7 @@ function joinStream(room, guest, onEvent) {
   let s = streams.get(key);
   if (!s) {
     const p = new URLSearchParams();
-    if (room) p.set('room', room);
+    if (room) p.set('space', room);
     if (guest) p.set('guest', guest);
     const source = new EventSource(`/api/modules/stream?${p}`);
     s = { source, subs: new Set() };
@@ -182,7 +212,7 @@ async function watchMedia({ key, audio = false, video = true, room: startRoom = 
     if (stopped) return;
     const target = wantedRoom;
     try {
-      const { token, livekitUrl } = await api('POST', '/api/token', { role: 'viewer', room: target });
+      const { token, livekitUrl } = await api('POST', '/api/token', { role: 'viewer', space: target });
       await room.connect(livekitUrl, token, { autoSubscribe });
       connectedRoom = target;
       call('connection', { connected: true, room: target });
@@ -473,7 +503,8 @@ export function mountModule({ module, frame = null, container = null, scope, roo
 
   const q = (sc) => {
     const p = new URLSearchParams();
-    if (sc === 'room') { p.set('scope', 'room'); p.set('room', roomId); } else if (sc === 'rooms') p.set('scope', 'rooms'); else if (sc === 'person') p.set('scope', 'person'); else { p.set('scope', 'server'); }
+    // The SDK's scope, in the server's name for it.
+    if (sc === 'room') { p.set('scope', 'space'); p.set('space', roomId); } else if (sc === 'rooms') p.set('scope', 'spaces'); else if (sc === 'person') p.set('scope', 'person'); else { p.set('scope', 'environment'); }
     if (guestToken) p.set('guest', guestToken);
     return p;
   };
@@ -485,7 +516,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (requested === 'person' && !module.scope?.includes('person')) throw Object.assign(new Error('this module has no personal scope'), { status: 400 });
       if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a space'), { status: 400 });
       // 'rooms' is the server page reading every room the viewer belongs to (read-only)
-      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('room'))) throw Object.assign(new Error('only a module\'s server page can read across spaces'), { status: 400 });
+      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('space'))) throw Object.assign(new Error('only a module\'s server page can read across spaces'), { status: 400 });
       return requested;
     }
     throw Object.assign(new Error('bad scope'), { status: 400 });
@@ -497,7 +528,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
   };
 
   // The place this module is in, for the bus routes: a room's pane is in its room, a page in the server.
-  const busPlaceBody = () => (scope === 'room' ? { scope: 'room', room: roomId } : { scope: 'server' });
+  const busPlaceBody = () => (scope === 'room' ? { scope: 'space', space: roomId } : { scope: 'environment' });
   const busGuest = () => (guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '');
   const busQuery = (extra) => {
     const p = new URLSearchParams({ ...extra, ...busPlaceBody() });
@@ -552,14 +583,14 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     },
     async 'storage.list'({ prefix, scope: s }) {
       const sc = scopeOf(s);
-      if (sc === 'rooms') return (await api('GET', url('/rooms-data', sc, { prefix }))).items;
+      if (sc === 'rooms') return (await api('GET', url('/spaces-data', sc, { prefix }))).items.map(({ spaceId, ...item }) => ({ ...item, roomId: spaceId }));
       return (await api('GET', url('/data', sc, { prefix }))).items;
     },
     // Refs: cards for pointers to other modules' items, and a search for items this module may link to.
     // Always asked on this module's behalf (`from`), so the server can check it was approved for them.
     async 'refs.resolve'({ refs }) {
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return (await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).cards;
+      return toSdk((await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: toWire(Array.isArray(refs) ? refs.slice(0, 50) : []) })).cards);
     },
     // The kinds of other modules' items this module may link to, so it need not know them by name.
     async 'refs.kinds'() {
@@ -594,22 +625,23 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'refs.setLinks'({ from, to }) {
       if (!REF_SHAPE(from)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return api('POST', `/api/refs/links${q}`, { module: module.id, from, to: (Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20) });
+      return api('POST', `/api/refs/links${q}`, { module: module.id, from: toWire(from), to: toWire((Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20)) });
     },
     // What points at one of this module's items ('to'), or what it points at ('from'): cards.
     async 'refs.links'({ ref, dir }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
-      const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(ref), dir: dir === 'from' ? 'from' : 'to' });
+      const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(toWire(ref)), dir: dir === 'from' ? 'from' : 'to' });
       if (guestToken) p.set('guest', guestToken);
-      return (await api('GET', `/api/refs/links?${p}`)).cards;
+      return toSdk((await api('GET', `/api/refs/links?${p}`)).cards);
     },
     // Events and actions between modules (see the SDK's host.events and host.actions). Always in this
     // module's own place, and always on its behalf: the server checks what it declared and was approved for.
     async 'events.publish'({ name, ref, data }) {
-      return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref, data, ...busPlaceBody() });
+      return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref: toWire(ref), data, ...busPlaceBody() });
     },
     async 'events.since'({ after }) {
-      return api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
+      const answer = await api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
+      return { ...answer, events: (answer.events || []).map((e) => ({ ...e, ref: toSdk(e.ref) })) };
     },
     async 'actions.list'({ accepts, self } = {}) {
       const extra = {};
@@ -618,34 +650,34 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id, ...extra })}`)).actions;
     },
     async 'actions.request'({ action, input }) {
-      const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
+      const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input: toWire(input), ...busPlaceBody() });
       // The module that carries an action does it from its own page, so a request waits until that page is open: ask the host to
       // open it here (a room's pane) when it is not.
       if (onOpenModule) { try { onOpenModule(String(action).split(':')[0]); } catch (err) { /* it cannot be opened here */ } }
       return queued;
     },
     async 'actions.pending'() {
-      return (await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions;
+      return toSdk((await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions);
     },
     async 'actions.claim'({ id }) {
-      return api('POST', `/api/bus/actions/claim${busGuest()}`, { module: module.id, id, ...busPlaceBody() });
+      return toSdk(await api('POST', `/api/bus/actions/claim${busGuest()}`, { module: module.id, id, ...busPlaceBody() }));
     },
     async 'actions.complete'({ id, result }) {
-      return api('POST', `/api/bus/actions/complete${busGuest()}`, { module: module.id, id, result, ...busPlaceBody() });
+      return api('POST', `/api/bus/actions/complete${busGuest()}`, { module: module.id, id, result: toWire(result), ...busPlaceBody() });
     },
     async 'actions.status'({ id }) {
-      return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
+      return toSdk(await api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`));
     },
     async 'refs.search'({ q, scope: s }) {
       const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private items of a kind they may link to
       if (sc === 'rooms') throw Object.assign(new Error('search one place at a time'), { status: 400 });
-      const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: sc });
-      if (sc === 'room') p.set('room', roomId);
+      const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: toWireScope(sc) });
+      if (sc === 'room') p.set('space', roomId);
       if (guestToken) p.set('guest', guestToken);
-      return (await api('GET', `/api/refs/search?${p}`)).cards;
+      return toSdk((await api('GET', `/api/refs/search?${p}`)).cards);
     },
     async rooms() {
-      return (await api('GET', url('/rooms-data', 'rooms', { info: 1 }))).rooms;
+      return (await api('GET', url('/spaces-data', 'rooms', { info: 1 }))).spaces;
     },
     // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
     // Empty on a module's server page, which is not in one room.
@@ -664,7 +696,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       return api('GET', url('/ai', scopeOf()));
     },
     async 'ai.ask'({ task, question, items }) {
-      return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: Array.isArray(items) ? items.slice(0, 12) : [] });
+      return toSdk(await api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: toWire(Array.isArray(items) ? items.slice(0, 12) : []) }));
     },
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {
@@ -699,18 +731,18 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async people() {
       if (scope !== 'room' || !roomId) return [];
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      const { users, rooms } = await api('GET', `/api/presence${q}`);
+      const { users, spaces: rooms } = await api('GET', `/api/presence${q}`);
       const members = new Set((rooms || []).find((r) => r.id === roomId)?.members || []);
       return (users || []).filter((u) => members.has(u.key)).map((u) => ({ key: u.key, name: u.displayName }));
     },
     async schedule(spec) {
-      return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined });
+      return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined, ...(spec?.notify && typeof spec.notify === 'object' ? { notify: { ...spec.notify, to: toWireScope(spec.notify.to) } } : {}) });
     },
     async cancelSchedule({ key, scope: s }) {
       return api('DELETE', url(`/schedule/${encodeURIComponent(key)}`, scopeOf(s)));
     },
     async notify(spec) {
-      return api('POST', url('/notify', scopeOf(spec?.scope)), { ...spec, scope: undefined });
+      return api('POST', url('/notify', scopeOf(spec?.scope)), { ...spec, scope: undefined, ...(spec && 'to' in spec ? { to: toWireScope(spec.to) } : {}) });
     },
     // The module's action bar: the host draws the buttons into `bar` and sends
     // clicks back as a 'bar' event.
@@ -1074,9 +1106,9 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async 'presence.get'() {
       const d = await api('GET', `/api/presence${busGuest()}`);
       return {
-        people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), room: u.room || null, inCall: Boolean(u.inCall), isAdmin: Boolean(u.isAdmin) })),
-        rooms: (d.rooms || []).map((r) => ({ id: r.id, name: r.name, ephemeral: Boolean(r.ephemeral), origin: r.origin || null, private: Boolean(r.private) })),
-        activeRoom: d.activeRoom || null,
+        people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), room: u.space || null, inCall: Boolean(u.inCall), isAdmin: Boolean(u.isAdmin) })),
+        rooms: (d.spaces || []).map((r) => ({ id: r.id, name: r.name, ephemeral: Boolean(r.ephemeral), origin: r.origin || null, private: Boolean(r.private) })),
+        activeRoom: d.activeSpace || null,
         adminOnline: Boolean(d.adminOnline),
         reactions: (d.reactions || []).map((r) => ({ id: r.id, glyph: r.glyph })),
       };
@@ -1085,7 +1117,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     // releases; null when they have none there. `room` asks for that room's own picture set, the way the call page does.
     async 'images.get'({ key, slot, room, fallback }) {
       const p = new URLSearchParams();
-      if (room) p.set('room', String(room));
+      if (room) p.set('space', String(room));
       if (fallback === 'none') p.set('fallback', 'none'); // the profile slot: the real photo only, not the initials plate
       if (guestToken) p.set('guest', guestToken);
       const res = await fetch(`/img/${encodeURIComponent(String(key ?? ''))}/${encodeURIComponent(String(slot ?? ''))}?${p}`, { headers: accessKeyHeaders() });
@@ -1154,17 +1186,19 @@ export function mountModule({ module, frame = null, container = null, scope, roo
   // event stream, so it asks after its settings now and then instead (the one live thing it needs).
   const leaveStream = keyed ? pollSettings() : joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
-    if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, roomId: d.roomId });
-    else if (type === 'links') send('links', { ref: d.ref });
-    else if (type === 'settings') send('settings', { scope: d.scope });
+    // The server's names (scope 'space', spaceId, a pointer's space) go to the module in the SDK's.
+    const here = scope === 'room' ? 'space' : 'environment';
+    if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: toSdkScope(d.scope), roomId: d.spaceId });
+    else if (type === 'links') send('links', { ref: toSdk(d.ref) });
+    else if (type === 'settings') send('settings', { scope: toSdkScope(d.scope) });
     else if (type === 'bus') {
       // An event some module published: only the modules the server named may hear it, in their own place.
-      if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === (scope === 'room' ? 'room' : 'server')) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: d.ref, data: d.data });
+      if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === here) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: toSdk(d.ref), data: d.data });
     } else if (type === 'action') {
       // A request for this module to do something.
-      if (d.provider === module.id && d.scope === (scope === 'room' ? 'room' : 'server')) send('action', { id: d.id, name: d.name, from: d.from, by: d.by });
+      if (d.provider === module.id && d.scope === here) send('action', { id: d.id, name: d.name, from: d.from, by: d.by });
     }
-    else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
+    else send('schedule', { key: d.key, payload: d.payload, scope: toSdkScope(d.scope) });
   });
 
   // The keyed page's stand-in for the event stream: its settings, compared every 10 seconds, a 'settings'

@@ -221,12 +221,12 @@ test('a refused settings, person or space save changes nothing, in memory or on 
     store.updateSettings({ clock: '12', loginText: 'before', currency: 'USD' });
 
     // Settings: good fields, then a refused currency (and a refused theme, a refused home icon).
-    assert.throws(() => store.updateSettings({ clock: '24', loginText: 'after', serverName: 'Changed', currency: 'XYZ' }), /XYZ is not a currency this server knows/);
+    assert.throws(() => store.updateSettings({ clock: '24', loginText: 'after', environmentName: 'Changed', currency: 'XYZ' }), /XYZ is not a currency this server knows/);
     assert.throws(() => store.updateSettings({ clock: '24', activeThemeId: 'nope' }), /no such theme/);
     assert.throws(() => store.updateSettings({ loginText: 'after', homeIcon: 'not-an-icon' }), /unknown home icon/);
     assert.equal(store.settings.clock, '12', 'the clock sent with a refused currency is not applied');
     assert.equal(store.settings.loginText, 'before');
-    assert.notEqual(store.settings.serverName, 'Changed');
+    assert.notEqual(store.settings.environmentName, 'Changed');
     store.updateSettings({ language: store.settings.language }); // a later, valid save writes the file
     assert.equal(onDisk().settings.clock, '12', 'and not written by the next save');
     assert.equal(onDisk().settings.loginText, 'before');
@@ -242,19 +242,19 @@ test('a refused settings, person or space save changes nothing, in memory or on 
     assert.equal(store.userByLogin('robert'), null);
 
     // A space: a new name and description, then a refused profile, link or link icon.
-    const room = store.addRoom({ name: 'Keep' });
-    const guests = Boolean(room.allowGuests);
-    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', description: 'lost', profile: 'bad' }), /profile must be roleplaying/);
-    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', allowGuests: !guests, link: 'ftp://x' }), /link must be a valid http\(s\) URL/);
-    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', linkIcon: 'not-an-icon' }), /unknown link icon/);
-    assert.equal(store.roomById(room.id).name, 'Keep');
-    assert.equal(store.roomById(room.id).description, '');
-    assert.equal(Boolean(store.roomById(room.id).allowGuests), guests);
+    const space = store.addSpace({ name: 'Keep' });
+    const guests = Boolean(space.allowGuests);
+    assert.throws(() => store.updateSpace(space.id, { name: 'Lost', description: 'lost', profile: 'bad' }), /profile must be roleplaying/);
+    assert.throws(() => store.updateSpace(space.id, { name: 'Lost', allowGuests: !guests, link: 'ftp://x' }), /link must be a valid http\(s\) URL/);
+    assert.throws(() => store.updateSpace(space.id, { name: 'Lost', linkIcon: 'not-an-icon' }), /unknown link icon/);
+    assert.equal(store.spaceById(space.id).name, 'Keep');
+    assert.equal(store.spaceById(space.id).description, '');
+    assert.equal(Boolean(store.spaceById(space.id).allowGuests), guests);
 
     store.updateSettings({ clock: '12' });
     const disk = onDisk();
     assert.equal(disk.users.find((u) => u.key === bob.key).login, 'bob');
-    assert.equal(disk.rooms.find((r) => r.id === room.id).name, 'Keep');
+    assert.equal(disk.spaces.find((r) => r.id === space.id).name, 'Keep');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

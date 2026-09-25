@@ -30,7 +30,7 @@
       "role": "user",
       "passwordHash": "fixture-not-a-hash",
       "rooms": {
-        "keep01": { "useDefaultImages": true, "permissions": { "moderator": true } }
+        "keep01": { "images": { "player": "player-fixture.png" }, "useDefaultImages": false, "permissions": { "moderator": true } }
       }
     },
     {

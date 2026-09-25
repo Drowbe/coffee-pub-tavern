@@ -82,7 +82,7 @@ The permissions are grouped:
 
 - **Panes**: see and join the conference, open and read the chat. Everyone has both by default. Without
   the first, a person joins a room for its chat and modules only and cannot send or receive audio or video.
-- **In the Room**: send chat messages, send pictures in chat, use reactions, share their screen.
+- **In the Space**: send chat messages, send pictures in chat, use reactions, share their screen.
 - **Asides**: start a private conversation, step aside with someone (recorded).
 - **Moderation**: mute other people, kick other people, manage a room's guest link.
 - **Images**: change their own profile photo, call background, and each of the Participant and

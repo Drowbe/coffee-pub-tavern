@@ -47,7 +47,9 @@ const runMigration = onlyMigration || (!onlyWords);
 
 // The levels, top down, then the roles, then the rest of the plan's renames. `code` and `words` are each
 // 'report' or 'enforce' (null: that mode has no pattern for this level). `step` is the plan's step that
-// switches the level to enforce.
+// switches the level to enforce. `enforceIn`, when given, keeps an enforced level to those folders for now: a hit
+// anywhere else is only reported, until the step that renames it there (the space level: server/ and tools/ from
+// step 5a; public/ in 5b and modules/ in 5c).
 const LEVELS = [
   { id: 'environment', step: '2', code: 'enforce', words: 'enforce', codePatterns: [/tenant/gi], wordPatterns: [/\btenants?\b/gi] },
   {
@@ -68,7 +70,7 @@ const LEVELS = [
     ],
   },
   {
-    id: 'space', step: '5', code: 'report', words: 'report',
+    id: 'space', step: '5', code: 'enforce', words: 'enforce', enforceIn: ['server/', 'tools/'], reportUntil: '5b (public/) and 5c (modules/)',
     codePatterns: [/room/gi, /\bserverName\b/g, /\bscope\s*(:|[!=]==?)\s*['"]server['"]/g, /['"]server['"]\s*[!=]==?\s*[\w.?]*\bscope\b/g, /\bscope:\s*\[[^\]]*['"](room|server)['"]/g],
     wordPatterns: [/\brooms?\b/gi],
   },
@@ -397,8 +399,11 @@ function report(mode, files, allow) {
     if (!state) continue;
     const { hits, allowed } = results.get(level.id);
     const fileCount = new Set(hits.map((h) => h.file)).size;
-    rows.push(`  ${level.id.padEnd(12)}${state.padEnd(8)}${String(hits.length).padStart(6)} in ${String(fileCount).padStart(3)} files  (${allowed} allowed; enforced from step ${level.step})`);
-    if (state === 'enforce' && hits.length) fail(`check-names: ${mode} level "${level.id}" is enforced and has ${hits.length} old name${hits.length === 1 ? '' : 's'} left (run with --list=${level.id})`);
+    const enforcedHere = (h) => !level.enforceIn || level.enforceIn.some((dir) => h.file.startsWith(dir));
+    const failing = state === 'enforce' ? hits.filter(enforcedHere) : [];
+    const where = level.enforceIn ? ` in ${level.enforceIn.join(' and ')}; ${hits.length - failing.length} elsewhere reported until step ${level.reportUntil}` : '';
+    rows.push(`  ${level.id.padEnd(12)}${state.padEnd(8)}${String(hits.length).padStart(6)} in ${String(fileCount).padStart(3)} files  (${allowed} allowed; enforced from step ${level.step}${where})`);
+    if (failing.length) fail(`check-names: ${mode} level "${level.id}" is enforced${level.enforceIn ? ` in ${level.enforceIn.join(' and ')}` : ''} and has ${failing.length} old name${failing.length === 1 ? '' : 's'} left (run with --list=${level.id})`);
     if (listArg && (!listLevel || listLevel === level.id)) {
       for (const h of hits) rows.push(`      ${h.file}:${h.line}  ${h.token}`);
     }
@@ -520,8 +525,8 @@ function callNamesCheck() {
       fs.writeFileSync(path.join(dir, 'host.json'), JSON.stringify({ environments: [{ slug: 'acme.co', name: 'x' }, { slug: 'fine', name: 'y' }] }));
       assert.deepEqual(new Registry(dir).listEnvironments().map((e) => e.slug), ['fine'], 'a dotted slug in host.json is dropped on load');
       const store = new Store(path.join(dir, 'env'));
-      assert.equal(store.sanitizeRoom({ id: 'ke.ep', name: 'x' }), null, 'a dotted space id is dropped');
-      for (let i = 0; i < 20; i += 1) assert.match(store.addAsideRoom([], null).id, /^[a-z0-9]{4,16}$/);
+      assert.equal(store.sanitizeSpace({ id: 'ke.ep', name: 'x' }), null, 'a dotted space id is dropped');
+      for (let i = 0; i < 20; i += 1) assert.match(store.addAside([], null).id, /^[a-z0-9]{4,16}$/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -767,7 +772,7 @@ function migrationCheck() {
       assert.equal(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'), '\u0000');
       const fresh = path.join(base, 'fresh-unreadable-check');
       assert.deepEqual(names.migrateEnvironment(fresh, { log: quiet }), names.ENVIRONMENT_PARTS.map((p) => p.id), 'a missing app.json is a new environment');
-      assert.ok(new Store(fresh).rooms.length > 0);
+      assert.ok(new Store(fresh).spaces.length > 0);
     });
 
     test('a new directory records its parts as run, moving nothing', () => {
@@ -778,7 +783,7 @@ function migrationCheck() {
       assert.deepEqual(record.migrations.map((m) => [m.id, m.moved]), [['names-frame-check', []]]);
       assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false);
       const store = new Store(dir);
-      assert.equal(store.rooms.length > 0, true, 'Store still builds a whole app.json around the record');
+      assert.equal(store.spaces.length > 0, true, 'Store still builds a whole app.json around the record');
       assert.deepEqual(names.recordedParts(JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'))), ['names-frame-check']);
       const empty = path.join(base, 'fresh-no-parts');
       assert.deepEqual(names.migrateEnvironment(empty, { log: quiet }), names.ENVIRONMENT_PARTS.map((p) => p.id));
@@ -1162,6 +1167,8 @@ function migrationCheck() {
     const withoutTable = (settings) => Object.fromEntries(Object.entries(settings).filter(([k]) => k !== 'tableName' && k !== 'room'));
     // The names-table tests run that part alone, so what they compare is only its own change.
     const TABLE_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-table');
+    // The parts up to step 4's, for the tests that read the data by its names before names-spaces.
+    const UP_TO_ROLES = names.ENVIRONMENT_PARTS.slice(0, 2);
     // settings with settings.roles' `user` key named `member`, in the same place.
     const renamedRoles = (settings) => (settings.roles ? { ...settings, roles: Object.fromEntries(Object.entries(settings.roles).map(([k, v]) => [k === 'user' ? 'member' : k, v])) } : settings);
 
@@ -1240,14 +1247,14 @@ function migrationCheck() {
       ]) {
         const dir = copyFixture();
         fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify({ ...old, rooms: old.rooms.map((r) => (r.id === 'lobby' ? { ...r, description: had } : r)) }));
-        names.migrateEnvironment(dir, { log: quiet });
+        names.migrateEnvironment(dir, { parts: TABLE_ONLY, log: quiet });
         const rooms = appOf(dir).rooms;
         assert.equal(rooms.find((r) => r.id === 'lobby').description, expected, JSON.stringify(had));
         assert.deepEqual(rooms.filter((r) => r.id !== 'lobby'), old.rooms.filter((r) => r.id !== 'lobby'), 'other spaces untouched');
       }
       const keep = copyFixture();
       fs.writeFileSync(path.join(keep, 'app.json'), JSON.stringify({ ...old, rooms: old.rooms.map((r) => (r.id === 'keep01' ? { ...r, description: 'Everyone at the table.' } : r)) }));
-      names.migrateEnvironment(keep, { log: quiet });
+      names.migrateEnvironment(keep, { parts: TABLE_ONLY, log: quiet });
       assert.equal(appOf(keep).rooms.find((r) => r.id === 'keep01').description, 'Everyone at the table.', 'another space with the same words is someone\'s own');
     });
 
@@ -1280,13 +1287,13 @@ function migrationCheck() {
       for (const slug of envs) {
         const envDir = path.join(dir, 'environments', slug);
         const before = JSON.parse(originalHost[`tenants/${slug}/app.json`]);
-        assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), names.ENVIRONMENT_PARTS.map((p) => p.id), slug);
+        assert.deepEqual(names.migrateEnvironment(envDir, { parts: UP_TO_ROLES, log: quiet }), UP_TO_ROLES.map((p) => p.id), slug);
         const app = appOf(envDir);
         assert.deepEqual(app.settings, renamedRoles(withoutTable(before.settings)), `${slug}: only the old settings removed, and the role keys renamed`);
         assert.equal(app.version, 2);
         assert.equal(fs.readFileSync(path.join(envDir, 'pre-names', 'names-table', 'app.json'), 'utf8'), originalHost[`tenants/${slug}/app.json`], `${slug}: its own copy`);
         const after = snapshot(envDir);
-        assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), [], `${slug}: the second start runs nothing`);
+        assert.deepEqual(names.migrateEnvironment(envDir, { parts: UP_TO_ROLES, log: quiet }), [], `${slug}: the second start runs nothing`);
         assert.deepEqual(snapshot(envDir), after);
       }
       assert.equal(fs.readFileSync(path.join(dir, 'environments-deleted', 'gone-1767225600000', 'app.json'), 'utf8'), originalHost['tenants-deleted/gone-1767225600000/app.json'], 'a deleted environment is not built, so not migrated');
@@ -1295,6 +1302,7 @@ function migrationCheck() {
 
     // --- names-roles, the role values (plan-names step 4) ---
     const ROLES_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-roles');
+    const ALL_PARTS = names.ENVIRONMENT_PARTS.map((p) => p.id);
 
     test('names-roles is the second environment part, after names-table', () => {
       assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 2), ['names-table', 'names-roles']);
@@ -1306,7 +1314,7 @@ function migrationCheck() {
       assert.deepEqual(old.users.map((u) => [u.key, u.role, Boolean(u.hostAdmin)]), [['ownerkey01', 'admin', false], ['memberkey1', 'user', false], ['hostkey001', 'user', true]], 'the fixture has an owner, a member and a stand-in someone demoted');
       assert.ok('user' in old.settings.roles, 'the fixture has custom member permissions under the old key');
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-table', 'names-roles']);
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_ROLES, log: (m) => logged.push(m) }), ['names-table', 'names-roles']);
       const afterTable = JSON.parse(fs.readFileSync(path.join(dir, 'pre-names', 'names-roles', 'app.json'), 'utf8'));
       assert.deepEqual(names.recordedParts(afterTable), ['names-table'], 'the copy is app.json as names-table left it');
       const app = appOf(dir);
@@ -1321,7 +1329,7 @@ function migrationCheck() {
       assert.deepEqual(migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]]);
       assert.ok(logged.some((m) => m.includes('"names-roles"')), 'one line in the log');
       const after = snapshot(dir);
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_ROLES, log: quiet }), [], 'the second start runs nothing');
       assert.deepEqual(snapshot(dir), after, 'and changes nothing');
     });
 
@@ -1369,23 +1377,23 @@ function migrationCheck() {
       assert.deepEqual(store.users.map((u) => u.role), ['owner', 'member', 'admin']);
       assert.equal(store.roleSet('member').startAside, true, 'the member override (was settings.roles.user) applies');
       assert.equal(store.roleSet('member').chat, false);
-      assert.equal(store.roomPermissions('memberkey1', null).startAside, true, 'and to a member');
-      assert.equal(store.roomPermissions('memberkey1', 'keep01').canKick, true, 'the moderator grant in The Keep still gives the Moderator column');
-      assert.equal(store.roomPermissions('memberkey1', null).canKick, false, 'but only there');
-      assert.ok(Object.values(store.roomPermissions('ownerkey01', null)).every(Boolean), 'the owner has every permission');
-      assert.ok(Object.values(store.roomPermissions('hostkey001', null)).every(Boolean), 'and the stand-in');
+      assert.equal(store.spacePermissions('memberkey1', null).startAside, true, 'and to a member');
+      assert.equal(store.spacePermissions('memberkey1', 'keep01').canKick, true, 'the moderator grant in The Keep still gives the Moderator column');
+      assert.equal(store.spacePermissions('memberkey1', null).canKick, false, 'but only there');
+      assert.ok(Object.values(store.spacePermissions('ownerkey01', null)).every(Boolean), 'the owner has every permission');
+      assert.ok(Object.values(store.spacePermissions('hostkey001', null)).every(Boolean), 'and the stand-in');
       assert.deepEqual(Object.keys(store.roles()), ['owner', 'moderator', 'member', 'guest']);
       assert.equal(store.ownerCount(), 1, 'the stand-in is not an owner');
       store.save();
       const app = appOf(dir);
-      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles']);
+      assert.deepEqual(names.recordedParts(app), ALL_PARTS);
       assert.deepEqual(app.users.map((u) => u.role), ['owner', 'member', 'admin']);
     });
 
     test('names-roles on a new environment: recorded as run, moving nothing, no copy', () => {
       const dir = path.join(base, 'fresh-roles');
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-table', 'names-roles']);
-      assert.deepEqual(appOf(dir).migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]]);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ALL_PARTS);
+      assert.deepEqual(appOf(dir).migrations.map((m) => [m.id, m.moved]), ALL_PARTS.map((id) => [id, []]));
       assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false);
     });
 
@@ -1398,6 +1406,182 @@ function migrationCheck() {
       assert.deepEqual(app.users.map((u) => [u.login, u.role, Boolean(u.hostAdmin)]), [['owner', 'owner', false], ['pat', 'member', false], ['boss', 'admin', true]]);
       assert.deepEqual(app.settings.roles, { member: { startAside: true }, guest: { react: false } });
       assert.ok(fs.existsSync(path.join(envDir, 'pre-names', 'names-roles', 'app.json')));
+    });
+
+    // --- names-spaces, a space and the environment's scope (plan-names step 5a) ---
+    const SPACES_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-spaces');
+    const jsonOf = (dir, rel) => JSON.parse(fs.readFileSync(path.join(dir, rel), 'utf8'));
+    const oldJson = (rel) => JSON.parse(original[rel]);
+    const SPACE_MOVES = [
+      { from: 'images/rooms', to: 'images/spaces' },
+      { from: 'images/memberkey1/rooms', to: 'images/memberkey1/spaces' },
+      { from: 'modules/calendar/data/room-lobby.json', to: 'modules/calendar/data/space-lobby.json' },
+      { from: 'modules/research/uploads/room-keep01', to: 'modules/research/uploads/space-keep01' },
+      { from: 'modules/research/uploads/server', to: 'modules/research/uploads/environment' },
+      { from: 'modules/todo/data/room-keep01.json', to: 'modules/todo/data/space-keep01.json' },
+      { from: 'modules/todo/data/server.json', to: 'modules/todo/data/environment.json' },
+    ];
+    const sortMoves = (list) => [...list].sort((a, b) => a.from.localeCompare(b.from));
+
+    test('names-spaces is the third environment part, after names-roles', () => {
+      assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 3), ['names-table', 'names-roles', 'names-spaces']);
+    });
+
+    test('names-spaces on an old-format environment: every key, file and folder renamed in place, nothing else changed, recorded once, the copies kept', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: UP_TO_ROLES, log: quiet });
+      const before = snapshot(dir);
+      const beforeApp = appOf(dir);
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-spaces']);
+      const app = appOf(dir);
+      // app.json: each key renamed where it stood.
+      assert.deepEqual(Object.keys(app), Object.keys(beforeApp).map((k) => (k === 'rooms' ? 'spaces' : k)), 'spaces where rooms was');
+      assert.deepEqual(app.spaces, beforeApp.rooms, 'every space, the aside among them, as it was');
+      assert.deepEqual(app.users.map((u) => Object.keys(u)), beforeApp.users.map((u) => Object.keys(u).map((k) => (k === 'rooms' ? 'spaces' : k))));
+      assert.deepEqual(app.users.map((u) => u.spaces), beforeApp.users.map((u) => u.rooms), 'each member\'s space settings, as they were');
+      assert.deepEqual(app.invites.map((i) => i.spaces), beforeApp.invites.map((i) => i.rooms));
+      assert.deepEqual(Object.keys(app.settings), Object.keys(beforeApp.settings).map((k) => (k === 'serverName' ? 'environmentName' : k)));
+      assert.equal(app.settings.environmentName, 'Fixture Table');
+      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(sortMoves(app.migrations[2].moved), sortMoves(SPACE_MOVES), 'every folder and file it moved, recorded');
+      // The rest of the environment.
+      assert.deepEqual(jsonOf(dir, 'chat.json'), { spaces: oldJson('chat.json').rooms });
+      const registry = jsonOf(dir, 'modules/registry.json');
+      assert.deepEqual([registry.modules.todo.allSpaces, registry.modules.todo.spaces, registry.modules.calendar.allSpaces], [false, ['keep01'], true]);
+      assert.equal('rooms' in registry.modules.todo || 'allRooms' in registry.modules.calendar, false);
+      assert.deepEqual(jsonOf(dir, 'modules/settings.json'), { environment: oldJson('modules/settings.json').server, spaces: oldJson('modules/settings.json').rooms, people: oldJson('modules/settings.json').people });
+      assert.deepEqual(jsonOf(dir, 'modules/links.json').map((l) => [l.from, l.to]), [
+        [{ module: 'todo', kind: 'task', id: 't1', scope: 'space', space: 'keep01' }, { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' }],
+        [{ module: 'todo', kind: 'task', id: 't2', scope: 'environment' }, { module: 'calendar', kind: 'event', id: 'e2', scope: 'environment' }],
+      ]);
+      const bus = jsonOf(dir, 'modules/bus.json');
+      assert.deepEqual([bus.events[0].scopeKey, bus.events[0].ref], ['space:lobby', { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' }]);
+      assert.deepEqual([bus.actions[0].scopeKey, bus.actions[0].input.about.scope, bus.actions[0].input.title, bus.actions[0].result.ref.scope], ['environment', 'environment', 'x', 'environment']);
+      assert.deepEqual(jsonOf(dir, 'modules/schedules.json').map((s) => [s.id, s.scopeKey, s.spaceId, s.notify.to, 'roomId' in s]), [
+        ['todo|space:keep01|remind', 'space:keep01', 'keep01', 'space', false],
+        ['calendar|environment|weekly', 'environment', null, 'environment', false],
+      ]);
+      assert.deepEqual(jsonOf(dir, 'modules/notifications.json').memberkey1.map((n) => [n.scope, n.spaceId, 'roomId' in n]), [['space', 'keep01', false], ['environment', null, false]]);
+      assert.deepEqual(jsonOf(dir, 'modules/activity.json').map((a) => a.scope), ['space:keep01', 'environment', null]);
+      // Moved, byte for byte: pictures, a module's own data (its values are its own until names-objects), uploads.
+      const after = snapshot(dir);
+      for (const [from, to] of [
+        ['images/rooms/keep01.png', 'images/spaces/keep01.png'],
+        ['images/memberkey1/rooms/keep01/player-fixture.png', 'images/memberkey1/spaces/keep01/player-fixture.png'],
+        ['modules/todo/data/room-keep01.json', 'modules/todo/data/space-keep01.json'],
+        ['modules/todo/data/server.json', 'modules/todo/data/environment.json'],
+        ['modules/calendar/data/room-lobby.json', 'modules/calendar/data/space-lobby.json'],
+        ['modules/research/uploads/room-keep01/0123456789abcdef01234567.json', 'modules/research/uploads/space-keep01/0123456789abcdef01234567.json'],
+        ['modules/research/uploads/server/.keep', 'modules/research/uploads/environment/.keep'],
+      ]) {
+        assert.equal(after[to], before[from], `${from} is at ${to}`);
+        assert.equal(after[from], undefined, `${from} is gone`);
+      }
+      assert.equal(after['modules/todo/data/person-memberkey1.json'], before['modules/todo/data/person-memberkey1.json'], 'a person\'s data stays where it was');
+      assert.equal(after['images/memberkey1/profile-fixture.png'], before['images/memberkey1/profile-fixture.png']);
+      // The copies: every JSON file it rewrote, as it was before this part.
+      for (const rel of ['app.json', 'chat.json', 'modules/registry.json', 'modules/settings.json', 'modules/links.json', 'modules/bus.json', 'modules/schedules.json', 'modules/notifications.json', 'modules/activity.json']) {
+        assert.equal(after[`pre-names/names-spaces/${rel}`], before[rel], `pre-names/names-spaces/${rel}`);
+      }
+      assert.ok(logged.some((m) => m.includes('"names-spaces"') && m.includes('(moved 7)')), logged.join('\n'));
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+    });
+
+    test('names-spaces, then the services: every space, member\'s space settings, picture, chat, module data, setting, upload and link is found under its new name', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const store = new Store(dir);
+      assert.deepEqual(store.spaces.map((r) => r.id), ['lobby', 'keep01', 'aside1']);
+      assert.equal(store.spaceById('keep01').hasImage, true, 'the space\'s picture');
+      assert.ok(store.spaceImagePath('keep01').endsWith(path.join('images', 'spaces', 'keep01.png')));
+      assert.equal(store.usesSpaceImages('memberkey1', 'keep01'), true);
+      assert.ok(store.effectiveImage('memberkey1', 'player', 'keep01').file.endsWith(path.join('images', 'memberkey1', 'spaces', 'keep01', 'player-fixture.png')), 'a member\'s picture in a space');
+      assert.equal(store.spacePermissions('memberkey1', 'keep01').canKick, true, 'the moderator grant in The Keep');
+      assert.equal(store.settings.environmentName, 'Fixture Table');
+      assert.deepEqual(store.invites.length, 0, 'the fixture invite has no token, so none is live (unchanged)');
+      store.save();
+      assert.equal('rooms' in appOf(dir), false, 'Store writes the new names only');
+      const { ChatHistory } = require('../server/chat-history.js');
+      assert.equal(new ChatHistory(dir).spaces.keep01[0].text, 'Hello from the Keep', 'the chat read back (the fixture\'s messages are older than the window list() keeps)');
+      const modulesDir = path.join(dir, 'modules');
+      const { ModuleData } = require('../server/module-data.js');
+      const data = new ModuleData(modulesDir);
+      assert.equal(data.get('todo', 'environment', 'list:shared').value.title, 'Everyone\'s list');
+      assert.equal(data.get('todo', 'space:keep01', 'list:main').value.title, 'Before the session');
+      assert.equal(data.get('todo', 'person:memberkey1', 'list:mine').value.title, 'Mine');
+      const { ModuleSettings } = require('../server/module-settings.js');
+      const settings = new ModuleSettings(modulesDir);
+      const manifest = { id: 'calendar', settings: [{ key: 'weekStart', scope: 'environment', type: 'text', default: 'sunday' }, { key: 'showDone', scope: 'space', type: 'boolean', default: true }] };
+      assert.equal(settings.values(manifest, 'environment', {}).weekStart, 'monday');
+      assert.equal(settings.values({ ...manifest, id: 'todo' }, 'space', { spaceId: 'keep01' }).showDone, false);
+      const { ModuleUploads } = require('../server/module-uploads.js');
+      assert.deepEqual(new ModuleUploads(modulesDir).list('research', 'space:keep01').map((f) => f.name), ['harbour.jpg']);
+      const { ModuleLinks } = require('../server/module-links.js');
+      assert.deepEqual(new ModuleLinks(modulesDir).to({ module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' }), [{ module: 'todo', kind: 'task', id: 't1', scope: 'space', space: 'keep01' }]);
+      const { ModuleManager } = require('../server/modules.js');
+      const reg = new ModuleManager(dir).registry.modules;
+      assert.deepEqual([reg.todo.spaces, reg.calendar.allSpaces], [['keep01'], true]);
+    });
+
+    test('names-spaces, run alone again over its own result, writes and moves nothing: the part is idempotent by shape', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const app = appOf(dir);
+      fs.writeFileSync(path.join(dir, 'app.json'), `${JSON.stringify({ ...app, migrations: app.migrations.filter((m) => m.id !== 'names-spaces') }, null, 2)}\n`);
+      const before = snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-spaces']);
+      const again = appOf(dir);
+      assert.deepEqual(again.migrations.find((m) => m.id === 'names-spaces').moved, [], 'nothing left to move');
+      assert.deepEqual({ ...again, migrations: [] }, { ...app, migrations: [] }, 'the same data');
+      assert.deepEqual(snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json'), before, 'no other file written');
+    });
+
+    test('names-spaces refuses a key under both its old and new names that differ, and a move onto something already there, with nothing changed', () => {
+      const old = JSON.parse(original['app.json']);
+      const differ = copyFixture();
+      names.migrateEnvironment(differ, { parts: UP_TO_ROLES, log: quiet });
+      fs.writeFileSync(path.join(differ, 'app.json'), JSON.stringify({ ...appOf(differ), spaces: [{ id: 'other1', name: 'Other' }] }));
+      const before = snapshot(differ, (rel) => rel.startsWith('pre-names'));
+      assert.throws(() => names.migrateEnvironment(differ, { log: quiet }), (err) => err instanceof names.MigrationError && /both "rooms" and "spaces"/.test(err.message) && err.file === path.join(differ, 'app.json'));
+      assert.deepEqual(snapshot(differ, (rel) => rel.startsWith('pre-names')), before, 'nothing changed, nothing recorded');
+      const agree = copyFixture();
+      fs.writeFileSync(path.join(agree, 'app.json'), JSON.stringify({ ...old, spaces: [] }));
+      names.migrateEnvironment(agree, { log: quiet });
+      assert.deepEqual(appOf(agree).spaces.map((r) => r.id), ['lobby', 'keep01', 'aside1'], 'an empty new key gives way to the old one');
+      const clash = copyFixture();
+      fs.writeFileSync(path.join(clash, 'modules', 'todo', 'data', 'environment.json'), '{}');
+      const clashBefore = snapshot(clash);
+      const both = path.join(clash, 'modules', 'todo', 'data');
+      assert.throws(() => names.migrateEnvironment(clash, { parts: SPACES_ONLY, log: quiet }), (err) => err instanceof names.MigrationError && err.file === path.join(both, 'environment.json')
+        && err.message === `The names migration part "names-spaces" stopped at ${path.join(both, 'environment.json')}: ${path.join(both, 'server.json')} and ${path.join(both, 'environment.json')} are both there, so it cannot tell which to keep. Nothing was changed: remove the out-of-date one and start again (a copy of the JSON files as they were is in ${path.join(clash, 'pre-names', 'names-spaces')}).`);
+      assert.deepEqual(snapshot(clash, (rel) => rel.startsWith('pre-names')), clashBefore, 'no folder moved, no file written');
+    });
+
+    test('names-spaces on a hosted environment: its module data and the rest take the new names', () => {
+      const dir = copyHostFixture();
+      names.migrateHost(dir, { log: quiet });
+      const envDir = path.join(dir, 'environments', 'acme');
+      assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), ALL_PARTS);
+      assert.equal(fs.readFileSync(path.join(envDir, 'modules', 'todo', 'data', 'space-lobby.json'), 'utf8'), originalHost['tenants/acme/modules/todo/data/room-lobby.json']);
+      const app = appOf(envDir);
+      assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Acme Adventures');
+    });
+
+    test('the Studio alias, step 5a: serverName, rooms, activeRoom and users[].online.room beside the new names, for a bearer request only', () => {
+      const alias = require('../server/studio-alias.js');
+      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
+      const bearer = req({ authorization: 'Bearer good' });
+      const cookie = req({ cookie: 'session=x' });
+      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }, { id: 'aside1', name: 'Aside', ephemeral: true, private: true, members: ['k'] }];
+      const status = { environmentName: 'Acme', users: [{ key: 'k', role: 'owner', online: { key: 'k', space: 'aside1', micOn: true, cameraOn: false } }, { key: 'm', role: 'member', online: null }], spaces, activeSpace: 'lobby' };
+      const sent = alias.status(bearer, status, { signedIn: { key: 'k' }, environmentName: 'Acme' });
+      assert.deepEqual([sent.serverName, sent.rooms, sent.activeRoom], ['Acme', spaces, 'lobby']);
+      assert.deepEqual([sent.environmentName, sent.spaces, sent.activeSpace], ['Acme', spaces, 'lobby'], 'the new names too');
+      assert.deepEqual(sent.users.map((u) => [u.role, u.online && u.online.room, u.online && u.online.space]), [['admin', 'aside1', 'aside1'], ['user', null, null]]);
+      assert.equal(alias.me(bearer, { environmentName: 'Acme' }, { signedIn: { key: 'k' }, role: 'owner', environmentName: 'Acme' }).serverName, 'Acme');
+      assert.equal(alias.status(cookie, status, { signedIn: { key: 'k' }, environmentName: 'Acme' }), status, 'the pages\' cookie request: exactly the answer');
     });
 
     test('the Store takes only owner and member by hand, lets an environment have no owner, and never changes an admin\'s role or sign-in', () => {
@@ -1416,7 +1600,7 @@ function migrationCheck() {
       // The server's admin on a single-environment install (setServerAdmin, from ADMIN_LOGIN and ADMIN_PASSWORD).
       const gm = store.setServerAdmin(store.addUser({ login: 'gm', passwordHash: 'h1' }).key);
       assert.deepEqual([gm.role, gm.hostAdmin, store.ownerCount(), store.serverAdmins().map((u) => u.login)], ['admin', false, 0, ['gm']], 'the admin is not an owner');
-      assert.ok(Object.values(store.roomPermissions(gm.key, null)).every(Boolean), 'and has every permission');
+      assert.ok(Object.values(store.spacePermissions(gm.key, null)).every(Boolean), 'and has every permission');
       assert.throws(() => store.updateUser(gm.key, { role: 'owner' }), /server's admin, so its role/);
       for (const patch of [{ passwordHash: 'h2' }, { login: 'other' }, { linkToken: 'y'.repeat(24) }]) assert.throws(() => store.updateUser(gm.key, patch), /ADMIN_LOGIN and ADMIN_PASSWORD/, JSON.stringify(patch));
       assert.equal(store.updateUser(gm.key, { login: 'gm', displayName: 'Game Master' }).displayName, 'Game Master', 'its name, and the same login, are fine');
@@ -1444,7 +1628,7 @@ function migrationCheck() {
       alias.STATUS.push(entry);
       try {
         const answer = { a: 1 };
-        assert.deepEqual(alias.me(req({ authorization: 'Bearer good' }), answer, { signedIn: { passwordHash: 'x' }, role: 'admin', environmentName: 'Ours' }), { a: 1, tableName: 'Ours', oldName: true });
+        assert.deepEqual(alias.me(req({ authorization: 'Bearer good' }), answer, { signedIn: { passwordHash: 'x' }, role: 'admin', environmentName: 'Ours' }), { a: 1, tableName: 'Ours', serverName: 'Ours', oldName: true });
         assert.deepEqual(seen, { role: 'admin', environmentName: 'Ours' }, 'the entry gets what it was given, not the account');
         assert.equal(alias.status(req({ authorization: 'Bearer junk' }), answer, { signedIn: null }), answer, 'a bearer header that signed nobody in (the stream key let it in)');
         assert.equal(alias.me(req({ cookie: 'session=x' }), answer, { signedIn: { key: 'k' } }), answer, 'the pages\' cookie');
@@ -1462,9 +1646,9 @@ function migrationCheck() {
       const bearer = req({ authorization: 'Bearer good' });
       const cookie = req({ cookie: 'session=x' });
       const context = { signedIn: { key: 'k' }, role: 'admin', hostAdmin: false, environmentName: 'Acme Adventures' };
-      assert.deepEqual(alias.me(bearer, { serverName: 'Acme Adventures' }, context), { serverName: 'Acme Adventures', tableName: 'Acme Adventures' });
-      assert.deepEqual(alias.status(bearer, { users: [] }, { signedIn: { key: 'k' }, environmentName: 'Acme Adventures' }), { users: [], tableName: 'Acme Adventures' });
-      const answer = { serverName: 'Acme Adventures' };
+      assert.deepEqual(alias.me(bearer, { environmentName: 'Acme Adventures' }, context), { environmentName: 'Acme Adventures', tableName: 'Acme Adventures', serverName: 'Acme Adventures' });
+      assert.deepEqual(alias.status(bearer, { users: [] }, { signedIn: { key: 'k' }, environmentName: 'Acme Adventures' }), { users: [], tableName: 'Acme Adventures', serverName: 'Acme Adventures' });
+      const answer = { environmentName: 'Acme Adventures' };
       assert.equal(alias.me(cookie, answer, context), answer, 'the pages\' cookie request: exactly the answer, no tableName');
       assert.equal(alias.status(cookie, answer, context), answer);
     });
@@ -1481,12 +1665,33 @@ function migrationCheck() {
   console.log(`check-names: migration, ${n} groups OK (${names.ENVIRONMENT_PARTS.length} environment parts, ${names.HOST_PARTS.length} host parts)`);
 }
 
+// --- calls to routes the server no longer answers ---------------------------------------------------------------
+// Whatever level a folder is at, a page or module that still calls a settings route by an old scope gets 404 from step
+// 5a on ("no such kind of setting"), so any such call fails here: /api/module-settings/server|room and
+// /api/modules/<id>/settings/server|room. The pages' own `server`/`room` words that are mapped before the call (module-
+// settings.js's wireScope) are not calls and are not matched.
+const OLD_SETTINGS_ROUTE = /\/api\/module-settings\/(server|room)\b|\/settings\/(server|room)\b/g;
+function oldRouteCheck(files) {
+  let n = 0;
+  for (const file of files.filter((f) => /^(public|modules)\//.test(f) && /\.(js|mjs|html)$/.test(f))) {
+    const { code } = split(file, fs.readFileSync(path.join(ROOT, file), 'utf8'));
+    code.split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(OLD_SETTINGS_ROUTE)) { n += 1; fail(`check-names: ${file}:${i + 1} calls ${m[0]}, which the server answers with 404 since plan-names step 5a: use environment or space`); }
+    });
+  }
+  // The pattern itself, on made-up lines: the old calls are caught, the new ones and a mapped scope are not.
+  const probe = (text) => [...text.matchAll(OLD_SETTINGS_ROUTE)].length;
+  if (probe("api('GET', '/api/module-settings/server')") !== 1 || probe('api(\'PUT\', `/api/modules/${id}/settings/room`)') !== 1
+    || probe("api('GET', '/api/module-settings/environment')") !== 0 || probe('api(\'PUT\', `/api/modules/${id}/settings/${wireScope}`)') !== 0) fail('check-names: the old settings route pattern does not match as it should');
+  console.log(`check-names: old settings routes, ${n} call${n === 1 ? '' : 's'} left`);
+}
+
 // --- run ---------------------------------------------------------------------------------------------------------
 const { entries: allow, problems } = loadAllow();
 for (const p of problems) fail(`check-names: ${p}`);
 if (runCode || runWords) {
   const files = scannedFiles();
-  if (runCode) { report('code', files, allow); scannerCheck(); callNamesCheck(); }
+  if (runCode) { report('code', files, allow); scannerCheck(); callNamesCheck(); oldRouteCheck(files); }
   if (runWords) report('words', files, allow);
   if (runCode && runWords) {
     for (const e of allow.filter((x) => !x.used)) console.log(`  allow-list entry used by no hit: ${e.file} ${e.level} ${e.pattern}`);

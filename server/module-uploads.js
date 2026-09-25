@@ -1,5 +1,5 @@
-// A place for the files a module's people upload (photos to begin with), per scope like the module's data: the whole server, one
-// room, or one person. A module opts in by declaring `uploads` in its manifest (which types, how big, how many). What is kept is
+// A place for the files a module's people upload (photos to begin with), per scope like the module's data: the whole environment,
+// one space, or one person. A module opts in by declaring `uploads` in its manifest (which types, how big, how many). What is kept is
 // checked and cleaned first (see image-clean.js), and a file goes when its owner removes it.
 //
 // Files live under DATA_DIR/modules/<id>/uploads/<scope>/: <file id>.bin, an optional <file id>.thumb (made by the page and checked
@@ -14,7 +14,7 @@ const { cleanImage } = require('./image-clean');
 const { StoreError } = require('./store');
 
 const ID_RE = /^[a-f0-9]{24}$/;
-const ROOM_RE = /^[a-z0-9]{4,16}$/;
+const SPACE_RE = /^[a-z0-9]{4,16}$/;
 const PERSON_RE = /^[a-z0-9]{4,40}$/;
 const MAX_THUMB = 400 * 1024;
 const oneLine = (s, n) => String(s == null ? '' : s).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -26,9 +26,9 @@ class ModuleUploads {
 
   scopeDir(id, scopeKey) {
     const base = path.join(this.dir, id, 'uploads');
-    if (scopeKey === 'server') return path.join(base, 'server');
-    const r = /^room:(.+)$/.exec(scopeKey);
-    if (r && ROOM_RE.test(r[1])) return path.join(base, `room-${r[1]}`);
+    if (scopeKey === 'environment') return path.join(base, 'environment');
+    const r = /^space:(.+)$/.exec(scopeKey);
+    if (r && SPACE_RE.test(r[1])) return path.join(base, `space-${r[1]}`);
     const p = /^person:(.+)$/.exec(scopeKey);
     if (p && PERSON_RE.test(p[1])) return path.join(base, `person-${p[1]}`);
     throw new StoreError('bad scope');

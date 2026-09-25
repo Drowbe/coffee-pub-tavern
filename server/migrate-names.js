@@ -154,9 +154,166 @@ const rolesPart = {
   },
 };
 
+// names-spaces (plan-names step 5a): a space is no longer a `room`, and the environment's own scope is no longer
+// `server`. Every key, file and folder the host keeps for an environment:
+//   app.json          rooms -> spaces, users[].rooms -> users[].spaces, invites[].rooms -> invites[].spaces,
+//                     settings.serverName -> settings.environmentName (each in its own place among its keys)
+//   chat.json         rooms -> spaces
+//   images/           rooms/ -> spaces/ (the spaces' pictures), and each person's <key>/rooms/ -> <key>/spaces/
+//   modules/registry.json   each module's allRooms -> allSpaces, rooms -> spaces
+//   modules/settings.json   { server, rooms, people } -> { environment, spaces, people }
+//   modules/<id>/data/      server.json -> environment.json, room-<id>.json -> space-<id>.json (moved, not rewritten:
+//                           a module's own values are its own until names-objects)
+//   modules/<id>/uploads/   server/ -> environment/, room-<id>/ -> space-<id>/
+//   modules/links.json, bus.json, schedules.json, notifications.json, activity.json: the host's own records of
+//                     modules, with scope keys room:<id> -> space:<id> and server -> environment, a pointer's scope
+//                     room -> space (its `room` -> `space`) and server -> environment, roomId -> spaceId, and a
+//                     notification's scope and a schedule's notify.to likewise.
+// Asides stay rows in `spaces` with `ephemeral` until names-asides (step 8). A key in both its old and new name that
+// differ is refused rather than guessed at; over data already in the new shape it writes nothing and moves nothing.
+const SPACE_FILES = ['chat.json', 'modules/registry.json', 'modules/settings.json', 'modules/links.json', 'modules/bus.json', 'modules/schedules.json', 'modules/notifications.json', 'modules/activity.json'];
+const IMAGE_FOLDERS_NOT_PEOPLE = ['rooms', 'spaces', 'site', 'guest', 'default'];
+const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+// A scope key the host keeps (module data, uploads, the bus, schedules, the activity log) in its new name.
+const newScopeKey = (k) => (k === 'server' ? 'environment' : typeof k === 'string' && k.startsWith('room:') ? `space:${k.slice(5)}` : k);
+// A pointer ({ module, kind, id, scope, room? }) in its new shape; anything else as it is.
+function newPointer(p) {
+  if (!isPlainObject(p) || typeof p.module !== 'string' || typeof p.kind !== 'string' || typeof p.id !== 'string') return p;
+  if (p.scope === 'server') return { ...p, scope: 'environment' };
+  if (p.scope !== 'room') return p;
+  const out = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (k === 'scope') out.scope = 'space';
+    else if (k === 'room') out.space = v;
+    else if (k !== 'space') out[k] = v;
+  }
+  return out;
+}
+// Every pointer inside a host record, wherever it sits (a bus event's ref, an action's input and result).
+function newPointersIn(value) {
+  if (Array.isArray(value)) return value.map(newPointersIn);
+  if (!isPlainObject(value)) return value;
+  const p = newPointer(value);
+  if (p !== value) return p;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, newPointersIn(v)]));
+}
+function spacesPart() {
+  return {
+    id: 'names-spaces',
+    files: () => [ENVIRONMENT_RECORD, ...SPACE_FILES],
+    run(ctx) {
+      // One key renamed where it stands, the others kept in their order. Both names present and different: refused.
+      const renameKey = (obj, from, to, where, file) => {
+        if (!isPlainObject(obj) || !has(obj, from)) return obj;
+        if (has(obj, to) && !isDeepStrictEqual(obj[from], obj[to]) && !(Array.isArray(obj[to]) ? obj[to].length === 0 : isPlainObject(obj[to]) && !Object.keys(obj[to]).length)) {
+          const full = path.join(ctx.dir, file);
+          throw new MigrationError(`its ${where} has both "${from}" and "${to}", and they differ, so it cannot tell which to keep. Nothing was changed: remove the out-of-date key from ${full} and start again (a copy of the file as it was is in ${ctx.copyRoot}).`, full);
+        }
+        const out = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === to) continue;
+          out[k === from ? to : k] = v;
+        }
+        return out;
+      };
+      const writeIfChanged = (rel, before, after) => { if (!isDeepStrictEqual(before, after)) ctx.write(rel, after); };
+
+      const app = ctx.read(ENVIRONMENT_RECORD);
+      if (isPlainObject(app)) {
+        let next = renameKey(app, 'rooms', 'spaces', 'top level', ENVIRONMENT_RECORD);
+        if (Array.isArray(next.users)) next = { ...next, users: next.users.map((u, n) => renameKey(u, 'rooms', 'spaces', `users[${n}]`, ENVIRONMENT_RECORD)) };
+        if (Array.isArray(next.invites)) next = { ...next, invites: next.invites.map((i, n) => renameKey(i, 'rooms', 'spaces', `invites[${n}]`, ENVIRONMENT_RECORD)) };
+        if (isPlainObject(next.settings)) next = { ...next, settings: renameKey(next.settings, 'serverName', 'environmentName', 'settings', ENVIRONMENT_RECORD) };
+        writeIfChanged(ENVIRONMENT_RECORD, app, next);
+      }
+
+      const chat = ctx.read('chat.json');
+      if (isPlainObject(chat)) writeIfChanged('chat.json', chat, renameKey(chat, 'rooms', 'spaces', 'top level', 'chat.json'));
+
+      const registry = ctx.read('modules/registry.json');
+      if (isPlainObject(registry) && isPlainObject(registry.modules)) {
+        const modules = Object.fromEntries(Object.entries(registry.modules).map(([id, e]) => [id, renameKey(renameKey(e, 'allRooms', 'allSpaces', `module "${id}"`, 'modules/registry.json'), 'rooms', 'spaces', `module "${id}"`, 'modules/registry.json')]));
+        writeIfChanged('modules/registry.json', registry, { ...registry, modules });
+      }
+
+      const settings = ctx.read('modules/settings.json');
+      if (isPlainObject(settings)) {
+        writeIfChanged('modules/settings.json', settings, renameKey(renameKey(settings, 'server', 'environment', 'top level', 'modules/settings.json'), 'rooms', 'spaces', 'top level', 'modules/settings.json'));
+      }
+
+      const links = ctx.read('modules/links.json');
+      if (Array.isArray(links)) writeIfChanged('modules/links.json', links, links.map((l) => (isPlainObject(l) ? { ...l, from: newPointer(l.from), to: newPointer(l.to) } : l)));
+
+      const bus = ctx.read('modules/bus.json');
+      if (isPlainObject(bus)) {
+        const place = (e) => (isPlainObject(e) ? newPointersIn({ ...e, ...(has(e, 'scopeKey') ? { scopeKey: newScopeKey(e.scopeKey) } : {}) }) : e);
+        writeIfChanged('modules/bus.json', bus, { ...bus, ...(Array.isArray(bus.events) ? { events: bus.events.map(place) } : {}), ...(Array.isArray(bus.actions) ? { actions: bus.actions.map(place) } : {}) });
+      }
+
+      const newTo = (to) => (to === 'room' ? 'space' : to === 'server' ? 'environment' : to);
+      const schedules = ctx.read('modules/schedules.json');
+      if (Array.isArray(schedules)) {
+        writeIfChanged('modules/schedules.json', schedules, schedules.map((s, n) => {
+          if (!isPlainObject(s)) return s;
+          let out = renameKey(s, 'roomId', 'spaceId', `schedule ${n}`, 'modules/schedules.json');
+          if (has(out, 'scopeKey')) {
+            const scopeKey = newScopeKey(out.scopeKey);
+            out = { ...out, scopeKey, ...(typeof out.module === 'string' && typeof out.key === 'string' ? { id: `${out.module}|${scopeKey}|${out.key}` } : {}) };
+          }
+          if (isPlainObject(out.notify) && has(out.notify, 'to')) out = { ...out, notify: { ...out.notify, to: newTo(out.notify.to) } };
+          return out;
+        }));
+      }
+
+      const notifications = ctx.read('modules/notifications.json');
+      if (isPlainObject(notifications)) {
+        writeIfChanged('modules/notifications.json', notifications, Object.fromEntries(Object.entries(notifications).map(([who, list]) => [who, Array.isArray(list) ? list.map((n, i) => {
+          if (!isPlainObject(n)) return n;
+          const out = renameKey(n, 'roomId', 'spaceId', `notification ${i} of ${who}`, 'modules/notifications.json');
+          return has(out, 'scope') ? { ...out, scope: newTo(out.scope) } : out;
+        }) : list])));
+      }
+
+      const activity = ctx.read('modules/activity.json');
+      if (Array.isArray(activity)) writeIfChanged('modules/activity.json', activity, activity.map((a) => (isPlainObject(a) && has(a, 'scope') ? { ...a, scope: newScopeKey(a.scope) } : a)));
+
+      // The folders and files that only move. One already there under its new name as well is refused before anything
+      // moves or is written, since the part cannot tell which of the two holds what is current.
+      const list = (rel) => { try { return fs.readdirSync(path.join(ctx.dir, rel), { withFileTypes: true }); } catch { return []; } };
+      const moves = [];
+      const move = (from, to) => moves.push([from, to]);
+      if (fs.existsSync(path.join(ctx.dir, 'images', 'rooms'))) move('images/rooms', 'images/spaces');
+      for (const d of list('images')) {
+        if (!d.isDirectory() || IMAGE_FOLDERS_NOT_PEOPLE.includes(d.name)) continue;
+        if (fs.existsSync(path.join(ctx.dir, 'images', d.name, 'rooms'))) move(`images/${d.name}/rooms`, `images/${d.name}/spaces`);
+      }
+      for (const d of list('modules')) {
+        if (!d.isDirectory() || d.name.startsWith('.')) continue;
+        for (const f of list(`modules/${d.name}/data`)) {
+          if (!f.isFile()) continue;
+          if (f.name === 'server.json') move(`modules/${d.name}/data/server.json`, `modules/${d.name}/data/environment.json`);
+          else if (/^room-[a-z0-9]{4,16}\.json$/.test(f.name)) move(`modules/${d.name}/data/${f.name}`, `modules/${d.name}/data/space-${f.name.slice(5)}`);
+        }
+        for (const f of list(`modules/${d.name}/uploads`)) {
+          if (!f.isDirectory()) continue;
+          if (f.name === 'server') move(`modules/${d.name}/uploads/server`, `modules/${d.name}/uploads/environment`);
+          else if (/^room-[a-z0-9]{4,16}$/.test(f.name)) move(`modules/${d.name}/uploads/${f.name}`, `modules/${d.name}/uploads/space-${f.name.slice(5)}`);
+        }
+      }
+      for (const [from, to] of moves) {
+        if (!fs.existsSync(path.join(ctx.dir, to))) continue;
+        const full = path.join(ctx.dir, to);
+        throw new MigrationError(`${path.join(ctx.dir, from)} and ${full} are both there, so it cannot tell which to keep. Nothing was changed: remove the out-of-date one and start again (a copy of the JSON files as they were is in ${ctx.copyRoot}).`, full);
+      }
+      for (const [from, to] of moves) ctx.move(from, to);
+    },
+  };
+}
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart, rolesPart];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart()];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.

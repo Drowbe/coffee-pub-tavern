@@ -9,9 +9,9 @@ async function init() {
     try {
       const { invite } = await api('GET', `/api/invites/${token}`);
       $('invite-note').hidden = false;
-      $('invite-note').textContent = invite.rooms.length
-        ? `You're invited to join: ${invite.rooms.join(', ')}.`
-        : `You're invited to join ${branding.serverName || 'Coffee Pub'}.`;
+      $('invite-note').textContent = invite.spaces.length
+        ? `You're invited to join: ${invite.spaces.join(', ')}.`
+        : `You're invited to join ${branding.environmentName || 'Coffee Pub'}.`;
     } catch (err) {
       $('closed-text').textContent = err.message;
       $('register').hidden = true;

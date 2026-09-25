@@ -133,27 +133,27 @@ test('the store: per scope, limits, thumbnails and removal', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'uploads-'));
   const u = new ModuleUploads(dir);
   const rule = { types: ALL, maxBytes: 5000, maxFiles: 2 };
-  const a = u.put('research', 'room:abcd1234', rule, { bytes: jpeg(), name: 'a\n.jpg', by: 'u1', keepPosition: false });
+  const a = u.put('research', 'space:abcd1234', rule, { bytes: jpeg(), name: 'a\n.jpg', by: 'u1', keepPosition: false });
   assert.equal(a.name, 'a .jpg');
   assert.equal(a.position, null);
   assert.equal(a.hasPosition, true);
-  assert.equal(u.list('research', 'room:abcd1234').length, 1);
-  assert.equal(u.list('research', 'room:other123').length, 0);
+  assert.equal(u.list('research', 'space:abcd1234').length, 1);
+  assert.equal(u.list('research', 'space:other123').length, 0);
   assert.equal(u.list('research', 'person:u1u1u1').length, 0);
-  assert.equal(u.read('research', 'room:abcd1234', a.id, false).type, 'image/jpeg');
-  assert.equal(u.read('research', 'room:other123', a.id, false), null); // another room cannot reach it
-  assert.equal(u.read('research', 'room:abcd1234', a.id, true), null);
-  u.putThumb('research', 'room:abcd1234', rule, a.id, jpeg({ exif: false, extra: false }));
-  assert.equal(u.read('research', 'room:abcd1234', a.id, true).type, 'image/jpeg');
-  assert.throws(() => u.put('research', 'room:abcd1234', { ...rule, maxBytes: 100 }, { bytes: jpeg(), by: 'u1' }), /over the limit/);
-  u.put('research', 'room:abcd1234', rule, { bytes: png(), by: 'u2' });
-  assert.throws(() => u.put('research', 'room:abcd1234', rule, { bytes: png(), by: 'u2' }), /already keeps 2/);
-  assert.throws(() => u.put('research', 'room:../x', rule, { bytes: png(), by: 'u2' }), /bad scope/);
-  assert.equal(u.read('research', 'room:abcd1234', '../../etc/passwd', false), null);
+  assert.equal(u.read('research', 'space:abcd1234', a.id, false).type, 'image/jpeg');
+  assert.equal(u.read('research', 'space:other123', a.id, false), null); // another space cannot reach it
+  assert.equal(u.read('research', 'space:abcd1234', a.id, true), null);
+  u.putThumb('research', 'space:abcd1234', rule, a.id, jpeg({ exif: false, extra: false }));
+  assert.equal(u.read('research', 'space:abcd1234', a.id, true).type, 'image/jpeg');
+  assert.throws(() => u.put('research', 'space:abcd1234', { ...rule, maxBytes: 100 }, { bytes: jpeg(), by: 'u1' }), /over the limit/);
+  u.put('research', 'space:abcd1234', rule, { bytes: png(), by: 'u2' });
+  assert.throws(() => u.put('research', 'space:abcd1234', rule, { bytes: png(), by: 'u2' }), /already keeps 2/);
+  assert.throws(() => u.put('research', 'space:../x', rule, { bytes: png(), by: 'u2' }), /bad scope/);
+  assert.equal(u.read('research', 'space:abcd1234', '../../etc/passwd', false), null);
   assert.ok(u.usage('research').bytes > 0);
-  assert.equal(u.remove('research', 'room:abcd1234', a.id), true);
-  assert.equal(u.list('research', 'room:abcd1234').length, 1);
-  assert.equal(u.remove('research', 'room:abcd1234', a.id), false);
+  assert.equal(u.remove('research', 'space:abcd1234', a.id), true);
+  assert.equal(u.list('research', 'space:abcd1234').length, 1);
+  assert.equal(u.remove('research', 'space:abcd1234', a.id), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

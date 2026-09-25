@@ -1,0 +1,45 @@
+{
+  "modules": {
+    "todo": {
+      "id": "todo",
+      "versions": [
+        "1.0.0"
+      ],
+      "version": "1.0.0",
+      "enabled": true,
+      "allRooms": false,
+      "rooms": [
+        "keep01"
+      ],
+      "approved": {
+        "permissions": [],
+        "hooks": [],
+        "refs": [],
+        "events": [],
+        "actions": []
+      },
+      "installedAt": "2026-01-01T00:00:00.000Z"
+    },
+    "calendar": {
+      "id": "calendar",
+      "versions": [
+        "1.0.0"
+      ],
+      "version": "1.0.0",
+      "enabled": true,
+      "allRooms": true,
+      "rooms": [],
+      "approved": {
+        "permissions": [],
+        "hooks": [],
+        "refs": [],
+        "events": [],
+        "actions": []
+      },
+      "installedAt": "2026-01-01T00:00:00.000Z"
+    }
+  },
+  "autoInstalled": [
+    "todo"
+  ]
+}

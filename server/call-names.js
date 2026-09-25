@@ -2,7 +2,7 @@
 // named by nothing stored: a space's call is its id (the Lobby's is `lobby`) and an aside's is `aside-<id>`. On a
 // hosted server (BASE_DOMAIN set), where the environments share one LiveKit, each is prefixed with the environment's
 // slug and a dot: `<slug>.<id>`, `<slug>.aside-<id>`. No slug (host-registry's SLUG_RE: letters, digits and hyphens)
-// and no space or aside id (Store.sanitizeRoom: 4 to 16 lower-case letters and digits) can hold a dot, so the dot
+// and no space or aside id (Store.sanitizeSpace: 4 to 16 lower-case letters and digits) can hold a dot, so the dot
 // says exactly where the slug ends, and one environment's call can never read as another's.
 //
 // Before plan-names step 3 a call was named from the stored setting settings.room ('table'): the Lobby's was the

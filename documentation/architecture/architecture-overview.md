@@ -87,11 +87,23 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   `host.ui.currencySelect` draws it; a page that is not a module (Manage) gets the same drawing from
   `window.hostCurrency`, which `/sdk/host.js` defines. Names come from the viewer's browser
   (`Intl.DisplayNames`), not the server.
-- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/rooms/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per room, none older than 30 days, in `DATA_DIR/chat.json`, and `GET /api/rooms/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
+- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 
 ## Spaces and calls
+
+The server's routes and fields say space and environment since step 5a of the
+[Names plan](../plans/plan-names.md). A space is `GET/POST /api/spaces`, `POST /api/spaces/order`,
+`GET/PATCH/DELETE /api/spaces/:id`, `PUT/DELETE /api/spaces/:id/image`, `POST/DELETE /api/spaces/:id/guest-link`,
+`GET/POST /api/spaces/:id/chat` and `DELETE /api/spaces/:id/members/:key`, answering `{ space }` or `{ spaces }`;
+a person's settings in a space are `/api/me/spaces/:spaceId...` and `/api/users/:key/spaces/:spaceId...`; an
+account's list is `spaces` and an invite's `spaces`. The environment's name is `environmentName` (in the
+branding every page reads, `/api/me` and `/api/settings`, including `PATCH`). `POST /api/token` takes `space` and
+answers `call` (the call's name at LiveKit) and `spaceId`; a guest's join answers `spaceId` and `spaceName`. The
+old `/api/rooms...` paths answer 404. Saved links redirect for good (301, the rest of the query kept):
+`/rooms/:id` to `/spaces/:id`, `/img/room/:id` to `/img/space/:id`, `/img/:key/:slot?room=&roomOnly=1` to
+`?space=&spaceOnly=1`, and `/modules/:id?moduleRoom=` to `?space=` (`server/old-links.js`).
 
 Each space has one call, a LiveKit room named from the space's id (`lobby` for the Lobby, `aside-<id>` for an
 aside, each prefixed `<slug>.` on a hosted server; see "Call names" in
@@ -99,26 +111,26 @@ aside, each prefixed `<slug>.` on a hosted server; see "Call names" in
 status travel over the LiveKit data channel between participants and are never stored. Stepping aside creates
 an ephemeral room that holds its origin space's id and is removed when empty.
 
-- `GET /api/presence` answers who is online and where (`users`, `rooms`, `activeRoom`, `adminOnline`, and the
-  environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
+- `GET /api/presence` answers who is online and where (`users` with each one's `space`, `spaces`, `activeSpace`,
+  `adminOnline`, and the environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
   person, the access key or a guest's token (`?guest=`) may ask; anyone else gets 401.
 - `POST /api/asides` `{ with, private }` pulls people who are in the caller's call into a new aside and answers
-  `{ room }`. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
+  `{ aside }`. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
   lacks the permission), 400 "pick someone to pull aside" or "you need to be in a call yourself to pull someone
   aside", 404 "`<name>` is not with you right now", 409 "`<name>` is not in the conference right now", and 502
   "LiveKit: ..." when the call service fails.
-- `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ room, invite: { id } }`;
+- `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ aside, invite: { id } }`;
   `POST /api/asides/invite/:id/decline` answers `{ ok: true }`.
 - `POST /api/asides/recall` (an owner) tells every private conversation pulled out of the owner's space to come
   back, and answers `{ recalled }`, the number of them; 400 "you need to be in a call yourself to recall anyone"
   or "nobody is off in a private conversation from here right now".
 - `POST /api/asides/return` takes the caller, and the aside's other members, back to the space the aside came
-  from (the Lobby when that space is gone) and answers `{ room }`; 400 "you need to be in a call" or "you are not
+  from (the Lobby when that space is gone) and answers `{ space }`; 400 "you need to be in a call" or "you are not
   in an aside".
 
 The server tells the other people involved over the data channel, on four topics: `aside-pull`
-`{ type, roomId, byAdmin, private, from }` to the people pulled, `aside-started` `{ type, roomId, members }` to
-everyone left behind, `aside-recall` `{ type, roomId, roomName }` and `aside-return` `{ type, roomId }`. The old
+`{ type, spaceId, byAdmin, private, from }` to the people pulled, `aside-started` `{ type, spaceId, members }` to
+everyone left behind, `aside-recall` `{ type, spaceId, spaceName }` and `aside-return` `{ type, spaceId }` (before step 5a they carried `roomId` and `roomName`). The old
 `/api/table...` routes answer 404 and the old topics are no longer sent.
 
 ## Hosting

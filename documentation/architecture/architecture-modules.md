@@ -24,7 +24,7 @@ registry.json                     what is installed and its state
 ```
 
 `registry.json` is written by writing a temporary file and renaming it. Each entry holds the active
-`version`, the list of installed `versions`, `enabled`, `allRooms`, `rooms`, and `approved`, which is
+`version`, the list of installed `versions`, `enabled`, `allSpaces`, `spaces` (`allRooms` and `rooms` before the Names migration's `names-spaces` part), and `approved`, which is
 the permissions and hooks the admin agreed to. The manifest is read from the version's own
 `module.json` on demand, so the registry cannot drift from the files.
 
@@ -57,7 +57,7 @@ error handler.
 
 Files are written to a staging folder next to the final location and moved into place with a single
 rename, so a failure never leaves a half-installed version. A new module is created disabled. An
-upgrade keeps `enabled`, `allRooms` and `rooms`, then compares what the new manifest asks for with
+upgrade keeps `enabled`, `allSpaces` and `spaces`, then compares what the new manifest asks for with
 `approved`; anything new turns `enabled` off. Rollback changes only the active `version` and applies
 the same check. After each install, only the newest three versions are kept, never removing the active
 one.
@@ -93,7 +93,7 @@ The SDK carries what more than one module needs (the date picker, the action men
 
 ### Settings
 
-`server/module-settings.js` keeps what people chose for the settings a module declares, in `DATA_DIR/modules/settings.json`: one bucket for the server, one per room and one per person, each holding a module's values. The manifest's definitions are cleaned in `cleanSettings` (`server/modules.js`) and every value is checked against its definition on the way in. `GET /api/modules/:id/settings/values` gives a module the values that apply to the viewer (server, the room's and the person's, defaults filled in), and a change goes out on the shared stream as `settings` so open modules read them again. Who may change what is decided in `settingsPlace` in `server/index.js`: an admin for the server's, an admin or a member ticked as a moderator in that room for its room's, and anyone for their own. The forms are drawn by `public/module-settings.js` (the Modules tab for the server's, the room's page for an admin, `/module-settings?room=` for a room's moderators, the profile page for a person's own). Changes to server and room settings add a line to the activity list; a person's own do not.
+`server/module-settings.js` keeps what people chose for the settings a module declares, in `DATA_DIR/modules/settings.json`: `{ environment, spaces, people }` (it was `{ server, rooms, people }`), one bucket for the environment, one per space and one per person, each holding a module's values. The manifest's definitions are cleaned in `cleanSettings` (`server/modules.js`) and every value is checked against its definition on the way in. `GET /api/modules/:id/settings/values` gives a module the values that apply to the viewer (server, the room's and the person's, defaults filled in), and a change goes out on the shared stream as `settings` so open modules read them again. Who may change what is decided in `settingsPlace` in `server/index.js`: an admin for the server's, an admin or a member ticked as a moderator in that room for its room's, and anyone for their own. The forms are drawn by `public/module-settings.js` (the Modules tab for the server's, the room's page for an admin, `/module-settings?room=` for a room's moderators, the profile page for a person's own). Changes to server and room settings add a line to the activity list; a person's own do not.
 
 ### Run modes
 
@@ -119,7 +119,7 @@ Every runtime route calls `moduleAccess` in `server/index.js`, which resolves th
 
 ### Data
 
-`server/module-data.js` keeps a key-value store per module and scope: `data/modules/<id>/data/server.json` and `room-<id>.json`. Each scope loads once into memory and is rewritten whole on a change. Every key carries a version; a write that names a stale version gets a conflict carrying the current value. The 5 MB cap is checked against the module's total data on disk. Each write emits a `change` event.
+`server/module-data.js` keeps a key-value store per module and scope: `data/modules/<id>/data/environment.json` and `space-<id>.json` (named `server.json` and `room-<id>.json` before the Names migration's `names-spaces` part, which moves them; uploads likewise sit under `uploads/environment/` and `uploads/space-<id>/`). Inside the host a scope is a key: `environment`, `space:<id>` or `person:<key>`. Each scope loads once into memory and is rewritten whole on a change. Every key carries a version; a write that names a stale version gets a conflict carrying the current value. The 5 MB cap is checked against the module's total data on disk. Each write emits a `change` event.
 
 ### Personal data
 
@@ -127,7 +127,7 @@ A module that declares the `person` scope keeps data per person (`DATA_DIR/modul
 
 ### Live changes
 
-`GET /api/modules/stream` is one server-sent event stream for every module on a page. It subscribes to `change` events from the data store and `fire` events from the scheduler and writes them as `change` and `schedule` events, each labelled with its module and a scope (`room` and `server` for a room's panes, `server` and `rooms` for a module's server page), checked against what the viewer may read. `public/module-host.js` shares one stream per room and page between all its frames and forwards each event into the right one. This matters because browsers allow only about six long-lived connections to one host over HTTP/1.1: a stream per module (two for a room panel) used them all with three modules open, and every other request, including a frame's first call to the host, waited forever, which the frame reported as "Magpie did not answer". `GET /api/modules/:id/events` remains for a single module and scope.
+`GET /api/modules/stream` is one server-sent event stream for every module on a page. It subscribes to `change` events from the data store and `fire` events from the scheduler and writes them as `change` and `schedule` events, each labelled with its module and a scope (`space`, `environment` and `person` for a space's modules, `environment`, `person` and `spaces` for a module's environment page) and a `spaceId`, checked against what the viewer may read. `public/module-host.js` shares one stream per room and page between all its frames and forwards each event into the right one. This matters because browsers allow only about six long-lived connections to one host over HTTP/1.1: a stream per module (two for a room panel) used them all with three modules open, and every other request, including a frame's first call to the host, waited forever, which the frame reported as "Magpie did not answer". `GET /api/modules/:id/events` remains for a single module and scope.
 
 ### Refs
 

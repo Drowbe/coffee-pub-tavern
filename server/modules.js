@@ -34,7 +34,12 @@ const HOOKS = ['schedule', 'notify', 'ai'];
 const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'place', 'category', 'text'];
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
-const SCOPES = ['server', 'room', 'person'];
+const SCOPES = ['environment', 'space', 'person'];
+// A manifest names its scopes (the module's, and each setting's) by the old words until the manifest's own rename in
+// plan-names step 5c, which refuses them: `server` is the environment and `room` a space. Read here, once, so
+// everything past the manifest speaks the new names.
+const MANIFEST_OLD_SCOPES = { server: 'environment', room: 'space' };
+const manifestScope = (s) => (typeof s === 'string' && Object.prototype.hasOwnProperty.call(MANIFEST_OLD_SCOPES, s) ? MANIFEST_OLD_SCOPES[s] : s);
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
 // Ids no module may take: 'ai' names the server-wide AI service (not a module) in `missing`/`aiDependents`, the same way a
 // module id would, so it must never also be a real one.
@@ -225,7 +230,7 @@ function cleanBus(rawEvents, rawActions, id) {
 
 // The settings a module declares: up to 40, each with a scope (who chooses it), a type and a default.
 const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color', 'note'];
-const SETTING_SCOPES = ['server', 'room', 'person'];
+const SETTING_SCOPES = ['environment', 'space', 'person'];
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 // A path a keyed surface (surfaces.keyed.path) may not claim: the host's own top-level routes, kept here so a
 // module manifest is refused up front rather than claiming a path nothing would ever route to it. "view" is
@@ -282,7 +287,7 @@ function cleanSettings(raw) {
     if (out.some((d) => d.key === key)) throw new ModuleError(`module.json: setting "${key}" is listed twice`);
     const type = SETTING_TYPES.includes(r.type) ? r.type : null;
     if (!type) throw new ModuleError(`module.json: setting "${key}" needs a type: ${SETTING_TYPES.join(', ')}`);
-    const scope = SETTING_SCOPES.includes(r.scope) ? r.scope : 'server';
+    const scope = SETTING_SCOPES.includes(manifestScope(r.scope)) ? manifestScope(r.scope) : 'environment';
     const def = { key, label: text(r.label, 60) || key, help: longText(r.help, 600), type, scope };
     // A setting may be shown only while another one has a given value (`showWhen`), and a choice may start as one of its options
     // when another setting already holds a value and it has none of its own (`defaultIfSet`: for a setting that grew into a choice).
@@ -323,7 +328,7 @@ function cleanSettings(raw) {
       // server can choose one. `shared: "host"` makes the folder the host's, one for every environment, rather
       // than each environment's own (documentation/plans/plan-tenants.md, "Shared files: the host's map") --
       // only with a base domain; without one the declaration has no effect, since there is no separate host.
-      if (def.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "server"`);
+      if (def.scope !== 'environment') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "environment"`);
       const folder = r.folder === undefined ? 'files' : String(r.folder);
       if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(folder) || folder === 'versions') throw new ModuleError(`module.json: setting "${key}" folder must be lowercase letters, digits and dashes (not "versions")`);
       def.folder = folder;
@@ -334,9 +339,9 @@ function cleanSettings(raw) {
     } else if (type === 'note') {
       // A label and a hint among the other settings, with no control and no value of its own -- a way for a
       // module to say where something is set up (a search a sibling module owns, e.g.) without a value to read,
-      // validate or store. Always server-level display, whatever scope the manifest asks for or none at all.
-      if (r.scope !== undefined && r.scope !== 'server') throw new ModuleError(`module.json: setting "${key}" is a note, so its scope must be "server"`);
-      def.scope = 'server';
+      // validate or store. Always environment-level display, whatever scope the manifest asks for or none at all.
+      if (r.scope !== undefined && manifestScope(r.scope) !== 'environment') throw new ModuleError(`module.json: setting "${key}" is a note, so its scope must be "environment"`);
+      def.scope = 'environment';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
       def.default = typeof r.default === 'string' ? r.default.slice(0, def.maxLength) : '';
@@ -352,6 +357,11 @@ function cleanSettings(raw) {
 // holds the bundled modules to it).
 const PERMISSION_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 
+// The module's own scopes, in the new names, each once.
+function cleanScope(raw) {
+  return [...new Set((Array.isArray(raw) ? raw : []).map(manifestScope))].filter((s) => SCOPES.includes(s));
+}
+
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
@@ -361,8 +371,8 @@ function cleanManifest(raw, files) {
   if (!name) throw new ModuleError('module.json: "name" is required');
   const version = typeof raw.version === 'string' ? raw.version.trim() : '';
   if (!VERSION_RE.test(version)) throw new ModuleError('module.json: "version" must look like 1.2.3');
-  const scope = [...new Set(Array.isArray(raw.scope) ? raw.scope : [])].filter((s) => SCOPES.includes(s));
-  if (!scope.length) throw new ModuleError('module.json: "scope" must include "server", "room", or both');
+  const scope = cleanScope(raw.scope);
+  if (!scope.length) throw new ModuleError('module.json: "scope" must include "environment", "space", or both');
   const icon = typeof raw.icon === 'string' && /^[a-z0-9-]{1,40}$/.test(raw.icon) ? raw.icon : 'puzzle-piece';
 
   const surfaces = {};
@@ -383,7 +393,7 @@ function cleanManifest(raw, files) {
   }
   if (raw.surfaces?.widget) {
     // A small view of the module for the dashboard on the rooms page, across the viewer's rooms.
-    if (!scope.includes('server')) throw new ModuleError('module.json: a surfaces.widget needs the "server" scope');
+    if (!scope.includes('environment')) throw new ModuleError('module.json: a surfaces.widget needs the "environment" scope');
     const w = raw.surfaces.widget;
     surfaces.widget = {
       entry: cleanEntry(w.entry, files, 'surfaces.widget'),
@@ -402,8 +412,8 @@ function cleanManifest(raw, files) {
     if (RESERVED_KEYED_PATHS.includes(kpath)) throw new ModuleError(`module.json: "${kpath}" is a path the host already serves and cannot be claimed`);
     surfaces.keyed = { path: kpath, entry: cleanEntry(k.entry, files, 'surfaces.keyed') };
   }
-  if (scope.includes('server') && !surfaces.page) throw new ModuleError('a "server" module needs a surfaces.page');
-  if (scope.includes('room') && !surfaces.panel) throw new ModuleError('a "room" module needs a surfaces.panel');
+  if (scope.includes('environment') && !surfaces.page) throw new ModuleError('a module with the "environment" scope needs a surfaces.page');
+  if (scope.includes('space') && !surfaces.panel) throw new ModuleError('a module with the "space" scope needs a surfaces.panel');
 
   const permissions = [];
   for (const p of Array.isArray(raw.permissions) ? raw.permissions.slice(0, 20) : []) {
@@ -450,10 +460,10 @@ function cleanManifest(raw, files) {
 
   // How a bundled module gets onto a fresh or updated environment without an admin visiting Modules first (see
   // ModuleManager.autoInstall in index.js's environmentFor): `auto` installs and enables it once, ever, per
-  // environment; `settingsFrom: "server"` copies each declared server-scope setting's value out of the host's
+  // environment; `settingsFrom: "environment"` copies each declared environment-scope setting's value out of the host's
   // own store.settings on that same install, for one whose fields used to live there.
   const install = raw.install && typeof raw.install === 'object'
-    ? { auto: raw.install.auto === true, settingsFrom: raw.install.settingsFrom === 'server' ? 'server' : null }
+    ? { auto: raw.install.auto === true, settingsFrom: manifestScope(raw.install.settingsFrom) === 'environment' ? 'environment' : null }
     : null;
 
   return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
@@ -533,6 +543,7 @@ class ModuleManager {
     if (manifest) {
       // The stored file is the author's original: fill in what it left out.
       manifest.hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(manifest.hooks?.[h])]));
+      manifest.scope = cleanScope(manifest.scope);
       if (!Array.isArray(manifest.permissions)) manifest.permissions = [];
       if (!manifest.access || typeof manifest.access !== 'object') manifest.access = {};
       manifest.requires = Array.isArray(manifest.requires) ? manifest.requires.filter((r) => typeof r === 'string' && ID_RE.test(r) && r !== id).slice(0, 5) : [];
@@ -650,8 +661,8 @@ class ModuleManager {
     return {
       ...manifest,
       enabled: Boolean(entry.enabled),
-      allRooms: Boolean(entry.allRooms),
-      rooms: entry.rooms || [],
+      allSpaces: Boolean(entry.allSpaces),
+      spaces: entry.spaces || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
       // What this needs that is not on (module ids, and 'ai' for the AI service), and the enabled modules that need this one.
       missing: this.missingFor(manifest),
@@ -751,7 +762,7 @@ class ModuleManager {
 
     const now = new Date().toISOString();
     const entry = existing || {
-      id: manifest.id, versions: [], enabled: false, allRooms: false, rooms: [], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, installedAt: now,
+      id: manifest.id, versions: [], enabled: false, allSpaces: false, spaces: [], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, installedAt: now,
     };
     entry.versions.push(manifest.version);
     entry.version = manifest.version;
@@ -783,8 +794,8 @@ class ModuleManager {
   }
 
   // enabled: turning a module on records that the admin approved what its
-  // active version asks for. allRooms / rooms: where a room module is on.
-  update(id, patch, { roomExists = () => true } = {}) {
+  // active version asks for. allSpaces / spaces: where a module with the space scope is on.
+  update(id, patch, { spaceExists = () => true } = {}) {
     const entry = this.get(id);
     const manifest = this.manifestOf(id, entry.version);
     if (patch.enabled !== undefined) {
@@ -821,14 +832,14 @@ class ModuleManager {
         throw new ModuleError('runMode must be "page" or "sandbox"');
       }
     }
-    if (patch.allRooms !== undefined) {
-      if (!manifest.scope.includes('room')) throw new ModuleError('this module has no room panel');
-      entry.allRooms = Boolean(patch.allRooms);
+    if (patch.allSpaces !== undefined) {
+      if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
+      entry.allSpaces = Boolean(patch.allSpaces);
     }
-    if (patch.rooms !== undefined) {
-      if (!manifest.scope.includes('room')) throw new ModuleError('this module has no room panel');
-      if (!Array.isArray(patch.rooms)) throw new ModuleError('rooms must be a list');
-      entry.rooms = [...new Set(patch.rooms.filter((r) => typeof r === 'string' && roomExists(r)))];
+    if (patch.spaces !== undefined) {
+      if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
+      if (!Array.isArray(patch.spaces)) throw new ModuleError('spaces must be a list');
+      entry.spaces = [...new Set(patch.spaces.filter((r) => typeof r === 'string' && spaceExists(r)))];
     }
     this.save();
     return this.view(id);
@@ -877,4 +888,4 @@ class ModuleManager {
   }
 }
 
-module.exports = { ModuleManager, ModuleError, cleanManifest, permissionDefaults, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, cleanManifest, manifestScope, permissionDefaults, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

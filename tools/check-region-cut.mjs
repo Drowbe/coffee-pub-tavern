@@ -95,7 +95,7 @@ await test('a real cut: progress as it streams in, the file lands where it shoul
   jobs.on('progress', (id, p) => progress.push(p));
   let done = null;
   jobs.on('done', (id, d) => { done = d; });
-  const { id } = await jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'lisbon.pmtiles', box, maxZoom: 10, by: 'admin' });
+  const { id } = await jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'lisbon.pmtiles', box, maxZoom: 10, by: 'admin' });
   assert.ok(id);
   assert.equal(jobs.view(id).status, 'running');
   // The temp file must live on the same volume as the final destination (inside DATA_DIR), never the system's own /tmp,
@@ -113,7 +113,7 @@ await test('a real cut: progress as it streams in, the file lands where it shoul
 
 await test('a failed cut leaves nothing behind, and a bad name or an existing file is refused up front', async () => {
   const { dataDir, jobs } = fakeJobs();
-  const { id } = await jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://x/empty.pmtiles', folder: 'map-tiles', name: 'nothing.pmtiles', box, maxZoom: 10, by: 'admin' });
+  const { id } = await jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://x/empty.pmtiles', folder: 'map-tiles', name: 'nothing.pmtiles', box, maxZoom: 10, by: 'admin' });
   await new Promise((r) => jobs.once('error', r));
   assert.equal(jobs.view(id).status, 'error');
   assert.match(jobs.view(id).error, /no tiles at this zoom/);
@@ -121,24 +121,24 @@ await test('a failed cut leaves nothing behind, and a bad name or an existing fi
   const tmpDir = path.join(dataDir, 'tmp', 'region-cut');
   assert.deepEqual(fs.existsSync(tmpDir) ? fs.readdirSync(tmpDir) : [], []); // the temp file was cleaned up
 
-  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://x/y.pmtiles', folder: 'map-tiles', name: '../../etc/passwd', box, maxZoom: 10 }), /letters, digits/);
+  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://x/y.pmtiles', folder: 'map-tiles', name: '../../etc/passwd', box, maxZoom: 10 }), /letters, digits/);
   fs.mkdirSync(path.join(dataDir, 'modules', 'maps', 'map-tiles'), { recursive: true });
   fs.writeFileSync(path.join(dataDir, 'modules', 'maps', 'map-tiles', 'already.pmtiles'), 'x');
-  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://x/y.pmtiles', folder: 'map-tiles', name: 'already.pmtiles', box, maxZoom: 10 }), /already exists/);
+  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://x/y.pmtiles', folder: 'map-tiles', name: 'already.pmtiles', box, maxZoom: 10 }), /already exists/);
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
 await test('only one cut at a time, per module and scope', async () => {
   const { dataDir, jobs } = fakeJobs();
-  const first = await jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'a.pmtiles', box, maxZoom: 10 });
-  assert.ok(jobs.runningFor('maps', 'server'));
-  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'server', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'b.pmtiles', box, maxZoom: 10 }), /already running/);
+  const first = await jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'a.pmtiles', box, maxZoom: 10 });
+  assert.ok(jobs.runningFor('maps', 'environment'));
+  await assert.rejects(jobs.start({ moduleId: 'maps', scopeKey: 'environment', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'b.pmtiles', box, maxZoom: 10 }), /already running/);
   // a different scope is unaffected
-  const other = await jobs.start({ moduleId: 'maps', scopeKey: 'room:abcd', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'c.pmtiles', box, maxZoom: 10 });
+  const other = await jobs.start({ moduleId: 'maps', scopeKey: 'space:abcd', source: 'https://build.protomaps.com/x.pmtiles', folder: 'map-tiles', name: 'c.pmtiles', box, maxZoom: 10 });
   assert.ok(other.id);
   await Promise.all([new Promise((r) => jobs.once('done', r)), new Promise((r) => { const h = (id) => { if (id !== other.id) return; jobs.off('done', h); r(); }; jobs.on('done', h); })]);
   await new Promise((r) => setTimeout(r, 20)); // let both settle
-  assert.equal(jobs.runningFor('maps', 'server'), null);
+  assert.equal(jobs.runningFor('maps', 'environment'), null);
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
