@@ -4,9 +4,13 @@
  * recovery codes, the pending token, and mfa.version folded into a session's own stamp
  * (documentation/plans/plan-mfa.md). Then the roles (documentation/plans/plan-names.md, step 4): who has an owner's
  * rights, the roles an account can hold, and the old role values the Studio alias answers a bearer request with.
+ * Last, the server's own settings a person picks from a list: the currency is a known ISO 4217 code (GitHub #4).
  */
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -156,6 +160,27 @@ test('the Studio alias answers a bearer request with the old role values, and th
   assert.deepEqual(status.users.map((u) => u.role), ['owner', 'member', 'admin'], 'the answer itself is not changed in place');
   assert.equal(studioAlias.status(cookie, status, ctx), status);
   assert.equal(studioAlias.status(req({ authorization: 'Bearer junk' }), status, { signedIn: null }), status, 'a bearer header that signed nobody in (the stream key let it in)');
+});
+
+test('the server currency is a known code; an unknown one is refused, an old one already set is kept', () => {
+  const { Store, CURRENCIES } = require('../server/store.js');
+  assert.ok(CURRENCIES.has('USD') && CURRENCIES.has('EUR') && CURRENCIES.size > 100, 'the list comes from Intl');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-currency-'));
+  try {
+    const store = new Store(dir);
+    store.updateSettings({ currency: 'eur' });
+    assert.equal(store.settings.currency, 'EUR', 'a known code in lower case is stored in upper case');
+    assert.throws(() => store.updateSettings({ currency: 'XYZ' }), /XYZ is not a currency this server knows\. Choose one from the list/);
+    assert.throws(() => store.updateSettings({ currency: 'euros' }), /three-letter code/);
+    assert.equal(store.settings.currency, 'EUR', 'a refused code changes nothing');
+    store.data.settings.currency = 'XYZ'; // written by hand, or before this check existed
+    store.updateSettings({ currency: 'XYZ', clock: '24' });
+    assert.equal(store.settings.currency, 'XYZ', 'saving the page again keeps the old value');
+    assert.equal(store.settings.clock, '24');
+    assert.throws(() => store.updateSettings({ currency: 'QQQ' }), /QQQ is not a currency/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 console.log(`check-auth: ${n} groups OK`);

@@ -14,6 +14,14 @@ does not follow a pull aside, a recall or a return, and does not show who is onl
 
 Workaround: reload the page once after the update.
 
+## A refused settings save still applies the other fields
+
+On the Manage page, when a save of the settings is refused for one field (a currency the server doesn't
+know, for example), the other fields sent with it are still saved, even though the page shows the
+error. GitHub #16.
+
+Workaround: after an error, reload the page to see what was saved, and fix the one field it named.
+
 ## A Planner journey can't be longer than 24 hours
 
 In the Planner, a journey's length is at most 24 hours, so a longer trip, such as a long flight with a

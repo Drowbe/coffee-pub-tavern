@@ -180,6 +180,8 @@ const DEFAULT_CALL_PREFS = {
 
 // The languages the interface comes in (a setting; only English so far).
 const LANGUAGES = ['en'];
+// The currencies the server setting accepts: the ISO 4217 codes Node's own Intl knows (the page lists the same ones).
+const CURRENCIES = new Set(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : []);
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
   homeIcon: DEFAULT_HOME_ICON,
@@ -725,6 +727,8 @@ class Store {
     if (patch.currency !== undefined) {
       const code = String(patch.currency || '').trim().toUpperCase();
       if (!/^[A-Z]{3}$/.test(code)) throw new StoreError('a currency is a three-letter code, such as USD');
+      // An unknown code is refused, unless it is the one already set (an older value saved as it was, not lost).
+      if (!CURRENCIES.has(code) && code !== String(s.currency || '').toUpperCase()) throw new StoreError(`${code} is not a currency this server knows. Choose one from the list, such as USD.`);
       s.currency = code;
     }
     // null/empty picks "Default" (style.css's own built-in palette); any
@@ -1556,5 +1560,5 @@ class StoreError extends Error {
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
-  sanitizeMfa,
+  sanitizeMfa, CURRENCIES,
 };
