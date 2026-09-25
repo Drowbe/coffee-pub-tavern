@@ -184,6 +184,82 @@ test('the server currency is a known code; an unknown one is refused, an old one
   }
 });
 
+test('the currency list (GET /api/currencies, host.locale().currencies) is exactly the codes the server takes', () => {
+  const { Store, CURRENCIES } = require('../server/store.js');
+  const { currencyCodes } = require('../server/currencies.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-currency-list-'));
+  try {
+    const store = new Store(dir);
+    const list = currencyCodes(store.settings.currency);
+    assert.deepEqual(list, [...list].sort(), 'sorted');
+    assert.equal(new Set(list).size, list.length, 'no code twice');
+    assert.deepEqual(new Set(list), new Set(CURRENCIES), 'with a known code set, the list is the known codes');
+    for (const code of list) {
+      store.updateSettings({ currency: code });
+      assert.equal(store.settings.currency, code, `${code} is on the list, so it saves`);
+    }
+    for (const code of ['XYZ', 'QQQ', 'AAA']) if (!list.includes(code)) assert.throws(() => store.updateSettings({ currency: code }), /is not a currency this server knows/, `${code} is not on the list, so it is refused`);
+    store.data.settings.currency = 'XYZ'; // an old value kept by updateSettings: the list carries it so the picker can show it
+    const withOld = currencyCodes(store.settings.currency);
+    assert.ok(withOld.includes('XYZ') && withOld.length === list.length + 1);
+    store.updateSettings({ currency: 'XYZ' });
+    assert.equal(store.settings.currency, 'XYZ');
+    assert.deepEqual(currencyCodes(undefined), list, 'nothing set yet: the known codes');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// GitHub #16: a refused save changes nothing, not even the good fields sent before the bad one -- in memory, and
+// on disk once a later, valid save writes the file.
+test('a refused settings, person or space save changes nothing, in memory or on disk after a later save', () => {
+  const { Store } = require('../server/store.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-refused-save-'));
+  try {
+    const store = new Store(dir);
+    const onDisk = () => JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'));
+    store.updateSettings({ clock: '12', loginText: 'before', currency: 'USD' });
+
+    // Settings: good fields, then a refused currency (and a refused theme, a refused home icon).
+    assert.throws(() => store.updateSettings({ clock: '24', loginText: 'after', serverName: 'Changed', currency: 'XYZ' }), /XYZ is not a currency this server knows/);
+    assert.throws(() => store.updateSettings({ clock: '24', activeThemeId: 'nope' }), /no such theme/);
+    assert.throws(() => store.updateSettings({ loginText: 'after', homeIcon: 'not-an-icon' }), /unknown home icon/);
+    assert.equal(store.settings.clock, '12', 'the clock sent with a refused currency is not applied');
+    assert.equal(store.settings.loginText, 'before');
+    assert.notEqual(store.settings.serverName, 'Changed');
+    store.updateSettings({ language: store.settings.language }); // a later, valid save writes the file
+    assert.equal(onDisk().settings.clock, '12', 'and not written by the next save');
+    assert.equal(onDisk().settings.loginText, 'before');
+    const settingsObject = store.settings;
+    assert.equal(store.updateSettings({ clock: '24' }), settingsObject, 'an accepted save still updates the same settings object');
+    assert.equal(store.settings.clock, '24');
+
+    // A person: a new login and name, then a refused role.
+    const bob = store.addUser({ login: 'bob', role: 'member' });
+    assert.throws(() => store.updateUser(bob.key, { login: 'robert', displayName: 'Robert', role: 'nonsense' }), /role must be owner or member/);
+    assert.equal(store.userByKey(bob.key).login, 'bob');
+    assert.equal(store.userByKey(bob.key).displayName, 'bob');
+    assert.equal(store.userByLogin('robert'), null);
+
+    // A space: a new name and description, then a refused profile, link or link icon.
+    const room = store.addRoom({ name: 'Keep' });
+    const guests = Boolean(room.allowGuests);
+    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', description: 'lost', profile: 'bad' }), /profile must be roleplaying/);
+    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', allowGuests: !guests, link: 'ftp://x' }), /link must be a valid http\(s\) URL/);
+    assert.throws(() => store.updateRoom(room.id, { name: 'Lost', linkIcon: 'not-an-icon' }), /unknown link icon/);
+    assert.equal(store.roomById(room.id).name, 'Keep');
+    assert.equal(store.roomById(room.id).description, '');
+    assert.equal(Boolean(store.roomById(room.id).allowGuests), guests);
+
+    store.updateSettings({ clock: '12' });
+    const disk = onDisk();
+    assert.equal(disk.users.find((u) => u.key === bob.key).login, 'bob');
+    assert.equal(disk.rooms.find((r) => r.id === room.id).name, 'Keep');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // The server's admin on a single-environment install (plan-names decision 7, amended): buildEnvironment's `admin`, from
 // ADMIN_LOGIN and ADMIN_PASSWORD on every start.
 test('a single install\'s admin: made, reset only when the password differs, an owner from step 4 made admin again with a password, nobody without one', () => {

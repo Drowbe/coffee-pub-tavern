@@ -709,8 +709,10 @@ class Store {
     return (this.data.settings.icons || []).map((i) => i.id);
   }
 
+  // Every field is checked into a draft first and the draft applied at the end, so a refused field
+  // (a StoreError) leaves the settings exactly as they were, the other fields in the patch included.
   updateSettings(patch) {
-    const s = this.data.settings;
+    const s = { ...this.data.settings };
     if (patch.serverName !== undefined) s.serverName = cleanText(patch.serverName, 60) || DEFAULT_SETTINGS.serverName;
     if (patch.homeIcon !== undefined) {
       if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
@@ -796,8 +798,9 @@ class Store {
       const icons = cleanIcons(patch.icons);
       if (icons) s.icons = icons;
     }
+    Object.assign(this.data.settings, s);
     this.save();
-    return s;
+    return this.data.settings;
   }
 
   // --- themes ---------------------------------------------------------------
@@ -974,20 +977,23 @@ class Store {
         throw new StoreError(serverAdmin ? "this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here" : "this account signs in through the host console, so its sign-in can't be changed here");
       }
     }
+    // Checked into a draft, applied at the end: a refused field changes nothing.
+    const draft = { ...user };
     if (patch.login !== undefined) {
       const cleaned = cleanLogin(patch.login);
       if (!cleaned) throw new StoreError('username is required');
       const other = this.userByLogin(cleaned);
       if (other && other.key !== key) throw new StoreError('that username is taken');
-      user.login = cleaned;
+      draft.login = cleaned;
     }
-    if (patch.displayName !== undefined) user.displayName = cleanText(patch.displayName, 40) || user.login;
+    if (patch.displayName !== undefined) draft.displayName = cleanText(patch.displayName, 40) || draft.login;
     if (patch.role !== undefined && patch.role !== user.role) {
       if (!ASSIGNABLE_ROLES.includes(patch.role)) throw new StoreError('role must be owner or member');
-      user.role = patch.role;
+      draft.role = patch.role;
     }
-    if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash || null;
-    if (patch.linkToken !== undefined) user.linkToken = patch.linkToken || null;
+    if (patch.passwordHash !== undefined) draft.passwordHash = patch.passwordHash || null;
+    if (patch.linkToken !== undefined) draft.linkToken = patch.linkToken || null;
+    Object.assign(user, draft);
     this.save();
     return user;
   }
@@ -1168,34 +1174,37 @@ class Store {
   updateRoom(id, patch) {
     const room = this.data.rooms.find((r) => r.id === id);
     if (!room) throw new StoreError('no such room', 404);
-    if (patch.name !== undefined) room.name = cleanText(patch.name, 40) || room.name;
-    if (patch.description !== undefined) room.description = String(patch.description ?? '').trim().slice(0, 300);
+    // Checked into a draft, applied at the end: a refused field changes nothing.
+    const draft = { ...room };
+    if (patch.name !== undefined) draft.name = cleanText(patch.name, 40) || draft.name;
+    if (patch.description !== undefined) draft.description = String(patch.description ?? '').trim().slice(0, 300);
     if (patch.members !== undefined && id !== LOBBY) {
       if (!Array.isArray(patch.members)) throw new StoreError('members must be a list of user keys');
-      room.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
+      draft.members = [...new Set(patch.members.filter((k) => typeof k === 'string' && this.userByKey(k)))];
     }
-    if (patch.aiOff !== undefined) room.aiOff = patch.aiOff === true; // this room does not use AI, whatever a role may do
+    if (patch.aiOff !== undefined) draft.aiOff = patch.aiOff === true; // this room does not use AI, whatever a role may do
     if (patch.profile !== undefined) {
       if (!ROOM_PROFILES.includes(patch.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
-      room.profile = patch.profile;
+      draft.profile = patch.profile;
     }
     if (patch.link !== undefined) {
       if (patch.link) {
         const link = cleanRoomLink(patch.link);
         if (!link) throw new StoreError('link must be a valid http(s) URL');
-        room.link = link;
+        draft.link = link;
       } else {
-        room.link = null;
+        draft.link = null;
       }
     }
     if (patch.linkIcon !== undefined) {
       if (!this.iconIds().includes(patch.linkIcon)) throw new StoreError('unknown link icon');
-      room.linkIcon = patch.linkIcon;
+      draft.linkIcon = patch.linkIcon;
     }
     if (patch.allowGuests !== undefined) {
-      room.allowGuests = Boolean(patch.allowGuests);
-      if (!room.allowGuests && room.guestToken) room.guestToken = null;
+      draft.allowGuests = Boolean(patch.allowGuests);
+      if (!draft.allowGuests && draft.guestToken) draft.guestToken = null;
     }
+    Object.assign(room, draft);
     this.save();
     return this.roomById(id);
   }

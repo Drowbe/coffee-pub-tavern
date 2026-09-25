@@ -14,13 +14,14 @@ does not follow a pull aside, a recall or a return, and does not show who is onl
 
 Workaround: reload the page once after the update.
 
-## A refused settings save still applies the other fields
+## A refused module update can still apply part of it
 
-On the Manage page, when a save of the settings is refused for one field (a currency the server doesn't
-know, for example), the other fields sent with it are still saved, even though the page shows the
-error. GitHub #16.
+On the Modules tab, when one request changes a module in two ways and the second part is refused (for
+example, turning a module off with force together with a run mode the server doesn't accept), the first part
+is still applied, even though the page shows the error. GitHub #17.
 
-Workaround: after an error, reload the page to see what was saved, and fix the one field it named.
+Workaround: make one change at a time, and reload the Modules tab after an error to see the module's real
+state.
 
 ## A Planner journey can't be longer than 24 hours
 

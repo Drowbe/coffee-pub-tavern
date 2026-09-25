@@ -154,6 +154,43 @@ test('a trip has an optional three-letter currency, an item an optional cost', (
   assert.equal(it('c', { cost: -3 }).cost, null);
 });
 
+// The trip's Currency picker (host.ui.currencySelect in public/sdk/host.js), on a stand-in <select>: the server's list, a
+// first "" choice for the server's currency, and a stored code kept and selected even when the server would not take it.
+await (async () => {
+  const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
+  const win = { addEventListener() {}, location: { search: '' } };
+  win.parent = win;
+  new Function('window', 'document', sdk)(win, {});
+  const el = (tag) => ({ tag, value: '', textContent: '', label: '', children: [], append(...c) { this.children.push(...c); } });
+  const doc = { createElement: el };
+  const select = { ownerDocument: doc, children: [], _v: '', listeners: [],
+    replaceChildren(...c) { this.children = c; this._v = ''; },
+    options() { return this.children.flatMap((c) => (c.tag === 'optgroup' ? c.children : [c])); },
+    get value() { return this._v; },
+    set value(v) { this._v = this.options().some((o) => o.value === v) ? v : ''; },
+    addEventListener(_e, fn) { this.listeners.push(fn); }, removeEventListener() {} };
+  const locale = { language: 'en', clock: '12', currency: 'USD', currencies: ['EUR', 'JPY', 'USD', 'XAF'] };
+  const { host } = win.createHost({ call: async (m) => (m === 'hello' ? { locale } : {}), root: {}, rootElement: {} });
+  await host.ready();
+  const pick = host.ui.currencySelect(select, { value: '', empty: true });
+  test('the trip Currency picker: empty is the server currency, Common then All, odd codes kept', () => {
+    assert.equal(select.children[0].value, '');
+    assert.equal(select.children[0].textContent, 'Default (USD)');
+    assert.equal(select.value, '');
+    assert.deepEqual(select.children[1].children.map((o) => o.value), ['USD', 'EUR', 'JPY']);
+    assert.equal(select.children[1].label, 'Common');
+    assert.deepEqual(select.children[2].children.map((o) => o.value), ['XAF']);
+    pick.set('eur');
+    assert.equal(pick.value, 'EUR');
+    pick.set('XYZ');
+    assert.equal(select.children[1].value, 'XYZ'); // shown before the groups, and selected
+    assert.equal(pick.value, 'XYZ');
+    delete locale.currencies; // a built-in fallback locale has no list: the browser's
+    pick.set('GBP');
+    assert.equal(pick.value, 'GBP');
+  });
+})();
+
 // --- the plan, against a small stand-in for the SDK -------------------------------------------------------------
 
 function fakeHost({ cards = [], search = [] } = {}) {

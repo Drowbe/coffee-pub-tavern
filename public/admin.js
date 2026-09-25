@@ -319,21 +319,15 @@ async function saveSettings(patch, statusEl) {
   }
 }
 $('save-settings').addEventListener('click', () => saveSettings({ serverName: $('set-server').value, homeIcon: selectedHomeIcon }, $('settings-status')));
-// Language, time and money: the currency list is the common ones first, then every other currency the browser knows
-// (ISO 4217, by name), plus whatever is set if it is in neither (so a code chosen elsewhere is shown, not lost).
-const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'JPY', 'CNY', 'INR', 'MXN', 'BRL', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'ZAR', 'SGD', 'HKD', 'KRW', 'THB', 'TRY', 'AED'];
-function currencyName(code) {
-  try { return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code; } catch (err) { return code; }
-}
-function fillCurrencies(current) {
+// Language, time and money: the currency list is the one every picker uses (window.hostCurrency, from /sdk/host.js): the
+// common ones first, then every other the server takes, by name, plus whatever is set if it is in neither (so a code chosen
+// elsewhere is shown, not lost). Without the server's list it falls back to the browser's.
+async function fillCurrencies(current) {
   const select = $('set-currency');
-  const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : [];
-  const option = (code) => { const o = document.createElement('option'); o.value = code; o.textContent = `${code} - ${currencyName(code)}`; return o; };
-  const group = (label, codes) => { const g = document.createElement('optgroup'); g.label = label; g.append(...codes.map(option)); return g; };
-  const others = all.filter((c) => !COMMON_CURRENCIES.includes(c)).sort((a, b) => currencyName(a).localeCompare(currencyName(b)));
-  const known = COMMON_CURRENCIES.includes(current) || others.includes(current);
-  select.replaceChildren(...(known ? [] : [option(current)]), group('Common', COMMON_CURRENCIES), ...(others.length ? [group('All currencies', others)] : []));
-  select.value = current;
+  window.hostCurrency.fill(select, { value: current }); // at once, so Save never sends an empty choice
+  let currencies = null;
+  try { ({ currencies } = await api('GET', '/api/currencies')); } catch (err) { return; }
+  window.hostCurrency.fill(select, { value: select.value || current, currencies });
 }
 $('save-locale').addEventListener('click', () => saveSettings({ language: $('set-language').value, clock: $('set-clock').value, currency: $('set-currency').value }, $('locale-status')));
 $('save-features').addEventListener('click', () => saveSettings({

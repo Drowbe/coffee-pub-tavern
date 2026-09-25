@@ -311,16 +311,19 @@ class HostRegistry {
   updateEnvironment(slug, patch) {
     const environment = this.data.environments.find((t) => t.slug === slug);
     if (!environment) throw new HostError('no such environment', 404);
+    // Checked into a draft, applied at the end: a refused field changes nothing.
+    const draft = { ...environment };
     if (patch && typeof patch === 'object') {
-      if (patch.name !== undefined) environment.name = cleanText(patch.name, 80) || environment.name;
-      if (patch.plan !== undefined) environment.plan = cleanPlan(patch.plan, environment.plan);
+      if (patch.name !== undefined) draft.name = cleanText(patch.name, 80) || draft.name;
+      if (patch.plan !== undefined) draft.plan = cleanPlan(patch.plan, draft.plan);
       if (patch.status !== undefined) {
         if (!STATUSES.includes(patch.status)) throw new HostError(`status must be one of ${STATUSES.join(', ')}`);
-        if (patch.status === 'pastDue' && environment.status !== 'pastDue') environment.pastDueSince = new Date().toISOString();
-        else if (patch.status !== 'pastDue') environment.pastDueSince = null;
-        environment.status = patch.status;
+        if (patch.status === 'pastDue' && draft.status !== 'pastDue') draft.pastDueSince = new Date().toISOString();
+        else if (patch.status !== 'pastDue') draft.pastDueSince = null;
+        draft.status = patch.status;
       }
     }
+    Object.assign(environment, draft);
     this.save();
     return { ...environment, plan: { ...environment.plan } };
   }

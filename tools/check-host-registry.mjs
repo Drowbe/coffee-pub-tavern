@@ -76,6 +76,12 @@ test('environments: add, find, update, remove', () => {
   const active = r.updateEnvironment('acme', { status: 'active' });
   assert.equal(active.pastDueSince, null);
   assert.throws(() => r.updateEnvironment('acme', { status: 'nonsense' }), HostError);
+  // GitHub #16: the name and plan sent with a refused status are not applied, now or by the next save.
+  assert.throws(() => r.updateEnvironment('acme', { name: 'Lost', plan: { members: 3 }, status: 'nonsense' }), HostError);
+  assert.equal(r.findEnvironment('acme').name, 'Acme Inc');
+  assert.equal(r.findEnvironment('acme').plan.members, 20);
+  r.updateEnvironment('acme', {});
+  assert.equal(new HostRegistry(dir).findEnvironment('acme').name, 'Acme Inc');
 
   r.removeEnvironment('acme');
   assert.equal(r.findEnvironment('acme'), null);

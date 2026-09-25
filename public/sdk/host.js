@@ -205,6 +205,58 @@
 .sdk-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
 `;
 
+  // A currency list for a <select> (host.ui.currencySelect, and Manage's Currency, which loads this file for it): the common
+  // ones, then every other by name in the viewer's language, and the current value first when it is in neither, so a stored
+  // code is shown rather than lost. `currencies` is what the server takes (GET /api/currencies, or host.locale().currencies);
+  // without it the browser's own list, and at the least the common ones.
+  const COMMON_CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'NZD', 'JPY', 'CNY', 'INR', 'MXN', 'BRL', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'ZAR', 'SGD', 'HKD', 'KRW', 'THB', 'TRY', 'AED'];
+  let currencyNames = null;
+  function currencyName(code) {
+    try {
+      if (!currencyNames) currencyNames = new Intl.DisplayNames(undefined, { type: 'currency' });
+      return currencyNames.of(code) || code;
+    } catch (err) {
+      return code;
+    }
+  }
+  // fillCurrencySelect(select, { value, currencies, empty }): `empty` is the label of a first "" choice, for a field that may
+  // be left to a default. A three-letter value is matched in capitals. Returns the value selected.
+  function fillCurrencySelect(select, o) {
+    const options = o || {};
+    const raw = typeof options.value === 'string' ? options.value.trim() : '';
+    const value = /^[A-Za-z]{3}$/.test(raw) ? raw.toUpperCase() : raw;
+    let list = Array.isArray(options.currencies) && options.currencies.length ? options.currencies : null;
+    if (!list && typeof Intl.supportedValuesOf === 'function') {
+      try { list = Intl.supportedValuesOf('currency'); } catch (err) { list = null; }
+    }
+    if (!list || !list.length) list = COMMON_CURRENCIES;
+    list = [...new Set(list.filter((c) => typeof c === 'string').map((c) => c.toUpperCase()))];
+    const doc = select.ownerDocument || document;
+    const option = (code, label) => {
+      const el = doc.createElement('option');
+      el.value = code;
+      const name = label === undefined ? currencyName(code) : label;
+      el.textContent = label !== undefined || name === code ? name : `${code} - ${name}`;
+      return el;
+    };
+    const group = (label, codes) => {
+      const g = doc.createElement('optgroup');
+      g.label = label;
+      g.append(...codes.map((c) => option(c)));
+      return g;
+    };
+    const common = COMMON_CURRENCIES.filter((c) => list.includes(c));
+    const others = list.filter((c) => !common.includes(c)).sort((a, b) => currencyName(a).localeCompare(currencyName(b)));
+    const children = [];
+    if (options.empty) children.push(option('', String(options.empty)));
+    if (value && !list.includes(value)) children.push(option(value));
+    if (common.length) children.push(group('Common', common));
+    if (others.length) children.push(group('All currencies', others));
+    select.replaceChildren(...children);
+    select.value = value;
+    return select.value;
+  }
+
   // env: { call(method, params) -> Promise, root, rootElement, elementAt({x, y}), localPoint(clientX, clientY),
   // applyTheme(theme) }.
   // Returns { host, emit }: `emit` is how the host pushes an event to the module.
@@ -622,6 +674,27 @@
         };
         btn.addEventListener('click', open);
         return { close, refresh: () => { close(); showDow(); }, destroy: () => { close(); hint.remove(); wrap.parentNode.insertBefore(input, wrap); wrap.remove(); } };
+      },
+      // A currency choice in a <select> the module already has: "Common" then "All currencies" by name, from the codes the
+      // server takes (host.locale().currencies), with the current value kept and selected even when the server would not
+      // take it now. currencySelect(select, { value, empty, onChange }): `empty` true adds a first "" choice labelled
+      // "Default (<the server's currency>)", or give the label as text; onChange(code) on each change ("" for the default).
+      // Call it once ready has resolved. Returns { set(value), value, destroy() }; set() refills with that value selected.
+      currencySelect: (select, o) => {
+        const options = o || {};
+        const fill = (value) => {
+          const loc = locale();
+          const empty = options.empty === true ? `Default (${loc.currency || 'USD'})` : options.empty;
+          return fillCurrencySelect(select, { value, currencies: loc.currencies, empty });
+        };
+        fill(options.value);
+        const changed = () => { if (typeof options.onChange === 'function') options.onChange(select.value); };
+        select.addEventListener('change', changed);
+        return {
+          set: (value) => { fill(value); },
+          get value() { return select.value; },
+          destroy: () => select.removeEventListener('change', changed),
+        };
       },
       // A view or filter switch, drawn in the toolbar (see host.toolbar.set) -- its most common tool, so
       // this is the one built for every module rather than each writing its own diffing and event wiring.
@@ -1438,4 +1511,6 @@
   // it hosts in the page, not as a module itself) can use the very same rendering Chat and every module share,
   // rather than a second copy. See host.util.markdown above for what this covers.
   global.hostText = { esc, markdown };
+  // The currency list likewise, for Manage's Currency (a page, not a module): the same choices a module's currencySelect makes.
+  global.hostCurrency = { fill: fillCurrencySelect, name: currencyName, common: COMMON_CURRENCIES.slice() };
 })(window);

@@ -1467,7 +1467,7 @@
       $('f-destination').value = t.destination || '';
       $('f-start').value = t.start || '';
       $('f-end').value = t.end || '';
-      $('f-currency').value = t.currency || '';
+      host.ui.currencySelect($('f-currency'), { value: t.currency || '', empty: true }); // "" is the server's currency
       $('f-notes').value = t.notes || '';
       $('f-by').textContent = '';
     } else {

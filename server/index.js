@@ -34,6 +34,7 @@ const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
 const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError, recordedParts } = require('./migrate-names');
 const studioAlias = require('./studio-alias');
 const callNames = require('./call-names');
+const { currencyCodes } = require('./currencies');
 
 const {
   PORT = 3000,
@@ -3973,7 +3974,8 @@ app.get('/api/modules/:id/context', (req, res) => {
     // tool of its own into that bar (host.nav.set; see api-module-sdk.md, "Registering into the nav bars").
     module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, nav: Boolean(manifest.surfaces.page && manifest.surfaces.page.nav) },
     // How the server shows language, time and money (Manage > Settings), for every module to follow.
-    locale: { language: store.settings.language || 'en', clock: store.settings.clock === '24' ? '24' : '12', currency: store.settings.currency || 'USD' },
+    // `currencies`: the codes the server takes (as GET /api/currencies), for a module's currency picker.
+    locale: { language: store.settings.language || 'en', clock: store.settings.clock === '24' ? '24' : '12', currency: store.settings.currency || 'USD', currencies: currencyCodes(store.settings.currency) },
   });
 });
 
@@ -4290,6 +4292,9 @@ app.get('/api/modules/:id/events', (req, res) => {
 app.get('/api/roles', requireOwner, (_req, res) => res.json({ permissions: store.allPermissions(), roles: store.roles() }));
 app.patch('/api/roles/:role', requireOwner, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
 
+// The currencies the server takes (see server/currencies.js): what a currency picker offers, in Manage or a module.
+// Codes only; the page names them in the viewer's language. Anyone signed in; nothing in it is private.
+app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: currencyCodes(store.settings.currency) }));
 app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));
 app.patch('/api/settings', requireOwner, (req, res) => {
   store.updateSettings(req.body || {});

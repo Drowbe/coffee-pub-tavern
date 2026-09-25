@@ -61,7 +61,7 @@ The **Bookings** view lists the stays and journeys in date order, each with its 
 
 ## Money
 
-Give a stop, stay or journey a **Cost** and who **Paid by**. The people ticked under **Whose is it** share it; when nobody is ticked, everyone in the room does. Set the trip's **Currency** (three letters, such as EUR) when you edit the trip. A round trip's cost is counted once. The **Money** view shows the total, what each person paid and their share, who is owed and who owes, and the fewest payments that settle everything ("Bob pays Ann 175.00"), then the list of costs. Odd cents are handed out, so nothing is lost.
+Give a stop, stay or journey a **Cost** and who **Paid by**. The people ticked under **Whose is it** share it; when nobody is ticked, everyone in the room does. Choose the trip's **Currency** from the list when you edit the trip: **Default (<the environment's currency>)** first, which follows Manage's setting, then the common currencies and all the others by name. A trip saved earlier with a code typed by hand (even in lower case, or one not on the list) still shows it. A round trip's cost is counted once. The **Money** view shows the total, what each person paid and their share, who is owed and who owes, and the fewest payments that settle everything ("Bob pays Ann 175.00"), then the list of costs. Odd cents are handed out, so nothing is lost.
 
 ## Following a poll
 
