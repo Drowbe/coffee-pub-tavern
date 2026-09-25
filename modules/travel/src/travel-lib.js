@@ -2,7 +2,7 @@
   // between items. Shared by the module's page and its dashboard widget (inlined into both by the build), and run
   // on its own by tools/check-travel.mjs. It expects `ymd` and `parseYmd` (from host.util) in scope.
 
-  // The trip is one stored value per room (its key is a pointer's id, so the trip can be pointed at and opened).
+  // The trip is one stored value per space (its key is a pointer's id, so the trip can be pointed at and opened).
   const TRIP_KEY = 'trip:main';
   const CATEGORIES = ['do', 'eat', 'stay', 'travel', 'other'];
   const KINDS = ['stop', 'stay', 'journey', 'note', 'link', 'block', 'lane'];
@@ -62,7 +62,7 @@
     if (kind === 'link') {
       const r = raw.ref;
       if (!r || typeof r.module !== 'string' || typeof r.kind !== 'string' || typeof r.id !== 'string') return null;
-      item.ref = { module: r.module, kind: r.kind, id: r.id, scope: r.scope === 'room' ? 'room' : 'server', ...(r.scope === 'room' && r.room ? { room: r.room } : {}) };
+      item.ref = { module: r.module, kind: r.kind, id: r.id, scope: r.scope === 'space' ? 'space' : 'environment', ...(r.scope === 'space' && r.space ? { space: r.space } : {}) };
     }
     // Where the item is: on a day (`date`, then `time`, then `order`) or on the plan's line at a joint (`after`: the day the joint
     // follows, '' for the head of the line before the first day; then `order`). One or the other: a day clears the joint. Neither
@@ -191,7 +191,7 @@
   }
 
   // A number for an untimed item between two neighbours' numbers (either may be missing); null when there is no
-  // room left between them and the day needs renumbering.
+  // no gap left between them and the day needs renumbering.
   function orderBetween(before, after) {
     if (before === undefined && after === undefined) return 1000;
     if (before === undefined) return after - 1000;
@@ -208,7 +208,7 @@
   }
 
   // Put an untimed item at `index` among the day's untimed items (which do not include it). Returns the changes
-  // as { id: { date?, order } }, renumbering the day when there is no room.
+  // as { id: { date?, order } }, renumbering the day when there is no gap.
   function placeUntimed(dayUntimed, moving, date, index) {
     const rest = dayUntimed.filter((i) => i.id !== moving.id);
     const at = Math.max(0, Math.min(index, rest.length));

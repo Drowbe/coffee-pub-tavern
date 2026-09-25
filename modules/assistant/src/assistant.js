@@ -63,7 +63,7 @@
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   const placeText = (p) => (p ? p.name || geo.coordsText(p.lat, p.lng) : '');
-  const refKey = (r) => `${r.module}:${r.kind}:${r.scope || 'room'}:${r.room || ''}:${r.id}`;
+  const refKey = (r) => `${r.module}:${r.kind}:${r.scope || 'space'}:${r.space || ''}:${r.id}`;
 
   const state = {
     ai: false,
@@ -75,7 +75,7 @@
   };
   const emptyNode = $('ask-empty'); // the "ask anything" line, moved back into #thread by New conversation
 
-  // --- context: chips, and the picker of anything reachable (this room's items, and the viewer's own) ----------------------
+  // --- context: chips, and the picker of anything reachable (this space's items, and the viewer's own) ----------------------
 
   const MAX_CONTEXT = 12;
   function drawContext() {
@@ -97,7 +97,7 @@
     state.context = state.context.filter((x) => refKey(x.ref) !== key);
     drawContext();
   }
-  // Everything this pane can offer as context: this room's items, and the viewer's own (a person's private items are never
+  // Everything this pane can offer as context: this space's items, and the viewer's own (a person's private items are never
   // linked, but they may still ask about them here). Search rather than a stored list, as any module reaching for another's
   // items does; no query text, since the picker has no search field of its own.
   async function drawPicker() {
@@ -105,9 +105,9 @@
     list.replaceChildren();
     let cards = [];
     try {
-      const [room, mine] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => [])]);
+      const [here, mine] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => [])]);
       const seen = new Set();
-      for (const c of [...room, ...mine]) { const k = refKey(c.ref); if (!seen.has(k)) { seen.add(k); cards.push(c); } }
+      for (const c of [...here, ...mine]) { const k = refKey(c.ref); if (!seen.has(k)) { seen.add(k); cards.push(c); } }
     } catch (err) {
       cards = [];
     }
@@ -296,7 +296,7 @@
   $('new-chat').addEventListener('click', newChat);
 
   // New conversation is a titlebar icon wherever there is a titlebar (a pane, or the module's own window);
-  // on the server page there is none, and the fallback button in .ask-head stays.
+  // on the environment page there is none, and the fallback button in .ask-head stays.
   let headerSig = '';
   async function syncHeader() {
     if (!host.header) return;

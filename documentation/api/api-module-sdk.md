@@ -10,8 +10,8 @@ A module is a zip of static files that runs in the browser, inside a sandboxed f
 
 A module has one or two **surfaces**:
 
-- **page**: a full-width page of its own (server scope), with an item in the header unless the module has a widget, in which case the widget card's heading opens it.
-- **panel**: a pane a room can open from the call's Modules button (room scope). A panel can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
+- **page**: a full-width page of its own (environment scope), with an item in the header unless the module has a widget, in which case the widget card's heading opens it.
+- **panel**: a module a space can open on its canvas from the space's module selector (space scope). A panel can be **docked** as a column beside the video and the chat, **floating** over the call, or **popped out** into a window of its own; the manifest says which of docked and floating it supports, and every panel can be popped out.
 
 The same HTML file can serve all of them. The SDK tells the module which scope it is in, and the page should adapt to its width: a docked pane is narrow.
 
@@ -30,7 +30,7 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
   "version": "1.2.0",
   "icon": "calendar-days",
   "description": "Sessions and events, with reminders.",
-  "scope": ["server", "room"],
+  "scope": ["environment", "space"],
   "surfaces": {
     "page": { "entry": "page.html" },
     "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
@@ -44,24 +44,24 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 }
 ```
 
-- `scope` says where the module can run. A `server` module needs a `page` surface and a `room` module needs a `panel`.
+- `scope` says where the module can run: `environment`, `space`, `person`, or several. An `environment` module needs a `page` surface and a `space` module needs a `panel`. The old names (`server`, `room`) are refused at install with one sentence naming the new word, for example `module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).`
 - `icon` is the name of a Font Awesome icon, used in the header and the Modules menu.
-- `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A room opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
-- `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role: `member`, `moderator` and `guest` (a missing `moderator` takes `member`'s value; the old key `user` is still read as `member` until the manifest's own rename). A key matches `^[a-z][a-z0-9_]{0,23}$`: a lower-case letter, then up to 23 lower-case letters, digits or underscores. Owners, and the host admin on a hosted server, always have every permission, so a module never needs a role check of its own: ask `host.can()`.
+- `panel.mode` lists how a panel may be shown: `dock` (a column of the space's canvas beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A space opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
+- `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role: `member`, `moderator` and `guest` (a missing `moderator` takes `member`'s value; the old key `user` is refused). A permission can say `"replaces": "<old key>"` when it was renamed: each role's choice for the old key is carried over once, when the server starts and after any install. It is refused if it names a key the module still uses, or an old key another permission already replaces. A key matches `^[a-z][a-z0-9_]{0,23}$`: a lower-case letter, then up to 23 lower-case letters, digits or underscores. Owners, and the host admin on a hosted server, always have every permission, so a module never needs a role check of its own: ask `host.can()`.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
 - `hooks` names what the module may ask Magpie to do: `schedule` and `notify`. An owner approves them when enabling the module.
 - `refs` lets modules point at each other's items without reaching into each other's data; see [Refs](#refs-pointing-at-another-modules-items). `refs.produces` lists the kinds of item this module lets others point at, and `refs.consumes` the other modules' kinds it wants to point at, which the owner approves when enabling the module.
 
 ## Pages and the SDK
 
-The SDK keeps its names for now: `server`, `room` and `roomId` in `info.context`, a pointer's `scope`, the storage scopes and `host.presence`. The server's routes and stored data say `environment` and `space` since step 5a of the [Names plan](../plans/plan-names.md), and the host page translates between the two; the SDK and manifests move to the new names, with every bundled module, in step 5c. Nothing below changes until then.
+Since step 5c of the [Names plan](../plans/plan-names.md) the SDK and the manifest use only the new names: `environment` (was `server`), `space` (was `room`), `spaceId` (was `roomId`). An old name is refused, not translated: the SDK throws with a sentence naming the new word, for example `host.refs.make: "server" is an old name; use scope "environment"`. `host.refs` and a resolved "card" keep their names until step 7.
 
 Magpie adds the SDK and a base stylesheet to each of your HTML pages when it serves them, so a page needs no `<script>` or `<link>` for them. To keep the base styles out, add `<meta name="sdk-base" content="none">`. The SDK defines `window.host`.
 
 ```js
 const t = await host.ready();
 // t.user      { key, name, role }   role: 'owner', 'member', 'guest', or 'admin' for the host admin's own account
-// t.context   { scope: 'server' | 'room', roomId }
+// t.context   { scope: 'environment' | 'space' | 'keyed', spaceId }   a keyed page adds path, subject and query
 // t.permissions  { view: true, edit: false }   the module's own permissions, by short key
 // t.theme     the current theme tokens
 host.can('edit');   // true or false, from the permissions above; always true for an owner
@@ -71,7 +71,7 @@ Every call returns a promise. Do not call anything before `ready()` resolves.
 
 ### Storage
 
-A small key-value store per module, with a scope: the whole **server**, one **room**, or one **person**. The person scope (declare `"person"` in the manifest's `scope`; a page asks with `{ scope: 'person' }`) is the signed-in person's own data, kept for them alone whichever room or page they are in: nobody else can read it, not even an owner, and a guest has none. Its changes are pushed only to that person's own pages, with `scope: 'person'` on the `change` event (check `e.scope` if your page also shows a room's data). Pointers to a personal item have `scope: 'person'` (`host.refs.make(kind, id, { scope: 'person' })`) and find nothing for anyone but the owner; personal items are not linked (`setLinks` refuses them). `host.refs.search(text, { scope: 'person' })` lists the viewer's own. A page uses its own scope (`'context'`, the default). A room panel may also ask for `{ scope: 'server' }` to read server data. A module with both a server page and a room panel may, on its server page, read `{ scope: 'rooms' }`: read-only, across every room the viewer is a member of that has the module on and lets their role read it. Each item comes back with its `roomId`, and `host.rooms()` returns those rooms as `[{ id, name, icon, svg }]`, where `svg` is the room's icon as inline SVG (a module cannot load the icon font). Live `change` events from those rooms carry a `roomId` and `scope: 'rooms'`.
+A small key-value store per module, with a scope: the whole **environment**, one **space**, or one **person**. The person scope (declare `"person"` in the manifest's `scope`; a page asks with `{ scope: 'person' }`) is the signed-in person's own data, kept for them alone whichever space or page they are in: nobody else can read it, not even an owner, and a guest has none. Its changes are pushed only to that person's own pages, with `scope: 'person'` on the `change` event (check `e.scope` if your page also shows a space's data). Pointers to a personal item have `scope: 'person'` (`host.refs.make(kind, id, { scope: 'person' })`) and find nothing for anyone but the owner; personal items are not linked (`setLinks` refuses them). `host.refs.search(text, { scope: 'person' })` lists the viewer's own. A page uses its own scope (`'context'`, the default). A space's module may also ask for `{ scope: 'environment' }` to read the environment's data. A module with both an environment page and a space panel may, on its environment page, read `{ scope: 'spaces' }`: read-only, across every space the viewer is a member of that has the module on and lets their role read it. Each item comes back with its `spaceId`, and `host.spaces()` returns those spaces as `[{ id, name, icon, svg }]`, where `svg` is the space's icon as inline SVG (a module cannot load the icon font). Live `change` events carry `scope` and `spaceId`; from those spaces, `scope: 'spaces'`.
 
 ```js
 await host.storage.set('event:123', { title: 'Session' });        // returns { key, value, version, updatedAt, by }
@@ -107,14 +107,14 @@ await host.schedule({
   repeat: { every: 'week', until: Date.parse('2026-12-31'), tz: 'America/Los_Angeles' }, // optional
 });
 await host.cancelSchedule('remind:123');
-await host.notify({ to: 'room', title: 'Hello', body: 'Sent now' });  // 'room', 'server', or a user key
+await host.notify({ to: 'space', title: 'Hello', body: 'Sent now' });  // 'space', 'environment', or a person's key
 host.on('schedule', ({ key, payload }) => {});   // when one fires, if the module is open
 ```
 
 - A schedule can be at most a year away, and a time already more than five minutes past is refused. If the server is off when a schedule is due, it fires on the next start unless it is more than six hours late.
 - A notification reaches the people it is addressed to who could see the module in that place (the module's `read` permission). It shows as a toast, and as an unread count on the module's dashboard card or header item and the call's Modules button, until they open the module. Notifications are kept for people who are away, up to 50 each.
 - `repeat` makes Magpie schedule the next one itself when each fires, so it keeps going while the module is closed. `every` is `day`, `week`, `2weeks`, `month` or `year`; `until` (optional) ends it; `tz` is an IANA time zone name, and the wall-clock time is kept in it across daylight saving changes. A monthly repeat on the 31st goes back to the 31st after a shorter month. Cancelling the key cancels the whole series.
-- `notify` in `schedule` defaults to the module's own scope: the room, or the whole server.
+- `notify` in `schedule` defaults to the module's own scope: the space, or the whole environment. Its `to`, like `host.notify`'s, is `'space'`, `'environment'` or a person's key.
 
 ### Refs: pointing at another module's items
 
@@ -137,13 +137,13 @@ A module that lets others point at its items lists them in `module.json`. Each e
 
 The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done`, `category` (a short label) and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the owner's approval, like a new permission or hook.
 
-A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
+A pointer is `{ module, kind, id, scope: 'environment' | 'space' | 'person', space? }` (`space` only for a space's item).
 
 ```js
 // Make a pointer to one of your own items, and keep it (with the rest of your data):
-const ref = host.refs.make('event', 'e1');           // { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: '...' }
-//   host.refs.make('event', 'e1', { scope: 'server' })   an item in the server's scope, from a room
-//   host.refs.make('event', 'e1', { room: roomId })      another room's item, from a module's server page
+const ref = host.refs.make('event', 'e1');           // { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: '...' }
+//   host.refs.make('event', 'e1', { scope: 'environment' })   an item in the environment's scope, from a space
+//   host.refs.make('event', 'e1', { space: spaceId })    another space's item, from a module's environment page
 
 // Later, ask Magpie what to show. One pointer gives a card, a list gives cards in the same order:
 const card = await host.refs.resolve(ref);
@@ -154,7 +154,7 @@ const card = await host.refs.resolve(ref);
 // item can change or go where it lives without telling you.
 const cards = await host.refs.resolve([refA, refB]);
 
-// Find items to link to, in this place (or from a room, { scope: 'server' }): every kind this module consumes.
+// Find items to link to, in this place (or from a space, { scope: 'environment' }): every kind this module consumes.
 const found = await host.refs.search('retreat');     // cards, each with its pointer in card.ref
 
 // What can I link to? Whatever other modules share and Magpie says this module may, so never name modules in your code.
@@ -172,7 +172,7 @@ const to = await host.refs.linksFrom(ref);
 host.on('links', (e) => { /* e.ref: one of your items whose links changed: ask again */ });
 ```
 
-Magpie answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the room, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
+Magpie answers only what the viewer could already see in the producing module: it must be enabled, the viewer must hold its `read` permission in that scope and be in the space, and the asking module must have been approved for that kind. A pointer is therefore only as revealing as the viewer's own access, and a card is read again each time, so it is always current. Show `Not available` for an error.
 
 **Dragging.** A module can offer its items to be dragged onto another module. The browser's own drag and drop is unreliable between sandboxed frames, so this is driven by the pointer and brokered by Magpie: press an item, move a few pixels, and Magpie shows the item's label at the pointer and tells the module frame under it where the pointer is and, on release, what was dropped. A module offers items with `host.refs.draggable(root, resolve)`, where `resolve(target)` says what the pressed element is (`{ kind, id, label, ...options for make() }`, or `null`):
 
@@ -218,7 +218,7 @@ Treat `ref` as untrusted: `dropMenu` resolves it, which is where Magpie checks w
 A module declares settings in `module.json` (`settings`, see [api-modules](api-modules.md)) and reads what people chose:
 
 ```js
-const prefs = await host.settings.get();          // { defaultView: 'week', ... }: server, room and person values together
+const prefs = await host.settings.get();          // { defaultView: 'week', ... }: the environment's, the space's and the person's values together
 host.settings.onChange((prefs) => { ... });       // called when any of them changes
 ```
 
@@ -248,18 +248,18 @@ const r = await host.ai.ask({ task: 'ask', question: 'Where is the hotel?', item
 // r.text: the words, with a line {{card:0}} where the first card goes; r.cards: [{ icon, kind?, title, content, tags?, place?, date?, links?, sources? }]
 ```
 
-Tasks are `summarise`, `ask` and `tags` (`ask` needs no items: with none it answers from the model's own knowledge, and with some it uses them as context and says which parts came from them; `summarise` and `tags` need items and use only them; each card carries `basis`: `general`, `items` or `both`) (`tags` returns `r.tags`, up to 6 words). The server reads the items as the person asking (only what they may see; up to 12, each up to 8 KB of `text`), sends them inside a fixed frame that tells the model they are data and never instructions, gives the model no tools, and returns its text. Asked for several distinct things, the model is told to write one card per thing (up to 20 in one answer) rather than fold them into prose. Where the model writes a card in a fenced block, the server checks each field (an icon from a fixed list, a title of 80 characters, content of 2000 characters — plain prose or simple Markdown, rendered with `host.util.markdown` — up to 5 one-word tags, an optional `kind` naming an everyday sort of thing the card plainly is — `flight`, `train`, `bus`, `ferry`, `car`, `hotel`, `restaurant`, `cafe`, `bar`, `sight`, `museum`, `tour`, `show`, or left out for a plain card — a place with an in-range position, a real date, https links, sources only among the items given) and returns it as a card; a block that is not a valid card stays as ordinary text. `kind` is ordinary domain language, not a module's own names: a module that recognises one (Planner's `acceptSuggestion`, for one) may act on it, and one that does not simply ignores it. Draw a marker `{{card:N}}` only where N is a real index into `cards`. Nothing is stored by the server: not the question, not the answer. It logs who, which module and task, and the token count, never the text. Errors are plain messages: not set up, your role may not use AI, AI is off in this room, the monthly allowance is used, the service did not answer. A person is limited to a few requests a minute.
+Tasks are `summarise`, `ask` and `tags` (`ask` needs no items: with none it answers from the model's own knowledge, and with some it uses them as context and says which parts came from them; `summarise` and `tags` need items and use only them; each card carries `basis`: `general`, `items` or `both`) (`tags` returns `r.tags`, up to 6 words). The server reads the items as the person asking (only what they may see; up to 12, each up to 8 KB of `text`), sends them inside a fixed frame that tells the model they are data and never instructions, gives the model no tools, and returns its text. Asked for several distinct things, the model is told to write one card per thing (up to 20 in one answer) rather than fold them into prose. Where the model writes a card in a fenced block, the server checks each field (an icon from a fixed list, a title of 80 characters, content of 2000 characters — plain prose or simple Markdown, rendered with `host.util.markdown` — up to 5 one-word tags, an optional `kind` naming an everyday sort of thing the card plainly is — `flight`, `train`, `bus`, `ferry`, `car`, `hotel`, `restaurant`, `cafe`, `bar`, `sight`, `museum`, `tour`, `show`, or left out for a plain card — a place with an in-range position, a real date, https links, sources only among the items given) and returns it as a card; a block that is not a valid card stays as ordinary text. `kind` is ordinary domain language, not a module's own names: a module that recognises one (Planner's `acceptSuggestion`, for one) may act on it, and one that does not simply ignores it. Draw a marker `{{card:N}}` only where N is a real index into `cards`. Nothing is stored by the server: not the question, not the answer. It logs who, which module and task, and the token count, never the text. Errors are plain messages: not set up, your role may not use AI, AI is off in this space, the monthly allowance is used, the service did not answer. A person is limited to a few requests a minute.
 
 ### Uploaded pictures
 
 A module whose manifest declares `uploads` (see [api-modules](api-modules.md)) keeps the pictures its people add:
 
 ```js
-const f = await host.uploads.put(blob, { name: 'harbour.jpg', keepPosition: false, scope: 'room' });
+const f = await host.uploads.put(blob, { name: 'harbour.jpg', keepPosition: false, scope: 'space' });
 // f: { id, name, type, size, by, at, taken, camera, hasPosition, position, hasThumb }
-await host.uploads.thumb(f.id, thumbBlob, { scope: 'room' });
-img.src = await host.uploads.url(f.id, { thumb: true, scope: 'room' });
-await host.uploads.remove(f.id, { scope: 'room' }); // when the item that shows it is removed
+await host.uploads.thumb(f.id, thumbBlob, { scope: 'space' });
+img.src = await host.uploads.url(f.id, { thumb: true, scope: 'space' });
+await host.uploads.remove(f.id, { scope: 'space' }); // when the item that shows it is removed
 ```
 
 Make the picture the size you want (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page before sending: the server does not decode pictures, it checks and cleans them. A resize in the page loses the picture's own facts, so read them first with `await host.uploads.inspect(file.slice(0, 256 * 1024, file.type))`, which answers `{ type, taken, camera, hasPosition, position }` from the start of the file; the position goes only to the person who sent it, and keeping it is then the page's decision (store it with the item). A photo's position is dropped unless `keepPosition` is true; `hasPosition` says it had one, so the page can offer to keep it (put the file again with `keepPosition`, then remove the first copy). Only the person who added a file, or an owner, can remove it. Uploads count against a per-person rate limit.
@@ -273,7 +273,7 @@ Anything more than one module needs belongs in the SDK, not copied into each mod
 - `host.ui.currencySelect(select, { value, empty, onChange })` fills a `<select>` you already have with the currencies the server accepts: a **Common** group, then **All currencies**, each by its name in the viewer's language (the bare code where there is no name). `value` is matched in capitals; a value not on the list (an old or odd code) gets its own selected option, so nothing stored disappears. `empty: true` adds a first choice, "Default (<the environment's currency>)", whose value is `""`; give a string instead to label it yourself. `onChange(code)` runs on each change (`""` for the default). It returns `{ set(value), value, destroy() }`. Call it after `host.ready()`, since the list comes with the handshake; with no list there it falls back to the browser's own list, then to the common codes.
 - `host.ui.viewSwitch({ id, options, value, onChange })` draws a labelled view or filter switch in the toolbar (see "The toolbar" below) and owns the boilerplate every module drawing one otherwise repeats: it only calls `host.toolbar.set` when the value or an option's label actually changed, and wires the `toolbar` event for you. Call `.set(value, options?)` on every render (it no-ops when nothing changed) rather than diffing and calling `toolbar.set` yourself. A module may make more than one (Research: whose items, then Cards/List): every live switch shares the toolbar row, drawn in the order they were made with a separator between, and any one changing redraws the row; `destroy()` takes one out again. Do not call `toolbar.set` yourself while a switch is live, since the next switch change would draw over it.
 - `host.ui.toolbarButton({ id, label, icon, iconOnly, on, onClick })` puts one button in the same toolbar row as the view switches (after the switches made before it), for a chooser that opens a menu, such as Research's Tags: `onClick` runs on a click, and the returned `{ set({ label, icon, on }), destroy() }` changes what it shows (`set` redraws only when something changed). Open the menu it belongs to with `host.menu.show({ at: { x: 100000, y: 4 }, ... })`, which lands at the top right of the module, under the toolbar.
-- `host.people()` returns the people of the room a panel is in, `[{ key, name }]` (empty outside a room panel), for choosing a person ("whose is it"): store their `key`, not the name.
+- `host.people()` returns the people of the space a panel is in, `[{ key, name }]` (empty outside a space), for choosing a person ("whose is it"): store their `key`, not the name.
 - `host.ui.icon(name, style)` returns a Font Awesome icon ("circle-right", style "solid", "regular" or "brands") as inline SVG text, coloured by the text colour, for a module that cannot load the icon font (a sandboxed frame). It rejects if there is no such icon.
 - `host.actions.pick(items, point)` is the small menu described under Actions.
 - `host.util` holds `esc` (text made safe for HTML), `id()` (a new id for something you store), `refKey(ref)` (a pointer as one string, for comparing), and `ymd(date)` / `parseYmd(text)` (a local day as `"2026-09-24"`, and back).
@@ -291,7 +291,7 @@ const drawn = await host.header.set([
 host.on('header', (e) => { /* e.id is the button clicked */ });
 ```
 
-`icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's server page), so keep your own controls in the page in that case, and hide them when it is true. More than five collapse into a host-drawn "..." at the end (see Overflow, below); mark one `overflow: true` to always keep it there (a destructive one, say) regardless of how many you set.
+`icon` is a Font Awesome name, `on` marks the current choice, `title` is the tooltip. It resolves `true` when the host drew them and `false` when there is no titlebar (a module's environment page), so keep your own controls in the page in that case, and hide them when it is true. More than five collapse into a host-drawn "..." at the end (see Overflow, below); mark one `overflow: true` to always keep it there (a destructive one, say) regardless of how many you set.
 
 ### The toolbar
 
@@ -310,7 +310,7 @@ host.on('toolbar', ({ id, value }) => { /* a tabs or slider item's click/move al
 ```
 
 - `{ type: 'text', text }` -- a plain, dim label.
-- `{ type: 'tabs', id, value, options: [{ id, label?, icon?, regular?, iconOnly? }] }` -- a segmented switch; each option needs a `label`, an `icon`, or both -- `iconOnly` keeps the icon and drops the visible label (kept as the tooltip and `aria-label`), for a tight space where the icon alone already reads clearly (Places' Mine/This room/Everyone, an icon and a label together, is the more common shape). A click sends `{ id, value: optionId }`.
+- `{ type: 'tabs', id, value, options: [{ id, label?, icon?, regular?, iconOnly? }] }` -- a segmented switch; each option needs a `label`, an `icon`, or both -- `iconOnly` keeps the icon and drops the visible label (kept as the tooltip and `aria-label`), for a tight space where the icon alone already reads clearly (Places' Mine/This space/Everyone, an icon and a label together, is the more common shape). A click sends `{ id, value: optionId }`.
 - `{ type: 'progress', value, label? }` -- a read-only bar, `value` 0-100.
 - `{ type: 'slider', id, value, min?, max?, step?, label?, disabled? }` -- a range input (min 0, max 100, step 1 unless given); moving it sends `{ id, value }`.
 - `{ type: 'button', id, label?, icon?, on?, primary?, disabled?, overflow? }` (the default type when `type` is left out) -- a click sends `{ id }`. Use this sparingly, for the one action that goes with the toolbar's own state (a Sync button beside an import's progress) -- not a place to relocate the titlebar's row of icons. Unlike a `tabs` option, a lone `button` item repeating the titlebar's icon style is exactly the thing to avoid.
@@ -378,7 +378,7 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Events.** `host.events.publish(name, { ref, data })` says something happened (`ref` an optional pointer to one of your own items, `data` a small plain object under 2 KB). `host.events.subscribe(handler)` hears the events your module was approved for (`"*"`, or `"module:name"`), about modules the person can see here, in order, including those that happened while your module was not open (from where it last got to; a module hears nothing from before its first subscribe). An event has `{ id, at, module, name, ref, data }`. By convention an event named `closed`, `done`, `completed` or `finished` means the item it points at is finished. More than one person may have your module open, so make handling an event safe to do twice.
 
-**Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `host.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `host.actions.request(action, input, { wait })` asks for one; Magpie checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `host.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })` (a handler may also return `data`, up to about 8 KB of plain data, which the requester reads from `out.result.data` when it waits; that is how a view asks a question): its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open; in a room, Magpie opens the pane of the module that carries the action when it is not open, so the request is carried out at once.
+**Actions.** `input` maps each field to a type: `string`, `text`, `date`, `datetime`, `boolean`, `number` or `ref`, with a trailing `?` for optional. `host.actions.list()` returns the actions your module may ask for here (`{ action, module, moduleName, icon, name, label, input }`), only those you could do yourself: offer whichever you can fill from what you have, and label the button with the action's own `label`, so you never name another module. `host.actions.request(action, input, { wait })` asks for one; Magpie checks the input against the declared types (only those fields go through) and queues it for the module that owns it. The owner carries out requests with `host.actions.provide({ createTask: async (input, { from, by }) => ({ ref }) })` (a handler may also return `data`, up to about 8 KB of plain data, which the requester reads from `out.result.data` when it waits; that is how a view asks a question): its page takes a request (only one page does, however many people have it open), does it under the rules of whoever has the module open, and reports how it went. A request waits for a person to open the module if nobody has it open; in a space, Magpie opens the pane of the module that carries the action when it is not open, so the request is carried out at once.
 
 **What the item must have.** An action that takes a pointer may say what the item behind it needs to have on its card for the action to make sense of it: `"needs": ["place"]` (or `date`, `text`, `subtitle`) on the entry in `actions.provides`. A drop menu then leaves the action out for an item without it ("Show on the map" for a task with no position), rather than offering it and failing. It is advice for the menu, not a check the server makes on the request.
 
@@ -396,11 +396,11 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 ### A dashboard widget
 
-A module with the `server` scope can offer a widget for the dashboard on the rooms page: a small card, across all of the viewer's rooms. Declare `"widget": { "entry": "widget.html", "title": "Coming up", "size": "medium", "order": 10 }` under `surfaces`. The widget is its own single HTML file (in this repository, `src/<id>-widget.html`, `.css` and `.js`, built like the module page), and runs like a server page: `info.context.scope` is `"server"`, `host.storage.list(prefix)` reads the server's data, `host.storage.list(prefix, { scope: 'rooms' })` the module's data in each of the viewer's rooms (each item with its `roomId`), and `host.rooms()` names those rooms and their icons. The widget shows; it does not edit. `host.page.open(hash)` (letters, digits and `= & _ . : , -` only, at most 80 characters) opens the module's own page at a place in it, for a click that means "show me this in full"; the page passes the hash to your module, which reads it with `host.page.onHash(fn)` (the Calendar's month opens a day with `day=2026-09-24`). Clicking an item should call `host.refs.open(ref)`, which takes the person to that item in its room; the card's heading opens the module's full page. A widget in a frame tells the dashboard how tall it is with `host.resize({ height })` (measure your own content, not the frame). Keep it small and quick: it loads with the rooms page. Code the page and the widget share can go in `src/<id>-lib.js`, which the build puts where a script has `/*__LIB__*/`.
+A module with the `environment` scope can offer a widget for the dashboard on the spaces page: a small card, across all of the viewer's spaces. Declare `"widget": { "entry": "widget.html", "title": "Coming up", "size": "medium", "order": 10 }` under `surfaces`. The widget is its own single HTML file (in this repository, `src/<id>-widget.html`, `.css` and `.js`, built like the module page), and runs like a server page: `info.context.scope` is `"server"`, `host.storage.list(prefix)` reads the server's data, `host.storage.list(prefix, { scope: 'rooms' })` the module's data in each of the viewer's rooms (each item with its `roomId`), and `host.rooms()` names those rooms and their icons. The widget shows; it does not edit. `host.page.open(hash)` (letters, digits and `= & _ . : , -` only, at most 80 characters) opens the module's own page at a place in it, for a click that means "show me this in full"; the page passes the hash to your module, which reads it with `host.page.onHash(fn)` (the Calendar's month opens a day with `day=2026-09-24`). Clicking an item should call `host.refs.open(ref)`, which takes the person to that item in its room; the card's heading opens the module's full page. A widget in a frame tells the dashboard how tall it is with `host.resize({ height })` (measure your own content, not the frame). Keep it small and quick: it loads with the rooms page. Code the page and the widget share can go in `src/<id>-lib.js`, which the build puts where a script has `/*__LIB__*/`.
 
 ### The action bar
 
-A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the room's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.
+A module's buttons go in its action bar, which the host draws. Docked, the bar is a cell in the canvas's shared bottom row, so it lines up with the video toolbar and the chat box; floating, popped out and on a module's own page it is a strip along the bottom.
 
 ```js
 host.bar.set([{ id: 'add', label: 'Add event', icon: 'plus', primary: true }]);
@@ -411,7 +411,7 @@ Each item has an `id`, a `label` (up to 30 characters), an optional Font Awesome
 
 **Overflow.** `header.set`, `bar.set` and `toolbar.set` each show at most five items before folding the rest into a "..." the host draws and opens (an item marked `overflow: true` goes there regardless of how many you set, for something you always want tucked away, like Delete). It is drawn by the host, not `host.menu.show` -- that one draws inside your own module, and a titlebar or bar button is the host's own chrome. You never build it yourself; it is just what setting more items than fit does. See [architecture-module-window](../architecture/architecture-module-window.md) for the shape all four zones follow.
 
-**Text nobody here wrote.** `host.util.esc(text)` makes text safe to put in HTML. `host.util.markdown(text)` turns a small, safe subset of Markdown into HTML: `#`/`##`/`###` headings, `**bold**`, `*italic*`/`_italic_`, `` `code` ``, fenced ` ``` ` code blocks, `-`/`*` and `1.` lists, `> ` quotes, `[text](https://...)` and bare `https://` links (nothing else is ever a link), paragraphs on a blank line. Everything is escaped first, so raw HTML in the text can never reach the page. It is the one place a module may set `innerHTML` from text a person or an AI wrote, because the safety already happened inside it; everywhere else, text still goes in with `textContent`. Use it for an AI's replies, and anywhere else people's own words might use it. The room page uses the very same function for chat (`window.hostText.markdown`, exposed once for the host page itself, since Chat is not a module).
+**Text nobody here wrote.** `host.util.esc(text)` makes text safe to put in HTML. `host.util.markdown(text)` turns a small, safe subset of Markdown into HTML: `#`/`##`/`###` headings, `**bold**`, `*italic*`/`_italic_`, `` `code` ``, fenced ` ``` ` code blocks, `-`/`*` and `1.` lists, `> ` quotes, `[text](https://...)` and bare `https://` links (nothing else is ever a link), paragraphs on a blank line. Everything is escaped first, so raw HTML in the text can never reach the page. It is the one place a module may set `innerHTML` from text a person or an AI wrote, because the safety already happened inside it; everywhere else, text still goes in with `textContent`. Use it for an AI's replies, and anywhere else people's own words might use it. The space page uses the very same function for chat (`window.hostText.markdown`, exposed once for the host page itself, since Chat is not a module).
 
 **Places on the earth.** `host.util.geo` holds what a module with places needs, so none carries its own copy: `inRange(lat, lng)`, `round6(n)`, `oneLine(text, max)` (one line, no control characters), `coord(text, 90 | 180)` (a latitude or longitude typed in a field, or null), `parsePoint(text)` (`{ lat, lng }` from a pair of coordinates or a map link, or null), `coordsText(lat, lng)`, `mapsLink(lat, lng, name, apple)` and `mapsSearch(text, apple)` (for a place with only a name or address), the links that open the spot in the person's own maps app: the platform's own link on Apple devices, a `geo:` link on Android, and an ordinary web link (OpenStreetMap) everywhere else, because a desktop browser has nothing registered for `geo:` and would open a blank page.
 
@@ -440,31 +440,32 @@ A keyed page can read its settings and what the SDK offers a page that follows p
 
 ```js
 const p = await host.presence.get();
-// p.people     [{ key, name, online, room, inCall, isAdmin }]   isAdmin: an owner or the host admin (the name changes in a later release)
-// p.rooms      [{ id, name, ephemeral, origin, private }]   an aside is ephemeral with an origin; a private conversation is private
-// p.activeRoom the room the stream follows (an owner's or the host admin's), adminOnline whether one is online (both names change in a later release)
+// p.people       [{ key, name, online, space, inCall, isOwner }]   space: the space (or aside) they are in; isOwner: an owner or the admin
+// p.spaces       [{ id, name }]
+// p.asides       [{ id, origin, private }]   origin: the space it was pulled from; private: a private conversation
+// p.activeSpace  the space the stream follows (an owner's or the admin's); p.ownerOnline whether one is online
 // p.reactions  [{ id, glyph }]
 const stop = host.presence.onChange((p) => { ... }, { every: 5000 }); // polls; called once at the start and whenever anything differs
 ```
 
-**Pictures.** One person's picture in a slot, as a blob URL to show, or null when they have none there; release it when you replace it. `{ room }` asks for that room's own picture set first, the way the call page does.
+**Pictures.** One person's picture in a slot, as a blob URL to show, or null when they have none there; release it when you replace it. `{ space }` asks for that space's own picture set first, the way the call page does.
 
 ```js
-const url = await host.images.get(key, 'player', { room });   // profile, background, player, playerOffline, playerTalking, playerMuted,
+const url = await host.images.get(key, 'player', { space });   // profile, background, player, playerOffline, playerTalking, playerMuted,
 host.images.release(url);                                     // playerAside, playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate
 ```
 
-**Media.** Watch one person's camera and microphone, read-only, following them from room to room (a module that runs in the page only, since the elements are handed to you):
+**Media.** Watch one person's camera and microphone, read-only, following them from space to space (a module that runs in the page only, since the elements are handed to you):
 
 ```js
-const w = await host.media.watch(key, { video: true, audio: false, room: 'lobby' }, {
+const w = await host.media.watch(key, { video: true, audio: false, space: 'lobby' }, {
   state: ({ online, cameraOn, micOn, speaking, name }) => { ... },
   video: (el) => { /* a <video> to place, or null when it went away */ },
   audio: (el) => { /* an <audio> to place, or null */ },
   reaction: (id) => { ... },            // as they react in the call
-  connection: ({ connected, room }) => { ... },
+  connection: ({ connected, space }) => { ... },
 });
-w.follow(roomId);   // the roster says they moved: leave this room for that one
+w.follow(spaceId);   // the roster says they moved: leave this space for that one
 w.stop();
 ```
 

@@ -3881,8 +3881,15 @@ input[type="color"] {
 /* Manage > Modules */
 .module-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+}
+
+/* The name and place label keep a readable width; on a narrow screen the pills move under them. */
+.module-head > .grow {
+  flex: 1 1 12rem;
+  min-width: 0;
 }
 
 .module-head h2 {
@@ -4763,6 +4770,24 @@ body.chat-window {
 body.in-space .topbar .module-nav-link,
 body.in-space .topbar.menu-open .links .module-nav-link {
   display: none;
+}
+
+/* A module built for an older Magpie: it can't run until its author updates it. */
+.module-outdated {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.module-outdated > i {
+  color: var(--danger);
+  margin-top: 2px;
 }
 
 /* A newer version of a module ships with this server. */

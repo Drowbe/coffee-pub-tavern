@@ -1,4 +1,4 @@
-// The Travel module's page: a trip's itinerary, day by day, for one room. The trip and its items live in the module's
+// The Travel module's page: a trip's itinerary, day by day, for one space. The trip and its items live in the module's
 // store (see travel-lib-plan.js); this page draws them into the markup in travel.html by cloning its templates and
 // filling their [data-slot] and [data-icon] hooks, and then only toggles the state classes and data attributes that
 // CONTRACT.md lists. It never builds markup from strings and sets no style (one exception: the item menu is placed
@@ -20,7 +20,7 @@
     $('msg').textContent = 'Planner could not start: ' + err.message;
     return;
   }
-  if (info.context.scope !== 'room') {
+  if (info.context.scope !== 'space') {
     $('msg').textContent = 'A trip belongs to a space. Open the space, then Planner there; the dashboard lists your trips.';
     return;
   }
@@ -36,7 +36,7 @@
   const state = {
     view: 'days',
     loaded: false,
-    people: [], // [{ key, name }] of this room
+    people: [], // [{ key, name }] of this space
     links: new Map(), // plan item id -> cards of what other modules link to it
     tripLinks: [], // cards of what other modules link to the trip itself
     conflicts: new Map(), // item id -> { patch }: my edit that met someone else's change
@@ -95,7 +95,7 @@
   // When a timed item arrives, on the environment's clock, with the day when it is not the day it leaves ("2:00 AM the next day").
   // `sep` goes between the time and the day: the narrow time column puts the day on a line of its own ("\n").
   const arriveText = (item, sep = ' ') => { const a = arrivalOf(item); return a ? [tt(a.time), laterText(a.days)].filter(Boolean).join(sep) : ''; };
-  // One letter, or two when another traveller of the room starts with the same one.
+  // One letter, or two when another traveller of the space starts with the same one.
   const initial = (key) => {
     const name = nameOf(key);
     const first = (name[0] || '?').toUpperCase();
@@ -613,9 +613,9 @@
   // Moving the plan's first day back or its last day forward, through the same save as Edit trip.
   function addDays(where, count) {
     const trip = plan.trip;
-    const room = MAX_DAYS - plan.days().length;
+    const left = MAX_DAYS - plan.days().length;
     if (!(count >= 1)) return;
-    if (count > room) { note(room > 0 ? `A plan can be at most ${MAX_DAYS} days long, so at most ${room} more can be added.` : `A plan can be at most ${MAX_DAYS} days long.`); return; }
+    if (count > left) { note(left > 0 ? `A plan can be at most ${MAX_DAYS} days long, so at most ${left} more can be added.` : `A plan can be at most ${MAX_DAYS} days long.`); return; }
     const shift = (day, n) => { const d = parseYmd(day); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
     const start = where === 'before' ? shift(trip.start, -count) : trip.start;
     const end = where === 'after' ? shift(trip.end || trip.start, count) : trip.end || trip.start;
@@ -1220,7 +1220,7 @@
     return plan.moveTo(id, date, index);
   }
 
-  // A pointer a shared plan may hold: a private item is copied to the room first (title, position and address, through a module that
+  // A pointer a shared plan may hold: a private item is copied to the space first (title, position and address, through a module that
   // offers to save a place), and the copy's pointer is used.
   async function sharedRef(ref) {
     if (ref.scope !== 'person') return ref;
@@ -1285,7 +1285,7 @@
           // on the day, or at the joint on the line: a pointer as a link, a card carried by the drag (an answer) as an item of
           // its own kind. The modules around add whatever they offer for an item of that kind, filled from the day and the
           // entry under the pointer. A private item (someone's own, in their profile) cannot be pointed at from a shared plan,
-          // nor handed to another module here: only they could open it. So it is shared first, as a copy in the room, by
+          // nor handed to another module here: only they could open it. So it is shared first, as a copy in the space, by
           // whichever module offers to save a place, and the plan points at the copy; nothing else is offered for it.
           const own = [{
             id: 'add',

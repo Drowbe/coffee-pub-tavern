@@ -718,7 +718,14 @@ function bundledNeeds(b) {
 }
 
 function moduleCard(m) {
-  const scopes = m.scope.map((s) => (s === 'environment' ? 'Server page' : 'Space panel')).join(' + ');
+  // Where it shows (a person's own data is not a place of its own).
+  // An outdated module's old scopes are not read, so it has no place to show: say why instead.
+  const scopes = m.outdated ? 'Can\'t run until it is updated' : m.scope.filter((s) => s !== 'person').map((s) => (s === 'environment' ? 'Environment page' : 'Space panel')).join(' + ');
+  // Versions built for an older Magpie can't be switched to: marked, and not offered.
+  const staleVersions = new Set(m.outdatedVersions || (m.outdated ? [m.version] : []));
+  // What a requirement needs to be turned on first (one built for an older Magpie is in needsUpdate instead).
+  const nameOf = (r) => escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r);
+  const needsText = (r) => (r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${nameOf(r)} installed and turned on`);
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
@@ -728,7 +735,7 @@ function moduleCard(m) {
     ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other modules' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
   ];
   const modeTag = m.runMode === 'page' ? '<span class="pill warn">In the page</span>' : '<span class="pill">Sandboxed</span>';
-  const state = modeTag + ' ' + (m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>');
+  const state = modeTag + ' ' + (m.outdated ? '<span class="pill warn">Needs an update</span>' : m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>');
   const several = m.versions.length > 1; // the picker lists every kept version, the running one selected
   const el = document.createElement('article');
   el.className = 'panel module-card';
@@ -745,23 +752,33 @@ function moduleCard(m) {
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
       <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
-      ${m.source === 'bundled' || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
+      ${m.source === 'bundled' || m.outdated || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
-    ${m.scope.includes('space') ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
+    ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
     <div class="row">
-      ${(m.settings || []).some((d) => d.scope === 'environment') ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does on this server"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
-      <button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && m.missing?.length ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>
-      ${!m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map((r) => r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r)} installed and turned on`).join(', and ')} first.</span>` : ''}
-      ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
+      ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does in this environment"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
+      ${m.outdated ? '' : `<button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && (m.missing?.length || m.needsUpdate?.length) ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>`}
+      ${!m.outdated && !m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map(needsText).join(', and ')} first.</span>` : ''}
+      ${!m.outdated && m.needsUpdate?.length ? `<span class="hint">Needs ${m.needsUpdate.map(nameOf).join(' and ')}, which ${m.needsUpdate.length === 1 ? 'needs' : 'need'} an update from ${m.needsUpdate.length === 1 ? 'its author' : 'their authors'}.</span>` : ''}
+      ${several ? `<select data-module-version aria-label="Version">${m.versions.map((v) => `<option value="${escapeHtml(v)}"${v === m.version ? ' selected' : ''}${staleVersions.has(v) && v !== m.version ? ' disabled' : ''}>${escapeHtml(v)}${v === m.version ? ' (current)' : ''}${staleVersions.has(v) ? ' (needs an update)' : ''}</option>`).join('')}</select><button class="btn" data-module-action="rollback" type="button" disabled>Switch to this version</button>` : ''}
       <button class="btn btn-danger" data-module-action="uninstall" type="button">Uninstall</button>
     </div>`;
+  // Built for an older Magpie (its module.json uses a name that has since changed): it can't be turned on until its author
+  // updates it. Say so plainly, and what exactly, and offer no Enable; Update, another version and Uninstall still work.
+  if (m.outdated) {
+    const why = document.createElement('div');
+    why.className = 'module-outdated';
+    why.setAttribute('role', 'note');
+    why.innerHTML = `<i class="fa-solid fa-triangle-exclamation fa-fw" aria-hidden="true"></i> <div><strong>${escapeHtml(m.outdated)}</strong>${m.outdatedWhy ? `<div class="hint">${escapeHtml(m.outdatedWhy)}</div>` : ''}</div>`;
+    el.querySelector('.module-head').after(why);
+  }
   // A newer version ships with this server: offer it, no zip to upload.
   const newer = bundledModules.find((b) => b.id === m.id && b.update);
   if (newer) {
     const note = document.createElement('div');
     note.className = 'module-update';
-    note.innerHTML = `<span class="pill warn">Update available</span> <strong>Version ${escapeHtml(newer.version)}</strong> comes with this the host. <button class="btn btn-primary btn-small" data-bundled-action="install" data-bundled-id="${escapeHtml(newer.id)}" type="button">Update to ${escapeHtml(newer.version)}</button> <span class="hint">Your data stays as it is, and you can switch back below. If it asks for anything new you approve it first.</span>`;
-    el.querySelector('.module-head').after(note);
+    note.innerHTML = `<span class="pill warn">Update available</span> <strong>Version ${escapeHtml(newer.version)}</strong> comes with this server. <button class="btn btn-primary btn-small" data-bundled-action="install" data-bundled-id="${escapeHtml(newer.id)}" type="button">Update to ${escapeHtml(newer.version)}</button> <span class="hint">Your data stays as it is, and you can switch back below. If it asks for anything new you approve it first.</span>`;
+    (el.querySelector('.module-outdated') || el.querySelector('.module-head')).after(note);
   }
   return el;
 }
@@ -867,7 +884,7 @@ async function loadAi() {
 let moduleFilter = 'all';
 const hasUpdate = (id) => bundledModules.some((b) => b.id === id && b.update);
 // A module can be configured when it has settings the admin chooses for the server (what Module Configuration shows).
-const isConfigurable = (m) => (m.settings || []).some((d) => d.scope === 'environment');
+const isConfigurable = (m) => !m.outdated && !m.needsUpdate?.length && (m.settings || []).some((d) => d.scope === 'environment');
 const moduleMatches = (m) => moduleFilter === 'updates' ? hasUpdate(m.id) : moduleFilter === 'configurable' ? isConfigurable(m) : true;
 function syncModuleFilters() {
   const updates = installedModules.filter((m) => hasUpdate(m.id)).length;

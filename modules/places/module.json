@@ -1,13 +1,13 @@
 {
   "id": "places",
   "name": "Places",
-  "version": "0.8.12",
+  "version": "0.8.13",
   "icon": "location-dot",
-  "description": "The places your room cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
+  "description": "The places your space cares about: where to stay, where to eat, what to see. Other modules link to them, and a place with a position shows on the map.",
   "author": "Coffee Pub",
   "scope": [
-    "server",
-    "room",
+    "environment",
+    "space",
     "person"
   ],
   "surfaces": {
@@ -30,7 +30,7 @@
       "key": "view",
       "label": "See places",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -39,7 +39,7 @@
       "key": "edit",
       "label": "Add, change and remove places",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }
@@ -142,7 +142,7 @@
       "key": "searchProvider",
       "label": "Place search",
       "type": "choice",
-      "scope": "server",
+      "scope": "environment",
       "default": "none",
       "defaultIfSet": {
         "key": "search",
@@ -170,7 +170,7 @@
       "key": "search",
       "label": "Search address",
       "type": "url",
-      "scope": "server",
+      "scope": "environment",
       "default": "",
       "showWhen": {
         "key": "searchProvider",
@@ -180,15 +180,15 @@
     },
     {
       "key": "saveResults",
-      "label": "Save places to the server",
+      "label": "Save places in this environment",
       "type": "boolean",
-      "scope": "server",
+      "scope": "environment",
       "default": false,
       "showWhen": {
         "key": "searchProvider",
         "not": "none"
       },
-      "help": "Places a search returns are saved on this server and shared by every room, so later searches use them first and the outside service is asked less. Only the place is kept, never who looked for it."
+      "help": "Places a search returns are saved in this environment and shared by every space, so later searches use them first and the outside service is asked less. Only the place is kept, never who looked for it."
     }
   ]
 }

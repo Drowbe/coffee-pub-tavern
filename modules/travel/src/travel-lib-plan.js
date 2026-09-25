@@ -34,7 +34,7 @@
     }
 
     host.on('change', (e) => {
-      if (e.scope === 'rooms') return;
+      if (e.scope === 'spaces') return;
       if (e.key !== TRIP_KEY && !String(e.key).startsWith('item:')) return;
       remember(e.key, e.deleted ? null : e.value, e.version);
       changed();
@@ -223,7 +223,7 @@
     // pointed-at item's own day when it has one, else the head of the line).
     const addLink = (ref, place, title) => addItem({ kind: 'link', ref, ...placeFields(place), title: title || '' });
 
-    // Dated items other modules hold in this room, on days of the trip, that the plan does not already point at:
+    // Dated items other modules hold in this space, on days of the trip, that the plan does not already point at:
     // what the plan could take in. Nothing is stored until one is added.
     async function suggest() {
       const tripDaysList = days();

@@ -44,10 +44,10 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .editor.drop .editor-card { border-color: var(--accent); }
 .tick { cursor: pointer; }
 
-/* other rooms' tasks on the server page */
+/* other spaces' tasks on the environment page */
 .ri { display: inline-flex; align-items: center; margin-right: 2px; }
 .ri svg { width: 1em; height: 1em; fill: currentColor; }
-.rooms { display: flex; flex-wrap: wrap; gap: 6px; }
+.spaces { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; opacity: 0.6; }
 .filter.on { color: var(--text); border-color: var(--accent); opacity: 1; }
 

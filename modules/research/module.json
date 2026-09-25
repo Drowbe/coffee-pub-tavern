@@ -1,12 +1,12 @@
 {
   "id": "research",
   "name": "Research",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "icon": "book-open",
   "description": "What a group finds out while it plans: notes, links with the part that mattered, photos with a caption. Tagged, searchable, linkable from anywhere, and questioned or summarised by the AI the owner chose.",
   "author": "Coffee Pub",
   "scope": [
-    "room",
+    "space",
     "person"
   ],
   "surfaces": {
@@ -28,7 +28,7 @@
       "key": "view",
       "label": "See research",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -37,7 +37,7 @@
       "key": "edit",
       "label": "Add, change and remove research",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }
@@ -167,7 +167,7 @@
       "key": "tags",
       "label": "Well-known tags",
       "type": "list",
-      "scope": "server",
+      "scope": "environment",
       "maxLength": 30,
       "fixed": [],
       "help": "Tags with a colour, shared by everyone. A tag that is on this list wears its colour; any other tag stays plain.",

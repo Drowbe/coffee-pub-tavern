@@ -1388,6 +1388,22 @@ class Store {
     return this.roles();
   }
 
+  // A module permission renamed by its author (a manifest's `replaces`): each role's own choice for the old key is
+  // carried to the new one, unless that role already has a choice for the new key, and the old key is removed. Answers
+  // the roles whose choice was carried (empty when there was nothing to carry, so running it again does nothing).
+  carryRoleGrant(oldKey, newKey) {
+    const carried = [];
+    let changed = false;
+    for (const [role, set] of Object.entries(this.data.settings.roles || {})) {
+      if (!set || typeof set !== 'object' || !Object.prototype.hasOwnProperty.call(set, oldKey)) continue;
+      if (!Object.prototype.hasOwnProperty.call(set, newKey)) { set[newKey] = Boolean(set[oldKey]); carried.push(role); }
+      delete set[oldKey];
+      changed = true;
+    }
+    if (changed) this.save();
+    return carried;
+  }
+
   // What someone can actually do in one space: their role's permissions,
   // plus the whole Moderator role if they're marked Moderator there.
   spacePermissions(key, spaceId) {

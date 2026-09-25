@@ -21,7 +21,7 @@ The Research module keeps what a group finds out while it plans: a note, a link 
 
 ## Mine and this room
 
-**Mine** is your own research: only you see it, and it follows you into every room. **This room** is what the room shares. Beside that switch, **Cards** or **List**: cards pack together like masonry (a short card never leaves a hole under it, and the columns follow the pane's width), a list is one line per item. Your choice is remembered. An item's menu has **Copy to This room** or **Copy to Mine**, which copies it and leaves the original where it is (photos stay where they were added). Guests have only the room's.
+**Mine** is your own research: only you see it, and it follows you into every space. **This space** is what the space shares. Beside that switch, **Cards** or **List**: cards pack together like masonry (a short card never leaves a hole under it, and the columns follow the pane's width), a list is one line per item. Your choice is remembered. An item's menu has **Copy to This room** or **Copy to Mine**, which copies it and leaves the original where it is (photos stay where they were added). Guests have only the room's.
 
 ## Find things
 

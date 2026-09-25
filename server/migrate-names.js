@@ -2,8 +2,8 @@
 // folders from the old words (room, tenant, table, ...) to the environment's, space's and the rest's own names, one
 // recorded part per step of that plan. This file is the frame only: the version, the record of parts, the copy
 // into pre-names/ and the refusal of a newer backup. The parts themselves land with the steps that need them
-// (names-environment for the host; names-table, names-roles, names-spaces, names-objects, names-asides for an
-// environment) and are added to HOST_PARTS and ENVIRONMENT_PARTS below, in the order they run.
+// (names-environment for the host; names-table, names-roles, names-spaces, names-pointers, names-objects,
+// names-asides for an environment) and are added to HOST_PARTS and ENVIRONMENT_PARTS below, in the order they run.
 //
 // An environment's record lives in its own app.json: `version` goes from 1 to NAMES_VERSION with the first part
 // that runs, and `migrations: [{ id, at, moved }]` gains one entry per part. The host's lives in host.json the
@@ -311,9 +311,67 @@ function spacesPart() {
   };
 }
 
+// names-pointers (plan-names decision 12, brought forward from step 7's names-objects so that links saved before
+// step 5c still resolve once the host stops accepting the old pointer scopes): a module stores pointers to objects
+// inside its own values, which the host cannot read by meaning, so every JSON file under modules/<id>/data/ (any
+// depth) is searched, through every value at any depth, for exactly the old pointer's shape, and each one found is
+// rewritten to the new shape: an object with string `module`, `kind` and `id`, and either `scope: 'server'`
+// (becoming `scope: 'environment'`) or `scope: 'room'` with a string `room` (becoming `scope: 'space'` and
+// `space`). Its other keys stay, in their places. By shape, never by module: anything else, a module's own object
+// that merely has a `scope` key among them, is left exactly as it was. A file with no old pointer is neither
+// listed, copied nor written; a file that is not valid JSON is left alone (the module never read it either). Over
+// data already in the new shape it writes nothing. The host's own record of the bus (modules/bus.json) is searched
+// the same way, by shape, through its events and actions: an event's `data` is a module's own values, carried as they
+// were published, so one published before step 5c can hold an old pointer (names-spaces rewrote the host's own fields
+// there, but data published after it, until 5c, still came in the old shape). Step 7's other renames (refs to
+// objects, card to summary) are still step 7's.
+const isOldPointer = (v) => isPlainObject(v) && typeof v.module === 'string' && typeof v.kind === 'string' && typeof v.id === 'string'
+  && (v.scope === 'server' || (v.scope === 'room' && typeof v.room === 'string'));
+function oldPointersRewritten(value) {
+  if (Array.isArray(value)) return value.map(oldPointersRewritten);
+  if (!isPlainObject(value)) return value;
+  if (isOldPointer(value)) return newPointer(value);
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, oldPointersRewritten(v)]));
+}
+const hasOldPointer = (value) => (Array.isArray(value) ? value.some(hasOldPointer) : isPlainObject(value) && (isOldPointer(value) || Object.values(value).some(hasOldPointer)));
+// The module data files, and the bus record, holding at least one old pointer (relative paths).
+function filesWithOldPointers(dir) {
+  const out = [];
+  const list = (rel) => { try { return fs.readdirSync(path.join(dir, rel), { withFileTypes: true }); } catch { return []; } };
+  const walk = (rel) => {
+    for (const e of list(rel)) {
+      if (e.name.startsWith('.')) continue;
+      const child = `${rel}/${e.name}`;
+      if (e.isDirectory()) walk(child);
+      else if (e.isFile() && e.name.endsWith('.json')) {
+        let value;
+        try { value = JSON.parse(fs.readFileSync(path.join(dir, child), 'utf8')); } catch { continue; }
+        if (hasOldPointer(value)) out.push(child);
+      }
+    }
+  };
+  for (const d of list('modules')) if (d.isDirectory() && !d.name.startsWith('.')) walk(`modules/${d.name}/data`);
+  out.sort();
+  try {
+    if (hasOldPointer(JSON.parse(fs.readFileSync(path.join(dir, 'modules', 'bus.json'), 'utf8')))) out.push('modules/bus.json');
+  } catch { /* no bus record, or one the bus itself could not read either */ }
+  return out;
+}
+const pointersPart = {
+  id: 'names-pointers',
+  files: (dir) => filesWithOldPointers(dir),
+  run(ctx) {
+    for (const rel of filesWithOldPointers(ctx.dir)) {
+      const value = ctx.read(rel);
+      const next = oldPointersRewritten(value);
+      if (!isDeepStrictEqual(value, next)) ctx.write(rel, next);
+    }
+  },
+};
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart()];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.

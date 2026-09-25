@@ -35,11 +35,34 @@ const CARD_FIELDS = ['title', 'subtitle', 'when', 'end', 'allDay', 'done', 'plac
 const REF_KIND_RE = /^[a-z][a-z0-9-]{0,23}$/;
 const REF_CONSUME_RE = /^[a-z][a-z0-9-]{1,31}:[a-z][a-z0-9-]{0,23}$/;
 const SCOPES = ['environment', 'space', 'person'];
-// A manifest names its scopes (the module's, and each setting's) by the old words until the manifest's own rename in
-// plan-names step 5c, which refuses them: `server` is the environment and `room` a space. Read here, once, so
-// everything past the manifest speaks the new names.
-const MANIFEST_OLD_SCOPES = { server: 'environment', room: 'space' };
-const manifestScope = (s) => (typeof s === 'string' && Object.prototype.hasOwnProperty.call(MANIFEST_OLD_SCOPES, s) ? MANIFEST_OLD_SCOPES[s] : s);
+// Plan-names step 5c, the hard break: a manifest speaks only the new names. One that still uses an old one (a scope
+// `room` or `server`, a setting's scope `room` or `server`, `install.settingsFrom: "server"`, a permission default
+// keyed `user`) is refused at install with a sentence naming the field and what to use instead; one already
+// installed does not run (see ModuleManager.outdated) and its card says so.
+const OLD_SCOPE_NAMES = {
+  room: { use: 'space', why: 'Magpie renamed rooms to spaces' },
+  server: { use: 'environment', why: 'Magpie renamed the server to the environment' },
+};
+const OUTDATED = 'This module was built for an older Magpie and needs an update from its author.';
+const isOldScope = (s) => typeof s === 'string' && Object.prototype.hasOwnProperty.call(OLD_SCOPE_NAMES, s);
+// The first old name a raw manifest uses, as the sentence that refuses it, or null when it uses none.
+function oldNameIn(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const scopes = Array.isArray(raw.scope) ? raw.scope : [raw.scope];
+  const oldScope = scopes.find(isOldScope);
+  if (oldScope) return `module.json uses the old scope "${oldScope}"; use "${OLD_SCOPE_NAMES[oldScope].use}" (${OLD_SCOPE_NAMES[oldScope].why}).`;
+  for (const r of Array.isArray(raw.settings) ? raw.settings : []) {
+    if (r && isOldScope(r.scope)) return `module.json: setting "${String(r.key ?? '')}" uses the old scope "${r.scope}"; use "${OLD_SCOPE_NAMES[r.scope].use}" (${OLD_SCOPE_NAMES[r.scope].why}).`;
+  }
+  const from = raw.install && typeof raw.install === 'object' ? raw.install.settingsFrom : undefined;
+  if (isOldScope(from)) return `module.json: install.settingsFrom uses the old name "${from}"; use "${OLD_SCOPE_NAMES[from].use}" (${OLD_SCOPE_NAMES[from].why}).`;
+  for (const p of Array.isArray(raw.permissions) ? raw.permissions : []) {
+    if (p && p.default && typeof p.default === 'object' && Object.prototype.hasOwnProperty.call(p.default, 'user')) {
+      return `module.json: permission "${String(p.key ?? '')}" names the old role "user" in its default; use "member" (Magpie renamed the user role to member).`;
+    }
+  }
+  return null;
+}
 const ID_RE = /^[a-z][a-z0-9-]{1,31}$/;
 // Ids no module may take: 'ai' names the server-wide AI service (not a module) in `missing`/`aiDependents`, the same way a
 // module id would, so it must never also be a real one.
@@ -287,7 +310,7 @@ function cleanSettings(raw) {
     if (out.some((d) => d.key === key)) throw new ModuleError(`module.json: setting "${key}" is listed twice`);
     const type = SETTING_TYPES.includes(r.type) ? r.type : null;
     if (!type) throw new ModuleError(`module.json: setting "${key}" needs a type: ${SETTING_TYPES.join(', ')}`);
-    const scope = SETTING_SCOPES.includes(manifestScope(r.scope)) ? manifestScope(r.scope) : 'environment';
+    const scope = SETTING_SCOPES.includes(r.scope) ? r.scope : 'environment';
     const def = { key, label: text(r.label, 60) || key, help: longText(r.help, 600), type, scope };
     // A setting may be shown only while another one has a given value (`showWhen`), and a choice may start as one of its options
     // when another setting already holds a value and it has none of its own (`defaultIfSet`: for a setting that grew into a choice).
@@ -340,7 +363,7 @@ function cleanSettings(raw) {
       // A label and a hint among the other settings, with no control and no value of its own -- a way for a
       // module to say where something is set up (a search a sibling module owns, e.g.) without a value to read,
       // validate or store. Always environment-level display, whatever scope the manifest asks for or none at all.
-      if (r.scope !== undefined && manifestScope(r.scope) !== 'environment') throw new ModuleError(`module.json: setting "${key}" is a note, so its scope must be "environment"`);
+      if (r.scope !== undefined && r.scope !== 'environment') throw new ModuleError(`module.json: setting "${key}" is a note, so its scope must be "environment"`);
       def.scope = 'environment';
     } else if (type === 'text') {
       def.maxLength = clamp(r.maxLength, 1, 200, 100);
@@ -357,13 +380,15 @@ function cleanSettings(raw) {
 // holds the bundled modules to it).
 const PERMISSION_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
 
-// The module's own scopes, in the new names, each once.
+// The module's own scopes, each once.
 function cleanScope(raw) {
-  return [...new Set((Array.isArray(raw) ? raw : []).map(manifestScope))].filter((s) => SCOPES.includes(s));
+  return [...new Set(Array.isArray(raw) ? raw : [])].filter((s) => SCOPES.includes(s));
 }
 
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
+  const old = oldNameIn(raw);
+  if (old) throw new ModuleError(old);
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!ID_RE.test(id)) throw new ModuleError('module.json: "id" must be 2-32 lowercase letters, digits or dashes, starting with a letter');
   if (RESERVED_IDS.includes(id)) throw new ModuleError(`module.json: "${id}" is a reserved id and cannot be used`);
@@ -421,12 +446,19 @@ function cleanManifest(raw, files) {
     if (!PERMISSION_KEY_RE.test(key)) throw new ModuleError(`module.json: permission key "${key}" must be lowercase letters, digits or underscores`);
     if (permissions.some((x) => x.key === key)) throw new ModuleError(`module.json: permission "${key}" is listed twice`);
     const d = p.default && typeof p.default === 'object' ? p.default : {};
+    // `replaces`: the key this permission had in an earlier version, so each role's choice for it is carried over
+    // (carryReplacedGrants in index.js) rather than lost when the author renames it.
+    const sameReplaces = p.replaces !== undefined && permissions.find((x) => x.replaces === p.replaces);
+    if (sameReplaces) throw new ModuleError(`module.json: permission "${key}" replaces "${p.replaces}", which permission "${sameReplaces.key}" already replaces`);
+    if (p.replaces !== undefined && (typeof p.replaces !== 'string' || !PERMISSION_KEY_RE.test(p.replaces) || p.replaces === key || (raw.permissions || []).some((x) => x && x.key === p.replaces))) {
+      throw new ModuleError(`module.json: permission "${key}" replaces must name a key this module no longer uses`);
+    }
     permissions.push({
+      ...(p.replaces !== undefined ? { replaces: p.replaces } : {}),
       key,
       label: text(p.label, 60) || key,
-      // A manifest names its defaults by role; `user` is the old name of `member`, read until the manifest's own
-      // rename (plan-names step 5c).
-      default: { member: Boolean(d.member ?? d.user), guest: Boolean(d.guest), moderator: Boolean(d.moderator ?? d.member ?? d.user) },
+      // A manifest names its defaults by the editable roles (an old `user` key is refused above, by oldNameIn).
+      default: { member: Boolean(d.member), guest: Boolean(d.guest), moderator: Boolean(d.moderator ?? d.member) },
     });
   }
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
@@ -463,7 +495,7 @@ function cleanManifest(raw, files) {
   // environment; `settingsFrom: "environment"` copies each declared environment-scope setting's value out of the host's
   // own store.settings on that same install, for one whose fields used to live there.
   const install = raw.install && typeof raw.install === 'object'
-    ? { auto: raw.install.auto === true, settingsFrom: manifestScope(raw.install.settingsFrom) === 'environment' ? 'environment' : null }
+    ? { auto: raw.install.auto === true, settingsFrom: raw.install.settingsFrom === 'environment' ? 'environment' : null }
     : null;
 
   return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
@@ -471,12 +503,22 @@ function cleanManifest(raw, files) {
 
 // --- the registry ---------------------------------------------------------
 
-// A permission's defaults from a stored manifest (the author's original), keyed by role: `member` read under its
-// old name `user` too, until the manifests move to the new names (plan-names step 5c). A missing moderator stays
-// off, as it always has here.
+// A permission's defaults from a stored manifest (the author's original), keyed by the editable roles. A missing
+// moderator stays off, as it always has here. (A stored manifest with an old `user` key is outdated and never runs.)
 function permissionDefaults(d) {
   const given = d && typeof d === 'object' ? d : {};
-  return { moderator: Boolean(given.moderator), member: Boolean(given.member ?? given.user), guest: Boolean(given.guest) };
+  return { moderator: Boolean(given.moderator), member: Boolean(given.member), guest: Boolean(given.guest) };
+}
+
+// Whether what an update newly asks for (pendingFor's answer) is only permissions that are off for every role, so
+// approving it gives nobody but owners (and the admin) anything new. Used only by the bundled update at start
+// (updateOutdatedBundled in index.js); anything else new, or a new permission on for some role, is not.
+function pendingWidensNothing(pending, permissions) {
+  if (!pending || pending.hooks.length || pending.refs.length || pending.events.length || pending.actions.length) return false;
+  return pending.permissions.every((key) => {
+    const p = (permissions || []).find((x) => x.key === key);
+    return Boolean(p) && Object.values(permissionDefaults(p.default)).every((on) => !on);
+  });
 }
 
 class ModuleManager {
@@ -541,7 +583,10 @@ class ModuleManager {
       // not installed
     }
     if (manifest) {
-      // The stored file is the author's original: fill in what it left out.
+      // The stored file is the author's original. One that uses an old name (plan-names step 5c) is kept, and shown,
+      // but never runs: enabled() answers null for it and view() says why.
+      manifest.outdated = oldNameIn(manifest);
+      // Fill in what it left out.
       manifest.hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(manifest.hooks?.[h])]));
       manifest.scope = cleanScope(manifest.scope);
       if (!Array.isArray(manifest.permissions)) manifest.permissions = [];
@@ -574,11 +619,37 @@ class ModuleManager {
   }
 
   // The active manifest of an enabled module, with its registry entry, or null.
-  enabled(id) {
+  // An outdated one (its manifest uses an old name) counts as off, whatever the registry says: it can't run. So does
+  // one that requires an outdated one (needsUpdateFor), since what it needs cannot run.
+  //
+  // Nor does one whose required modules are not all running: turning a module off and uninstalling it already switch
+  // what requires it off in the registry, and this keeps that true when the registry says otherwise (a requirement that
+  // went off because it was outdated, or because its update waits for approval). The owner's own choice is kept, so it
+  // runs again as soon as what it requires does. (The AI service, the other thing `missing` can name, is not checked
+  // here: turning it off switches its dependents off itself.)
+  enabled(id, seen = new Set()) {
     const entry = this.registry.modules[id];
-    if (!entry || !entry.enabled) return null;
+    if (!entry || !entry.enabled || seen.has(id)) return null;
     const manifest = this.manifestOf(id, entry.version);
-    return manifest ? { manifest, entry } : null;
+    if (!manifest || manifest.outdated || this.needsUpdateFor(manifest).length) return null;
+    seen.add(id);
+    return (manifest.requires || []).every((r) => this.enabled(r, seen)) ? { manifest, entry } : null;
+  }
+
+  // Whether an installed module cannot run until an author updates something: its own manifest is outdated, or one it
+  // requires is (at any depth). Whether it is on does not matter here.
+  stale(id, seen = new Set()) {
+    const entry = this.registry.modules[id];
+    if (!entry || seen.has(id)) return false;
+    seen.add(id);
+    const manifest = this.manifestOf(id, entry.version);
+    if (!manifest) return false;
+    return Boolean(manifest.outdated) || (manifest.requires || []).some((r) => this.stale(r, seen));
+  }
+
+  // The modules a manifest requires that cannot run until their author updates them (or one they require).
+  needsUpdateFor(manifest) {
+    return (manifest.requires || []).filter((r) => this.stale(r, new Set([manifest.id])));
   }
 
   // Every enabled module, for lists and for the permissions grid.
@@ -658,12 +729,23 @@ class ModuleManager {
     const manifest = this.manifestOf(id, entry.version);
     if (!manifest) return null;
     const pending = this.pendingFor(entry, manifest);
+    const { outdated, ...shown } = manifest;
     return {
-      ...manifest,
-      enabled: Boolean(entry.enabled),
+      ...shown,
+      // An outdated module is off (it can't run) and says why: `outdated` for its card, `outdatedWhy` naming the
+      // old name its module.json uses. The registry keeps the admin's own choice, so an update that fixes it
+      // runs again as it was.
+      enabled: Boolean(this.enabled(id)),
+      outdated: outdated ? OUTDATED : null,
+      outdatedWhy: outdated || null,
+      // What it requires that is installed but needs an update from its author first (not in `missing`, since turning it
+      // on would not help).
+      needsUpdate: this.needsUpdateFor(manifest),
       allSpaces: Boolean(entry.allSpaces),
       spaces: entry.spaces || [],
       versions: [...entry.versions].sort(compareVersions).reverse(),
+      // The installed versions whose manifest uses an old name: kept, but never run or rolled back to.
+      outdatedVersions: [...entry.versions].sort(compareVersions).reverse().filter((v) => this.manifestOf(id, v)?.outdated),
       // What this needs that is not on (module ids, and 'ai' for the AI service), and the enabled modules that need this one.
       missing: this.missingFor(manifest),
       dependents: this.dependentsOf(id),
@@ -682,7 +764,7 @@ class ModuleManager {
   dependentsOf(id) {
     const out = [];
     for (const [other, e] of Object.entries(this.registry.modules)) {
-      if (other === id || !e.enabled) continue;
+      if (other === id || !this.enabled(other)) continue;
       const m = this.manifestOf(other, e.version);
       if (m && (m.requires || []).includes(id)) out.push(other);
     }
@@ -693,7 +775,8 @@ class ModuleManager {
   // the AI service is not enabled. The AI service is not a module (Modules knows nothing else about it), so it is named by
   // this one reserved id rather than added to the registry.
   missingFor(manifest) {
-    const missing = (manifest.requires || []).filter((r) => !(this.registry.modules[r] && this.registry.modules[r].enabled));
+    const waiting = this.needsUpdateFor(manifest);
+    const missing = (manifest.requires || []).filter((r) => !waiting.includes(r) && !this.enabled(r));
     if (manifest.hooks.ai && !this.aiReady()) missing.push('ai');
     return missing;
   }
@@ -804,6 +887,9 @@ class ModuleManager {
     let switchOff = []; // the modules that need this one, to turn off with it
     if (patch.enabled !== undefined) {
       if (patch.enabled) {
+        if (manifest.outdated) throw new ModuleError(`${manifest.name} was built for an older Magpie and needs an update from its author.`, 409);
+        const waiting = this.needsUpdateFor(manifest);
+        if (waiting.length) throw new ModuleError(`${manifest.name} needs ${waiting.map((r) => this.missingName(r)).join(' and ')}, which ${waiting.length === 1 ? 'needs an update from its author' : 'need an update from their authors'}.`, 409);
         const missing = this.missingFor(manifest);
         if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => this.missingName(r)).join(' and ')} installed and turned on first`);
         // One enabled module per keyed path: another one already there means naming it, not silently taking over.
@@ -855,6 +941,7 @@ class ModuleManager {
   rollback(id, version) {
     const entry = this.get(id);
     if (!entry.versions.includes(version) || version === entry.version) throw new ModuleError('that version is not available');
+    if (this.manifestOf(id, version)?.outdated) throw new ModuleError(`${this.manifestOf(id, version).name} ${version} was built for an older Magpie, so it can't be rolled back to.`, 409);
     entry.version = version;
     entry.updatedAt = new Date().toISOString();
     const manifest = this.manifestOf(id, version);
@@ -877,7 +964,10 @@ class ModuleManager {
 
   uninstall(id, { keepData = true } = {}) {
     this.get(id);
-    for (const r of this.dependentsOf(id)) this.registry.modules[r].enabled = false; // what needed it goes off with it
+    // What needed it goes off with it, including one kept from running only because this one was outdated.
+    for (const [other, e] of Object.entries(this.registry.modules)) {
+      if (other !== id && e.enabled && (this.manifestOf(other, e.version)?.requires || []).includes(id)) e.enabled = false;
+    }
     const keep = this.fileFolders(id); // read while the versions are still there
     fs.rmSync(path.join(this.dir, id, 'versions'), { recursive: true, force: true });
     if (!keepData) {
@@ -895,4 +985,4 @@ class ModuleManager {
   }
 }
 
-module.exports = { ModuleManager, ModuleError, cleanManifest, manifestScope, permissionDefaults, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

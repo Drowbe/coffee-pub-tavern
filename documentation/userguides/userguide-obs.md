@@ -32,9 +32,11 @@ each person's own, on their profile.
 
 The links carry the server's **access key**, which the Stream page shows (and regenerates) for owners and
 the admin (on a hosted server, the host admin), as does **Access key** on the Environment tab of the Manage page. Regenerating
-it stops every existing link working, so do it only if a link has leaked. Anyone else who opens the Stream
-page sees "Only an owner sees the links, since each one carries the access key." The module's **See the
-stream links and the access key** permission on the Roles tab does not change that today.
+it stops every existing link working, so do it only if a link has leaked. Who may open the Stream page at all
+is the module's **See the Stream page** permission on the Roles tab: off for members, moderators and guests
+by default (a role that had the old **See the stream links and the access key** keeps it). Anyone who may open
+the page but is not an owner or the admin sees "Only an owner or the admin sees the links, since each one
+carries the access key."
 
 The exact options a link accepts (name plate, silent audio, hiding reactions) are in
 [OBS view links](../api/api-obs-view.md).

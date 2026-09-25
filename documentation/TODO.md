@@ -16,7 +16,8 @@ order:
 3. Table out, and the call's name. **Built** (September 24, 2026).
 4. Roles: `owner`, `member` and the host's stand-in `admin`. **Built** (September 24, 2026).
 5. Space and the environment scope: the server and data (5a, **built** September 24, 2026), the pages (5b,
-   **built** September 25, 2026), the SDK, the manifest and the bundled modules (5c).
+   **built** September 25, 2026), the SDK, the manifest and the bundled modules (5c, **built**
+   September 25, 2026).
 6. Canvas and module.
 7. Object.
 8. Asides.
@@ -32,11 +33,9 @@ Open, found while building steps 1 to 4:
   can no longer happen, since a blank name is refused, so the fallback can go.
 - On the host console, the shared top bar makes requests that answer 404 there. This was so before the
   Names plan.
-- The Stream module's **See the stream links and the access key** permission does nothing now: the links
-  and the key are shown to owners and the host admin only. Remove it in step 5c.
 
-Waiting on this plan: [environment templates](plans/plan-environment-templates.md) is reworked on top of it
-and builds after step 5.
+Next: [environment templates](plans/plan-environment-templates.md), reworked on top of this plan, builds right
+after step 5c.
 
 ## Entering a space, and the first time
 

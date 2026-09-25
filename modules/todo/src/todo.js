@@ -1,7 +1,7 @@
-// To-do module. One file of code for every place it shows: the server's own page, a
-// room's docked pane or floating panel, and a window of its own. Each place has its own
-// list. On the server page the viewer's spaces' lists are shown too, read-only, each with
-// its room's icon. The SDK (window.host) is injected by the host.
+// To-do module. One file of code for every place it shows: the environment's own page, a
+// space's canvas (docked or floating), and a window of its own. Each place has its own
+// list. On the environment page the viewer's spaces' lists are shown too, read-only, each with
+// its space's icon. The SDK (window.host) is injected by the host.
 (async function () {
   'use strict';
 
@@ -20,14 +20,14 @@
     $('msg').textContent = 'The to-do list could not start: ' + err.message;
     return;
   }
-  const inRoom = info.context.scope === 'room';
+  const inSpace = info.context.scope === 'space';
   const canEdit = host.can('edit');
   const DAY = 24 * 60 * 60 * 1000;
 
-  // Every task we know of, by key. `scope` is 'own' (this place's list) or 'rooms' (another space's, read-only).
+  // Every task we know of, by key. `scope` is 'own' (this place's list) or 'spaces' (another space's, read-only).
   const tasks = new Map();
-  const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
-  const hiddenRooms = new Set();
+  const spaceInfo = new Map(); // space id -> { id, name, icon, svg }, on the environment page
+  const hiddenSpaces = new Set();
   let show = 'open';
   let editing = null; // { key, id, version } while the editor is open
   let editingLinks = []; // the links the open editor will save
@@ -108,42 +108,48 @@
 
   // --- loading and live updates --------------------------------------------
 
-  const keyOf = (scope, id, roomId) => (scope === 'rooms' ? `rooms:${roomId}:${id}` : `own:${id}`);
-  function remember(scope, item, roomId) {
+  const OLD_PLACE = { room: 'space', server: 'environment' };
+  const ruleKey = (k) => { const p = String(k).split('|'); if (p.length === 5 && OLD_PLACE[p[3]]) p[3] = OLD_PLACE[p[3]]; return p.join('|'); };
+
+  const keyOf = (scope, id, spaceId) => (scope === 'spaces' ? `spaces:${spaceId}:${id}` : `own:${id}`);
+  function remember(scope, item, spaceId) {
     if (!item.key.startsWith('task:') || !item.value) return;
     const id = item.key.slice(5);
-    const key = keyOf(scope, id, roomId);
+    const key = keyOf(scope, id, spaceId);
     // Stored data is whatever a writer put there: keep only well-formed links.
     const t = item.value;
     t.links = Array.isArray(t.links) ? t.links.filter((r) => r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string' && linkable(r)).slice(0, MAX_LINKS) : [];
-    tasks.set(key, { key, scope, roomId, id, version: item.version, t });
+    // A rule is kept under its link's key (host.util.refKey), which named the place 'room' or 'server' before
+    // Magpie's names changed: read those under the new names. Saving the task writes the new keys.
+    if (t.rules && typeof t.rules === 'object') t.rules = Object.fromEntries(Object.entries(t.rules).map(([k, v]) => [ruleKey(k), v]));
+    tasks.set(key, { key, scope, spaceId, id, version: item.version, t });
   }
   async function load() {
     tasks.clear();
     for (const item of await host.storage.list('task:')) remember('own', item);
-    if (!inRoom && info.context.scope === 'server') {
+    if (!inSpace && info.context.scope === 'environment') {
       try {
-        for (const r of await host.rooms()) roomInfo.set(r.id, r);
-        for (const item of await host.storage.list('task:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
+        for (const r of await host.spaces()) spaceInfo.set(r.id, r);
+        for (const item of await host.storage.list('task:', { scope: 'spaces' })) remember('spaces', item, item.spaceId);
       } catch (err) {
-        // just the server's own list
+        // just the environment's own list
       }
     }
   }
   host.on('change', (e) => {
     if (!e.key.startsWith('task:')) return;
-    const scope = e.scope === 'rooms' ? 'rooms' : 'own';
+    const scope = e.scope === 'spaces' ? 'spaces' : 'own';
     const id = e.key.slice(5);
-    if (e.deleted) tasks.delete(keyOf(scope, id, e.roomId));
-    else remember(scope, { key: e.key, value: e.value, version: e.version }, e.roomId);
-    if (editing && editing.key === keyOf(scope, id, e.roomId) && e.by !== info.user.key) {
+    if (e.deleted) tasks.delete(keyOf(scope, id, e.spaceId));
+    else remember(scope, { key: e.key, value: e.value, version: e.version }, e.spaceId);
+    if (editing && editing.key === keyOf(scope, id, e.spaceId) && e.by !== info.user.key) {
       showError('This task was just changed by someone else. Close and reopen it to see the change.');
     }
     render();
   });
 
   // --- links to other modules' items ----------------------------------------
-  // A task stores only pointers ({ module, kind, id, scope, room }); what to show comes from
+  // A task stores only pointers ({ module, kind, id, scope, space }); what to show comes from
   // the host each time (host.refs.resolve), so it is always current and never more than the
   // viewer may see. The pointers are checked in the drop and search: only the kinds above.
 
@@ -219,8 +225,8 @@
 
   // --- drawing -------------------------------------------------------------
 
-  const roomIcon = (roomId) => {
-    const r = roomInfo.get(roomId);
+  const spaceIcon = (spaceId) => {
+    const r = spaceInfo.get(spaceId);
     return r && r.svg ? `<span class="ri">${r.svg}</span>` : '';
   };
 
@@ -274,15 +280,15 @@
     $('count').textContent = own.length ? `${openCount} open` : '';
     filterSwitch.set(show, FILTERS.map((f) => (f.id === 'open' && openCount ? { ...f, label: `Open (${openCount})` } : f)));
 
-    $('rooms').hidden = roomInfo.size === 0;
-    if (roomInfo.size) {
-      $('rooms').innerHTML = [...roomInfo.values()].map((r) => `<button type="button" class="filter ${hiddenRooms.has(r.id) ? '' : 'on'}" data-room="${esc(r.id)}" title="${hiddenRooms.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
+    $('spaces').hidden = spaceInfo.size === 0;
+    if (spaceInfo.size) {
+      $('spaces').innerHTML = [...spaceInfo.values()].map((r) => `<button type="button" class="filter ${hiddenSpaces.has(r.id) ? '' : 'on'}" data-space="${esc(r.id)}" title="${hiddenSpaces.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
     }
 
-    let html = groupHtml(roomInfo.size ? 'Server' : '', own);
-    for (const r of roomInfo.values()) {
-      if (hiddenRooms.has(r.id)) continue;
-      html += groupHtml(`${roomIcon(r.id)} ${esc(r.name)}`, [...tasks.values()].filter((x) => x.scope === 'rooms' && x.roomId === r.id));
+    let html = groupHtml(spaceInfo.size ? 'Environment' : '', own);
+    for (const r of spaceInfo.values()) {
+      if (hiddenSpaces.has(r.id)) continue;
+      html += groupHtml(`${spaceIcon(r.id)} ${esc(r.name)}`, [...tasks.values()].filter((x) => x.scope === 'spaces' && x.spaceId === r.id));
     }
     $('body').innerHTML = html || `<p class="empty">${show === 'done' ? 'Nothing done yet.' : 'Nothing to do.'}${canEdit && show !== 'done' ? ' Add a task to get started.' : ''}</p>`;
   }
@@ -370,7 +376,7 @@
     renderEditorLinks(readOnly);
     resolveLinks();
     showError('');
-    const from = x && x.scope === 'rooms' && roomInfo.get(x.roomId) ? ` (${roomInfo.get(x.roomId).name})` : '';
+    const from = x && x.scope === 'spaces' && spaceInfo.get(x.spaceId) ? ` (${spaceInfo.get(x.spaceId).name})` : '';
     $('editor-title').textContent = x ? (readOnly ? t.title + from : 'Edit task') : 'New task';
     $('f-title').value = t.title;
     $('f-notes').value = t.notes || '';
@@ -449,7 +455,7 @@
     resolveLinks();
   }
 
-  // Search the things this module may link to: here, and (from a room) the server's.
+  // Search the things this module may link to: here, and (from a space) the environment's.
   let searchTimer = 0;
   async function searchLinks() {
     const text = $('f-link-search').value.trim();
@@ -457,7 +463,7 @@
     if (!host.refs) return;
     try {
       const found = [...await host.refs.search(text)];
-      if (inRoom) found.push(...await host.refs.search(text, { scope: 'server' }).catch(() => []));
+      if (inSpace) found.push(...await host.refs.search(text, { scope: 'environment' }).catch(() => []));
       const fresh = found.filter((c) => !editingLinks.some((r) => refKey(r) === refKey(c.ref))).slice(0, 12);
       for (const c of fresh) cards.set(refKey(c.ref), c);
       box.innerHTML = fresh.length ? fresh.map((c) => `<button type="button" class="result" data-link="${esc(refKey(c.ref))}"><span>${esc(c.module.name)}: ${esc(c.title)}</span><small>${esc(dateText(c.when, c.allDay))}</small></button>`).join('') : '<span class="hint">Nothing found.</span>';
@@ -545,10 +551,10 @@
 
   // --- wiring ---------------------------------------------------------------
 
-  $('rooms').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-room]');
+  $('spaces').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-space]');
     if (!b) return;
-    if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
+    if (hiddenSpaces.has(b.dataset.space)) hiddenSpaces.delete(b.dataset.space); else hiddenSpaces.add(b.dataset.space);
     render();
   });
   // A link to another module's item opens it there; the host opens that module and hands it the pointer.

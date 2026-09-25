@@ -18,7 +18,7 @@
     }
     const r = v.ref;
     const ref = r && typeof r === 'object' && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string'
-      ? { module: r.module, kind: r.kind, id: r.id, ...(typeof r.scope === 'string' ? { scope: r.scope } : {}), ...(typeof r.room === 'string' ? { room: r.room } : {}) }
+      ? { module: r.module, kind: r.kind, id: r.id, ...(typeof r.scope === 'string' ? { scope: r.scope } : {}), ...(typeof r.space === 'string' ? { space: r.space } : {}) }
       : null;
     return {
       id: String(id),
@@ -62,10 +62,10 @@
     return p;
   }
 
-  // The places of a room, kept live, and what other modules may ask of them. `host` is the SDK.
-  // `opts.scope` says whose they are: 'room' (this room's, the default) or 'person' (the signed-in person's own, private).
+  // The places of a space, kept live, and what other modules may ask of them. `host` is the SDK.
+  // `opts.scope` says whose they are: 'space' (this space's, the default), 'environment' (everyone's) or 'person' (the signed-in person's own, private).
   function createPlaces(host, opts) {
-    const scope = (opts && opts.scope) || 'room';
+    const scope = (opts && opts.scope) || 'space';
     const at = { scope };
     const items = new Map(); // id -> { place, version }
     const listeners = new Set();
@@ -82,7 +82,7 @@
       changed();
     }
     host.on('change', (e) => {
-      if (e.scope === 'rooms' || (e.scope || 'room') !== scope || !String(e.key).startsWith(PLACE_PREFIX)) return;
+      if (e.scope === 'spaces' || (e.scope || 'space') !== scope || !String(e.key).startsWith(PLACE_PREFIX)) return;
       remember(String(e.key).slice(PLACE_PREFIX.length), e.deleted ? null : e.value, e.version);
       changed();
     });
@@ -99,14 +99,14 @@
       const place = cleanPlace(id, value);
       items.set(id, { place, version: saved && saved.version });
       // Personal places are private, so nothing is linked to or from them.
-      if (place.ref && scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), [place.ref]).catch(() => {});
+      if (place.ref && scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), [place.ref]).catch(() => {});
       changed();
       return place;
     }
     async function remove(id) {
       await host.storage.delete(PLACE_PREFIX + id, items.has(id) ? { ...at, version: items.get(id).version } : at);
       items.delete(id);
-      if (scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'server' ? { scope: 'server' } : undefined), []).catch(() => {});
+      if (scope !== 'person') host.refs.setLinks(host.refs.make('place', id, scope === 'environment' ? { scope: 'environment' } : undefined), []).catch(() => {});
       changed();
     }
     // Give a place a point (or take it away with null).

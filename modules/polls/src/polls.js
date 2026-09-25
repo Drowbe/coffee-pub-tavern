@@ -1,6 +1,6 @@
-// Polls module. One file of code for every place it shows: the server's own page, a space's
-// docked pane or floating panel, and a window of its own. Each place has its own polls; on
-// the server page the viewer's spaces' polls are shown too, read-only, under their room's
+// Polls module. One file of code for every place it shows: the environment's own page, a space's
+// canvas (docked or floating), and a window of its own. Each place has its own polls; on
+// the environment page the viewer's spaces' polls are shown too, read-only, under their space's
 // icon. The SDK (window.host) is injected by the host.
 //
 // A poll is for deciding something together (where to go, where to stay, what to do): each
@@ -28,9 +28,9 @@
     $('msg').textContent = 'Polls could not start: ' + err.message;
     return;
   }
-  const inRoom = info.context.scope === 'room';
+  const inSpace = info.context.scope === 'space';
   const me = info.user.key;
-  // What the server's admin and this space's moderators chose (Module settings): a new poll's starting point.
+  // What the environment's owners and this space's moderators chose (Module settings): a new poll's starting point.
   let prefs = { addableByDefault: false, closeAfterDays: 0 };
   const loadPrefs = () => host.settings.get().then((v) => { prefs = { ...prefs, ...v }; }).catch(() => {});
   await loadPrefs();
@@ -54,32 +54,32 @@
   }
 
   // Every poll we know of by key, and each poll's votes. `scope` is 'own' (this place's poll) or
-  // 'rooms' (another room's, read-only). The votes are keyed by the poll's key, then the voter's.
+  // 'spaces' (another space's, read-only). The votes are keyed by the poll's key, then the voter's.
   const polls = new Map();
   const votes = new Map();
-  const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
-  const hiddenRooms = new Set();
+  const spaceInfo = new Map(); // space id -> { id, name, icon, svg }, on the environment page
+  const hiddenSpaces = new Set();
   let show = 'open';
 
   // --- storage --------------------------------------------------------------
 
-  const pollKey = (scope, id, roomId) => (scope === 'rooms' ? `rooms:${roomId}:${id}` : `own:${id}`);
-  function rememberPoll(scope, item, roomId) {
+  const pollKey = (scope, id, spaceId) => (scope === 'spaces' ? `spaces:${spaceId}:${id}` : `own:${id}`);
+  function rememberPoll(scope, item, spaceId) {
     const id = item.key.slice(5);
-    const key = pollKey(scope, id, roomId);
-    polls.set(key, { key, scope, roomId, id, version: item.version, p: item.value });
+    const key = pollKey(scope, id, spaceId);
+    polls.set(key, { key, scope, spaceId, id, version: item.version, p: item.value });
   }
   // vote:<pollId>:<userKey>
-  function rememberVote(scope, item, roomId) {
+  function rememberVote(scope, item, spaceId) {
     const [, id, user] = item.key.split(':');
     if (!id || !user) return;
-    const key = pollKey(scope, id, roomId);
+    const key = pollKey(scope, id, spaceId);
     if (!votes.has(key)) votes.set(key, new Map());
     votes.get(key).set(user, item.value);
   }
-  function forgetVote(scope, itemKey, roomId) {
+  function forgetVote(scope, itemKey, spaceId) {
     const [, id, user] = itemKey.split(':');
-    const key = pollKey(scope, id, roomId);
+    const key = pollKey(scope, id, spaceId);
     if (votes.has(key)) votes.get(key).delete(user);
   }
 
@@ -88,11 +88,11 @@
     votes.clear();
     for (const item of await host.storage.list('poll:')) if (item.value) rememberPoll('own', item);
     for (const item of await host.storage.list('vote:')) if (item.value) rememberVote('own', item);
-    if (!inRoom && info.context.scope === 'server') {
+    if (!inSpace && info.context.scope === 'environment') {
       try {
-        for (const r of await host.rooms()) roomInfo.set(r.id, r);
-        for (const item of await host.storage.list('poll:', { scope: 'rooms' })) if (item.value) rememberPoll('rooms', item, item.roomId);
-        for (const item of await host.storage.list('vote:', { scope: 'rooms' })) if (item.value) rememberVote('rooms', item, item.roomId);
+        for (const r of await host.spaces()) spaceInfo.set(r.id, r);
+        for (const item of await host.storage.list('poll:', { scope: 'spaces' })) if (item.value) rememberPoll('spaces', item, item.spaceId);
+        for (const item of await host.storage.list('vote:', { scope: 'spaces' })) if (item.value) rememberVote('spaces', item, item.spaceId);
       } catch (err) {
         // just this place's own polls
       }
@@ -100,18 +100,18 @@
   }
 
   host.on('change', (e) => {
-    const scope = e.scope === 'rooms' ? 'rooms' : 'own';
+    const scope = e.scope === 'spaces' ? 'spaces' : 'own';
     if (e.key.startsWith('poll:')) {
-      const key = pollKey(scope, e.key.slice(5), e.roomId);
+      const key = pollKey(scope, e.key.slice(5), e.spaceId);
       if (e.deleted) {
         polls.delete(key);
         votes.delete(key);
       } else {
-        rememberPoll(scope, { key: e.key, value: e.value, version: e.version }, e.roomId);
+        rememberPoll(scope, { key: e.key, value: e.value, version: e.version }, e.spaceId);
       }
     } else if (e.key.startsWith('vote:')) {
-      if (e.deleted) forgetVote(scope, e.key, e.roomId);
-      else rememberVote(scope, { key: e.key, value: e.value }, e.roomId);
+      if (e.deleted) forgetVote(scope, e.key, e.spaceId);
+      else rememberVote(scope, { key: e.key, value: e.value }, e.spaceId);
     } else {
       return;
     }
@@ -130,7 +130,7 @@
     for (const x of polls.values()) {
       if (asked.has(x.key)) continue;
       asked.add(x.key);
-      const ref = host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+      const ref = host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
       host.refs.linksTo(ref).then((cards) => {
         if (JSON.stringify(cards.map((c) => c.ref)) === JSON.stringify((backlinks.get(x.key) || []).map((c) => c.ref)) && backlinks.has(x.key)) return;
         backlinks.set(x.key, cards);
@@ -147,10 +147,10 @@
   };
   if (host.refs && host.refs.onOpen) {
     host.refs.onOpen((ref) => {
-      const key = polls.has('own:' + ref.id) ? 'own:' + ref.id : `rooms:${ref.room}:${ref.id}`;
+      const key = polls.has('own:' + ref.id) ? 'own:' + ref.id : `spaces:${ref.space}:${ref.id}`;
       if (!polls.has(key)) return;
       show = 'all';
-      hiddenRooms.delete(ref.room);
+      hiddenSpaces.delete(ref.space);
       render();
       const el = root.querySelector(`[data-poll="${CSS.escape(key)}"]`);
       if (el) {
@@ -179,8 +179,8 @@
 
   // --- drawing -------------------------------------------------------------
 
-  const roomIcon = (roomId) => {
-    const r = roomInfo.get(roomId);
+  const spaceIcon = (spaceId) => {
+    const r = spaceInfo.get(spaceId);
     return r && r.svg ? `<span class="ri">${r.svg}</span>` : '';
   };
 
@@ -275,7 +275,7 @@
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
       ${p.addable && votable && p.options.length < MAX_OPTIONS ? `<div class="addopt"><input type="text" maxlength="100" placeholder="Suggest another option" data-addtext="${esc(x.key)}" aria-label="Suggest another option"><button class="btn btn-small" type="button" data-addopt="${esc(x.key)}">Add</button></div>` : ''}
-      ${x.scope === 'rooms' && !closed ? '<div class="meta">Vote in that room.</div>' : ''}
+      ${x.scope === 'spaces' && !closed ? '<div class="meta">Vote in that space.</div>' : ''}
       ${backlinksHtml(x)}
       ${closed && x.scope === 'own' && offered.length ? `<div class="actions">${offered.map((a) => `<button class="btn btn-small" type="button" data-action="${esc(x.key)}|${esc(a.action)}" title="${esc(a.moduleName)}">${esc(a.label)}</button>`).join('')}</div>` : ''}
     </article>`;
@@ -312,15 +312,15 @@
     $('count').textContent = open ? `${open} open` : '';
     filterSwitch.set(show, FILTERS.map((f) => (f.id === 'open' && open ? { ...f, label: `Open (${open})` } : f)));
 
-    $('rooms').hidden = roomInfo.size === 0;
-    if (roomInfo.size) {
-      $('rooms').innerHTML = [...roomInfo.values()].map((r) => `<button type="button" class="filter ${hiddenRooms.has(r.id) ? '' : 'on'}" data-room="${esc(r.id)}" title="${hiddenRooms.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
+    $('spaces').hidden = spaceInfo.size === 0;
+    if (spaceInfo.size) {
+      $('spaces').innerHTML = [...spaceInfo.values()].map((r) => `<button type="button" class="filter ${hiddenSpaces.has(r.id) ? '' : 'on'}" data-space="${esc(r.id)}" title="${hiddenSpaces.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
     }
 
-    let html = groupHtml(roomInfo.size ? 'Server' : '', own);
-    for (const r of roomInfo.values()) {
-      if (hiddenRooms.has(r.id)) continue;
-      html += groupHtml(`${roomIcon(r.id)} ${esc(r.name)}`, [...polls.values()].filter((x) => x.scope === 'rooms' && x.roomId === r.id));
+    let html = groupHtml(spaceInfo.size ? 'Environment' : '', own);
+    for (const r of spaceInfo.values()) {
+      if (hiddenSpaces.has(r.id)) continue;
+      html += groupHtml(`${spaceIcon(r.id)} ${esc(r.name)}`, [...polls.values()].filter((x) => x.scope === 'spaces' && x.spaceId === r.id));
     }
     askBacklinks();
     $('body').innerHTML = html || `<p class="empty">${show === 'closed' ? 'No closed polls.' : 'No open polls.'}${canCreate && show !== 'closed' ? ' Start one to get a vote going.' : ''}</p>`;
@@ -351,7 +351,7 @@
     const { winner } = winnerOf(x);
     const input = { title: winner ? `${x.p.question}: ${winner}` : x.p.question };
     if (a.input.notes) input.notes = x.p.question;
-    if (a.input.ref) input.ref = host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined);
+    if (a.input.ref) input.ref = host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined);
     try {
       await host.actions.request(action, input);
       showNote(`Sent to ${a.moduleName}: ${a.label}`, true);
@@ -627,10 +627,10 @@
 
   // --- wiring ---------------------------------------------------------------
 
-  $('rooms').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-room]');
+  $('spaces').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-space]');
     if (!b) return;
-    if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
+    if (hiddenSpaces.has(b.dataset.space)) hiddenSpaces.delete(b.dataset.space); else hiddenSpaces.add(b.dataset.space);
     render();
   });
   // A poll's question can be dragged onto another module that links to polls (a to-do, say).
@@ -638,7 +638,7 @@
     host.refs.draggable($('body'), (target) => {
       const h = target.closest('[data-drag]');
       const x = h && polls.get(h.dataset.drag);
-      return x ? { kind: 'poll', id: x.id, label: x.p.question, ...(x.scope === 'rooms' ? { room: x.roomId } : {}) } : null;
+      return x ? { kind: 'poll', id: x.id, label: x.p.question, ...(x.scope === 'spaces' ? { space: x.spaceId } : {}) } : null;
     });
   }
   $('body').addEventListener('click', (e) => {
@@ -715,7 +715,7 @@
         const x = polls.get(at.key);
         try {
           const chosen = await host.refs.dropMenu(dragged, pt, {
-            context: { target: host.refs.make('poll', x.id, x.scope === 'rooms' ? { room: x.roomId } : undefined) },
+            context: { target: host.refs.make('poll', x.id, x.scope === 'spaces' ? { space: x.spaceId } : undefined) },
             own: linkable(ref) ? [{ id: 'link', label: 'Link it to this option', run: () => setOptionLink(at.key, at.id, ref) }] : [],
             remember: 'option',
           });

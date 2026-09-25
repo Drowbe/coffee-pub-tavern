@@ -10,7 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const { cleanManifest, permissionDefaults, PERMISSION_KEY_RE, ModuleError, ModuleManager } = createRequire(import.meta.url)('../server/modules.js');
+const { cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, ModuleError, ModuleManager } = createRequire(import.meta.url)('../server/modules.js');
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
@@ -40,38 +40,54 @@ test('a choice option\'s own help is unaffected (already had the wider ceiling)'
   assert.equal(m.settings[0].options[0].help.length, 600);
 });
 
-test('a manifest\'s scopes are environment, space and person; the old names are read as them until plan-names step 5c', () => {
+test('a manifest\'s scopes are environment, space and person', () => {
   const both = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
-  const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }] }, files);
+  const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }, { key: 'c', label: 'C', type: 'boolean', scope: 'person' }], install: { auto: true, settingsFrom: 'environment' } }, files);
   assert.deepEqual(m.scope, ['environment', 'space', 'person']);
-  assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment'], 'a setting with no scope is the environment\'s');
-  const old = cleanManifest({ ...base(), scope: ['server', 'room'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'room' }, { key: 'n', label: 'N', type: 'note', scope: 'server' }], install: { auto: true, settingsFrom: 'server' } }, files);
-  assert.deepEqual([old.scope, old.settings.map((d) => d.scope), old.install.settingsFrom], [['environment', 'space'], ['space', 'environment'], 'environment']);
+  assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment', 'person'], 'a setting with no scope is the environment\'s');
+  assert.equal(m.install.settingsFrom, 'environment');
   assert.throws(() => cleanManifest({ ...base(), scope: ['nowhere'] }, files), /"scope" must include "environment", "space", or both/);
   assert.throws(() => cleanManifest({ ...base(), scope: ['space'] }, files), /the "space" scope needs a surfaces.panel/);
   assert.throws(() => cleanManifest({ ...base(), settings: [{ key: 'f', label: 'F', type: 'file', scope: 'space' }] }, files), /its scope must be "environment"/);
+});
+
+// Plan-names step 5c, the hard break: each old name in a manifest is refused with its one sentence, naming the field
+// and what to use instead.
+const OLD_MANIFESTS = [
+  [{ scope: ['environment', 'room'] }, 'module.json uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).'],
+  [{ scope: ['server'] }, 'module.json uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).'],
+  [{ settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'room' }] }, 'module.json: setting "a" uses the old scope "room"; use "space" (Magpie renamed rooms to spaces).'],
+  [{ settings: [{ key: 'n', label: 'N', type: 'note', scope: 'server' }] }, 'module.json: setting "n" uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).'],
+  [{ install: { auto: true, settingsFrom: 'server' } }, 'module.json: install.settingsFrom uses the old name "server"; use "environment" (Magpie renamed the server to the environment).'],
+  [{ permissions: [{ key: 'view', label: 'View', default: { user: true } }] }, 'module.json: permission "view" names the old role "user" in its default; use "member" (Magpie renamed the user role to member).'],
+];
+test('a manifest with an old name is refused with a sentence naming the field and what to use', () => {
+  for (const [part, sentence] of OLD_MANIFESTS) {
+    assert.equal(oldNameIn({ ...base(), ...part }), sentence);
+    assert.throws(() => cleanManifest({ ...base(), ...part }, files), (err) => err instanceof ModuleError && err.status === 400 && err.message === sentence, sentence);
+  }
+  assert.equal(oldNameIn(base()), null);
 });
 
 test('bad input still throws a ModuleError, same as before', () => {
   assert.throws(() => cleanManifest({ ...base(), id: '' }, files), ModuleError);
 });
 
-test('a permission\'s defaults are keyed by the editable roles: member, read under its old name user too (plan-names step 4)', () => {
+test('a permission\'s defaults are keyed by the editable roles: moderator, member, guest', () => {
   const perm = (d) => cleanManifest({ ...base(), permissions: [{ key: 'view', label: 'View', default: d }] }, files).permissions[0].default;
-  assert.deepEqual(perm({ user: true, guest: true }), { member: true, guest: true, moderator: true });
+  assert.deepEqual(perm({ member: true, guest: true }), { member: true, guest: true, moderator: true });
   assert.deepEqual(perm({ member: true }), { member: true, guest: false, moderator: true });
-  assert.deepEqual(perm({ member: false, user: true, moderator: false }), { member: false, guest: false, moderator: false }, 'the new name wins');
+  assert.deepEqual(perm({ member: true, moderator: false }), { member: true, guest: false, moderator: false });
   // What the Roles grid reads (ModuleManager.permissionList), from the stored manifest as its author wrote it.
-  assert.deepEqual(permissionDefaults({ user: true, guest: true, moderator: true }), { moderator: true, member: true, guest: true });
-  assert.deepEqual(permissionDefaults({ user: true }), { moderator: false, member: true, guest: false }, 'a missing moderator stays off, as before');
-  assert.deepEqual(permissionDefaults({ member: false, user: true }), { moderator: false, member: false, guest: false });
+  assert.deepEqual(permissionDefaults({ member: true, guest: true, moderator: true }), { moderator: true, member: true, guest: true });
+  assert.deepEqual(permissionDefaults({ member: true }), { moderator: false, member: true, guest: false }, 'a missing moderator stays off, as before');
   assert.deepEqual(permissionDefaults(undefined), { moderator: false, member: false, guest: false });
 });
 
 // Every bundled module's own permissions (modules/<id>/module.json) against the rule install applies, so a key the
 // server would refuse fails here rather than at install. Also: each listed once, and each access guard names one.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-test('every bundled module\'s permission keys pass the server\'s rule, once each, and its access guards name them', () => {
+test('every bundled module\'s manifest uses only the new names, and its permission keys pass the server\'s rule, once each, and its access guards name them', () => {
   const problems = [];
   const dirs = fs.readdirSync(path.join(ROOT, 'modules'), { withFileTypes: true }).filter((d) => d.isDirectory() && fs.existsSync(path.join(ROOT, 'modules', d.name, 'module.json')));
   assert.ok(dirs.length > 0, 'the bundled modules were found');
@@ -81,6 +97,8 @@ test('every bundled module\'s permission keys pass the server\'s rule, once each
     for (const key of keys) {
       if (typeof key !== 'string' || !PERMISSION_KEY_RE.test(key)) problems.push(`modules/${d.name}/module.json: permission key ${JSON.stringify(key)} must match ${PERMISSION_KEY_RE} (lowercase letters, digits and underscores)`);
     }
+    const old = oldNameIn(manifest);
+    if (old) problems.push(`modules/${d.name}/${old}`);
     for (const key of new Set(keys.filter((k, i) => keys.indexOf(k) !== i))) problems.push(`modules/${d.name}/module.json: permission "${key}" is listed twice`);
     for (const [kind, named] of Object.entries(manifest.access && typeof manifest.access === 'object' ? manifest.access : {})) {
       if (named && !keys.includes(named)) problems.push(`modules/${d.name}/module.json: access.${kind} names "${named}", which is not one of its permissions`);
@@ -130,6 +148,98 @@ test('a refused module update changes nothing, including the modules that need i
     assert.equal(mm.registry.modules.child.enabled, false, 'what needs it went off with it');
     const disk = JSON.parse(fs.readFileSync(file, 'utf8')).modules;
     assert.deepEqual([disk.base.enabled, disk.base.runMode, disk.base.allSpaces, disk.base.spaces, disk.child.enabled], [false, 'sandbox', true, ['s2'], false]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// An installed module whose stored manifest uses an old name (plan-names step 5c): kept and shown, but it can't run,
+// can't be turned on, and no version of it in the old names can be rolled back to. The registry keeps the owner's
+// choice, so a fixed version runs again as it was.
+test('an installed module with an old manifest does not run, says why, and cannot be turned on', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-'));
+  try {
+    const put = (id, version, m) => {
+      const d = path.join(dir, 'modules', id, 'versions', version);
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version, ...m }));
+    };
+    const panel = { page: { entry: 'page.html' }, panel: { entry: 'panel.html' } };
+    put('old', '1.0.0', { scope: ['environment', 'space'], surfaces: panel });
+    put('old', '0.9.0', { scope: ['server', 'room'], surfaces: panel });
+    put('needer', '1.0.0', { scope: ['environment'], requires: ['old'], surfaces: { page: { entry: 'page.html' } } });
+    const entry = (id, version, versions) => ({ id, versions, version, enabled: true, allSpaces: true, spaces: [], approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
+    const file = path.join(dir, 'modules', 'registry.json');
+    fs.writeFileSync(file, JSON.stringify({ modules: { old: entry('old', '0.9.0', ['0.9.0', '1.0.0']), needer: entry('needer', '1.0.0', ['1.0.0']) }, autoInstalled: [] }, null, 2));
+    const before = fs.readFileSync(file, 'utf8');
+    const mm = new ModuleManager(dir);
+    assert.equal(mm.enabled('old'), null, 'it does not run');
+    assert.equal(mm.resolveFile('old', '0.9.0', 'page.html'), null, 'its files are not served');
+    const view = mm.view('old');
+    assert.deepEqual(view.outdatedVersions, ['0.9.0'], 'the installed versions in the old names');
+    assert.deepEqual([view.enabled, view.outdated, view.outdatedWhy], [false, OUTDATED, 'module.json uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).']);
+    // What requires it does not run either, and says it waits on an update rather than on being turned on.
+    assert.equal(mm.enabled('needer'), null, 'what requires it does not run');
+    assert.deepEqual(mm.enabledAll().map(({ manifest }) => manifest.id), []);
+    const needer = mm.view('needer');
+    assert.deepEqual([needer.enabled, needer.needsUpdate, needer.missing, needer.outdated], [false, ['old'], [], null]);
+    assert.throws(() => mm.update('needer', { enabled: true }), (err) => err.status === 409 && err.message === 'needer needs old, which needs an update from its author.');
+    assert.throws(() => mm.update('old', { enabled: true }), (err) => err.status === 409 && err.message === 'old was built for an older Magpie and needs an update from its author.');
+    assert.equal(fs.readFileSync(file, 'utf8'), before, 'nothing was written at start or by the refused updates');
+    // Turning the outdated one off does not ask about what requires it: that is not running.
+    assert.equal(mm.update('old', { enabled: false }).enabled, false);
+    assert.equal(mm.registry.modules.needer.enabled, true, 'its own choice kept');
+    // QA's case: the fixed version arrives while the requirement is off. What requires it still does not run (its own
+    // choice kept), and says what is missing; turning the requirement on runs both.
+    assert.equal(mm.rollback('old', '1.0.0').enabled, false);
+    assert.equal(mm.enabled('needer'), null, 'a module whose requirement is off never runs');
+    assert.deepEqual([mm.view('needer').enabled, mm.view('needer').needsUpdate, mm.view('needer').missing], [false, [], ['old']]);
+    assert.deepEqual(mm.enabledAll().map(({ manifest }) => manifest.id), []);
+    assert.equal(mm.update('old', { enabled: true }).enabled, true);
+    assert.deepEqual([mm.view('needer').enabled, mm.view('needer').needsUpdate, mm.view('needer').missing], [true, [], []]);
+    assert.deepEqual([mm.view('old').outdated, mm.view('old').outdatedVersions], [null, ['0.9.0']], 'the old version is still marked while it is kept');
+    assert.throws(() => mm.rollback('old', '0.9.0'), (err) => err.status === 409 && err.message === "old 0.9.0 was built for an older Magpie, so it can't be rolled back to.");
+    assert.equal(mm.registry.modules.old.version, '1.0.0');
+    // Uninstalling what it requires turns it off, as before.
+    mm.uninstall('old');
+    assert.equal(mm.registry.modules.needer.enabled, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The bundled update at start (index.js, updateOutdatedBundled) keeps a module on when all it newly asks for is
+// permissions off for every role: those give nobody but owners anything. Anything else still waits for approval.
+test('a bundled update widens nothing only when every new request is a permission off for every role', () => {
+  const none = { permissions: [], hooks: [], refs: [], events: [], actions: [] };
+  const perms = [{ key: 'view_page', default: { member: false, moderator: false, guest: false } }, { key: 'closed', default: {} }, { key: 'open', default: { member: true } }, { key: 'mods', default: { moderator: true } }, { key: 'guests', default: { guest: true } }];
+  assert.equal(pendingWidensNothing(none, perms), true, 'nothing new');
+  assert.equal(pendingWidensNothing({ ...none, permissions: ['view_page', 'closed'] }, perms), true, 'permissions off for every role');
+  for (const key of ['open', 'mods', 'guests']) assert.equal(pendingWidensNothing({ ...none, permissions: ['view_page', key] }, perms), false, `${key} is on for a role`);
+  assert.equal(pendingWidensNothing({ ...none, permissions: ['unknown'] }, perms), false, 'a permission it cannot read');
+  for (const kind of ['hooks', 'refs', 'events', 'actions']) assert.equal(pendingWidensNothing({ ...none, [kind]: ['x'] }, perms), false, `a new ${kind} request`);
+});
+
+// A permission an author renamed says so (`replaces`), and each role's own choice for the old key is carried to the new
+// one once (Store.carryRoleGrant, run by index.js's carryReplacedGrants after any install and at start).
+test('a renamed permission carries each role\'s choice for its old key over once, and replaces is checked', () => {
+  const m = cleanManifest({ ...base(), permissions: [{ key: 'view_page', label: 'See the page', replaces: 'links', default: {} }] }, files);
+  assert.equal(m.permissions[0].replaces, 'links');
+  const sentence = 'module.json: permission "view_page" replaces must name a key this module no longer uses';
+  assert.throws(() => cleanManifest({ ...base(), permissions: [{ key: 'view_page', label: 'x', replaces: 'links' }, { key: 'see', label: 'y', replaces: 'links' }] }, files), (err) => err.message === 'module.json: permission "see" replaces "links", which permission "view_page" already replaces');
+  for (const replaces of ['view_page', 'Bad-Key', 7, 'edit']) {
+    assert.throws(() => cleanManifest({ ...base(), permissions: [{ key: 'view_page', label: 'x', replaces }, { key: 'edit', label: 'y' }] }, files), (err) => err.message === sentence, String(replaces));
+  }
+  const { Store } = createRequire(import.meta.url)('../server/store.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-store-'));
+  try {
+    const store = new Store(dir);
+    store.data.settings.roles = { member: { 'module.stream.links': true, chat: false }, moderator: { 'module.stream.links': false, 'module.stream.view_page': true }, guest: { react: false } };
+    store.save();
+    assert.deepEqual(store.carryRoleGrant('module.stream.links', 'module.stream.view_page'), ['member'], 'carried where there was no choice for the new key yet');
+    const roles = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8')).settings.roles;
+    assert.deepEqual(roles, { member: { chat: false, 'module.stream.view_page': true }, moderator: { 'module.stream.view_page': true }, guest: { react: false } }, 'the old key gone everywhere; a choice already made for the new key kept');
+    assert.deepEqual(store.carryRoleGrant('module.stream.links', 'module.stream.view_page'), [], 'once: nothing left to carry');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

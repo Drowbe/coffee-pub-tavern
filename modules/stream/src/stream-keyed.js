@@ -54,13 +54,13 @@
   let REACTIONS = {}; // id -> glyph, from the server's reaction list
   let displayName = '';
 
-  // Whichever room the person is in right now (the Lobby while they are away); the box follows them from room
-  // to room, and that room's own pictures for a slot follow along too.
-  let playerRoom = 'lobby';
-  let imageRoom = 'lobby'; // playerRoom, or an aside's origin room: whose pictures apply
-  let lastImageRoom = null;
+  // Whichever space the person is in right now (the Lobby while they are away); the box follows them from space
+  // to space, and that space's own pictures for a slot follow along too.
+  let playerSpace = 'lobby';
+  let imageSpace = 'lobby'; // playerSpace, or an aside's origin space: whose pictures apply
+  let lastImageSpace = null;
   let onlineNow = false; // server-tracked presence, not this page's own connection
-  let isAside = false; // online, but not in the room the stream is following: for the dim and tint
+  let isAside = false; // online, but not in the space the stream is following: for the dim and tint
   let inAside = false; // stepped away into an aside themselves: for the Aside overlay picture
   let isPrivate = false; // in a private conversation: its own dim and tint, and never the live camera
   // What the host's viewer connection says about them right now.
@@ -79,12 +79,12 @@
 
   async function loadImages() {
     for (const slot of slots) {
-      const url = await host.images.get(wanted, slot, { room: imageRoom }).catch(() => null);
+      const url = await host.images.get(wanted, slot, { space: imageSpace }).catch(() => null);
       if (images[slot]) host.images.release(images[slot]);
       images[slot] = url;
     }
     if (kind === 'player') {
-      const url = await host.images.get(wanted, 'background', { room: imageRoom }).catch(() => null);
+      const url = await host.images.get(wanted, 'background', { space: imageSpace }).catch(() => null);
       if (bgImage) host.images.release(bgImage);
       bgImage = url;
       const photo = await host.images.get(wanted, 'profile', { fallback: 'none' }).catch(() => null);
@@ -118,25 +118,26 @@
     const me = (p.people || []).find((u) => u.key === wanted);
     if (me) {
       displayName = me.name || '';
-      playerRoom = (me.online && me.room) || 'lobby';
-      const inRoom = (p.rooms || []).find((r) => r.id === playerRoom);
-      imageRoom = inRoom && inRoom.ephemeral && inRoom.origin ? inRoom.origin : playerRoom;
+      playerSpace = (me.online && me.space) || 'lobby';
+      // An aside (or a private conversation) is not a space: its pictures are those of the space it came out of.
+      const aside = (p.asides || []).find((a) => a.id === playerSpace);
+      imageSpace = aside && aside.origin ? aside.origin : playerSpace;
       onlineNow = Boolean(me.online);
-      isAside = onlineNow && Boolean(p.adminOnline) && me.room !== p.activeRoom;
-      const room = onlineNow ? inRoom : null;
-      inAside = onlineNow && Boolean(room && room.ephemeral) && !(room && room.private);
-      isPrivate = Boolean(room && room.ephemeral && room.private);
+      isAside = onlineNow && Boolean(p.ownerOnline) && me.space !== p.activeSpace;
+      const here = onlineNow ? aside : null;
+      inAside = onlineNow && Boolean(here) && !here.private;
+      isPrivate = Boolean(here && here.private);
     } else {
       onlineNow = false;
       isAside = false;
       inAside = false;
       isPrivate = false;
     }
-    if (imageRoom !== lastImageRoom) {
-      lastImageRoom = imageRoom;
+    if (imageSpace !== lastImageSpace) {
+      lastImageSpace = imageSpace;
       loadImages();
     }
-    if (watcher) watcher.follow(playerRoom);
+    if (watcher) watcher.follow(playerSpace);
     render();
   }
 
@@ -212,13 +213,13 @@
     box.appendChild(el);
   }
 
-  // Settings first (the colours), then the roster (which room), then the connection that follows it.
+  // Settings first (the colours), then the roster (which space), then the connection that follows it.
   applySettings(await host.settings.get().catch(() => ({})));
   host.settings.onChange(applySettings);
   let watcher = null;
   const first = await host.presence.get().catch(() => null);
   if (first) applyPresence(first);
-  watcher = await host.media.watch(wanted, { video: kind === 'player', audio: withAudio, room: playerRoom }, {
+  watcher = await host.media.watch(wanted, { video: kind === 'player', audio: withAudio, space: playerSpace }, {
     state: (s) => { live = s; render(); },
     video: (el) => {
       if (videoEl && videoEl !== el) videoEl.remove();

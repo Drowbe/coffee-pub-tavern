@@ -1,12 +1,12 @@
 {
   "id": "maps",
   "name": "Maps",
-  "version": "0.7.13",
+  "version": "0.7.14",
   "icon": "map-location-dot",
-  "description": "A map of every place your room has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
+  "description": "A map of every place your space has: the places you have saved and the items other modules put somewhere. Pick a spot to save a new place.",
   "author": "Coffee Pub",
   "scope": [
-    "room"
+    "space"
   ],
   "surfaces": {
     "page": {
@@ -27,7 +27,7 @@
       "key": "view",
       "label": "See the map and its places",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -36,7 +36,7 @@
       "key": "edit",
       "label": "Save places from the map and put items on it",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }
@@ -48,7 +48,7 @@
       "label": "Map files",
       "type": "files",
       "folder": "map-tiles",
-      "scope": "server",
+      "scope": "environment",
       "default": [],
       "help": "The PMTiles files the map is drawn from, all together. With environments, the files are the host's and only a host admin adds or cuts them (the host console); on a single server they are in this module's map-tiles folder in the data folder, ticked here.",
       "shared": "host"
@@ -57,7 +57,7 @@
       "key": "worldSource",
       "label": "World file, for cutting a region",
       "type": "url",
-      "scope": "server",
+      "scope": "environment",
       "default": "",
       "httpsOnly": true,
       "pathEnds": ".pmtiles",
@@ -66,7 +66,7 @@
     {
       "key": "searchNote",
       "type": "note",
-      "scope": "server",
+      "scope": "environment",
       "label": "Search on the map",
       "help": "The field at the bottom of the map searches through whichever module offers a place search (the Places module does), and that module's own configuration is where the search is chosen and switched on; Maps has no search of its own. Until one is chosen there, the field still takes pasted coordinates or a map link."
     }

@@ -23,7 +23,7 @@ A normal bundled module (`panel: { dock, float }`, poppable into its own window 
 
 ## Context
 
-`#ask-chips` holds one `tpl-ask-chip` per item the answer may use (an icon, its title, a remove button). **Add context** opens `#ask-picker`: a checklist (`tpl-pick-row`, one per reachable item, grouped or not) with a live count and **Done**. With no chips, the model answers from its own knowledge; with some, it uses them too. Opening Assistant through the `askAssistant` action with items pre-fills the chips (see Conduits); the header's own open (from the room bar) starts with none.
+`#ask-chips` holds one `tpl-ask-chip` per item the answer may use (an icon, its title, a remove button). **Add context** opens `#ask-picker`: a checklist (`tpl-pick-row`, one per reachable item, grouped or not) with a live count and **Done**. With no chips, the model answers from its own knowledge; with some, it uses them too. Opening Assistant through the `askAssistant` action with items pre-fills the chips (see Conduits); the header's own open (from the space's bar) starts with none.
 
 ## The conversation
 
@@ -53,7 +53,7 @@ Keeping a card asks whichever module offers a matching action, found by name and
 | State | What is drawn |
 |---|---|
 | Loading | `tpl-state-loading` |
-| AI not available here (not enabled, the role may not, or the room turned it off) | `tpl-state-unavailable`, `[data-slot=why]` the server's reason; no composer |
+| AI not available here (not enabled, the role may not, or the space turned it off) | `tpl-state-unavailable`, `[data-slot=why]` the server's reason; no composer |
 | Nothing can save a kept card | `tpl-state-nowhere-to-save`, keep disabled |
 
 ## Surviving a mode change

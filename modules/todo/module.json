@@ -1,13 +1,13 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.11.7",
+  "version": "1.11.8",
   "icon": "list-check",
-  "description": "A shared to-do list for the whole server and for each room, with due dates and reminders.",
+  "description": "A shared to-do list for the whole environment and for each space, with due dates and reminders.",
   "author": "Coffee Pub",
   "scope": [
-    "server",
-    "room"
+    "environment",
+    "space"
   ],
   "surfaces": {
     "page": {
@@ -34,7 +34,7 @@
       "key": "view",
       "label": "See the to-do list",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -43,7 +43,7 @@
       "key": "edit",
       "label": "Add, change and tick off tasks",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }

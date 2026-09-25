@@ -77,7 +77,7 @@
     if (kind === 'photo' && !item.file) return null;
     if (kind === 'answer' && v.ai && typeof v.ai === 'object') {
       const sources = (Array.isArray(v.ai.sources) ? v.ai.sources : []).filter((r) => r && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string').slice(0, 12)
-        .map((r) => ({ module: r.module.slice(0, 40), kind: r.kind.slice(0, 40), id: r.id.slice(0, 64), ...(typeof r.scope === 'string' ? { scope: r.scope.slice(0, 10) } : {}), ...(typeof r.room === 'string' ? { room: r.room.slice(0, 20) } : {}), ...(typeof r.label === 'string' ? { label: geo.oneLine(r.label, 80) } : {}) }));
+        .map((r) => ({ module: r.module.slice(0, 40), kind: r.kind.slice(0, 40), id: r.id.slice(0, 64), ...(typeof r.scope === 'string' ? { scope: r.scope.slice(0, 10) } : {}), ...(typeof r.space === 'string' ? { space: r.space.slice(0, 20) } : {}), ...(typeof r.label === 'string' ? { label: geo.oneLine(r.label, 80) } : {}) }));
       item.ai = { question: geo.oneLine(v.ai.question, 1000), sources };
     }
     return item;
@@ -132,9 +132,9 @@
   // A caption from a file name: "IMG_2041.jpg" -> "IMG 2041".
   const captionOf = (name) => geo.oneLine(String(name || '').replace(/\.[A-Za-z0-9]{1,5}$/, '').replace(/[_-]+/g, ' '), 120);
 
-  // The items of one scope ('room' or 'person'), kept live, and what other modules may ask of them. `host` is the SDK.
+  // The items of one scope ('space' or 'person'), kept live, and what other modules may ask of them. `host` is the SDK.
   function createResearch(host, opts) {
-    const scope = (opts && opts.scope) || 'room';
+    const scope = (opts && opts.scope) || 'space';
     const at = { scope };
     const items = new Map(); // id -> { item, version }
     const listeners = new Set();
@@ -153,7 +153,7 @@
       changed();
     }
     host.on('change', (e) => {
-      if (e.scope === 'rooms' || (e.scope || 'room') !== scope) return;
+      if (e.scope === 'spaces' || (e.scope || 'space') !== scope) return;
       const [kind] = split(e.key);
       if (!KINDS.includes(kind)) return;
       remember(String(e.key), e.deleted ? null : e.value, e.version);

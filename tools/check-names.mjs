@@ -48,8 +48,8 @@ const runMigration = onlyMigration || (!onlyWords);
 // The levels, top down, then the roles, then the rest of the plan's renames. `code` and `words` are each
 // 'report' or 'enforce' (null: that mode has no pattern for this level). `step` is the plan's step that
 // switches the level to enforce. `enforceIn`, when given, keeps an enforced level to those folders for now: a hit
-// anywhere else is only reported, until the step that renames it there (the space level: server/ and tools/ from
-// step 5a, public/ from 5b; modules/ in 5c).
+// anywhere else is only reported, until the step that renames it there. (The space level used it through step 5:
+// server/ and tools/ from 5a, public/ from 5b, and everywhere from 5c.)
 const LEVELS = [
   { id: 'environment', step: '2', code: 'enforce', words: 'enforce', codePatterns: [/tenant/gi], wordPatterns: [/\btenants?\b/gi] },
   {
@@ -70,7 +70,7 @@ const LEVELS = [
     ],
   },
   {
-    id: 'space', step: '5', code: 'enforce', words: 'enforce', enforceIn: ['server/', 'tools/', 'public/'], reportUntil: '5c (modules/)',
+    id: 'space', step: '5', code: 'enforce', words: 'enforce',
     codePatterns: [/room/gi, /\bserverName\b/g, /\bscope\s*(:|[!=]==?)\s*['"]server['"]/g, /['"]server['"]\s*[!=]==?\s*[\w.?]*\bscope\b/g, /\bscope:\s*\[[^\]]*['"](room|server)['"]/g],
     wordPatterns: [/\brooms?\b/gi],
   },
@@ -1420,7 +1420,10 @@ function migrationCheck() {
       { from: 'modules/research/uploads/server', to: 'modules/research/uploads/environment' },
       { from: 'modules/todo/data/room-keep01.json', to: 'modules/todo/data/space-keep01.json' },
       { from: 'modules/todo/data/server.json', to: 'modules/todo/data/environment.json' },
+      { from: 'modules/travel/data/server.json', to: 'modules/travel/data/environment.json' },
     ];
+    // The parts up to and including names-spaces, for the tests that look at that part's own change.
+    const UP_TO_SPACES = names.ENVIRONMENT_PARTS.slice(0, 3);
     const sortMoves = (list) => [...list].sort((a, b) => a.from.localeCompare(b.from));
 
     test('names-spaces is the third environment part, after names-roles', () => {
@@ -1433,7 +1436,7 @@ function migrationCheck() {
       const before = snapshot(dir);
       const beforeApp = appOf(dir);
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-spaces']);
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: (m) => logged.push(m) }), ['names-spaces']);
       const app = appOf(dir);
       // app.json: each key renamed where it stood.
       assert.deepEqual(Object.keys(app), Object.keys(beforeApp).map((k) => (k === 'rooms' ? 'spaces' : k)), 'spaces where rooms was');
@@ -1443,7 +1446,7 @@ function migrationCheck() {
       assert.deepEqual(app.invites.map((i) => i.spaces), beforeApp.invites.map((i) => i.rooms));
       assert.deepEqual(Object.keys(app.settings), Object.keys(beforeApp.settings).map((k) => (k === 'serverName' ? 'environmentName' : k)));
       assert.equal(app.settings.environmentName, 'Fixture Table');
-      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(app.migrations.map((m) => m.id), UP_TO_SPACES.map((p) => p.id));
       assert.deepEqual(sortMoves(app.migrations[2].moved), sortMoves(SPACE_MOVES), 'every folder and file it moved, recorded');
       // The rest of the environment.
       assert.deepEqual(jsonOf(dir, 'chat.json'), { spaces: oldJson('chat.json').rooms });
@@ -1471,6 +1474,7 @@ function migrationCheck() {
         ['images/memberkey1/rooms/keep01/player-fixture.png', 'images/memberkey1/spaces/keep01/player-fixture.png'],
         ['modules/todo/data/room-keep01.json', 'modules/todo/data/space-keep01.json'],
         ['modules/todo/data/server.json', 'modules/todo/data/environment.json'],
+        ['modules/travel/data/server.json', 'modules/travel/data/environment.json'],
         ['modules/calendar/data/room-lobby.json', 'modules/calendar/data/space-lobby.json'],
         ['modules/research/uploads/room-keep01/0123456789abcdef01234567.json', 'modules/research/uploads/space-keep01/0123456789abcdef01234567.json'],
         ['modules/research/uploads/server/.keep', 'modules/research/uploads/environment/.keep'],
@@ -1484,8 +1488,8 @@ function migrationCheck() {
       for (const rel of ['app.json', 'chat.json', 'modules/registry.json', 'modules/settings.json', 'modules/links.json', 'modules/bus.json', 'modules/schedules.json', 'modules/notifications.json', 'modules/activity.json']) {
         assert.equal(after[`pre-names/names-spaces/${rel}`], before[rel], `pre-names/names-spaces/${rel}`);
       }
-      assert.ok(logged.some((m) => m.includes('"names-spaces"') && m.includes('(moved 7)')), logged.join('\n'));
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.ok(logged.some((m) => m.includes('"names-spaces"') && m.includes('(moved 8)')), logged.join('\n'));
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: quiet }), [], 'the second start runs nothing');
       assert.deepEqual(snapshot(dir), after, 'and changes nothing');
     });
 
@@ -1557,6 +1561,82 @@ function migrationCheck() {
       assert.throws(() => names.migrateEnvironment(clash, { parts: SPACES_ONLY, log: quiet }), (err) => err instanceof names.MigrationError && err.file === path.join(both, 'environment.json')
         && err.message === `The names migration part "names-spaces" stopped at ${path.join(both, 'environment.json')}: ${path.join(both, 'server.json')} and ${path.join(both, 'environment.json')} are both there, so it cannot tell which to keep. Nothing was changed: remove the out-of-date one and start again (a copy of the JSON files as they were is in ${path.join(clash, 'pre-names', 'names-spaces')}).`);
       assert.deepEqual(snapshot(clash, (rel) => rel.startsWith('pre-names')), clashBefore, 'no folder moved, no file written');
+    });
+
+    // --- names-pointers, the pointers inside a module's own data (plan-names decision 12, done in step 5c) ---
+    test('names-pointers is the fourth environment part, after names-spaces', () => {
+      assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 4), ['names-table', 'names-roles', 'names-spaces', 'names-pointers']);
+    });
+
+    test('names-pointers rewrites every old pointer in a module\'s own data, by shape, at any depth, and nothing else', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: quiet });
+      const before = snapshot(dir);
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-pointers']);
+      const after = snapshot(dir);
+      // To-do's links: a space's and the environment's, inside a list inside a value.
+      const todo = jsonOf(dir, 'modules/todo/data/space-keep01.json');
+      assert.deepEqual(todo['list:main'].value.tasks.map((t) => t.link), [
+        { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'keep01' },
+        { module: 'calendar', kind: 'event', id: 'e2', scope: 'environment' },
+      ]);
+      const oldTodo = JSON.parse(before['modules/todo/data/space-keep01.json']);
+      assert.deepEqual({ ...todo['list:main'], value: { ...todo['list:main'].value, tasks: [] } }, { ...oldTodo['list:main'], value: { ...oldTodo['list:main'].value, tasks: [] } }, 'the envelope and the rest of the value as they were');
+      // The Planner's trip: nested in objects and arrays of arrays; a pointer's own extra key kept in its place.
+      const trip = jsonOf(dir, 'modules/travel/data/environment.json')['trip:t1'].value;
+      const oldTrip = JSON.parse(before['modules/travel/data/environment.json'])['trip:t1'].value;
+      assert.deepEqual(trip.legs[0].about, { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby', title: 'Session' });
+      assert.deepEqual(Object.keys(trip.legs[0].about), ['module', 'kind', 'id', 'scope', 'space', 'title']);
+      assert.deepEqual(trip.legs[0].stops, [[{ module: 'todo', kind: 'task', id: 't2', scope: 'environment' }]]);
+      // Not a pointer's exact shape, or already new: left exactly as they were.
+      for (const key of ['own', 'half', 'noRoom', 'mine', 'already']) assert.deepEqual(trip.legs[1][key], oldTrip.legs[1][key], key);
+      assert.equal(trip.title, oldTrip.title);
+      // Files with no old pointer, and one that is not valid JSON, untouched and not copied.
+      for (const rel of ['modules/calendar/data/space-lobby.json', 'modules/todo/data/environment.json', 'modules/todo/data/person-memberkey1.json', 'modules/polls/data/person-memberkey1.json']) {
+        assert.equal(after[rel], before[rel], rel);
+        assert.equal(after[`pre-names/names-pointers/${rel}`], undefined, `no copy of ${rel}`);
+      }
+      // The copies: each file it rewrote, as it was.
+      for (const rel of ['modules/todo/data/space-keep01.json', 'modules/travel/data/environment.json']) assert.equal(after[`pre-names/names-pointers/${rel}`], before[rel], rel);
+      const record = appOf(dir).migrations.find((m) => m.id === 'names-pointers');
+      assert.deepEqual(record.moved, []);
+      assert.ok(logged.some((m) => m.includes('"names-pointers"')), logged.join('\n'));
+      // Read back as the module sees it.
+      const { ModuleData } = require('../server/module-data.js');
+      assert.deepEqual(new ModuleData(path.join(dir, 'modules')).get('todo', 'space:keep01', 'list:main').value.tasks[0].link.scope, 'space');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+    });
+
+    test('names-pointers rewrites old pointers a module published in a bus event\'s data after names-spaces, by shape, and copies the bus record', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: quiet });
+      // As a Polls "closed" event published between steps 5a and 5c left it: the host's own fields new, the data old.
+      const bus = jsonOf(dir, 'modules/bus.json');
+      const pick = { module: 'travel', kind: 'plan', id: 'i1', scope: 'room', room: 'keep01' };
+      const own = { scope: 'room', label: 'not a pointer' };
+      bus.events.push({ id: 4, at: 1767225600000, module: 'polls', name: 'closed', ref: { module: 'polls', kind: 'poll', id: 'p1', scope: 'space', space: 'keep01' }, data: { pick, all: [pick, { module: 'calendar', kind: 'event', id: 'e2', scope: 'server' }], own }, scopeKey: 'space:keep01', by: 'ownerkey01' });
+      fs.writeFileSync(path.join(dir, 'modules', 'bus.json'), JSON.stringify(bus));
+      const before = fs.readFileSync(path.join(dir, 'modules', 'bus.json'), 'utf8');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers']);
+      const after = jsonOf(dir, 'modules/bus.json');
+      const e = after.events.find((x) => x.id === 4);
+      assert.deepEqual(e.data.pick, { module: 'travel', kind: 'plan', id: 'i1', scope: 'space', space: 'keep01' });
+      assert.deepEqual(e.data.all.map((x) => [x.scope, x.space ?? null]), [['space', 'keep01'], ['environment', null]]);
+      assert.deepEqual(e.data.own, own, 'a module\'s own object with a scope key is left alone');
+      assert.deepEqual({ ...after, events: after.events.filter((x) => x.id !== 4) }, { ...bus, events: bus.events.filter((x) => x.id !== 4) }, 'everything else in the record as it was');
+      assert.equal(fs.readFileSync(path.join(dir, 'pre-names', 'names-pointers', 'modules', 'bus.json'), 'utf8'), before, 'the copy');
+    });
+
+    test('names-pointers, run alone again over its own result, writes nothing: the part is idempotent by shape', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const app = appOf(dir);
+      fs.writeFileSync(path.join(dir, 'app.json'), `${JSON.stringify({ ...app, migrations: app.migrations.filter((m) => m.id !== 'names-pointers') }, null, 2)}\n`);
+      const before = snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers']);
+      assert.deepEqual(snapshot(dir, (rel) => rel.startsWith('pre-names') || rel === 'app.json'), before, 'no other file written');
     });
 
     test('names-spaces on a hosted environment: its module data and the rest take the new names', () => {

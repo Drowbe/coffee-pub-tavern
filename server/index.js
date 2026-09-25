@@ -10,7 +10,7 @@ const yauzl = require('yauzl');
 const { AsyncLocalStorage } = require('async_hooks');
 const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-server-sdk');
 const QRCode = require('qrcode');
-const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions, manifestScope } = require('./modules');
+const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions, oldNameIn, pendingWidensNothing } = require('./modules');
 const { buildModule, bundledModules, zipFiles } = require('./module-build');
 const { ModuleLinks } = require('./module-links');
 const { Backgrounds } = require('./backgrounds');
@@ -422,6 +422,7 @@ function environmentFor(slug) {
 // live there -- a value that fails to validate against its declared type is skipped rather than failing the
 // whole install (logged either way).
 async function autoInstallBundled(env) {
+  await updateOutdatedBundled(env);
   for (const bundled of bundledModules(BUNDLED_DIR)) {
     if (!bundled.install?.auto || env.modules.isInstalled(bundled.id) || env.modules.autoInstalled(bundled.id)) continue;
     let installed;
@@ -434,7 +435,7 @@ async function autoInstallBundled(env) {
       continue; // not marked -- it never actually installed, so the next start tries again
     }
     env.modules.markAutoInstalled(bundled.id);
-    if (manifestScope(bundled.install.settingsFrom) === 'environment') {
+    if (bundled.install.settingsFrom === 'environment') {
       try {
         const manifest = env.modules.manifestOf(bundled.id, installed.version);
         const values = {};
@@ -447,6 +448,98 @@ async function autoInstallBundled(env) {
       }
     }
     console.log(`Auto-installed and enabled "${bundled.id}".`);
+  }
+}
+
+// A bundled module installed before plan-names step 5c has a manifest in the old names, so it can't run (see
+// ModuleManager.enabled). When this deployment ships a newer copy in the new names, it is updated to it on the
+// environment's first build, the way an owner would press Update, so nothing that was on goes off for good: it keeps
+// its on or off, its spaces and its data. Only a module that came from this deployment (source "bundled"); an
+// uploaded one waits for its author.
+//
+// An update that asks for something new waits for an owner's approval, as any update does, with one exception on
+// this path only: a new permission that is off for every role (moderator, member and guest) widens nothing, since
+// only owners (and the admin) hold it, so a module that was on and asks for nothing else new stays on, and the log
+// says so. A new permission on for some role, or any other new request (a hook, a link, an event, an action), still
+// waits.
+async function updateOutdatedBundled(env) {
+  // On a hosted server each line names the environment it is about.
+  const where = BASE_DOMAIN && env.slug ? `[${env.slug}] ` : '';
+  for (const bundled of requirementsFirst(bundledModules(BUNDLED_DIR))) {
+    const entry = env.modules.registry.modules[bundled.id];
+    if (!entry || entry.source !== 'bundled' || oldNameIn(bundled)) continue;
+    if (!env.modules.manifestOf(bundled.id, entry.version)?.outdated) continue;
+    if (compareVersions(bundled.version, [...entry.versions].sort(compareVersions).pop()) <= 0) continue;
+    const wasOn = Boolean(entry.enabled);
+    try {
+      const { zip } = buildModule(path.join(BUNDLED_DIR, bundled.id));
+      const view = await env.modules.install(zip, { source: 'bundled' });
+      let note = '';
+      // Still switched on unless the update asks for something new (install switches it off then); whether it runs also
+      // depends on what it requires, which is updated before it (requirementsFirst).
+      if (wasOn && !env.modules.registry.modules[bundled.id].enabled) {
+        const { pending } = view;
+        if (pendingWidensNothing(pending, view.permissions)) {
+          // Turned back on as an owner would (approving its new permissions). If something it requires is not on yet
+          // (it waits for approval itself), that is not a failure of this update: it says so and stays waiting.
+          try {
+            env.modules.update(bundled.id, { enabled: true });
+            note = ` It stays on: its new permission${pending.permissions.length === 1 ? '' : 's'} (${pending.permissions.join(', ')}) ${pending.permissions.length === 1 ? 'is' : 'are'} off for every role, so only owners have ${pending.permissions.length === 1 ? 'it' : 'them'}.`;
+          } catch (err) {
+            if (!err.status) throw err;
+            note = ` It is off for now: ${err.message}`;
+          }
+        } else {
+          note = ' It waits for an owner to approve what it newly asks for in Modules.';
+        }
+      }
+      console.log(`${where}Updated "${bundled.id}" to ${view.version}: the version installed was built for an older Magpie.${note}`);
+    } catch (err) {
+      console.error(`${where}Could not update "${bundled.id}", which was built for an older Magpie: ${err.message}`);
+    }
+  }
+  carryReplacedGrants(env);
+  for (const m of env.modules.list()) {
+    if (m.outdated) console.warn(`${where}Module "${m.id}" ${m.version} can't run until it is updated: ${m.outdatedWhy}`);
+    else if (m.needsUpdate.length) console.warn(`${where}Module "${m.id}" ${m.version} can't run until ${m.needsUpdate.map((r) => `"${r}"`).join(' and ')}, which it requires, ${m.needsUpdate.length === 1 ? 'is' : 'are'} updated.`);
+  }
+}
+
+// Bundled modules with each one after the modules it requires (Places before Maps), so a requirement is updated and
+// back on before what needs it is turned back on. Otherwise by id, as bundledModules lists them. A cycle, or a
+// requirement that does not ship here, simply keeps the listed order for what is left.
+function requirementsFirst(list) {
+  const byId = new Map(list.map((m) => [m.id, m]));
+  const out = [];
+  const placed = new Set();
+  const visit = (m, path = new Set()) => {
+    if (placed.has(m.id) || path.has(m.id)) return;
+    path.add(m.id);
+    for (const r of Array.isArray(m.requires) ? m.requires : []) if (byId.has(r)) visit(byId.get(r), path);
+    placed.add(m.id);
+    out.push(m);
+  };
+  for (const m of list) visit(m);
+  return out;
+}
+
+// A permission a module's author renamed (a manifest permission's `replaces`, see cleanManifest): each role's own
+// choice for the old key (Manage > Roles, settings.roles) is carried to the new key, once, and the old key removed, so
+// nobody gains or loses anything by the rename. By shape: once the old key is gone there is nothing left to carry, so
+// running it again does nothing. Run for every installed module, after anything is installed or updated. Recorded in
+// the module's activity and the log. (Per-space grants hold only the Moderator tick, never a module's key.)
+function carryReplacedGrants(env) {
+  const where = BASE_DOMAIN && env.slug ? `[${env.slug}] ` : '';
+  for (const m of env.modules.list()) {
+    for (const p of m.permissions || []) {
+      if (typeof p.replaces !== 'string' || p.replaces === p.key || (m.permissions || []).some((x) => x.key === p.replaces)) continue;
+      const from = `module.${m.id}.${p.replaces}`;
+      const to = `module.${m.id}.${p.key}`;
+      const roles = env.store.carryRoleGrant(from, to);
+      if (!roles.length) continue;
+      env.noteActivity(m.id, `carried the ${roles.join(', ')} role's choice for "${p.replaces}" over to "${p.key}"`, null, null);
+      console.log(`${where}Carried the ${roles.join(', ')} role's choice for ${from} over to ${to}.`);
+    }
   }
 }
 
@@ -827,7 +920,7 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function presenceUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, isAdmin: hasOwnerRights(u), border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, isOwner: hasOwnerRights(u), border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
@@ -2310,7 +2403,7 @@ app.get('/api/presence', async (req, res) => {
     users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), space: byKey.get(u.key)?.space || null, inCall: byKey.get(u.key)?.inCall ?? false })),
     spaces: store.spaces.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
     activeSpace: activeSpaceId(byKey),
-    adminOnline: hasOnlineOwner(byKey),
+    ownerOnline: hasOnlineOwner(byKey),
   });
 });
 
@@ -2344,8 +2437,8 @@ app.post('/api/asides', requireUser, async (req, res) => {
       if (!there.inCall) return res.status(409).json({ error: `${target.displayName} is not in the conference right now` });
     }
     const aside = store.addAside([initiator.key, ...targets.map((t) => t.key)], originId, priv);
-    // byAdmin tells the target's page whether to just go (an admin's call) or ask first.
-    const payload = asidePayload(ASIDE_TOPICS.pull, { spaceId: aside.id, byAdmin: hasOwnerRights(initiator), private: priv, from: initiator.displayName });
+    // byOwner tells the target's page whether to just go (an owner's call) or ask first.
+    const payload = asidePayload(ASIDE_TOPICS.pull, { spaceId: aside.id, byOwner: hasOwnerRights(initiator), private: priv, from: initiator.displayName });
     await callService.sendData(initiatorCall, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: ASIDE_TOPICS.pull });
     // Everyone left behind: a private word is private from the others, not invisible to them -- this is what lets
     // their tiles turn into "in an aside" placeholders right away instead of just looking like they hung up until
@@ -2420,7 +2513,7 @@ app.get('/api/status', requireStream, async (req, res) => {
     users: store.users.map((u) => ({ ...publicUser(req, u), online: withoutCall(byKey.get(u.key)) })),
     spaces: store.spaces,
     activeSpace: activeSpaceId(byKey),
-    adminOnline: hasOnlineOwner(byKey),
+    ownerOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
   }, { signedIn: currentUser(req), environmentName: store.settings.environmentName }));
 });
@@ -2658,7 +2751,9 @@ app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
   if (!bundled) return res.status(404).json({ error: 'that module does not ship with this deployment' });
   if (refuseModuleNotInPlan(res, id, bundled.name)) return;
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
-  res.status(201).json({ module: await modules.install(zip, { source: 'bundled' }) });
+  const installed = await modules.install(zip, { source: 'bundled' });
+  carryReplacedGrants(currentEnvironment());
+  res.status(201).json({ module: installed });
 });
 // Uploading a module's own zip, and choosing to run one in the page rather than sandboxed, are the host's own
 // trust decision (plan-tenants.md, "Phase 2": what Manage hides from an owner) -- a hosted environment's owner
@@ -2677,6 +2772,7 @@ app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res
     modules.uninstall(installed.id, { keepData: false });
     return res.status(403).json({ error: `This environment's plan does not include ${installed.name}.` });
   }
+  carryReplacedGrants(currentEnvironment());
   res.status(201).json({ module: installed });
 });
 app.patch('/api/modules/:id', requireOwner, (req, res) => {

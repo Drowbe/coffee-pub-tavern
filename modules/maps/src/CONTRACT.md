@@ -2,7 +2,7 @@
 
 **Audience:** whoever writes `maps.js` (the modules side) and whoever styles it (`maps.html`, `maps.css`, the map style; the interface side). This is the agreement between them, in the same form as the Travel module's.
 
-**What Maps is.** A map of every place the room has: a view with **no data of its own**. It draws every card in the room that carries a `place` (the Places module's places, and any other module's items that have one), grouped by the module they come from. Saving a new place from the map hands it to the Places module through the `addPlace` action; if nothing provides that action, the add tools are hidden and the sheet says "Install Places to save places".
+**What Maps is.** A map of every place the space has: a view with **no data of its own**. It draws every card in the space that carries a `place` (the Places module's places, and any other module's items that have one), grouped by the module they come from. Saving a new place from the map hands it to the Places module through the `addPlace` action; if nothing provides that action, the add tools are hidden and the sheet says "Install Places to save places".
 
 **Canonical markup.** The elements a script clones are the `<template>` elements in `maps.html` (`tpl-pin`, `tpl-pin-cluster`, `tpl-callout`, `tpl-result` and the `tpl-state-*` blocks). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `host.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win; tell the interface side. `design/map.html` is the reference rendering: open it in a browser to see every state, dark and light, at phone, pane and wide sizes. The map itself is a drawn stand-in there; the real one is MapLibre.
 
@@ -90,7 +90,7 @@ No sprite or icon font is needed. Labels use one Latin glyph set at first (see t
 
 ## Where a place comes from
 
-- **Every card in the room with a `place`** (`{ lat, lng, name? }`), through the cards conduit. Places produces them (a place with a position); Travel, the Calendar and others may too. Maps names no module: it draws the module's icon from the card and groups the list "From <module>".
+- **Every card in the space with a `place`** (`{ lat, lng, name? }`), through the cards conduit. Places produces them (a place with a position); Travel, the Calendar and others may too. Maps names no module: it draws the module's icon from the card and groups the list "From <module>".
 - **A new place** is created by the module that provides `addPlace` (Places today), never stored by Maps. If nothing provides it, Maps is view-only.
 - **Giving another module's item a place** stays with that module.
 
@@ -101,7 +101,7 @@ Maps becomes a view of places and a gesture to choose a point. What stays: the p
 - **Saving** is Places' dialog: after a click on the map the map asks Places to add a place at that point (the `addPlace` action with the position) and Places opens its own dialog. The map's `#editor` goes away, with `f-title`, `f-notes` and `#f-where`; the draft pin stays until Places has saved or the person cancels.
 - **No list panel.** Maps requires Places, so Places is the list (decided by the author). `#panel`, its rows, groups and the phone sheet go away; the map shows pins, and an item from another module opens in its own module. Selecting a pin shows its callout on the map.
 - **A pin from mine** (the person scope) has `data-scope="person"`, which draws the small person mark on it.
-- **Views** (mine, this room, everyone): Maps draws whichever view Places has selected, and a pin from mine wears a small person mark so it is not mistaken for a shared one.
+- **Views** (mine, this space, everyone): Maps draws whichever view Places has selected, and a pin from mine wears a small person mark so it is not mistaken for a shared one.
 
 ## Not decided yet
 

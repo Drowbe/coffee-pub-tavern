@@ -20,7 +20,7 @@
     $('msg').textContent = 'Research could not start: ' + err.message;
     return;
   }
-  const inRoom = info.context.scope === 'room';
+  const inSpace = info.context.scope === 'space';
   const geo = host.util.geo;
   /*__LIB__*/
 
@@ -29,14 +29,14 @@
   const removeAnyPhoto = host.can('remove_photos'); // a space's photos other people added (owners always can)
   const me = (info.user && info.user.key) || '';
 
-  // Two stores of the same kind of thing: this room's, and the person's own (private, the same in every room).
-  const stores = { room: createResearch(host, { scope: 'room' }), my: createResearch(host, { scope: 'person' }) };
+  // Two stores of the same kind of thing: this space's, and the person's own (private, the same in every space).
+  const stores = { space: createResearch(host, { scope: 'space' }), my: createResearch(host, { scope: 'person' }) };
   const loadedStores = new Set();
   const ensureLoaded = (v) => { if (loadedStores.has(v)) return Promise.resolve(); loadedStores.add(v); return stores[v].load().catch((err) => { loadedStores.delete(v); throw err; }); };
-  let view = inRoom ? 'room' : 'my';
+  let view = inSpace ? 'space' : 'my';
   const research = new Proxy({}, { get: (_, key) => stores[view][key] });
-  const scopeOf = () => (view === 'my' ? 'person' : 'room');
-  const allowed = { my: personal, room: inRoom };
+  const scopeOf = () => (view === 'my' ? 'person' : 'space');
+  const allowed = { my: personal, space: inSpace };
 
   let tagsButton = null; // the toolbar's Tags chooser, made at start (render sets its label)
   const state = {
@@ -100,12 +100,12 @@
 
   const dayText = (d) => { const t = new Date(`${d}T12:00:00`); return Number.isNaN(t.getTime()) ? d : t.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
   // What to call an item an answer came from: its title when it is one of ours, otherwise what kind of thing it is.
-  const sourceLabel = (r) => (r.module === info.module.id && stores.room.get(r.id) ? stores.room.get(r.id).title : r.module === info.module.id && stores.my.get(r.id) ? stores.my.get(r.id).title : r.label || r.kind);
+  const sourceLabel = (r) => (r.module === info.module.id && stores.space.get(r.id) ? stores.space.get(r.id).title : r.module === info.module.id && stores.my.get(r.id) ? stores.my.get(r.id).title : r.label || r.kind);
   // A source of an answer as a pill; `gone` when it is one of ours that is no longer there.
   const sourcePill = (r) => {
     const el = clone('tpl-source');
     fill(el, { label: sourceLabel(r) });
-    el.classList.toggle('gone', r.module === info.module.id && !stores.room.get(r.id) && !stores.my.get(r.id));
+    el.classList.toggle('gone', r.module === info.module.id && !stores.space.get(r.id) && !stores.my.get(r.id));
     return el;
   };
   const placeText = (p) => (p ? p.name || geo.coordsText(p.lat, p.lng) : '');
@@ -137,7 +137,7 @@
     return state.thumbs.get(key);
   };
 
-  // What other modules point at each item (room view only: a person's own items are never linked): asked once per item, cleared by the
+  // What other modules point at each item (space view only: a person's own items are never linked): asked once per item, cleared by the
   // 'links' event. Shown as one pill per kind of linker: "Task: book the hotel", or "2 plans".
   const links = new Map(); // item id -> cards of what points at it
   const linkTarget = new WeakMap(); // a pill -> the pointer to open
@@ -305,15 +305,15 @@
     const items = [
       { id: 'edit', label: canEdit ? 'Edit' : 'View', icon: 'pen', onClick: () => openEditor(id) },
     ];
-    if (canEdit && personal && inRoom && it.kind !== 'photo') {
+    if (canEdit && personal && inSpace && it.kind !== 'photo') {
       items.push({
         id: 'copy-to',
         label: view === 'my' ? 'Copy to This space' : 'Copy to Mine',
         icon: 'share-nodes',
         onClick: async () => {
-          const target = view === 'my' ? stores.room : stores.my;
+          const target = view === 'my' ? stores.space : stores.my;
           try {
-            await ensureLoaded(view === 'my' ? 'room' : 'my');
+            await ensureLoaded(view === 'my' ? 'space' : 'my');
             await target.save({ ...it, id: '', by: me, at: new Date().toISOString(), ai: it.ai ? { ...it.ai, sources: [] } : null });
             say(view === 'my' ? 'Copied to this space.' : 'Copied to Mine.', 2500);
           } catch (err) { say('It could not be copied: ' + message(err)); }
@@ -684,12 +684,12 @@
       },
     });
   }
-  if (inRoom) stores.room.provide(me); // other modules' requests to save a note or a link go to the space's research
+  if (inSpace) stores.space.provide(me); // other modules' requests to save a note or a link go to the space's research
   if (host.refs && host.refs.onOpen) {
     host.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || !KINDS.includes(ref.kind)) return;
       const show = async () => {
-        const want = ref.scope === 'person' ? 'my' : 'room';
+        const want = ref.scope === 'person' ? 'my' : 'space';
         if (want !== view && allowed[want]) await showView(want);
         openEditor(ref.id);
       };
@@ -701,7 +701,7 @@
 
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'room', label: 'This space', icon: 'users' },
+    { id: 'space', label: 'This space', icon: 'users' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   // How the items are laid out: cards packed like masonry, or a list. Remembered per person.
@@ -718,7 +718,7 @@
   });
   tagsButton = host.ui.toolbarButton({ id: 'tags', label: 'Tags', icon: 'tag', onClick: openTagMenu });
   async function showView(next) {
-    if (!allowed[next]) next = inRoom ? 'room' : 'my';
+    if (!allowed[next]) next = inSpace ? 'space' : 'my';
     view = next;
     try { localStorage.setItem('research-view', view); } catch (err) { /* not remembered */ }
     viewSwitch?.set(view);

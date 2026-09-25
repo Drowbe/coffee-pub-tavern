@@ -19,9 +19,9 @@
     $('msg').textContent = 'Places could not start: ' + err.message;
     return;
   }
-  // In a room (a pane) or on the module's own page: a space has its own list; the page has only mine and everyone's.
-  const inRoom = info.context.scope === 'room';
-  if (!inRoom && info.context.scope !== 'server') {
+  // On a space's canvas or on the module's own page: a space has its own list; the page has only mine and everyone's.
+  const inSpace = info.context.scope === 'space';
+  if (!inSpace && info.context.scope !== 'environment') {
     $('msg').textContent = 'Places could not open here.';
     return;
   }
@@ -36,12 +36,12 @@
   const CAT_LABEL = { do: 'Things to do', eat: 'Food', stay: 'Stay', travel: 'Travel', other: 'Other' };
   const CAT_ICON = { do: 'ticket', eat: 'utensils', stay: 'bed', travel: 'plane', other: 'note-sticky' };
 
-  // Two stores of the same kind of thing: this room's, and the person's own (private, in their profile, the same in every room).
+  // Two stores of the same kind of thing: this space's, and the person's own (private, in their profile, the same in every space).
   // `places` is whichever the person is looking at.
-  const stores = { room: createPlaces(host, { scope: 'room' }), my: createPlaces(host, { scope: 'person' }), global: createPlaces(host, { scope: 'server' }) };
+  const stores = { space: createPlaces(host, { scope: 'space' }), my: createPlaces(host, { scope: 'person' }), global: createPlaces(host, { scope: 'environment' }) };
   const loadedStores = new Set();
   const ensureLoaded = (v) => { if (loadedStores.has(v)) return Promise.resolve(); loadedStores.add(v); return stores[v].load().catch((err) => { loadedStores.delete(v); throw err; }); };
-  let view = inRoom ? 'room' : 'my';
+  let view = inSpace ? 'space' : 'my';
   const places = new Proxy({}, { get: (_, key) => stores[view][key] });
   // A module that can show a place on a map, if one is installed: found by what it offers, never by name.
   let showAction = null;
@@ -98,7 +98,7 @@
   }
   const setIcon = (node, name) => { if (node) { node.dataset.icon = name || ''; delete node.dataset.shown; node.textContent = ''; } };
   const say = (text) => { const n = $('note'); n.textContent = text || ''; n.hidden = !text; };
-  const placeRef = (id) => host.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : undefined);
+  const placeRef = (id) => host.refs.make('place', id, view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'environment' } : undefined);
 
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window.
   const fit = () => {
@@ -226,7 +226,7 @@
   function openMenu(id, button) {
     const p = places.get(id);
     if (!p) return;
-    const canShare = canEdit && personal && inRoom && (view === 'my' || view === 'room'); // copy between mine and this room: the original stays where it is
+    const canShare = canEdit && personal && inSpace && (view === 'my' || view === 'space'); // copy between mine and this space: the original stays where it is
     const items = [
       { id: 'edit', label: canEdit ? 'Edit' : 'View', icon: 'pen', onClick: () => openEditor(id) },
     ];
@@ -236,7 +236,7 @@
         label: view === 'my' ? 'Share to this space' : 'Save to mine',
         icon: 'share-nodes',
         onClick: async () => {
-          const target = view === 'my' ? stores.room : stores.my;
+          const target = view === 'my' ? stores.space : stores.my;
           try {
             await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: [info.user.key] });
             say(view === 'my' ? 'Shared to this space.' : 'Saved to your places.');
@@ -464,7 +464,7 @@
       const row = target.closest && target.closest('.place-row');
       if (!row || !row.dataset.id || target.closest('.item-menu, button, a')) return null;
       const p = places.get(row.dataset.id);
-      return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'server' } : {}) } : null;
+      return p ? { kind: 'place', id: p.id, label: p.title, ...(view === 'my' ? { scope: 'person' } : view === 'global' ? { scope: 'environment' } : {}) } : null;
     });
   }
   // Something from another module dropped here: what can be done with it is the shared decision (host.refs.dropMenu).
@@ -626,7 +626,7 @@
     });
   }
 
-  if (inRoom) stores.room.provide(info.user.key); // other modules' requests to add a place go to the space's list
+  if (inSpace) stores.space.provide(info.user.key); // other modules' requests to add a place go to the space's list
   if (host.refs && host.refs.onOpen) {
     host.refs.onOpen((ref) => {
       if (ref.module !== info.module.id || ref.kind !== 'place') return;
@@ -637,17 +637,17 @@
 
   // --- start --------------------------------------------------------------------------------------------------------
 
-  // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (a server-wide store).
-  const VIEW_NOTES = { my: 'Only you see these. They follow you into every space.', global: 'Everyone on this server sees these, and anyone who can edit can change them.' };
-  const allowed = { my: personal, room: inRoom, global: personal };
+  // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (an environment-wide store).
+  const VIEW_NOTES = { my: 'Only you see these. They follow you into every space.', global: 'Everyone in this environment sees these, and anyone who can edit can change them.' };
+  const allowed = { my: personal, space: inSpace, global: personal };
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'room', label: 'This space', icon: 'users' },
+    { id: 'space', label: 'This space', icon: 'users' },
     { id: 'global', label: 'Everyone', icon: 'globe' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   function showView(next) {
-    if (!allowed[next]) next = inRoom ? 'room' : 'my';
+    if (!allowed[next]) next = inSpace ? 'space' : 'my';
     view = next;
     try { localStorage.setItem('places-view', view); } catch (err) { /* not remembered */ }
     viewSwitch?.set(view);
@@ -662,8 +662,8 @@
     render();
     ensureLoaded(view).then(() => { if (view === next) { render(); loadLinks().catch(() => {}); } }).catch((err) => say('These places could not load: ' + err.message));
   }
-  try { const last = localStorage.getItem('places-view'); if (allowed[last] && (last !== 'room' || inRoom)) view = last; } catch (err) { /* the default */ }
-  if (view !== 'room' || !inRoom) {
+  try { const last = localStorage.getItem('places-view'); if (allowed[last] && (last !== 'space' || inSpace)) view = last; } catch (err) { /* the default */ }
+  if (view !== 'space' || !inSpace) {
     viewSwitch?.set(view);
     fill(root.querySelector('[data-slot="view-note"]'), { text: VIEW_NOTES[view] || '' });
     hide(root.querySelector('[data-slot="view-note"]'), !VIEW_NOTES[view]);

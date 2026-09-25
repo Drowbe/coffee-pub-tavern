@@ -81,7 +81,7 @@ let inCall = false;
 let callStarting = Promise.resolve(); // settles once the conference has finished starting
 const LOBBY = 'lobby';
 let activeSpace = LOBBY; // the space the stream currently hears (server-computed)
-let adminOnline = false; // whether that's actually backed by a real online admin right now
+let ownerOnline = false; // whether that's actually backed by an owner (or the admin) online right now
 // Server-wide call feature toggles (Manage > Settings) -- these defaults
 // hold until init() replaces them with whatever /api/branding actually says.
 let features = { maxQuality: 720, allowScreenShare: true, allowAsides: true, allowPrivate: true, allowReactions: true };
@@ -117,12 +117,12 @@ function spacePortraitUrl(key) {
 
 async function loadPresence() {
   try {
-    const { users, spaces, activeSpace: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
+    const { users, spaces, activeSpace: active, ownerOnline: hasOwner } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
     presenceUsers.clear();
     for (const u of users) presenceUsers.set(u.key, u);
     presenceSpaces = spaces || [];
     activeSpace = active || LOBBY;
-    adminOnline = Boolean(hasAdmin);
+    ownerOnline = Boolean(hasOwner);
     for (const [key, tile] of tiles) {
       const colour = presenceUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
@@ -427,13 +427,13 @@ function renderMembers(list, members, spaceId) {
     const elsewhere = u.online && !here ? presenceSpaces.find((r) => r.id === u.space) : null;
     el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${spaceDisplayName(elsewhere)}` : u.displayName;
     // Off stream: this member is online but not in the space the stream
-    // currently hears (wherever the admin/GM actually is); "aside" is the
+    // currently hears (wherever the owner actually is); "aside" is the
     // more specific case of a pulled-aside private word, which implies off
-    // stream too. Only meaningful when an admin is actually online -- with
+    // stream too. Only meaningful when an owner is actually online -- with
     // none, activeSpace is just the Lobby fallback, not a real "here's where
     // the stream is" signal, so nobody should read as off stream against it.
     const inAside = u.online && presenceSpaces.find((r) => r.id === u.space)?.ephemeral;
-    const offStream = u.online && adminOnline && u.space !== activeSpace;
+    const offStream = u.online && ownerOnline && u.space !== activeSpace;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
       if (!badge) {
@@ -724,10 +724,10 @@ function tileFor(participant) {
       aside.addEventListener('click', (e) => { e.stopPropagation(); toggleAsideSelection(participant.identity, aside); });
       tile.appendChild(aside);
     }
-    // Mute/Kick for admins, or for a member granted them in this space --
-    // never against an admin (the server refuses that anyway).
-    const targetIsAdmin = presenceUsers.get(participant.identity)?.isAdmin;
-    if (hasOwnerRights(me) || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
+    // Mute/Kick for owners, or for a member granted them in this space --
+    // never against an owner (the server refuses that anyway).
+    const targetIsOwner = presenceUsers.get(participant.identity)?.isOwner;
+    if (hasOwnerRights(me) || (!targetIsOwner && (canDo('canMute') || canDo('canKick')))) {
       const tools = adminToolsFor(participant);
       tools.addEventListener('pointerenter', () => (tile.draggable = false));
       tools.addEventListener('pointerleave', () => (tile.draggable = true));
@@ -1863,11 +1863,11 @@ call
       if (topic === 'reaction' && participant && data.type === 'reaction') showReaction(participant.identity, data.id);
       else if (topic === 'away' && participant && data.type === 'away') updateAwayOverlay(participant.identity, !!data.on, data.message);
       // A server push (no sending participant): someone pulled me aside.
-      // An admin's word is final -- just go. A peer's "Privately" needs
+      // An owner's word is final -- just go. A peer's "Privately" needs
       // this end to actually agree to it first. Deferred a tick so this
       // event's own dispatch finishes first.
       else if (topic === 'aside-pull' && data.type === 'aside-pull' && data.spaceId) {
-        if (data.byAdmin) {
+        if (data.byOwner) {
           setTimeout(() => reconnectTo(data.spaceId, 'pulled aside...'), 0);
         } else {
           setTimeout(() => {

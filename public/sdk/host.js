@@ -25,8 +25,8 @@
   function cleanRef(ref) {
     const ok = ref && typeof ref.module === 'string' && typeof ref.kind === 'string' && typeof ref.id === 'string'
       && /^[a-z][a-z0-9-]{1,31}$/.test(ref.module) && /^[a-z][a-z0-9-]{0,23}$/.test(ref.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(ref.id)
-      && (ref.scope === 'server' || ref.scope === 'person' || (ref.scope === 'room' && typeof ref.room === 'string' && ref.room.length <= 64));
-    return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } : null;
+      && (ref.scope === 'environment' || ref.scope === 'person' || (ref.scope === 'space' && typeof ref.space === 'string' && ref.space.length <= 64));
+    return ok ? { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'space' ? { space: ref.space } : {}) } : null;
   }
 
   // What a drag carries, as one shape: { ref, card }. Takes what dropTarget hands a module, or a bare pointer.
@@ -121,7 +121,7 @@
   // fenced ``` code blocks, unordered (-, *) and ordered (1.) lists, [text](url) links (http/https only; anything
   // else is left as plain text), paragraphs on a blank line, a single line break within one. Everything is escaped
   // first (via `esc`), so no HTML in the text itself ever reaches the page. This is the one place a module (or the
-  // room page, for chat) may set innerHTML from what a person or an AI wrote, because the safety happens in here;
+  // call page, for chat) may set innerHTML from what a person or an AI wrote, because the safety happens in here;
   // everywhere else, text still goes in with textContent. Used for an AI's replies and for chat messages, both text
   // nobody here wrote themselves.
   function markdown(text) {
@@ -298,9 +298,17 @@
   });
 
   // Scope: 'context' (the default) is wherever the module is showing, the whole
-  // server on its page and one room in a room panel. A room panel may also ask
-  // for 'server'.
+  // environment on its page and one space on a space's canvas. On a space's canvas a module may also ask
+  // for 'environment'; its environment page may read across the viewer's spaces with 'spaces'; 'person' is
+  // the viewer's own.
   const opts = (o) => ({ scope: (o && o.scope) || 'context' });
+  // The names modules used before Magpie's rename, refused with the word to use instead (no module is translated).
+  const OLD_WORDS = { server: 'scope "environment"', room: '{ space }', rooms: 'scope "spaces"' };
+  function refuseOld(o, what) {
+    if (!o) return;
+    const old = o.room !== undefined ? 'room' : OLD_WORDS[o.scope] ? o.scope : null;
+    if (old) throw Object.assign(new Error(`${what}: "${old}" is an old name; use ${OLD_WORDS[old]}`), { status: 400 });
+  }
 
   // The shared interface's styles, added once to wherever the module's elements live, in the theme's colours.
   let uiStyles = false;
@@ -436,9 +444,10 @@
   }
 
   const host = {
-    // Resolves with { user, context, permissions, theme, module }.
+    // Resolves with { user, context, permissions, theme, module }. `context` is { scope: 'environment' | 'space' | 'keyed',
+    // spaceId }: the module's own page, a space's canvas (with that space's id), or a keyed page.
     ready: () => readyPromise,
-    // { language, clock: '12' | '24', currency }: the server's settings for how these are shown. See host.util.time,
+    // { language, clock: '12' | '24', currency }: the environment's settings for how these are shown. See host.util.time,
     // host.util.hour12 and host.util.money, which apply them.
     locale,
 
@@ -460,7 +469,7 @@
       // A new id for something a module stores: short, and unlikely to repeat.
       id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       // A pointer's identity as one string, for keeping and comparing them.
-      refKey: (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|'),
+      refKey: (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|'),
       // A time of day ("22:30", as modules store one) the way the server shows times: "10:30 PM" on a 12-hour clock
       // (the default, see host.locale()), "22:30" on a 24-hour one. Anything that is not HH:MM comes back as it is.
       time: (hhmm) => {
@@ -776,11 +785,11 @@
       list: (prefix, o) => call('storage.list', { prefix: prefix || '', ...opts(o) }),
     },
 
-    // The rooms the viewer belongs to that have this module on, on a module's server page:
-    // [{ id, name, icon, svg }] (`svg` is the room's icon as inline SVG, since a module cannot
-    // load the icon font). Read stored data across them with storage.list(prefix, { scope: 'rooms' }),
-    // which returns each item with its `roomId`; 'change' events for those rooms carry `roomId` too.
-    rooms: () => call('rooms'),
+    // The spaces the viewer belongs to that have this module on, on a module's environment page:
+    // [{ id, name, icon, svg }] (`svg` is the space's icon as inline SVG, since a module cannot
+    // load the icon font). Read stored data across them with storage.list(prefix, { scope: 'spaces' }),
+    // which returns each item with its `spaceId`; 'change' events for those spaces carry `spaceId` too.
+    spaces: () => call('spaces'),
 
     // Files an admin placed for this module (a `file` setting names one). `url(name)` is the address to read it from,
     // range requests included, for a module running in the page (a frame cannot fetch).
@@ -817,8 +826,8 @@
     },
 
     // The module's settings, as chosen for this viewer here: { key: value }, with the module's own default for what
-    // nobody has chosen. Declared in module.json (`settings`); the host draws the forms (an admin's for the server, a
-    // room's moderators' for a room, each person's own) and keeps the values. `onChange(fn)` calls fn(values) when any of
+    // nobody has chosen. Declared in module.json (`settings`); the host draws the forms (an owner's for the environment, a
+    // space's moderators' for a space, each person's own) and keeps the values. `onChange(fn)` calls fn(values) when any of
     // them changes.
     settings: {
       get: () => call('settings.get'),
@@ -832,13 +841,14 @@
       used: (key) => call('geocode.used', { key }),
     },
 
-    // The people of the room this panel is in: [{ key, name }] (empty outside a room panel). For choosing a person
+    // The people of the space this module is in: [{ key, name }] (empty outside a space's canvas). For choosing a person
     // ("whose is it"): store their `key`, never the name.
     people: () => call('people'),
 
     // Who is online right now, everyone, for a page that follows people (a keyed page about one of them):
-    // { people: [{ key, name, online, room, inCall, isAdmin }], rooms: [{ id, name, ephemeral, origin, private }],
-    //   activeRoom, adminOnline, reactions: [{ id, glyph }] }.
+    // { people: [{ key, name, online, space, inCall, isOwner }], spaces: [{ id, name }],
+    //   asides: [{ id, origin, private }], activeSpace, ownerOnline, reactions: [{ id, glyph }] }.
+    // A person's `space` is an aside's id while they are in one; `origin` is the space it came out of.
     // `onChange(fn)` asks every 5 seconds (`{ every }` in ms to change that) and calls fn(presence) when anything
     // differs, once at the start; it returns a function that stops asking.
     presence: {
@@ -867,23 +877,23 @@
 
     // One person's picture in a slot, as a blob URL to show (null when they have none there), and release it when
     // done. Slots are the profile's: profile, background, player, playerOffline, playerTalking, playerMuted, playerAside,
-    // playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate. `{ room }` asks for
-    // that room's own picture set first, the way the call page shows them.
+    // playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate. `{ space }` asks for
+    // that space's own picture set first, the way the call page shows them.
     // The profile slot always answers (an initials plate when no photo is set); `{ fallback: 'none' }` asks for the real
     // photo only, null otherwise, for a page that wants it only as a last resort behind the Participant pictures.
     images: {
-      get: (key, slot, o) => call('images.get', { key, slot, room: o && o.room, fallback: o && o.fallback }),
+      get: (key, slot, o) => { try { refuseOld(o, 'host.images.get'); } catch (err) { return Promise.reject(err); } return call('images.get', { key, slot, space: o && o.space, fallback: o && o.fallback }); },
       release: (url) => call('images.release', { url }),
     },
 
-    // Watch one person's camera and microphone, read-only, following them from room to room (a module that runs
-    // in the page only). `watch(key, { video, audio, room }, handlers)` connects as a viewer and calls
+    // Watch one person's camera and microphone, read-only, following them from space to space (a module that runs
+    // in the page only). `watch(key, { video, audio, space }, handlers)` connects as a viewer and calls
     // handlers.state({ online, cameraOn, micOn, speaking, name }), handlers.video(element or null) and
     // handlers.audio(element or null) with elements to place, handlers.reaction(id) as they react, and
-    // handlers.connection({ connected, room }). It resolves to { follow(roomId), stop() }. With `video: false` and
+    // handlers.connection({ connected, space }). It resolves to { follow(spaceId), stop() }. With `video: false` and
     // `audio: false` only the state is followed.
     media: {
-      watch: (key, o, handlers) => call('media.watch', { key, video: !(o && o.video === false), audio: Boolean(o && o.audio), room: (o && o.room) || 'lobby', handlers: handlers || {} }),
+      watch: (key, o, handlers) => (o && o.room !== undefined ? Promise.reject(Object.assign(new Error('host.media.watch: "room" is an old name; use { space }'), { status: 400 })) : call('media.watch', { key, video: !(o && o.video === false), audio: Boolean(o && o.audio), space: (o && o.space) || 'lobby', handlers: handlers || {} })),
     },
 
     // The server's access key, the one a keyed page's link carries (`/<path>/<key>?s=<access key>`): null unless the
@@ -895,7 +905,7 @@
 
     // Refs: pointing at another module's items without reaching into its data. A module lists what
     // it shares (produces) and what it wants to link to (consumes) in module.json; an admin approves
-    // the latter. A pointer is { module, kind, id, scope: 'room' | 'server', room? }: store it, never
+    // the latter. A pointer is { module, kind, id, scope: 'space' | 'environment' | 'person', space? }: store it, never
     // a copy of the item. resolve() asks the host for the item's card (title, subtitle, when, end,
     // allDay, done, module) or an { error, status } when it is gone or the viewer may not see it, so
     // a pointer is only ever as revealing as the viewer's own access.
@@ -910,13 +920,14 @@
     refs: {
       // A pointer to one of this module's own items, for a drag or to store.
       make: (kind, id, o) => {
+        refuseOld(o, 'host.refs.make');
         const ctx = (info && info.context) || {};
-        // { room } names another room's item (a module's server page showing the rooms it belongs to).
-        const otherRoom = o && o.room;
+        // { space } names another space's item (a module's environment page showing the spaces it belongs to).
+        const otherSpace = o && o.space;
         const personal = o && o.scope === 'person';
-        const server = !personal && !otherRoom && ((o && o.scope === 'server') || ctx.scope !== 'room');
-        const ref = { module: info && info.module && info.module.id, kind, id: String(id), scope: personal ? 'person' : server ? 'server' : 'room' };
-        if (!server && !personal) ref.room = otherRoom || ctx.roomId;
+        const environment = !personal && !otherSpace && ((o && o.scope === 'environment') || ctx.scope !== 'space');
+        const ref = { module: info && info.module && info.module.id, kind, id: String(id), scope: personal ? 'person' : environment ? 'environment' : 'space' };
+        if (!environment && !personal) ref.space = otherSpace || ctx.spaceId;
         return ref;
       },
       // One pointer, or a list, to cards. A list keeps its order.
@@ -957,7 +968,7 @@
       linksTo: (ref) => call('refs.links', { ref, dir: 'to' }),
       linksFrom: (ref) => call('refs.links', { ref, dir: 'from' }),
       // Items this module may link to (kinds it consumes), matching the text, in this place
-      // or (from a room) { scope: 'server' }. Each is a card with its pointer in card.ref.
+      // or (from a space) { scope: 'environment' }. Each is a card with its pointer in card.ref.
       search: (text, o) => call('refs.search', { q: text || '', ...opts(o) }),
       // Start a drag carrying a pointer to one of this module's items: call it from a dragstart handler.
       drag: (event, kind, id, o) => {
@@ -1338,11 +1349,11 @@
     schedule: (spec) => call('schedule', spec),
     cancelSchedule: (key, o) => call('cancelSchedule', { key, ...opts(o) }),
 
-    // { to: 'room' | 'server' | a user key, title, body }. Needs the "notify" hook.
+    // { to: 'space' | 'environment' | a person's key, title, body }. Needs the "notify" hook.
     notify: (spec) => call('notify', spec),
 
     // The module's action bar: buttons the host draws along the bottom of the
-    // module (in the room's bottom row when docked, lined up with the video
+    // module (in the space's bottom row when docked, lined up with the video
     // toolbar and the chat box). set([{ id, label, icon, primary, disabled, overflow }]);
     // a click arrives as the 'bar' event with the button's id. More than 5 items (or any
     // item marked `overflow: true`) collapse into a host-drawn "..." at the end.
@@ -1369,7 +1380,7 @@
     // actions (those are the titlebar) and not the module's primary inputs (those are the action bar).
     // It is not a second row of titlebar icons: use 'button' sparingly, for the one action that goes with
     // the toolbar's own state, not a place to relocate the titlebar's row. 'tabs' can carry an icon per
-    // option when the icon itself is meaningful (Places' Mine/This room/Everyone, say) -- that is different
+    // option when the icon itself is meaningful (Places' Mine/This space/Everyone, say) -- that is different
     // from a button row standing in for a titlebar. set([item, ...]) where item is one of:
     //   { type: 'text', text }                                             -- plain dim label
     //   { type: 'tabs', id, value, options: [{ id, label?, icon?, regular?, iconOnly? }] } -- a segmented
@@ -1438,7 +1449,7 @@
 
     // Events: 'bar' ({ id }) when an action bar button is clicked, 'header' ({ id }) for a titlebar icon,
     // 'toolbar' ({ id, value? }) for a toolbar item, 'nav' ({ id }) for one of the module's nav-bar tools,
-    // 'change' ({ key, value, version, deleted, scope, by })
+    // 'change' ({ key, value, version, deleted, scope, spaceId, by })
     // whenever stored data changes, 'schedule' ({ key, payload }) when a schedule fires, 'theme' (the new theme).
     on(event, fn) {
       if (!listeners.has(event)) listeners.set(event, new Set());
@@ -1507,7 +1518,7 @@
     global.createHost = createHost;
   }
 
-  // `esc` and `markdown` need no per-module env, so the room page (which loads this file directly for the modules
+  // `esc` and `markdown` need no per-module env, so the call page (which loads this file directly for the modules
   // it hosts in the page, not as a module itself) can use the very same rendering Chat and every module share,
   // rather than a second copy. See host.util.markdown above for what this covers.
   global.hostText = { esc, markdown };

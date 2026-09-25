@@ -1,13 +1,13 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.10",
+  "version": "1.12.11",
   "icon": "square-poll-vertical",
-  "description": "Quick polls and votes for the whole server and for each room, with live results.",
+  "description": "Quick polls and votes for the whole environment and for each space, with live results.",
   "author": "Coffee Pub",
   "scope": [
-    "server",
-    "room"
+    "environment",
+    "space"
   ],
   "surfaces": {
     "page": {
@@ -34,7 +34,7 @@
       "key": "view",
       "label": "See polls and their results",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -43,7 +43,7 @@
       "key": "vote",
       "label": "Vote in polls",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }
@@ -52,7 +52,7 @@
       "key": "create",
       "label": "Start, close and delete polls",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }
@@ -72,15 +72,15 @@
       "key": "addableByDefault",
       "label": "Let people suggest options by default",
       "type": "boolean",
-      "scope": "room",
+      "scope": "space",
       "default": false,
-      "help": "New polls in this room start with \"let people add options\" ticked."
+      "help": "New polls in this space start with \"let people add options\" ticked."
     },
     {
       "key": "closeAfterDays",
       "label": "Close new polls after this many days",
       "type": "number",
-      "scope": "server",
+      "scope": "environment",
       "default": 0,
       "min": 0,
       "max": 60,

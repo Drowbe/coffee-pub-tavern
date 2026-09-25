@@ -36,7 +36,7 @@ function fakeHost() {
     },
     on: () => () => {},
     util: { id: () => `id${(n += 1)}` },
-    refs: { make: (kind, id) => ({ module: 'research', kind, id, scope: 'room', room: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
+    refs: { make: (kind, id) => ({ module: 'research', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
     uploads: { remove: async (id) => { removedFiles.push(id); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
@@ -104,7 +104,7 @@ await test('filtering: words, a kind, and all the chosen tags', () => {
 
 await test('the store: save, edit with versions, remove (and the picture), and what others ask', async () => {
   const f = fakeHost();
-  const r = lib.createResearch(f.host, { scope: 'room' });
+  const r = lib.createResearch(f.host, { scope: 'space' });
   f.host.on = (ev, fn) => fn; // events are not needed here
   const note = await r.save({ kind: 'note', title: 'Ideas', body: 'first', tags: ['a'], by: 'u1' });
   assert.ok(f.data.has(`note:${note.id}`));
@@ -117,7 +117,7 @@ await test('the store: save, edit with versions, remove (and the picture), and w
   await r.remove(photo.id);
   assert.deepEqual(f.removedFiles, [FILE]);
   assert.equal(r.list().length, 1);
-  const again = lib.createResearch(f.host, { scope: 'room' });
+  const again = lib.createResearch(f.host, { scope: 'space' });
   await again.load();
   assert.equal(again.list().length, 1);
   r.provide('u1');

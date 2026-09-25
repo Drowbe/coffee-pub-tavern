@@ -36,7 +36,7 @@ function fakeHost() {
     },
     on: () => () => {},
     util: { id: () => `id${(n += 1)}` },
-    refs: { make: (kind, id) => ({ module: 'places', kind, id, scope: 'room', room: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
+    refs: { make: (kind, id) => ({ module: 'places', kind, id, scope: 'space', space: 'r' }), setLinks: async (from, to) => { links.push([from.id, to.length]); } },
     actions: { provide: (h) => Object.assign(handlers, h) },
   };
   return { host, data, handlers, links };
@@ -90,11 +90,11 @@ await test('a place needs a name; the point is optional and checked', () => {
   assert.equal(bare.point, null);
   assert.equal(lib.cleanPlace('a', { title: 'x', point: { lat: 91, lng: 2 } }).point, null);
   assert.equal(lib.cleanPlace('a', { title: 'x', point: { lat: 'no', lng: 2 } }).point, null);
-  const p = lib.cleanPlace('a', { title: 'Pier', category: 'eat', point: { lat: 38.7075123456, lng: -9.1364 }, owners: ['u1', 'u1', 5], by: 'u1', ref: { module: 'm', kind: 'k', id: '7', scope: 'room', room: 'r' } });
+  const p = lib.cleanPlace('a', { title: 'Pier', category: 'eat', point: { lat: 38.7075123456, lng: -9.1364 }, owners: ['u1', 'u1', 5], by: 'u1', ref: { module: 'm', kind: 'k', id: '7', scope: 'space', space: 'r' } });
   assert.deepEqual(p.point, { lat: 38.707512, lng: -9.1364 });
   assert.equal(p.category, 'eat');
   assert.deepEqual(p.owners, ['u1']);
-  assert.deepEqual(p.ref, { module: 'm', kind: 'k', id: '7', scope: 'room', room: 'r' });
+  assert.deepEqual(p.ref, { module: 'm', kind: 'k', id: '7', scope: 'space', space: 'r' });
   assert.equal(lib.cleanPlace('a', { title: 'x', ref: { module: 'm' } }).ref, null);
 });
 

@@ -1,5 +1,6 @@
-// Stream: the module's own page. Every player's links for a streaming program (each carries the server's
-// access key, so this page is for owners and whoever is given "See the stream links"), and the key itself
+// Stream: the module's own page. Every player's links for a streaming program (each carries the environment's
+// access key, so only an owner or the admin, who can see the key, sees them; anyone else given "See the Stream page"
+// reads a sentence saying so), and the key itself
 // with show, copy and regenerate. The views themselves are the keyed page (stream-keyed.js). The SDK
 // (window.host) is injected by the host.
 (async () => {
@@ -69,7 +70,7 @@
     const list = $('people');
     list.replaceChildren();
     if (!accessKey) {
-      $('links-note').textContent = 'Only an owner sees the links, since each one carries the access key.';
+      $('links-note').textContent = 'Only an owner or the admin sees the links, since each one carries the access key.';
       $('links-note').hidden = false;
       return;
     }

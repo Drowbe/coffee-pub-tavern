@@ -1,5 +1,5 @@
 // The Maps module's page: a map of every place the space has, from the admin's map file. Maps keeps no data of its own: it draws
-// every card in the room that carries a `place` (through the cards conduit), each with its own module's icon and grouped by
+// every card in the space that carries a `place` (through the cards conduit), each with its own module's icon and grouped by
 // module, and it saves a new place by asking whichever module provides the `addPlace` action. This page draws into the markup
 // in maps.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state classes
 // and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (the map library positions the
@@ -19,8 +19,8 @@
     $('msg').textContent = 'Maps could not start: ' + err.message;
     return;
   }
-  if (info.context.scope !== 'room') {
-    $('msg').textContent = 'A map belongs to a space. Open the space, then Maps from its panes.';
+  if (info.context.scope !== 'space') {
+    $('msg').textContent = 'A map belongs to a space. Open the space, then Maps from its modules.';
     return;
   }
 
@@ -37,7 +37,7 @@
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
 
   const state = {
-    items: [], // the cards in this room that carry a place
+    items: [], // the cards in this space that carry a place
     settings: { maps: [], web: false }, // the map files to draw (names on this server, or one https address when `web`)
     candidates: [], // search results drawn as pins to pick from
     searcher: null, // the action that searches for a place, if some module provides one
@@ -96,9 +96,9 @@
   async function loadItems() {
     if (!host.refs || !host.refs.search) return;
     try {
-      // This room's, the person's own (private to them) and everyone's on this server (a guest has neither of the last, so those answer with nothing).
-      const [room, mine, everyone] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => []), host.refs.search('', { scope: 'server' }).catch(() => [])]);
-      const found = [...room, ...mine, ...everyone];
+      // This space's, the person's own (private to them) and everyone's in this environment (a guest has neither of the last, so those answer with nothing).
+      const [here, mine, everyone] = await Promise.all([host.refs.search(''), host.refs.search('', { scope: 'person' }).catch(() => []), host.refs.search('', { scope: 'environment' }).catch(() => [])]);
+      const found = [...here, ...mine, ...everyone];
       state.items = found.filter((c) => c && c.ref && c.place && geo.inRange(Number(c.place.lat), Number(c.place.lng)) && c.title);
     } catch (err) {
       state.items = [];

@@ -12,6 +12,12 @@ A module can need another: Maps needs Places. Its card says what it needs and it
 
 The Calendar, To-do, Polls, Planner, Places, Maps, Research, Assistant and Stream modules ship with the server, so there is no zip to upload. Stream (the browser sources for a streaming program, see [Magpie in OBS](userguide-obs.md)) is installed and turned on by itself the first time a server starts with it, so no stream goes dark on an update; the others wait for you. The Modules tab lists the ones you have not installed under **Available with this server**, each with an **Install** button. When you update the server and a module it carries has a newer version than the one you have installed, the module's card shows **Update available** with an **Update to** button, the Modules tab itself shows the count in a small bubble, and the settings gear in the header shows the same count as a small badge on every page (owners only), so you see it without opening Manage. The badge goes away once the updates are applied. The update keeps the module's data, keeps the old version so you can switch back, and, if it asks for anything new (a permission, a hook, a link to another module), stays off until you approve it. A module you upload yourself is updated by uploading a newer zip.
 
+## A module that needs an update
+
+Magpie renamed rooms to spaces and the server to the environment, and a module written for the old names can't run on this version. On the Modules tab its card says **Needs an update**, with the reason ("This module was built for an older Magpie and needs an update from its author." and the old name its `module.json` uses), and it offers no **Enable**. In its version list, any version in the old names is marked "(needs an update)" and can't be rolled back to. A module that needs one of these can't run either, and its card says which. Neither kind shows a **Module Configuration** link or counts under **Configurable**. In general a module runs only while everything it needs is running; it stays on in your choice, and comes back by itself when what it needs does. Nothing is deleted: when the author sends a version in the new names, install it as usual and the module comes back as it was, on or off, with its spaces and data.
+
+The modules that ship with Magpie update themselves on the first start after the upgrade, the ones others need first, keeping their on or off, their spaces and their data. If one can't be turned back on, the server's log says "It is off for now" and why. If an update asks for something new beyond a permission that is off for every role, it waits for your approval, as any update does.
+
 ## Install a module
 
 1. On the Modules tab, choose the zip file and click **Install**.
@@ -32,11 +38,11 @@ A module with a room panel is off in every room until you turn it on. Either tic
 
 ## Settings
 
-A module can offer settings. There are three kinds. **Server** settings, for everyone, are chosen by an owner on the module's own page: choose **Module Configuration** on its card on the Modules tab. A module with no server settings shows the button greyed out, with "No settings" beside it. **Room** settings, for one room, are chosen by an owner (on the **Modules** tab of the room's own page, under the module list) or by a member ticked as a moderator in that room (from the sliders-with-gears button on the room's card on the rooms page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
+A module can offer settings. There are three kinds. **Environment** settings, for everyone, are chosen by an owner on the module's own page: choose **Module Configuration** on its card on the Modules tab. A module with no environment settings shows the button greyed out, with "No settings" beside it. **Space** settings, for one space, are chosen by an owner (on the **Modules** tab of the space's own page, under the module list) or by a member ticked as a moderator in that space (from the sliders-with-gears button on the space's card on the spaces page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.
 
 ## Who can use it
 
-An enabled module adds its permissions to the **Roles** tab, in a group named for the module. Untick one to take that ability from a role. Owners can always do everything, and a member marked Moderator in a room gets the Moderator role's permissions for a room module there. A module's data is stored per server or per room, and a person only sees a room's module data if they are in that room.
+An enabled module adds its permissions to the **Roles** tab, in a group named for the module. Untick one to take that ability from a role. Owners can always do everything, and a member marked Moderator in a room gets the Moderator role's permissions for a room module there. A module's data is stored per environment or per space, and a person only sees a space's module data if they are in that space.
 
 ## Upgrade and roll back
 

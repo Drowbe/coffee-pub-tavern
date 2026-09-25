@@ -113,7 +113,7 @@ status travel over the LiveKit data channel between participants and are never s
 an ephemeral room that holds its origin space's id and is removed when empty.
 
 - `GET /api/presence` answers who is online and where (`users` with each one's `space`, `spaces`, `activeSpace`,
-  `adminOnline`, and the environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
+  `ownerOnline`, and the environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
   person, the access key or a guest's token (`?guest=`) may ask; anyone else gets 401.
 - `POST /api/asides` `{ with, private }` pulls people who are in the caller's call into a new aside and answers
   `{ aside }`. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
@@ -130,7 +130,7 @@ an ephemeral room that holds its origin space's id and is removed when empty.
   in an aside".
 
 The server tells the other people involved over the data channel, on four topics: `aside-pull`
-`{ type, spaceId, byAdmin, private, from }` to the people pulled, `aside-started` `{ type, spaceId, members }` to
+`{ type, spaceId, byOwner, private, from }` to the people pulled, `aside-started` `{ type, spaceId, members }` to
 everyone left behind, `aside-recall` `{ type, spaceId, spaceName }` and `aside-return` `{ type, spaceId }` (before step 5a they carried `roomId` and `roomName`). The old
 `/api/table...` routes answer 404 and the old topics are no longer sent.
 

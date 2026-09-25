@@ -1,5 +1,5 @@
-// The Calendar's dashboard widget: what is coming up in the next week, across every room the viewer is in and
-// the server's own calendar. It shows and opens; it never edits. The dashboard hosts it, and clicking an item
+// The Calendar's dashboard widget: what is coming up in the next week, across every space the viewer is in and
+// the environment's own calendar. It shows and opens; it never edits. The dashboard hosts it, and clicking an item
 // takes the person to that event (host.refs.open) while the widget's heading opens the full calendar.
 (async () => {
   'use strict';
@@ -25,17 +25,17 @@
 
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 5;
-  const events = new Map(); // "<place>:<id>" -> { id, roomId, ev }
-  const rooms = new Map(); // room id -> { id, name, icon, svg }
+  const events = new Map(); // "<place>:<id>" -> { id, spaceId, ev }
+  const spaces = new Map(); // space id -> { id, name, icon, svg }
 
   async function load() {
     events.clear();
-    for (const item of await host.storage.list('event:')) if (item.value) events.set('server:' + item.key, { id: item.key.slice(6), roomId: null, ev: item.value });
+    for (const item of await host.storage.list('event:')) if (item.value) events.set('environment:' + item.key, { id: item.key.slice(6), spaceId: null, ev: item.value });
     try {
-      for (const r of await host.rooms()) rooms.set(r.id, r);
-      for (const item of await host.storage.list('event:', { scope: 'rooms' })) if (item.value) events.set(`${item.roomId}:${item.key}`, { id: item.key.slice(6), roomId: item.roomId, ev: item.value });
+      for (const r of await host.spaces()) spaces.set(r.id, r);
+      for (const item of await host.storage.list('event:', { scope: 'spaces' })) if (item.value) events.set(`${item.spaceId}:${item.key}`, { id: item.key.slice(6), spaceId: item.spaceId, ev: item.value });
     } catch (err) {
-      // no rooms is fine: just the server's own events
+      // no spaces is fine: just the environment's own events
     }
   }
 
@@ -91,14 +91,14 @@
     $('list').innerHTML = [...byDay].map(([k, list]) => `
       <section class="day"><h4>${esc(k === today ? 'Today' : k === tomorrow ? 'Tomorrow' : dayHeading(parseYmd(k)))}</h4>
       ${list.map(({ x, start, end }) => {
-        const r = x.roomId ? rooms.get(x.roomId) : null;
-        return `<button type="button" class="item" data-event="${esc(x.roomId || '')}|${esc(x.id)}" title="${esc(x.ev.title)}${r ? ' - ' + esc(r.name) : ''}">
+        const r = x.spaceId ? spaces.get(x.spaceId) : null;
+        return `<button type="button" class="item" data-event="${esc(x.spaceId || '')}|${esc(x.id)}" title="${esc(x.ev.title)}${r ? ' - ' + esc(r.name) : ''}">
           <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="when">${esc(whenText(x.ev, start, end))}</span><span class="what">${esc(x.ev.title)}</span><span class="go">${goIcon}</span></button>`;
       }).join('')}</section>`).join('');
     fit();
   }
 
-  // A widget in a frame tells the dashboard how tall it is; one in the page just takes the room it needs.
+  // A widget in a frame tells the dashboard how tall it is; one in the page just takes the height it needs.
   function fit() {
     try {
       host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
@@ -117,8 +117,8 @@
     if (day) return void host.page.open('day=' + day.dataset.day).catch(() => {});
     const b = e.target.closest('[data-event]');
     if (!b) return;
-    const [room, id] = b.dataset.event.split('|');
-    host.refs.open(host.refs.make('event', id, room ? { room } : undefined)).catch(() => {});
+    const [space, id] = b.dataset.event.split('|');
+    host.refs.open(host.refs.make('event', id, space ? { space } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;

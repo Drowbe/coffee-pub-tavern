@@ -20,11 +20,11 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .day.today .n { color: var(--accent); font-weight: 700; }
 .chip { display: block; width: 100%; padding: 1px 5px; border: 0; border-radius: 4px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); font: inherit; font-size: 11px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .chip:hover { background: color-mix(in srgb, var(--accent) 38%, transparent); }
-.chip.server { background: color-mix(in srgb, var(--text-dim) 25%, transparent); }
+.chip.environment { background: color-mix(in srgb, var(--text-dim) 25%, transparent); }
 .more { font-size: 11px; color: var(--text-dim); }
 .compact .month .day { min-height: 54px; }
 .compact .month .chip { font-size: 0; height: 6px; padding: 0; width: 6px; border-radius: 50%; display: inline-block; margin-right: 2px; background: var(--accent); }
-.compact .month .chip.server { background: var(--text-dim); }
+.compact .month .chip.environment { background: var(--text-dim); }
 .compact .month .day .chips { display: flex; flex-wrap: wrap; }
 
 /* week */
@@ -71,10 +71,10 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .stack .list-title { margin: 6px 0 0; font-size: 13px; color: var(--text-dim); }
 .hosted { display: none !important; }
 
-/* Other rooms' events on the server page: the room's icon, and a row to show or hide each room. */
+/* Other spaces' events on the environment page: the space's icon, and a row to show or hide each space. */
 .ri { display: inline-flex; align-items: center; margin-right: 3px; }
 .ri svg { width: 1em; height: 1em; fill: currentColor; }
-.tag.room { display: inline-flex; align-items: center; }
+.tag.space { display: inline-flex; align-items: center; }
 .compact .chip .ri { display: none; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .filter { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 12px; background: none; color: var(--text-dim); font: inherit; font-size: 12px; cursor: pointer; opacity: 0.6; }

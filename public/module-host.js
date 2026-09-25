@@ -24,41 +24,7 @@ export function readTheme() {
   return theme;
 }
 
-// --- the server's names and the SDK's (plan-names step 5a) -------------------------------------------
-// The server speaks of the environment and a space (scope 'environment', 'space', 'spaces'; a pointer's `space`;
-// `spaceId`); the SDK and the modules keep 'server', 'room', 'rooms', `room` and `roomId` until plan-names step 5c.
-// This file is where the two meet, so it translates both ways here and nowhere else.
-const WIRE_SCOPE = { server: 'environment', room: 'space', rooms: 'spaces' };
-const SDK_SCOPE = { environment: 'server', space: 'room', spaces: 'rooms' };
-const toWireScope = (sc) => WIRE_SCOPE[sc] || sc;
-const toSdkScope = (sc) => SDK_SCOPE[sc] || sc;
-const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype;
-const isPointer = (v) => isPlainObject(v) && typeof v.module === 'string' && typeof v.kind === 'string' && (typeof v.id === 'string' || typeof v.id === 'number');
-// Every pointer in a value, in the server's shape (toWire) or the SDK's (toSdk); anything else as it is. Either way a
-// pointer may arrive in either shape (an old #ref= link, a page handing back what it was given), so both directions
-// accept both and give the one asked for: a space's pointer carries its place under `space` (wire) or `room` (SDK), and
-// any other scope carries no place.
-function pointersIn(value, toWire) {
-  if (Array.isArray(value)) return value.map((v) => pointersIn(v, toWire));
-  if (!isPlainObject(value)) return value;
-  if (isPointer(value) && typeof value.scope === 'string') {
-    const [inSpace, placeKey, otherKey] = toWire ? ['space', 'space', 'room'] : ['room', 'room', 'space'];
-    const scope = toWire ? toWireScope(value.scope) : toSdkScope(value.scope);
-    const place = value[placeKey] ?? value[otherKey];
-    const out = {};
-    for (const [k, v] of Object.entries(value)) {
-      if (k === 'scope') out.scope = scope;
-      else if (k === placeKey || k === otherKey) { if (scope === inSpace && !(placeKey in out) && place !== undefined) out[placeKey] = place; }
-      else out[k] = v;
-    }
-    return out;
-  }
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, pointersIn(v, toWire)]));
-}
-const toWire = (value) => pointersIn(value, true);
-const toSdk = (value) => pointersIn(value, false);
-
-// One live stream per page (and room) is shared by every module frame on it. Browsers allow only a
+// One live stream per page (and space) is shared by every module frame on it. Browsers allow only a
 // few long-lived connections to one site, so a stream per module would starve everything else once
 // a handful of modules were open. See GET /api/modules/stream in server/index.js.
 const streams = new Map(); // "<space>|<guest>" -> { source, subs }
@@ -95,12 +61,12 @@ function joinStream(space, guest, onEvent) {
 }
 
 // --- watching one person's media (host.media.watch) ----------------------------------------------
-// A read-only viewer connection to the room the person is in, following them as they move (`follow`),
+// A read-only viewer connection to the space the person is in, following them as they move (`follow`),
 // that never publishes. The module gets the elements to place (`handlers.video`, `handlers.audio`),
 // the person's state (`handlers.state`: online, cameraOn, micOn, speaking, name) and their reactions
 // (`handlers.reaction`). The client library is loaded the first time anyone watches.
 let livekit = null;
-async function watchMedia({ key, audio = false, video = true, room: startSpace = 'lobby', handlers = {} }) {
+async function watchMedia({ key, audio = false, video = true, space: startSpace = 'lobby', handlers = {} }) {
   if (typeof key !== 'string' || !key) throw Object.assign(new Error('media.watch needs the person\'s key'), { status: 400 });
   if (!livekit) livekit = await import('/lib/livekit-client.esm.mjs');
   const { Room, RoomEvent, Track } = livekit;
@@ -206,7 +172,7 @@ async function watchMedia({ key, audio = false, video = true, room: startSpace =
       participant = null;
       dropMedia();
       state();
-      call('connection', { connected: false, room: null });
+      call('connection', { connected: false, space: null });
       const soon = following;
       following = false;
       connectLater(soon ? 300 : 3000);
@@ -219,11 +185,11 @@ async function watchMedia({ key, audio = false, video = true, room: startSpace =
       const { token, livekitUrl } = await api('POST', '/api/token', { role: 'viewer', space: target });
       await viewer.connect(livekitUrl, token, { autoSubscribe });
       connectedSpace = target;
-      call('connection', { connected: true, room: target });
+      call('connection', { connected: true, space: target });
       for (const p of viewer.remoteParticipants.values()) adopt(p);
       state();
     } catch (err) {
-      call('connection', { connected: false, room: null, error: err.message });
+      call('connection', { connected: false, space: null, error: err.message });
       connectLater(5000);
     }
   }
@@ -259,7 +225,9 @@ let activeDrag = null; // { source, ref, layers, timer }
 
 const REF_SHAPE = (r) => r && typeof r.module === 'string' && typeof r.kind === 'string' && typeof r.id === 'string'
   && /^[a-z][a-z0-9-]{1,31}$/.test(r.module) && /^[a-z][a-z0-9-]{0,23}$/.test(r.kind) && /^[A-Za-z0-9_-]{1,64}$/.test(r.id)
-  && (r.scope === 'server' || r.scope === 'person' || (r.scope === 'room' && typeof r.room === 'string' && r.room.length <= 64));
+  && (r.scope === 'environment' || r.scope === 'person' || (r.scope === 'space' && typeof r.space === 'string' && r.space.length <= 64));
+// A pointer that passed REF_SHAPE, with only its own fields.
+const cleanPointer = (r) => ({ module: r.module, kind: r.kind, id: r.id, scope: r.scope, ...(r.scope === 'space' ? { space: r.space } : {}) });
 
 function endDrag() {
   if (!activeDrag) return;
@@ -498,35 +466,34 @@ function splitOverflow(items, max) {
 // documentation/architecture/architecture-modules.md).
 //
 // `scope` is 'environment' (the module's own page) or 'space' (on a space's canvas, with `spaceId`). Returns
-// { destroy, send, deliver }. Pointers the page is handed (onOpenRef) and hands in (deliver) are in the server's names.
-export function mountModule({ module, frame = null, container = null, scope: place, spaceId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
+// { destroy, send, deliver }. The module hears the same names the server uses (plan-names step 5c).
+export function mountModule({ module, frame = null, container = null, scope = 'environment', spaceId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
-  // What the module hears: the SDK's names for its place ('server', or 'room' with `roomId`) until plan-names step 5c.
-  const scope = toSdkScope(place);
-  const roomId = spaceId;
   let contextInfo = null;
   // A keyed page (public/keyed.js): the module's page about one person, opened with the access key and no
   // session. `keyed` is { path, subject, query }; the page's own api() already carries the key.
 
   const q = (sc) => {
     const p = new URLSearchParams();
-    // The SDK's scope, in the server's name for it.
-    if (sc === 'room') { p.set('scope', 'space'); p.set('space', roomId); } else if (sc === 'rooms') p.set('scope', 'spaces'); else if (sc === 'person') p.set('scope', 'person'); else { p.set('scope', 'environment'); }
+    if (sc === 'space') { p.set('scope', 'space'); p.set('space', spaceId); } else if (sc === 'spaces' || sc === 'person') p.set('scope', sc); else p.set('scope', 'environment');
     if (guestToken) p.set('guest', guestToken);
     return p;
   };
-  // 'context' means wherever this frame is showing; a space panel may also ask for 'server'.
+  // 'context' means wherever this frame is showing; a module on a space's canvas may also ask for 'environment'.
   const scopeOf = (requested) => {
     if (!requested || requested === 'context') return scope;
-    if (requested === 'server' || requested === 'room' || requested === 'rooms' || requested === 'person') {
+    if (requested === 'environment' || requested === 'space' || requested === 'spaces' || requested === 'person') {
       // 'person' is the viewer's own data (their profile's), from a page anywhere; the module must have declared the scope.
       if (requested === 'person' && !module.scope?.includes('person')) throw Object.assign(new Error('this module has no personal scope'), { status: 400 });
-      if (requested === 'room' && scope !== 'room') throw Object.assign(new Error('this module is not in a space'), { status: 400 });
-      // 'rooms' is the server page reading every room the viewer belongs to (read-only)
-      if (requested === 'rooms' && (scope !== 'server' || !module.scope?.includes('space'))) throw Object.assign(new Error('only a module\'s server page can read across spaces'), { status: 400 });
+      if (requested === 'space' && scope !== 'space') throw Object.assign(new Error('this module is not in a space'), { status: 400 });
+      // 'spaces' is the environment page reading every space the viewer belongs to (read-only)
+      if (requested === 'spaces' && (scope !== 'environment' || !module.scope?.includes('space'))) throw Object.assign(new Error('only a module\'s environment page can read across spaces'), { status: 400 });
       return requested;
     }
-    throw Object.assign(new Error('bad scope'), { status: 400 });
+    // A name from before Magpie's rename says which word replaced it.
+    const renamed = { server: 'environment', room: 'space', rooms: 'spaces' }[requested];
+    if (renamed) throw Object.assign(new Error(`scope "${requested}" is an old name; use "${renamed}"`), { status: 400 });
+    throw Object.assign(new Error(`scope "${String(requested).slice(0, 20)}" is not one of context, environment, space, spaces or person`), { status: 400 });
   };
   const url = (path, sc, extra = {}) => {
     const p = q(sc);
@@ -534,8 +501,8 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     return `${base}${path}?${p}`;
   };
 
-  // The place this module is in, for the bus routes: a room's pane is in its room, a page in the server.
-  const busPlaceBody = () => (scope === 'room' ? { scope: 'space', space: roomId } : { scope: 'environment' });
+  // The place this module is in, for the bus routes: on a space's canvas it is in that space, a page in the environment.
+  const busPlaceBody = () => (scope === 'space' ? { scope: 'space', space: spaceId } : { scope: 'environment' });
   const busGuest = () => (guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '');
   const busQuery = (extra) => {
     const p = new URLSearchParams({ ...extra, ...busPlaceBody() });
@@ -568,7 +535,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
         user: contextInfo.user,
         permissions: contextInfo.permissions,
         module: contextInfo.module,
-        context: keyed ? { scope: 'keyed', roomId: null, path: keyed.path, subject: keyed.subject, query: keyed.query || {} } : { scope, roomId },
+        context: keyed ? { scope: 'keyed', spaceId: null, path: keyed.path, subject: keyed.subject, query: keyed.query || {} } : { scope, spaceId: scope === 'space' ? spaceId : null },
         locale: contextInfo.locale || { language: 'en', clock: '12', currency: 'USD' },
         theme: readTheme(),
         debug: debugOn(),
@@ -590,14 +557,14 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     },
     async 'storage.list'({ prefix, scope: s }) {
       const sc = scopeOf(s);
-      if (sc === 'rooms') return (await api('GET', url('/spaces-data', sc, { prefix }))).items.map(({ spaceId, ...item }) => ({ ...item, roomId: spaceId }));
+      if (sc === 'spaces') return (await api('GET', url('/spaces-data', sc, { prefix }))).items;
       return (await api('GET', url('/data', sc, { prefix }))).items;
     },
     // Refs: cards for pointers to other modules' items, and a search for items this module may link to.
     // Always asked on this module's behalf (`from`), so the server can check it was approved for them.
     async 'refs.resolve'({ refs }) {
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return toSdk((await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: toWire(Array.isArray(refs) ? refs.slice(0, 50) : []) })).cards);
+      return (await api('POST', `/api/refs/resolve${q}`, { from: module.id, refs: Array.isArray(refs) ? refs.slice(0, 50) : [] })).cards;
     },
     // The kinds of other modules' items this module may link to, so it need not know them by name.
     async 'refs.kinds'() {
@@ -609,7 +576,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     async 'refs.open'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!onOpenRef) throw Object.assign(new Error('nothing here can open it'), { status: 400 });
-      return Boolean(await onOpenRef(toWire({ module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) })));
+      return Boolean(await onOpenRef(cleanPointer(ref)));
     },
     // A Font Awesome icon as inline SVG, for a module in a sandboxed frame that cannot load the icon font.
     async 'icons.svg'({ name, style }) {
@@ -632,23 +599,22 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     async 'refs.setLinks'({ from, to }) {
       if (!REF_SHAPE(from)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      return api('POST', `/api/refs/links${q}`, { module: module.id, from: toWire(from), to: toWire((Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20)) });
+      return api('POST', `/api/refs/links${q}`, { module: module.id, from: cleanPointer(from), to: (Array.isArray(to) ? to : []).filter(REF_SHAPE).slice(0, 20).map(cleanPointer) });
     },
     // What points at one of this module's items ('to'), or what it points at ('from'): cards.
     async 'refs.links'({ ref, dir }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
-      const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(toWire(ref)), dir: dir === 'from' ? 'from' : 'to' });
+      const p = new URLSearchParams({ from: module.id, ref: JSON.stringify(cleanPointer(ref)), dir: dir === 'from' ? 'from' : 'to' });
       if (guestToken) p.set('guest', guestToken);
-      return toSdk((await api('GET', `/api/refs/links?${p}`)).cards);
+      return (await api('GET', `/api/refs/links?${p}`)).cards;
     },
     // Events and actions between modules (see the SDK's host.events and host.actions). Always in this
     // module's own place, and always on its behalf: the server checks what it declared and was approved for.
     async 'events.publish'({ name, ref, data }) {
-      return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref: toWire(ref), data, ...busPlaceBody() });
+      return api('POST', `/api/bus/publish${busGuest()}`, { module: module.id, name, ref, data, ...busPlaceBody() });
     },
     async 'events.since'({ after }) {
-      const answer = await api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
-      return { ...answer, events: (answer.events || []).map((e) => ({ ...e, ref: toSdk(e.ref) })) };
+      return api('GET', `/api/bus/events?${busQuery({ module: module.id, after: String(after ?? 0) })}`);
     },
     async 'actions.list'({ accepts, self } = {}) {
       const extra = {};
@@ -657,39 +623,36 @@ export function mountModule({ module, frame = null, container = null, scope: pla
       return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id, ...extra })}`)).actions;
     },
     async 'actions.request'({ action, input }) {
-      const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input: toWire(input), ...busPlaceBody() });
+      const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
       // The module that carries an action does it from its own page, so a request waits until that page is open: ask the host to
-      // open it here (a room's pane) when it is not.
+      // open it here (on the space's canvas) when it is not.
       if (onOpenModule) { try { onOpenModule(String(action).split(':')[0]); } catch (err) { /* it cannot be opened here */ } }
       return queued;
     },
     async 'actions.pending'() {
-      return toSdk((await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions);
+      return (await api('GET', `/api/bus/actions/pending?${busQuery({ module: module.id })}`)).actions;
     },
     async 'actions.claim'({ id }) {
-      return toSdk(await api('POST', `/api/bus/actions/claim${busGuest()}`, { module: module.id, id, ...busPlaceBody() }));
+      return api('POST', `/api/bus/actions/claim${busGuest()}`, { module: module.id, id, ...busPlaceBody() });
     },
     async 'actions.complete'({ id, result }) {
-      return api('POST', `/api/bus/actions/complete${busGuest()}`, { module: module.id, id, result: toWire(result), ...busPlaceBody() });
+      return api('POST', `/api/bus/actions/complete${busGuest()}`, { module: module.id, id, result, ...busPlaceBody() });
     },
     async 'actions.status'({ id }) {
-      return toSdk(await api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`));
+      return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
     },
     async 'refs.search'({ q, scope: s }) {
       const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private items of a kind they may link to
-      if (sc === 'rooms') throw Object.assign(new Error('search one place at a time'), { status: 400 });
-      const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: toWireScope(sc) });
-      if (sc === 'room') p.set('space', roomId);
+      if (sc === 'spaces') throw Object.assign(new Error('search one place at a time'), { status: 400 });
+      const p = new URLSearchParams({ from: module.id, q: String(q || '').slice(0, 100), scope: sc });
+      if (sc === 'space') p.set('space', spaceId);
       if (guestToken) p.set('guest', guestToken);
-      return toSdk((await api('GET', `/api/refs/search?${p}`)).cards);
+      return (await api('GET', `/api/refs/search?${p}`)).cards;
     },
-    async rooms() {
-      return (await api('GET', url('/spaces-data', 'rooms', { info: 1 }))).spaces;
+    async spaces() {
+      return (await api('GET', url('/spaces-data', 'spaces', { info: 1 }))).spaces;
     },
-    // The people of the room a panel is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
-    // Empty on a module's server page, which is not in one room.
-    // What the module's settings are for this viewer here (server, this space and the person's own together).
-    // The address of a file an admin placed for this module (see the server's module files), in this module's place.
+    // The address of a file an owner placed for this module (see the server's module files), in this module's place.
     async 'files.url'({ name }) {
       const n = String(name ?? '');
       if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(n)) throw Object.assign(new Error('no such file'), { status: 400 });
@@ -703,7 +666,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
       return api('GET', url('/ai', scopeOf()));
     },
     async 'ai.ask'({ task, question, items }) {
-      return toSdk(await api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: toWire(Array.isArray(items) ? items.slice(0, 12) : []) }));
+      return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), items: Array.isArray(items) ? items.slice(0, 12) : [] });
     },
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {
@@ -735,21 +698,23 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     async 'geocode.used'({ key }) {
       return api('POST', url('/geocode/use', scopeOf()), { key: String(key ?? '') });
     },
+    // The people of the space this module is in: [{ key, name }], for a module that lets a person be chosen ("whose is it").
+    // Empty on a module's environment page, which is not in one space.
     async people() {
-      if (scope !== 'room' || !roomId) return [];
+      if (scope !== 'space' || !spaceId) return [];
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      const { users, spaces: rooms } = await api('GET', `/api/presence${q}`);
-      const members = new Set((rooms || []).find((r) => r.id === roomId)?.members || []);
+      const { users, spaces } = await api('GET', `/api/presence${q}`);
+      const members = new Set((spaces || []).find((r) => r.id === spaceId)?.members || []);
       return (users || []).filter((u) => members.has(u.key)).map((u) => ({ key: u.key, name: u.displayName }));
     },
     async schedule(spec) {
-      return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined, ...(spec?.notify && typeof spec.notify === 'object' ? { notify: { ...spec.notify, to: toWireScope(spec.notify.to) } } : {}) });
+      return api('POST', url('/schedule', scopeOf(spec?.scope)), { ...spec, scope: undefined });
     },
     async cancelSchedule({ key, scope: s }) {
       return api('DELETE', url(`/schedule/${encodeURIComponent(key)}`, scopeOf(s)));
     },
     async notify(spec) {
-      return api('POST', url('/notify', scopeOf(spec?.scope)), { ...spec, scope: undefined, ...(spec && 'to' in spec ? { to: toWireScope(spec.to) } : {}) });
+      return api('POST', url('/notify', scopeOf(spec?.scope)), { ...spec, scope: undefined });
     },
     // The module's action bar: the host draws the buttons into `bar` and sends
     // clicks back as a 'bar' event.
@@ -1069,7 +1034,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     // A drag of a pointer to one of this module's items began or ended (see host.refs.drag).
     async 'refs.dragStart'({ ref }) {
       if (!REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
-      beginDrag(mine, { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) });
+      beginDrag(mine, cleanPointer(ref));
       return true;
     },
     async 'refs.dragEnd'() {
@@ -1089,7 +1054,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
       const carried = ref ? null : cleanCard(card);
       if (ref && !REF_SHAPE(ref)) throw Object.assign(new Error('that is not a valid reference'), { status: 400 });
       if (!ref && !carried) throw Object.assign(new Error('nothing valid to drag: a reference or a card with a title'), { status: 400 });
-      ptrBegin(mine, ref ? { ref: { module: ref.module, kind: ref.kind, id: ref.id, scope: ref.scope, ...(ref.scope === 'room' ? { room: ref.room } : {}) } } : { card: carried }, label, Number(x) || 0, Number(y) || 0);
+      ptrBegin(mine, ref ? { ref: cleanPointer(ref) } : { card: carried }, label, Number(x) || 0, Number(y) || 0);
       return true;
     },
     async 'refs.ptrMove'({ x, y }) {
@@ -1109,22 +1074,26 @@ export function mountModule({ module, frame = null, container = null, scope: pla
       return true;
     },
     // Who is online right now, everyone: the same roster the call page reads. For a page that follows
-    // people (a keyed page about one of them, a dashboard) rather than a room panel's own members (`people`).
+    // people (a keyed page about one of them, a dashboard) rather than the members of the space a module is in (`people`).
+    // Until asides get their own record (plan-names step 8) the server lists them among the spaces, marked `ephemeral`;
+    // the module hears them apart, as it will then.
     async 'presence.get'() {
       const d = await api('GET', `/api/presence${busGuest()}`);
+      const rows = d.spaces || [];
       return {
-        people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), room: u.space || null, inCall: Boolean(u.inCall), isAdmin: Boolean(u.isAdmin) })),
-        rooms: (d.spaces || []).map((r) => ({ id: r.id, name: r.name, ephemeral: Boolean(r.ephemeral), origin: r.origin || null, private: Boolean(r.private) })),
-        activeRoom: d.activeSpace || null,
-        adminOnline: Boolean(d.adminOnline),
+        people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), space: u.space || null, inCall: Boolean(u.inCall), isOwner: Boolean(u.isOwner) })),
+        spaces: rows.filter((r) => !r.ephemeral).map((r) => ({ id: r.id, name: r.name })),
+        asides: (d.asides || rows.filter((r) => r.ephemeral)).map((r) => ({ id: r.id, origin: r.origin || null, private: Boolean(r.private) })),
+        activeSpace: d.activeSpace || null,
+        ownerOnline: Boolean(d.ownerOnline),
         reactions: (d.reactions || []).map((r) => ({ id: r.id, glyph: r.glyph })),
       };
     },
     // One person's picture in a slot (profile, player, character, talking ...), as a blob URL the module shows and
-    // releases; null when they have none there. `room` asks for that room's own picture set, the way the call page does.
-    async 'images.get'({ key, slot, room, fallback }) {
+    // releases; null when they have none there. `space` asks for that space's own picture set, the way the call page does.
+    async 'images.get'({ key, slot, space, fallback }) {
       const p = new URLSearchParams();
-      if (room) p.set('space', String(room));
+      if (space) p.set('space', String(space));
       if (fallback === 'none') p.set('fallback', 'none'); // the profile slot: the real photo only, not the initials plate
       if (guestToken) p.set('guest', guestToken);
       const res = await fetch(`/img/${encodeURIComponent(String(key ?? ''))}/${encodeURIComponent(String(slot ?? ''))}?${p}`, { headers: accessKeyHeaders() });
@@ -1142,7 +1111,7 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     async 'access.regenerate'() {
       return (await api('POST', '/api/stream-key/regenerate')).streamKey;
     },
-    // A read-only viewer of one person's camera and microphone, following them from room to room. Page mode only:
+    // A read-only viewer of one person's camera and microphone, following them from space to space. Page mode only:
     // the media elements are handed to the module's own handlers, which a frame could not receive.
     async 'media.watch'(params) {
       if (!pageMode) throw Object.assign(new Error('media.watch needs a module that runs in the page'), { status: 400 });
@@ -1188,24 +1157,23 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     }
     frame.contentWindow?.postMessage({ host: 1, tk: secret, event, data }, '*');
   }
-  // A room's pane hears that space and the server; a module's server page hears the server and
-  // the viewer's spaces (see the stream's scopes on the server). A keyed page has no session for the
+  // A module on a space's canvas hears that space and the environment; a module's environment page hears the
+  // environment and the viewer's spaces (see the stream's scopes on the server). A keyed page has no session for the
   // event stream, so it asks after its settings now and then instead (the one live thing it needs).
-  const leaveStream = keyed ? pollSettings() : joinStream(scope === 'room' ? roomId : null, guestToken, (type, d) => {
+  const leaveStream = keyed ? pollSettings() : joinStream(scope === 'space' ? spaceId : null, guestToken, (type, d) => {
     if (type !== 'bus' && type !== 'action' && d.module !== module.id) return;
-    // The server's names (scope 'space', spaceId, a pointer's space) go to the module in the SDK's.
-    const here = scope === 'room' ? 'space' : 'environment';
-    if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: toSdkScope(d.scope), roomId: d.spaceId });
-    else if (type === 'links') send('links', { ref: toSdk(d.ref) });
-    else if (type === 'settings') send('settings', { scope: toSdkScope(d.scope) });
+    const here = scope === 'space' ? 'space' : 'environment';
+    if (type === 'change') send('change', { key: d.key, value: d.value, version: d.version, deleted: d.deleted, by: d.by, scope: d.scope, spaceId: d.spaceId });
+    else if (type === 'links') send('links', { ref: d.ref });
+    else if (type === 'settings') send('settings', { scope: d.scope });
     else if (type === 'bus') {
       // An event some module published: only the modules the server named may hear it, in their own place.
-      if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === here) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: toSdk(d.ref), data: d.data });
+      if (Array.isArray(d.subscribers) && d.subscribers.includes(module.id) && d.scope === here) send('bus', { id: d.id, at: d.at, module: d.module, name: d.name, ref: d.ref, data: d.data });
     } else if (type === 'action') {
       // A request for this module to do something.
       if (d.provider === module.id && d.scope === here) send('action', { id: d.id, name: d.name, from: d.from, by: d.by });
     }
-    else send('schedule', { key: d.key, payload: d.payload, scope: toSdkScope(d.scope) });
+    else send('schedule', { key: d.key, payload: d.payload, scope: d.scope });
   });
 
   // The keyed page's stand-in for the event stream: its settings, compared every 10 seconds, a 'settings'
@@ -1214,8 +1182,8 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     let last = null;
     const tick = async () => {
       try {
-        const sig = JSON.stringify((await api('GET', url('/settings/values', 'server'))).values);
-        if (last !== null && sig !== last) send('settings', { scope: 'server' });
+        const sig = JSON.stringify((await api('GET', url('/settings/values', 'environment'))).values);
+        if (last !== null && sig !== last) send('settings', { scope: 'environment' });
         last = sig;
       } catch {
         // the next tick asks again
@@ -1298,8 +1266,8 @@ export function mountModule({ module, frame = null, container = null, scope: pla
     beginDragForTest: (ref) => beginDrag(mine, ref),
     // For tests: run the pointer-driven drag from this module as its SDK would (steps: start, move, drop).
     ptrForTest: (step, ref, label, x, y) => (step === 'start' ? ptrBegin(mine, ref && ref.card ? { card: cleanCard(ref.card) } : { ref }, label, x, y) : step === 'move' ? ptrMove(x, y) : ptrDrop(x, y)),
-    // An event for the module from the page: a pointer in it (refopen) goes in the SDK's names.
-    deliver: (event, data) => deliver(event, toSdk(data)),
+    // An event for the module from the page (a pointer to open, refopen; a place in its page, pagehash).
+    deliver,
     destroy() {
       if (!pageMode) hostWin.removeEventListener('message', onMessage);
       sdkEmit = null;

@@ -8,7 +8,7 @@
 
 ```
 <div class="rs [narrow]">                     narrow under 720 px (the script sets it from the pane's width)
-  <header class="rs-head">                    h1 "Research", .count (the Mine/This room switch is in the toolbar, not here)
+  <header class="rs-head">                    h1 "Research", .count (the Mine/This space switch is in the toolbar, not here)
   <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
   <div class="rs-chips">                      the tags chosen as filters, only those (.rs-chip.tag[style=--tag], each with an .x to drop it); the chooser itself is the toolbar's Tags button (host.ui.toolbarButton), a menu of every tag in use with a count
@@ -16,13 +16,13 @@
   <div class="rs-bar">                        the host's bottom bar is the quick add (see below)
 ```
 
-Views are as in Places: **Mine** (the person scope, private across rooms) and **This room**, drawn by `host.ui.viewSwitch` in the toolbar; the choice is remembered and a guest has only This room (the script skips the switch entirely then). Filtering combines: search text, a kind, and one or more tags. A second switch beside it, **Cards** / **List** (icons only, `grip` and `list`), picks the layout: `.rs-grid` packs the cards like masonry (the grid's rows are an 8px unit and `masonry()` in the script gives each card the row span its measured height needs, re-measured through a ResizeObserver as photos load or the pane resizes; columns come from the grid's auto-fill), `.rs-list` is one row per item (the kind icon, the title, one line of the excerpt, the tags, the meta; the kicker hidden). Remembered per person (`research-layout`).
+Views are as in Places: **Mine** (the person scope, private across spaces) and **This space**, drawn by `host.ui.viewSwitch` in the toolbar; the choice is remembered and a guest has only This space (the script skips the switch entirely then). Filtering combines: search text, a kind, and one or more tags. A second switch beside it, **Cards** / **List** (icons only, `grip` and `list`), picks the layout: `.rs-grid` packs the cards like masonry (the grid's rows are an 8px unit and `masonry()` in the script gives each card the row span its measured height needs, re-measured through a ResizeObserver as photos load or the pane resizes; columns come from the grid's auto-fill), `.rs-list` is one row per item (the kind icon, the title, one line of the excerpt, the tags, the meta; the kicker hidden). Remembered per person (`research-layout`).
 
 ## A card (`article.rcard[data-kind=note|link|photo|answer][data-id]`)
 
 `.top` holds `.kind` (the kind's icon in a round badge), `.kicker` ("Note", "Link", "Photo", "Answer", and for an answer a permanent `.ai-mark` "AI") and `button.menu` (the item menu). Then `h3` (the title), for a link `.site` (the site's name), `p.excerpt` (the body, clamped to four lines), `.tags` of `.tag[style=--tag]`, and `.meta` (the date, the place, an attachment count, and `.by` with the adder's initial). A photo also has `.thumb` first, an image cropped 4:3 across the card's top. The card is focusable and draggable (as any card: onto a plan's day, onto a task); Enter or a click opens it in the editor.
 
-**The menu** (`⋯`): Open, Edit, Copy to "This room" / "Mine", Research this (only when a module offers `askAssistant`), Remove. Removing a photo also removes its file.
+**The menu** (`⋯`): Open, Edit, Copy to "This space" / "Mine", Research this (only when a module offers `askAssistant`), Remove. Removing a photo also removes its file.
 
 ## Quick add (the host's bottom bar)
 
@@ -36,7 +36,7 @@ One field, "Write a note, or paste a link", with a + button and a camera button 
 
 ## The editor (a dialog)
 
-A note: title, body, tags (a field that suggests the tags already used), an optional place (paste coordinates or a map link, as Places) and date. A link: the address, a title, the excerpt (what to remember from the page), tags. A photo: the caption, tags, whether to keep the position. All show who added it and when. A person may edit and remove their own; in This room, anyone with the edit right may edit, and only the adder or an admin removes a photo.
+A note: title, body, tags (a field that suggests the tags already used), an optional place (paste coordinates or a map link, as Places) and date. A link: the address, a title, the excerpt (what to remember from the page), tags. A photo: the caption, tags, whether to keep the position. All show who added it and when. A person may edit and remove their own; in This space, anyone with the edit right may edit, and only the adder or an owner removes a photo.
 
 ## Tags
 
@@ -64,7 +64,7 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 - `tpl-chip-tag` (a chosen tag in `#tag-chips`, `--tag`, always `.on`, with its `.x`), `tpl-tag`. Chips are small rounded rectangles (5px), never pills.
 - `tpl-upload` (`.upload`: `name`, `progress`, `step`, `[data-action=retry-upload]`), `tpl-pos-ask` (`text`, `[data-action=keep-position]`, `[data-action=drop-position]`).
 - The dialog is one form, `#form.editor-card[data-kind=note|link|photo|answer]`; each row lists the kinds that show it in `data-kinds`, and the stylesheet hides the rest. Fields: `f-title`, `f-caption` (a photo), `f-url`, `f-body`, `f-excerpt`, `f-tags` (with `#tag-list`), `f-point` and `f-date`, `#f-asked` (an answer kept from Assistant: `asked`, `sources`), `f-by`, `f-error`, `f-save`, `f-cancel`, `f-delete`.
-- `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This room" or "Copy to Mine"), `ask-about` ("Research this", hidden unless a module offers `askAssistant`), `delete`.
+- `#item-menu`: `edit`, `copy-to` (its label reads "Copy to This space" or "Copy to Mine"), `ask-about` ("Research this", hidden unless a module offers `askAssistant`), `delete`.
 - States: `tpl-state-loading`, `tpl-state-empty` (`[data-action=new-note]`, `[data-action=add-photo]`), `tpl-state-noresults` (`[data-action=clear-filter]`).
 
 ## Suggest tags, dropping onto Research, a missing photo (0.1.5)
@@ -75,7 +75,7 @@ The script clones these and fills them by hook only: `[data-slot=x]` (its text, 
 
 ## Where a card is used (backlinks, 0.1.7)
 
-`.backlinks[data-slot=backlinks]` sits at the foot of a card, above the meta line, hidden when nothing links to it (room view only; Mine is never linked). It holds one `tpl-backlink` pill per **group** of linkers, grouped by the linker's kind name: the linker module's icon (`[data-slot=icon-holder]`) and a label (`[data-slot=label]`): with one linker its kind and title ("Task: book the hotel"), with several "2 plans". The pill's `title` lists the linkers, and a click opens the linker (the only one, or the first). When there are more groups than fit, a `tpl-backlink-more` pill ("+2") ends the row. Reference: `design/pane.html` (the first card).
+`.backlinks[data-slot=backlinks]` sits at the foot of a card, above the meta line, hidden when nothing links to it (space view only; Mine is never linked). It holds one `tpl-backlink` pill per **group** of linkers, grouped by the linker's kind name: the linker module's icon (`[data-slot=icon-holder]`) and a label (`[data-slot=label]`): with one linker its kind and title ("Task: book the hotel"), with several "2 plans". The pill's `title` lists the linkers, and a click opens the linker (the only one, or the first). When there are more groups than fit, a `tpl-backlink-more` pill ("+2") ends the row. Reference: `design/pane.html` (the first card).
 
 ## Research this: opening Assistant (0.2.0)
 

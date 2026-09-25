@@ -1,6 +1,6 @@
-// The Travel module's dashboard widget: the trips the viewer's rooms have that are on now or coming, soonest first,
+// The Travel module's dashboard widget: the trips the viewer's spaces have that are on now or coming, soonest first,
 // each with how far away it is, and while a trip is on, what is planned today. It shows and opens; it never edits.
-// Clicking a trip (or a planned item) opens it in its room's Travel pane.
+// Clicking a trip (or a planned item) opens it in its space's Planner.
 (async () => {
   'use strict';
 
@@ -23,24 +23,24 @@
 
   const MAX_TRIPS = 3;
   const MAX_TODAY = 3;
-  const trips = new Map(); // room id -> trip
-  const planned = new Map(); // room id -> [items]
-  const rooms = new Map(); // room id -> { id, name, icon, svg }
+  const trips = new Map(); // space id -> trip
+  const planned = new Map(); // space id -> [items]
+  const spaces = new Map(); // space id -> { id, name, icon, svg }
 
   async function load() {
     trips.clear();
     planned.clear();
     try {
-      for (const r of await host.rooms()) rooms.set(r.id, r);
-      for (const it of await host.storage.list(TRIP_KEY, { scope: 'rooms' })) if (it.value) trips.set(it.roomId, cleanTrip(it.value));
-      for (const it of await host.storage.list('item:', { scope: 'rooms' })) {
+      for (const r of await host.spaces()) spaces.set(r.id, r);
+      for (const it of await host.storage.list(TRIP_KEY, { scope: 'spaces' })) if (it.value) trips.set(it.spaceId, cleanTrip(it.value));
+      for (const it of await host.storage.list('item:', { scope: 'spaces' })) {
         const item = it.value ? cleanItem({ ...it.value, id: it.key.slice(5) }) : null;
         if (!item) continue;
-        if (!planned.has(it.roomId)) planned.set(it.roomId, []);
-        planned.get(it.roomId).push(item);
+        if (!planned.has(it.spaceId)) planned.set(it.spaceId, []);
+        planned.get(it.spaceId).push(item);
       }
     } catch (err) {
-      // no rooms is fine: no trips
+      // no spaces is fine: no trips
     }
   }
 
@@ -61,15 +61,15 @@
     $('msg').hidden = list.length > 0;
     $('msg').textContent = 'No trips planned.';
     $('list').hidden = list.length === 0;
-    $('list').innerHTML = list.map(([roomId, t]) => {
-      const r = rooms.get(roomId);
+    $('list').innerHTML = list.map(([spaceId, t]) => {
+      const r = spaces.get(spaceId);
       const on = daysUntil(t, today) <= 0;
-      const todays = on ? sortDay((planned.get(roomId) || []).filter((i) => i.date === today)).slice(0, MAX_TODAY) : [];
+      const todays = on ? sortDay((planned.get(spaceId) || []).filter((i) => i.date === today)).slice(0, MAX_TODAY) : [];
       const range = t.end && t.end !== t.start ? `${parseYmd(t.start).toLocaleDateString([], { month: 'short', day: 'numeric' })} - ${parseYmd(t.end).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : parseYmd(t.start).toLocaleDateString([], { month: 'short', day: 'numeric' });
       return `<div class="trip">
-        <button type="button" class="item" data-trip="${esc(roomId)}" title="${esc(t.title || t.destination || 'Trip')}${r ? ' - ' + esc(r.name) : ''}">
+        <button type="button" class="item" data-trip="${esc(spaceId)}" title="${esc(t.title || t.destination || 'Trip')}${r ? ' - ' + esc(r.name) : ''}">
           <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="stack"><span class="what">${esc(t.title || t.destination || 'Trip')}</span><span class="sub">${esc(range)}</span></span><span class="when${on ? ' on' : ''}">${esc(whenText(t, today))}</span><span class="go">${goIcon}</span></button>
-        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(roomId)}|${esc(i.id)}"><span class="when">${esc(i.time ? host.util.time(i.time) : 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
+        ${todays.map((i) => `<button type="button" class="item today" data-plan="${esc(spaceId)}|${esc(i.id)}"><span class="when">${esc(i.time ? host.util.time(i.time) : 'today')}</span><span class="what">${esc(i.title)}</span></button>`).join('')}
       </div>`;
     }).join('');
     try {
@@ -81,11 +81,11 @@
 
   root.addEventListener('click', (e) => {
     const trip = e.target.closest('[data-trip]');
-    if (trip) return void host.refs.open(host.refs.make('trip', 'main', { room: trip.dataset.trip })).catch(() => {});
+    if (trip) return void host.refs.open(host.refs.make('trip', 'main', { space: trip.dataset.trip })).catch(() => {});
     const plan = e.target.closest('[data-plan]');
     if (plan) {
-      const [room, id] = plan.dataset.plan.split('|');
-      host.refs.open(host.refs.make('plan', id, { room })).catch(() => {});
+      const [space, id] = plan.dataset.plan.split('|');
+      host.refs.open(host.refs.make('plan', id, { space })).catch(() => {});
     }
   });
 

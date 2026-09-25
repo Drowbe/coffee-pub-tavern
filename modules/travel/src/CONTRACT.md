@@ -150,7 +150,7 @@ One popover the script positions under the `.item-menu` button that opened it (`
 
 ## The editor (`#editor` > `form#form.editor-card`)
 
-A dialog over the page for an item and for the trip. The script shows the fields a kind needs: an element with `data-kinds="stop journey stay"` is shown only for those kinds; the kind tabs are `#f-kinds button[data-kind]` (`.on` on the current one). Fields, all with `id="f-<name>"`: title, date (select of days), time, minutes, checkout (select, a stay's last night), from, to, category, place, address, confirm (the booking reference), notes, owners (`#f-owners`, checkboxes for the room's people), done. `#f-by` says who last changed it, `#f-error` an error, and the buttons are `#f-save`, `#f-cancel` and `#f-delete`. The trip has its own form of the same shape opened by `button[data-action=edit-trip]`.
+A dialog over the page for an item and for the trip. The script shows the fields a kind needs: an element with `data-kinds="stop journey stay"` is shown only for those kinds; the kind tabs are `#f-kinds button[data-kind]` (`.on` on the current one). Fields, all with `id="f-<name>"`: title, date (select of days), time, minutes, checkout (select, a stay's last night), from, to, category, place, address, confirm (the booking reference), notes, owners (`#f-owners`, checkboxes for the space's people), done. `#f-by` says who last changed it, `#f-error` an error, and the buttons are `#f-save`, `#f-cancel` and `#f-delete`. The trip has its own form of the same shape opened by `button[data-action=edit-trip]`.
 
 ## Not decided yet
 

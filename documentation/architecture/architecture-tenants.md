@@ -197,7 +197,7 @@ for the new names.
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4) and `names-spaces` (step 5a), all below.
+`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4), `names-spaces` (step 5a) and `names-pointers` (step 5c), all below.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -323,6 +323,29 @@ Step 5a's part, after `names-roles`. It renames an environment's stored data:
 Where an old and a new key (or file) are both there and differ, it stops with the file named: "... Nothing was
 changed: remove the out-of-date one and start again (...pre-names/names-spaces)". The JSON originals are kept
 in `pre-names/names-spaces/`, and every folder and file it moves is listed in the record's `moved`.
+
+### The environment part: `names-pointers`
+
+Step 5c's part, after `names-spaces`. A module's pointers to other modules' items sit inside its own stored
+values, where the host cannot read them by meaning, and since step 5c the SDK refuses a pointer with an old
+scope. So this part rewrites, by shape and never by module, every `.json` file under `modules/<id>/data/` and
+`modules/bus.json` (its events and its actions). A value with string `module`, `kind` and `id` and
+`scope: 'server'` becomes `scope: 'environment'`; one with `scope: 'room'` and a string `room` becomes
+`scope: 'space'` with `space`. Its other keys are kept, everything else is left as it is, and a file that is not
+valid JSON is skipped. The originals are kept in `pre-names/names-pointers/`.
+
+### Bundled modules built for an older Magpie
+
+Since step 5c a manifest in the old names can't run (see [architecture-modules](architecture-modules.md)). So,
+on each start, `updateOutdatedBundled()` in `index.js` installs the new copy of each module that came with this
+deployment (`source: "bundled"`) whose installed version is outdated, requirements first (Places before Maps),
+keeping its on or off, its spaces and its data. A module that was on is turned back on only when what it newly
+asks for widens nothing (`pendingWidensNothing()`: a new permission that is off for every role); anything else
+waits for an owner's approval, as any update does. Each update logs one line, such as `Updated "polls" to
+1.12.11: the version installed was built for an older Magpie.`; if turning it back on is refused, the line adds
+"It is off for now: <reason>" rather than reporting a failed update. A failed install logs
+`Could not update "<id>" ...`. On a hosted server every startup line an
+environment logs starts with `[<slug>] `.
 
 ### A pre-environment install
 
@@ -460,8 +483,7 @@ name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receiv
   `/api/status`, `rooms` (the `spaces` rows, asides included), `activeRoom` (= `activeSpace`) and
   `users[].online.room` (= `users[].online.space`).
 
-`isAdmin`, `adminOnline` and `byAdmin` keep their names until step 5c; their values mean an owner or the
-server's admin. The later steps add the fields they rename, and step 10 removes the file.
+Since step 5c the pages' own answers use `isOwner`, `ownerOnline` and, on the aside pull topic, `byOwner`. The later steps add the fields they rename, and step 10 removes the file.
 
 ## The host's managed AI and shared files
 

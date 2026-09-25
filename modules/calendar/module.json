@@ -1,13 +1,13 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.17.7",
+  "version": "1.17.8",
   "icon": "calendar-days",
-  "description": "Sessions and events for the whole server and for each room, with reminders.",
+  "description": "Sessions and events for the whole environment and for each space, with reminders.",
   "author": "Coffee Pub",
   "scope": [
-    "server",
-    "room"
+    "environment",
+    "space"
   ],
   "surfaces": {
     "page": {
@@ -34,7 +34,7 @@
       "key": "view",
       "label": "See the calendar",
       "default": {
-        "user": true,
+        "member": true,
         "guest": true,
         "moderator": true
       }
@@ -43,7 +43,7 @@
       "key": "edit",
       "label": "Add and change events",
       "default": {
-        "user": true,
+        "member": true,
         "guest": false,
         "moderator": true
       }

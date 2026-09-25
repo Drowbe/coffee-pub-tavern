@@ -33,8 +33,8 @@ test('cleanItem needs a title, keeps good fields and drops bad ones', () => {
 
 test('a link item needs a pointer and may have no title', () => {
   assert.equal(lib.cleanItem({ id: 'l', kind: 'link' }), null);
-  const l = lib.cleanItem({ id: 'l', kind: 'link', ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'lobby' } });
-  assert.deepEqual(l.ref, { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'lobby' });
+  const l = lib.cleanItem({ id: 'l', kind: 'link', ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' } });
+  assert.deepEqual(l.ref, { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' });
 });
 
 test('a stay cannot check out before it checks in', () => {
@@ -77,7 +77,7 @@ test('itemsByDay groups by day, keeps ideas apart and drops days outside the tri
 });
 
 test('a linked item is placed by its card when it has no day of its own', () => {
-  const l = lib.cleanItem({ id: 'l', kind: 'link', ref: { module: 'calendar', kind: 'event', id: 'e', scope: 'server' } });
+  const l = lib.cleanItem({ id: 'l', kind: 'link', ref: { module: 'calendar', kind: 'event', id: 'e', scope: 'environment' } });
   const by = lib.itemsByDay([l], ['2026-10-01', '2026-10-02'], (i) => i.date || '2026-10-02');
   assert.equal(by.get('2026-10-02').length, 1);
 });
@@ -198,7 +198,7 @@ function fakeHost({ cards = [], search = [] } = {}) {
   const handlers = { change: [] };
   const provided = {};
   let clock = 0;
-  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.room || ''].join('|');
+  const refKey = (r) => [r.module, r.kind, r.id, r.scope, r.space || ''].join('|');
   const t = {
     user: { key: 'u1', name: 'Ann' },
     util: { id: () => 'id' + (++clock), refKey, ymd, parseYmd },
@@ -218,7 +218,7 @@ function fakeHost({ cards = [], search = [] } = {}) {
     refs: {
       resolve: async (refs) => refs.map((r) => cards.find((c) => refKey(c.ref) === refKey(r)) || { error: 'gone' }),
       search: async () => search,
-      make: (kind, id) => ({ module: 'travel', kind, id, scope: 'room' }),
+      make: (kind, id) => ({ module: 'travel', kind, id, scope: 'space' }),
     },
     actions: { provide: (h) => Object.assign(provided, h) },
   };
@@ -247,7 +247,7 @@ const run = async () => {
   n += 1;
 
   // a pointer with a card time sorts by it
-  const evc = { ref: { module: 'calendar', kind: 'event', id: 'ev9', scope: 'room', room: 'lobby' }, module: { id: 'calendar' }, title: 'Dinner', when: new Date(2026, 9, 1, 20, 0).toISOString() };
+  const evc = { ref: { module: 'calendar', kind: 'event', id: 'ev9', scope: 'space', space: 'lobby' }, module: { id: 'calendar' }, title: 'Dinner', when: new Date(2026, 9, 1, 20, 0).toISOString() };
   const h = fakeHost({ cards: [evc] });
   const plan3 = lib.createPlan(h.t);
   await plan3.load();
@@ -300,7 +300,7 @@ const run = async () => {
   assert.equal(plain.type, null);
   await f.provided.acceptSuggestion({ title: 'Something odd', kind: 'nonsense' });
   assert.equal(plan.list().find((i) => i.title === 'Something odd').kind, 'stop');
-  const ev = { ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'lobby' }, module: { id: 'calendar' }, title: 'Train', when: '2026-10-03' };
+  const ev = { ref: { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'lobby' }, module: { id: 'calendar' }, title: 'Train', when: '2026-10-03' };
   const g = fakeHost({ cards: [ev], search: [ev, { ...ev, ref: { ...ev.ref, id: 'e2' }, when: '2026-12-25' }, { ...ev, ref: { ...ev.ref, id: 'e3' }, module: { id: 'travel' } }] });
   const plan2 = lib.createPlan(g.t);
   await plan2.load();

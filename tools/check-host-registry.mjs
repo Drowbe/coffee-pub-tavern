@@ -379,7 +379,7 @@ try {
       const envDir = path.join(data, 'environments', slug);
       const app = readJson(path.join(envDir, 'app.json'));
       assert.equal(app.version, 2, `${slug}: version 2`);
-      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces'], `${slug}: each environment part recorded once`);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers'], `${slug}: each environment part recorded once`);
       assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
       assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
     }
@@ -572,7 +572,7 @@ try {
     assert.deepEqual([redirected.status, redirected.headers.location], [301, `/img/space/keep01?s=${s}`]);
     const envDir = path.join(data, 'environments', 'bravo');
     const app = readJson(path.join(envDir, 'app.json'));
-    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces']);
+    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers']);
     assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Fixture Table');
     for (const rel of ['modules/todo/data/space-keep01.json', 'modules/todo/data/environment.json', 'modules/research/uploads/space-keep01', 'chat.json']) assert.ok(fs.existsSync(path.join(envDir, rel)), rel);
     assert.ok('spaces' in readJson(path.join(envDir, 'chat.json')));
@@ -916,6 +916,104 @@ try {
     await server.stop();
     server = await startServer(single, { ADMIN_LOGIN: 'pat' });
     assert.equal(roles().pat, 'member', 'a member is not made admin without a password');
+    await server.stop();
+    server = null;
+  });
+
+  // Plan-names step 5c: an installed module with an old manifest, one that requires it, and a module whose author renamed a
+  // permission (`replaces`), on a hosted server (each start line names the environment) and a single install (no name).
+  const putModules = (envDir) => {
+    const put = (id, m) => {
+      const d = path.join(envDir, 'modules', id, 'versions', '1.0.0');
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version: '1.0.0', surfaces: { page: { entry: 'page.html' } }, ...m }));
+      fs.writeFileSync(path.join(d, 'page.html'), '<p>x</p>');
+    };
+    put('oldmod', { scope: ['server'] });
+    put('depmod', { scope: ['environment'], requires: ['oldmod'] });
+    put('renamer', { scope: ['environment'], permissions: [{ key: 'view_page', label: 'See the page', replaces: 'links', default: { member: false, moderator: false, guest: false } }], access: { read: 'view_page' } });
+    const entry = (id, permissions = []) => ({ id, versions: ['1.0.0'], version: '1.0.0', enabled: true, allSpaces: false, spaces: [], approved: { permissions, hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
+    fs.writeFileSync(path.join(envDir, 'modules', 'registry.json'), JSON.stringify({ modules: { oldmod: entry('oldmod'), depmod: entry('depmod'), renamer: entry('renamer', ['view_page']) }, autoInstalled: ['stream'] }));
+    const appFile = path.join(envDir, 'app.json');
+    const app = readJson(appFile);
+    app.settings.roles = { ...(app.settings.roles || {}), member: { ...((app.settings.roles || {}).member || {}), 'module.renamer.links': true } };
+    fs.writeFileSync(appFile, JSON.stringify(app));
+  };
+  const waitFor = async (text) => { for (let i = 0; i < 100 && !server.output().includes(text); i += 1) await new Promise((r) => setTimeout(r, 50)); assert.ok(server.output().includes(text), `${text}\n${server.output()}`); };
+  await liveTest('live: an outdated module and what requires it do not run, the start names them (and the environment, when hosted), and a renamed permission keeps its grants', async () => {
+    const hosted = path.join(liveDir, 'hosted-outdated');
+    server = await startServer(hosted, hostedEnv);
+    const host = await signInHost(server);
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/environments', { cookie: host, body: { slug: 'deps', name: 'Deps', owner: { login: 'owner', password: 'owner-password-1' } } })).status, 201);
+    await server.stop();
+    const envDir = path.join(hosted, 'environments', 'deps');
+    putModules(envDir);
+    server = await startServer(hosted, hostedEnv);
+    await waitFor('[deps] Module "depmod" 1.0.0 can\'t run until "oldmod", which it requires, is updated.');
+    await waitFor('[deps] Module "oldmod" 1.0.0 can\'t run until it is updated: module.json uses the old scope "server"; use "environment" (Magpie renamed the server to the environment).');
+    await waitFor('[deps] Carried the member role\'s choice for module.renamer.links over to module.renamer.view_page.');
+    assert.deepEqual(readJson(path.join(envDir, 'app.json')).settings.roles.member, { 'module.renamer.view_page': true }, 'the grant carried, the old key gone');
+    const owner = cookieOf(await call(server, 'deps', 'POST', '/api/login', { body: { login: 'owner', password: 'owner-password-1' } }));
+    const as = (method, url, body) => call(server, 'deps', method, url, { cookie: owner, body });
+    const byId = Object.fromEntries((await as('GET', '/api/modules')).json.modules.map((m) => [m.id, m]));
+    assert.deepEqual([byId.oldmod.enabled, byId.oldmod.outdatedVersions, byId.depmod.enabled, byId.depmod.needsUpdate, byId.depmod.missing, byId.renamer.enabled], [false, ['1.0.0'], false, ['oldmod'], [], true]);
+    assert.equal((await as('GET', '/api/modules/depmod/context?scope=environment')).status, 404, 'what requires it does not run');
+    assert.ok(!JSON.stringify((await as('GET', '/api/modules/nav')).json).includes('"depmod"'));
+    const on = await as('PATCH', '/api/modules/depmod', { enabled: true });
+    assert.deepEqual([on.status, on.json], [409, { error: 'depmod needs oldmod, which needs an update from its author.' }]);
+    assert.equal((await as('PATCH', '/api/modules/oldmod', { enabled: false })).status, 200, 'turning the outdated one off asks nothing about what requires it');
+    await server.stop();
+    // A single install: the same lines, with no environment named.
+    const single = path.join(liveDir, 'single-outdated');
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    await server.stop();
+    putModules(single);
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    await waitFor('Module "depmod" 1.0.0 can\'t run until "oldmod", which it requires, is updated.');
+    await waitFor('Carried the member role\'s choice for module.renamer.links over to module.renamer.view_page.');
+    assert.ok(!/\[\w+\] (Module|Carried|Updated)/.test(server.output()), server.output());
+    await server.stop();
+    server = null;
+  });
+
+  // QA's case: bundled modules installed before step 5c, where one requires another that sorts after it (Maps needs Places),
+  // and one that gains a new permission off for every role (Stream). On start each is updated, requirements first; none
+  // fails, and each ends on, as it was.
+  await liveTest('live: outdated bundled modules are updated requirements first, and each ends on as it was', async () => {
+    const single = path.join(liveDir, 'single-bundled');
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    await server.stop();
+    const modulesDir = path.join(single, 'modules');
+    fs.mkdirSync(modulesDir, { recursive: true });
+    const registry = fs.existsSync(path.join(modulesDir, 'registry.json')) ? readJson(path.join(modulesDir, 'registry.json')) : { modules: {}, autoInstalled: [] };
+    const oldVersion = (v) => { const [a, b, c] = v.split('.').map(Number); return c > 0 ? `${a}.${b}.${c - 1}` : b > 0 ? `${a}.${b - 1}.99` : `${a - 1}.99.99`; };
+    const current = {};
+    for (const id of ['maps', 'places', 'stream']) {
+      const now = readJson(path.join(ROOT, 'modules', id, 'module.json'));
+      current[id] = now.version;
+      const version = oldVersion(now.version);
+      const d = path.join(modulesDir, id, 'versions', version);
+      fs.rmSync(path.join(modulesDir, id, 'versions'), { recursive: true, force: true });
+      fs.mkdirSync(d, { recursive: true });
+      // The same module in the old names, as a build before 5c installed it; Stream with its old permission.
+      const old = { ...now, version, scope: now.scope.map((x) => (x === 'environment' ? 'server' : x === 'space' ? 'room' : x)) };
+      if (id === 'stream') old.permissions = [{ key: 'links', label: 'See the stream links', default: { user: false, guest: false, moderator: false } }];
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify(old));
+      const approved = { permissions: (old.permissions || []).map((p) => p.key), hooks: Object.keys(now.hooks || {}).filter((h) => now.hooks[h]), refs: now.refs?.consumes || [], events: now.events?.subscribes || [], actions: now.actions?.uses || [] };
+      registry.modules[id] = { id, versions: [version], version, enabled: true, allSpaces: true, spaces: [], approved, source: 'bundled', installedAt: '2026-09-01T00:00:00.000Z' };
+    }
+    registry.autoInstalled = [...new Set([...(registry.autoInstalled || []), 'stream'])];
+    fs.writeFileSync(path.join(modulesDir, 'registry.json'), JSON.stringify(registry));
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    for (const id of ['maps', 'places', 'stream']) await waitFor(`Updated "${id}" to ${current[id]}`);
+    const out = server.output();
+    assert.ok(!out.includes('Could not update'), out);
+    assert.ok(out.indexOf('Updated "places"') < out.indexOf('Updated "maps"'), `Places before Maps:\n${out}`);
+    assert.ok(out.includes(`Updated "stream" to ${current.stream}: the version installed was built for an older Magpie. It stays on: its new permission (view_page) is off for every role, so only owners have it.`), out);
+    const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
+    const byId = Object.fromEntries((await call(server, '', 'GET', '/api/modules', { cookie: admin })).json.modules.map((m) => [m.id, m]));
+    for (const id of ['maps', 'places', 'stream']) assert.deepEqual([id, byId[id].version, byId[id].enabled, byId[id].missing, byId[id].needsUpdate], [id, current[id], true, [], []]);
+    assert.equal((await call(server, '', 'GET', '/api/modules/maps/context?scope=space&space=lobby', { cookie: admin })).status, 200, 'Maps runs');
     await server.stop();
     server = null;
   });

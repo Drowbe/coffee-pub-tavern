@@ -1,5 +1,5 @@
-// The To-do's dashboard widget: tasks that are due within the week (or overdue) and not done, across every room
-// the viewer is in and the server's own list. It shows and opens; it never edits. Clicking a task takes the person
+// The To-do's dashboard widget: tasks that are due within the week (or overdue) and not done, across every space
+// the viewer is in and the environment's own list. It shows and opens; it never edits. Clicking a task takes the person
 // to it (host.refs.open); the widget's heading opens the full list.
 (async () => {
   'use strict';
@@ -22,17 +22,17 @@
 
   const DAYS_AHEAD = 7;
   const MAX_ITEMS = 8;
-  const tasks = new Map(); // "<place>:<key>" -> { id, roomId, t }
-  const rooms = new Map(); // room id -> { id, name, icon, svg }
+  const tasks = new Map(); // "<place>:<key>" -> { id, spaceId, t }
+  const spaces = new Map(); // space id -> { id, name, icon, svg }
 
   async function load() {
     tasks.clear();
-    for (const item of await host.storage.list('task:')) if (item.value) tasks.set('server:' + item.key, { id: item.key.slice(5), roomId: null, t: item.value });
+    for (const item of await host.storage.list('task:')) if (item.value) tasks.set('environment:' + item.key, { id: item.key.slice(5), spaceId: null, t: item.value });
     try {
-      for (const r of await host.rooms()) rooms.set(r.id, r);
-      for (const item of await host.storage.list('task:', { scope: 'rooms' })) if (item.value) tasks.set(`${item.roomId}:${item.key}`, { id: item.key.slice(5), roomId: item.roomId, t: item.value });
+      for (const r of await host.spaces()) spaces.set(r.id, r);
+      for (const item of await host.storage.list('task:', { scope: 'spaces' })) if (item.value) tasks.set(`${item.spaceId}:${item.key}`, { id: item.key.slice(5), spaceId: item.spaceId, t: item.value });
     } catch (err) {
-      // no rooms is fine: just the server's own tasks
+      // no spaces is fine: just the environment's own tasks
     }
   }
 
@@ -56,15 +56,15 @@
     $('msg').textContent = 'Nothing due in the next week.';
     $('list').hidden = items.length === 0;
     $('list').innerHTML = items.map((x) => {
-      const r = x.roomId ? rooms.get(x.roomId) : null;
+      const r = x.spaceId ? spaces.get(x.spaceId) : null;
       const w = whenOf(x.t.due);
-      return `<button type="button" class="item" data-task="${esc(x.roomId || '')}|${esc(x.id)}" title="${esc(x.t.title)}${r ? ' - ' + esc(r.name) : ''}">
+      return `<button type="button" class="item" data-task="${esc(x.spaceId || '')}|${esc(x.id)}" title="${esc(x.t.title)}${r ? ' - ' + esc(r.name) : ''}">
         <span class="ri"${r ? ` title="${esc(r.name)}"` : ''}>${r && r.svg ? r.svg : ''}</span><span class="what">${esc(x.t.title)}</span><span class="when ${w.cls}">${esc(w.text)}</span><span class="go">${goIcon}</span></button>`;
     }).join('');
     fit();
   }
 
-  // A widget in a frame tells the dashboard how tall it is; one in the page just takes the room it needs.
+  // A widget in a frame tells the dashboard how tall it is; one in the page just takes the height it needs.
   function fit() {
     try {
       host.resize({ height: $('w').offsetHeight + 4 }); // the content, not the frame's own height
@@ -76,8 +76,8 @@
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-task]');
     if (!b) return;
-    const [room, id] = b.dataset.task.split('|');
-    host.refs.open(host.refs.make('task', id, room ? { room } : undefined)).catch(() => {});
+    const [space, id] = b.dataset.task.split('|');
+    host.refs.open(host.refs.make('task', id, space ? { space } : undefined)).catch(() => {});
   });
 
   let refreshing = 0;

@@ -28,9 +28,9 @@ const call = async (method, params) => {
 const { host } = win.createHost({ call, root: {}, rootElement: {} });
 const { fillFor } = host.refs;
 
-const task = { module: 'todo', kind: 'task', id: 't1', scope: 'room', room: 'r' };
-const event = { module: 'calendar', kind: 'event', id: 'e1', scope: 'room', room: 'r' };
-const place = { module: 'places', kind: 'place', id: 'p1', scope: 'room', room: 'r' };
+const task = { module: 'todo', kind: 'task', id: 't1', scope: 'space', space: 'r' };
+const event = { module: 'calendar', kind: 'event', id: 'e1', scope: 'space', space: 'r' };
+const place = { module: 'places', kind: 'place', id: 'p1', scope: 'space', space: 'r' };
 const card = { title: 'Dinner at the pier', text: 'Book for four', date: '2026-10-03', place: { lat: 38.7, lng: -9.1, name: 'Pier' }, kind: 'restaurant' };
 
 let n = 0;

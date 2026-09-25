@@ -2,7 +2,7 @@
 
 **Audience:** whoever writes `places.js` (the modules side) and whoever styles it (`places.html`, `places.css`; the interface side).
 
-**What Places is.** The room's saved places: named locations (a hotel, a restaurant, a viewpoint) with an address, an optional position, notes, a category and owners. It needs no map and no map file. Other modules point at a place through the links conduit (a trip stop, an event, a task); a place with a position also gives its card a `place`, so the Maps module draws it. Maps stores no places of its own.
+**What Places is.** The space's saved places: named locations (a hotel, a restaurant, a viewpoint) with an address, an optional position, notes, a category and owners. It needs no map and no map file. Other modules point at a place through the links conduit (a trip stop, an event, a task); a place with a position also gives its card a `place`, so the Maps module draws it. Maps stores no places of its own.
 
 **Canonical markup.** The elements a script clones are the `<template>` elements in `places.html` (`tpl-chip`, `tpl-group`, `tpl-place`, `tpl-owner`, `tpl-link`, `tpl-conflict`, `tpl-readonly`, `tpl-state-*`). The script fills a clone by hooks only, `[data-slot=name]` (textContent) and `[data-icon=name]` (the inline SVG from `host.ui.icon`), and toggles the state classes and data attributes below. If this text and the templates disagree, the templates win. `design/places.html` is the reference rendering: open it in a browser for every state, dark and light, at phone, pane and wide sizes.
 
@@ -60,9 +60,9 @@ The host's bottom bar quick-add (`host.bar.set` with a `quickadd` item, placehol
 
 A place with a position gives its card a `place` (`{ lat, lng, name }`), so it appears on the Maps module's map with this module's icon; opening it there brings you here. A place with only an address is listed here and opens its address in the person's maps app, and can be given a position later. That is why "On the map" and "No position yet" are shown: they say whether the map has it.
 
-## Views: mine, this room, everyone
+## Views: mine, this space, everyone
 
-The same places at three scopes (see plan-places-views.md). The switch itself (an icon and "Mine", "This room", "Everyone") is drawn in the toolbar by `host.ui.viewSwitch`, not markup in `places.html` -- see `architecture-module-window.md`. Under the header, `p.view-note[data-slot=view-note]` (hidden for the room view) says whose they are: "Only you see these. They follow you into every room." for mine, "Everyone on this server sees these, and anyone who can edit can change them." for everyone. The script builds the switch's options from what the person has (Mine needs a signed-in person, Everyone needs the server scope and shows only where the person may see it) and skips it entirely with only one view available. The list, chips, counts, menu and dialog are the same in each view; in a view the person may not change (everyone, without the right), the menu says "View", there is no Delete and the dialog is read-only, as for a viewer today. The place menu gets one more item, `data-action=share`: "Share to this room" in mine, "Save to mine" in the room view (hidden in everyone).
+The same places at three scopes (see plan-places-views.md). The switch itself (an icon and "Mine", "This space", "Everyone") is drawn in the toolbar by `host.ui.viewSwitch`, not markup in `places.html` -- see `architecture-module-window.md`. Under the header, `p.view-note[data-slot=view-note]` (hidden for the space view) says whose they are: "Only you see these. They follow you into every space." for mine, "Everyone in this environment sees these, and anyone who can edit can change them." for everyone. The script builds the switch's options from what the person has (Mine needs a signed-in person, Everyone needs the environment scope and shows only where the person may see it) and skips it entirely with only one view available. The list, chips, counts, menu and dialog are the same in each view; in a view the person may not change (everyone, without the right), the menu says "View", there is no Delete and the dialog is read-only, as for a viewer today. The place menu gets one more item, `data-action=share`: "Share to this space" in mine, "Save to mine" in the space view (hidden in everyone).
 
 ## Find a place (only when a search address is set)
 
@@ -70,4 +70,4 @@ The bottom bar takes a name, coordinates, a map link or, with a search address, 
 
 ## Not decided yet
 
-Tags beyond the five categories, sorting other than by name inside a group, importing a list, and sharing a place between rooms.
+Tags beyond the five categories, sorting other than by name inside a group, importing a list, and sharing a place between spaces.

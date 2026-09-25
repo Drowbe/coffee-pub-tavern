@@ -1,8 +1,8 @@
-// Calendar module. One file of code for every place it shows: the server's own
-// page, a room's docked pane or floating panel, and a window of its own. On the
-// server page it holds the server's events and shows, read-only, the events of every
-// room the viewer belongs to (each marked with its room's icon); in a room it holds
-// that room's events and shows the server's beside them. The SDK (window.host) is injected by the host.
+// Calendar module. One file of code for every place it shows: the environment's own
+// page, a space's canvas (docked or floating), and a window of its own. On the
+// environment page it holds the environment's events and shows, read-only, the events of every
+// space the viewer belongs to (each marked with its space's icon); in a space it holds
+// that space's events and shows the environment's beside them. The SDK (window.host) is injected by the host.
 (async function () {
   'use strict';
 
@@ -21,19 +21,19 @@
     $('msg').textContent = 'The calendar could not start: ' + err.message;
     return;
   }
-  const inRoom = info.context.scope === 'room';
+  const inSpace = info.context.scope === 'space';
   // The person's own choice of the view to open on (Settings > Module settings).
   let prefs = {};
   try { prefs = await host.settings.get(); } catch (err) { prefs = {}; }
   const canEdit = host.can('edit');
   const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (err) { return undefined; } })();
 
-  // Every event we know of, by "<scope>:<id>". `scope` is where it is stored: 'room'
-  // (this room, or the server on the server page -- the frame's own context) or
-  // 'server' (shown read-only in a room).
+  // Every event we know of, by "<scope>:<id>". `scope` is where it is stored: 'here'
+  // (this space, or the environment on its page -- the frame's own context),
+  // 'environment' (shown read-only in a space) or 'spaces' (another space's, on the environment page).
   const events = new Map();
-  const roomInfo = new Map(); // room id -> { id, name, icon, svg }, on the server page
-  const hiddenRooms = new Set(); // rooms filtered out on the server page
+  const spaceInfo = new Map(); // space id -> { id, name, icon, svg }, on the environment page
+  const hiddenSpaces = new Set(); // spaces filtered out on the environment page
   let cursor = new Date();
   cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   let view = ['month', 'week', 'both', 'list'].includes(prefs.defaultView) ? prefs.defaultView : 'month';
@@ -47,7 +47,7 @@
   function inRange(from, to) {
     const out = [];
     for (const x of events.values()) {
-      if (x.scope === 'rooms' && hiddenRooms.has(x.roomId)) continue;
+      if (x.scope === 'spaces' && hiddenSpaces.has(x.spaceId)) continue;
       const dur = durationOf(x.ev);
       for (const start of occurrences(x.ev, new Date(from.getTime() - dur), to)) {
         const end = endOf(x.ev, start);
@@ -59,45 +59,45 @@
 
   // --- loading and live updates --------------------------------------------
 
-  // scope 'rooms' is another room's event on the server page: read-only, kept by room and id.
-  const keyOf = (scope, id, roomId) => (scope === 'rooms' ? `rooms:${roomId}:${id}` : `${scope}:${id}`);
-  function remember(scope, item, roomId) {
+  // scope 'spaces' is another space's event on the environment page: read-only, kept by space and id.
+  const keyOf = (scope, id, spaceId) => (scope === 'spaces' ? `spaces:${spaceId}:${id}` : `${scope}:${id}`);
+  function remember(scope, item, spaceId) {
     if (!item.key.startsWith('event:') || !item.value) return;
     const id = item.key.slice(6);
-    const key = keyOf(scope, id, roomId);
-    events.set(key, { key, scope, roomId, id, version: item.version, ev: item.value });
+    const key = keyOf(scope, id, spaceId);
+    events.set(key, { key, scope, spaceId, id, version: item.version, ev: item.value });
   }
 
-  // A room's icon (inline SVG from the host) with its name for a tooltip.
-  const roomIcon = (x) => {
-    const r = x.scope === 'rooms' ? roomInfo.get(x.roomId) : null;
+  // A space's icon (inline SVG from the host) with its name for a tooltip.
+  const spaceIcon = (x) => {
+    const r = x.scope === 'spaces' ? spaceInfo.get(x.spaceId) : null;
     return r && r.svg ? `<span class="ri" title="${esc(r.name)}">${r.svg}</span>` : '';
   };
   async function load() {
     events.clear();
-    for (const item of await host.storage.list('event:')) remember('room', item);
-    if (inRoom) {
+    for (const item of await host.storage.list('event:')) remember('here', item);
+    if (inSpace) {
       try {
-        for (const item of await host.storage.list('event:', { scope: 'server' })) remember('server', item);
+        for (const item of await host.storage.list('event:', { scope: 'environment' })) remember('environment', item);
       } catch (err) {
-        // guests and people without server access see just the room's events
+        // guests and people without environment access see just the space's events
       }
-    } else if (info.context.scope === 'server') {
-      // Every room the viewer belongs to that has the calendar on.
+    } else if (info.context.scope === 'environment') {
+      // Every space the viewer belongs to that has the calendar on.
       try {
-        for (const r of await host.rooms()) roomInfo.set(r.id, r);
-        for (const item of await host.storage.list('event:', { scope: 'rooms' })) remember('rooms', item, item.roomId);
+        for (const r of await host.spaces()) spaceInfo.set(r.id, r);
+        for (const item of await host.storage.list('event:', { scope: 'spaces' })) remember('spaces', item, item.spaceId);
       } catch (err) {
-        // no rooms is fine: just the server's own events
+        // no spaces is fine: just the environment's own events
       }
     }
   }
   host.on('change', (e) => {
     if (!e.key.startsWith('event:')) return;
-    const scope = e.scope === 'rooms' ? 'rooms' : e.scope === 'server' && inRoom ? 'server' : 'room';
+    const scope = e.scope === 'spaces' ? 'spaces' : e.scope === 'environment' && inSpace ? 'environment' : 'here';
     const id = e.key.slice(6);
-    if (e.deleted) events.delete(keyOf(scope, id, e.roomId));
-    else remember(scope, { key: e.key, value: e.value, version: e.version }, e.roomId);
+    if (e.deleted) events.delete(keyOf(scope, id, e.spaceId));
+    else remember(scope, { key: e.key, value: e.value, version: e.version }, e.spaceId);
     if (editing && editing.scope === scope && editing.id === id && e.by !== info.user.key) {
       showError('This event was just changed by someone else. Close and reopen it to see the change.');
     }
@@ -111,7 +111,7 @@
   function chipHtml({ x, start, cont }) {
     // A multi-day event shows its time on the first day and an arrow on the days after.
     const label = cont ? '\u2192 ' + x.ev.title : (x.ev.allDay ? '' : timeText(start) + ' ') + x.ev.title;
-    return `<button class="chip ${x.scope === 'server' && inRoom ? 'server' : ''}" data-open="${esc(x.key)}" title="${esc(x.ev.title)}">${roomIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
+    return `<button class="chip ${x.scope === 'environment' && inSpace ? 'environment' : ''}" data-open="${esc(x.key)}" title="${esc(x.ev.title)}">${spaceIcon(x)}${x.ev.repeat ? '<span class="rep">&#8635;</span>' : ''}${esc(label)}</button>`;
   }
 
   function monthGrid() {
@@ -154,7 +154,7 @@
     }
     return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start < floor ? floor : g[0].start))}</h4>${g.map(({ x, start, end }) => `
       <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start, end))}</span>
-        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'server' && inRoom ? '<span class="tag">server</span>' : ''}${x.scope === 'rooms' && roomInfo.get(x.roomId) ? `<span class="tag space">${roomIcon(x)} ${esc(roomInfo.get(x.roomId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
+        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'environment' && inSpace ? '<span class="tag">environment</span>' : ''}${x.scope === 'spaces' && spaceInfo.get(x.spaceId) ? `<span class="tag space">${spaceIcon(x)} ${esc(spaceInfo.get(x.spaceId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
   function monthList() {
@@ -233,17 +233,17 @@
     }
   }
 
-  // On the server page, a row of the viewer's rooms to show or hide.
+  // On the environment page, a row of the viewer's spaces to show or hide.
   function renderFilters() {
     const box = $('filters');
-    box.hidden = roomInfo.size === 0;
+    box.hidden = spaceInfo.size === 0;
     if (box.hidden) return;
-    box.innerHTML = [...roomInfo.values()].map((r) => `<button type="button" class="filter ${hiddenRooms.has(r.id) ? '' : 'on'}" data-room="${esc(r.id)}" title="${hiddenRooms.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
+    box.innerHTML = [...spaceInfo.values()].map((r) => `<button type="button" class="filter ${hiddenSpaces.has(r.id) ? '' : 'on'}" data-space="${esc(r.id)}" title="${hiddenSpaces.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
   }
   $('filters').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-room]');
+    const b = e.target.closest('[data-space]');
     if (!b) return;
-    if (hiddenRooms.has(b.dataset.room)) hiddenRooms.delete(b.dataset.room); else hiddenRooms.add(b.dataset.room);
+    if (hiddenSpaces.has(b.dataset.space)) hiddenSpaces.delete(b.dataset.space); else hiddenSpaces.add(b.dataset.space);
     render();
   });
 
@@ -266,7 +266,7 @@
   function remindHint() {
     $('f-remind-hint').textContent = $('f-remind').value === ''
       ? ''
-      : (inRoom ? 'Everyone in this space' : 'Everyone on the server') + ' gets a notification, if they are allowed to see the calendar.';
+      : (inSpace ? 'Everyone in this space' : 'Everyone in this environment') + ' gets a notification, if they are allowed to see the calendar.';
   }
   $('f-remind').addEventListener('change', remindHint);
 
@@ -285,7 +285,7 @@
   // (host.refs.linksTo), only what the viewer may see, and a link to an event can ask for it to be
   // shown (host.refs.onOpen). Nothing here knows which modules those are.
 
-  const whereFor = (x) => (x.scope === 'rooms' ? { room: x.roomId } : x.scope === 'server' && inRoom ? { scope: 'server' } : undefined);
+  const whereFor = (x) => (x.scope === 'spaces' ? { space: x.spaceId } : x.scope === 'environment' && inSpace ? { scope: 'environment' } : undefined);
   let backlinksFor = null; // the event key the shown backlinks are for
   async function showBacklinks(x) {
     backlinksFor = x ? x.key : null;
@@ -328,7 +328,7 @@
   }
   if (host.refs && host.refs.onOpen) {
     host.refs.onOpen((ref) => {
-      const x = events.get(keyOf('room', ref.id)) || events.get(keyOf('server', ref.id)) || events.get(keyOf('rooms', ref.id, ref.room));
+      const x = events.get(keyOf('here', ref.id)) || events.get(keyOf('environment', ref.id)) || events.get(keyOf('spaces', ref.id, ref.space));
       if (!x) return;
       const d = startOf(x.ev);
       cursor = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -343,11 +343,11 @@
   }
 
   function openEditor(x, day, prefill) {
-    const readOnly = !canEdit || (x && ((x.scope === 'server' && inRoom) || x.scope === 'rooms'));
+    const readOnly = !canEdit || (x && ((x.scope === 'environment' && inSpace) || x.scope === 'spaces'));
     const ev = x ? x.ev : { title: '', allDay: false, start: '', end: null, desc: '', remind: null, repeat: null };
-    editing = x ? { scope: x.scope, id: x.id, version: x.version } : { scope: 'room', id: null, version: null };
+    editing = x ? { scope: x.scope, id: x.id, version: x.version } : { scope: 'here', id: null, version: null };
     showError('');
-    const from = x && x.scope === 'rooms' && roomInfo.get(x.roomId) ? ` (${roomInfo.get(x.roomId).name})` : '';
+    const from = x && x.scope === 'spaces' && spaceInfo.get(x.spaceId) ? ` (${spaceInfo.get(x.spaceId).name})` : '';
     $('editor-title').textContent = x ? (readOnly ? ev.title + from : 'Edit event') : 'New event';
     $('f-title').value = ev.title;
     $('f-allday').checked = Boolean(ev.allDay);
@@ -459,12 +459,12 @@
     $('f-save').disabled = true;
     try {
       const saved = await host.storage.set('event:' + id, ev, editing.id ? { version: editing.version } : {});
-      remember('room', { key: 'event:' + id, value: ev, version: saved.version });
+      remember('here', { key: 'event:' + id, value: ev, version: saved.version });
       let reminderFailed = false;
       try { await applyReminder(id, ev); } catch (err) { reminderFailed = true; }
       render();
       if (!reminderFailed) closeEditor();
-      else editing = { scope: 'room', id, version: saved.version };
+      else editing = { scope: 'here', id, version: saved.version };
     } catch (err) {
       showError(err.status === 409 ? 'Someone changed this event since you opened it. Close it and open it again.' : err.message);
     } finally {
@@ -553,7 +553,7 @@
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const ev = { id, title: String(title).slice(0, 120), allDay: true, start: date, end: null, desc: '', remind: null, repeat: null, by: info.user.name };
     const saved = await host.storage.set('event:' + id, ev, {});
-    remember('room', { key: 'event:' + id, value: ev, version: saved.version });
+    remember('here', { key: 'event:' + id, value: ev, version: saved.version });
     const made = host.refs.make('event', id);
     // Made from an item dropped or handed over: point at it, so the link shows from both ends.
     if (ref && host.refs.setLinks) host.refs.setLinks(made, [ref]).catch(() => {});
@@ -659,7 +659,7 @@
     const now = Date.now();
     let sent = 0;
     for (const x of [...events.values()]) {
-      if (x.scope !== 'room' || x.ev.repeat || x.ev.announced || announcing.has(x.id) || sent >= 5) continue;
+      if (x.scope !== 'here' || x.ev.repeat || x.ev.announced || announcing.has(x.id) || sent >= 5) continue;
       const ends = startOf(x.ev).getTime() + durationOf(x.ev);
       if (ends > now || now - ends > WEEK) continue;
       announcing.add(x.id);
@@ -667,7 +667,7 @@
       const ev = { ...x.ev, announced: true };
       try {
         const saved = await host.storage.set('event:' + x.id, ev, { version: x.version });
-        remember('room', { key: 'event:' + x.id, value: ev, version: saved.version });
+        remember('here', { key: 'event:' + x.id, value: ev, version: saved.version });
         const day = startOf(ev).toLocaleDateString([], { month: 'short', day: 'numeric' });
         await host.events.publish('ended', { ref: host.refs.make('event', x.id, whereFor(x)), data: { summary: (ev.title + ', ' + day).slice(0, 200) } });
       } catch (err) {
