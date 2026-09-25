@@ -30,8 +30,8 @@ view shows the Character pictures only and never the video. See
 [Participant and Character images](userguide-images.md) for how to set those up; the pictures are still
 each person's own, on their profile.
 
-The links carry the server's **access key**, which the Stream page shows (and regenerates) for owners and,
-on a hosted server, the host admin, as does **Access key** on the Server tab of the Manage page. Regenerating
+The links carry the server's **access key**, which the Stream page shows (and regenerates) for owners and
+the admin (on a hosted server, the host admin), as does **Access key** on the Server tab of the Manage page. Regenerating
 it stops every existing link working, so do it only if a link has leaked. Anyone else who opens the Stream
 page sees "Only an owner sees the links, since each one carries the access key." The module's **See the
 stream links and the access key** permission on the Roles tab does not change that today.

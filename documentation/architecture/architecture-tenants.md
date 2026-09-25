@@ -19,7 +19,7 @@ environment the current request resolved.
 `buildEnvironment(dataDir, { slug, admin })` is the whole of what server startup used to do at module scope:
 constructs `Store`, `ModuleManager`, `ModuleHooks` and the rest from one directory, wires the event listeners
 that turn a change into an activity-log line, starts that environment's own `ModuleHooks` 10-second poll, and
-(for the default environment only) bootstraps the owner account from `OWNER_PASSWORD` (see "Roles" below). It returns a plain object
+(for the default environment only) makes or resets the server's admin from `ADMIN_LOGIN` and `ADMIN_PASSWORD` (see "Roles" below). It returns a plain object
 with one property per service. Nothing here is a Proxy -- these are the real instances.
 
 Two things it does **not** build, because they are the host's, not any one environment's: the LiveKit
@@ -321,16 +321,18 @@ in step 10 of the plan.
 ## Roles
 
 Inside an environment an account's `role` is `owner` or `member` (`ASSIGNABLE_ROLES` in `server/store.js`), and
-`admin` only for the host admin's own account (`hostAdmin: true`). `owner` and `admin` have every right, in the
+`admin` only for the server's admin: the host admin's own account (`hostAdmin: true`) on a hosted server, or the
+account `ADMIN_LOGIN` makes on a single install. `admin` is never given in Manage. `owner` and `admin` have every right, in the
 host and in every module (`OWNER_RIGHTS`, `hasOwnerRights()`); routes that need it use `requireOwner`. The pages
-show Owner, Member and Host admin on every install.
+show Owner, Member, Admin ("Admin: runs this server") and Host admin.
 
 | Where | Refusal |
 |---|---|
 | An owner-only route, from a person who is not one | 403 `owners only` (a page: `Owners only.`) |
 | `POST /api/users`, `PATCH /api/users/:key` with another role | 400 `role must be owner or member` |
 | `PATCH /api/users/:key` changing the host admin's account's role | 400 `this account is the host admin's, so its role can't be changed here` |
-| Making the last owner a member, or deleting them | 400 `keep at least one owner` (the host admin's account is not counted) |
+| Any change to the single install's admin: role, login, password, personal link, deleting it | 400 `this account is the server's admin, so its role can't be changed here`, `this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here`, `this account is the server's admin, so it can't be removed here` |
+| Resetting the single install's admin's two-step sign-in from Manage | 400 `this account is the server's admin: it recovers its two-step sign-in with ADMIN_PASSWORD and the lockout bypass, so it can't be reset here` |
 | Changing your own role | 400 `you cannot demote yourself` |
 | `PATCH /api/roles/owner` | 400 `the owner has every permission, so that role can't be changed` |
 | `PATCH /api/roles/user` | 404 (it is `PATCH /api/roles/member` now) |
@@ -341,12 +343,31 @@ show Owner, Member and Host admin on every install.
 (`GET /api/modules/:id/context`) gives `user.role` as `admin`, `owner`, `member` or `guest` (`viewer` on a keyed
 page), and a module asks `host.can()` rather than reading the role; an owner has every module permission.
 
-On a single-environment install the account made from the configuration is an owner: `ADMIN_USER` (the login,
-default `admin`) with `OWNER_PASSWORD`. The old name `ADMIN_PASSWORD` is still read (`OWNER_PASSWORD` wins when
-both are set) and logs on every start while set: "ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops
-working in a later release." `ADMIN_USER`, `ADMIN_KEY` and `ADMIN_MFA_LOCKOUT_BYPASS` keep their names. With the
-bypass on, the start logs: "The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips
-two-step sign-in entirely. Turn it off once you are back in."
+`ADMIN_LOGIN` and `ADMIN_PASSWORD` make the server's admin on every install, and reset its password on each
+start when it differs (plan-names decision 7, amended):
+
+- **Hosted:** the host admin (`host.json`); other host admins are untouched. `HOST_ADMIN_LOGIN` and
+  `HOST_ADMIN_PASSWORD` are read as old names, with a line each start; if `ADMIN_PASSWORD` and
+  `HOST_ADMIN_PASSWORD` differ, `ADMIN_PASSWORD` wins with a warning. `ADMIN_USER`, `ADMIN_KEY` and
+  `TAVERN_ADMIN_*` are ignored there, with one line.
+- **Single install:** `buildEnvironment()` makes the default environment's admin: role `admin`, every right, not
+  an owner (`store.setServerAdmin()`, `store.serverAdmins()`). It is locked, per the table above. An account
+  already under that login (an owner, after step 4) becomes the admin again. There is no "keep at least one
+  owner": an environment may have none.
+- **No `ADMIN_PASSWORD`:** a brand-new install with no accounts gets an admin (`ADMIN_LOGIN`, default `admin`)
+  with a random password logged once; an install with accounts gets nothing made and nobody promoted, and the
+  log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
+- **Old names:** `ADMIN_USER` and `TAVERN_ADMIN_USER` are read as `ADMIN_LOGIN`, `TAVERN_ADMIN_PASSWORD` and
+  `TAVERN_ADMIN_KEY` as `ADMIN_PASSWORD`, each logging "`<old>` is now `<new>`; the old name stops working in a
+  later release." `ADMIN_KEY`, the pre-account password, is still accepted, without a line. `OWNER_PASSWORD`
+  (step 4) is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's
+  admin."
+- **The pre-environment move** makes the install's admin the new environment's owner.
+
+The lockout bypass (`ADMIN_MFA_LOCKOUT_BYPASS`) covers owners and the server's admin, and the start logs "The
+lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and the server's admin skips two-step sign-in
+entirely. Turn it off once you are back in." (on a hosted server: "every owner and host admin"). `PORT=0` picks
+a free port, and the start logs the real one.
 
 ## The host API: environments
 
@@ -412,7 +433,7 @@ name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receiv
 
 - `tableName` in both answers, set to the environment's name (step 3), since `branding()` no longer sends it.
 - The old role values (step 4): `user.role` in `/api/me` and `users[].role` in `/api/status` are `admin` for an
-  owner or the host admin's account and `user` for a member. `streamKey` needs no entry: the server sends it to
+  owner or the server's admin and `user` for a member. `streamKey` needs no entry: the server sends it to
   owners and the host admin already.
 
 `isAdmin`, `adminOnline` and `byAdmin` keep their names until steps 5a and 5c; their values mean an owner or the

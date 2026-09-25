@@ -4,7 +4,7 @@
 // changed, rather than a flat table of everyone on the Manage page.
 import { renderModuleSettings } from '/module-settings.js';
 import { pickBackground } from '/background-picker.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights, isAdminAccount, roleLabel } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
@@ -14,7 +14,7 @@ const ROOM_PROFILE_SLOTS = { roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SL
 
 const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
-let me = null; // the signed-in admin, only used for the "last admin" check
+let me = null; // the signed-in owner or admin, when editing someone: only used to tell their own account apart
 let user = null; // whose profile this is: me, or the person being edited
 let mfaRequired = false; // the environment requires a second factor of the signed-in person (their own profile only)
 let mfaOffered = true; // the server offers two-step sign-in at all (ENABLE_MFA)
@@ -125,7 +125,7 @@ function render() {
   $('admin-link').hidden = !hasOwnerRights(me || user);
   $('portrait-hint').textContent = editing
     ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile in the call. Click it to change it -- it is not the picture used in the recording, that's below.`
-    : 'Your own photo: it shows next to your name in the header and on your tile in the call. Click it to change it; square images look best. It is not the picture used in the recording — the owner sets that.';
+    : 'Your own photo: it shows next to your name in the header and on your tile in the call. Click it to change it; square images look best. It is not the picture used in the recording; that one is set in Manage.';
 
   // Account: read-only facts normally, editable fields for an owner. Same
   // boxed layout either way (see .facts/.fact in style.css) -- only
@@ -134,30 +134,39 @@ function render() {
   $('account-fields').hidden = !editing;
   $('account-save-row').hidden = !editing;
   $('account-hint').hidden = editing;
+  // The admin (the server's, or the host admin's stand-in) signs in with what the server or the host console holds:
+  // its role, username, password and personal link are not changed here, and the server refuses them.
+  const fixed = isAdminAccount(user);
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
-    $('f-role').textContent = user.hostAdmin ? 'Host admin: runs this server' : hasOwnerRights(user) ? 'Owner: runs the environment' : 'Member';
-    $('f-password').textContent = user.hasPassword ? 'Set. Only an owner can change it.' : 'None. You sign in with your personal link.';
+    $('f-role').textContent = fixed ? `${roleLabel(user)}: runs this server` : hasOwnerRights(user) ? 'Owner: runs the environment' : 'Member';
+    $('f-password').textContent = user.hostAdmin ? 'Set on the host console.'
+      : fixed ? "Set in the server's configuration."
+        : user.hasPassword ? 'Set. Change it in Manage.' : 'None. You sign in with your personal link.';
   } else if (document.activeElement?.closest?.('#account-fields') == null) {
     $('e-name').value = user.displayName;
     $('e-login').value = user.login;
-    // The host admin's stand-in is not a role anyone is given: it shows as it is, and can't be changed here.
+    // Admin is not a role anyone is given: it shows as it is (Admin, or Host admin for the stand-in), locked.
     const roleSelect = $('e-role');
-    let standIn = roleSelect.querySelector('option[data-host-admin]');
-    if (user.hostAdmin && !standIn) {
-      standIn = new Option('Host admin', user.role);
-      standIn.dataset.hostAdmin = '';
-      roleSelect.add(standIn);
-    } else if (!user.hostAdmin && standIn) standIn.remove();
+    roleSelect.querySelector('option[data-fixed]')?.remove();
+    if (fixed) {
+      const opt = new Option(roleLabel(user), user.role);
+      opt.dataset.fixed = '';
+      roleSelect.add(opt);
+    }
     roleSelect.value = user.role;
-    roleSelect.disabled = Boolean(user.hostAdmin);
-    $('e-role-note').hidden = !user.hostAdmin;
-    // The last owner cannot be demoted, and neither can the owner editing
-    // their own account here -- the disabled option itself says enough.
+    roleSelect.disabled = fixed;
+    $('e-role-note').hidden = !fixed;
+    $('e-role-note').textContent = user.hostAdmin
+      ? "The host admin's own account. It signs in through the host console, so its role and sign-in can't be changed here."
+      : "The server's admin. It signs in with the settings in the server's configuration, so its role and sign-in can't be changed here.";
+    // You can't make yourself a member here -- the disabled option says enough.
     const self = me && user.key === me.key;
     roleSelect.querySelector('option[value="member"]').disabled = self;
-    $('account-clear-password').hidden = !user.hasPassword;
+    $('e-login').disabled = fixed;
+    $('e-password').closest('label').hidden = fixed;
+    $('account-clear-password').hidden = fixed || !user.hasPassword;
   }
   renderMfa(editing);
   // Seeing and copying your own link isn't an editing action -- only
@@ -165,7 +174,7 @@ function render() {
   $('link-value').textContent = user.link || 'off';
   $('link-value').classList.toggle('dim', !user.link);
   $('link-copy').hidden = !user.link;
-  $('link-edit-actions').hidden = !editing;
+  $('link-edit-actions').hidden = !editing || fixed;
   if (editing) {
     $('link-off').hidden = !user.link;
     $('link-new').textContent = user.link ? 'Regenerate' : 'Create';
@@ -193,7 +202,7 @@ function render() {
   $('danger-row').hidden = !editing;
   if (editing) {
     const self = me && user.key === me.key;
-    $('delete-btn').hidden = self;
+    $('delete-btn').hidden = self || (fixed && !user.hostAdmin); // the server's admin can't be removed here
   }
 
   renderRoomSections();
@@ -226,17 +235,17 @@ function fillRoomSection(section, room, roomImages) {
   }
   section.querySelector('[data-action="room-remove"]').hidden = !editing;
 
-  // Only an owner sets any of this, same as the images themselves.
+  // Only an owner or the admin sets any of this, same as the images themselves.
   const perms = roomImages.permissions || {};
   for (const box of section.querySelectorAll('[data-permission]')) {
     box.checked = !!perms[box.dataset.permission];
     box.disabled = !editing || hasOwnerRights(user);
   }
   section.querySelector('[data-permissions-hint]').textContent = hasOwnerRights(user)
-    ? `${user.hostAdmin ? 'The host admin' : 'Owners'} can always do all of this, in every space.`
+    ? `${user.hostAdmin ? 'The host admin' : isAdminAccount(user) ? 'The admin' : 'Owners'} can always do all of this, in every space.`
     : editing
       ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
-      : `Set by the owner. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
+      : `Set in Manage. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
   const useDefault = roomImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
@@ -483,10 +492,13 @@ function renderMfa(editing) {
   $('mfa-state').classList.toggle('on', on && !mfaBypass);
   $('mfa-on').hidden = editing || on;
   $('mfa-off').hidden = editing || !on || mfaRequired || mfaBypass;
-  $('mfa-reset').hidden = !editing || !on;
+  // An admin's second factor is not someone else's to reset (the server refuses it): only its own profile offers that.
+  const othersAdmin = isAdminAccount(user) && !(me && user.key === me.key);
+  $('mfa-reset').hidden = !editing || !on || othersAdmin;
   $('mfa-self-reset').hidden = editing || !on || !mfaBypass;
   $('mfa-hint').textContent = editing
-    ? (on ? `${user.displayName} signs in with a code from an authenticator app. Reset it if the app is gone; they are signed out everywhere and asked nothing until they set it up again.` : `${user.displayName} signs in with a password only.`)
+    ? (on && othersAdmin ? `${user.displayName} signs in with a code from an authenticator app. Only they can reset it.`
+      : on ? `${user.displayName} signs in with a code from an authenticator app. Reset it if the app is gone; they are signed out everywhere and asked nothing until they set it up again.` : `${user.displayName} signs in with a password only.`)
     : mfaBypass
       ? (on ? 'The lockout bypass is on, so you are not asked for a code. Reset your factor here if the app is gone, then turn the bypass off on the server.' : 'The lockout bypass is on; turn it off on the server once you are back in.')
       : on
@@ -520,8 +532,9 @@ async function run(fn, statusEl) {
 }
 
 $('account-save').addEventListener('click', () => run(async () => {
-  const patch = { displayName: $('e-name').value, login: $('e-login').value };
-  if (!$('e-role').disabled) patch.role = $('e-role').value; // the host admin's stand-in keeps its role
+  const patch = { displayName: $('e-name').value };
+  if (!$('e-login').disabled) patch.login = $('e-login').value; // the admin's sign-in is not changed here
+  if (!$('e-role').disabled) patch.role = $('e-role').value;
   const password = $('e-password').value;
   if (password) patch.password = password;
   user = (await api('PATCH', `/api/users/${user.key}`, patch)).user;

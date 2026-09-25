@@ -59,13 +59,16 @@ const PLATE_TEXT_CASES = ['default', 'upper', 'lower', 'sentence'];
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
-// An account's role (plan-names, "Roles"): `owner` runs the environment, `member` is everyone else with an account,
-// and `admin` is only ever the host admin's stand-in account inside an environment (hostAdmin: true, see
-// resolveLoginUser in index.js). A guest has no account, and a moderator is a per-space grant (below), so neither
-// is an account's role. Only owner and member can be given to an account; admin comes with the stand-in.
+// An account's role (plan-names, "Roles", decision 7): `owner` runs the environment, `member` is everyone else with
+// an account, and `admin` is the server's admin: on a hosted server the host admin's stand-in account inside an
+// environment (hostAdmin: true, see resolveLoginUser in index.js), on a single-environment install the account
+// ADMIN_LOGIN and ADMIN_PASSWORD make (see buildEnvironment). A guest has no account, and a moderator is a per-space
+// grant (below), so neither is an account's role. Only owner and member can be given to an account by hand; admin
+// comes only from the host or the server's start (setServerAdmin), and an admin's role, login and password are not
+// changed here. An environment may have no owner.
 const ROLES = ['admin', 'owner', 'member'];
 const ASSIGNABLE_ROLES = ['owner', 'member'];
-// Who has every right in the environment: its owners, and the host admin signed in through the stand-in.
+// Who has every right in the environment: its owners, and the admin.
 const OWNER_RIGHTS = ['owner', 'admin'];
 const hasOwnerRights = (user) => Boolean(user) && OWNER_RIGHTS.includes(user.role);
 // Per-room grants on a member (user.rooms[roomId].permissions). Just one:
@@ -625,9 +628,9 @@ class Store {
       key,
       login: cleanLogin(u.login) || key,
       displayName: cleanText(u.displayName, 40) || cleanLogin(u.login) || key,
-      // The stand-in is always `admin` and nobody else is; anything else reads as owner or member (the names-roles
-      // migration has already renamed the old values, so this only ever meets them in hand-made data).
-      role: u.hostAdmin ? 'admin' : OWNER_RIGHTS.includes(u.role) ? 'owner' : 'member',
+      // The stand-in is always `admin`; anything else reads as it is stored, or as a member when it is no role at all
+      // (the names-roles migration has already renamed the old values, so this only ever meets them in hand-made data).
+      role: u.hostAdmin ? 'admin' : ROLES.includes(u.role) ? u.role : 'member',
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
       // A user record that stands in for a host admin signed in here (see resolveLoginUser in index.js): its own
       // passwordHash is always null, so nothing inside the environment can ever authenticate as it directly -- the
@@ -962,6 +965,15 @@ class Store {
   updateUser(key, patch) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
+    // The admin's sign-in is the host's (the stand-in) or the server start's (ADMIN_LOGIN and ADMIN_PASSWORD), never
+    // an owner's to change: its role, login, password and personal link are refused here.
+    if (user.role === 'admin') {
+      const serverAdmin = !user.hostAdmin;
+      if (patch.role !== undefined && patch.role !== user.role) throw new StoreError(serverAdmin ? "this account is the server's admin, so its role can't be changed here" : "this account is the host admin's, so its role can't be changed here");
+      if ((patch.login !== undefined && cleanLogin(patch.login) !== user.login) || patch.passwordHash !== undefined || patch.linkToken) {
+        throw new StoreError(serverAdmin ? "this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here" : "this account signs in through the host console, so its sign-in can't be changed here");
+      }
+    }
     if (patch.login !== undefined) {
       const cleaned = cleanLogin(patch.login);
       if (!cleaned) throw new StoreError('username is required');
@@ -971,9 +983,7 @@ class Store {
     }
     if (patch.displayName !== undefined) user.displayName = cleanText(patch.displayName, 40) || user.login;
     if (patch.role !== undefined && patch.role !== user.role) {
-      if (user.hostAdmin) throw new StoreError("this account is the host admin's, so its role can't be changed here");
       if (!ASSIGNABLE_ROLES.includes(patch.role)) throw new StoreError('role must be owner or member');
-      if (user.role === 'owner' && this.ownerCount() <= 1) throw new StoreError('keep at least one owner');
       user.role = patch.role;
     }
     if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash || null;
@@ -1043,7 +1053,7 @@ class Store {
   removeUser(key) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
-    if (user.role === 'owner' && this.ownerCount() <= 1) throw new StoreError('keep at least one owner');
+    if (user.role === 'admin' && !user.hostAdmin) throw new StoreError("this account is the server's admin, so it can't be removed here");
     this.data.users = this.data.users.filter((u) => u.key !== key);
     for (const room of this.data.rooms) room.members = room.members.filter((k) => k !== key);
     this.save();
@@ -1051,9 +1061,27 @@ class Store {
     return user;
   }
 
-  // Owners only: the host admin's stand-in is not one, so it never counts toward keeping one.
+  // Owners only: the admin is not one.
   ownerCount() {
     return this.data.users.filter((u) => u.role === 'owner').length;
+  }
+
+  // The single-environment install's admin, from ADMIN_LOGIN and ADMIN_PASSWORD on every start (buildEnvironment):
+  // makes an existing account the admin (an install upgraded by step 4 had made it an owner) and, when given, sets its
+  // password hash. The one way an account becomes `admin` other than the host's stand-in.
+  setServerAdmin(key, passwordHash) {
+    const user = this.userByKey(key);
+    if (!user) throw new StoreError('no such user', 404);
+    if (user.hostAdmin) throw new StoreError("this account is the host admin's");
+    user.role = 'admin';
+    if (passwordHash !== undefined) user.passwordHash = passwordHash;
+    this.save();
+    return user;
+  }
+
+  // The server's own admin on a single-environment install: role admin, not the host's stand-in.
+  serverAdmins() {
+    return this.data.users.filter((u) => u.role === 'admin' && !u.hostAdmin);
   }
 
   // --- rooms --------------------------------------------------------------

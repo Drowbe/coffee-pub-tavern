@@ -1450,7 +1450,14 @@ body.in-space .topbar {
   letter-spacing: normal;
 }
 
-/* Why a field can't be changed (the host admin's role), under it in the same box: plain words, not the label's capitals. */
+/* A field that can't be changed here (the admin's username and role) reads as fixed. */
+#account-fields input:disabled,
+#account-fields select:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+}
+
+/* Why a field can't be changed (the admin's role), under it in the same box: plain words, not the label's capitals. */
 #account-fields .hint {
   margin: 0;
   font-size: 12px;

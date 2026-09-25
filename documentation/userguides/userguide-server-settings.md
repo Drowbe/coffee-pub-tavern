@@ -1,9 +1,9 @@
 # Server Settings
 
-**Audience:** an owner running a Coffee Pub Magpie server, working through the Manage page.
+**Audience:** an owner or the admin running a Coffee Pub Magpie server, working through the Manage page.
 
 Open the Manage page with the gear icon in the header. It has six tabs, in this order: **Server**,
-**Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only owners (and, on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
+**Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only owners and the admin (on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
 
 ## Server
 

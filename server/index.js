@@ -31,7 +31,7 @@ const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFI
 const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
-const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError } = require('./migrate-names');
+const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError, recordedParts } = require('./migrate-names');
 const studioAlias = require('./studio-alias');
 const callNames = require('./call-names');
 
@@ -42,20 +42,23 @@ const {
   LIVEKIT_API_URL = '',
   LIVEKIT_API_KEY = '',
   LIVEKIT_API_SECRET = '',
-  ADMIN_USER = '', // the login of the owner OWNER_PASSWORD makes (an account name, so it keeps its name)
-  OWNER_PASSWORD = '',
-  ADMIN_PASSWORD = '', // the old name of OWNER_PASSWORD: still read, with a line on start, until a later release
-  ADMIN_KEY = '', // pre-account releases used this; accepted as the owner password
-  TAVERN_ADMIN_USER = '', // deprecated: use ADMIN_USER
-  TAVERN_ADMIN_PASSWORD = '', // deprecated: use OWNER_PASSWORD
-  TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_KEY
+  // The server's admin (plan-names decision 7): made, or its password reset, on every start. On a hosted server the
+  // host admin in host.json; on a single-environment install the one environment's `admin` account.
+  ADMIN_LOGIN = '',
+  ADMIN_PASSWORD = '',
+  ADMIN_USER = '', // the old name of ADMIN_LOGIN: still read, with a line on start, until a later release
+  ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
+  OWNER_PASSWORD = '', // built in step 4 and dropped: ignored, with a line on start
+  TAVERN_ADMIN_USER = '', // deprecated: use ADMIN_LOGIN
+  TAVERN_ADMIN_PASSWORD = '', // deprecated: use ADMIN_PASSWORD
+  TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_PASSWORD
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
   MIGRATE_ENVIRONMENT_SLUG = '',
   MIGRATE_TENANT_SLUG = '', // the old name of MIGRATE_ENVIRONMENT_SLUG: still read, with a line on start, until a later release
-  HOST_ADMIN_LOGIN = '',
-  HOST_ADMIN_PASSWORD = '',
+  HOST_ADMIN_LOGIN = '', // hosted: the old name of ADMIN_LOGIN, still read with a line on start
+  HOST_ADMIN_PASSWORD = '', // hosted: the old name of ADMIN_PASSWORD, likewise
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
   // Seed the host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per
@@ -90,14 +93,27 @@ const {
   HOST_MFA = '',
 } = process.env;
 
-// The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
-// name always winning when both are set.
-const ownerLogin = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
-// The single-environment install's owner (plan-names decisions 7, 15 and 20): OWNER_PASSWORD, or its old name
-// ADMIN_PASSWORD (the new name wins when both are set, and the old one says so on every start it is set).
-const ownerPassword = OWNER_PASSWORD || ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
-if (ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release.');
-const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
+// The server's admin (plan-names decisions 7, 15 and 20): ADMIN_LOGIN and ADMIN_PASSWORD, on every kind of install.
+// The old names are still read, a new name always winning when both are set, and each old name read says so on every
+// start. On a single-environment install those are ADMIN_USER and TAVERN_ADMIN_* (with ADMIN_KEY, the pre-account
+// password, still accepted); on a hosted server, HOST_ADMIN_LOGIN and HOST_ADMIN_PASSWORD, the host admin's names
+// before. Each kind reads only its own old names, as it always has: a hosted server never read ADMIN_USER or
+// TAVERN_ADMIN_*, which named the single install's account, and a single install never read HOST_ADMIN_*.
+const oldConfigNames = BASE_DOMAIN
+  ? [['HOST_ADMIN_LOGIN', 'ADMIN_LOGIN', HOST_ADMIN_LOGIN], ['HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD', HOST_ADMIN_PASSWORD]]
+  : [['ADMIN_USER', 'ADMIN_LOGIN', ADMIN_USER], ['TAVERN_ADMIN_USER', 'ADMIN_LOGIN', TAVERN_ADMIN_USER], ['TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', 'ADMIN_PASSWORD', TAVERN_ADMIN_KEY]];
+for (const [old, now, value] of oldConfigNames) if (value) console.warn(`${old} is now ${now}; the old name stops working in a later release.`);
+// A hosted server never read the single install's own names; set there, they are said to be ignored, once per start.
+if (BASE_DOMAIN) {
+  const ignored = [['ADMIN_USER', ADMIN_USER], ['ADMIN_KEY', ADMIN_KEY], ['TAVERN_ADMIN_USER', TAVERN_ADMIN_USER], ['TAVERN_ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', TAVERN_ADMIN_KEY]].filter(([, v]) => v).map(([k]) => k);
+  if (ignored.length) console.warn(`${ignored.join(', ')} ${ignored.length === 1 ? 'is' : 'are'} ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.`);
+}
+if (OWNER_PASSWORD) console.warn("OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.");
+const adminLogin = ADMIN_LOGIN || (BASE_DOMAIN ? HOST_ADMIN_LOGIN : ADMIN_USER || TAVERN_ADMIN_USER) || 'admin';
+const adminPassword = ADMIN_PASSWORD || (BASE_DOMAIN ? HOST_ADMIN_PASSWORD : TAVERN_ADMIN_PASSWORD || ADMIN_KEY || TAVERN_ADMIN_KEY);
+if (BASE_DOMAIN && ADMIN_PASSWORD && HOST_ADMIN_PASSWORD && ADMIN_PASSWORD !== HOST_ADMIN_PASSWORD) {
+  console.warn(`ADMIN_PASSWORD and HOST_ADMIN_PASSWORD are both set and differ: ADMIN_PASSWORD is used for the host admin "${adminLogin}". Remove HOST_ADMIN_PASSWORD.`);
+}
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 // The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names
 // decisions 15 and 20): the new name wins when both are set, and the old one says so on every start it is set.
@@ -225,6 +241,21 @@ function migrateIfNeeded() {
   }
   hostRegistry.addEnvironment({ slug, name: slug, plan: { modules: 'all' } });
   console.log(`Migrated the existing install to the "${slug}" environment (${dest}).`);
+  ownersFromServerAdmin(dest);
+}
+// A single-environment install's admin (role admin, made by ADMIN_LOGIN and ADMIN_PASSWORD) runs that install; once it
+// is one environment of a hosted server, the server's admin is the host admin, so that account becomes the
+// environment's owner. Data from before the names-roles part needs nothing here: that part makes it an owner.
+function ownersFromServerAdmin(dir) {
+  const file = path.join(dir, 'app.json');
+  let app;
+  try { app = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return; }
+  if (!app || !Array.isArray(app.users) || !recordedParts(app).includes('names-roles')) return;
+  const moved = app.users.filter((u) => u && u.role === 'admin' && !u.hostAdmin);
+  if (!moved.length) return;
+  for (const u of moved) u.role = 'owner';
+  fs.writeFileSync(file, `${JSON.stringify(app, null, 2)}\n`);
+  console.log(`The install's admin (${moved.map((u) => `"${u.login}"`).join(', ')}) is now the "${path.basename(dir)}" environment's owner; the server's admin is the host admin.`);
 }
 migrateIfNeeded();
 
@@ -351,7 +382,7 @@ function environmentFor(slug) {
   try {
     env = buildEnvironment(dataDir, {
       slug: slug || null,
-      owner: slug ? null : { login: ownerLogin, password: ownerPassword || adminKey },
+      admin: slug ? null : { login: adminLogin, password: adminPassword },
       managed: managedAi,
     });
   } catch (err) {
@@ -434,9 +465,18 @@ if (!BASE_DOMAIN) {
   buildAtStartup(DEFAULT_SLUG); // the one environment, built eagerly, exactly as today
 } else {
   for (const t of hostRegistry.listEnvironments()) buildAtStartup(t.slug); // every existing environment, built at startup
-  if (HOST_ADMIN_LOGIN && HOST_ADMIN_PASSWORD && hostRegistry.listAdmins().length === 0) {
-    hostRegistry.addAdmin({ login: HOST_ADMIN_LOGIN, passwordHash: auth.hashPassword(HOST_ADMIN_PASSWORD) });
-    console.log(`Host admin "${HOST_ADMIN_LOGIN}" created from the environment.`);
+  // The host admin ADMIN_LOGIN and ADMIN_PASSWORD name (plan-names decision 7): made, or its password reset, on every
+  // start, for recovery. Only that one login; any other host admin is left as it is. The password is written only when
+  // it differs, so a restart with the same one signs nobody out.
+  if (adminPassword) {
+    const found = hostRegistry.findAdminByLogin(adminLogin);
+    if (!found) {
+      hostRegistry.addAdmin({ login: adminLogin, passwordHash: auth.hashPassword(adminPassword) });
+      console.log(`Host admin "${adminLogin}" created from the environment.`);
+    } else if (!auth.verifyPassword(adminPassword, found.passwordHash)) {
+      hostRegistry.setAdminPasswordHash(found.key, auth.hashPassword(adminPassword));
+      console.log(`Host admin "${adminLogin}" password reset from the environment.`);
+    }
   }
 }
 
@@ -635,10 +675,11 @@ function secretsKeyBuf() {
 }
 
 // Whether the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) applies to this particular person: an environment's own
-// owner -- never the host admin's own cross sign-in stand-in (role admin), which has no real factor of its own to
-// be locked out of (documentation/plans/plan-mfa.md, "Regaining access").
+// owner, or a single-environment install's admin (the account ADMIN_LOGIN names, which the bypass exists to let back
+// in) -- never the host admin's own cross sign-in stand-in, which has no real factor of its own to be locked out of
+// (documentation/plans/plan-mfa.md, "Regaining access").
 function mfaBypassApplies(user) {
-  return adminMfaLockoutBypass && user.role === 'owner';
+  return adminMfaLockoutBypass && (user.role === 'owner' || (user.role === 'admin' && !user.hostAdmin));
 }
 
 // Whether the environment's policy requires this particular person to have a second factor: settings.mfaRequired,
@@ -2086,7 +2127,7 @@ app.post('/api/me/mfa/disable', requireMfaOffered, requireUser, (req, res) => {
 app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
   const user = currentUser(req);
   if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on' });
-  if (!mfaBypassApplies(user)) return res.status(403).json({ error: 'only an owner can use the lockout bypass' });
+  if (!mfaBypassApplies(user)) return res.status(403).json({ error: 'only an owner or the admin can use the lockout bypass' });
   if (!user.passwordHash || !auth.verifyPassword(req.body?.password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'wrong password' });
   }
@@ -2099,7 +2140,10 @@ app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
 // everywhere and asking nothing until they enrol again.
 app.delete('/api/users/:key/mfa', requireOwner, (req, res) => {
   if (currentUser(req).key === req.params.key) return res.status(400).json({ error: 'reset your own from your profile instead' });
-  if (!store.userByKey(req.params.key)) return res.status(404).json({ error: 'no such user' });
+  const target = store.userByKey(req.params.key);
+  if (!target) return res.status(404).json({ error: 'no such user' });
+  // The server's admin recovers through ADMIN_PASSWORD and the lockout bypass, never an owner's reset.
+  if (target.role === 'admin' && !target.hostAdmin) return res.status(400).json({ error: "this account is the server's admin: it recovers its two-step sign-in with ADMIN_PASSWORD and the lockout bypass, so it can't be reset here" });
   store.mfaDisable(req.params.key);
   res.json({ ok: true });
 });
@@ -4402,17 +4446,19 @@ if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 // Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): the lockout bypass excuses every
 // admin from the code step and the enrol requirement for as long as it is set -- worth a loud warning on
 // every start, the same way a server running with no LiveKit secret or an open registration would be.
-if (adminMfaLockoutBypass) console.warn('The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips two-step sign-in entirely. Turn it off once you are back in.');
+if (adminMfaLockoutBypass) console.warn(`The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: ${BASE_DOMAIN ? 'every owner and host admin' : "every owner and the server's admin"} skips two-step sign-in entirely. Turn it off once you are back in.`);
 
-app.listen(Number(PORT), () => {
+// The port it really listens on is logged, so PORT=0 (any free port, for a check) says which one it got.
+const listener = app.listen(Number(PORT), () => {
+  const port = listener.address().port;
   if (!BASE_DOMAIN) {
     envContext.run(environmentFor(DEFAULT_SLUG), () => {
-      console.log(`${store.settings.serverName} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
+      console.log(`${store.settings.serverName} ${VERSION} listening on :${port}, LiveKit at ${LIVEKIT_HOST}, data in ${DATA_DIR}`);
       // A module that takes a file the operator supplies: say where it looks and what it found, once.
       for (const m of modules.list()) for (const d of m.settings || []) if (d.type === 'file' || d.type === 'files') console.log(`${m.name}: looks for "${d.label}" in ${describeModuleFiles(m, d.folder)}`);
       if (fs.existsSync(path.join(DATA_DIR, 'module-files'))) console.warn(`Note: ${path.join(DATA_DIR, 'module-files')} is no longer used. A module's files belong in its own folder, DATA_DIR/modules/<module id>/<folder>/ (see the module's settings).`);
     });
     return;
   }
-  console.log(`${PRODUCT_NAME} ${VERSION} listening on :${PORT}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at admin.${BASE_DOMAIN}`);
+  console.log(`${PRODUCT_NAME} ${VERSION} listening on :${port}, LiveKit at ${LIVEKIT_HOST}, base domain ${BASE_DOMAIN}, ${environments.size} environment${environments.size === 1 ? '' : 's'}, host console at admin.${BASE_DOMAIN}`);
 });

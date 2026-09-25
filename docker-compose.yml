@@ -49,17 +49,17 @@ services:
       LIVEKIT_HOST: "livekit.CHANGE_ME_DOMAIN"
       LIVEKIT_API_KEY: "CHANGE_ME_API_KEY"
       LIVEKIT_API_SECRET: "CHANGE_ME_API_SECRET"
-      # The owner's account (the game master). Created on first start; if you ever forget
-      # the password, change it here and restart the container. OWNER_PASSWORD was
-      # ADMIN_PASSWORD, which is still read for now.
-      ADMIN_USER: "gm"
-      OWNER_PASSWORD: "CHANGE_ME_OWNER_PASSWORD"
+      # The server's admin. Made on first start, and its password reset to this on every start, so if you
+      # ever forget it, change it here and restart the container. On one environment this admin runs it
+      # (owners are made in Manage); with several environments it is the host admin, who signs in to the
+      # host console at admin.<base domain>. (ADMIN_USER and HOST_ADMIN_LOGIN/HOST_ADMIN_PASSWORD are the
+      # old names, still read for now.)
+      ADMIN_LOGIN: "CHANGE_ME_ADMIN_LOGIN"
+      ADMIN_PASSWORD: "CHANGE_ME_ADMIN_PASSWORD"
       # Several environments on one server (see the getting-started guide, "Environments"): set the base
-      # domain, drop the ADMIN_USER and OWNER_PASSWORD lines above, and add the next three for ONE start only.
+      # domain, and for ONE start only the environment the data already here becomes.
       # BASE_DOMAIN: "magpie.CHANGE_ME_DOMAIN"
       # MIGRATE_ENVIRONMENT_SLUG: "thepub"
-      # HOST_ADMIN_LOGIN: "CHANGE_ME"
-      # HOST_ADMIN_PASSWORD: "CHANGE_ME"
       # PRODUCT_NAME: "CHANGE_ME"        # optional: the product page's name
       # CONTACT_EMAIL: "you@example.com" # optional: where the product page's "ask" writes to
       # SIGNUP: "on"                     # lets anyone make a free environment from the product page; off unless set
@@ -69,7 +69,7 @@ services:
       # AI_ANTHROPIC_KEY: "sk-ant-..."
       # AI_ANTHROPIC_WORKSPACE: "wrkspc_..." # only for a key made at the organisation level; Anthropic then asks which workspace
       # Two-step sign-in (a code from an authenticator app). ENABLE_MFA says whether the server offers it at all;
-      # each environment's admin then chooses to require it, and each person chooses to use it. If an admin is
+      # each environment's owner then chooses to require it, and each person chooses to use it. If an owner or admin is
       # locked out, turn the bypass on, sign in, reset the factor on the profile, turn the bypass off again.
       ENABLE_MFA: "true"
       ADMIN_MFA_LOCKOUT_BYPASS: "false"

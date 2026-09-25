@@ -459,6 +459,14 @@ class HostRegistry {
     return { key: admin.key, login: admin.login, mfaEnrolled: false };
   }
 
+  // A new password for one host admin (ADMIN_PASSWORD on start, for recovery). Its second factor is kept.
+  setAdminPasswordHash(key, passwordHash) {
+    const admin = this.data.hostAdmins.find((a) => a.key === key);
+    if (!admin) throw new HostError('no such host admin', 404);
+    admin.passwordHash = passwordHash;
+    this.save();
+  }
+
   removeAdmin(key) {
     if (!this.data.hostAdmins.some((a) => a.key === key)) throw new HostError('no such host admin', 404);
     if (this.data.hostAdmins.length <= 1) throw new HostError('the last host admin cannot be removed');

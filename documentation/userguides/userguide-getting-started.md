@@ -1,7 +1,7 @@
 # Getting Started
 
 **Audience:** someone setting up a Coffee Pub Magpie server for the first time and signing in as its
-owner.
+admin.
 
 Magpie is two services: the Magpie web app and a LiveKit media server that carries the video and
 audio. This guide sets both up on a QNAP NAS with Container Station and Nginx Proxy Manager, then
@@ -16,7 +16,7 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
    ```bash
    openssl rand -hex 8    # LiveKit API key
    openssl rand -hex 32   # LiveKit API secret
-   openssl rand -hex 8    # your owner password
+   openssl rand -hex 8    # the server admin's password
    ```
 2. **DNS.** Add two records at your DNS provider pointing at your public IP, the same address your
    Foundry hostname uses: `magpie.<domain>` and `livekit.<domain>`. If the provider offers proxying
@@ -24,8 +24,8 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
 3. **Router.** Forward to the NAS's LAN address: `7881` TCP, `7882` UDP, `3478` UDP. Ports 80 and 443
    already reach Nginx Proxy Manager.
 4. **Container Station.** Applications, Create, give it the name `magpie`, paste the contents of
-   `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, owner
-   password), and click Create. Both containers should show green within a minute.
+   `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, the
+   admin's login and password), and click Create. Both containers should show green within a minute.
 5. **Nginx Proxy Manager.** Two proxy hosts, each with a Let's Encrypt certificate and Force SSL:
    - `livekit.<domain>` to scheme http, forward host = NAS LAN address, port `7880`, **Websockets
      Support on**.
@@ -34,20 +34,30 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
 Camera access requires HTTPS, which the proxy provides. Players need nothing but a browser. LiveKit
 1.12 or newer is required; the compose file pulls the latest release.
 
-## Sign in as the owner
+## Sign in as the admin
 
-Open `https://magpie.<domain>/`, sign in as `gm` with the owner password from the compose file, and
-choose the gear icon to open the Manage page. Add your players under **Users** and send each of them
-a login and password, or a personal link; see [Accounts, roles and permissions](userguide-accounts.md).
+The compose file holds one account, the server's **admin**: `ADMIN_LOGIN` and `ADMIN_PASSWORD`. Open
+`https://magpie.<domain>/`, sign in with them, and choose the gear icon to open the Manage page. Add your
+players under **Users** and send each of them a login and password, or a personal link; see
+[Accounts, roles and permissions](userguide-accounts.md). If someone else will run the server day to day, make
+them an **Owner** there; owners are made in Manage, never in the compose file, and a server doesn't need one.
 
-The owner account named in the compose file (`ADMIN_USER`, `gm` in the compose file and `admin` if it is not
-set) is checked on every start: it is created as an owner if missing, and its password is reset to the compose
-value if it differs. If you forget the password, change `OWNER_PASSWORD` in Container Station and restart the
-container.
+The admin is checked on every start: it is made if it is missing, and its password is reset to the compose value
+when it differs. If you forget the password, change `ADMIN_PASSWORD` in Container Station and restart the
+container. Its profile shows "Admin: runs this server". Nobody can change its role, login, password, personal
+link or two-step sign-in from Manage, or delete it; the compose file (and, for two-step sign-in, the lockout
+bypass below) is how it gets back in.
 
-`OWNER_PASSWORD` was called `ADMIN_PASSWORD`. The old name still works for now; while it is set, the log says on
-every start: "ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release." If both are
-set, `OWNER_PASSWORD` is used. `ADMIN_USER`, `ADMIN_KEY` and `ADMIN_MFA_LOCKOUT_BYPASS` keep their names.
+Without `ADMIN_PASSWORD`, a brand-new server makes an admin called `admin` (or `ADMIN_LOGIN`) with a random
+password and prints it in the log once. A server that already has accounts makes nothing and changes nobody;
+the log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
+
+**Older names.** `ADMIN_USER` (and `TAVERN_ADMIN_USER`) are now `ADMIN_LOGIN`, and `TAVERN_ADMIN_PASSWORD` and
+`TAVERN_ADMIN_KEY` are now `ADMIN_PASSWORD`; each still works for now, and the log says to change it.
+`OWNER_PASSWORD`, from the previous version, is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage.
+Use ADMIN_PASSWORD for the server's admin." If you set it in that version, put the same login and password in
+`ADMIN_LOGIN` and `ADMIN_PASSWORD`, and that account becomes the admin again on the next start; without them,
+the owners run the server and there is no admin.
 
 ## Update it later
 
@@ -83,18 +93,18 @@ To switch environments on, with the server already running as above:
    is not in the list, name each environment explicitly on the certificate instead (`admin.<base>`,
    `<slug>.<base>`, one per environment) with the ordinary challenge, and add a name whenever you create one.
    Force SSL and HTTP/2 as before.
-3. **The container, for one start.** Take a copy of `/share/appdata/magpie` first. Remove
-   `ADMIN_USER` and `OWNER_PASSWORD` (or `ADMIN_PASSWORD`; they apply only to a server without a base domain) and
-   add:
+3. **The container, for one start.** Take a copy of `/share/appdata/magpie` first. Keep `ADMIN_LOGIN` and
+   `ADMIN_PASSWORD`: with a base domain they are the **host admin**, who signs in to the host console. Add:
    ```yaml
    BASE_DOMAIN: "magpie.example.com"
    MIGRATE_ENVIRONMENT_SLUG: "thepub" # what your existing server becomes; used once
-   HOST_ADMIN_LOGIN: "yourlogin"       # the host console account; seeded once
-   HOST_ADMIN_PASSWORD: "a strong one"
    ```
    Recreate the container. On that start the existing data moves into `environments/<slug>/` on the same
    volume and the environment is recorded; everyone's accounts, spaces and layouts come with it, at
-   `https://<slug>.<base>`. If you used the older name, `MIGRATE_TENANT_SLUG`, it still works for now, and the
+   `https://<slug>.<base>`, and the install's admin becomes that environment's owner. The host admin's
+   password is reset to `ADMIN_PASSWORD` on every start; other host admins are left alone. `HOST_ADMIN_LOGIN`
+   and `HOST_ADMIN_PASSWORD` are the old names and still work for now, with a line in the log (if
+   `ADMIN_PASSWORD` and `HOST_ADMIN_PASSWORD` differ, `ADMIN_PASSWORD` is used, with a warning). If you used the older name, `MIGRATE_TENANT_SLUG`, it still works for now, and the
    log says to change it.
 
 **Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
@@ -104,8 +114,8 @@ whether to **require** it of everyone, and otherwise each person chooses on thei
 set theirs up on the console's Host tab, and `HOST_MFA_REQUIRED: "true"` makes it mandatory for them. The
 secrets are encrypted with a key the server makes on first start (`secrets.key` beside the data on a single
 server, inside `host.json` with environments), so an environment's export carries nothing readable. If an
-owner is locked out, set `ADMIN_MFA_LOCKOUT_BYPASS: "true"` and recreate the container: owners and host
-admins are then signed in on the password alone (members are still asked), their profile offers **Reset my
+owner or the admin is locked out, set `ADMIN_MFA_LOCKOUT_BYPASS: "true"` and recreate the container: owners,
+the server's admin and host admins are then signed in on the password alone (members are still asked), their profile offers **Reset my
 second factor** with the password, and Manage and the console show a banner until you set it back to
 `"false"`. Nothing is deleted by either switch.
 
@@ -126,7 +136,7 @@ provider's card handling out of it. A lapsed environment is past due for fourtee
 for its owners, then goes to the free plan's caps; nothing is ever deleted by billing. An owner can
 download a copy of their environment and ask for its deletion from Manage; a host admin carries the
 deletion out from the console.
-4. **Then** remove the last three variables, keep `BASE_DOMAIN`, and recreate again. They were read once.
+4. **Then** remove `MIGRATE_ENVIRONMENT_SLUG`, keep the rest, and recreate again. It was read once.
 
 A server that already had environments before this version renames its folders on its first start:
 `tenants/` becomes `environments/` and `tenants-deleted/` becomes `environments-deleted/`. Nothing else

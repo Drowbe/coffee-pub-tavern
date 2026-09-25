@@ -1300,7 +1300,7 @@ function mfaBypassBanner() {
   b.className = 'env-page-banner';
   b.dataset.mfaBypass = '1';
   b.setAttribute('role', 'status');
-  b.textContent = 'The lockout bypass is on: owners are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
+  b.textContent = 'The lockout bypass is on: owners and the admin are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.after(b); else document.body.prepend(b);
 }

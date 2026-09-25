@@ -19,13 +19,21 @@ Each account can sign in either way, or both:
 Nobody changes their own password; an owner sets it. Sessions last 30 days. Changing someone's
 password or regenerating their link signs them out everywhere.
 
-There is always at least one owner. The last owner cannot be made a member or deleted, and an owner cannot
-change their own role or delete themselves; another owner has to. The environment's owners are called
-**Owner** on every install, single or hosted (see [Your environment](userguide-environments.md)).
+Owners are made here, in Manage: give someone the **Owner** role. An environment can have any number of owners,
+or none. An owner cannot change their own role or delete themselves; another owner (or the admin) has to. Owners
+are called **Owner** on every install, single or hosted (see [Your environment](userguide-environments.md)).
 
-On a hosted server, the host admin can also sign in to any environment. Their account there shows as **Host
-admin** ("Host admin: runs this server" on its profile), has every right, and its role can't be changed ("The
-host admin's own account. Its role can't be changed."). It does not count as one of the owners.
+Every server also has an **admin**, who has every right and is not an owner:
+
+- **On a single server**, the admin is the account in the server's compose file (`ADMIN_LOGIN` and
+  `ADMIN_PASSWORD`; see the getting-started guide). Its profile shows "Admin: runs this server", and its
+  password "Set in the server's configuration." Its role, login, password, personal link and two-step sign-in can't be
+  changed or reset from Manage, and it can't be deleted ("The server's admin. It signs in with the settings in
+  the server's configuration, so its role and sign-in can't be changed here."). Its password is changed in the
+  compose file.
+- **On a hosted server**, the host admin can sign in to any environment. Their account there shows as **Host
+  admin**, has every right, and its role and sign-in can't be changed there ("The host admin's own account. It
+  signs in through the host console, so its role and sign-in can't be changed here.").
 
 Every account has a **key**, eight letters and digits made when the account is created. It never
 changes. Images, OBS view links and OBS source names use the key, so an owner can rename a login or
@@ -62,7 +70,7 @@ Guests** on its own settings page, which also turns off any link already in use 
 Open **Roles** on the Manage page to see a grid of checkboxes: one row per permission, and the columns
 **Owner**, **Moderator**, **Member** and **Guest**. Changes save as you click.
 
-- **Owner** can do everything, and its column is locked ("Owners can always do this"). Owners run the
+- **Owner** can do everything, and its column is locked ("Owners can always do this"). The admin can too. Owners run the
   environment: they add people, set passwords and change settings. An owner also has every permission a
   module adds.
 - **Moderator** is what someone gets in any room where they are marked **Moderator** on their

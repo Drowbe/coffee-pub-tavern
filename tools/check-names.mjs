@@ -55,12 +55,15 @@ const LEVELS = [
     codePatterns: [/(?<![A-Za-z])table|(?<=[a-z])Table|TABLE/g],
     wordPatterns: [/\btables?\b/gi],
   },
-  // Words: "admin" in a sentence, meaning the environment's owner; "host admin" is the host's and is not a hit.
+  // The roles: `user` (now `member`) as a role value, the old role routes and names. `admin` is not searched for: it is
+  // a real role (the server's admin, and the host admin's stand-in; plan-names decision 7, amended), so neither code
+  // comparing with it nor a sentence saying it can be told from an old name by pattern. No words pattern, for the same
+  // reason: "admin" in a sentence is mostly the server's admin now.
   {
-    id: 'role', step: '4', code: 'enforce', words: 'enforce', wordPatterns: [/(?<!host )\badmins?\b/gi],
+    id: 'role', step: '4', code: 'enforce', words: null,
     codePatterns: [
-      /\brole\s*[!=]==?\s*['"](admin|user)['"]/g, /['"](admin|user)['"]\s*[!=]==?\s*[\w.?]*\brole\b/g,
-      /\brole:\s*['"](admin|user)['"]/g, /\bROLES\s*=\s*\[[^\]]*['"](admin|user)['"]/g, /\broles\.user\b/g,
+      /\brole\s*[!=]==?\s*['"]user['"]/g, /['"]user['"]\s*[!=]==?\s*[\w.?]*\brole\b/g,
+      /\brole:\s*['"]user['"]/g, /\bROLES\s*=\s*\[[^\]]*['"]user['"]/g, /\broles\.user\b/g,
       /\/api\/roles\/user\b/g, /\brequireAdmin\b/g, /\badminCount\b/g,
     ],
   },
@@ -1397,19 +1400,29 @@ function migrationCheck() {
       assert.ok(fs.existsSync(path.join(envDir, 'pre-names', 'names-roles', 'app.json')));
     });
 
-    test('the Store takes only owner and member as an account\'s role, keeps one owner, and never changes the stand-in\'s', () => {
+    test('the Store takes only owner and member by hand, lets an environment have no owner, and never changes an admin\'s role or sign-in', () => {
       const dir = copyFixture();
       names.migrateEnvironment(dir, { log: quiet });
       const store = new Store(dir);
       assert.throws(() => store.addUser({ login: 'x1', role: 'admin' }), /role must be owner or member/);
       assert.throws(() => store.addUser({ login: 'x2', role: 'user' }), /role must be owner or member/);
       assert.equal(store.addUser({ login: 'x3' }).role, 'member', 'no role given: a member');
-      assert.throws(() => store.updateUser('ownerkey01', { role: 'member' }), /keep at least one owner/);
-      assert.throws(() => store.removeUser('ownerkey01'), /keep at least one owner/);
       assert.throws(() => store.updateUser('memberkey1', { role: 'admin' }), /role must be owner or member/);
-      assert.throws(() => store.updateUser('hostkey001', { role: 'member' }), /host admin's/);
-      assert.equal(store.updateUser('memberkey1', { role: 'owner' }).role, 'owner');
-      assert.equal(store.updateUser('ownerkey01', { role: 'member' }).role, 'member', 'with a second owner, the first can step down');
+      assert.throws(() => store.updateUser('hostkey001', { role: 'member' }), /host admin's, so its role/);
+      assert.throws(() => store.updateUser('hostkey001', { linkToken: 'x'.repeat(24) }), /host console/);
+      assert.equal(store.updateUser('ownerkey01', { role: 'member' }).role, 'member', 'the only owner steps down');
+      assert.equal(store.ownerCount(), 0, 'no owner is fine');
+      assert.equal(store.removeUser('ownerkey01').key, 'ownerkey01', 'and an owner or member can be removed');
+      // The server's admin on a single-environment install (setServerAdmin, from ADMIN_LOGIN and ADMIN_PASSWORD).
+      const gm = store.setServerAdmin(store.addUser({ login: 'gm', passwordHash: 'h1' }).key);
+      assert.deepEqual([gm.role, gm.hostAdmin, store.ownerCount(), store.serverAdmins().map((u) => u.login)], ['admin', false, 0, ['gm']], 'the admin is not an owner');
+      assert.ok(Object.values(store.roomPermissions(gm.key, null)).every(Boolean), 'and has every permission');
+      assert.throws(() => store.updateUser(gm.key, { role: 'owner' }), /server's admin, so its role/);
+      for (const patch of [{ passwordHash: 'h2' }, { login: 'other' }, { linkToken: 'y'.repeat(24) }]) assert.throws(() => store.updateUser(gm.key, patch), /ADMIN_LOGIN and ADMIN_PASSWORD/, JSON.stringify(patch));
+      assert.equal(store.updateUser(gm.key, { login: 'gm', displayName: 'Game Master' }).displayName, 'Game Master', 'its name, and the same login, are fine');
+      assert.throws(() => store.removeUser(gm.key), /server's admin, so it can't be removed/);
+      assert.throws(() => store.setServerAdmin('hostkey001'), /host admin's/);
+      assert.equal(new Store(dir).userByLogin('gm').role, 'admin', 'kept as admin when read back');
       assert.throws(() => store.setRolePermissions('owner', { chat: false }), /every permission/);
       assert.throws(() => store.setRolePermissions('user', { chat: false }), (err) => err.status === 404 && /no such role/.test(err.message));
       assert.equal(store.setRolePermissions('member', { chat: true }).member.chat, true);

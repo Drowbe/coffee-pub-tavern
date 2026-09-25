@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const auth = require('../server/auth.js');
 const { ROLES, ASSIGNABLE_ROLES, hasOwnerRights } = require('../server/store.js');
+const { buildEnvironment, flushEnvironment } = require('../server/environment.js');
 const studioAlias = require('../server/studio-alias.js');
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
@@ -135,7 +136,7 @@ test("mfa.version is folded into a session's own stamp, so a reset or a fresh en
 
 test('an owner and the host admin\'s stand-in (admin) have an owner\'s rights; a member, a guest and nobody do not', () => {
   assert.deepEqual(ROLES, ['admin', 'owner', 'member']);
-  assert.deepEqual(ASSIGNABLE_ROLES, ['owner', 'member'], 'admin comes only with the stand-in, never by hand');
+  assert.deepEqual(ASSIGNABLE_ROLES, ['owner', 'member'], 'admin comes only from the host (the stand-in) or the server start, never by hand');
   assert.equal(hasOwnerRights({ role: 'owner' }), true);
   assert.equal(hasOwnerRights({ role: 'admin', hostAdmin: true }), true);
   for (const role of ['member', 'guest', 'moderator', 'user', 'viewer', undefined]) assert.equal(hasOwnerRights({ role }), false, String(role));
@@ -178,6 +179,73 @@ test('the server currency is a known code; an unknown one is refused, an old one
     assert.equal(store.settings.currency, 'XYZ', 'saving the page again keeps the old value');
     assert.equal(store.settings.clock, '24');
     assert.throws(() => store.updateSettings({ currency: 'QQQ' }), /QQQ is not a currency/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The server's admin on a single-environment install (plan-names decision 7, amended): buildEnvironment's `admin`, from
+// ADMIN_LOGIN and ADMIN_PASSWORD on every start.
+test('a single install\'s admin: made, reset only when the password differs, an owner from step 4 made admin again with a password, nobody without one', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-auth-admin-'));
+  const start = (admin) => {
+    const lines = [];
+    const env = buildEnvironment(dir, { admin, log: (m) => lines.push(m) });
+    env.moduleHooks.stop();
+    flushEnvironment(env);
+    return { store: env.store, lines };
+  };
+  try {
+    let { store, lines } = start({ login: 'gm', password: 'first-password-1' });
+    assert.deepEqual(lines.filter((l) => l.startsWith('Admin')), ['Admin "gm" created from the environment.']);
+    const gm = store.userByLogin('gm');
+    assert.deepEqual([gm.role, gm.hostAdmin, store.ownerCount()], ['admin', false, 0]);
+    assert.ok(auth.verifyPassword('first-password-1', gm.passwordHash));
+    const firstHash = gm.passwordHash;
+    ({ store, lines } = start({ login: 'gm', password: 'first-password-1' }));
+    assert.equal(store.userByLogin('gm').passwordHash, firstHash, 'the same password: not rewritten, so no session is signed out');
+    assert.deepEqual(lines.filter((l) => l.startsWith('Admin')), []);
+    ({ store, lines } = start({ login: 'gm', password: 'second-password-1' }));
+    assert.ok(auth.verifyPassword('second-password-1', store.userByLogin('gm').passwordHash), 'a new password: reset');
+    assert.deepEqual(lines.filter((l) => l.startsWith('Admin')), ['Admin "gm" updated from the environment.']);
+    // As step 4 left an install: the compose account an owner. The next start makes it admin, with or without a password.
+    store.addUser({ login: 'olive', role: 'owner', passwordHash: 'x' });
+    const app = JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'));
+    app.users.find((u) => u.login === 'gm').role = 'owner';
+    fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(app));
+    ({ store } = start({ login: 'gm', password: 'second-password-1' }));
+    assert.deepEqual(['gm', 'olive'].map((l) => store.userByLogin(l).role), ['admin', 'owner'], 'the admin again; other owners stay owners');
+    app.users.find((u) => u.login === 'gm').role = 'owner';
+    fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(app));
+    ({ store, lines } = start({ login: 'gm', password: undefined }));
+    assert.equal(store.userByLogin('gm').role, 'owner', 'with no password set, accounts there: nobody is promoted');
+    assert.deepEqual(lines, ['This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one.']);
+    store.addUser({ login: 'pat', passwordHash: 'x' });
+    ({ store } = start({ login: 'pat', password: undefined }));
+    assert.equal(store.userByLogin('pat').role, 'member', 'a member is never made admin without a password');
+    ({ store, lines } = start({ login: 'pat', password: 'pat-password-1' }));
+    assert.equal(store.userByLogin('pat').role, 'admin', 'with ADMIN_PASSWORD, the account ADMIN_LOGIN names is the admin, as it always was');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('with no ADMIN_PASSWORD, a random one is made and logged once, the first time there is no admin', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-auth-admin-'));
+  try {
+    const lines = [];
+    let env = buildEnvironment(dir, { admin: { login: 'admin' }, log: (m) => lines.push(m) });
+    env.moduleHooks.stop();
+    const made = /^No admin yet and no ADMIN_PASSWORD set\. Created "admin" with password: (\S+)$/.exec(lines.find((l) => l.startsWith('No admin')) || '');
+    assert.ok(made, lines.join('\n'));
+    assert.ok(auth.verifyPassword(made[1], env.store.userByLogin('admin').passwordHash));
+    assert.equal(env.store.userByLogin('admin').role, 'admin');
+    flushEnvironment(env);
+    lines.length = 0;
+    env = buildEnvironment(dir, { admin: { login: 'admin' }, log: (m) => lines.push(m) });
+    env.moduleHooks.stop();
+    flushEnvironment(env);
+    assert.deepEqual(lines.filter((l) => /admin/i.test(l)), [], 'the next start has an admin already: nothing to say');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

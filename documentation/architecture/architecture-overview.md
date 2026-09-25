@@ -65,11 +65,12 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 
 - Every account has a stable eight-character **key**. Images, view links and OBS source names use it, so
   renaming never touches OBS.
-- An account's `role` is `owner` or `member`; `admin` is only the host admin's own account inside an
-  environment (`hostAdmin: true`), which can't be changed or given (`ROLES` and `ASSIGNABLE_ROLES` in
+- An account's `role` is `owner` or `member`; `admin` is only the server's admin (the account `ADMIN_LOGIN` and
+  `ADMIN_PASSWORD` make on a single install, or the host admin's own account inside an environment,
+  `hostAdmin: true`), which can't be changed or given (`ROLES` and `ASSIGNABLE_ROLES` in
   `server/store.js`). `owner` and `admin` have every right (`OWNER_RIGHTS`, `hasOwnerRights()`); the
-  owner-only routes use `requireOwner` and answer 403 `owners only` (the pages: "Owners only."). There is always
-  at least one owner, the host admin's account not counted. A guest is not an account. The permissions each
+  owner-only routes use `requireOwner` and answer 403 `owners only` (the pages: "Owners only."). An environment may
+  have no owner. A guest is not an account. The permissions each
   editable role (`moderator`, `member`, `guest`) has live in `settings.roles` as overrides of built-in
   defaults, so a permission added later starts at its default; `GET /api/roles` answers them keyed `owner`,
   `moderator`, `member` and `guest`, and `PATCH /api/roles/:role` changes one (`/api/roles/owner` answers 400
@@ -129,7 +130,7 @@ eight times seven times 1.5 Mbps out at the server. Player quality is capped by 
 ```bash
 npm install
 LIVEKIT_HOST=localhost:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=... \
-ADMIN_USER=gm OWNER_PASSWORD=secret npm run dev
+ADMIN_LOGIN=gm ADMIN_PASSWORD=secret npm run dev
 ```
 
 Data goes to `./data` unless `DATA_DIR` says otherwise. `LIVEKIT_API_URL` overrides the HTTP address used

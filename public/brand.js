@@ -10,12 +10,16 @@ export function escapeHtml(s) {
 // Whether an account has every right in this environment: its owner, or the host admin signed in through their
 // stand-in account (role `admin`, `hostAdmin: true`). The server decides the same way; this only picks what to show.
 export const hasOwnerRights = (user) => Boolean(user) && ['owner', 'admin'].includes(user.role);
+// The admin: the server's own (ADMIN_LOGIN on a single-environment install), or the host admin's stand-in (`hostAdmin`).
+// Every right, but not an owner, and its role and sign-in are the server's or the host console's, not Manage's.
+export const isAdminAccount = (user) => Boolean(user) && ['admin'].includes(user.role);
 
-// The word a person reads for an account's role. The stand-in is the host's own admin, not a role anyone is given.
+// The word a person reads for an account's role. Admin is not a role anyone is given: the server's admin reads
+// "Admin", and the host admin's stand-in inside an environment reads "Host admin".
 export function roleLabel(user) {
   if (!user) return '';
   if (user.hostAdmin) return 'Host admin';
-  return { owner: 'Owner', member: 'Member', guest: 'Guest', admin: 'Host admin' }[user.role] || String(user.role || '');
+  return { owner: 'Owner', member: 'Member', guest: 'Guest', admin: 'Admin' }[user.role] || String(user.role || '');
 }
 
 // The admin's Font Awesome list (Theme tab), as last loaded by loadBranding().

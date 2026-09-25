@@ -9,7 +9,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import net from 'node:net';
 import http from 'node:http';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -287,28 +286,21 @@ const liveTest = async (name, fn) => {
   try { await fn(); n += 1; } catch (err) { failed += 1; console.error(`check-host-registry: ${name}: ${err.stack || err.message}`); }
 };
 
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer();
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', () => { const { port } = probe.address(); probe.close(() => resolve(port)); });
-  });
-}
-
-// Starts server/index.js on its own port and data directory; resolves once it is listening.
+// Starts server/index.js on its own data directory with PORT=0, so the system gives it a free port on every address it
+// binds (nothing to reserve first, and no other session can take it in between); resolves once it is listening, with
+// the port it logged.
 async function startServer(dataDir, env = {}) {
-  const port = await freePort();
   const child = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
     cwd: ROOT,
-    env: { PATH: process.env.PATH, HOME: process.env.HOME, PORT: String(port), DATA_DIR: dataDir, LIVEKIT_API_KEY: 'devkey', LIVEKIT_API_SECRET: 'devsecretdevsecret', ...env },
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, PORT: '0', DATA_DIR: dataDir, LIVEKIT_API_KEY: 'devkey', LIVEKIT_API_SECRET: 'devsecretdevsecret', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let out = '';
   child.stdout.on('data', (d) => { out += d; });
   child.stderr.on('data', (d) => { out += d; });
-  await new Promise((resolve, reject) => {
+  const port = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => { child.kill(); reject(new Error(`the server did not start in time:\n${out}`)); }, 20000);
-    const onData = () => { if (/listening on :/.test(out)) { clearTimeout(timer); resolve(); } };
+    const onData = () => { const m = /listening on :(\d+)/.exec(out); if (m) { clearTimeout(timer); resolve(Number(m[1])); } };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
     child.once('exit', (code) => { clearTimeout(timer); reject(new Error(`the server stopped (${code}):\n${out}`)); });
@@ -350,7 +342,7 @@ async function signInHost(server) {
 }
 
 const liveDir = fs.mkdtempSync(path.join(os.tmpdir(), 'host-registry-live-'));
-const hostedEnv = { BASE_DOMAIN: 'localhost', HOST_ADMIN_LOGIN: HOST_LOGIN, HOST_ADMIN_PASSWORD: HOST_PASSWORD };
+const hostedEnv = { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: HOST_LOGIN, ADMIN_PASSWORD: HOST_PASSWORD };
 const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 let server = null;
 try {
@@ -414,7 +406,7 @@ try {
 
   // --- roles (plan-names step 4), in acme as the fixture left it: an owner, a member, the host admin's stand-in ---
   const cookieOf = (res) => [].concat(res.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
-  await liveTest('live: roles in an environment: the owner and the host admin\'s sign-in have every right, a member does not, one owner is kept, and Studio\'s bearer requests get the old role values', async () => {
+  await liveTest('live: roles in an environment: the owner and the host admin\'s sign-in have every right, a member does not, an environment may have no owner, and Studio\'s bearer requests get the old role values', async () => {
     const signIn = async (login, password) => {
       const res = await call(server, 'acme', 'POST', '/api/login', { body: { login, password } });
       assert.equal(res.status, 200, `${login} signs in: ${res.text}`);
@@ -452,9 +444,11 @@ try {
     assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/roles/user', { cookie: owner.cookie, body: { canInvite: true } }).then((r) => [r.status, r.json]), [404, { error: 'no such role' }]);
     assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/roles/owner', { cookie: owner.cookie, body: { chat: false } }).then((r) => [r.status, r.json]), [400, { error: "the owner has every permission, so that role can't be changed" }]);
 
-    // Keep one owner: the host admin cannot demote or remove the last one; the stand-in's own role is not changed here.
-    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${owner.key}`, { cookie: boss.cookie, body: { role: 'member' } }).then((r) => [r.status, r.json]), [400, { error: 'keep at least one owner' }]);
-    assert.deepEqual(await call(server, 'acme', 'DELETE', `/api/users/${owner.key}`, { cookie: boss.cookie }).then((r) => [r.status, r.json]), [400, { error: 'keep at least one owner' }]);
+    // No owner is fine (plan-names, Roles): the host admin demotes acme's only owner, the environment keeps working, and makes it owner again.
+    assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${owner.key}`, { cookie: boss.cookie, body: { role: 'member' } })).json.user.role, 'member', 'the last owner can be demoted');
+    assert.equal(readJson(acmeFile).users.filter((u) => u.role === 'owner').length, 0, 'acme has no owner');
+    assert.equal((await call(server, 'acme', 'GET', '/api/users', { cookie: boss.cookie })).status, 200, 'and the host admin still runs it');
+    assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${owner.key}`, { cookie: boss.cookie, body: { role: 'owner' } })).json.user.role, 'owner');
     assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${boss.key}`, { cookie: owner.cookie, body: { role: 'member' } }).then((r) => [r.status, r.json]), [400, { error: "this account is the host admin's, so its role can't be changed here" }]);
     assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'user' } }).then((r) => [r.status, r.json]), [400, { error: 'role must be owner or member' }]);
     assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'admin' } }).then((r) => [r.status, r.json]), [400, { error: 'role must be owner or member' }]);
@@ -674,27 +668,183 @@ try {
     server = null;
   });
 
-  // --- the single install's owner: OWNER_PASSWORD, or ADMIN_PASSWORD still read with a line on start ---
-  const passwords = [
-    ['OWNER_PASSWORD', { OWNER_PASSWORD: 'owner-password-1' }, 'owner-password-1', false],
-    ['ADMIN_PASSWORD', { ADMIN_PASSWORD: 'admin-password-1' }, 'admin-password-1', true],
-    ['both, the new name winning', { OWNER_PASSWORD: 'owner-password-1', ADMIN_PASSWORD: 'admin-password-1' }, 'owner-password-1', true],
+  // --- the server's admin (plan-names decision 7, amended): ADMIN_LOGIN and ADMIN_PASSWORD on every install ---
+  const OLD_LINE = (old, now) => `${old} is now ${now}; the old name stops working in a later release.`;
+  const OWNER_IGNORED = "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.";
+  const signInSingle = async (login, password) => {
+    const res = await call(server, '', 'POST', '/api/login', { body: { login, password } });
+    return res.status === 200 ? { cookie: cookieOf(res), key: res.json.user.key, role: res.json.user.role } : res.status;
+  };
+
+  await liveTest('live: hosted: ADMIN_LOGIN and ADMIN_PASSWORD make the host admin and reset its password on each start, leaving other host admins alone; HOST_ADMIN_* still work, logged; OWNER_PASSWORD is ignored', async () => {
+    const hosted = path.join(liveDir, 'hosted-admin');
+    const hostIn = async (login, password) => (await call(server, 'admin', 'POST', '/api/host/login', { body: { login, password } })).status;
+    // Only the old names: they still make the host admin, and say so.
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', HOST_ADMIN_LOGIN: 'boss', HOST_ADMIN_PASSWORD: 'host-password-1', OWNER_PASSWORD: 'never-used-1' });
+    for (const line of [OLD_LINE('HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'), OLD_LINE('HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'), OWNER_IGNORED, 'Host admin "boss" created from the environment.']) assert.ok(server.output().includes(line), `${line}\n${server.output()}`);
+    assert.equal(await hostIn('boss', 'host-password-1'), 200);
+    const bossCookie = cookieOf(await call(server, 'admin', 'POST', '/api/host/login', { body: { login: 'boss', password: 'host-password-1' } }));
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/admins', { cookie: bossCookie, body: { login: 'second', password: 'second-password-1' } })).status, 201, 'a second host admin, made on the console');
+    await server.stop();
+    // The new names, same login, new password: reset, and the second host admin untouched.
+    const before = readJson(path.join(hosted, 'host.json')).hostAdmins.find((a) => a.login === 'second');
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2' });
+    assert.ok(server.output().includes('Host admin "boss" password reset from the environment.'), server.output());
+    assert.ok(!/is now ADMIN_/.test(server.output()), 'no old name set, no line');
+    assert.equal(await hostIn('boss', 'host-password-1'), 401);
+    assert.equal(await hostIn('boss', 'host-password-2'), 200);
+    assert.equal(await hostIn('second', 'second-password-1'), 200, 'the other host admin still signs in');
+    assert.deepEqual(readJson(path.join(hosted, 'host.json')).hostAdmins.find((a) => a.login === 'second'), before, 'and is exactly as it was');
+    assert.equal(readJson(path.join(hosted, 'host.json')).hostAdmins.length, 2);
+    await server.stop();
+    // The same again: nothing to do. A new login: another host admin made beside the others.
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2', TAVERN_ADMIN_USER: 'x', TAVERN_ADMIN_PASSWORD: 'y', ADMIN_MFA_LOCKOUT_BYPASS: 'true' });
+    assert.ok(!/Host admin "boss" (created|password reset)/.test(server.output()), server.output());
+    assert.ok(server.output().includes('TAVERN_ADMIN_USER, TAVERN_ADMIN_PASSWORD are ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), server.output());
+    assert.ok(server.output().includes('The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips'), 'hosted: the host admins');
+    await server.stop();
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'chief', ADMIN_PASSWORD: 'chief-password-1', ADMIN_USER: 'ignored-here' });
+    assert.ok(server.output().includes('Host admin "chief" created from the environment.'));
+    assert.ok(!server.output().includes('ADMIN_USER is now'), 'a hosted server does not read ADMIN_USER, as before');
+    assert.ok(server.output().includes('ADMIN_USER is ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), 'and says it is ignored');
+    assert.deepEqual(readJson(path.join(hosted, 'host.json')).hostAdmins.map((a) => a.login), ['boss', 'second', 'chief']);
+    assert.equal(await hostIn('boss', 'host-password-2'), 200);
+    await server.stop();
+    server = null;
+  });
+
+  await liveTest('live: a single install moved into an environment: its admin becomes that environment\'s owner, and the host admin is the server\'s admin', async () => {
+    const single = path.join(liveDir, 'single-then-hosted');
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'admin-password-1' });
+    await server.stop();
+    server = await startServer(single, { ...hostedEnv, MIGRATE_ENVIRONMENT_SLUG: 'keep' });
+    assert.ok(server.output().includes('The install\'s admin ("gm") is now the "keep" environment\'s owner; the server\'s admin is the host admin.'), server.output());
+    const users = readJson(path.join(single, 'environments', 'keep', 'app.json')).users;
+    assert.deepEqual(users.map((u) => [u.login, u.role]), [['gm', 'owner']]);
+    const res = await call(server, 'keep', 'POST', '/api/login', { body: { login: 'gm', password: 'admin-password-1' } });
+    assert.deepEqual([res.status, res.json.user.role], [200, 'owner']);
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/login', { body: { login: HOST_LOGIN, password: HOST_PASSWORD } })).status, 200);
+    await server.stop();
+    server = null;
+  });
+
+  await liveTest('live: a single install: ADMIN_LOGIN and ADMIN_PASSWORD make the admin, reset its password on each start, and it has every right and a fixed role', async () => {
+    const single = path.join(liveDir, 'single-admin');
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'admin-password-1', OWNER_PASSWORD: 'never-used-1', ADMIN_MFA_LOCKOUT_BYPASS: 'true' });
+    assert.ok(server.output().includes("The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and the server's admin skips two-step sign-in entirely."), server.output());
+    assert.ok(server.output().includes('Admin "gm" created from the environment.'), server.output());
+    assert.ok(server.output().includes(OWNER_IGNORED), 'OWNER_PASSWORD: logged as ignored');
+    assert.equal(await signInSingle('gm', 'never-used-1'), 401, 'OWNER_PASSWORD is not used');
+    const gm = await signInSingle('gm', 'admin-password-1');
+    assert.equal(gm.role, 'admin');
+    const me = (await call(server, '', 'GET', '/api/me', { cookie: gm.cookie })).json;
+    assert.deepEqual([me.user.role, me.environment.owner, me.environment.hostAdmin, typeof me.streamKey], ['admin', false, false, 'string']);
+    assert.ok(Object.values(me.user.permissions).every(Boolean), 'every permission');
+    for (const url of ['/api/users', '/api/roles', '/api/settings', '/api/modules', '/api/status']) assert.equal((await call(server, '', 'GET', url, { cookie: gm.cookie })).status, 200, url);
+    assert.equal(readJson(path.join(single, 'app.json')).users.filter((u) => u.role === 'owner').length, 0, 'no owner, and that is fine');
+    // An owner made in Manage works, and cannot change the admin.
+    const made = await call(server, '', 'POST', '/api/users', { cookie: gm.cookie, body: { login: 'olive', role: 'owner', password: 'olive-password-1' } });
+    assert.deepEqual([made.status, made.json.user.role], [201, 'owner']);
+    const olive = await signInSingle('olive', 'olive-password-1');
+    assert.equal((await call(server, '', 'GET', '/api/users', { cookie: olive.cookie })).status, 200, 'the owner runs Manage');
+    const refused = async (method, url, body) => { const r = await call(server, '', method, url, { cookie: olive.cookie, body }); return [r.status, r.json]; };
+    assert.deepEqual(await refused('PATCH', `/api/users/${gm.key}`, { role: 'owner' }), [400, { error: "this account is the server's admin, so its role can't be changed here" }]);
+    assert.deepEqual(await refused('PATCH', `/api/users/${gm.key}`, { password: 'taken-over-1' }), [400, { error: "this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here" }]);
+    assert.deepEqual(await refused('PATCH', `/api/users/${gm.key}`, { login: 'someone' }), [400, { error: "this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here" }]);
+    assert.deepEqual(await refused('POST', `/api/users/${gm.key}/link`), [400, { error: "this account is the server's admin: it signs in with ADMIN_LOGIN and ADMIN_PASSWORD, so its sign-in can't be changed here" }]);
+    assert.deepEqual(await refused('DELETE', `/api/users/${gm.key}`), [400, { error: "this account is the server's admin, so it can't be removed here" }]);
+    assert.deepEqual(await refused('DELETE', `/api/users/${gm.key}/mfa`), [400, { error: "this account is the server's admin: it recovers its two-step sign-in with ADMIN_PASSWORD and the lockout bypass, so it can't be reset here" }]);
+    assert.equal((await call(server, '', 'DELETE', `/api/users/${olive.key}/mfa`, { cookie: gm.cookie })).status, 200, 'an owner\'s reset of another account still works');
+    assert.equal((await call(server, '', 'PATCH', `/api/users/${gm.key}`, { cookie: olive.cookie, body: { displayName: 'Game Master' } })).json.user.displayName, 'Game Master', 'its name can be changed');
+    assert.equal((await call(server, '', 'PATCH', `/api/users/${olive.key}`, { cookie: gm.cookie, body: { role: 'member' } })).json.user.role, 'member', 'the admin demotes the only owner: no owner is fine');
+    const bearer = (await call(server, '', 'GET', '/api/me', { bearer: (await call(server, '', 'POST', '/api/login', { body: { login: 'gm', password: 'admin-password-1' } })).json.token })).json;
+    assert.equal(bearer.user.role, 'admin', 'Studio reads admin');
+    await server.stop();
+    // The same password again: nothing to do, and nobody signed out.
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'admin-password-1' });
+    assert.ok(!/Admin "gm" (created|updated)/.test(server.output()), server.output());
+    assert.equal((await call(server, '', 'GET', '/api/me', { cookie: gm.cookie })).status, 200, 'the session made before the restart still works');
+    await server.stop();
+    // A changed password: reset on the next start.
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'admin-password-2' });
+    assert.ok(server.output().includes('Admin "gm" updated from the environment.'), server.output());
+    assert.equal(await signInSingle('gm', 'admin-password-1'), 401);
+    assert.equal((await signInSingle('gm', 'admin-password-2')).role, 'admin');
+    await server.stop();
+    server = null;
+  });
+
+  const oldSingle = [
+    ['ADMIN_USER', { ADMIN_USER: 'gm', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
+    ['ADMIN_LOGIN beside ADMIN_USER, the new name winning', { ADMIN_LOGIN: 'gm', ADMIN_USER: 'old', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
+    ['TAVERN_ADMIN_USER and TAVERN_ADMIN_PASSWORD', { TAVERN_ADMIN_USER: 'gm', TAVERN_ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [OLD_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN'), OLD_LINE('TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD')]],
   ];
-  for (const [what, vars, password, logs] of passwords) {
-    await liveTest(`live: a single install with ${what} makes its account an owner`, async () => {
-      const single = path.join(liveDir, `single-owner-${what.replace(/\W+/g, '-')}`);
+  for (const [what, vars, login, password, lines] of oldSingle) {
+    await liveTest(`live: a single install with ${what}: the admin, with the old names logged`, async () => {
+      const single = path.join(liveDir, `single-old-${what.replace(/\W+/g, '-')}`);
       server = await startServer(single, vars);
-      assert.equal(server.output().includes('ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release.'), logs, server.output());
-      assert.match(server.output(), /Owner "admin" created from the environment\./);
-      const res = await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password } });
-      assert.equal(res.status, 200, res.text);
-      const me = (await call(server, '', 'GET', '/api/me', { cookie: cookieOf(res) })).json;
-      assert.deepEqual([me.user.role, me.environment.owner, me.environment.hostAdmin, typeof me.streamKey], ['owner', true, false, 'string']);
-      assert.equal((await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: password === 'owner-password-1' ? 'admin-password-1' : 'owner-password-1' } })).status, 401, 'only the one password');
+      for (const line of lines) assert.ok(server.output().includes(line), `${line}\n${server.output()}`);
+      assert.equal((await signInSingle(login, password)).role, 'admin');
+      if (vars.ADMIN_USER && vars.ADMIN_LOGIN) assert.equal(await signInSingle(vars.ADMIN_USER, password), 401, 'the old name is not used');
       await server.stop();
       server = null;
     });
   }
+
+  await liveTest('live: a single install with OWNER_PASSWORD alone: ignored, logged, and a random admin password is made and logged instead', async () => {
+    const single = path.join(liveDir, 'single-owner-password');
+    server = await startServer(single, { OWNER_PASSWORD: 'owner-password-1' });
+    assert.ok(server.output().includes(OWNER_IGNORED));
+    const made = /No admin yet and no ADMIN_PASSWORD set\. Created "admin" with password: (\S+)/.exec(server.output());
+    assert.ok(made, server.output());
+    assert.equal(await signInSingle('admin', 'owner-password-1'), 401);
+    assert.equal((await signInSingle('admin', made[1])).role, 'admin');
+    await server.stop();
+    server = null;
+  });
+
+  await liveTest('live: a single install upgraded by step 4: its ADMIN_LOGIN account, made an owner then, is the admin again; other owners stay owners; once only', async () => {
+    const single = path.join(liveDir, 'single-from-step-4');
+    fs.mkdirSync(single);
+    // As step 4 left it: names-roles recorded, the compose account an owner, and a second owner.
+    const hash = require('../server/auth.js').hashPassword('step4-password-1');
+    fs.writeFileSync(path.join(single, 'app.json'), JSON.stringify({
+      version: 2,
+      migrations: names.ENVIRONMENT_PARTS.map((p) => ({ id: p.id, at: '2026-09-24T00:00:00.000Z', moved: [] })),
+      settings: {},
+      users: [
+        { key: 'gmkey00001', login: 'gm', displayName: 'GM', role: 'owner', passwordHash: hash, rooms: {} },
+        { key: 'olivekey01', login: 'olive', displayName: 'Olive', role: 'owner', passwordHash: hash, rooms: {} },
+        { key: 'patkey0001', login: 'pat', displayName: 'Pat', role: 'member', passwordHash: hash, rooms: {} },
+      ],
+      rooms: [],
+    }));
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'step4-password-1' });
+    assert.ok(server.output().includes('Admin "gm" updated from the environment.'), server.output());
+    const roles = () => Object.fromEntries(readJson(path.join(single, 'app.json')).users.map((u) => [u.login, u.role]));
+    assert.deepEqual(roles(), { gm: 'admin', olive: 'owner', pat: 'member' });
+    const gm = await signInSingle('gm', 'step4-password-1');
+    assert.ok(Object.values((await call(server, '', 'GET', '/api/me', { cookie: gm.cookie })).json.user.permissions).every(Boolean));
+    await server.stop();
+    const after = fs.readFileSync(path.join(single, 'app.json'), 'utf8');
+    server = await startServer(single, { ADMIN_LOGIN: 'gm', ADMIN_PASSWORD: 'step4-password-1' });
+    assert.ok(!/Admin "gm" (created|updated)/.test(server.output()), 'the next start has nothing to do');
+    assert.equal(fs.readFileSync(path.join(single, 'app.json'), 'utf8'), after, 'and changes nothing');
+    await server.stop();
+    // With no password set, an install with accounts gets nothing made and nobody promoted: step 4's data as it was
+    // (the compose account an owner, login the default "admin" too), started with no variables at all.
+    const step4 = after.replace('"role": "admin"', '"role": "owner"').replace('"login": "gm"', '"login": "admin"');
+    fs.writeFileSync(path.join(single, 'app.json'), step4);
+    server = await startServer(single, {});
+    assert.ok(server.output().includes('This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one.'), server.output());
+    assert.ok(!/Admin "|Created "/.test(server.output()), 'nothing made');
+    assert.deepEqual(roles(), { admin: 'owner', olive: 'owner', pat: 'member' }, 'nobody promoted, not even the owner with the default login');
+    await server.stop();
+    server = await startServer(single, { ADMIN_LOGIN: 'pat' });
+    assert.equal(roles().pat, 'member', 'a member is not made admin without a password');
+    await server.stop();
+    server = null;
+  });
 
   await liveTest('live: a single install whose app.json is not valid JSON stops, naming the file; a missing one starts fresh', async () => {
     const single = path.join(liveDir, 'single-unreadable');

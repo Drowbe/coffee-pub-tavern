@@ -44,18 +44,18 @@ function moduleCan(manifest, perms, need) {
 // run once, globally, at server startup now runs here -- once per environment, whether that is the single
 // default environment (no BASE_DOMAIN) or one environment's own directory.
 //
-// `owner`, when given `{ login, password }`, bootstraps the first owner the same way ADMIN_USER and
-// OWNER_PASSWORD (once ADMIN_PASSWORD) always have (updates an existing account's password to match and makes it an
-// owner, or creates one, or -- with no password given at all -- makes a random one the first time there is no
-// owner yet). This only ever runs for the default environment; a hosted environment's first owner comes from the
-// host API's own environment-creation flow instead (its password
-// is that owner's own choice, not a value every environment would otherwise share).
+// `admin`, when given `{ login, password }`, makes the server's admin on a single-environment install (plan-names
+// decision 7): ADMIN_LOGIN and ADMIN_PASSWORD on every start. The account with that login becomes `admin` (an install
+// upgraded by step 4 had made it an owner) and takes that password when it differs; with no such account one is
+// made. With no password set, only a brand-new install (no accounts at all) gets an admin, with a random password
+// logged once; an install with accounts gets nothing made and nobody promoted, and one line in the log. Only
+// for the default environment; a hosted environment's server admin is the host admin, in host.json.
 //
 // `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
 // AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
 // registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
 // need it.
-function buildEnvironment(dataDir, { slug = null, owner = null, log = console.log, managed = () => null } = {}) {
+function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null } = {}) {
   // The Names migration (documentation/plans/plan-names.md, "The migration") runs before Store reads app.json, so
   // every service below reads this environment's data in its current shape. Throws a MigrationError naming the
   // file when a part cannot finish, and nothing is built.
@@ -82,25 +82,35 @@ function buildEnvironment(dataDir, { slug = null, owner = null, log = console.lo
   const limiter = new auth.LoginLimiter();
   const moduleLimits = new ModuleLimits();
 
-  if (owner) {
-    const login = owner.login || 'admin';
-    const password = owner.password || owner.key;
-    if (password) {
-      const existing = store.userByLogin(login);
-      const passwordHash = auth.hashPassword(password);
-      if (existing) {
-        if (!auth.verifyPassword(password, existing.passwordHash) || existing.role !== 'owner') {
-          store.updateUser(existing.key, { passwordHash, role: 'owner' });
-          log(`Owner "${login}" updated from the environment.`);
-        }
-      } else {
-        store.addUser({ login, displayName: login, role: 'owner', passwordHash });
-        log(`Owner "${login}" created from the environment.`);
+  if (admin) {
+    const login = admin.login || 'admin';
+    const password = admin.password || admin.key;
+    const existing = store.userByLogin(login);
+    if (!password) {
+      // No password set: only a brand-new install (no accounts at all) gets an admin, with a random password logged
+      // once. Anywhere else nothing is made and nobody is promoted, not even an owner with the default login.
+      if (store.users.length === 0) {
+        const given = randomToken(9);
+        const made = store.addUser({ login, displayName: login, role: 'member', passwordHash: auth.hashPassword(given) });
+        store.setServerAdmin(made.key);
+        log(`No admin yet and no ADMIN_PASSWORD set. Created "${login}" with password: ${given}`);
+      } else if (store.serverAdmins().length === 0) {
+        log('This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one.');
       }
-    } else if (store.ownerCount() === 0) {
-      const generated = randomToken(9);
-      store.addUser({ login, displayName: login, role: 'owner', passwordHash: auth.hashPassword(generated) });
-      log(`No owner yet and no owner password set. Created "${login}" with password: ${generated}`);
+    } else if (existing && existing.hostAdmin) {
+      log(`"${login}" is the host admin's account here, so ADMIN_LOGIN cannot make it the server's admin. Choose another ADMIN_LOGIN.`);
+    } else if (existing) {
+      // Made (again) the admin: an install upgraded by step 4 had made this account an owner. The password is set only
+      // when it differs, so a restart with the same ADMIN_PASSWORD signs nobody out.
+      const samePassword = existing.passwordHash && auth.verifyPassword(password, existing.passwordHash);
+      if (existing.role !== 'admin' || !samePassword) {
+        store.setServerAdmin(existing.key, samePassword ? undefined : auth.hashPassword(password));
+        log(`Admin "${login}" updated from the environment.`);
+      }
+    } else {
+      const made = store.addUser({ login, displayName: login, role: 'member', passwordHash: auth.hashPassword(password) });
+      store.setServerAdmin(made.key);
+      log(`Admin "${login}" created from the environment.`);
     }
   }
 
