@@ -156,28 +156,7 @@
       </div>
       </div>
 
-      <div class="panel">
-      <h2>Reactions</h2>
-      <p class="hint">The emoji tray in the call, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
-      <div class="reactions-list" id="reactions-list"></div>
-      <div class="row">
-        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
-        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
-        <span class="status" id="reactions-status"></span>
-      </div>
-      </div>
-
-
-      <div class="panel">
-      <h2>Font Awesome</h2>
-      <p class="hint">Icons you want available. On fontawesome.com, copy an icon's HTML (like <code>&lt;i class="fa-solid fa-dice"&gt;&lt;/i&gt;</code>) and paste it here; the preview shows what it draws. Only the Free icons that ship with this server will show.</p>
-      <div class="reactions-list" id="icons-list"></div>
-      <div class="row">
-        <button class="btn btn-small" id="icon-add" type="button">Add icon</button>
-        <button class="btn btn-primary" id="save-icons" type="button">Save</button>
-        <span class="status" id="icons-status"></span>
-      </div>
-      </div>
+      <p class="hint theme-moved">Reactions and the icon list are on the <a href="#reactions-section">Template</a> tab.</p>
     </section>
 
     <section class="tab-spaces" id="tab-spaces" hidden>
@@ -266,7 +245,7 @@
 
     <!-- The Template tab (plan-environment-templates, addendum 2): what the environment was made from and switching to
          another, the offer after a switch, what was left out, then the parts a template gives that stay live: the words,
-         the module names and icons, and the home icon. Drawn by admin.js with /template-offer.js. -->
+         the module names and icons, the home icon, the reactions and the icon list. Drawn by admin.js with /template-offer.js. -->
     <section class="tab-stack" id="tab-template" hidden>
       <div class="panel template-note" id="template-panel">
         <h2>Template</h2>
@@ -331,6 +310,30 @@
       <div class="row">
         <button class="btn btn-primary" id="save-home-icon" type="button">Save</button>
         <span class="status" id="home-icon-status"></span>
+      </div>
+      </div>
+
+      <!-- Moved from Theme (addendum 2, step 3b); #reactions and #icons still open them. -->
+      <div class="panel" id="reactions-section">
+      <h2>Reactions</h2>
+      <p class="hint">The emoji tray in the call, and on stream. The first six are also reachable with keys 1 to 6. Leave the list empty to turn reactions off.</p>
+      <div class="reactions-list" id="reactions-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="reaction-add" type="button">Add reaction</button>
+        <button class="btn btn-primary" id="save-reactions" type="button">Save</button>
+        <span class="status" id="reactions-status"></span>
+      </div>
+      </div>
+
+
+      <div class="panel" id="icons-section">
+      <h2>Icons</h2>
+      <p class="hint">Icons you want available. On fontawesome.com, copy an icon's HTML (like <code>&lt;i class="fa-solid fa-dice"&gt;&lt;/i&gt;</code>) and paste it here; the preview shows what it draws. Only the Free icons that ship with this server will show.</p>
+      <div class="reactions-list" id="icons-list"></div>
+      <div class="row">
+        <button class="btn btn-small" id="icon-add" type="button">Add icon</button>
+        <button class="btn btn-primary" id="save-icons" type="button">Save</button>
+        <span class="status" id="icons-status"></span>
       </div>
       </div>
     </section>

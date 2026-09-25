@@ -50,7 +50,7 @@ offers Character images only. It decides which sections appear on each member's 
 
 **Launch link** is an optional address for the room's tabletop, wiki or playlist. When set, it shows
 as a button next to Join and in the call's toolbar, with the icon you pick. The icons come from the
-Font Awesome list on the Theme tab of the Manage page.
+**Icons** list on the Template tab of the Manage page.
 
 Room pictures are square; anything else is cropped to the middle.
 

@@ -5778,7 +5778,7 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 .module-name-row .module-display { margin-top: 6px; }
 .module-shown-as { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 10px 0; font-size: 14px; }
 .module-shown-as .field-label { margin: 0; }
-#home-icon-section, #module-names-section, #words-panel, #template-panel { scroll-margin-top: 80px; }
+#home-icon-section, #module-names-section, #words-panel, #template-panel, #reactions-section, #icons-section { scroll-margin-top: 80px; }
 /* The console's environment card: the same switch and offer, in its own box under the facts. */
 .env-template { margin-top: 10px; display: grid; gap: 6px; min-width: 0; }
 .env-template > .row:first-child { align-items: flex-end; }
@@ -5809,12 +5809,16 @@ body.host-console .template-editor fieldset { border: 1px solid var(--border); b
 body.host-console .template-editor legend { padding: 0 4px; color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
 body.host-console .template-editor .problems { color: var(--danger-text); margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
 body.host-console .template-editor .problems:empty { display: none; }
-body.host-console .word-row, body.host-console .module-display-row { display: grid; grid-template-columns: minmax(6em, 1fr) 1fr 1fr; gap: 6px; align-items: center; margin-bottom: 6px; }
+/* The name column is one fixed width (10em) in every row, and the fields may shrink, so a long name or icon never pushes a
+   row's fields out of line with the rows around it. */
+body.host-console .word-row, body.host-console .module-display-row { display: grid; grid-template-columns: 10em minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: center; margin-bottom: 6px; }
+body.host-console .word-row > strong, body.host-console .module-display-row > strong { min-width: 0; overflow-wrap: anywhere; }
+body.host-console .module-display-row input[type="text"] { max-width: none; order: 0; }
 body.host-console .icon-field { display: flex; align-items: center; gap: 6px; }
 body.host-console .icon-field input { flex: 1; min-width: 0; }
 body.host-console .icon-field i { width: 1.4em; text-align: center; flex: none; }
 body.host-console .template-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
 @media (max-width: 560px) {
-  body.host-console .word-row, body.host-console .module-display-row { grid-template-columns: 1fr 1fr; }
+  body.host-console .word-row, body.host-console .module-display-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   body.host-console .word-row > :first-child, body.host-console .module-display-row > :first-child { grid-column: 1 / -1; }
 }

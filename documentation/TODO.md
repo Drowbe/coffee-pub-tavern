@@ -8,7 +8,7 @@ side of things.
 
 - **Names** ([plan-names](plans/plan-names.md)): steps 1 to 7 are built (September 24 and 25, 2026). Steps 8
   to 10 (asides, the documentation, the aliases going): #24.
-- **Environment templates** ([plan-environment-templates](plans/plan-environment-templates.md)): done, except addendum 2 step 3b's move of **Reactions** and **Icons** from Manage's Theme tab to the Template tab (#68), and the live verification of steps 3a and 3b.
+- **Environment templates** ([plan-environment-templates](plans/plan-environment-templates.md)): done, except the live verification of addendum 2's steps 3a and 3b (#68).
   (September 25, 2026).
 
 ## Planned

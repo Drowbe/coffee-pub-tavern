@@ -16,7 +16,7 @@ let environment = { hosted: false, owner: false, hostAdmin: false, slug: '', nam
 const hostOnlyHidden = () => environment.hosted && !environment.hostAdmin;
 let users = [];
 
-// The choices come from the Font Awesome list on the Theme tab. null (only with a template) is the template's own.
+// The choices come from the icon list on the Template tab. null (only with a template) is the template's own.
 let selectedHomeIcon = 'couch';
 
 // The template this environment was made from (plan-environment-templates.md; GET /api/settings' `template`: { id, name,
@@ -100,8 +100,8 @@ function imgUrl(key, slot) {
 const TABS = ['environment', 'template', 'theme', 'spaces', 'roles', 'users', 'modules', 'about'];
 // Their old names, from links and bookmarks: #settings and #server are the Environment tab, #rooms the Spaces tab.
 const OLD_TABS = { settings: 'environment', server: 'environment', rooms: 'spaces' };
-// Old names of sections that moved to the Template tab (addendum 2): a link to one opens the tab at it.
-const OLD_SECTIONS = { words: 'words-panel', 'home-icon': 'home-icon-section' };
+// Old names of sections that moved to the Template tab (addendum 2; Reactions and Icons came from Theme): a link to one opens the tab at it.
+const OLD_SECTIONS = { words: 'words-panel', 'home-icon': 'home-icon-section', reactions: 'reactions-section', icons: 'icons-section' };
 function selectTab(name) {
   if (OLD_TABS[name]) name = OLD_TABS[name];
   // A link to a section (an element's id, such as #words-panel or a module's row on the Template tab) opens its tab at it.
@@ -1060,7 +1060,7 @@ function moduleCard(m) {
 // icons"), on each card, built-in modules too: a name (blank for the module's own), an icon from the same list as the
 // home icon, Save, and Reset back to the module's own. The server checks both and says why it refused one; a refused
 // save changes nothing. Its own name and version stay beside the display name in the card's heading.
-// The icons offered: this environment's (Theme tab) that draw as a plain solid Font Awesome icon, as every module icon
+// The icons offered: this environment's (Template tab) that draw as a plain solid Font Awesome icon, as every module icon
 // does, then every module's own icon.
 function displayIconChoices() {
   const out = new Map();

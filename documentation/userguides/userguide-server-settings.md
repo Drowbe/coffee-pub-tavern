@@ -38,7 +38,16 @@ The **Template** tab gathers what a template gives an environment. From the top:
   See "Show a module under another name" in [Modules](userguide-modules.md).
 - **Home icon.** The icon beside the environment's name wherever it is a link back to the list of spaces. Choose
   one from the environment's icons (with a template, **Template's own** is first), then click this section's own
-  **Save**. The icons offered are the Font Awesome list on the Theme tab.
+  **Save**. The icons offered are the **Icons** list (below).
+- **Reactions.** The emoji tray in the call and on stream, also offered in chat. Add, remove, reorder
+  and edit the emoji and label, or leave the list empty to turn reactions off. The first six are keys
+  **1** to **6**.
+- **Icons.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example
+  `<i class="fa-solid fa-dice"></i>`, and the preview shows it. These icons are the choices offered for a
+  room's launch link, the home icon and a module's icon. Only the Free icons that ship with Magpie will
+  draw, unless you have added your own Pro package (see "Font Awesome Pro" under Theme).
+
+An old link to `#reactions` or `#icons` on the Manage page opens this tab at that section.
 
 ## Words
 
@@ -74,19 +83,14 @@ labels and help) still uses the default words.
   in has set one; the last fallback before the box goes transparent.
 - **Guest images.** The Participant pictures every guest shows, since a guest has no account of their
   own.
-- **Reactions.** The emoji tray in the call and on stream, also offered in chat. Add, remove, reorder
-  and edit the emoji and label, or leave the list empty to turn reactions off. The first six are keys
-  **1** to **6**.
-- **Font Awesome.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example
-  `<i class="fa-solid fa-dice"></i>`, and the preview shows it. These icons are the choices offered for a
-  room's launch link and the home icon. Only the Free icons that ship with Magpie will draw, unless you
-  have added your own Pro package (below).
 - **Font Awesome Pro (optional).** If you have a Pro licence, drop your own "Web" download from your
   Font Awesome account (the folder with `css/`, `webfonts/` and `svgs/` in it, the Classic style) at
   `DATA_DIR/fontawesome-pro/` on the server and restart it. Magpie serves and draws from it ahead of
   the bundled Free set, falling back to Free for any style or icon it does not have. Nothing about your
   licence or your package ever leaves your own server: it is never built into the shared image, never
   uploaded, and no token for it lives in this repository.
+
+The tab ends with a line pointing to **Reactions** and **Icons**, which are on the Template tab.
 
 ## Rooms and Users
 
