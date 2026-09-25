@@ -9,6 +9,7 @@
   // either way it looks elements up in host.root, never in document, so it works in both.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
 
   const $ = (id) => root.getElementById(id);
   const { esc, ymd, parseYmd, refKey, id: newId } = host.util;
@@ -285,7 +286,7 @@
       $('spaces').innerHTML = [...spaceInfo.values()].map((r) => `<button type="button" class="filter ${hiddenSpaces.has(r.id) ? '' : 'on'}" data-space="${esc(r.id)}" title="${hiddenSpaces.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
     }
 
-    let html = groupHtml(spaceInfo.size ? 'Environment' : '', own);
+    let html = groupHtml(spaceInfo.size ? word('environment', { cap: true }) : '', own);
     for (const r of spaceInfo.values()) {
       if (hiddenSpaces.has(r.id)) continue;
       html += groupHtml(`${spaceIcon(r.id)} ${esc(r.name)}`, [...tasks.values()].filter((x) => x.scope === 'spaces' && x.spaceId === r.id));

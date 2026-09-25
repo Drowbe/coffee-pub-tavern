@@ -1,5 +1,6 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords } from '/brand.js';
 import { pickBackground } from '/background-picker.js';
+import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
 
 const $ = (id) => document.getElementById(id);
 const cards = new Map(); // key -> card element
@@ -36,10 +37,15 @@ function renderHomeIconSelection() {
   for (const btn of $('set-home-icon').children) btn.classList.toggle('selected', btn.dataset.icon === selectedHomeIcon);
 }
 
+// A status line's message; a plain one clears after 3 s. Each new message cancels the last one's timer, so an earlier
+// message's clearing never takes a later one with it (two saves within 3 s).
+const sayTimers = new WeakMap();
 function say(el, text, error = false) {
+  clearTimeout(sayTimers.get(el));
+  sayTimers.delete(el);
   el.textContent = text;
   el.classList.toggle('error', error);
-  if (text && !error) setTimeout(() => el.textContent === text && (el.textContent = ''), 3000);
+  if (text && !error) sayTimers.set(el, setTimeout(() => { sayTimers.delete(el); el.textContent = ''; }, 3000));
 }
 
 async function copy(text, statusEl) {
@@ -173,20 +179,21 @@ async function loadUsers() {
 // A grid: one row per permission, one column per role. Owner is always all
 // on and disabled; the other three save the moment a box is clicked.
 
-const ROLE_COLUMNS = [['owner', 'Owner'], ['moderator', 'Moderator'], ['member', 'Member'], ['guest', 'Guest']];
+const ROLE_COLUMNS = ['owner', 'moderator', 'member', 'guest'];
 
 function renderRoles({ permissions, roles }) {
-  const rows = ['<thead><tr><th></th>' + ROLE_COLUMNS.map(([, label]) => `<th>${label}</th>`).join('') + '</tr></thead><tbody>'];
+  const label = (role) => word(role, { cap: true });
+  const rows = ['<thead><tr><th></th>' + ROLE_COLUMNS.map((role) => `<th>${escapeHtml(label(role))}</th>`).join('') + '</tr></thead><tbody>'];
   let group = null;
   for (const p of permissions) {
     if (p.group !== group) {
       group = p.group;
       rows.push(`<tr class="roles-group"><th colspan="${ROLE_COLUMNS.length + 1}">${escapeHtml(group)}</th></tr>`);
     }
-    rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map(([role, label]) => {
+    rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map((role) => {
       const noGuestAi = role === 'guest' && p.key === 'useAi'; // the server refuses guests whatever the box says
       const locked = role === 'owner' || noGuestAi;
-      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${(roles[role] || {})[p.key] && !noGuestAi ? 'checked' : ''} ${locked ? `disabled title="${noGuestAi ? 'Guests can never use AI' : 'Owners can always do this'}"` : ''} aria-label="${escapeHtml(p.label)}, ${label}"></td>`;
+      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${(roles[role] || {})[p.key] && !noGuestAi ? 'checked' : ''} ${locked ? `disabled title="${escapeHtml(noGuestAi ? `${word('guest', { many: true, cap: true })} can never use AI` : `${word('owner', { many: true, cap: true })} can always do this`)}"` : ''} aria-label="${escapeHtml(p.label)}, ${escapeHtml(label(role))}"></td>`;
     }).join('') + '</tr>');
   }
   rows.push('</tbody>');
@@ -218,6 +225,7 @@ function spaceRowFor(space) {
   let row = spaceRows.get(space.id);
   if (row) return row;
   row = $('space-card').content.firstElementChild.cloneNode(true);
+  applyWords(row); // the template's data-fill (Edit space), in this environment's words
   row.dataset.space = space.id;
   spaceRows.set(space.id, row);
   $('spaces').appendChild(row);
@@ -233,7 +241,7 @@ function fillSpaceRow(row, space, index) {
   row.querySelector('[data-thumb-fallback]').hidden = space.hasImage;
   row.querySelector('[data-name]').textContent = space.name;
   const count = space.isLobby ? users.length : space.members.length;
-  const who = space.isLobby ? 'Everyone' : `${count} member${count === 1 ? '' : 's'}`;
+  const who = space.isLobby ? 'Everyone' : `${count} ${word('member', { many: count !== 1 })}`;
   row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[space.profile] || 'Roleplaying'}`;
   row.querySelector('[data-action="edit"]').href = `/spaces/${encodeURIComponent(space.id)}`;
   row.classList.toggle('lobby', space.isLobby);
@@ -255,7 +263,7 @@ function renderSpaces() {
       spaceRows.delete(id);
     }
   }
-  $('spaces-status').textContent = `${spaces.length} space${spaces.length === 1 ? '' : 's'}`;
+  $('spaces-status').textContent = `${spaces.length} ${word('space', { many: spaces.length !== 1 })}`;
   renderInviteSpaces();
 }
 
@@ -281,7 +289,7 @@ $('spaces').addEventListener('click', (event) => {
 
 $('add-space').addEventListener('click', async () => {
   try {
-    const { space } = await api('POST', '/api/spaces', { name: `Space ${spaces.length}`, description: '', members: [] });
+    const { space } = await api('POST', '/api/spaces', { name: `${word('space', { cap: true })} ${spaces.length}`, description: '', members: [] });
     location.href = `/spaces/${encodeURIComponent(space.id)}`; // set up members and an image right away
   } catch (err) {
     say($('spaces-status'), err.message, true);
@@ -321,6 +329,119 @@ async function saveSettings(patch, statusEl) {
   }
 }
 $('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-environment-name').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+// --- words ---------------------------------------------------------------------
+// The Words group (Environment tab): the ten level and role words an owner may change, each a singular, a plural and,
+// when "a"/"an" is wrong for it, the singular with its article. Blank is the default, shown as the placeholder. Saved
+// together with Save; Reset puts one back at once. The server checks every word and says why it refused one, and a
+// refused save changes nothing. Host and admin are the host's own words, so they are not here.
+const WORD_ABOUT = {
+  environment: 'What people sign in to',
+  space: 'Where people meet: the Lobby, and each one you add',
+  aside: 'A short, private call apart from the {space}',
+  canvas: 'Where {modules} are used in {a space}',
+  module: 'A tool on the {canvas}',
+  object: 'A thing {a module} holds: a task, a note',
+  owner: 'Who runs the {environment}',
+  moderator: 'Who runs things in one {space}',
+  member: 'A person with an account',
+  guest: 'A person in by {a guest} link',
+};
+const usualArticle = (one) => `${/^[aeiou]/i.test(one) ? 'an' : 'a'} ${one}`;
+const capitalOf = (text) => text.charAt(0).toLocaleUpperCase('en') + text.slice(1);
+// Whether a resolved word is not the default (the owner's own, until templates can also set one).
+const isOwnWord = (key, w) => w.one !== DEFAULTS[key].one || w.many !== DEFAULTS[key].many || w.a !== usualArticle(DEFAULTS[key].one);
+
+function renderWords() {
+  const list = $('words-list');
+  const now = words();
+  list.textContent = '';
+  const head = document.createElement('div');
+  head.className = 'word-row word-row-head';
+  head.setAttribute('aria-hidden', 'true');
+  head.innerHTML = '<span></span><span class="field-label">Singular</span><span class="field-label">Plural</span><span class="field-label">With its article</span><span></span>';
+  list.appendChild(head);
+  for (const key of CHANGEABLE) {
+    const d = DEFAULTS[key];
+    const w = now[key];
+    const own = isOwnWord(key, w);
+    const name = capitalOf(d.one);
+    const row = document.createElement('div');
+    row.className = 'word-row';
+    row.dataset.wordKey = key;
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', name);
+    row.innerHTML = `
+      <div class="word-name"><strong>${escapeHtml(name)}</strong><span class="hint">${escapeHtml(fillWords(WORD_ABOUT[key]))}</span></div>
+      <label><span class="word-field-label">Singular</span><input type="text" data-word-part="one" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(d.one)}" aria-label="${escapeHtml(name)}, singular"></label>
+      <label><span class="word-field-label">Plural</span><input type="text" data-word-part="many" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(d.many)}" aria-label="${escapeHtml(name)}, plural"></label>
+      <label><span class="word-field-label">With its article</span><input type="text" data-word-part="a" maxlength="41" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(usualArticle(d.one))}" aria-label="${escapeHtml(name)}, with its article (optional)"></label>
+      <button class="btn btn-small" type="button" data-word-reset ${own ? '' : 'disabled'} title="Back to ${escapeHtml(d.one)}, the default" aria-label="Reset ${escapeHtml(name)} to its default">Reset</button>`;
+    const input = (part) => row.querySelector(`[data-word-part="${part}"]`);
+    if (own) {
+      input('one').value = w.one;
+      input('many').value = w.many;
+      if (w.a !== usualArticle(w.one)) input('a').value = w.a;
+    }
+    // The article's placeholder follows the singular being typed ("a trip"), so the usual one is always shown.
+    const follow = () => { input('a').placeholder = usualArticle(input('one').value.trim() || d.one); };
+    input('one').addEventListener('input', follow);
+    follow();
+    list.appendChild(row);
+  }
+}
+
+// After the words change: the page's own words (data-word and data-fill are done by loadBranding), then the parts this
+// page draws with word(), then the group itself.
+async function wordsChanged() {
+  await loadBranding();
+  renderWords();
+  loadRoles().catch(() => {});
+  loadModules().catch(() => {});
+  loadEnvironment().catch(() => {});
+}
+
+$('save-words').addEventListener('click', async () => {
+  const patch = {};
+  for (const row of $('words-list').querySelectorAll('[data-word-key]')) {
+    const key = row.dataset.wordKey;
+    const value = (part) => row.querySelector(`[data-word-part="${part}"]`).value.trim();
+    const [one, many, a] = [value('one'), value('many'), value('a')];
+    if (one || many || a) patch[key] = a ? { one, many, a } : { one, many };
+    else if (isOwnWord(key, words()[key])) patch[key] = null; // emptied: back to the default
+  }
+  if (!Object.keys(patch).length) {
+    say($('words-status'), 'nothing to save');
+    return;
+  }
+  const button = $('save-words');
+  button.disabled = true;
+  try {
+    await api('PATCH', '/api/settings', { words: patch });
+    await wordsChanged();
+    say($('words-status'), 'saved');
+  } catch (err) {
+    say($('words-status'), err.message, true); // the server's own sentence; nothing was changed
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('words-list').addEventListener('click', async (event) => {
+  const reset = event.target.closest('[data-word-reset]');
+  if (!reset) return;
+  const key = reset.closest('[data-word-key]').dataset.wordKey;
+  reset.disabled = true;
+  try {
+    await api('PATCH', '/api/settings', { words: { [key]: null } });
+    await wordsChanged();
+    say($('words-status'), `${capitalOf(DEFAULTS[key].one)} is back to its default`);
+    $('words-list').querySelector(`[data-word-key="${key}"] [data-word-part="one"]`)?.focus();
+  } catch (err) {
+    reset.disabled = false;
+    say($('words-status'), err.message, true);
+  }
+});
+
 // Language, time and money: the currency list is the one every picker uses (window.hostCurrency, from /sdk/host.js): the
 // common ones first, then every other the server takes, by name, plus whatever is set if it is in neither (so a code chosen
 // elsewhere is shown, not lost). Without the server's list it falls back to the browser's.
@@ -695,7 +816,7 @@ async function loadModules() {
   // The same count badge as on the header's gear (see setUpdateBadge in brand.js).
   const tab = document.querySelector('[data-tab="modules"]');
   if (tab) {
-    tab.textContent = 'Modules';
+    tab.textContent = word('module', { many: true, cap: true });
     tab.title = '';
     if (updates) {
       const badge = document.createElement('span');
@@ -703,7 +824,7 @@ async function loadModules() {
       badge.setAttribute('aria-hidden', 'true');
       badge.textContent = updates > 9 ? '9+' : String(updates);
       tab.append(badge);
-      tab.title = `${updates} module update${updates === 1 ? '' : 's'} available`;
+      tab.title = `${updates} ${word('module')} update${updates === 1 ? '' : 's'} available`;
     }
   }
 }
@@ -720,7 +841,7 @@ function bundledNeeds(b) {
 function moduleCard(m) {
   // Where it shows (a person's own data is not a place of its own).
   // An outdated module's old scopes are not read, so it has no place to show: say why instead.
-  const scopes = m.outdated ? 'Can\'t run until it is updated' : m.scope.filter((s) => s !== 'person').map((s) => (s === 'environment' ? 'Environment page' : 'Space panel')).join(' + ');
+  const scopes = m.outdated ? 'Can\'t run until it is updated' : m.scope.filter((s) => s !== 'person').map((s) => (s === 'environment' ? `${word('environment', { cap: true })} page` : `${word('space', { cap: true })} panel`)).join(' + ');
   // Versions built for an older Magpie can't be switched to: marked, and not offered.
   const staleVersions = new Set(m.outdatedVersions || (m.outdated ? [m.version] : []));
   // What a requirement needs to be turned on first (one built for an older Magpie is in needsUpdate instead).
@@ -730,9 +851,9 @@ function moduleCard(m) {
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
     ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people using it</span></li>'] : []),
-    ...(m.events && m.events.subscribes.length ? [`<li><strong>Hear what happens in other modules</strong> <span class="hint">${escapeHtml(m.events.subscribes.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: their events, only for people who can see them</span></li>`] : []),
-    ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other modules to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: each request is carried out by the module that owns the action</span></li>`] : []),
-    ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other modules' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
+    ...(m.events && m.events.subscribes.length ? [`<li><strong>Hear what happens in other ${escapeHtml(word('module', { many: true }))}</strong> <span class="hint">${escapeHtml(m.events.subscribes.map((c) => c === '*' ? `any ${word('module')}` : c.replace(':', ' ')).join(', '))}: their events, only for people who can see them</span></li>`] : []),
+    ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other ${escapeHtml(word('module', { many: true }))} to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? `any ${word('module')}` : c.replace(':', ' ')).join(', '))}: each request is carried out by the ${escapeHtml(word('module'))} that owns the action</span></li>`] : []),
+    ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other ${escapeHtml(word('module', { many: true }))}' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),
   ];
   const modeTag = m.runMode === 'page' ? '<span class="pill warn">In the page</span>' : '<span class="pill">Sandboxed</span>';
   const state = modeTag + ' ' + (m.outdated ? '<span class="pill warn">Needs an update</span>' : m.enabled ? '<span class="pill on">Enabled</span>' : m.needsApproval ? '<span class="pill warn">Needs approval</span>' : '<span class="pill">Disabled</span>');
@@ -751,12 +872,12 @@ function moduleCard(m) {
     <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
-      <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? 'It can read and change anything on the page, including what you can see and do. Only allow that for a module you trust.' : 'It is walled off in its own frame and can only reach the host through its approved permissions. A module in a frame cannot take part in drag and drop between modules.'}</p>
+      <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? `It can read and change anything on the page, including what you can see and do. Only allow that for ${escapeHtml(word('module', { a: true }))} you trust.` : `It is walled off in its own frame and can only reach the host through its approved permissions. ${escapeHtml(word('module', { a: true, cap: true }))} in a frame cannot take part in drag and drop between ${escapeHtml(word('module', { many: true }))}.`}</p>
       ${m.source === 'bundled' || m.outdated || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
-    ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every space</label>` : ''}
+    ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every ${escapeHtml(word('space'))}</label>` : ''}
     <div class="row">
-      ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does in this environment"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> Module Configuration</button><span class="hint">No settings.</span>`}
+      ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does in this ${escapeHtml(word('environment'))}"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</button><span class="hint">No settings.</span>`}
       ${m.outdated ? '' : `<button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && (m.missing?.length || m.needsUpdate?.length) ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>`}
       ${!m.outdated && !m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map(needsText).join(', and ')} first.</span>` : ''}
       ${!m.outdated && m.needsUpdate?.length ? `<span class="hint">Needs ${m.needsUpdate.map(nameOf).join(' and ')}, which ${m.needsUpdate.length === 1 ? 'needs' : 'need'} an update from ${m.needsUpdate.length === 1 ? 'its author' : 'their authors'}.</span>` : ''}
@@ -928,7 +1049,7 @@ function renderModules() {
       <div class="module-head">
         <i class="fa-solid fa-${escapeHtml(b.icon)} fa-fw module-icon" aria-hidden="true"></i>
         <div class="grow"><h2>${escapeHtml(b.name)} <span class="hint">built in</span></h2>
-          <div class="hint">On a space's canvas</div></div>
+          <div class="hint">On ${escapeHtml(word('space', { a: true }))}'s ${escapeHtml(word('canvas'))}</div></div>
         <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
@@ -939,7 +1060,7 @@ function renderModules() {
   if (!showAvailableOnly && (updatesOnly ? !installedModules.some(moduleMatches) : !installedModules.length)) {
     const none = document.createElement('div');
     none.className = 'panel';
-    none.innerHTML = updatesOnly ? `<p class="hint">${moduleFilter === 'configurable' ? 'No installed module has settings.' : 'Everything is up to date.'}</p>` : '<p class="hint">No other modules installed yet.</p>';
+    none.innerHTML = updatesOnly ? `<p class="hint">${moduleFilter === 'configurable' ? `No installed ${escapeHtml(word('module'))} has settings.` : 'Everything is up to date.'}</p>` : `<p class="hint">No other ${escapeHtml(word('module', { many: true }))} installed yet.</p>`;
     list.appendChild(none);
   }
   if (!showAvailableOnly) for (const m of installedModules) if (moduleMatches(m)) list.appendChild(moduleCard(m));
@@ -952,7 +1073,7 @@ function renderModules() {
       <div class="row module-available">
         <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
         <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${b.notInPlan ? '<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Not in your plan.</div>' : bundledNeeds(b)}</div>
-        <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button" ${b.notInPlan ? 'disabled title="Your plan does not include this module"' : ''}>Install</button>
+        <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button" ${b.notInPlan ? `disabled title="Your plan does not include this ${escapeHtml(word('module'))}"` : ''}>Install</button>
       </div>`).join('')}`;
     list.appendChild(box);
   } else if (showAvailableOnly) {
@@ -970,7 +1091,7 @@ $('modules-list').addEventListener('click', async (event) => {
   const b = builtinModules.find((x) => x.id === button.dataset.builtinToggle);
   if (!b) return;
   const enable = !b.enabled;
-  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || 'It stops working in every space until you enable it again.'}`)) return;
+  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || `It stops working in every ${word('space')} until you enable it again.`}`)) return;
   if (enable && !window.confirm(`Enable ${b.name}?\n\n${b.turnOn || b.description}`)) return;
   button.disabled = true;
   try {
@@ -1021,7 +1142,7 @@ $('modules-list').addEventListener('click', async (event) => {
   const m = installedModules.find((x) => x.id === mode.closest('.module-card').dataset.id);
   const to = mode.dataset.moduleRunmode;
   try {
-    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\nA module in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. the host cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
+    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\n${word('module', { a: true, cap: true })} in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. the host cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
     await api('PATCH', `/api/modules/${m.id}`, { runMode: to, acceptRisk: to === 'page' });
     await loadModules();
     say($('modules-status'), `${m.name} now runs ${to === 'page' ? 'in the page' : 'sandboxed'}`);
@@ -1051,7 +1172,7 @@ $('modules-list').addEventListener('click', async (event) => {
       await api('POST', `/api/modules/${m.id}/rollback`, { version });
     } else if (button.dataset.moduleAction === 'uninstall') {
       if (!window.confirm(`Uninstall ${m.name}?${m.dependents?.length ? ' ' + m.dependents.map((r) => (installedModules.find((x) => x.id === r) || {}).name || r).join(' and ') + ' needs it and will be turned off.' : ''}`)) return;
-      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the module's own folder (a map file, say) are never deleted.`);
+      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the ${word('module')}'s own folder (a map file, say) are never deleted.`);
       await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
     }
     await loadModules();
@@ -1313,7 +1434,7 @@ function mfaBypassBanner() {
   b.className = 'env-page-banner';
   b.dataset.mfaBypass = '1';
   b.setAttribute('role', 'status');
-  b.textContent = 'The lockout bypass is on: owners and the admin are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
+  b.textContent = `The lockout bypass is on: ${word('owner', { many: true })} and the admin are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.`;
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.after(b); else document.body.prepend(b);
 }
@@ -1349,26 +1470,26 @@ function renderEnvironment() {
   const plan = e.plan || {};
   const use = e.usage || {};
   $('env-plan-pill').textContent = plan.name ? `${plan.name} plan` : 'no plan';
-  $('env-hint').textContent = `${e.name || environment.name} is at ${environment.slug}: its people, spaces, settings and modules are its own. What the plan allows, and what is used:`;
+  $('env-hint').textContent = `${e.name || environment.name} is at ${environment.slug}: its people, ${word('space', { many: true })}, settings and ${word('module', { many: true })} are its own. What the plan allows, and what is used:`;
   const rows = [
-    ['Members', use.members ?? 0, plan.members, (n) => `${n}`],
+    [word('member', { many: true, cap: true }), use.members ?? 0, plan.members, (n) => `${n}`],
     ['Storage', use.storageBytes ?? 0, plan.storageBytes, gb],
     ['Assistant calls this month', use.aiCallsThisMonth ?? 0, plan.aiCallsPerMonth, (n) => `${n}`],
     ['Calls at once', use.callsNow ?? 0, plan.calls, (n) => `${n}`],
-    ['Modules', Array.isArray(plan.modules) ? plan.modules.length : null, null, (n) => (n === null ? 'every module' : `${n} allowed`)],
+    [word('module', { many: true, cap: true }), Array.isArray(plan.modules) ? plan.modules.length : null, null, (n) => (n === null ? `every ${word('module')}` : `${n} allowed`), 'modules'],
   ];
-  $('env-caps').innerHTML = rows.map(([label, used, cap, fmt]) => {
+  $('env-caps').innerHTML = rows.map(([label, used, cap, fmt, kind]) => {
     const pct = cap ? Math.min(100, Math.round((used / cap) * 100)) : 0;
-    const text = label === 'Modules' ? fmt(used) : cap ? `${fmt(used)} of ${fmt(cap)}` : `${fmt(used)}, no cap`;
+    const text = kind === 'modules' ? fmt(used) : cap ? `${fmt(used)} of ${fmt(cap)}` : `${fmt(used)}, no cap`;
     return `<dt>${escapeHtml(label)}</dt><dd><span class="env-cap-text">${escapeHtml(text)}</span>${cap ? `<span class="env-cap-bar${pct >= 90 ? ' warn' : ''}"><span style="width:${pct}%"></span></span>` : ''}</dd>`;
   }).join('');
   const banner = $('env-banner');
   if (e.status === 'pastDue') {
     const until = e.graceEndsAt ? new Date(e.graceEndsAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' }) : 'soon';
-    banner.textContent = `Payment for this environment is overdue. It goes to the free plan on ${until}; nothing is deleted.`;
+    banner.textContent = `Payment for this ${word('environment')} is overdue. It goes to the free plan on ${until}; nothing is deleted.`;
     banner.hidden = false;
   } else if (e.status === 'suspended') {
-    banner.textContent = 'This environment is suspended by the host.';
+    banner.textContent = `This ${word('environment')} is suspended by the ${word('host')}.`;
     banner.hidden = false;
   } else banner.hidden = true;
   const up = $('env-upgrade');
@@ -1417,7 +1538,7 @@ async function init() {
   renderTopbar({ location: crumbLink('gear', 'Manage', '/admin') });
   buildHomeIconGrid();
   await loadBranding();
-  wireOverlayBack('Spaces');
+  wireOverlayBack(word('space', { many: true, cap: true }));
   try {
     const info = await api('GET', '/api/me');
     me = info.user;
@@ -1441,6 +1562,8 @@ async function init() {
     fillCurrencies(settings.currency || 'USD');
     selectedHomeIcon = settings.homeIcon || 'couch';
     renderHomeIconSelection();
+    setWords(settings.words);
+    renderWords();
     await loadThemes();
     await loadRoles();
     await loadModules();

@@ -11,6 +11,7 @@
   // elements up in host.root, never in document.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
   const $ = (id) => root.getElementById(id);
 
   let info;
@@ -308,14 +309,14 @@
     if (canEdit && personal && inSpace && it.kind !== 'photo') {
       items.push({
         id: 'copy-to',
-        label: view === 'my' ? 'Copy to This space' : 'Copy to Mine',
+        label: view === 'my' ? `Copy to This ${word('space')}` : 'Copy to Mine',
         icon: 'share-nodes',
         onClick: async () => {
           const target = view === 'my' ? stores.space : stores.my;
           try {
             await ensureLoaded(view === 'my' ? 'space' : 'my');
             await target.save({ ...it, id: '', by: me, at: new Date().toISOString(), ai: it.ai ? { ...it.ai, sources: [] } : null });
-            say(view === 'my' ? 'Copied to this space.' : 'Copied to Mine.', 2500);
+            say(view === 'my' ? `Copied to this ${word('space')}.` : 'Copied to Mine.', 2500);
           } catch (err) { say('It could not be copied: ' + message(err)); }
         },
       });
@@ -701,7 +702,7 @@
 
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'space', label: 'This space', icon: 'users' },
+    { id: 'space', label: `This ${word('space')}`, icon: 'users' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;
   // How the items are laid out: cards packed like masonry, or a list. Remembered per person.

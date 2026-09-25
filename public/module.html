@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:; frame-src 'self'">
   <link rel="icon" href="/img/site/icon">
-  <title>Module</title>
+  <title data-fill>{Module}</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/theme.css" id="theme-link">
@@ -33,9 +33,9 @@
   <!-- A module's own page: the module runs in a sandboxed frame (see
        module-host.js) and fills everything under the header. -->
   <main class="module-stage">
-    <iframe class="module-frame" id="module-frame" title="Module" hidden></iframe>
+    <iframe class="module-frame" id="module-frame" title="{Module}" data-fill hidden></iframe>
     <div class="module-bar" id="module-bar" hidden></div>
-    <p class="hint module-missing" id="module-missing" hidden>That module is not available.</p>
+    <p class="hint module-missing" id="module-missing" data-fill hidden>That {module} is not available.</p>
   </main>
 
   <script src="/sdk/host.js" data-host-sdk></script>

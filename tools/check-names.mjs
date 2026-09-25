@@ -13,6 +13,18 @@
  * querySelector(All), closest, matches or getElementById, or it has that shape). Words mode reads only the
  * sentences, for "room", "rooms" and "table" as words.
  *
+ * The vocabulary rule (plan-environment-templates.md, "check-names --words"): a level or role word an owner or a
+ * template can change (server/words.js's CHANGEABLE keys, singular or plural, any capital) typed into what a person
+ * reads, instead of going through the helper: word() on the server, word(), fill(), data-word or data-fill on the
+ * pages, host.util.word in a module, or a {space}-style placeholder. It reads every string and template piece on its
+ * own (readAsWord): one with a space, a capital or punctuation beside the form is text; a form alone in lower case
+ * ('space') is a key unless it is handed to a title, placeholder, aria-label, alt, text or label, joined to other text
+ * with +, or written right before a template's ${. Class names and selectors are not read. Neither are strings handed
+ * to a log call (the host operator's, in the host's words), with everything inside their ${}, nor strings or templates
+ * about module.json (the manifest's code names). A {a spaces} or {a trip} placeholder, which fill() leaves as it is,
+ * fails too. HTML text and the attributes a person reads are read as words. Allow-list entries for it use the level
+ * "word". It also checks that every key a word() call or a data-word attribute names is in the vocabulary, with both
+ * its forms. *
  * tools/check-names-allow.json: [{ file, level, pattern, line?, reason }]. `file` is a path from the repository's
  * root, where * matches within one folder and ** across folders. `level` is the level it allows (or "*" for every
  * level, only for a named file or folder, never "**"). `pattern` is a regular expression tested against the hit's
@@ -22,7 +34,7 @@
  * used are listed.
  *
  *   node tools/check-names.mjs                code and words reports, the allow-list, and the migration
- *   node tools/check-names.mjs --words        the words report only
+ *   node tools/check-names.mjs --words        the words report and the vocabulary rule only
  *   node tools/check-names.mjs --migration    the migration check only
  *   node tools/check-names.mjs --list[=level] also list every hit (of one level), file:line and the token
  */
@@ -142,7 +154,12 @@ function isNameList(body) {
 
 // JavaScript (and JSON, which it reads the same way): strings, template literals (with ${} inside), regular
 // expression literals and comments, by a small scanner rather than a full parser.
-function splitJs(text) {
+// `onString`, when given, hears every string and template piece as it is read, for the vocabulary rule: { at (its
+// offset in the file, from `offset`), body, handed ('code', 'words' or null), before (up to 80 characters before its
+// quote or backtick), after (up to 40 after its closing quote, or the ${ or backtick after the piece), template (a
+// number for each template literal, shared by its pieces; null for a quoted string), first (the template's first
+// piece), inside (the template whose ${} it is in, or null) }.
+function splitJs(text, onString = null, offset = 0) {
   let code = '';
   let words = '';
   const emit = (s, kind) => {
@@ -152,6 +169,8 @@ function splitJs(text) {
   let lastSignificant = '';
   const braces = []; // for each open ${ in a template: the brace depth inside it
   const templates = []; // for each open template: 'code' or 'words' by where it was handed, or null (by its shape)
+  const templateInfo = []; // for each open template: { id, before, pieces } for onString
+  let templateCount = 0;
   const codeContext = (at) => SELECTOR_CONTEXT.test(text.slice(Math.max(0, at - 80), at));
   const sentenceContext = (at) => SENTENCE_CONTEXT.test(text.slice(Math.max(0, at - 80), at));
   const handedTo = (at) => (sentenceContext(at) ? 'words' : codeContext(at) ? 'code' : null);
@@ -177,7 +196,12 @@ function splitJs(text) {
     const end = readTemplate(from);
     const body = text.slice(from, end);
     emit(body, kindOf(body, templates[templates.length - 1]));
-    if (text[end] === '`') { emit('`', 'code'); i = end + 1; lastSignificant = '`'; templates.pop(); } else if (end < text.length) { emit('${', 'code'); i = end + 2; braces.push(0); lastSignificant = '{'; } else { i = end; templates.pop(); }
+    const info = templateInfo[templateInfo.length - 1];
+    if (onString && info) {
+      onString({ at: offset + from, body, handed: templates[templates.length - 1], before: info.before, after: text.slice(end, end + 40), template: info.id, first: info.pieces === 0, inside: info.inside });
+      info.pieces += 1;
+    }
+    if (text[end] === '`') { emit('`', 'code'); i = end + 1; lastSignificant = '`'; templates.pop(); templateInfo.pop(); } else if (end < text.length) { emit('${', 'code'); i = end + 2; braces.push(0); lastSignificant = '{'; } else { i = end; templates.pop(); templateInfo.pop(); }
   };
   while (i < text.length) {
     const c = text[i];
@@ -197,11 +221,13 @@ function splitJs(text) {
       const body = text.slice(i + 1, stop - 1);
       emit(c, 'code');
       emit(body, kindOf(body, handedTo(i)));
+      if (onString) onString({ at: offset + i + 1, body, handed: handedTo(i), before: text.slice(Math.max(0, i - 80), i), after: text.slice(stop, stop + 40), template: null, first: true, inside: templateInfo.length ? templateInfo[templateInfo.length - 1].id : null });
       emit(text.slice(stop - 1, stop), 'code');
       i = stop;
       lastSignificant = c;
     } else if (c === '`') {
       templates.push(handedTo(i));
+      templateInfo.push({ id: (templateCount += 1), before: text.slice(Math.max(0, i - 80), i), pieces: 0, inside: templateInfo.length ? templateInfo[templateInfo.length - 1].id : null });
       emit('`', 'code');
       templateChunk(i + 1);
     } else if (c === '}' && braces.length && braces[braces.length - 1] === 0) {
@@ -241,7 +267,7 @@ function splitCss(text) {
 // HTML: comments dropped; <script> and <style> read as JavaScript and CSS; a tag's own attributes are code except
 // the ones a person reads; text between tags is words.
 const READ_ATTRS = /\b(title|placeholder|aria-label|alt)\s*=\s*("[^"]*"|'[^']*')/gi;
-function splitHtml(text) {
+function splitHtml(text, onString = null) {
   let code = '';
   let words = '';
   const add = (part) => { code += part.code; words += part.words; };
@@ -256,7 +282,7 @@ function splitHtml(text) {
       const open = tag.indexOf('>') + 1;
       const close = tag.lastIndexOf('</');
       add({ code: tag.slice(0, open), words: blank(tag.slice(0, open)) });
-      add((/^<script\b/i.test(tag) ? splitJs : splitCss)(tag.slice(open, close)));
+      add(/^<script\b/i.test(tag) ? splitJs(tag.slice(open, close), onString, m.index + open) : splitCss(tag.slice(open, close)));
       add({ code: tag.slice(close), words: blank(tag.slice(close)) });
     } else {
       let tagCode = tag;
@@ -276,10 +302,10 @@ function splitHtml(text) {
   return { code, words };
 }
 
-function split(file, text) {
-  if (/\.html$/.test(file)) return splitHtml(text);
+function split(file, text, onString = null) {
+  if (/\.html$/.test(file)) return splitHtml(text, onString);
   if (/\.css$/.test(file)) return splitCss(text);
-  return splitJs(text);
+  return splitJs(text, onString);
 }
 
 // --- the allow-list ------------------------------------------------------------------------------------------
@@ -297,7 +323,7 @@ const catchAll = (re) => ['', 'q', 'zzqx', 'anyName'].some((probe) => re.test(pr
 function validateAllow(raw) {
   const problems = [];
   if (!Array.isArray(raw)) return { entries: [], problems: ['tools/check-names-allow.json: must be a list of { file, level, pattern, line?, reason }'] };
-  const levels = new Set(LEVELS.map((l) => l.id));
+  const levels = new Set([...LEVELS.map((l) => l.id), VOCABULARY_LEVEL]);
   const entries = [];
   raw.forEach((e, n) => {
     const where = `tools/check-names-allow.json entry ${n + 1}`;
@@ -410,6 +436,264 @@ function report(mode, files, allow) {
   }
   console.log(`check-names: ${mode}, ${files.length} files`);
   for (const r of rows) console.log(r);
+}
+
+// --- the vocabulary rule (plan-environment-templates.md, "check-names --words") -----------------------------------
+// Where a typed level or role word fails: everywhere it is read, the server, the pages and the SDK (public/), and the
+// bundled modules (converted in step 1). The host console and the product page keep the host's words, by the allow-list.
+const VOCABULARY_LEVEL = 'word';
+const VOCABULARY_ENFORCED = ['server/', 'public/', 'modules/'];
+const VOCABULARY_SCOPE = ['server/', 'public/', 'modules/'];
+const WORDS = require('../server/words.js');
+const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const vocabularyForms = () => WORDS.CHANGEABLE.flatMap((k) => [WORDS.DEFAULTS[k].one, WORDS.DEFAULTS[k].many]);
+// A form as a word of its own: not part of a name (module.json, module-settings, spaceId), a path, or a {space}
+// placeholder for fill().
+const VOCABULARY_WORD = new RegExp(`(?<![\\w.\\-/{$])(?<!\\{[aA] )(?<!\\{[aA]n )(?:${vocabularyForms().map(escapeRe).join('|')})(?![\\w\\-/}]|\\.\\w)`, 'gi');
+const MANY_FORMS = new Set(WORDS.CHANGEABLE.concat(WORDS.FIXED).map((k) => WORDS.DEFAULTS[k].many));
+const ALL_FORMS = new Set(WORDS.KEYS.flatMap((k) => [WORDS.DEFAULTS[k].one, WORDS.DEFAULTS[k].many]));
+// A placeholder with an article ({a space}): fill() fills it only for a singular form it knows.
+const ARTICLE_PLACEHOLDER = /\{(?:a|an|A|An) ([A-Za-z]+)\}/g;
+// A string handed to a log call (the host operator's, in the host's words): console.log('...') or log(`...`).
+const LOG_CALL = /(?:\bconsole\.(?:log|warn|error|info|debug)|(?:^|[^\w.$])log)\(\s*$/;
+// A string a person reads whatever its shape: assigned to a title, placeholder, aria-label, alt or text, or given as
+// an object's label, title, text or placeholder.
+const READ_CONTEXT = /(?:\.(?:title|placeholder|textContent|innerText|ariaLabel|alt|label)\s*=\s*|\bsetAttribute\(\s*['"](?:title|aria-label|placeholder|alt)['"]\s*,\s*|(?:^|[\s{,(])['"]?(?:title|placeholder|ariaLabel|aria-label|alt|text|label)['"]?\s*:\s*)$/;
+// The keys a page, the SDK, a module or the server names: word('space'...), util.word('space'...), data-word="space".
+const WORD_KEY_USE = /(?:\bword\(\s*|\bdata-word=\s*|\bdataset\.word\s*=\s*)(['"`])([^'"`]*)\1/g;
+
+// Whether one form found in a string (or template piece) is a word a person reads, from the string's shape and where
+// it was handed. A string that is only the form in lower case ('space', 'guests') is a key, unless it is handed to
+// something a person reads or joined to other text with +; ids, CSS classes and keys never have a space, a capital or
+// punctuation beside the form.
+function readAsWord(piece, m) {
+  const { body, before, after } = piece;
+  const token = m[0];
+  const next = body.slice(m.index + token.length);
+  const prev = body.slice(0, m.index);
+  if (piece.handed === 'code') return false; // a class name, id or selector
+  if (token !== token.toLowerCase()) return true; // 'Spaces', 'SPACES', 'Space:'
+  if (/\s/.test(body) && !isNameList(body)) return true; // a sentence, "Your ", " spaces", "Space: "
+  if (/^[,;!?)]/.test(next) || /^:(\s|$)/.test(next) && next.length > 1 || /\($/.test(prev)) return true;
+  if (body === token) {
+    if (READ_CONTEXT.test(before)) return true; // el.title = 'owner'
+    if (piece.template === null && (/['"`]\s*\+\s*$/.test(before) || /^\s*\+\s*['"`]/.test(after))) return true; // 'Delete ' + 'space'
+    if (piece.template !== null && piece.first && after.startsWith('${')) return true; // `space${n === 1 ? '' : 's'}`
+  }
+  return false;
+}
+
+function vocabularyHits(file, text, allow) {
+  const pieces = [];
+  const parts = split(file, text, (piece) => pieces.push(piece));
+  const original = text.split('\n');
+  const lineStarts = [0];
+  for (let i = 0; i < text.length; i += 1) if (text[i] === '\n') lineStarts.push(i + 1);
+  const lineOf = (at) => { let lo = 0; let hi = lineStarts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lineStarts[mid] <= at) lo = mid; else hi = mid - 1; } return lo + 1; };
+  const fileAllow = allow.filter((e) => e.fileRe.test(file));
+  const hits = [];
+  let allowed = 0;
+  const record = (at, token) => {
+    const lineNo = lineOf(at);
+    const lineText = original[lineNo - 1] || '';
+    const hit = fileAllow.find((e) => (e.level === '*' || e.level === VOCABULARY_LEVEL) && e.re.test(token) && (!e.lineRe || e.lineRe.test(lineText)));
+    if (hit) { hit.used += 1; allowed += 1; } else hits.push({ file, line: lineNo, token, at });
+  };
+  const placeholders = (body, at) => {
+    for (const m of body.matchAll(ARTICLE_PLACEHOLDER)) {
+      const name = m[1].toLowerCase();
+      if (MANY_FORMS.has(name) || !ALL_FORMS.has(name)) record(at + m.index, m[0]); // {a spaces}, {a trip}: never filled
+    }
+  };
+  // A template is skipped whole when it is handed to a log call or any piece of it is about module.json, and so is
+  // everything inside its ${}.
+  const skipTemplate = new Set();
+  const parentOf = new Map();
+  for (const piece of pieces) if (piece.template !== null) parentOf.set(piece.template, piece.inside);
+  for (const piece of pieces) if (piece.template !== null && (LOG_CALL.test(piece.before) || piece.body.includes('module.json'))) skipTemplate.add(piece.template);
+  const skippedWithin = (id) => { for (let t = id; t !== null && t !== undefined; t = parentOf.get(t)) if (skipTemplate.has(t)) return true; return false; };
+  for (const piece of pieces) {
+    if (skippedWithin(piece.template !== null ? piece.template : piece.inside)) continue;
+    if (piece.template === null && (LOG_CALL.test(piece.before) || piece.body.includes('module.json'))) continue;
+    for (const m of piece.body.matchAll(VOCABULARY_WORD)) if (readAsWord(piece, m)) record(piece.at + m.index, m[0]);
+    placeholders(piece.body, piece.at);
+  }
+  // HTML: its text and the attributes a person reads (the words channel), outside the scripts' strings, read above.
+  if (/\.html$/.test(file)) {
+    const inString = new Uint8Array(text.length);
+    for (const piece of pieces) inString.fill(1, piece.at, piece.at + piece.body.length);
+    for (const m of parts.words.matchAll(VOCABULARY_WORD)) if (!inString[m.index]) record(m.index, m[0]);
+    for (const m of parts.words.matchAll(ARTICLE_PLACEHOLDER)) if (!inString[m.index]) placeholders(m[0], m.index);
+  }
+  hits.sort((x, y) => x.at - y.at);
+  const keys = [];
+  parts.code.split('\n').forEach((line, n) => { for (const m of line.matchAll(WORD_KEY_USE)) keys.push({ line: n + 1, key: m[2] }); });
+  return { hits, allowed, keys };
+}
+
+function vocabularyReport(files, allow) {
+  const inScope = files.filter((f) => VOCABULARY_SCOPE.some((d) => f.startsWith(d)) && /\.(js|mjs|html)$/.test(f));
+  const byFolder = new Map(VOCABULARY_SCOPE.map((d) => [d, { hits: [], allowed: 0 }]));
+  const badKeys = [];
+  for (const file of inScope) {
+    const { hits, allowed, keys } = vocabularyHits(file, fs.readFileSync(path.join(ROOT, file), 'utf8'), allow);
+    const bucket = byFolder.get(VOCABULARY_SCOPE.find((d) => file.startsWith(d)));
+    bucket.hits.push(...hits);
+    bucket.allowed += allowed;
+    for (const k of keys) if (!WORDS.KEYS.includes(k.key)) badKeys.push(`${file}:${k.line} names the word "${k.key}", which is not in the vocabulary (server/words.js: ${WORDS.KEYS.join(', ')})`);
+  }
+  console.log(`check-names: vocabulary, ${inScope.length} files`);
+  for (const [dir, { hits, allowed }] of byFolder) {
+    const enforced = VOCABULARY_ENFORCED.includes(dir);
+    console.log(`  ${dir.padEnd(12)}${(enforced ? 'enforce' : 'report').padEnd(8)}${String(hits.length).padStart(6)} in ${String(new Set(hits.map((h) => h.file)).size).padStart(3)} files  (${allowed} allowed)`);
+    if (listArg && (!listLevel || listLevel === VOCABULARY_LEVEL)) for (const h of hits) console.log(`      ${h.file}:${h.line}  ${h.token}`);
+    if (enforced && hits.length) fail(`check-names: ${dir} has ${hits.length} level or role word${hits.length === 1 ? '' : 's'} typed into what a person reads; use word() (run with --words --list=${VOCABULARY_LEVEL})`);
+  }
+  for (const b of badKeys) fail(`check-names: ${b}`);
+  for (const key of WORDS.KEYS) {
+    const d = WORDS.DEFAULTS[key];
+    if (!d || typeof d.one !== 'string' || !d.one || typeof d.many !== 'string' || !d.many) fail(`check-names: server/words.js: "${key}" has no default singular and plural`);
+  }
+}
+
+// server/words.js itself, and the owner's words through a throwaway store.
+function wordsCheck() {
+  let n = 0;
+  const test = (name, fn) => {
+    try { fn(); n += 1; } catch (err) { fail(`check-names words: ${name}: ${err.message}`); }
+  };
+  const { Store } = require('../server/store.js');
+  test('the vocabulary is the ten changeable keys and the two fixed ones, in the Names\' order', () => {
+    assert.deepEqual(WORDS.KEYS, ['host', 'environment', 'space', 'aside', 'canvas', 'module', 'object', 'admin', 'owner', 'moderator', 'member', 'guest']);
+    assert.deepEqual(WORDS.FIXED, ['host', 'admin']);
+    assert.equal(WORDS.CHANGEABLE.length, 10);
+  });
+  test('with nothing set, every key reads today\'s words, with the usual article', () => {
+    const r = WORDS.resolve(null, null);
+    assert.deepEqual(Object.keys(r), WORDS.KEYS);
+    assert.deepEqual(r.space, { one: 'space', many: 'spaces', a: 'a space' });
+    assert.deepEqual(r.aside, { one: 'aside', many: 'asides', a: 'an aside' });
+    assert.deepEqual(r.canvas, { one: 'canvas', many: 'canvases', a: 'a canvas' });
+    assert.equal(r.environment.a, 'an environment');
+    assert.equal(r.owner.a, 'an owner');
+    assert.equal(r.admin.a, 'an admin');
+  });
+  test('the owner\'s word, else the template\'s, else the default; host and admin always the default', () => {
+    const r = WORDS.resolve({ space: { one: 'trip', many: 'trips' }, host: { one: 'boss', many: 'bosses' } }, { space: { one: 'journey', many: 'journeys' }, member: { one: 'traveller', many: 'travellers' }, admin: { one: 'chief', many: 'chiefs' } });
+    assert.deepEqual(r.space, { one: 'trip', many: 'trips', a: 'a trip' });
+    assert.deepEqual(r.member, { one: 'traveller', many: 'travellers', a: 'a traveller' });
+    assert.equal(r.host.one, 'host');
+    assert.equal(r.admin.one, 'admin');
+    assert.equal(r.guest.one, 'guest');
+    assert.equal(WORDS.resolve({ space: { one: '<b>', many: 'x' } }, null).space.one, 'space', 'a bad stored word reads the default');
+    assert.equal(WORDS.resolve({ object: { one: 'hour', many: 'hours', a: 'an hour' } }, null).object.a, 'an hour');
+  });
+  test('format and fill give each form, with capitals from the helper', () => {
+    const r = WORDS.resolve({ space: { one: 'trip', many: 'trips' }, aside: { one: 'huddle', many: 'huddles' } }, null);
+    assert.equal(WORDS.format(r, 'space'), 'trip');
+    assert.equal(WORDS.format(r, 'space', { many: true, cap: true }), 'Trips');
+    assert.equal(WORDS.format(r, 'aside', { a: true }), 'a huddle');
+    assert.equal(WORDS.format(r, 'aside', { a: true, cap: true }), 'A huddle');
+    assert.throws(() => WORDS.format(r, 'room'), /no word called room/);
+    assert.equal(WORDS.fill('{Spaces}: manage {a space}\'s {guest} link, {an aside}, {spaces} and {x}.', r), 'Trips: manage a trip\'s guest link, a huddle, trips and {x}.');
+    assert.equal(WORDS.fill('In the {Space}; {A aside}', r), 'In the Trip; A huddle');
+    assert.equal(WORDS.word('space', { many: true }), 'spaces', 'outside a request, the defaults');
+  });
+  test('a change is checked word by word, and host, admin, unknown keys and bad words are refused with a sentence', () => {
+    const ok = WORDS.applyPatch({ member: { one: 'traveller', many: 'travellers' } }, { space: { one: '  trip ', many: 'trips', a: 'a trip' } });
+    assert.deepEqual(ok, { words: { space: { one: 'trip', many: 'trips', a: 'a trip' }, member: { one: 'traveller', many: 'travellers' } } });
+    assert.deepEqual(WORDS.applyPatch({ space: { one: 'trip', many: 'trips' } }, { space: null }), { words: {} });
+    const refused = (patch) => WORDS.applyPatch({}, patch).error;
+    assert.equal(refused({ host: { one: 'a', many: 'b' } }), "The host word is the host's own and can't be changed.");
+    assert.equal(refused({ admin: null }), "The admin word is the host's own and can't be changed.");
+    assert.match(refused({ room: { one: 'a', many: 'b' } }), /^There is no word called room; the words are environment, space, /);
+    assert.equal(refused({ space: 'trip' }), 'The word for space must be its singular and plural, or null to use the default.');
+    assert.equal(refused({ space: { one: 'trip' } }), 'The word for space needs both its singular and its plural.');
+    assert.equal(refused({ space: { one: 'trip', many: 'trips', icon: 'x' } }), 'The word for space takes only one, many and a.');
+    assert.equal(refused({ space: { one: 'x'.repeat(31), many: 'trips' } }), 'The word for space can be at most 30 characters.');
+    for (const bad of ['<b>trip</b>', 'trip!', '1st', 'trip  -', '-trip', "trip's'"]) assert.equal(refused({ space: { one: bad, many: 'trips' } }), 'The word for space can use only letters, spaces, hyphens and apostrophes.', bad);
+    assert.equal(refused({ space: { one: 'trip', many: 'trips', a: 'a journey' } }), 'The word for space with its article must be its singular with the article in front, such as "a trip".');
+    assert.equal(refused([]), 'Words must be given by name, each with its singular and plural.');
+    for (const good of ['base camp', 'Guild Hall', 'co-op', "people's hall", 'étape']) assert.ok(!refused({ space: { one: good, many: good } }), good);
+  });
+  test('the owner\'s words in a store: saved, cleared, and a refused word changes nothing, the other fields included', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-names-words-'));
+    try {
+      const store = new Store(dir);
+      assert.equal('words' in store.settings, false, 'a new environment has no words of its own');
+      assert.deepEqual(store.resolvedWords(), WORDS.resolve(null, null));
+      store.updateSettings({ words: { space: { one: 'trip', many: 'trips', a: 'a trip' } } });
+      assert.deepEqual(store.settings.words, { space: { one: 'trip', many: 'trips', a: 'a trip' } });
+      const before = JSON.stringify(store.settings);
+      for (const patch of [{ loginText: 'changed', words: { admin: { one: 'x', many: 'y' } } }, { words: { space: { one: '<i>', many: 'x' } }, environmentName: 'Changed' }]) {
+        assert.throws(() => store.updateSettings(patch), (err) => err.status === 400);
+        assert.equal(JSON.stringify(store.settings), before, JSON.stringify(patch));
+      }
+      assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8')).settings.words.space.one, 'trip', 'kept on disk');
+      store.updateSettings({ words: { space: null } });
+      assert.equal('words' in store.settings, false, 'no words left: the key goes, as before any were set');
+      store.templateWords = { space: { one: 'journey', many: 'journeys' } };
+      assert.equal(store.resolvedWords().space.one, 'journey', 'the template\'s word, with the owner\'s cleared');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  test('the rule reads sentences and labels, not the helper, placeholders, log lines, module.json or names', () => {
+    const text = [
+      "res.status(404).json({ error: 'no such space' });",
+      "res.status(404).json({ error: `no such ${word('space')}` });",
+      "const label = 'Manage {a space}\\'s {guest} link in the {Space}';",
+      "console.warn(`Module ${id} is not in this environment yet`);",
+      "throw new ModuleError('module.json: scope must include environment or space');",
+      "const k = 'spaceId'; const t = 'module-settings'; const u = '/api/spaces';",
+      "tab.label = 'Spaces';",
+      "const kind = 'guests';",
+      "throw new StoreError('Owners only. Ask an owner.');",
+      "const t = `${n} space${n === 1 ? '' : 's'}`; const u = `${n} ${word('space', { many: n !== 1 })}`;",
+      "const id = `module-${key}`; const v = `${name}modules${x}`;",
+    ].join('\n');
+    const { hits, keys } = vocabularyHits('server/scratch.js', text, []);
+    assert.deepEqual(hits.map((h) => `${h.line}:${h.token}`), ['1:space', '7:Spaces', '9:Owners', '9:owner', '10:space']);
+    assert.deepEqual(keys.map((k) => k.key), ['space', 'space']);
+    const html = '<p>Your <span data-word="space"></span> list</p><h2>Spaces</h2><button title="Add a guest">+</button>';
+    const page = vocabularyHits('public/scratch.html', html, []);
+    assert.deepEqual(page.hits.map((h) => h.token), ['Spaces', 'guest']);
+    assert.deepEqual(page.keys.map((k) => k.key), ['space']);
+  });
+  test('the rule reads text however it is built: pieces, templates, capitals, punctuation, read attributes, placeholders', () => {
+    const caught = [
+      "const a = 'space: ' + name;",
+      "const b = `space: ${n}`;",
+      "const c = `${n} members`;",
+      "const d = `Your ${n} spaces`;",
+      "const e = `${name} space`;",
+      "const f = 'Delete ' + 'space';",
+      "const g = 'SPACES';",
+      "const h = 'Space:';",
+      "el.title = 'owner';",
+      "el.setAttribute('aria-label', 'guest');",
+      "const i = { label: 'member', key: 'member' };",
+      "const j = fill('Make {a spaces} and {an trip}');",
+      "console.log('fine'); res.json({ error: 'no such space' });",
+      "const k = `space${n === 1 ? '' : 's'}`;",
+      "const l = 'module' + ', ' + x;",
+    ];
+    const clean = [
+      "const k = 'space'; if (scope === 'space') {}",
+      "el.className = 'module-card'; const id = `module-${id}`; const u = '/api/spaces';",
+      "const r = 'spaceId'; const ref = 'module:kind'; const t = `module:${kind}`;",
+      "el.className = 'space active'; document.querySelector('.space .guest');",
+      "const m = fill('Make {a space} or {an aside}, {Spaces}');",
+      "console.log('no such space'); log(`the ${'owner'} space ${x}`);",
+      "throw new Error(`module.json: scope must be \"space\" for ${key}, a ${'member'} space`);",
+      "const v = `${name}modules${x}`; const w = `${word('space', { many: true })} ${n}`;",
+    ];
+    const got = vocabularyHits('server/scratch.js', [...caught, ...clean].join('\n'), []).hits.map((h) => `${h.line}:${h.token}`);
+    assert.deepEqual(got, ['1:space', '2:space', '3:members', '4:spaces', '5:space', '6:space', '7:SPACES', '8:Space', '9:owner', '10:guest', '11:member', '12:{a spaces}', '12:{an trip}', '13:space', '14:space', '15:module']);
+    const html = '<p>Spaces</p><b title="owner">x</b><script>const t = \'no such space\';</script><p data-fill>{a guests}</p>';
+    assert.deepEqual(vocabularyHits('public/scratch.html', html, []).hits.map((h) => h.token), ['Spaces', 'owner', 'space', '{a guests}']);
+  });
+  console.log(`check-names: words, ${n} groups OK`);
 }
 
 // --- the scanner and the allow-list, on text made up for the check ------------------------------------------------
@@ -1772,7 +2056,7 @@ for (const p of problems) fail(`check-names: ${p}`);
 if (runCode || runWords) {
   const files = scannedFiles();
   if (runCode) { report('code', files, allow); scannerCheck(); callNamesCheck(); oldRouteCheck(files); }
-  if (runWords) report('words', files, allow);
+  if (runWords) { report('words', files, allow); vocabularyReport(files, allow); wordsCheck(); }
   if (runCode && runWords) {
     for (const e of allow.filter((x) => !x.used)) console.log(`  allow-list entry used by no hit: ${e.file} ${e.level} ${e.pattern}`);
   }

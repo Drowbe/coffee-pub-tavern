@@ -2,7 +2,7 @@
 // a scope, one control per setting, a Save on each card. Used on the Modules tab (the server's), a space's page (the
 // space's), the page a space's moderators use (module-settings.html) and the profile page (a person's own). The
 // server decides who may change what; this only draws what it is given.
-import { api, escapeHtml } from '/brand.js';
+import { api, escapeHtml, word } from '/brand.js';
 
 // A list of things with a label, an icon and a colour each (Planner's marker types): rows to change, reorder, remove and add. The rows the
 // module says are fixed (def.fixed: ids) are always there; their label, icon and colour can change but they cannot be removed.
@@ -84,7 +84,7 @@ function control(def) {
 // left hidden when there is nothing to set.
 // Why the list of files is empty, from what the server found in the folder.
 function fileHint(def) {
-  const where = def.folder ? `Looking in ${def.folder}` : 'Looking in the module\'s folder in the data folder';
+  const where = def.folder ? `Looking in ${def.folder}` : `Looking in the ${word('module')}'s folder in the data folder`;
   if (def.exists === false) return `${where}, which does not exist yet. Create it and copy the file in.`;
   const skipped = def.skipped || [];
   if ((def.available || []).length) return `The server ignored ${skipped.length} other file${skipped.length === 1 ? '' : 's'} in ${def.folder || 'the folder'}: ${skipped.map((s) => `${s.name} (${s.reason})`).join('; ')}.`;

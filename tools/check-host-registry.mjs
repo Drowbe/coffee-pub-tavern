@@ -443,6 +443,24 @@ try {
     const memberMe = (await call(server, 'acme', 'GET', '/api/me', { cookie: member.cookie })).json;
     assert.equal(memberMe.streamKey, undefined, 'a member gets no stream key');
     assert.equal(memberMe.user.permissions.startAside, true, 'the custom member permission (was settings.roles.user) applies');
+
+    // The words (plan-environment-templates step 1): the owner's own beside the resolved ones, per environment.
+    const settingsOf = async () => (await call(server, 'acme', 'GET', '/api/settings', { cookie: owner.cookie })).json.settings;
+    assert.deepEqual((await settingsOf()).ownWords, {}, 'no words of the owner\'s own yet');
+    const saved = await call(server, 'acme', 'PATCH', '/api/settings', { cookie: owner.cookie, body: { words: { space: { one: 'trip', many: 'trips' } } } });
+    assert.equal(saved.status, 200, saved.text);
+    assert.deepEqual(saved.json.settings.ownWords, { space: { one: 'trip', many: 'trips' } }, 'PATCH answers them too');
+    const withWords = await settingsOf();
+    assert.deepEqual(withWords.ownWords, { space: { one: 'trip', many: 'trips' } }, 'ownWords is the stored set, unresolved');
+    assert.deepEqual([withWords.words.space, withWords.words.member.one], [{ one: 'trip', many: 'trips', a: 'a trip' }, 'member'], 'words stays resolved, every key');
+    assert.equal((await call(server, 'acme', 'GET', '/api/branding')).json.ownWords, undefined, 'the public branding carries only the resolved words');
+    assert.equal((await call(server, 'acme', 'GET', '/api/me', { cookie: member.cookie })).json.ownWords, undefined, 'a member does not get the owner\'s set');
+    assert.deepEqual(await call(server, 'acme', 'GET', '/api/spaces/nope', { cookie: owner.cookie }).then((r) => [r.status, r.json]), [404, { error: 'no such trip' }], 'the server\'s sentences follow the words');
+    assert.equal((await call(server, 'beta', 'GET', '/api/branding')).json.words.space.one, 'space', 'another environment keeps its own words');
+    assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/settings', { cookie: owner.cookie, body: { words: { host: { one: 'boss', many: 'bosses' } } } }).then((r) => [r.status, r.json]), [400, { error: "The host word is the host's own and can't be changed." }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/settings', { cookie: member.cookie, body: { words: { space: null } } }).then((r) => [r.status, r.json]), [403, { error: 'owners only' }]);
+    assert.deepEqual((await call(server, 'acme', 'PATCH', '/api/settings', { cookie: owner.cookie, body: { words: { space: null } } })).json.settings.ownWords, {}, 'null clears it');
+    assert.equal('words' in readJson(acmeFile).settings, false, 'and the stored key goes with the last word');
     const roles = (await call(server, 'acme', 'GET', '/api/roles', { cookie: owner.cookie })).json.roles;
     assert.deepEqual(Object.keys(roles), ['owner', 'moderator', 'member', 'guest']);
     assert.equal(roles.guest.react, false);

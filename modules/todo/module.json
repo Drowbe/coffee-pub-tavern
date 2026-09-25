@@ -1,7 +1,7 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.11.8",
+  "version": "1.11.9",
   "icon": "list-check",
   "description": "A shared to-do list for the whole environment and for each space, with due dates and reminders.",
   "author": "Coffee Pub",

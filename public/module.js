@@ -6,7 +6,7 @@
 //   /modules/<id>?space=<space>&popout=1   a space's panel in a window of its own (?moduleRoom= redirects here)
 //                                          (add &guest=<token> for a guest)
 // (A module page opened over a call also carries from=space&spaceName=<the space's name>, for its Back link.)
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights, word } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
@@ -163,6 +163,6 @@ function wireTitlebar(mod) {
 // Whatever goes wrong, say so on the page instead of leaving it blank.
 start().catch((err) => {
   const note = $('module-missing');
-  note.textContent = `This module could not start: ${err.message}`;
+  note.textContent = `This ${word('module')} could not start: ${err.message}`;
   note.hidden = false;
 });

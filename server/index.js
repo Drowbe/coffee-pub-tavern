@@ -178,6 +178,10 @@ function proxyFor(name) {
 }
 
 const store = proxyFor('store');
+// The words a person reads for each level and role (server/words.js): word() reads the current request's environment's
+// words, or the defaults outside a request.
+const { word, fill: fillWords } = require('./words');
+require('./words').useCurrent(() => envContext.getStore()?.store.resolvedWords() || null);
 const modules = proxyFor('modules');
 const moduleData = proxyFor('moduleData');
 const moduleHooks = proxyFor('moduleHooks');
@@ -873,7 +877,7 @@ function requireUser(req, res, next) {
 
 function requireOwner(req, res, next) {
   if (!currentUser(req)) return res.status(401).json({ error: 'sign in first' });
-  if (!isOwner(req)) return res.status(403).json({ error: 'owners only' });
+  if (!isOwner(req)) return res.status(403).json({ error: `${word('owner', { many: true })} only` });
   next();
 }
 
@@ -925,7 +929,7 @@ function presenceUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), words: store.resolvedWords(), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -1252,7 +1256,7 @@ function gbText(bytes) {
 function refuseOverMembers(res) {
   const cap = planCap('members');
   if (cap === null || store.users.length < cap) return false;
-  res.status(403).json({ error: `This environment is at its limit of ${cap} members.` });
+  res.status(403).json({ error: `This ${word('environment')} is at its limit of ${cap} ${word('member', { many: true })}.` });
   return true;
 }
 function refuseOverStorage(res) {
@@ -1260,7 +1264,7 @@ function refuseOverStorage(res) {
   if (cap === null) return false;
   const env = currentEnvironment();
   if (environmentStorageBytes(env.slug, env.dataDir) < cap) return false;
-  res.status(403).json({ error: `This environment has used its ${gbText(cap)} GB of storage.` });
+  res.status(403).json({ error: `This ${word('environment')} has used its ${gbText(cap)} GB of storage.` });
   return true;
 }
 // Middleware form of refuseOverStorage, for the routes that write bytes to disk (module uploads, profile and
@@ -1271,7 +1275,7 @@ function checkStorageCap(req, res, next) {
 function refuseOverAiCalls(res) {
   const cap = planCap('aiCallsPerMonth');
   if (cap === null || hostRegistry.aiCallsThisMonth(currentEnvironment().slug) < cap) return false;
-  res.status(403).json({ error: `This environment has used its ${cap} AI calls for this month.` });
+  res.status(403).json({ error: `This ${word('environment')} has used its ${cap} AI calls for this month.` });
   return true;
 }
 // 'all' (the default, and every self-hosted install) or a list of module ids. A module already on when a
@@ -1282,7 +1286,7 @@ function moduleAllowedByPlan(id) {
 }
 function refuseModuleNotInPlan(res, id, name) {
   if (moduleAllowedByPlan(id)) return false;
-  res.status(403).json({ error: `This environment's plan does not include ${name}.` });
+  res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${name}.` });
   return true;
 }
 // The calls cap (plan-tenants.md, "Phase 4"): joining a room already in a call is never refused, so this only
@@ -1303,8 +1307,8 @@ async function refuseOverCalls(res, spaceId) {
   const live = active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0);
   if (live.some((lk) => spaceIdOfCall(lk.name) === spaceId)) return false;
   if (live.length < cap) return false;
-  const runningName = store.spaceById(spaceIdOfCall(live[0].name))?.name || 'another space';
-  res.status(403).json({ error: `This environment's plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
+  const runningName = store.spaceById(spaceIdOfCall(live[0].name))?.name || `another ${word('space')}`;
+  res.status(403).json({ error: `This ${word('environment')}'s plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
   return true;
 }
 function readEnvironmentZip(buffer) {
@@ -1842,13 +1846,13 @@ app.get('/module-settings', (req, res) => {
 // see public/profile.js, which tells the two apart by the URL.
 app.get('/profile/:key', (req, res) => {
   if (!currentUser(req)) return res.redirect(`/login?next=/profile/${encodeURIComponent(req.params.key)}`);
-  if (!isOwner(req)) return res.status(403).send('Owners only.');
+  if (!isOwner(req)) return res.status(403).send(`${word('owner', { many: true, cap: true })} only.`);
   res.sendFile(page('profile.html'));
 });
 
 app.get('/admin', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login?next=/admin');
-  if (!isOwner(req)) return res.status(403).send('Owners only.');
+  if (!isOwner(req)) return res.status(403).send(`${word('owner', { many: true, cap: true })} only.`);
   res.sendFile(page('admin.html'));
 });
 
@@ -1856,7 +1860,7 @@ app.get('/admin', (req, res) => {
 // Manage > Spaces and land here instead of editing it inline in the list.
 app.get('/spaces/:id', (req, res) => {
   if (!currentUser(req)) return res.redirect(`/login?next=/spaces/${encodeURIComponent(req.params.id)}`);
-  if (!isOwner(req)) return res.status(403).send('Owners only.');
+  if (!isOwner(req)) return res.status(403).send(`${word('owner', { many: true, cap: true })} only.`);
   res.sendFile(page('space-settings.html'));
 });
 
@@ -2205,7 +2209,7 @@ app.post('/api/me/mfa/enable', requireMfaOffered, (req, res) => {
 app.post('/api/me/mfa/disable', requireMfaOffered, requireUser, (req, res) => {
   const user = currentUser(req);
   if (!user.mfa) return res.status(400).json({ error: 'no second factor to disable' });
-  if (mfaPolicyRequires(user)) return res.status(403).json({ error: 'this environment requires a second factor for your account' });
+  if (mfaPolicyRequires(user)) return res.status(403).json({ error: `this ${word('environment')} requires a second factor for your account` });
   const ok = verifyMfaCode(user.mfa, req.body?.code, {
     onStep: () => {}, // about to be disabled outright -- recording the step used is pointless
     onRecovery: () => {},
@@ -2226,7 +2230,7 @@ app.post('/api/me/mfa/disable', requireMfaOffered, requireUser, (req, res) => {
 app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
   const user = currentUser(req);
   if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on' });
-  if (!mfaBypassApplies(user)) return res.status(403).json({ error: 'only an owner or the admin can use the lockout bypass' });
+  if (!mfaBypassApplies(user)) return res.status(403).json({ error: `only ${word('owner', { a: true })} or the admin can use the lockout bypass` });
   if (!user.passwordHash || !auth.verifyPassword(req.body?.password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'wrong password' });
   }
@@ -2252,7 +2256,7 @@ app.delete('/api/users/:key/mfa', requireOwner, (req, res) => {
 app.post('/api/token', async (req, res) => {
   const spaceId = typeof req.body?.space === 'string' && req.body.space ? req.body.space : LOBBY;
   const theSpace = store.spaceById(spaceId);
-  if (!theSpace) return res.status(404).json({ error: 'no such space' });
+  if (!theSpace) return res.status(404).json({ error: `no such ${word('space')}` });
   const call = callName(spaceId);
   if (req.body?.role === 'viewer') {
     if (!hasStreamAccess(req)) return res.status(403).json({ error: 'stream key required' });
@@ -2261,7 +2265,7 @@ app.post('/api/token', async (req, res) => {
   }
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
-  if (!theSpace.members.includes(user.key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that space' });
+  if (!theSpace.members.includes(user.key) && !isOwner(req)) return res.status(403).json({ error: `you are not in that ${word('space')}` });
   if (req.body?.call !== false && (await refuseOverCalls(res, spaceId))) return;
   const media = Boolean(store.spacePermissions(user.key, spaceId).conference);
   const token = await mintToken({ identity: user.key, name: user.displayName, call, publisher: true, media, inCall: req.body?.call !== false });
@@ -2272,12 +2276,12 @@ app.post('/api/token', async (req, res) => {
 // guest-link routes above). Public -- there's nothing to sign in with.
 app.get('/api/guest-link/:token', (req, res) => {
   const theSpace = store.spaceByGuestToken(req.params.token);
-  if (!theSpace) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  if (!theSpace) return res.status(404).json({ error: `that ${word('guest')} link is off or wrong` });
   res.json({ spaceId: theSpace.id, spaceName: theSpace.name });
 });
 app.post('/api/guest-join', async (req, res) => {
   const theSpace = store.spaceByGuestToken(req.body?.token);
-  if (!theSpace) return res.status(404).json({ error: 'that guest link is off or wrong' });
+  if (!theSpace) return res.status(404).json({ error: `that ${word('guest')} link is off or wrong` });
   const name = cleanText(req.body?.name, 40);
   if (!name) return res.status(400).json({ error: 'a name is required' });
   const call = callName(theSpace.id);
@@ -2313,7 +2317,7 @@ app.delete('/api/me/images/:slot', requireUser, requireImageRight, (req, res) =>
 // The same for a space's own pictures, and the switch that turns them on.
 function requireOwnSpace(req, res, next) {
   const space = store.spaceById(req.params.spaceId);
-  if (!space || !space.members.includes(currentUser(req).key)) return res.status(403).json({ error: 'not a member of that space' });
+  if (!space || !space.members.includes(currentUser(req).key)) return res.status(403).json({ error: `not ${word('member', { a: true })} of that ${word('space')}` });
   next();
 }
 app.put('/api/me/spaces/:spaceId/images/:slot', requireUser, requireOwnSpace, requireImageRight, rawImage, checkStorageCap, (req, res) => {
@@ -2330,7 +2334,7 @@ app.patch('/api/me/spaces/:spaceId', requireUser, requireOwnSpace, (req, res) =>
   const user = currentUser(req);
   const set = store.roleSet(user.role);
   if (!Object.entries(set).some(([k, v]) => v && k.startsWith('image_') && k !== 'image_profile' && k !== 'image_background')) {
-    return res.status(403).json({ error: 'your role can\'t change a space\'s images' });
+    return res.status(403).json({ error: `your role can't change ${word('space', { a: true })}'s images` });
   }
   store.setSpacePrefs(user.key, req.params.spaceId, { useDefaultImages: req.body?.useDefaultImages });
   res.json({ user: publicUser(req, store.userByKey(user.key)) });
@@ -2420,7 +2424,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
     const initiator = currentUser(req);
     const priv = Boolean(req.body?.private);
     if (priv && store.settings.allowPrivate === false) return res.status(403).json({ error: 'private conversations are turned off' });
-    if (!priv && store.settings.allowAsides === false) return res.status(403).json({ error: 'asides are turned off' });
+    if (!priv && store.settings.allowAsides === false) return res.status(403).json({ error: `${word('aside', { many: true })} are turned off` });
     const raw = req.body?.with;
     const keys = [...new Set(Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [])];
     const targets = keys.filter((k) => k !== initiator.key).map((k) => store.userByKey(k)).filter(Boolean);
@@ -2430,7 +2434,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
     if (!initiatorCall) return res.status(400).json({ error: 'you need to be in a call yourself to pull someone aside' });
     const originId = spaceIdOfCall(initiatorCall);
     const perms = store.spacePermissions(initiator.key, originId);
-    if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
+    if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : `you can't pull someone into ${word('aside', { a: true })}` });
     for (const target of targets) {
       const there = here.get(target.key);
       if (!there || there.call !== initiatorCall) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
@@ -2486,7 +2490,7 @@ app.post('/api/asides/return', requireUser, async (req, res) => {
     const mine = (await participants()).find((p) => p.key === me.key);
     if (!mine) return res.status(400).json({ error: 'you need to be in a call' });
     const current = store.spaceById(mine.space);
-    if (!current || !current.ephemeral) return res.status(400).json({ error: 'you are not in an aside' });
+    if (!current || !current.ephemeral) return res.status(400).json({ error: `you are not in ${word('aside', { a: true })}` });
     const dest = (current.origin && store.spaceById(current.origin)) || store.spaceById(LOBBY);
     const others = current.members.filter((k) => k !== me.key);
     if (others.length) {
@@ -2542,7 +2546,7 @@ app.post('/api/spaces/order', requireOwner, (req, res) => {
 });
 app.get('/api/spaces/:id', requireOwner, (req, res) => {
   const space = store.spaceById(req.params.id);
-  if (!space) return res.status(404).json({ error: 'no such space' });
+  if (!space) return res.status(404).json({ error: `no such ${word('space')}` });
   res.json({ space });
 });
 app.patch('/api/spaces/:id', requireOwner, (req, res) => {
@@ -2569,14 +2573,14 @@ app.delete('/api/spaces/:id/image', requireOwner, (req, res) => {
 // (POST) mirror the personal-link routes above; DELETE turns it off.
 function requireSpaceMember(req, res, next) {
   const space = store.spaceById(req.params.id);
-  if (!space) return res.status(404).json({ error: 'no such space' });
-  if (!space.members.includes(currentUser(req).key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that space' });
+  if (!space) return res.status(404).json({ error: `no such ${word('space')}` });
+  if (!space.members.includes(currentUser(req).key) && !isOwner(req)) return res.status(403).json({ error: `you are not in that ${word('space')}` });
   next();
 }
 // Managing the link needs Can Invite for that space (owners always can) --
 // being in the space alone no longer is enough.
 function requireCanInvite(req, res, next) {
-  if (!store.spacePermissions(currentUser(req).key, req.params.id).canInvite) return res.status(403).json({ error: 'you can\'t invite people to this space' });
+  if (!store.spacePermissions(currentUser(req).key, req.params.id).canInvite) return res.status(403).json({ error: `you can't invite people to this ${word('space')}` });
   next();
 }
 app.post('/api/spaces/:id/guest-link', requireUser, requireSpaceMember, requireCanInvite, (req, res) => {
@@ -2725,9 +2729,17 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 // The two panes that ship with the app, listed beside the installed modules. They are always on and
 // cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
 const BUILTIN_MODULES = [
-  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the space: the tiles, the toolbar, reactions, asides and the OBS views.', permissions: 'Share their screen, Use reactions, and the Asides group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every space. Chat, presence and modules keep working.', turnOn: 'Voice and video for the space. It needs a LiveKit server.' },
-  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the space, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
+  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the {space}: the tiles, the toolbar, reactions, {asides} and the OBS views.', permissions: 'Share their screen, Use reactions, and the {Asides} group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every {space}. Chat, presence and {modules} keep working.', turnOn: 'Voice and video for the {space}. It needs a LiveKit server.' },
+  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the {space}, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
 ];
+// A built-in module as Manage shows it: its sentences in this environment's words ({space} and the like, server/words.js),
+// and whether it is on, for one with an environment-wide switch.
+function builtinView(b) {
+  const view = { ...b };
+  for (const k of ['description', 'permissions', 'needs', 'turnOff', 'turnOn']) if (typeof view[k] === 'string') view[k] = fillWords(view[k]);
+  if (b.setting) view.enabled = store.settings[b.setting] !== false;
+  return view;
+}
 // Modules that ship with this deployment (the modules/ folder), and where each stands:
 // not installed, installed and current, or installed with a newer version available. Installing or
 // updating one builds its zip on the server, so nothing has to be uploaded; it then goes through the
@@ -2744,11 +2756,11 @@ function bundledList() {
     };
   });
 }
-app.get('/api/modules', requireOwner, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => (b.setting ? { ...b, enabled: store.settings[b.setting] !== false } : b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+app.get('/api/modules', requireOwner, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => builtinView(b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
 app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
   const id = req.params.id;
   const bundled = bundledModules(BUNDLED_DIR).find((m) => m.id === id);
-  if (!bundled) return res.status(404).json({ error: 'that module does not ship with this deployment' });
+  if (!bundled) return res.status(404).json({ error: `that ${word('module')} does not ship with this deployment` });
   if (refuseModuleNotInPlan(res, id, bundled.name)) return;
   const { zip } = buildModule(path.join(BUNDLED_DIR, id));
   const installed = await modules.install(zip, { source: 'bundled' });
@@ -2760,7 +2772,7 @@ app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
 // may still install and enable any module its plan allows, but never bring in code the host itself hasn't
 // vetted. The host admin's own cross sign-in is exempt, same as a self-hosted install (no BASE_DOMAIN at all).
 function requireHostTrust(req, res, next) {
-  if (BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may add or run unvetted modules here' });
+  if (BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: `only the host may add or run unvetted ${word('module', { many: true })} here` });
   next();
 }
 app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res) => {
@@ -2770,13 +2782,13 @@ app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res
   // "Phase 3"). keepData: false since this was never really installed from the plan's point of view.
   if (!moduleAllowedByPlan(installed.id)) {
     modules.uninstall(installed.id, { keepData: false });
-    return res.status(403).json({ error: `This environment's plan does not include ${installed.name}.` });
+    return res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${installed.name}.` });
   }
   carryReplacedGrants(currentEnvironment());
   res.status(201).json({ module: installed });
 });
 app.patch('/api/modules/:id', requireOwner, (req, res) => {
-  if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may choose to run a module in the page' });
+  if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: `only the host may choose to run ${word('module', { a: true })} in the page` });
   if (req.body?.enabled === true) {
     const current = modules.list().find((m) => m.id === req.params.id);
     if (current && refuseModuleNotInPlan(res, current.id, current.name)) return;
@@ -2861,34 +2873,34 @@ function moduleCan(manifest, perms, need) {
 // itself and returns null when the caller may not.
 function moduleAccess(req, res, need) {
   const found = modules.enabled(req.params.id);
-  if (!found) return void res.status(404).json({ error: 'no such module' });
+  if (!found) return void res.status(404).json({ error: `no such ${word('module')}` });
   const { manifest, entry } = found;
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
   // The access key stands in for a session only on a module's own keyed page, and only to read it: the key is
   // the permission, so there is no space, person or fine-grained access.read to check beyond that.
   if (who.keyed) {
-    if (need !== 'read' || !manifest.surfaces.keyed) return void res.status(403).json({ error: 'the access key only reads a module with a keyed page' });
+    if (need !== 'read' || !manifest.surfaces.keyed) return void res.status(403).json({ error: `the access key only reads ${word('module', { a: true })} with a keyed page` });
     return { manifest, entry, scope: 'environment', spaceId: null, scopeKey: 'environment', who, perms: {}, by: 'keyed' };
   }
   const scope = askedScope(req.query.scope, res, ['environment', 'space', 'person']);
   if (!scope) return;
-  if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this module has no ${scope} scope` });
+  if (!manifest.scope.includes(scope)) return void res.status(400).json({ error: `this ${word('module')} has no ${scope} scope` });
   let spaceId = null;
   if (scope === 'person') {
     // A person's own data (their profile's): only they can reach it, not even an administrator, because the place it is kept
     // is named by who is asking.
-    if (!who.user) return void res.status(403).json({ error: 'guests have no personal data' });
+    if (!who.user) return void res.status(403).json({ error: `${word('guest', { many: true })} have no personal data` });
   } else if (scope === 'space') {
     const space = store.spaceById(String(req.query.space || ''));
-    if (!space) return void res.status(404).json({ error: 'no such space' });
-    if (!moduleSpaceAccess(entry, who, space)) return void res.status(403).json({ error: 'this module is not available in that space for you' });
+    if (!space) return void res.status(404).json({ error: `no such ${word('space')}` });
+    if (!moduleSpaceAccess(entry, who, space)) return void res.status(403).json({ error: `this ${word('module')} is not available in that ${word('space')} for you` });
     spaceId = space.id;
   } else if (!who.user) {
-    return void res.status(403).json({ error: 'guests can only use a module in a space' });
+    return void res.status(403).json({ error: `${word('guest', { many: true })} can only use ${word('module', { a: true })} in ${word('space', { a: true })}` });
   }
   const perms = modulePerms(who, spaceId);
-  if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
+  if (!moduleCan(manifest, perms, need)) return void res.status(403).json({ error: `your role can't do that in this ${word('module')}` });
   return { manifest, entry, scope, spaceId, scopeKey: scopeKeyOf(scope, { spaceId, userKey: who.user?.key }), who, perms, by: who.user?.key || 'guest' };
 }
 
@@ -2901,9 +2913,9 @@ function chatSpaceFor(req, res, permission) {
   const who = moduleViewer(req);
   if (!who) return void res.status(401).json({ error: 'sign in first' });
   const space = store.spaceById(req.params.id);
-  if (!space) return void res.status(404).json({ error: 'no such space' });
+  if (!space) return void res.status(404).json({ error: `no such ${word('space')}` });
   const allowed = who.user ? hasOwnerRights(who.user) || space.members.includes(who.user.key) : who.guestSpace.id === space.id;
-  if (!allowed) return void res.status(403).json({ error: 'you are not in that space' });
+  if (!allowed) return void res.status(403).json({ error: `you are not in that ${word('space')}` });
   const perms = who.user ? store.spacePermissions(who.user.key, space.id) : store.roleSet('guest');
   if (!perms[permission]) return void res.status(403).json({ error: 'your role cannot do that' });
   return { who, space };
@@ -2977,12 +2989,12 @@ app.get('/api/icons/:style/:name', requireUser, (req, res) => {
 // The viewer's spaces for this module, or null after sending the error.
 function moduleSpacesFor(req, res) {
   const found = modules.enabled(req.params.id);
-  if (!found) return void res.status(404).json({ error: 'no such module' });
+  if (!found) return void res.status(404).json({ error: `no such ${word('module')}` });
   const who = moduleViewer(req);
-  if (!who?.user) return void res.status(403).json({ error: 'guests can only use a module in a space' });
+  if (!who?.user) return void res.status(403).json({ error: `${word('guest', { many: true })} can only use ${word('module', { a: true })} in ${word('space', { a: true })}` });
   const { manifest, entry } = found;
-  if (!manifest.scope.includes('space')) return void res.status(400).json({ error: 'this module has no space scope' });
-  if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: 'your role can\'t do that in this module' });
+  if (!manifest.scope.includes('space')) return void res.status(400).json({ error: `this ${word('module')} has no space scope` });
+  if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: `your role can't do that in this ${word('module')}` });
   const spaces = store.spaces.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
     && (entry.allSpaces || entry.spaces.includes(r.id)) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
   return { manifest, spaces };
@@ -3037,43 +3049,43 @@ function consumerMayLink(consumer, provider, kind) {
 // (`skipConsumer`): a module may always see what points at its own items, as far as the viewer may.
 function refScope(who, { provider, kind, scope, space, from, skipConsumer = false }) {
   const found = modules.enabled(provider);
-  if (!found) throw refError(404, 'no such module');
+  if (!found) throw refError(404, `no such ${word('module')}`);
   const produce = found.manifest.refs.produces.find((p) => p.kind === kind);
-  if (!produce) throw refError(404, 'that module does not share that kind of item');
+  if (!produce) throw refError(404, `that ${word('module')} does not share that kind of item`);
   let consumer = null;
   if (!skipConsumer) {
-    if (!from) throw refError(400, 'say which module is asking');
+    if (!from) throw refError(400, `say which ${word('module')} is asking`);
     consumer = modules.enabled(from);
-    if (!consumer) throw refError(404, 'no such module');
-    if (!consumerMayLink(consumer, provider, kind)) throw refError(403, 'that module has not been approved to link to those items');
+    if (!consumer) throw refError(404, `no such ${word('module')}`);
+    if (!consumerMayLink(consumer, provider, kind)) throw refError(403, `that ${word('module')} has not been approved to link to those items`);
   }
   const { manifest, entry } = found;
   let scopeKey;
   let perms;
   if (scope === 'space') {
     const r = store.spaceById(String(space || ''));
-    if (!r) throw refError(404, 'no such space');
-    if (!manifest.scope.includes('space')) throw refError(400, 'that module has no space scope');
-    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, 'that module is not available in that space for you');
+    if (!r) throw refError(404, `no such ${word('space')}`);
+    if (!manifest.scope.includes('space')) throw refError(400, `that ${word('module')} has no space scope`);
+    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, `that ${word('module')} is not available in that ${word('space')} for you`);
     // The asking module must itself be on in that space, and readable by the viewer.
-    if (consumer && (!moduleSpaceAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, 'the linking module is not available in that space for you');
+    if (consumer && (!moduleSpaceAccess(consumer.entry, who, r) || !moduleCan(consumer.manifest, modulePerms(who, r.id), 'read'))) throw refError(403, `the linking ${word('module')} is not available in that ${word('space')} for you`);
     perms = modulePerms(who, r.id);
     scopeKey = scopeKeyOf('space', { spaceId: r.id });
   } else if (scope === 'person') {
     // The viewer's own items, kept for them alone; a pointer to someone else's simply finds nothing here.
-    if (!who.user) throw refError(403, 'guests have no personal data');
-    if (!manifest.scope.includes('person')) throw refError(400, 'that module has no personal scope');
-    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
+    if (!who.user) throw refError(403, `${word('guest', { many: true })} have no personal data`);
+    if (!manifest.scope.includes('person')) throw refError(400, `that ${word('module')} has no personal scope`);
+    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, `the linking ${word('module')} is not available to you`);
     perms = modulePerms(who, null);
     scopeKey = `person:${who.user.key}`;
   } else {
-    if (!who.user) throw refError(403, 'guests can only use a module in a space');
-    if (!manifest.scope.includes('environment')) throw refError(400, 'that module has no environment scope');
-    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, 'the linking module is not available to you');
+    if (!who.user) throw refError(403, `${word('guest', { many: true })} can only use ${word('module', { a: true })} in ${word('space', { a: true })}`);
+    if (!manifest.scope.includes('environment')) throw refError(400, `that ${word('module')} has no environment scope`);
+    if (consumer && !moduleCan(consumer.manifest, modulePerms(who, null), 'read')) throw refError(403, `the linking ${word('module')} is not available to you`);
     perms = modulePerms(who, null);
     scopeKey = 'environment';
   }
-  if (!moduleCan(manifest, perms, 'read')) throw refError(403, 'your role can\'t see that module');
+  if (!moduleCan(manifest, perms, 'read')) throw refError(403, `your role can't see that ${word('module')}`);
   return { manifest, produce, scopeKey, ref: { module: provider, kind, scope: scope === 'space' ? 'space' : scope === 'person' ? 'person' : 'environment', ...(scope === 'space' ? { space: String(space) } : {}) } };
 }
 
@@ -3162,7 +3174,7 @@ app.get('/api/refs/search', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const from = String(req.query.from || '');
-  if (!modules.enabled(from)) return res.status(404).json({ error: 'no such module' });
+  if (!modules.enabled(from)) return res.status(404).json({ error: `no such ${word('module')}` });
   const scope = askedScope(req.query.scope, res, ['environment', 'space', 'person']);
   if (!scope) return;
   const q = String(req.query.q || '').trim().toLowerCase();
@@ -3205,21 +3217,21 @@ app.post('/api/refs/links', (req, res) => {
   const asker = String(req.body?.module || '');
   const from = req.body?.from;
   const found = modules.enabled(asker);
-  if (!found) return res.status(404).json({ error: 'no such module' });
-  if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: 'a module can only say what its own items point at' });
+  if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
+  if (!refShape(from) || from.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only say what its own items point at` });
   if (from.scope === 'person') return res.status(400).json({ error: 'personal items are private, so they are not linked' });
-  if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: 'that module does not share that kind of item' });
+  if (!found.manifest.refs.produces.some((p) => p.kind === from.kind)) return res.status(400).json({ error: `that ${word('module')} does not share that kind of item` });
   // The viewer must be allowed to change the asking module's data in that scope.
   let perms;
   if (from.scope === 'space') {
     const r = store.spaceById(String(from.space || ''));
-    if (!r || !moduleSpaceAccess(found.entry, who, r)) return res.status(403).json({ error: 'that module is not available in that space for you' });
+    if (!r || !moduleSpaceAccess(found.entry, who, r)) return res.status(403).json({ error: `that ${word('module')} is not available in that ${word('space')} for you` });
     perms = modulePerms(who, r.id);
   } else {
-    if (!who.user) return res.status(403).json({ error: 'guests can only use a module in a space' });
+    if (!who.user) return res.status(403).json({ error: `${word('guest', { many: true })} can only use ${word('module', { a: true })} in ${word('space', { a: true })}` });
     perms = modulePerms(who, null);
   }
-  if (!moduleCan(found.manifest, perms, 'write')) return res.status(403).json({ error: 'your role can\'t do that in this module' });
+  if (!moduleCan(found.manifest, perms, 'write')) return res.status(403).json({ error: `your role can't do that in this ${word('module')}` });
   const tos = [];
   for (const to of (Array.isArray(req.body?.to) ? req.body.to : []).slice(0, 20)) {
     if (to && to.scope === 'person') continue; // a shared link never points into someone's private data
@@ -3247,10 +3259,10 @@ app.get('/api/refs/links', (req, res) => {
   }
   const asker = String(req.query.from || '');
   const found = modules.enabled(asker);
-  if (!found) return res.status(404).json({ error: 'no such module' });
-  if (!refShape(ref) || ref.module !== asker) return res.status(400).json({ error: 'a module can only ask about its own items' });
+  if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
+  if (!refShape(ref) || ref.module !== asker) return res.status(400).json({ error: `${word('module', { a: true })} can only ask about its own items` });
   const produce = found.manifest.refs.produces.find((p) => p.kind === ref.kind);
-  if (!produce) return res.status(400).json({ error: 'that module does not share that kind of item' });
+  if (!produce) return res.status(400).json({ error: `that ${word('module')} does not share that kind of item` });
   const dir = req.query.dir === 'from' ? 'from' : 'to';
   if (dir === 'to' && !produce.backlinks) return res.status(403).json({ error: 'that kind of item does not show what links to it' });
   // The asking module's own item must itself be visible to the viewer.
@@ -3287,26 +3299,26 @@ const mayUse = ({ manifest, entry }, provider, action) => busMay(manifest.action
 // Resolve one module's place (the environment, or a space) for this viewer with the permission needed.
 function busPlace(who, moduleId, scope, space, need) {
   const found = modules.enabled(moduleId);
-  if (!found) throw refError(404, 'no such module');
+  if (!found) throw refError(404, `no such ${word('module')}`);
   const { manifest, entry } = found;
   let scopeKey;
   let perms;
   let spaceId = null;
   if (scope === 'space') {
     const r = store.spaceById(String(space || ''));
-    if (!r) throw refError(404, 'no such space');
-    if (!manifest.scope.includes('space')) throw refError(400, 'that module has no space scope');
-    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, 'that module is not available in that space for you');
+    if (!r) throw refError(404, `no such ${word('space')}`);
+    if (!manifest.scope.includes('space')) throw refError(400, `that ${word('module')} has no space scope`);
+    if (!moduleSpaceAccess(entry, who, r)) throw refError(403, `that ${word('module')} is not available in that ${word('space')} for you`);
     perms = modulePerms(who, r.id);
     scopeKey = scopeKeyOf('space', { spaceId: r.id });
     spaceId = r.id;
   } else {
-    if (!who.user) throw refError(403, 'guests can only use a module in a space');
-    if (!manifest.scope.includes('environment')) throw refError(400, 'that module has no environment scope');
+    if (!who.user) throw refError(403, `${word('guest', { many: true })} can only use ${word('module', { a: true })} in ${word('space', { a: true })}`);
+    if (!manifest.scope.includes('environment')) throw refError(400, `that ${word('module')} has no environment scope`);
     perms = modulePerms(who, null);
     scopeKey = 'environment';
   }
-  if (!moduleCan(manifest, perms, need)) throw refError(403, 'your role can\'t do that in this module');
+  if (!moduleCan(manifest, perms, need)) throw refError(403, `your role can't do that in this ${word('module')}`);
   return { found, scopeKey, spaceId, perms };
 }
 
@@ -3335,12 +3347,12 @@ const publicAction = (a) => ({ id: a.id, at: a.at, from: a.from, name: a.action,
 app.post('/api/bus/publish', busRoute((who, req) => {
   const { module: id, name, ref, data, scope, space } = req.body || {};
   const at = busPlace(who, String(id || ''), busScope(scope), space, 'write');
-  if (overLimit(at.found.manifest.id, who.user?.key, 'event')) throw refError(429, limitMessage);
-  if (!at.found.manifest.events.publishes.some((p) => p.name === name)) throw refError(400, 'that module does not publish that event');
+  if (overLimit(at.found.manifest.id, who.user?.key, 'event')) throw refError(429, limitMessage());
+  if (!at.found.manifest.events.publishes.some((p) => p.name === name)) throw refError(400, `that ${word('module')} does not publish that event`);
   let pointer = null;
   if (ref !== undefined && ref !== null) {
     if (!refShape(ref) || ref.module !== id || !at.found.manifest.refs.produces.some((p) => p.kind === ref.kind) || refScopeKey(ref) !== at.scopeKey) {
-      throw refError(400, 'an event can only point at one of its module\'s own items, in the same place');
+      throw refError(400, `an event can only point at one of its ${word('module')}'s own items, in the same place`);
     }
     pointer = plainRef(ref);
   }
@@ -3443,11 +3455,11 @@ app.post('/api/bus/actions/request', busRoute((who, req) => {
   const [providerId, name] = String(action || '').split(':');
   const sc = busScope(scope);
   const asker = busPlace(who, String(from || ''), sc, space, 'read');
-  if (overLimit(asker.found.manifest.id, who.user?.key, 'action')) throw refError(429, limitMessage);
+  if (overLimit(asker.found.manifest.id, who.user?.key, 'action')) throw refError(429, limitMessage());
   const provider = busPlace(who, String(providerId || ''), sc, space, 'read');
   const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
-  if (!def) throw refError(404, 'that module does not offer that action');
-  if (!mayUse(asker.found, providerId, name)) throw refError(403, 'that module has not been approved to ask for that');
+  if (!def) throw refError(404, `that ${word('module')} does not offer that action`);
+  if (!mayUse(asker.found, providerId, name)) throw refError(403, `that ${word('module')} has not been approved to ask for that`);
   if (!def.local) busPlace(who, String(providerId), sc, space, 'write'); // asking for a change takes the right to make it
   const request = moduleBus.request({ from, provider: providerId, action: name, input: busInput(who, def.input, input), scopeKey: provider.scopeKey, by: who.user?.key || 'guest', local: def.local });
   return { id: request.id, status: request.status };
@@ -3511,10 +3523,10 @@ function overLimit(moduleId, by, kind) {
   if (r.first) noteActivity(moduleId, `was slowed: too many ${kind === 'write' ? 'saves' : kind + 's'} in a minute`, by, null);
   return r;
 }
-const limitMessage = 'this module is doing that too often; try again in a moment';
+const limitMessage = () => `this ${word('module')} is doing that too often; try again in a moment`;
 app.get('/api/modules/activity', requireOwner, (_req, res) => {
   res.json({
-    activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? 'a guest' : a.by) })),
+    activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? word('guest', { a: true }) : a.by) })),
   });
 });
 
@@ -3599,10 +3611,10 @@ app.put('/api/ai', requireOwner, (req, res) => {
 // Whether AI is available to this person here (for a page to show or hide its buttons): { available, why? }.
 function aiAllowed(ctx) {
   const user = ctx.who.user;
-  if (!user) return { ok: false, why: 'guests cannot use AI' };
+  if (!user) return { ok: false, why: `${word('guest', { many: true })} cannot use AI` };
   if (!ai.ready()) return { ok: false, why: 'AI is not set up on this server' };
   const space = ctx.spaceId ? store.spaceById(ctx.spaceId) : null;
-  if (space && space.aiOff) return { ok: false, why: 'AI is turned off in this space' };
+  if (space && space.aiOff) return { ok: false, why: `AI is turned off in this ${word('space')}` };
   const perms = ctx.spaceId ? store.spacePermissions(user.key, ctx.spaceId) : store.roleSet(user.role);
   if (!perms.useAi) return { ok: false, why: 'your role may not use AI' };
   return { ok: true };
@@ -3619,7 +3631,7 @@ app.post('/api/modules/:id/ai', async (req, res) => {
   const allowed = aiAllowed(ctx);
   if (!allowed.ok) return res.status(403).json({ error: allowed.why });
   if (refuseOverAiCalls(res)) return;
-  if (overLimit(ctx.manifest.id, ctx.by, 'ai')) return res.status(429).json({ error: limitMessage });
+  if (overLimit(ctx.manifest.id, ctx.by, 'ai')) return res.status(429).json({ error: limitMessage() });
   const refs = Array.isArray(req.body?.items) ? req.body.items.slice(0, 12) : [];
   // The items are read as this person: only what they may see, and only kinds this module produces or was approved to link to.
   const items = [];
@@ -3659,7 +3671,7 @@ const rawUpload = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'],
 function uploadAccess(req, res, need) {
   const ctx = moduleAccess(req, res, need);
   if (!ctx) return null;
-  if (!ctx.manifest.uploads) { res.status(404).json({ error: 'this module keeps no uploaded files' }); return null; }
+  if (!ctx.manifest.uploads) { res.status(404).json({ error: `this ${word('module')} keeps no uploaded files` }); return null; }
   return ctx;
 }
 const uploadView = (f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, by: f.by, at: f.at, taken: f.taken, camera: f.camera, hasPosition: f.hasPosition, position: f.position, hasThumb: !!f.thumb });
@@ -3671,7 +3683,7 @@ app.get('/api/modules/:id/uploads', (req, res) => {
 app.post('/api/modules/:id/uploads', rawUpload, checkStorageCap, (req, res) => {
   const ctx = uploadAccess(req, res, 'write');
   if (!ctx) return;
-  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage });
+  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage() });
   if (!Buffer.isBuffer(req.body)) return res.status(415).json({ error: 'send the picture itself, as a JPEG, PNG or WebP' });
   const file = moduleUploads.put(ctx.manifest.id, ctx.scopeKey, ctx.manifest.uploads, { bytes: req.body, name: req.query.name, by: ctx.by, keepPosition: req.query.keepPosition === '1' });
   res.status(201).json({ file: uploadView(file) });
@@ -3681,7 +3693,7 @@ app.post('/api/modules/:id/uploads', rawUpload, checkStorageCap, (req, res) => {
 app.post('/api/modules/:id/uploads/inspect', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: 300 * 1024 }), (req, res) => {
   const ctx = uploadAccess(req, res, 'write');
   if (!ctx) return;
-  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage });
+  if (overLimit(ctx.manifest.id, ctx.by, 'upload')) return res.status(429).json({ error: limitMessage() });
   if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(415).json({ error: 'send the start of the picture' });
   res.json(inspectHead(req.body));
 });
@@ -3721,7 +3733,7 @@ app.delete('/api/modules/:id/uploads/:fid', (req, res) => {
 function geocodeAccess(req, res, need) {
   const ctx = moduleAccess(req, res, need);
   if (!ctx) return null;
-  if (!ctx.manifest.geocoder) { res.status(404).json({ error: 'this module has no place search' }); return null; }
+  if (!ctx.manifest.geocoder) { res.status(404).json({ error: `this ${word('module')} has no place search` }); return null; }
   return ctx;
 }
 // Where this module's search goes now: { name, address, credit } or null when none is chosen.
@@ -3741,7 +3753,7 @@ app.get('/api/modules/:id/geocode', async (req, res) => {
   if (q.length < 2) return res.json({ results: [], configured: true });
   const setup = geocodeSetup(ctx.manifest);
   if (!setup) return res.json({ results: [], configured: false });
-  if (overLimit(ctx.manifest.id, ctx.who.user?.key, 'search')) return res.status(429).json({ error: limitMessage });
+  if (overLimit(ctx.manifest.id, ctx.who.user?.key, 'search')) return res.status(429).json({ error: limitMessage() });
   const near = req.query.lat !== undefined ? { lat: Number(req.query.lat), lon: Number(req.query.lon) } : null;
   const id = ctx.manifest.id;
   const pick = (r, source, from) => ({ key: r.key, title: r.name, sub: r.address, lat: r.lat, lng: r.lng, source, from });
@@ -3796,13 +3808,13 @@ function regionSourceOf(manifest) {
 }
 function regionCutSetup(req, res) {
   const found = modules.enabled(req.params.id);
-  if (!found) { res.status(404).json({ error: 'no such module' }); return null; }
+  if (!found) { res.status(404).json({ error: `no such ${word('module')}` }); return null; }
   if (found.manifest.regionSource && folderIsShared(found.manifest, found.manifest.regionSource.folder)) {
     res.status(403).json({ error: 'managed by the host' });
     return null;
   }
   const setup = regionSourceOf(found.manifest);
-  if (!setup) { res.status(404).json({ error: 'this module has no world file set up to cut from' }); return null; }
+  if (!setup) { res.status(404).json({ error: `this ${word('module')} has no world file set up to cut from` }); return null; }
   return { manifest: found.manifest, setup };
 }
 const boxFromBody = (b) => ({ minLon: Number(b?.minLon), minLat: Number(b?.minLat), maxLon: Number(b?.maxLon), maxLat: Number(b?.maxLat) });
@@ -3829,7 +3841,7 @@ app.get('/api/modules/:id/region-cut/find', requireOwner, async (req, res) => {
   if (q.length < 2) return res.status(400).json({ error: 'type a place name first' });
   try {
     const found = await findRegionBox(q);
-    if (found === null) return res.status(404).json({ error: 'no place search is set up on this server (a module with one, such as Places, names where to look)' });
+    if (found === null) return res.status(404).json({ error: `no place search is set up on this server (${word('module', { a: true })} with one, such as Places, names where to look)` });
     res.json(found.box ? { found: true, name: found.name, box: found.box } : { found: false });
   } catch (err) {
     res.status(502).json({ error: 'search is not available right now' });
@@ -3872,7 +3884,7 @@ app.post('/api/modules/:id/region-cut', requireOwner, async (req, res) => {
 app.get('/api/modules/:id/region-cut/:jobId/stream', requireOwner, (req, res) => {
   const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const found = modules.enabled(req.params.id);
-  if (!found || !found.manifest.regionSource) return res.status(404).json({ error: 'no such module' });
+  if (!found || !found.manifest.regionSource) return res.status(404).json({ error: `no such ${word('module')}` });
   const job = regionCutJobs.view(req.params.jobId);
   if (!job) return res.status(404).json({ error: 'that cut is not running (it may have finished a while ago)' });
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
@@ -3991,7 +4003,7 @@ app.get('/api/modules/:id/files/:name', (req, res) => {
 // the module's own settings keeps naming a file that is no longer there.
 app.delete('/api/modules/:id/files/:name', requireOwner, (req, res) => {
   const found = modules.enabled(req.params.id);
-  if (!found) return res.status(404).json({ error: 'no such module' });
+  if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
   const name = req.params.name;
   const def = (found.manifest.settings || []).find((d) => (d.type === 'file' || d.type === 'files') && listModuleFiles(found.manifest, d.folder).includes(name));
   if (!def) return res.status(404).json({ error: 'no such file' });
@@ -4038,15 +4050,15 @@ function settingsPlace(req, res, scope) {
   const user = currentUser(req);
   if (!user) return void res.status(401).json({ error: 'sign in first' });
   if (scope === 'environment') {
-    if (!hasOwnerRights(user)) return void res.status(403).json({ error: 'only an owner changes the environment\'s settings' });
+    if (!hasOwnerRights(user)) return void res.status(403).json({ error: `only ${word('owner', { a: true })} changes the ${word('environment')}'s settings` });
     return { user, ctx: {} };
   }
   if (scope === 'person') return { user, ctx: { userKey: user.key } };
   if (scope === 'space') {
     const space = store.spaceById(String(req.query.space || req.body?.space || ''));
-    if (!space) return void res.status(404).json({ error: 'no such space' });
+    if (!space) return void res.status(404).json({ error: `no such ${word('space')}` });
     // A moderator is a member ticked as one in that space (an owner ticks it on the member's profile).
-    if (!(hasOwnerRights(user) || (space.members.includes(user.key) && store.spaceFlags(user.key, space.id).moderator))) return void res.status(403).json({ error: 'only an owner or the space\'s moderators change its settings' });
+    if (!(hasOwnerRights(user) || (space.members.includes(user.key) && store.spaceFlags(user.key, space.id).moderator))) return void res.status(403).json({ error: `only ${word('owner', { a: true })} or the ${word('space')}'s ${word('moderator', { many: true })} change its settings` });
     return { user, ctx: { spaceId: space.id }, space };
   }
   return void res.status(404).json({ error: 'no such kind of setting' });
@@ -4078,7 +4090,7 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
   const place = settingsPlace(req, res, req.params.scope);
   if (!place) return;
   const found = modules.enabled(req.params.id);
-  if (!found) return res.status(404).json({ error: 'no such module' });
+  if (!found) return res.status(404).json({ error: `no such ${word('module')}` });
   try {
     // A shared setting (its files, or the world address that cuts into them) is the host's while there is
     // one; ignored here rather than refusing the whole save, so a page saving several settings together still
@@ -4087,8 +4099,8 @@ app.put('/api/modules/:id/settings/:scope', (req, res) => {
     for (const d of found.manifest.settings) if (settingIsShared(found.manifest, d)) delete values[d.key];
     for (const [key, v] of Object.entries(values)) {
       const def = found.manifest.settings.find((d) => d.key === key);
-      if (def && def.type === 'files' && Array.isArray(v)) { const have = listModuleFiles(found.manifest, def.folder); const gone = v.find((n) => !have.includes(n)); if (gone) throw new SettingError(`${def.label}: there is no file called ${gone} for this module`); }
-      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this module`);
+      if (def && def.type === 'files' && Array.isArray(v)) { const have = listModuleFiles(found.manifest, def.folder); const gone = v.find((n) => !have.includes(n)); if (gone) throw new SettingError(`${def.label}: there is no file called ${gone} for this ${word('module')}`); }
+      if (def && def.type === 'file' && v && !listModuleFiles(found.manifest, def.folder).includes(v)) throw new SettingError(`${def.label}: there is no file called ${v} for this ${word('module')}`);
     }
     moduleSettings.set(found.manifest, req.params.scope, place.ctx, values, place.user.key);
     res.json({ settings: withValues(found.manifest, req.params.scope, place.ctx) });
@@ -4103,14 +4115,15 @@ app.get('/api/modules/:id/context', (req, res) => {
   if (!ctx) return;
   const { manifest, perms, who } = ctx;
   res.json({
-    user: who.keyed ? { key: 'viewer', name: 'Viewer', role: 'viewer' } : who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: 'Guest', role: 'guest' },
+    user: who.keyed ? { key: 'viewer', name: 'Viewer', role: 'viewer' } : who.user ? { key: who.user.key, name: who.user.displayName, role: who.user.role } : { key: 'guest', name: word('guest', { cap: true }), role: 'guest' },
     permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
     // `nav`: the admin allowed this module into the primary nav (surfaces.page.nav), which is what lets a system-wide
     // tool of its own into that bar (host.nav.set; see api-module-sdk.md, "Registering into the nav bars").
     module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, nav: Boolean(manifest.surfaces.page && manifest.surfaces.page.nav) },
     // How the server shows language, time and money (Manage > Settings), for every module to follow.
     // `currencies`: the codes the server takes (as GET /api/currencies), for a module's currency picker.
-    locale: { language: store.settings.language || 'en', clock: store.settings.clock === '24' ? '24' : '12', currency: store.settings.currency || 'USD', currencies: currencyCodes(store.settings.currency) },
+    // `words`: every level's and role's words in this environment, as branding()'s (server/words.js), for host.locale().words.
+    locale: { language: store.settings.language || 'en', clock: store.settings.clock === '24' ? '24' : '12', currency: store.settings.currency || 'USD', currencies: currencyCodes(store.settings.currency), words: store.resolvedWords() },
   });
 });
 
@@ -4119,7 +4132,7 @@ app.get('/api/modules/for-space', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const space = store.spaceById(String(req.query.space || ''));
-  if (!space) return res.status(404).json({ error: 'no such space' });
+  if (!space) return res.status(404).json({ error: `no such ${word('space')}` });
   const perms = modulePerms(who, space.id);
   res.json({
     modules: modules.enabledAll()
@@ -4148,7 +4161,7 @@ app.get('/m/:id/:version/*path', (req, res) => {
   const part = req.query.part;
   if (part === 'css' || part === 'body' || part === 'js') {
     const found = modules.enabled(req.params.id);
-    if (!found || modules.runModeOf(found.entry) !== 'page' || !/\.html?$/i.test(file)) return res.status(403).json({ error: 'that module does not run in the page' });
+    if (!found || modules.runModeOf(found.entry) !== 'page' || !/\.html?$/i.test(file)) return res.status(403).json({ error: `that ${word('module')} does not run in the page` });
     const html = fs.readFileSync(file, 'utf8');
     const grab = (re) => [...html.matchAll(re)].map((m) => m[1]).join('\n');
     res.set({ 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });
@@ -4201,7 +4214,7 @@ app.put('/api/modules/:id/data/:key', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'write');
-  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage() });
   try {
     res.json({ item: moduleData.put(ctx.manifest.id, ctx.scopeKey, req.params.key, req.body?.value, { expected: Number.isInteger(req.body?.version) ? req.body.version : null, by: ctx.by }) });
   } catch (err) {
@@ -4212,7 +4225,7 @@ app.delete('/api/modules/:id/data/:key', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'write');
-  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage() });
   try {
     const expected = req.query.version !== undefined ? Number(req.query.version) : null;
     res.json(moduleData.remove(ctx.manifest.id, ctx.scopeKey, req.params.key, { expected: Number.isInteger(expected) ? expected : null, by: ctx.by }));
@@ -4227,7 +4240,7 @@ app.delete('/api/modules/:id/data/:key', (req, res) => {
 // have declared the hook in its manifest (enabling it approved that).
 function requireHook(ctx, res, hook) {
   if (ctx.manifest.hooks[hook]) return true;
-  res.status(403).json({ error: `this module did not ask for the ${hook} hook` });
+  res.status(403).json({ error: `this ${word('module')} did not ask for the ${hook} hook` });
   return false;
 }
 function sendHookError(err, res) {
@@ -4239,7 +4252,7 @@ app.post('/api/modules/:id/schedule', (req, res) => {
   if (!ctx || !requireHook(ctx, res, 'schedule')) return;
   if (req.body?.notify && typeof req.body.notify === 'object' && refuseNotifyTo(req.body.notify.to, res)) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'schedule');
-  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage() });
   try {
     res.json(moduleHooks.schedule(ctx, req.body || {}));
   } catch (err) {
@@ -4256,7 +4269,7 @@ app.post('/api/modules/:id/notify', (req, res) => {
   if (!ctx || !requireHook(ctx, res, 'notify')) return;
   if (refuseNotifyTo(req.body?.to, res)) return;
   const slow = overLimit(ctx.manifest.id, ctx.by, 'notify');
-  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage });
+  if (slow) return void res.set('Retry-After', String(slow.retrySeconds)).status(429).json({ error: limitMessage() });
   try {
     const to = typeof req.body?.to === 'string' ? req.body.to : ctx.scope === 'space' ? 'space' : 'environment';
     res.json({ delivered: moduleHooks.deliver({ module: ctx.manifest.id, scopeKey: ctx.scopeKey, spaceId: ctx.spaceId }, { ...req.body, to }, { by: ctx.by }) });
@@ -4314,7 +4327,7 @@ app.get('/api/modules/stream', (req, res) => {
   const who = moduleViewer(req);
   if (!who) return res.status(401).json({ error: 'sign in first' });
   const space = req.query.space ? store.spaceById(String(req.query.space)) : null;
-  if (req.query.space && !space) return res.status(404).json({ error: 'no such space' });
+  if (req.query.space && !space) return res.status(404).json({ error: `no such ${word('space')}` });
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 3000\n\n');
@@ -4432,10 +4445,13 @@ app.patch('/api/roles/:role', requireOwner, (req, res) => res.json({ roles: stor
 // The currencies the server takes (see server/currencies.js): what a currency picker offers, in Manage or a module.
 // Codes only; the page names them in the viewer's language. Anyone signed in; nothing in it is private.
 app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: currencyCodes(store.settings.currency) }));
-app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));
+// For the owner, beside branding()'s resolved `words`: `ownWords`, the owner's own words as stored, so Manage can tell
+// an owner's word from the template's or the default.
+const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords() });
+app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: ownerSettings(), streamKey: store.streamKey }));
 app.patch('/api/settings', requireOwner, (req, res) => {
   store.updateSettings(req.body || {});
-  res.json({ settings: branding() });
+  res.json({ settings: ownerSettings() });
 });
 
 // This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
@@ -4550,7 +4566,7 @@ app.get('/:path/:key', (req, res, next) => {
   if (!claimant) return next();
   if (!hasStreamAccess(req)) return res.status(403).send('This page needs the access key (?s=...).');
   const claimed = modules.keyedFor(req.params.path);
-  if (!claimed) return res.status(404).send(`The ${claimant.name} module serves this page and is not enabled.`);
+  if (!claimed) return res.status(404).send(`The ${claimant.name} ${word('module')} serves this page and is not enabled.`);
   if (!store.userByKey(req.params.key)) return res.status(404).send('No such user.');
   res.sendFile(page('keyed.html'));
 });

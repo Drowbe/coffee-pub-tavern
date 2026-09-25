@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
   <link rel="icon" href="/img/site/icon">
-  <title>Space</title>
+  <title data-fill>{Space}</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/theme.css">
@@ -18,9 +18,9 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="space" type="button">Space</button>
-      <button class="subtab" data-tab="members" type="button">Members</button>
-      <button class="subtab" data-tab="modules" type="button" hidden>Modules</button>
+      <button class="subtab active" data-tab="space" type="button" data-fill>{Space}</button>
+      <button class="subtab" data-tab="members" type="button" data-fill>{Members}</button>
+      <button class="subtab" data-tab="modules" type="button" data-fill hidden>{Modules}</button>
     </nav>
 
     <section class="tab-stack" id="tab-space">
@@ -29,12 +29,12 @@
           <div class="slot" id="space-image-slot" data-space-image><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img id="space-image" alt=""><span class="unset">not set</span><input type="file" id="space-image-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" id="space-image-clear" type="button" title="Remove" aria-label="Remove">&times;</button></div></div>
           <div class="profile-title">
             <h1 id="space-title"></h1>
-            <span class="tag" id="lobby-tag" hidden>Everyone's space</span>
+            <span class="tag" id="lobby-tag" data-fill hidden>Everyone's {space}</span>
             <p class="status" id="status"></p>
           </div>
         </div>
 
-        <h2>Space</h2>
+        <h2 data-fill>{Space}</h2>
         <div class="fields">
           <label>Name<input id="e-name" type="text" maxlength="40"></label>
           <label class="wide">Description<textarea id="e-description" rows="3" maxlength="300"></textarea></label>
@@ -45,7 +45,7 @@
           </select></label>
           <label class="wide">Launch link<input id="e-link" type="url" placeholder="https://your-vtt-or-site.example" maxlength="500"></label>
         </div>
-        <p class="hint">Decides which image sections show up for this space on a member's own profile page,
+        <p class="hint" data-fill>Decides which image sections show up for this {space} on {a member}'s own profile page,
           and which ones Coffee Pub Studio offers to publish for it.</p>
 
         <div class="icon-pick-field">
@@ -60,22 +60,22 @@
         </div>
 
         <div class="row danger-row" id="danger-row">
-          <button class="btn btn-small btn-danger" id="delete-btn" type="button">Delete space</button>
+          <button class="btn btn-small btn-danger" id="delete-btn" type="button" data-fill>Delete {space}</button>
         </div>
       </div>
     </section>
 
     <section class="tab-stack" id="tab-members" hidden>
       <div class="panel" id="section-members">
-        <h2>Members</h2>
-        <p class="hint" id="members-hint">Click a player to add or remove them from this space -- saves as you click.</p>
+        <h2 data-fill>{Members}</h2>
+        <p class="hint" id="members-hint" data-fill>Click a player to add or remove them from this {space} -- saves as you click.</p>
         <div class="member-checks" id="members"></div>
         <p class="status" id="members-status"></p>
       </div>
 
       <div class="panel" id="section-access">
         <h2>Invite to register</h2>
-        <p class="hint">A link that signs someone up with a real account and drops them straight into this space (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
+        <p class="hint" data-fill>A link that signs someone up with a real account and drops them straight into this {space} (and the Lobby, like everyone). Works even while general sign-up is off. Single use, expires after 7 days.</p>
         <div class="row">
           <button class="btn btn-small" id="make-invite" type="button">Generate invite link</button>
           <span class="status" id="invite-status"></span>
@@ -85,12 +85,12 @@
           <button class="btn btn-small" id="invite-copy" type="button">Copy</button>
         </div>
 
-        <h2>Guest link</h2>
-        <p class="hint">Anyone with this link joins this space with just a name -- no account, no invite needed. Anyone already in the space can also manage this from the space itself, not just here.</p>
+        <h2 data-fill>{Guest} link</h2>
+        <p class="hint" data-fill>Anyone with this link joins this {space} with just a name -- no account, no invite needed. Anyone already in the {space} can also manage this from the {space} itself, not just here.</p>
         <div class="row">
-          <label class="check"><input type="checkbox" id="e-allow-guests"> Allow Guests</label>
+          <label class="check" data-fill><input type="checkbox" id="e-allow-guests"> Allow {Guests}</label>
         </div>
-        <p class="hint" id="guest-link-off-note" hidden>Allow Guests is off for this space -- turn it on above to use this.</p>
+        <p class="hint" id="guest-link-off-note" data-fill hidden>Allow {Guests} is off for this {space} -- turn it on above to use this.</p>
         <div class="row">
           <code class="key link" id="guest-link-value">off</code>
           <button class="btn btn-small" id="guest-link-on" type="button">Turn on</button>
@@ -104,21 +104,21 @@
 
     <section class="tab-stack" id="tab-modules" hidden>
       <div class="panel" id="section-modules" hidden>
-        <h2>Modules</h2>
-        <p class="hint">Modules with a space panel. Tick one to make it available to this space's members, in the Modules button on the call toolbar. A module marked on for every space is set on the Modules tab of Manage.</p>
+        <h2 data-fill>{Modules}</h2>
+        <p class="hint" data-fill>{Modules} with {a space} panel. Tick one to make it available to this {space}'s {members}, in the {Modules} button on the call toolbar. {A module} marked on for every {space} is set on the {Modules} tab of Manage.</p>
         <div id="space-modules"></div>
         <span class="status" id="space-modules-status"></span>
       </div>
       <!-- shown once an AI service is set up (Manage > Modules > AI service) -->
       <div class="panel" id="section-ai" hidden>
         <h2><i class="fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i> AI</h2>
-        <p class="hint">Modules in this space can use the server's AI service to summarise, answer questions and write cards from what a person selects. Turn it off here to stop that in this space, whatever the roles allow.</p>
-        <label class="check"><input type="checkbox" id="e-ai-off"> Turn AI off in this space</label>
+        <p class="hint" data-fill>{Modules} in this {space} can use the server's AI service to summarise, answer questions and write cards from what a person selects. Turn it off here to stop that in this {space}, whatever the roles allow.</p>
+        <label class="check" data-fill><input type="checkbox" id="e-ai-off"> Turn AI off in this {space}</label>
         <span class="status" id="ai-off-status" role="status"></span>
       </div>
       <div class="panel" id="section-module-settings" hidden>
-        <h2>Module settings</h2>
-        <p class="hint">What each module does in this space. Space moderators can change these too.</p>
+        <h2 data-fill>{Module} settings</h2>
+        <p class="hint" data-fill>What each {module} does in this {space}. {Space} {moderators} can change these too.</p>
         <div id="module-settings"></div>
       </div>
     </section>

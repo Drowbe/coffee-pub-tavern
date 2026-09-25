@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { StoreError } = require('./store');
+const { word } = require('./words');
 
 const KEY_RE = /^[A-Za-z0-9_.:/-]{1,128}$/;
 const SPACE_RE = /^[a-z0-9]{4,16}$/;
@@ -121,7 +122,7 @@ class ModuleData extends EventEmitter {
     const before = this.usage(id);
     const oldSize = (() => { try { return fs.statSync(this.fileFor(id, scopeKey)).size; } catch { return 0; } })();
     if (before - oldSize + this.serialize(next).length > LIMITS.moduleBytes) {
-      throw new StoreError(`this module's storage is full (${LIMITS.moduleBytes / (1024 * 1024)} MB)`, 413);
+      throw new StoreError(`this ${word('module')}'s storage is full (${LIMITS.moduleBytes / (1024 * 1024)} MB)`, 413);
     }
     this.persist(id, scopeKey, next);
     this.cache.set(`${id}|${scopeKey}`, next);

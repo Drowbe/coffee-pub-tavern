@@ -4,7 +4,7 @@
 // changed, rather than a flat table of everyone on the Manage page.
 import { renderModuleSettings } from '/module-settings.js';
 import { pickBackground } from '/background-picker.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights, isAdminAccount, roleLabel } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights, isAdminAccount, roleLabel, word, applyWords } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
@@ -140,7 +140,7 @@ function render() {
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
-    $('f-role').textContent = fixed ? `${roleLabel(user)}: runs this server` : hasOwnerRights(user) ? 'Owner: runs the environment' : 'Member';
+    $('f-role').textContent = fixed ? `${roleLabel(user)}: runs this server` : hasOwnerRights(user) ? `${word('owner', { cap: true })}: runs the ${word('environment')}` : word('member', { cap: true });
     $('f-password').textContent = user.hostAdmin ? 'Set on the host console.'
       : fixed ? "Set in the server's configuration."
         : user.hasPassword ? 'Set. Change it in Manage.' : 'None. You sign in with your personal link.';
@@ -218,6 +218,7 @@ function render() {
 
 function buildSpaceSection(spaceId) {
   const section = $('space-section-template').content.firstElementChild.cloneNode(true);
+  applyWords(section); // the template's data-fill, in this environment's words
   section.id = `section-space-${spaceId}`;
   section.dataset.space = spaceId;
   $('space-sections').appendChild(section);
@@ -242,10 +243,10 @@ function fillSpaceSection(section, space, spaceImages) {
     box.disabled = !editing || hasOwnerRights(user);
   }
   section.querySelector('[data-permissions-hint]').textContent = hasOwnerRights(user)
-    ? `${user.hostAdmin ? 'The host admin' : isAdminAccount(user) ? 'The admin' : 'Owners'} can always do all of this, in every space.`
+    ? `${user.hostAdmin ? 'The host admin' : isAdminAccount(user) ? 'The admin' : word('owner', { many: true, cap: true })} can always do all of this, in every ${word('space')}.`
     : editing
-      ? `Moderator makes ${user.displayName} a moderator in ${space.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
-      : `Set in Manage. Moderator gives you the Moderator role's permissions in ${space.name} only.`;
+      ? `${word('moderator', { cap: true })} makes ${user.displayName} ${word('moderator', { a: true })} in ${space.name} only -- they get everything the ${word('moderator', { cap: true })} role has (Manage > Roles) here, and nothing extra elsewhere.`
+      : `Set in Manage. ${word('moderator', { cap: true })} gives you the ${word('moderator', { cap: true })} role's permissions in ${space.name} only.`;
   const useDefault = spaceImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
@@ -319,7 +320,7 @@ $('space-sections').addEventListener('click', (event) => {
   if (remove && editingKey) {
     const section = remove.closest('.space-section');
     const name = section.querySelector('.space-section-title').textContent;
-    if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the space's Members tab.`)) return;
+    if (!window.confirm(`Remove ${user.displayName} from ${name}? They can be added back on the ${word('space')}'s ${word('member', { many: true, cap: true })} tab.`)) return;
     run(async () => {
       user = (await api('DELETE', `/api/spaces/${section.dataset.space}/members/${user.key}`)).user;
       render();
@@ -502,8 +503,8 @@ function renderMfa(editing) {
     : mfaBypass
       ? (on ? 'The lockout bypass is on, so you are not asked for a code. Reset your factor here if the app is gone, then turn the bypass off on the server.' : 'The lockout bypass is on; turn it off on the server once you are back in.')
       : on
-        ? (mfaRequired ? 'A code from your authenticator app, after the password. This environment requires it.' : 'A code from your authenticator app, after the password.')
-        : (mfaRequired ? 'This environment requires a second step. Set it up now.' : 'A code from an authenticator app after the password, if you want one.');
+        ? (mfaRequired ? `A code from your authenticator app, after the password. This ${word('environment')} requires it.` : 'A code from your authenticator app, after the password.')
+        : (mfaRequired ? `This ${word('environment')} requires a second step. Set it up now.` : 'A code from an authenticator app after the password, if you want one.');
   if (!editing && !on && mfaRequired && !mfaBypass && $('mfa-block').hidden) $('mfa-on').click();
 }
 $('mfa-self-reset').addEventListener('click', () => {

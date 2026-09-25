@@ -10,6 +10,7 @@
   // This module runs in the page (its SDK is handed to its script; a frame cannot read a map file or start the map's worker).
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
   const $ = (id) => root.getElementById(id);
 
   let info;
@@ -20,7 +21,7 @@
     return;
   }
   if (info.context.scope !== 'space') {
-    $('msg').textContent = 'A map belongs to a space. Open the space, then Maps from its modules.';
+    $('msg').textContent = `A map belongs to ${word('space', { a: true })}. Open the ${word('space')}, then Maps from its ${word('module', { many: true })}.`;
     return;
   }
 
@@ -54,8 +55,9 @@
 
   // --- small helpers ------------------------------------------------------------------------------------------------
 
-  const clone = (id) => $(id).content.firstElementChild.cloneNode(true);
-  const parts = (id) => [...$(id).content.children].map((n) => n.cloneNode(true));
+  // A template's copy, its data-word marks filled with this environment's words.
+  const clone = (id) => host.util.fillWords($(id).content.firstElementChild.cloneNode(true));
+  const parts = (id) => [...$(id).content.children].map((n) => host.util.fillWords(n.cloneNode(true)));
   const hide = (node, yes) => { if (node) node.hidden = Boolean(yes); };
   const slot = (el, name) => (el.dataset.slot === name ? el : el.querySelector(`[data-slot="${name}"]`));
   function fill(el, values) {
@@ -268,7 +270,7 @@
 
   // What someone sees when they search and no search has been chosen in Places' settings.
   // The search is another module's (found by what it offers, below): say whose, and where it is switched on.
-  const noSearch = () => `Search is not set up. It is the ${state.searcher && state.searcher.moduleName ? state.searcher.moduleName : 'place search'} module's: choose a place search in its configuration (Manage, Modules).`;
+  const noSearch = () => `Search is not set up. It is the ${state.searcher && state.searcher.moduleName ? state.searcher.moduleName : 'place search'} ${word('module')}'s: choose a place search in its configuration (Manage, ${word('module', { many: true, cap: true })}).`;
   let searchToken = 0;
   let hits = [];
   let hit = -1;

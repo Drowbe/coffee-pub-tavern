@@ -17,6 +17,7 @@
   // either way it looks elements up in host.root, never in document, so it works in both.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
 
   const $ = (id) => root.getElementById(id);
   const { esc, refKey, id: newId } = host.util;
@@ -275,7 +276,7 @@
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}
       ${p.addable && votable && p.options.length < MAX_OPTIONS ? `<div class="addopt"><input type="text" maxlength="100" placeholder="Suggest another option" data-addtext="${esc(x.key)}" aria-label="Suggest another option"><button class="btn btn-small" type="button" data-addopt="${esc(x.key)}">Add</button></div>` : ''}
-      ${x.scope === 'spaces' && !closed ? '<div class="meta">Vote in that space.</div>' : ''}
+      ${x.scope === 'spaces' && !closed ? `<div class="meta">Vote in that ${esc(word('space'))}.</div>` : ''}
       ${backlinksHtml(x)}
       ${closed && x.scope === 'own' && offered.length ? `<div class="actions">${offered.map((a) => `<button class="btn btn-small" type="button" data-action="${esc(x.key)}|${esc(a.action)}" title="${esc(a.moduleName)}">${esc(a.label)}</button>`).join('')}</div>` : ''}
     </article>`;
@@ -317,7 +318,7 @@
       $('spaces').innerHTML = [...spaceInfo.values()].map((r) => `<button type="button" class="filter ${hiddenSpaces.has(r.id) ? '' : 'on'}" data-space="${esc(r.id)}" title="${hiddenSpaces.has(r.id) ? 'Show' : 'Hide'} ${esc(r.name)}"><span class="ri">${r.svg || ''}</span> ${esc(r.name)}</button>`).join('');
     }
 
-    let html = groupHtml(spaceInfo.size ? 'Environment' : '', own);
+    let html = groupHtml(spaceInfo.size ? word('environment', { cap: true }) : '', own);
     for (const r of spaceInfo.values()) {
       if (hiddenSpaces.has(r.id)) continue;
       html += groupHtml(`${spaceIcon(r.id)} ${esc(r.name)}`, [...polls.values()].filter((x) => x.scope === 'spaces' && x.spaceId === r.id));

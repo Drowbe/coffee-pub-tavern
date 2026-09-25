@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const yauzl = require('yauzl');
 const { StoreError } = require('./store');
+const { word, fill } = require('./words');
 
 const MB = 1024 * 1024;
 const LIMITS = {
@@ -43,7 +44,9 @@ const OLD_SCOPE_NAMES = {
   room: { use: 'space', why: 'Magpie renamed rooms to spaces' },
   server: { use: 'environment', why: 'Magpie renamed the server to the environment' },
 };
-const OUTDATED = 'This module was built for an older Magpie and needs an update from its author.';
+// Filled with the environment's words where it is shown (list()); OUTDATED is the text in the default words.
+const OUTDATED_TEXT = 'This {module} was built for an older Magpie and needs an update from its author.';
+const OUTDATED = fill(OUTDATED_TEXT, null);
 const isOldScope = (s) => typeof s === 'string' && Object.prototype.hasOwnProperty.call(OLD_SCOPE_NAMES, s);
 // The first old name a raw manifest uses, as the sentence that refuses it, or null when it uses none.
 function oldNameIn(raw) {
@@ -104,7 +107,7 @@ function readZip(buffer) {
         if (!ALLOWED_EXT.has(path.posix.extname(name).toLowerCase())) return fail(`file type not allowed: ${name}`);
         if (entry.uncompressedSize > LIMITS.fileBytes) return fail(`${name} is larger than ${LIMITS.fileBytes / MB} MB`);
         total += entry.uncompressedSize;
-        if (total > LIMITS.totalBytes) return fail(`the module is larger than ${LIMITS.totalBytes / MB} MB unpacked`);
+        if (total > LIMITS.totalBytes) return fail(`the ${word('module')} is larger than ${LIMITS.totalBytes / MB} MB unpacked`);
         zip.openReadStream(entry, (streamErr, stream) => {
           if (streamErr) return fail("that isn't a readable zip file");
           const chunks = [];
@@ -687,7 +690,7 @@ class ModuleManager {
     return this.enabledAll().flatMap(({ manifest }) => manifest.permissions.map((p) => ({
       key: `module.${manifest.id}.${p.key}`,
       label: p.label,
-      group: `Module: ${manifest.name}`,
+      group: `${word('module', { cap: true })}: ${manifest.name}`,
       defaults: permissionDefaults(p.default),
     })));
   }
@@ -736,7 +739,7 @@ class ModuleManager {
       // old name its module.json uses. The registry keeps the admin's own choice, so an update that fixes it
       // runs again as it was.
       enabled: Boolean(this.enabled(id)),
-      outdated: outdated ? OUTDATED : null,
+      outdated: outdated ? fill(OUTDATED_TEXT) : null,
       outdatedWhy: outdated || null,
       // What it requires that is installed but needs an update from its author first (not in `missing`, since turning it
       // on would not help).
@@ -872,7 +875,7 @@ class ModuleManager {
 
   get(id) {
     const entry = this.registry.modules[id];
-    if (!entry) throw new ModuleError('no such module', 404);
+    if (!entry) throw new ModuleError(`no such ${word('module')}`, 404);
     return entry;
   }
 
@@ -912,10 +915,10 @@ class ModuleManager {
     // say they understand (`acceptRisk`); one that ships with the app already does. Sandboxed is always allowed.
     if (patch.runMode !== undefined) {
       if (patch.runMode === 'sandbox') {
-        if (manifest.surfaces.keyed) throw new ModuleError('this module has a keyed page, so it must run in the page, not a frame');
+        if (manifest.surfaces.keyed) throw new ModuleError(`this ${word('module')} has a keyed page, so it must run in the page, not a frame`);
         draft.runMode = 'sandbox';
       } else if (patch.runMode === 'page') {
-        if (entry.source !== 'bundled' && patch.acceptRisk !== true) throw new ModuleError('running a module in the page means accepting the risk');
+        if (entry.source !== 'bundled' && patch.acceptRisk !== true) throw new ModuleError(`running ${word('module', { a: true })} in the page means accepting the risk`);
         draft.runMode = 'page';
         if (entry.source !== 'bundled') draft.riskAcceptedAt = new Date().toISOString();
       } else {
@@ -923,11 +926,11 @@ class ModuleManager {
       }
     }
     if (patch.allSpaces !== undefined) {
-      if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
+      if (!manifest.scope.includes('space')) throw new ModuleError(`this ${word('module')} is not used in ${word('space', { many: true })}`);
       draft.allSpaces = Boolean(patch.allSpaces);
     }
     if (patch.spaces !== undefined) {
-      if (!manifest.scope.includes('space')) throw new ModuleError('this module is not used in spaces');
+      if (!manifest.scope.includes('space')) throw new ModuleError(`this ${word('module')} is not used in ${word('space', { many: true })}`);
       if (!Array.isArray(patch.spaces)) throw new ModuleError('spaces must be a list');
       draft.spaces = [...new Set(patch.spaces.filter((r) => typeof r === 'string' && spaceExists(r)))];
     }

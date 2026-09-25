@@ -16,19 +16,19 @@
 <body>
   <header class="topbar"></header>
   <main class="admin">
-    <a class="module-config-back" href="/admin#modules"><i class="fa-solid fa-arrow-left fa-fw" aria-hidden="true"></i> Modules</a>
+    <a class="module-config-back" href="/admin#modules" data-fill><i class="fa-solid fa-arrow-left fa-fw" aria-hidden="true"></i> {Modules}</a>
     <section class="panel module-config" id="ai-panel">
       <div class="module-head">
         <i class="module-icon fa-solid fa-wand-magic-sparkles fa-fw" aria-hidden="true"></i>
-        <div class="grow"><h1>AI configuration</h1><div class="hint">For every module that asks for it</div></div>
+        <div class="grow"><h1>AI configuration</h1><div class="hint" data-fill>For every {module} that asks for it</div></div>
         <span class="pill" id="ai-state">Off</span>
       </div>
-      <p class="hint">Lets modules summarise, answer questions and write cards from what a person selects. It stays off until you choose a source here and tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can). <strong>Managed</strong> uses the service the host runs, with its key; <strong>Custom</strong> is a service and key of this environment's own.</p>
-        <p class="hint" id="ai-enable-note">Setting a service up does not turn the AI on. Enable or disable it on its card on the Modules tab.</p>
+      <p class="hint" data-fill>Lets {modules} summarise, answer questions and write cards from what a person selects. It stays off until you choose a source here and tick <strong>Use AI in {modules}</strong> for a role on the Roles tab ({guests} never can). <strong>Managed</strong> uses the service the host runs, with its key; <strong>Custom</strong> is a service and key of this {environment}'s own.</p>
+        <p class="hint" id="ai-enable-note" data-fill>Setting a service up does not turn the AI on. Enable or disable it on its card on the {Modules} tab.</p>
         <div class="ai-fields">
           <label>Source
-            <select id="ai-source">
-              <option value="custom">Custom: this environment's own service and key</option>
+            <select id="ai-source" data-fill>
+              <option value="custom">Custom: this {environment}'s own service and key</option>
             </select>
           </label>
           <div class="option-help" id="ai-managed-note" hidden></div>

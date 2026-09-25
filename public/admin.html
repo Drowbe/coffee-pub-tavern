@@ -18,12 +18,12 @@
 
   <main class="admin">
     <nav class="subtabs" id="subtabs">
-      <button class="subtab active" data-tab="environment" type="button">Environment</button>
+      <button class="subtab active" data-tab="environment" type="button" data-fill>{Environment}</button>
       <button class="subtab" data-tab="theme" type="button">Theme</button>
-      <button class="subtab" data-tab="spaces" type="button">Spaces</button>
+      <button class="subtab" data-tab="spaces" type="button" data-fill>{Spaces}</button>
       <button class="subtab" data-tab="roles" type="button">Roles</button>
       <button class="subtab" data-tab="users" type="button">Users</button>
-      <button class="subtab" data-tab="modules" type="button">Modules</button>
+      <button class="subtab" data-tab="modules" type="button" data-fill>{Modules}</button>
       <button class="subtab" data-tab="about" type="button">About</button>
     </nav>
 
@@ -41,7 +41,7 @@
         <div class="fields">
           <label>Username<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
           <label>Display name<input id="new-name" type="text" maxlength="40" autocomplete="off"></label>
-          <label>Role<select id="new-role"><option value="member">Member</option><option value="owner">Owner</option></select></label>
+          <label>Role<select id="new-role" data-fill><option value="member">{Member}</option><option value="owner">{Owner}</option></select></label>
           <label>Password<input id="new-password" type="text" maxlength="200" autocomplete="off" placeholder="leave empty for link only"></label>
           <label class="check"><input id="new-link" type="checkbox" checked> Personal link (no password needed)</label>
         </div>
@@ -67,7 +67,7 @@
       </div>
       <div class="theme-preview" id="theme-preview">
         <div class="theme-preview-header topbar-sample">
-          <span class="theme-preview-brand"><i class="fa-solid fa-couch fa-fw" aria-hidden="true"></i> Environment name</span>
+          <span class="theme-preview-brand" data-fill><i class="fa-solid fa-couch fa-fw" aria-hidden="true"></i> {Environment} name</span>
           <span><a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-gear fa-fw" aria-hidden="true"></i></a><a class="icon-link" href="#" onclick="return false" title="Sample icon"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></a></span>
         </div>
         <div class="theme-preview-main">
@@ -124,27 +124,27 @@
 
       <div class="panel">
       <h2>Default Images</h2>
-      <p class="hint">The Participant box a member shows once neither they nor the space they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. Aside shows while they're online but pulled into an aside elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
+      <p class="hint" data-fill>The Participant box {a member} shows once neither they nor the {space} they're in has set their own picture for a slot -- the last fallback before the box just goes transparent. {Aside} shows while they're online but pulled into {an aside} elsewhere (on top of any Dim/Tint set under Settings); Private the same, for a Private Conversation specifically.</p>
       <div class="slots" id="default-images">
         <div class="slot" data-default-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
         <div class="slot" data-default-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
         <div class="slot" data-default-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
         <div class="slot" data-default-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
-        <div class="slot" data-default-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
+        <div class="slot" data-default-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span data-fill>{Aside}</span></div>
         <div class="slot" data-default-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="default-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
       </div>
       </div>
 
 
       <div class="panel">
-      <h2>Guest images</h2>
-      <p class="hint">The Participant box a guest shows in place of a real member's own pictures -- anyone can hand out a space's guest link from inside it (Settings, in the space itself); no account behind them to hang per-guest images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
+      <h2 data-fill>{Guest} images</h2>
+      <p class="hint" data-fill>The Participant box {a guest} shows in place of a real {member}'s own pictures -- anyone can hand out {a space}'s {guest} link from inside it (Settings, in the {space} itself); no account behind them to hang per-{guest} images off of, so this one set stands in for all of them. Online falls back to a generic icon when unset; the others just stay off.</p>
       <div class="slots" id="guest-images">
         <div class="slot" data-guest-slot="playerOffline"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Offline</span></div>
         <div class="slot" data-guest-slot="player"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Online</span></div>
         <div class="slot" data-guest-slot="playerTalking"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Talking</span></div>
         <div class="slot" data-guest-slot="playerMuted"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Muted</span></div>
-        <div class="slot" data-guest-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Aside</span></div>
+        <div class="slot" data-guest-slot="playerAside"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span data-fill>{Aside}</span></div>
         <div class="slot" data-guest-slot="playerPrivate"><div class="slot-pick-wrap"><label class="slot-pick" title="Click to change"><img alt=""><span class="unset">not set</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></label><button class="slot-remove" data-action="guest-image-clear" type="button" title="Remove" aria-label="Remove" hidden>&times;</button></div><span>Private</span></div>
       </div>
       </div>
@@ -176,11 +176,11 @@
     <section class="tab-spaces" id="tab-spaces" hidden>
       <div class="panel">
         <div class="section-head">
-          <h1>Spaces</h1>
+          <h1 data-fill>{Spaces}</h1>
           <span class="status" id="spaces-status"></span>
-          <button class="btn btn-primary btn-small" id="add-space" type="button">Add space</button>
+          <button class="btn btn-primary btn-small" id="add-space" type="button" data-fill>Add {space}</button>
         </div>
-        <p class="hint">Everyone belongs to the Lobby. Each space is its own conversation for the users you pick; players see their spaces after signing in and choose one. Coffee Pub Studio shows one space at a time.</p>
+        <p class="hint" data-fill>Everyone belongs to the Lobby. Each {space} is its own conversation for the users you pick; players see their {spaces} after signing in and choose one. Coffee Pub Studio shows one {space} at a time.</p>
       </div>
       <div id="spaces" class="users"></div>
     </section>
@@ -188,17 +188,17 @@
     <section class="tab-stack" id="tab-roles" hidden>
       <div class="panel">
         <h2>Roles</h2>
-        <p class="hint">What each kind of person can do. Owners and the admin can do everything, and that can't be turned down. Moderator is what someone gets in any space where they're marked Moderator on their profile's Spaces tab. Guest is everyone who joins from a space's guest link. Changes save as you click.</p>
+        <p class="hint" data-fill>What each kind of person can do. {Owners} and the admin can do everything, and that can't be turned down. {Moderator} is what someone gets in any {space} where they're marked {Moderator} on their profile's {Spaces} tab. {Guest} is everyone who joins from {a space}'s {guest} link. Changes save as you click.</p>
         <div class="roles-scroll"><table class="roles-table" id="roles-table"></table></div>
         <p class="status" id="roles-status"></p>
-        <p class="hint">Kicking, muting, guest links and asides are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>
+        <p class="hint" data-fill>Kicking, muting, {guest} links and {asides} are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>
       </div>
     </section>
 
     <section class="tab-stack" id="tab-modules" hidden>
       <div class="panel">
-        <h2>Modules</h2>
-        <p class="hint">Add features by uploading a module zip. A module runs in the browser, in a sandbox, and only reaches the server through what it asks for below. Upload it, look over what it asks for, then turn it on.</p>
+        <h2 data-fill>{Modules}</h2>
+        <p class="hint" data-fill>Add features by uploading {a module} zip. {A module} runs in the browser, in a sandbox, and only reaches the server through what it asks for below. Upload it, look over what it asks for, then turn it on.</p>
         <div class="row">
           <span data-host-only><input type="file" id="module-file" accept=".zip,application/zip">
           <button class="btn btn-primary" id="module-install" type="button">Install</button></span>
@@ -211,8 +211,8 @@
           <button class="filter-chip" type="button" data-module-filter="available" aria-pressed="false">Available <span class="count" data-count="available"></span></button>
         </div>
         <!-- what modules have done lately: newest first, in a box that scrolls -->
-        <div class="activity-head"><h3>Recent activity</h3><span class="hint">What modules have done lately</span></div>
-        <div class="activity-log-box" id="activity-box" tabindex="0" role="log" aria-label="Recent module activity">
+        <div class="activity-head"><h3>Recent activity</h3><span class="hint" data-fill>What {modules} have done lately</span></div>
+        <div class="activity-log-box" id="activity-box" tabindex="0" role="log" aria-label="Recent {module} activity" data-fill>
           <ul class="activity-log" id="module-activity"></ul>
           <p class="hint activity-empty" id="module-activity-empty">No activity yet.</p>
         </div>
@@ -224,7 +224,7 @@
           <div class="grow"><h2>AI service</h2><div class="hint" id="ai-summary">Loading...</div></div>
           <span class="pill" id="ai-state">Off</span>
         </div>
-        <p class="hint">Lets modules that ask for it summarise, answer questions and write cards from what a person selects. Set it up on its own page, then tick <strong>Use AI in modules</strong> for a role on the Roles tab (guests never can).</p>
+        <p class="hint" data-fill>Lets {modules} that ask for it summarise, answer questions and write cards from what a person selects. Set it up on its own page, then tick <strong>Use AI in {modules}</strong> for a role on the Roles tab ({guests} never can).</p>
         <div class="row">
           <a class="btn" href="/ai-config.html"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> AI Configuration</a>
           <button class="btn" type="button" id="ai-toggle" disabled>Approve and enable</button>
@@ -244,7 +244,7 @@
       <div class="panel about">
         <h2>Troubleshooting</h2>
         <p><a href="/diag.html" target="_top">Layout diagnostics</a> -- shows what this device and browser report about the screen: viewport heights, safe areas and where fixed bars land. Open it in the browser and from the home screen app, and send screenshots when the layout is wrong on a phone.</p>
-        <p><a href="/?layout=1" target="_top">Call layout readout</a> -- opens the spaces page with a live readout of the call's real sizes over it. Join a space, and send a screenshot of the readout in the Conference view and in the Chat view.</p>
+        <p data-fill><a href="/?layout=1" target="_top">Call layout readout</a> -- opens the {spaces} page with a live readout of the call's real sizes over it. Join {a space}, and send a screenshot of the readout in the Conference view and in the Chat view.</p>
         <p><a href="/diag.html?fit=auto" target="_top">Layout diagnostics, edge-to-edge off</a> -- the same page with the page kept inside the safe area, to compare.</p>
       </div>
       <div class="panel about">
@@ -252,7 +252,7 @@
         <p><strong><a href="https://livekit.io" target="_blank" rel="noopener">LiveKit</a></strong> -- real-time audio and video runs on LiveKit, the open-source WebRTC platform. LiveKit, its server, and its client and server SDKs are &copy; LiveKit, Inc. and licensed under the Apache License 2.0.</p>
         <p><strong><a href="https://github.com/livekit/track-processors-js" target="_blank" rel="noopener">LiveKit track processors</a></strong> and <strong><a href="https://ai.google.dev/edge/mediapipe" target="_blank" rel="noopener">MediaPipe</a></strong> -- background blur and custom backgrounds. Both Apache License 2.0.</p>
         <p><strong><a href="https://fontawesome.com" target="_blank" rel="noopener">Font Awesome Free</a></strong> -- the icons. Icons CC BY 4.0, fonts SIL OFL 1.1, code MIT.</p>
-        <p><strong><a href="https://maplibre.org" target="_blank" rel="noopener">MapLibre GL JS</a></strong> and the <strong><a href="https://github.com/protomaps/PMTiles" target="_blank" rel="noopener">PMTiles</a></strong> reader -- the Maps module's map. Both BSD 3-clause. Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL). Map labels use Noto Sans, SIL OFL 1.1.</p>
+        <p data-fill><strong><a href="https://maplibre.org" target="_blank" rel="noopener">MapLibre GL JS</a></strong> and the <strong><a href="https://github.com/protomaps/PMTiles" target="_blank" rel="noopener">PMTiles</a></strong> reader -- the Maps {module}'s map. Both BSD 3-clause. Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (ODbL). Map labels use Noto Sans, SIL OFL 1.1.</p>
         <p><strong><a href="https://expressjs.com" target="_blank" rel="noopener">Express</a></strong> on <strong><a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a></strong> -- the server. MIT.</p>
       </div>
     </section>
@@ -261,7 +261,7 @@
       <!-- The environment on a host with several: its plan, what it has used, and the two things an owner may ask of the host. -->
       <div class="panel" id="env-panel" hidden>
         <div class="section-head">
-          <h2>Environment</h2>
+          <h2 data-fill>{Environment}</h2>
           <span class="pill" id="env-plan-pill"></span>
           <span class="status" id="env-status"></span>
         </div>
@@ -300,16 +300,27 @@
         <span class="field-label">Home icon</span>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
-      <p class="hint">Shown next to the name wherever it's a link back to the space list.</p>
+      <p class="hint" data-fill>Shown next to the name wherever it's a link back to the {space} list.</p>
       <div class="row">
         <button class="btn btn-primary" id="save-settings" type="button">Save</button>
         <span class="status" id="settings-status"></span>
       </div>
       </div>
 
+      <!-- What people read for each level and role here (plan-environment-templates, "The vocabulary"): drawn by admin.js. -->
+      <div class="panel" id="words-panel">
+      <h2>Words</h2>
+      <p class="hint" data-fill>What people read here for each level and role: in the header, on every page and in {modules}. Type each as it reads in the middle of a sentence (capitals are added where one is needed), and leave a word blank for its default. The host and admin words are the host's own and don't change.</p>
+      <div class="words-list" id="words-list"></div>
+      <div class="row">
+        <button class="btn btn-primary" id="save-words" type="button">Save</button>
+        <span class="status" id="words-status" role="status"></span>
+      </div>
+      </div>
+
       <div class="panel">
       <h2>Language, time and money</h2>
-      <p class="hint">How this environment and every module show these. Times are on a 12-hour clock unless you choose 24-hour; amounts are shown in this currency unless a trip names its own.</p>
+      <p class="hint" data-fill>How this {environment} and every {module} show these. Times are on a 12-hour clock unless you choose 24-hour; amounts are shown in this currency unless a trip names its own.</p>
       <div class="fields">
         <label>Language<select id="set-language"><option value="en">English</option></select></label>
         <label>Clock<select id="set-clock"><option value="12">12-hour (10:30 PM)</option><option value="24">24-hour (22:30)</option></select></label>
@@ -324,13 +335,13 @@
 
       <div class="panel">
       <h2>Call features</h2>
-      <p class="hint">Turn any of these off for the whole environment. All on by default.</p>
+      <p class="hint" data-fill>Turn any of these off for the whole {environment}. All on by default.</p>
       <div class="fields">
         <label>Maximum call quality<select id="set-max-quality"><option value="360">360p</option><option value="540">540p</option><option value="720">720p</option></select></label>
       </div>
       <div class="checks">
         <label class="check"><input id="set-allow-screen-share" type="checkbox"> Allow desktop sharing</label>
-        <label class="check"><input id="set-allow-asides" type="checkbox"> Allow asides</label>
+        <label class="check" data-fill><input id="set-allow-asides" type="checkbox"> Allow {asides}</label>
         <label class="check"><input id="set-allow-private" type="checkbox"> Allow private calls</label>
         <label class="check"><input id="set-allow-reactions" type="checkbox"> Allow reactions</label>
       </div>
@@ -376,9 +387,9 @@
         <button class="btn btn-primary" id="save-registration" type="button">Save</button>
         <span class="status" id="registration-status"></span>
       </div>
-      <p class="hint">Or invite someone straight into specific spaces without opening sign-up to everyone:</p>
+      <p class="hint" data-fill>Or invite someone straight into specific {spaces} without opening sign-up to everyone:</p>
       <div class="row">
-        <span class="field-label">Spaces</span>
+        <span class="field-label" data-fill>{Spaces}</span>
         <div class="member-checks" id="invite-spaces"></div>
       </div>
       <div class="row">
@@ -394,7 +405,7 @@
 
       <div class="panel">
       <h2>Access key</h2>
-      <p class="hint">A page opened without a sign-in (the Stream module's views for OBS) carries this <strong>access key</strong> in its link instead, and Coffee Pub Studio fetches it by itself when you sign in there. The Stream module's own page builds the links. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
+      <p class="hint" data-fill>A page opened without a sign-in (the Stream {module}'s views for OBS) carries this <strong>access key</strong> in its link instead, and Coffee Pub Studio fetches it by itself when you sign in there. The Stream {module}'s own page builds the links. Regenerating it makes every existing link stop working; Studio re-points its sources on its next sync.</p>
       <div class="row">
         <code class="key" id="stream-key">••••••••</code>
         <button class="btn" id="stream-show" type="button">Show</button>
@@ -435,7 +446,7 @@
       </div>
       <button class="btn btn-small" data-action="space-up" type="button" title="Move earlier" aria-label="Move earlier">&uarr;</button>
       <button class="btn btn-small" data-action="space-down" type="button" title="Move later" aria-label="Move later">&darr;</button>
-      <a class="btn btn-primary btn-small" data-action="edit" type="button">Edit space</a>
+      <a class="btn btn-primary btn-small" data-action="edit" type="button" data-fill>Edit {space}</a>
     </article>
   </template>
 

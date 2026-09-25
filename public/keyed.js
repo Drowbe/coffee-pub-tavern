@@ -2,7 +2,7 @@
 // The path is claimed by one enabled module (surfaces.keyed in its module.json); <key> is the person the
 // page is about; the access key stands in for a sign-in. The module runs in the page, with the host
 // drawing media into it (host.media.watch), so a keyed page is never a sandboxed frame.
-import { api, setAccessKey } from '/brand.js';
+import { api, setAccessKey, word, setWords } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const [, rawPath, rawKey] = location.pathname.split('/');
@@ -15,8 +15,10 @@ const query = Object.fromEntries(params.entries());
 delete query.s;
 
 async function start() {
+  // This environment's words, for the sentences below (a keyed page has no header, so no loadBranding()).
+  await fetch('/api/branding').then((r) => (r.ok ? r.json() : {})).then((b) => setWords(b.words)).catch(() => {});
   const { page } = await api('GET', `/api/pages/${encodeURIComponent(path)}`);
-  if (page.module.runMode !== 'page') throw new Error(`the ${page.module.name} module must run in the page to serve this`);
+  if (page.module.runMode !== 'page') throw new Error(`the ${page.module.name} ${word('module')} must run in the page to serve this`);
   document.title = page.module.name;
   mountModule({
     module: { id: page.module.id, version: page.module.version, scope: ['environment'] },
@@ -30,6 +32,6 @@ async function start() {
 
 start().catch((err) => {
   const note = document.getElementById('keyed-missing');
-  note.textContent = err.status === 404 ? 'No module serves this page.' : err.status === 403 || err.status === 401 ? 'This page needs the access key.' : `This page could not start: ${err.message}`;
+  note.textContent = err.status === 404 ? `No ${word('module')} serves this page.` : err.status === 403 || err.status === 401 ? 'This page needs the access key.' : `This page could not start: ${err.message}`;
   note.hidden = false;
 });

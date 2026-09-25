@@ -289,8 +289,18 @@
     }
   }
 
-  // How the server shows language, time and money (Manage > Settings): known once hello has answered, the defaults before.
-  const locale = () => (info && info.locale) || { language: 'en', clock: '12', currency: 'USD' };
+  // The words a person reads for each level and role, by their code names (host, environment, space, aside, canvas, module,
+  // object, admin, owner, moderator, member, guest): each { one, many, a }, `a` the singular with its article. These are
+  // the defaults; an environment's own come in host.locale().words. host.util.word applies them.
+  const DEFAULT_WORDS = (() => {
+    const pairs = { host: 'hosts', environment: 'environments', space: 'spaces', aside: 'asides', canvas: 'canvases', module: 'modules', object: 'objects', admin: 'admins', owner: 'owners', moderator: 'moderators', member: 'members', guest: 'guests' };
+    const out = {};
+    for (const [one, many] of Object.entries(pairs)) out[one] = { one, many, a: `${/^[aeiou]/i.test(one) ? 'an' : 'a'} ${one}` };
+    return out;
+  })();
+  // How the server shows language, time and money, and the words it uses (Manage > Settings): known once hello has
+  // answered, the defaults before.
+  const locale = () => (info && info.locale) || { language: 'en', clock: '12', currency: 'USD', words: DEFAULT_WORDS };
   const readyPromise = call('hello').then((result) => {
     info = result;
     if (env.applyTheme) env.applyTheme(result.theme);
@@ -447,8 +457,9 @@
     // Resolves with { user, context, permissions, theme, module }. `context` is { scope: 'environment' | 'space' | 'keyed',
     // spaceId }: the module's own page, a space's canvas (with that space's id), or a keyed page.
     ready: () => readyPromise,
-    // { language, clock: '12' | '24', currency }: the environment's settings for how these are shown. See host.util.time,
-    // host.util.hour12 and host.util.money, which apply them.
+    // { language, clock: '12' | '24', currency, words }: the environment's settings for how these are shown. See
+    // host.util.time, host.util.hour12, host.util.money and host.util.word, which apply them. `words` is every level's
+    // and role's word here, by code name: { space: { one: 'space', many: 'spaces', a: 'a space' }, ... }.
     locale,
 
     // Where the module's page is: `root` is what to look elements up in (document.getElementById becomes
@@ -481,6 +492,28 @@
       },
       // Whether times are on a 12-hour clock, for toLocaleString's hour12 where a Date is shown.
       hour12: () => locale().clock !== '24',
+      // The word a person reads here for a level or role, by its code name, so a module never types one:
+      // word('space') "space", word('space', { many: true, cap: true }) "Spaces", word('aside', { a: true }) "an aside".
+      // An environment may call its spaces trips; this says so. An unknown name throws.
+      word: (key, o) => {
+        const set = locale().words || {};
+        const w = (set[key] && set[key].one && set[key].many ? set[key] : null) || DEFAULT_WORDS[key];
+        if (!w) throw new Error(`host.util.word: there is no word called ${key}`);
+        const text = o && o.a ? w.a || `${/^[aeiou]/i.test(w.one) ? 'an' : 'a'} ${w.one}` : o && o.many ? w.many : w.one;
+        return o && o.cap ? text.charAt(0).toLocaleUpperCase('en') + text.slice(1) : text;
+      },
+      // Fill every element marked data-word="<code name>" in `root` (an element, a fragment or the module's root) with
+      // its word, as the host's own pages do: data-word-form takes any of many, cap and a, space-separated.
+      // <span data-word="owner" data-word-form="a cap"></span> reads "An owner". Answers `root`.
+      fillWords: (root) => {
+        if (!root || typeof root.querySelectorAll !== 'function') return root;
+        const els = [...(typeof root.matches === 'function' && root.matches('[data-word]') ? [root] : []), ...root.querySelectorAll('[data-word]')];
+        for (const el of els) {
+          const form = ` ${el.dataset.wordForm || ''} `;
+          el.textContent = host.util.word(el.dataset.word, { many: form.includes(' many '), cap: form.includes(' cap '), a: form.includes(' a ') });
+        }
+        return root;
+      },
       // An amount of money in a currency (the server's unless one is given), formatted for the reader.
       money: (amount, currency) => {
         const code = currency || locale().currency;

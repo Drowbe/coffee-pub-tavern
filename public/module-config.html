@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:">
   <link rel="icon" href="/img/site/icon">
-  <title>Module configuration</title>
+  <title data-fill>{Module} configuration</title>
   <link rel="stylesheet" href="/fa/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/theme.css">
@@ -16,16 +16,16 @@
 <body>
   <header class="topbar"></header>
   <main class="admin">
-    <a class="module-config-back" href="/admin#modules"><i class="fa-solid fa-arrow-left fa-fw" aria-hidden="true"></i> Modules</a>
+    <a class="module-config-back" href="/admin#modules" data-fill><i class="fa-solid fa-arrow-left fa-fw" aria-hidden="true"></i> {Modules}</a>
     <section class="panel module-config" id="config" hidden>
       <div class="module-head">
         <i class="module-icon fa-solid fa-fw" id="cfg-icon" aria-hidden="true"></i>
-        <div class="grow"><h1 id="cfg-name">Module</h1><div class="hint" id="cfg-version"></div></div>
+        <div class="grow"><h1 id="cfg-name" data-fill>{Module}</h1><div class="hint" id="cfg-version"></div></div>
         <span class="pill" id="cfg-state"></span>
       </div>
       <p id="cfg-desc"></p>
       <p class="hint" id="cfg-off" hidden></p>
-      <p class="hint" id="cfg-none" hidden>This module has no settings.</p>
+      <p class="hint" id="cfg-none" data-fill hidden>This {module} has no settings.</p>
       <div id="settings"></div>
       <!-- for a module that can cut a region from a world file (its manifest has `regionSource`): find a place, confirm the size, cut it in -->
       <div class="region-section" id="cfg-region" hidden>
@@ -74,7 +74,7 @@
       </div>
       <p class="hint" id="cfg-other" hidden></p>
     </section>
-    <p class="hint" id="cfg-missing" hidden>No such module is installed.</p>
+    <p class="hint" id="cfg-missing" data-fill hidden>No such {module} is installed.</p>
   </main>
   <script type="module" src="/module-config.js"></script>
 </body>

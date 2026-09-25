@@ -172,8 +172,8 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   moduleBus.on('action', (a) => noteActivity(a.from, `asked ${a.provider} to ${a.action}`, a.by, a.scopeKey));
   moduleSettings.on('change', (c) => {
     if (c.scope === 'person') return;
-    const where = c.scope === 'space' ? ` for ${store.spaceById(c.spaceId)?.name || 'a space'}` : '';
-    noteActivity(c.module, `changed the ${c.scope} settings${where}: ${c.keys.join(', ')}`, c.by, null);
+    const where = c.scope === 'space' ? ` for ${store.spaceById(c.spaceId)?.name || store.word('space', { a: true })}` : '';
+    noteActivity(c.module, `changed the ${store.word(c.scope)} settings${where}: ${c.keys.join(', ')}`, c.by, null);
   });
   regionCutJobs.on('done', (id) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `cut a map region: ${j.name}`, j.by, null); });
   regionCutJobs.on('error', (id, error) => { const j = regionCutJobs.jobs.get(id); if (j) noteActivity(j.moduleId, `could not cut a map region: ${error}`, j.by, null); });

@@ -1,5 +1,5 @@
 // The page a space's moderators use to change the settings modules declare for that space: /module-settings?space=<id>.
-import { loadBranding, api, renderTopbar, wireOverlayBack } from '/brand.js';
+import { loadBranding, api, renderTopbar, wireOverlayBack, word } from '/brand.js';
 import { renderModuleSettings } from '/module-settings.js';
 
 const $ = (id) => document.getElementById(id);
@@ -13,7 +13,7 @@ try {
   $('whoami').textContent = me.displayName;
   const { spaces } = await api('GET', '/api/presence');
   const r = spaces.find((x) => x.id === spaceId);
-  if (r) $('title').textContent = `${r.name}: module settings`;
+  if (r) $('title').textContent = `${r.name}: ${word('module')} settings`;
 } catch {
   location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
 }

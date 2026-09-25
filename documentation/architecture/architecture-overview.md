@@ -59,6 +59,8 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `public/canvas.js` | The space's canvas: docking, floating, snapping and popping out the conference, the chat and the modules |
 | `public/view.html` | The OBS view |
 | `public/brand.js` | Shared header, branding and icon lookup |
+| `public/words.js` | The environment's words in the pages: `word()`, `fill()`, `applyWords()` |
+| `server/words.js` | The words, their defaults, and the checks on an owner's own |
 | `public/style.css` | The one stylesheet |
 | `public/sw.js` | The service worker that lets the app install |
 
@@ -88,6 +90,25 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   `host.ui.currencySelect` draws it; a page that is not a module (Manage) gets the same drawing from
   `window.hostCurrency`, which `/sdk/host.js` defines. Names come from the viewer's browser
   (`Intl.DisplayNames`), not the server.
+- **Words.** An environment's levels and roles are shown in its own words (plan-environment-templates, step 1).
+  The code names never change; only what people read does. `server/words.js` holds the twelve keys (`host`,
+  `environment`, `space`, `aside`, `canvas`, `module`, `object`, `admin`, `owner`, `moderator`, `member`, `guest`)
+  and their defaults; `host` and `admin` are the host's and can't be changed. `branding()` (so `/api/branding`,
+  `/api/config`, `/api/me` and `/api/settings`) carries `words`: every key as `{ one, many, a }`, resolved.
+  `GET /api/settings` also gives the owner `ownWords`, only what they set. `PATCH /api/settings`
+  `{ words: { <key>: { one, many, a? } | null } }` (owner only; `null` puts one back) checks every word and refuses
+  the whole save with a sentence naming the word ("The word for `<key>` needs both its singular and its plural.",
+  "... can be at most 30 characters.", "... can use only letters, spaces, hyphens and apostrophes.", "... with its
+  article must be its singular with the article in front, such as "a `<word>`"."). The server's own sentences go
+  through the same words.
+  In the pages, `public/words.js` gives `word(key, { many, cap, a })`, `fill(text)` for placeholders such as
+  `{space}`, `{Spaces}` and `{a space}`, and `applyWords(root)`, which fills `data-word` elements (with
+  `data-word-form="many cap a"`) and `data-fill` text and attributes (`title`, `placeholder`, `aria-label`, `alt`,
+  `data-title`); call `applyWords(el)` after cloning a `<template>`. The browser caches an environment's own words
+  under `app.words`. Modules get the words from `host.locale().words`, `host.util.word` and `host.util.fillWords`
+  (see [api-module-sdk](../api/api-module-sdk.md)). `tools/check-names.mjs --words` fails, in `server/`, `public/` and
+  `modules/`, on a changeable word typed into text people read; the host console and the product page use the
+  host's own words and are allow-listed.
 - **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.

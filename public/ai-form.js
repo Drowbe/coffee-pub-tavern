@@ -6,7 +6,7 @@
 //
 // mountAiForm({ get, put, models, source, cap, usage }): `get`, `put` and `models` are the API paths; `source` draws the
 // managed/custom choice (the environment's page), `cap` the monthly allowance, `usage` this month's use.
-import { api } from '/brand.js';
+import { api, fill, word } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 function say(el, text, error = false) {
@@ -14,11 +14,12 @@ function say(el, text, error = false) {
   el.classList.toggle('error', Boolean(error));
 }
 
+// Level words as {placeholders}, filled when shown (fill() in public/words.js).
 const AI_NOTICES = {
-  none: 'AI is off. A module that asks for it is told AI is not set up.',
-  openai: 'Sends the items a person selects, and their question, to OpenAI under your account and its terms. Only what a person selects is sent, never another space.',
-  anthropic: 'Sends the items a person selects, and their question, to Anthropic under your account and its terms. Only what a person selects is sent, never another space.',
-  compatible: 'Sends the items a person selects, and their question, to the address below. For a hosted service that means to that company, under its terms and your account. For a model you run yourself nothing leaves your network. Only what a person selects is sent, never another space.',
+  none: 'AI is off. {A module} that asks for it is told AI is not set up.',
+  openai: 'Sends the items a person selects, and their question, to OpenAI under your account and its terms. Only what a person selects is sent, never another {space}.',
+  anthropic: 'Sends the items a person selects, and their question, to Anthropic under your account and its terms. Only what a person selects is sent, never another {space}.',
+  compatible: 'Sends the items a person selects, and their question, to the address below. For a hosted service that means to that company, under its terms and your account. For a model you run yourself nothing leaves your network. Only what a person selects is sent, never another {space}.',
 };
 const COMPANY = { openai: 'OpenAI', anthropic: 'Anthropic', compatible: 'another service', none: 'none' };
 
@@ -39,7 +40,7 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     sel.replaceChildren(
       ...services.map((s) => new Option(`Managed: ${COMPANY[s.provider] || s.provider}${s.model ? ', ' + s.model : ''} (this host's key)`, `managed:${s.provider}`)),
       ...(services.length ? [] : [Object.assign(new Option('Managed: this host offers no service', 'managed:'), { disabled: true })]),
-      new Option('Custom: this environment\'s own service and key', 'custom'),
+      new Option(`Custom: this ${word('environment')}'s own service and key`, 'custom'),
     );
     sel.value = [...sel.options].some((o) => o.value === keep && !o.disabled) ? keep : (services.length ? `managed:${services[0].provider}` : 'custom');
   }
@@ -50,10 +51,10 @@ export function mountAiForm({ get, put, models, source = false, cap = false, usa
     if (source) {
       const s = offered().find((x) => x.provider === managedProvider());
       $('ai-managed-note').hidden = !managed;
-      $('ai-managed-note').textContent = s ? `Every request goes to ${COMPANY[s.provider] || s.provider}${s.model ? ' (' + s.model + ')' : ''} under the host's own account and key. Nothing is set up here; the allowance below is this environment's own.` : '';
+      $('ai-managed-note').textContent = s ? `Every request goes to ${COMPANY[s.provider] || s.provider}${s.model ? ' (' + s.model + ')' : ''} under the host's own account and key. Nothing is set up here; the allowance below is this ${word('environment')}'s own.` : '';
       for (const el of document.querySelectorAll('[data-ai-custom]')) el.hidden = managed;
     }
-    $('ai-notice').textContent = managed ? '' : AI_NOTICES[provider] || '';
+    $('ai-notice').textContent = managed ? '' : fill(AI_NOTICES[provider] || '');
     $('ai-notice').hidden = managed || !AI_NOTICES[provider];
     for (const el of $('ai-panel').querySelectorAll('[data-ai-for]')) el.hidden = managed || !el.dataset.aiFor.split(' ').includes(provider);
     $('ai-key-optional').hidden = provider !== 'compatible';

@@ -1,5 +1,9 @@
 import { nav } from '/nav-bar.js';
 import { mountEnvironmentBanner } from '/environment-banner.js';
+import { word, setWords } from '/words.js';
+
+// The words a person reads for each level and role (public/words.js), for every page that already imports from here.
+export { word, words, fill, applyWords, setWords } from '/words.js';
 
 // Escapes text going into innerHTML -- a space's or the environment's name is an owner-set
 // string, not something we generated, so it isn't safe to trust verbatim.
@@ -15,11 +19,11 @@ export const hasOwnerRights = (user) => Boolean(user) && ['owner', 'admin'].incl
 export const isAdminAccount = (user) => Boolean(user) && ['admin'].includes(user.role);
 
 // The word a person reads for an account's role. Admin is not a role anyone is given: the server's admin reads
-// "Admin", and the host admin's stand-in inside an environment reads "Host admin".
+// "Admin", and the host admin's stand-in inside an environment reads "Host admin". Each is this environment's word.
 export function roleLabel(user) {
   if (!user) return '';
-  if (user.hostAdmin) return 'Host admin';
-  return { owner: 'Owner', member: 'Member', guest: 'Guest', admin: 'Admin' }[user.role] || String(user.role || '');
+  if (user.hostAdmin) return `${word('host', { cap: true })} ${word('admin')}`;
+  return ['owner', 'member', 'guest', 'admin'].includes(user.role) ? word(user.role, { cap: true }) : String(user.role || '');
 }
 
 // The admin's Font Awesome list (Theme tab), as last loaded by loadBranding().
@@ -79,6 +83,8 @@ export async function loadBranding() {
     // keep the defaults
   }
   ICONS = Array.isArray(b.icons) ? b.icons : [];
+  setWords(b.words); // every data-word and data-fill on the page, and word() from here on
+  refreshSpacesLink();
   clockHour12 = b.clock !== '24';
   if (byId('topbar-clock')) startClock();
   qsa('[data-brand="environmentName"]').forEach((el) => (el.textContent = b.environmentName));
@@ -147,7 +153,7 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
   // tools take, so there is one drawing path.
   header.innerHTML = `
     <div class="nav-left brand">
-      <a class="brand-home" href="/" target="_top" title="All spaces">
+      <a class="brand-home" href="/" target="_top" id="brand-home-link" title="All ${escapeHtml(word('space', { many: true }))}">
         <img data-brand="icon" alt="" class="icon">
         <i class="fa-solid fa-${initialIcon} fa-fw" data-icon-id="${escapeHtml(initialIcon)}" data-brand="home-icon" aria-hidden="true"></i>
         <span data-brand="environmentName">${escapeHtml(initialName)}</span>
@@ -176,9 +182,24 @@ export function renderTopbar({ location = '', adminHref = '/admin' } = {}) {
 // module's own (101-998) always draw after them. The middle zone is one group, the core navigation; the right zone is
 // three: who you are, what you can do from anywhere, and the session (the time, then Sign out), a divider between each.
 // The profile link and the clock are the page's own elements the registry places (their look is theirs, not a button's).
+// The Spaces link, in this environment's words (registered again, the same element, when loadBranding() has them).
+const spacesTool = (icon) => ({ id: 'spaces-link', bar: 'primary', zone: 'middle', group: 'core', groupOrder: 1, order: 1, icon, label: word('space', { many: true, cap: true }), title: `All ${word('space', { many: true })}`, href: '/', target: '_top' });
+function refreshSpacesLink() {
+  const home = byId('brand-home-link');
+  if (home) home.title = `All ${word('space', { many: true })}`;
+  const tool = nav.get('spaces-link');
+  if (!tool) return;
+  const icon = nav.elementOf('spaces-link')?.querySelector('i')?.dataset.iconId || tool.icon;
+  const link = nav.register(spacesTool(icon));
+  const i = link?.querySelector('i');
+  if (i) {
+    i.dataset.brand = 'home-icon';
+    i.dataset.iconId = icon;
+  }
+}
 function registerSystemTools(header, initialIcon, adminHref) {
   const doc = header.ownerDocument;
-  const spaces = nav.register({ id: 'spaces-link', bar: 'primary', zone: 'middle', group: 'core', groupOrder: 1, order: 1, icon: initialIcon, label: 'Spaces', title: 'All spaces', href: '/', target: '_top' });
+  const spaces = nav.register(spacesTool(initialIcon));
   spaces.querySelector('i').dataset.brand = 'home-icon'; // loadBranding() swaps in the server's own home icon
   const whoami = doc.createElement('a');
   whoami.className = 'whoami';
@@ -363,7 +384,7 @@ export function setUpdateBadge(count) {
   const base = link.getAttribute('data-title') || link.title;
   link.setAttribute('data-title', base);
   nav.setBadge('admin-link', count);
-  const text = count ? `${base}: ${count} module update${count === 1 ? '' : 's'} available` : base;
+  const text = count ? `${base}: ${count} ${word('module')} update${count === 1 ? '' : 's'} available` : base;
   link.title = text;
   link.setAttribute('aria-label', text);
 }

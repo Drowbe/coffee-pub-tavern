@@ -1,6 +1,6 @@
 // One module's own settings page (Manage > Modules > Module Configuration): /module-config.html?id=<module id>.
 // Admins only. Every module gets a page, so a module with many settings is not squeezed into a shared box.
-import { loadBranding, api, renderTopbar, crumbLink, wireOverlayBack } from '/brand.js';
+import { loadBranding, api, renderTopbar, crumbLink, wireOverlayBack, word } from '/brand.js';
 import { renderModuleSettings } from '/module-settings.js';
 import { wireRegionCut } from '/region-cut.js';
 
@@ -35,13 +35,13 @@ if (!m) {
     $('cfg-none').hidden = false;
   } else if (!m.enabled) {
     $('cfg-off').hidden = false;
-    $('cfg-off').textContent = `Turn ${m.name} on (Manage > Modules) to change its settings.`;
+    $('cfg-off').textContent = `Turn ${m.name} on (Manage > ${word('module', { many: true, cap: true })}) to change its settings.`;
   } else {
     await showSettings();
   }
   if (m.geocoder && m.enabled) wireCache(m.id);
   if (m.regionSource && m.enabled) wireRegion(m, showSettings);
-  const others = [mine('space') && "each space's moderators choose some in the space's module settings", mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
+  const others = [mine('space') && `each ${word('space')}'s ${word('moderator', { many: true })} choose some in the ${word('space')}'s ${word('module')} settings`, mine('person') && 'each person chooses some in their own profile'].filter(Boolean);
   if (others.length) {
     $('cfg-other').hidden = false;
     $('cfg-other').textContent = `Also: ${others.join('; ')}.`;

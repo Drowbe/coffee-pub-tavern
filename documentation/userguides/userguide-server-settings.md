@@ -27,6 +27,31 @@ Open the Manage page with the gear icon in the header. It has six tabs, in this 
 
 On the Environment tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the server and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. The list has a **Common** group first, then **All currencies**, each by its name in your language: exactly the currencies the server accepts. The server refuses any other code ("XYZ is not a currency this server knows. Choose one from the list, such as USD."). A code saved before this check keeps working and still shows in the list. A trip in the Planner picks its own currency from the same list. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
 
+## Words
+
+On the Environment tab, **Words** sets what people in this environment read for its ten changeable words:
+environment, space, aside, canvas, module, object, owner, moderator, member and guest. A travel group might call
+a space a "trip" and a member a "traveller"; a game might have a "game master" and "players". The host's own words
+(host and admin) can't be changed here.
+
+1. On Manage > **Environment**, find **Words**. Each word has a row showing its default.
+2. Type the new word in lower case: its **Singular** and its **Plural** (both are needed). Capitals are added
+   where a sentence needs one.
+3. Fill in **With its article** only when the usual "a" or "an" is wrong for it, such as "an hour". Leave it blank
+   otherwise.
+4. Click **Save**. Every word is saved together, and if the server refuses one, nothing is saved and the message
+   says which word and why: it needs both its singular and its plural, it can be at most 30 characters, it can use
+   only letters, spaces, hyphens and apostrophes, or its article form must be the singular with the article in
+   front ("a trip").
+
+A blank row uses the default. **Reset** on a row puts that word back to its default at once. Only owners (and the
+admin) can change the words.
+
+Everything people read in this environment follows: the pages, the server's messages, the Roles grid, the texts
+of the built-in modules, the names new spaces get ("New trip", "Trip 3"), and the bundled modules' own words. Until
+the next step of the templates plan, the text a module's `module.json` carries (its description, its settings'
+labels and help) still uses the default words.
+
 ## Theme
 
 - **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Pick a

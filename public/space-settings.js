@@ -2,7 +2,7 @@
 // space in Manage > Spaces and land here, instead of editing it inline in
 // the list. Admin only.
 import { renderModuleSettings } from '/module-settings.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, spaceCrumbIcon, hasOwnerRights } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, spaceCrumbIcon, hasOwnerRights, word } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const spaceId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -79,7 +79,7 @@ function render() {
 
   $('members-hint').textContent = space.isLobby
     ? 'Everyone belongs to the Lobby.'
-    : 'Click a player to add or remove them from this space -- saves as you click.';
+    : `Click a player to add or remove them from this ${word('space')} -- saves as you click.`;
 
   $('danger-row').hidden = space.isLobby;
 
@@ -171,7 +171,7 @@ async function loadSpaceModules() {
   $('space-modules').innerHTML = spaceModules.map((m) => {
     const everywhere = m.allSpaces;
     const on = everywhere || m.spaces.includes(space.id);
-    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ' <span class="hint">(on for every space)</span>' : ''}</label>`;
+    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ` <span class="hint">(on for every ${escapeHtml(word('space'))})</span>` : ''}</label>`;
   }).join('');
 }
 $('space-modules').addEventListener('change', async (event) => {
@@ -274,7 +274,7 @@ $('make-invite').addEventListener('click', async () => {
 $('invite-copy').addEventListener('click', () => copy($('invite-link').textContent, $('invite-status')));
 
 $('delete-btn').addEventListener('click', async () => {
-  if (!window.confirm(`Delete the space "${space.name}"? Its members stay in the Lobby.`)) return;
+  if (!window.confirm(`Delete the ${word('space')} "${space.name}"? Its ${word('member', { many: true })} stay in the Lobby.`)) return;
   try {
     await api('DELETE', `/api/spaces/${space.id}`);
     location.href = '/admin#spaces';

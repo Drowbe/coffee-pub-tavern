@@ -10,6 +10,7 @@
   // either way it looks elements up in host.root, never in document, so it works in both.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
 
   const $ = (id) => root.getElementById(id);
   const { esc, ymd, parseYmd } = host.util;
@@ -154,7 +155,7 @@
     }
     return `<div class="list">${[...groups.values()].map((g) => `<div class="group"><h4>${esc(dayHeading(g[0].start < floor ? floor : g[0].start))}</h4>${g.map(({ x, start, end }) => `
       <button class="item" data-open="${esc(x.key)}"><span class="when">${esc(whenText(x.ev, start, end))}</span>
-        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'environment' && inSpace ? '<span class="tag">environment</span>' : ''}${x.scope === 'spaces' && spaceInfo.get(x.spaceId) ? `<span class="tag space">${spaceIcon(x)} ${esc(spaceInfo.get(x.spaceId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
+        <span class="what"><strong>${esc(x.ev.title)}${x.ev.repeat ? `<span class="tag">${esc(REPEAT_NAMES[x.ev.repeat.every] || 'repeats')}</span>` : ''}${x.scope === 'environment' && inSpace ? `<span class="tag">${esc(word('environment'))}</span>` : ''}${x.scope === 'spaces' && spaceInfo.get(x.spaceId) ? `<span class="tag space">${spaceIcon(x)} ${esc(spaceInfo.get(x.spaceId).name)}</span>` : ''}</strong>${x.ev.desc ? `<span>${esc(x.ev.desc.slice(0, 120))}</span>` : ''}</span></button>`).join('')}</div>`).join('')}</div>`;
   }
 
   function monthList() {
@@ -266,7 +267,7 @@
   function remindHint() {
     $('f-remind-hint').textContent = $('f-remind').value === ''
       ? ''
-      : (inSpace ? 'Everyone in this space' : 'Everyone in this environment') + ' gets a notification, if they are allowed to see the calendar.';
+      : (inSpace ? `Everyone in this ${word('space')}` : `Everyone in this ${word('environment')}`) + ' gets a notification, if they are allowed to see the calendar.';
   }
   $('f-remind').addEventListener('change', remindHint);
 

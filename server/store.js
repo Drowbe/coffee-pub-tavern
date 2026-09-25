@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const words = require('./words');
 
 // Image slots. Participant: what the video box shows when the camera is
 // off, plus optional overlays drawn on top while they talk, are muted, are
@@ -85,29 +86,29 @@ const SPACE_PERMISSIONS = ['moderator'];
 const ROLE_PERMISSIONS = [
   { key: 'conference', label: 'See and join the conference', group: 'Panes' },
   { key: 'chatRead', label: 'Open and read the chat', group: 'Panes' },
-  { key: 'chat', label: 'Send chat messages', group: 'In the Space' },
-  { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the Space' },
-  { key: 'react', label: 'Use reactions', group: 'In the Space' },
-  { key: 'shareScreen', label: 'Share their screen', group: 'In the Space' },
-  { key: 'privateCall', label: 'Start a private conversation', group: 'Asides' },
-  { key: 'startAside', label: 'Step aside with someone (recorded)', group: 'Asides' },
+  { key: 'chat', label: 'Send chat messages', group: 'In the {Space}' },
+  { key: 'sendPictures', label: 'Send pictures in chat', group: 'In the {Space}' },
+  { key: 'react', label: 'Use reactions', group: 'In the {Space}' },
+  { key: 'shareScreen', label: 'Share their screen', group: 'In the {Space}' },
+  { key: 'privateCall', label: 'Start a private conversation', group: '{Asides}' },
+  { key: 'startAside', label: 'Step aside with someone (recorded)', group: '{Asides}' },
   { key: 'canMute', label: 'Mute other people', group: 'Moderation' },
   { key: 'canKick', label: 'Kick other people', group: 'Moderation' },
-  { key: 'canInvite', label: "Manage a space's guest link", group: 'Moderation' },
-  { key: 'useAi', label: 'Use AI in modules (needs an AI service set up)', group: 'AI' },
+  { key: 'canInvite', label: "Manage {a space}'s {guest} link", group: 'Moderation' },
+  { key: 'useAi', label: 'Use AI in {modules} (needs an AI service set up)', group: 'AI' },
   { key: 'image_profile', label: 'Profile photo', group: 'Images' },
   { key: 'image_background', label: 'Call background', group: 'Images' },
   { key: 'image_playerOffline', label: 'Participant: Offline', group: 'Images' },
   { key: 'image_player', label: 'Participant: Online', group: 'Images' },
   { key: 'image_playerTalking', label: 'Participant: Talking', group: 'Images' },
   { key: 'image_playerMuted', label: 'Participant: Muted', group: 'Images' },
-  { key: 'image_playerAside', label: 'Participant: Aside', group: 'Images' },
+  { key: 'image_playerAside', label: 'Participant: {Aside}', group: 'Images' },
   { key: 'image_playerPrivate', label: 'Participant: Private', group: 'Images' },
   { key: 'image_characterOffline', label: 'Character: Offline', group: 'Images' },
   { key: 'image_character', label: 'Character: Online', group: 'Images' },
   { key: 'image_talking', label: 'Character: Talking', group: 'Images' },
   { key: 'image_muted', label: 'Character: Muted', group: 'Images' },
-  { key: 'image_characterAside', label: 'Character: Aside', group: 'Images' },
+  { key: 'image_characterAside', label: 'Character: {Aside}', group: 'Images' },
   { key: 'image_characterPrivate', label: 'Character: Private', group: 'Images' },
 ];
 // Images: everyone but an owner starts with just the profile photo and the
@@ -451,6 +452,9 @@ class Store {
     this.imagesDir = path.join(dir, 'images');
     fs.mkdirSync(this.imagesDir, { recursive: true });
     this.data = this.load();
+    // The words this environment's template gives (plan-environment-templates.md): none until templates are built,
+    // so every key reads the owner's word or the default.
+    this.templateWords = null;
   }
 
   load() {
@@ -552,7 +556,7 @@ class Store {
     if (!id) return null;
     return {
       id,
-      name: cleanText(r.name, 40) || (id === LOBBY ? 'Lobby' : 'Space'),
+      name: cleanText(r.name, 40) || (id === LOBBY ? 'Lobby' : this.word('space', { cap: true })),
       description: String(r.description ?? '').trim().slice(0, 300),
       members: Array.isArray(r.members) ? [...new Set(r.members.filter((k) => typeof k === 'string'))] : [],
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
@@ -709,10 +713,36 @@ class Store {
     return (this.data.settings.icons || []).map((i) => i.id);
   }
 
+  // Every level's and role's words for this environment (server/words.js): the owner's, else the template's, else
+  // the default.
+  resolvedWords() {
+    return words.resolve(this.data.settings.words, this.templateWords);
+  }
+
+  // The owner's own words as stored (settings.words), unresolved: { <key>: { one, many, a? } }, {} when none are set.
+  ownWords() {
+    return words.ownOnly(this.data.settings.words);
+  }
+
+  // One level's or role's word in this environment (server/words.js's format): the defaults while app.json is still
+  // being read.
+  word(key, options) {
+    return words.format(this.data ? this.resolvedWords() : null, key, options);
+  }
+
   // Every field is checked into a draft first and the draft applied at the end, so a refused field
   // (a StoreError) leaves the settings exactly as they were, the other fields in the patch included.
   updateSettings(patch) {
     const s = { ...this.data.settings };
+    // The owner's words (settings.words): only the keys given change, null returning one to the template's or the
+    // default; a refused word refuses the whole patch. Left out of the settings altogether while none are set.
+    let clearWords = false;
+    if (patch.words !== undefined) {
+      const { words: next, error } = words.applyPatch(s.words, patch.words);
+      if (error) throw new StoreError(error);
+      if (Object.keys(next).length) s.words = next;
+      else { delete s.words; clearWords = true; }
+    }
     if (patch.environmentName !== undefined) s.environmentName = cleanText(patch.environmentName, 60) || DEFAULT_SETTINGS.environmentName;
     if (patch.homeIcon !== undefined) {
       if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
@@ -799,6 +829,7 @@ class Store {
       if (icons) s.icons = icons;
     }
     Object.assign(this.data.settings, s);
+    if (clearWords) delete this.data.settings.words;
     this.save();
     return this.data.settings;
   }
@@ -1127,7 +1158,7 @@ class Store {
     let id;
     do id = randomKey();
     while (this.data.spaces.some((r) => r.id === id));
-    const space = this.sanitizeSpace({ id, name: name || 'New space', description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
+    const space = this.sanitizeSpace({ id, name: name || `New ${this.word('space')}`, description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
     space.members = space.members.filter((k) => this.userByKey(k));
     this.data.spaces.push(space);
     this.save();
@@ -1144,7 +1175,7 @@ class Store {
     let id;
     do id = randomKey();
     while (this.data.spaces.some((r) => r.id === id));
-    const space = this.sanitizeSpace({ id, name: 'Aside', description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
+    const space = this.sanitizeSpace({ id, name: this.word('aside', { cap: true }), description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
     space.members = space.members.filter((k) => this.userByKey(k));
     this.data.spaces.push(space);
     this.save();
@@ -1173,7 +1204,7 @@ class Store {
 
   updateSpace(id, patch) {
     const space = this.data.spaces.find((r) => r.id === id);
-    if (!space) throw new StoreError('no such space', 404);
+    if (!space) throw new StoreError(`no such ${this.word('space')}`, 404);
     // Checked into a draft, applied at the end: a refused field changes nothing.
     const draft = { ...space };
     if (patch.name !== undefined) draft.name = cleanText(patch.name, 40) || draft.name;
@@ -1212,7 +1243,7 @@ class Store {
   removeSpace(id) {
     if (id === LOBBY) throw new StoreError('the Lobby cannot be deleted');
     const space = this.data.spaces.find((r) => r.id === id);
-    if (!space) throw new StoreError('no such space', 404);
+    if (!space) throw new StoreError(`no such ${this.word('space')}`, 404);
     this.data.spaces = this.data.spaces.filter((r) => r.id !== id);
     this.save();
     this.removeSpaceImage(id);
@@ -1226,8 +1257,8 @@ class Store {
 
   enableGuestLink(id) {
     const space = this.data.spaces.find((r) => r.id === id);
-    if (!space) throw new StoreError('no such space', 404);
-    if (!space.allowGuests) throw new StoreError('this space does not allow guests', 403);
+    if (!space) throw new StoreError(`no such ${this.word('space')}`, 404);
+    if (!space.allowGuests) throw new StoreError(`this ${this.word('space')} does not allow ${this.word('guest', { many: true })}`, 403);
     if (!space.guestToken) {
       space.guestToken = randomToken(20);
       this.save();
@@ -1237,8 +1268,8 @@ class Store {
 
   regenerateGuestLink(id) {
     const space = this.data.spaces.find((r) => r.id === id);
-    if (!space) throw new StoreError('no such space', 404);
-    if (!space.allowGuests) throw new StoreError('this space does not allow guests', 403);
+    if (!space) throw new StoreError(`no such ${this.word('space')}`, 404);
+    if (!space.allowGuests) throw new StoreError(`this ${this.word('space')} does not allow ${this.word('guest', { many: true })}`, 403);
     space.guestToken = randomToken(20);
     this.save();
     return space.guestToken;
@@ -1246,7 +1277,7 @@ class Store {
 
   disableGuestLink(id) {
     const space = this.data.spaces.find((r) => r.id === id);
-    if (!space) throw new StoreError('no such space', 404);
+    if (!space) throw new StoreError(`no such ${this.word('space')}`, 404);
     if (space.guestToken) {
       space.guestToken = null;
       this.save();
@@ -1311,7 +1342,7 @@ class Store {
   }
 
   setSpaceImage(id, buffer, contentType) {
-    if (!this.data.spaces.some((r) => r.id === id)) throw new StoreError('no such space', 404);
+    if (!this.data.spaces.some((r) => r.id === id)) throw new StoreError(`no such ${this.word('space')}`, 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');
@@ -1355,8 +1386,10 @@ class Store {
   extraPermissions = () => [];
 
   // Every permission the Roles grid knows: the built-in ones, then the modules'.
+  // The built-in labels and groups name levels by {space}-style placeholders, filled with this environment's words.
   allPermissions() {
-    return [...ROLE_PERMISSIONS, ...this.extraPermissions()];
+    const resolved = this.resolvedWords();
+    return [...ROLE_PERMISSIONS.map((p) => ({ ...p, label: words.fill(p.label, resolved), group: words.fill(p.group, resolved) })), ...this.extraPermissions()];
   }
 
   roleSet(role) {
@@ -1380,7 +1413,7 @@ class Store {
   }
 
   setRolePermissions(role, patch) {
-    if (OWNER_RIGHTS.includes(role)) throw new StoreError("the owner has every permission, so that role can't be changed");
+    if (OWNER_RIGHTS.includes(role)) throw new StoreError(`the ${this.word('owner')} has every permission, so that role can't be changed`);
     if (!EDITABLE_ROLES.includes(role)) throw new StoreError('no such role', 404);
     const mine = (this.data.settings.roles[role] ??= {});
     for (const p of this.allPermissions()) if (patch?.[p.key] !== undefined) mine[p.key] = Boolean(patch[p.key]);
@@ -1428,8 +1461,8 @@ class Store {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
     const space = this.spaceById(spaceId);
-    if (!space || space.isLobby) throw new StoreError('no such space', 404);
-    if (!space.members.includes(key)) throw new StoreError('not a member of that space');
+    if (!space || space.isLobby) throw new StoreError(`no such ${this.word('space')}`, 404);
+    if (!space.members.includes(key)) throw new StoreError(`not ${this.word('member', { a: true })} of that ${this.word('space')}`);
     const entry = this.spaceEntry(user, spaceId);
     if (patch.useDefaultImages !== undefined) entry.useDefaultImages = Boolean(patch.useDefaultImages);
     if (patch.permissions && typeof patch.permissions === 'object') {
@@ -1441,8 +1474,8 @@ class Store {
 
   removeMember(spaceId, key) {
     const space = this.data.spaces.find((r) => r.id === spaceId);
-    if (!space || space.id === LOBBY) throw new StoreError('no such space', 404);
-    if (!space.members.includes(key)) throw new StoreError('not in that space', 404);
+    if (!space || space.id === LOBBY) throw new StoreError(`no such ${this.word('space')}`, 404);
+    if (!space.members.includes(key)) throw new StoreError(`not in that ${this.word('space')}`, 404);
     space.members = space.members.filter((k) => k !== key);
     this.save();
     return this.spaceById(spaceId);
@@ -1488,7 +1521,7 @@ class Store {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
     if (!SLOTS.includes(slot)) throw new StoreError('unknown image slot');
-    if (spaceId && !this.spaceById(spaceId)) throw new StoreError('no such space', 404);
+    if (spaceId && !this.spaceById(spaceId)) throw new StoreError(`no such ${this.word('space')}`, 404);
     const ext = IMAGE_TYPES[contentType];
     if (!ext) throw new StoreError('PNG, JPEG, GIF or WebP only');
     if (!buffer || buffer.length === 0) throw new StoreError('empty upload');

@@ -10,6 +10,7 @@
   // elements up in host.root, never in document.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
   const $ = (id) => root.getElementById(id);
 
   let info;
@@ -233,13 +234,13 @@
     if (canShare) {
       items.push({
         id: 'share',
-        label: view === 'my' ? 'Share to this space' : 'Save to mine',
+        label: view === 'my' ? `Share to this ${word('space')}` : 'Save to mine',
         icon: 'share-nodes',
         onClick: async () => {
           const target = view === 'my' ? stores.space : stores.my;
           try {
             await target.save({ ...p, id: '', ref: null, by: info.user.key, owners: [info.user.key] });
-            say(view === 'my' ? 'Shared to this space.' : 'Saved to your places.');
+            say(view === 'my' ? `Shared to this ${word('space')}.` : 'Saved to your places.');
             setTimeout(() => say(''), 2500);
           } catch (err) { say('It could not be copied: ' + ((err && err.message) || err)); }
         },
@@ -638,11 +639,11 @@
   // --- start --------------------------------------------------------------------------------------------------------
 
   // Whose places: the person's own need a signed-in person (a guest has no profile), and so does everyone's (an environment-wide store).
-  const VIEW_NOTES = { my: 'Only you see these. They follow you into every space.', global: 'Everyone in this environment sees these, and anyone who can edit can change them.' };
+  const VIEW_NOTES = { my: `Only you see these. They follow you into every ${word('space')}.`, global: `Everyone in this ${word('environment')} sees these, and anyone who can edit can change them.` };
   const allowed = { my: personal, space: inSpace, global: personal };
   const VIEW_OPTIONS = [
     { id: 'my', label: 'Mine', icon: 'user' },
-    { id: 'space', label: 'This space', icon: 'users' },
+    { id: 'space', label: `This ${word('space')}`, icon: 'users' },
     { id: 'global', label: 'Everyone', icon: 'globe' },
   ].filter((o) => allowed[o.id]);
   const viewSwitch = VIEW_OPTIONS.length > 1 ? host.ui.viewSwitch({ id: 'whose', options: VIEW_OPTIONS, value: view, onChange: showView }) : null;

@@ -10,6 +10,7 @@
   // it looks elements up in host.root, never in document, so it works in both.
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
   const $ = (id) => root.getElementById(id);
   const { ymd, parseYmd } = host.util;
 
@@ -21,7 +22,7 @@
     return;
   }
   if (info.context.scope !== 'space') {
-    $('msg').textContent = 'A trip belongs to a space. Open the space, then Planner there; the dashboard lists your trips.';
+    $('msg').textContent = `A trip belongs to ${word('space', { a: true })}. Open the ${word('space')}, then Planner there; the dashboard lists your trips.`;
     return;
   }
 
@@ -53,8 +54,9 @@
 
   // --- small helpers -----------------------------------------------------------------------------------------
 
-  const clone = (id) => $(id).content.firstElementChild.cloneNode(true);
-  const parts = (id) => [...$(id).content.children].map((n) => n.cloneNode(true));
+  // A template's copy, its data-word marks filled with this environment's words.
+  const clone = (id) => host.util.fillWords($(id).content.firstElementChild.cloneNode(true));
+  const parts = (id) => [...$(id).content.children].map((n) => host.util.fillWords(n.cloneNode(true)));
   const hide = (node, yes) => { if (node) node.hidden = Boolean(yes); };
   // The place line has an icon and a text of its own: set the text and hide the line when there is none.
   const setPlace = (el, text) => { fill(el, { 'place-text': text }); hide(slot(el, 'place'), !text); };
@@ -191,7 +193,7 @@
       const broken = Boolean(stateOf);
       setIcon(el.querySelector('.src [data-icon]'), broken ? 'link-slash' : (card && card.module && card.module.icon) || 'link');
       const shown = stateOf === 'hidden' ? 'An item you cannot see' : stateOf ? item.title || 'An item' : (card && card.title) || item.title;
-      put(el, { module: broken || !card ? 'another module' : (card.module && card.module.name) || 'another module', title: shown, sub: broken ? '' : item.result ? `Result: ${item.result}` : card ? card.subtitle : '', state: stateOf === 'hidden' ? 'Not available to you' : stateOf === 'gone' ? 'No longer available' : stateOf === 'unavailable' ? 'Could not be read right now' : '' });
+      put(el, { module: broken || !card ? `another ${word('module')}` : (card.module && card.module.name) || `another ${word('module')}`, title: shown, sub: broken ? '' : item.result ? `Result: ${item.result}` : card ? card.subtitle : '', state: stateOf === 'hidden' ? 'Not available to you' : stateOf === 'gone' ? 'No longer available' : stateOf === 'unavailable' ? 'Could not be read right now' : '' });
       if (broken) el.classList.add(stateOf === 'hidden' ? 'hidden' : 'gone');
       hide(el.querySelector('[data-action="open"]'), broken || !card || !card.open);
       hide(el.querySelector('[data-action="remove-link"]'), !broken || !canEdit);
@@ -1228,10 +1230,10 @@
     if (!card || card.error) throw new Error('That private item could not be read.');
     let add = null;
     try { add = (await host.actions.list()).find((a) => a.name === 'addPlace' && a.input && a.input.title); } catch (err) { add = null; }
-    if (!add) throw new Error('That item is private to you. Share it to the space first, then use the shared copy.');
+    if (!add) throw new Error(`That item is private to you. Share it to the ${word('space')} first, then use the shared copy.`);
     const out = await host.actions.request(add.action, { title: card.title, ...(card.subtitle ? { address: card.subtitle } : {}), ...(card.place ? { lat: card.place.lat, lng: card.place.lng } : {}) }, { wait: true });
     if (out.status === 'done' && out.result && out.result.ok && out.result.ref) return out.result.ref;
-    throw new Error('It could not be shared to the space.');
+    throw new Error(`It could not be shared to the ${word('space')}.`);
   }
 
   // Something dropped on the plan, by the pointer drag every module's items share: one of this plan's own items (pressed on its

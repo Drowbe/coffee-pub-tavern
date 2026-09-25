@@ -1,6 +1,6 @@
 // The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, spaceCrumbIcon, hasOwnerRights, word, applyWords } from '/brand.js';
 import { createSpaceModules, joinPanes, setJoinPanes } from '/canvas.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
@@ -273,7 +273,7 @@ function ghostTile(key) {
   overlay.className = 'tile-ghost-overlay';
   const status = document.createElement('span');
   status.className = 'tile-ghost-status';
-  status.textContent = 'In an aside';
+  status.textContent = `In ${word('aside', { a: true })}`;
   const withLine = document.createElement('span');
   withLine.className = 'tile-ghost-with';
   overlay.append(status, withLine);
@@ -310,7 +310,7 @@ function reconcileGhostTiles() {
       tile.classList.toggle('tile-ghost-private', isPrivate);
       setGhostBadge(tile.querySelector('.tile-ghost-badge'), key, isPrivate ? 'playerPrivate' : 'playerAside');
       tile.querySelector('.name').textContent = user.displayName;
-      tile.querySelector('.tile-ghost-status').textContent = isPrivate ? 'In a private conversation' : 'In an aside';
+      tile.querySelector('.tile-ghost-status').textContent = isPrivate ? 'In a private conversation' : `In ${word('aside', { a: true })}`;
       // Who a private word is with stays off the record here too, same as
       // it's kept off the OBS-facing recording -- everyone else at the
       // call only gets to know that it's happening, not with whom.
@@ -335,7 +335,7 @@ function spaceDisplayName(r) {
   // Says "Private" rather than "Aside" whenever it is one -- whoever's in
   // here should be able to tell at a glance that this one is genuinely off
   // the record, not just infer it from which button someone clicked earlier.
-  const label = r.private ? 'Private' : 'Aside';
+  const label = r.private ? 'Private' : word('aside', { cap: true });
   return others.length ? `${label} with ${others.join(' & ')}` : label;
 }
 
@@ -350,6 +350,7 @@ function renderSpaces() {
     let card = list.querySelector(`[data-space="${CSS.escape(r.id)}"]`);
     if (!card) {
       card = document.getElementById('space-choice').content.firstElementChild.cloneNode(true);
+      applyWords(card); // the template's data-fill titles, in this environment's words
       card.dataset.space = r.id;
       card.querySelector('[data-join]').dataset.join = r.id;
       list.appendChild(card);
@@ -441,7 +442,7 @@ function renderMembers(list, members, spaceId) {
         badge.className = 'stream-badge';
         el.appendChild(badge);
       }
-      badge.textContent = inAside ? 'aside' : 'off stream';
+      badge.textContent = inAside ? word('aside') : 'off stream';
       badge.classList.toggle('aside', Boolean(inAside));
     } else if (badge) {
       badge.remove();
@@ -474,7 +475,7 @@ async function toggleJoinWith(card, spaceId) {
   if (open) return;
   const pop = document.createElement('div');
   pop.className = 'join-with';
-  pop.innerHTML = '<strong>Join with</strong><div class="join-with-list"></div><p class="hint">Remembered for this space.</p>';
+  pop.innerHTML = `<strong>Join with</strong><div class="join-with-list"></div><p class="hint">Remembered for this ${word('space')}.</p>`;
   card.appendChild(pop);
   if (!spaceModuleList.has(spaceId)) {
     try {
@@ -825,9 +826,13 @@ snapSize.hidden = true;
 nav.register({ ...SPACE_TOOL, id: 'snap-size', order: 3, element: snapSize }); // the slider: the registry places it, syncSnapBar() runs it
 nav.register({ ...SPACE_TOOL, id: 'fullscreen-toggle', order: 11, icon: 'expand', activeIcon: 'compress', label: 'Full screen', title: 'Full screen (F)', toggleable: true, active: false, onClick: () => toggleFullscreen() });
 nav.register({ ...SPACE_TOOL, id: 'popout', order: 12, icon: 'up-right-from-square', activeIcon: 'window-restore', label: 'Pop out into its own window', toggleable: true, active: false, onClick: () => (pipWindow ? closePopout() : openPopout()) });
-nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: 'Give everyone in a Private Conversation from this space a 10 second warning, then pull them back', labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
+// The two tools whose words are the environment's: registered again (the same elements) once loadBranding() has them.
+function registerWordTools() {
+  nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: `Give everyone in a Private Conversation from this ${word('space')} a 10 second warning, then pull them back`, labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
+  nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-space', order: 999, icon: 'square-xmark', label: `Leave ${word('space')}`, onClick: () => leaveSpace() });
+}
+registerWordTools();
 nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentSpace && currentSpace.ephemeral && currentSpace.origin), onClick: () => returnFromAside() });
-nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-space', order: 999, icon: 'square-xmark', label: 'Leave space', onClick: () => leaveSpace() });
 // On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
 // only be reachable from the Conference view's toolbar. This tool, in the menu only (its class, see style.css) and
 // only while in the call, shows the conference and opens them. It sits in the session group, ahead of the clock.
@@ -1886,7 +1891,7 @@ call
       // the local data so their tile can turn into an "in an aside"
       // placeholder right away, without waiting for the next /api/presence poll.
       else if (topic === 'aside-started' && data.type === 'aside-started' && data.spaceId && Array.isArray(data.members)) {
-        if (!presenceSpaces.some((r) => r.id === data.spaceId)) presenceSpaces.push({ id: data.spaceId, name: 'Aside', members: data.members, ephemeral: true });
+        if (!presenceSpaces.some((r) => r.id === data.spaceId)) presenceSpaces.push({ id: data.spaceId, name: word('aside', { cap: true }), members: data.members, ephemeral: true });
         for (const key of data.members) {
           const user = presenceUsers.get(key);
           if (user) { user.online = true; user.space = data.spaceId; }
@@ -2118,7 +2123,7 @@ function updateCrumb() {
   } else if (currentSpace.ephemeral && currentSpace.origin) {
     const originSpace = presenceSpaces.find((r) => r.id === currentSpace.origin);
     const originName = originSpace ? spaceDisplayName(originSpace) : 'the call';
-    const kind = currentSpace.private ? 'Private' : 'Aside';
+    const kind = currentSpace.private ? 'Private' : word('aside', { cap: true });
     setSpaceName('people-arrows', `${originName} · ${kind}`);
   } else {
     setSpaceName(spaceCrumbIcon(currentSpace), spaceName);
@@ -2297,7 +2302,7 @@ function setNoCall(off) {
   const h = $('hangup');
   h.classList.toggle('danger', !off);
   h.classList.toggle('dial', off);
-  h.title = off ? 'Rejoin the call' : 'Leave the call (you stay in the space)';
+  h.title = off ? 'Rejoin the call' : `Leave the call (you stay in the ${word('space')})`;
   h.querySelector('i').className = off ? 'fa-solid fa-phone fa-fw' : 'fa-solid fa-phone-slash fa-fw';
 }
 // The toolbar's phone: red hangs up, green dials back in.
@@ -3303,6 +3308,7 @@ function applyFeatureFlags() {
 
 async function init() {
   const branding = await loadBranding();
+  registerWordTools();
   spaceName = branding.environmentName || spaceName;
   features = {
     maxQuality: branding.maxQuality || 720,

@@ -4,7 +4,7 @@
 // back into the frame. Used by a module's own page (module.js), the dashboard (dashboard.js) and a
 // space's canvas (canvas.js).
 
-import { api, accessKeyHeaders } from '/brand.js';
+import { api, accessKeyHeaders, word, words } from '/brand.js';
 import { nav as navBar } from '/nav-bar.js';
 
 // The design tokens a module's frame receives (see design-theme.md).
@@ -536,7 +536,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
         permissions: contextInfo.permissions,
         module: contextInfo.module,
         context: keyed ? { scope: 'keyed', spaceId: null, path: keyed.path, subject: keyed.subject, query: keyed.query || {} } : { scope, spaceId: scope === 'space' ? spaceId : null },
-        locale: contextInfo.locale || { language: 'en', clock: '12', currency: 'USD' },
+        locale: contextInfo.locale || { language: 'en', clock: '12', currency: 'USD', words: words() },
         theme: readTheme(),
         debug: debugOn(),
       };
@@ -1204,7 +1204,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     frame.src = `/m/${encodeURIComponent(module.id)}/${encodeURIComponent(module.version)}/${entry}?tk=${secret}`;
   } else {
     startInPage().catch((err) => {
-      container.textContent = `This module could not start: ${err.message}`;
+      container.textContent = `This ${word('module')} could not start: ${err.message}`;
     });
   }
 

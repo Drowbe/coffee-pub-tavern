@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { StoreError } = require('./store');
+const { word } = require('./words');
 
 const LIMITS = {
   schedulesPerModule: 500,
@@ -153,7 +154,7 @@ class ModuleHooks extends EventEmitter {
     if (payload !== undefined && JSON.stringify(payload).length > 4000) throw new StoreError('a schedule payload is at most 4 KB');
     let notify = null;
     if (spec.notify) {
-      if (!ctx.manifest.hooks.notify) throw new StoreError('this module did not ask for the notify hook', 403);
+      if (!ctx.manifest.hooks.notify) throw new StoreError(`this ${word('module')} did not ask for the notify hook`, 403);
       notify = {
         to: clean(spec.notify.to, 40) || (ctx.scope === 'space' ? 'space' : 'environment'),
         title: clean(spec.notify.title, LIMITS.title),
@@ -164,7 +165,7 @@ class ModuleHooks extends EventEmitter {
     const repeat = cleanRepeat(spec.repeat, at);
     const id = this.id(ctx.manifest.id, ctx.scopeKey, key);
     const mine = this.schedules.filter((s) => s.module === ctx.manifest.id);
-    if (!mine.some((s) => s.id === id) && mine.length >= LIMITS.schedulesPerModule) throw new StoreError('this module has too many schedules', 413);
+    if (!mine.some((s) => s.id === id) && mine.length >= LIMITS.schedulesPerModule) throw new StoreError(`this ${word('module')} has too many schedules`, 413);
     this.schedules = this.schedules.filter((s) => s.id !== id);
     this.schedules.push({ id, module: ctx.manifest.id, scopeKey: ctx.scopeKey, spaceId: ctx.spaceId, key, at, payload, notify, repeat, by: ctx.by });
     this.write(this.schedulesFile, this.schedules);

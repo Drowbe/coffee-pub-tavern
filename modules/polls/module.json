@@ -1,7 +1,7 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.11",
+  "version": "1.12.12",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole environment and for each space, with live results.",
   "author": "Coffee Pub",

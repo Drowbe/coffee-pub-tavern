@@ -70,7 +70,7 @@
     const list = $('people');
     list.replaceChildren();
     if (!accessKey) {
-      $('links-note').textContent = 'Only an owner or the admin sees the links, since each one carries the access key.';
+      $('links-note').textContent = `Only ${host.util.word('owner', { a: true })} or the admin sees the links, since each one carries the access key.`;
       $('links-note').hidden = false;
       return;
     }

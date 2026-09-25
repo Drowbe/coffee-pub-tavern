@@ -10,6 +10,7 @@
 
   const host = (document.currentScript && document.currentScript.host) || window.host;
   const root = host.root;
+  const word = host.util.word; // the environment's word for a level or role (host.locale().words)
   const $ = (id) => root.getElementById(id);
 
   let info;
@@ -324,7 +325,7 @@
       state.aiWhy = a.why || '';
     } catch (err) {
       state.ai = false;
-      state.aiWhy = 'this module has not been approved to use AI (turn it off and on again in Manage > Modules and approve it)';
+      state.aiWhy = `this ${word('module')} has not been approved to use AI (turn it off and on again in Manage > ${word('module', { many: true, cap: true })} and approve it)`;
     }
     hide($('ask-context'), !state.ai);
     hide($('ask-form'), !state.ai);
