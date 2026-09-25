@@ -108,6 +108,11 @@
       item.travelClass = clip(raw.travelClass, 30);
       item.pickup = clip(raw.pickup, 120); // a car: where it is collected and where it goes back
       item.dropoff = clip(raw.dropoff, 120);
+      // A later leg of one booking (a round trip's return) points at the first leg, which holds the booking reference, the cost
+      // and who paid. Any journey but a car; never itself. More legs can use the same field. Its own booking details are kept
+      // here: they are set aside only where its outbound is found (outboundOf), so a leg whose outbound is gone keeps them.
+      const legOf = typeof raw.legOf === 'string' ? clip(raw.legOf, 40) : '';
+      item.legOf = legOf && legOf !== item.id && item.mode !== 'car' ? legOf : null;
     }
     if ((kind === 'block' || kind === 'lane') && !item.type) return null;
     if (kind !== 'link' && kind !== 'block' && kind !== 'lane' && !item.title) return null;
@@ -287,9 +292,40 @@
     return Number.isNaN(d.getTime()) ? null : { day: ymd(d), time: clockOf(d, card) };
   }
 
-  // The bookings: stays and journeys, in date and time order.
+  // Round trips. The later legs of a booking are the journeys whose `legOf` is the first leg's id, in `order` (two returns saved
+  // at once by two people: the first is the return, the other reads as a journey of its own). A leg whose first leg is gone, or is
+  // not a journey that can have legs, reads as a one-way journey.
+  const byOrder = (a, b) => a.order - b.order || String(a.id).localeCompare(String(b.id));
+  const canHaveLegs = (i) => Boolean(i) && i.kind === 'journey' && !i.legOf && i.mode !== 'car';
+  function legsOf(items, id) {
+    return items.filter((i) => i.kind === 'journey' && i.legOf === id && i.id !== id).sort(byOrder);
+  }
+  // The return of the journey `id`, or null.
+  function returnOf(items, id) {
+    return canHaveLegs(items.find((i) => i.id === id)) ? legsOf(items, id)[0] || null : null;
+  }
+  // The outbound of a return, or null (not a return, its outbound is gone, or it is a second return).
+  function outboundOf(items, item) {
+    if (!item || !item.legOf) return null;
+    const out = items.find((i) => i.id === item.legOf);
+    if (!canHaveLegs(out)) return null;
+    return (returnOf(items, out.id) || {}).id === item.id ? out : null;
+  }
+  // A return placed before its outbound (allowed; its card says so). Both need a day; on one day, both need a time.
+  function returnBefore(back, out) {
+    if (!back || !out || !back.date || !out.date) return false;
+    if (back.date !== out.date) return back.date < out.date;
+    return Boolean(back.time && out.time && back.time < out.time);
+  }
+
+  // The items whose cost counts in Money: a return found with its outbound shares the outbound's, so it is not counted again.
+  function costItems(items) {
+    return items.filter((i) => i.cost && !outboundOf(items, i));
+  }
+
+  // The bookings: stays and journeys, in date and time order. A round trip is one booking: its return is not listed on its own.
   function bookings(items) {
-    return items.filter((i) => i.kind === 'stay' || i.kind === 'journey')
+    return items.filter((i) => (i.kind === 'stay' || i.kind === 'journey') && !outboundOf(items, i))
       .sort((a, b) => String(a.date || '9999').localeCompare(String(b.date || '9999')) || String(a.time || '').localeCompare(String(b.time || '')) || String(a.id).localeCompare(String(b.id)));
   }
 

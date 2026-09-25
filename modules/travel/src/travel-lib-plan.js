@@ -144,6 +144,35 @@
       changed();
     }
 
+    // A round trip: the outbound, then the return pointing at it. A car cannot be one.
+    async function addRoundTrip(outFields, backFields) {
+      if (outFields.mode === 'car') throw new Error('A rental car cannot be a round trip.');
+      const out = await addItem({ ...outFields, kind: 'journey', legOf: null });
+      const back = await addItem({ ...backFields, kind: 'journey', mode: out.mode, legOf: out.id, confirm: '', cost: null, paidBy: '' });
+      return { out, back };
+    }
+    const returnFor = (id) => returnOf(list(), id);
+    const outboundFor = (item) => outboundOf(list(), item);
+    // The returns of `id` beyond the first (two people added one at the same time).
+    const extraReturns = (id) => (returnFor(id) ? legsOf(list(), id).slice(1) : []);
+    // Deleting a leg of a round trip: both legs (and any extra return), or only this one. Only the outbound: the return becomes a
+    // one-way journey and takes the booking reference, the cost and who paid, so nothing that was paid disappears. Not a leg of a
+    // round trip: the item alone.
+    async function removeLeg(id, both) {
+      const all = list();
+      const item = all.find((i) => i.id === id);
+      if (!item) return;
+      const out = item.legOf ? outboundOf(all, item) : item;
+      const back = out ? returnOf(all, out.id) : null;
+      if (!out || !back) return removeItem(id);
+      if (both) {
+        for (const leg of legsOf(all, out.id)) await removeItem(leg.id);
+        return removeItem(out.id);
+      }
+      if (id === out.id) await updateItem(back.id, { legOf: null, confirm: out.confirm, cost: out.cost, paidBy: out.paidBy });
+      return removeItem(id);
+    }
+
     // Several items changed at once, from a move: { id: patch }.
     async function applyChanges(changes) {
       for (const [id, patch] of Object.entries(changes)) await updateItem(id, patch);
@@ -251,7 +280,7 @@
     }
 
     return {
-      refreshCards: () => resolveCards(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
+      refreshCards: () => resolveCards(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, cards, suggest, provide, saveTrip, addItem, updateItem, removeItem, addRoundTrip, returnFor, outboundFor, extraReturns, removeLeg, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

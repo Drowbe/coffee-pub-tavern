@@ -44,3 +44,10 @@
 .editor-card .hm input:not([type="checkbox"]) { width: auto; flex: 1 1 0; min-width: 0; }
 /* a journey's arrival, worked out from its departure and how long it takes */
 .editor-card .arrives { margin: -4px 0 0; font-size: 12px; }
+/* a round trip: the switch, then the return leg's own fields under a line of their own */
+.editor-card .roundtrip { gap: 8px; }
+.editor-card .return-leg { display: flex; flex-direction: column; gap: 10px; padding: 10px 0 0 12px; border-left: 2px solid color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.editor-card .return-leg[hidden] { display: none; }
+.editor-card #f-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.editor-card #f-extra[hidden] { display: none; }
+.editor-card #f-booking-both, .editor-card #f-roundtrip-note { margin: 0; font-size: 12px; }

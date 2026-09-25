@@ -195,9 +195,30 @@
     }
     ownersInto(el, item);
     moreInto(el, item);
+    roundTripInto(el, item);
     if (!canEdit) el.querySelector('.menu-btn')?.remove();
     return el;
   }
+
+  // A leg of a round trip: a line under its card with the other leg's day ("Round trip · Return Fri, Oct 9"), and on a return placed
+  // before its outbound, a warning (it is allowed).
+  function roundTripInto(el, item) {
+    if (item.kind !== 'journey') return;
+    const out = plan.outboundFor(item);
+    const other = out || plan.returnFor(item.id);
+    if (!other) return;
+    const mark = clone('tpl-card-roundtrip');
+    fill(mark, {
+      'roundtrip-text': `Round trip · ${out ? 'Outbound' : 'Return'} ${other.date ? dayShort(other.date) : 'not on a day yet'}`,
+      'roundtrip-warn': out && returnBefore(item, out) ? 'Return is before the outbound' : '',
+    });
+    el.insertBefore(mark, el.querySelector(':scope > .card-more'));
+  }
+  // The item as its card shows it: a return shows its outbound's booking reference, cost and payer (the outbound holds them).
+  const withBooking = (item) => {
+    const out = item.kind === 'journey' ? plan.outboundFor(item) : null;
+    return out ? { ...item, confirm: out.confirm, cost: out.cost, paidBy: out.paidBy } : item;
+  };
 
   // What the card's own face has no place for, folded under it: the note, who is on it, the booking reference, the
   // terminal, the cost... Only what the item has and the template did not show (a slot of that name); "More" opens it,
@@ -238,7 +259,9 @@
   // `entry` is { item, span } (a stay is drawn on each night it covers; only its first day is the real item). On the line
   // (`line`: at a joint between days, not in a day) the same card is drawn with no time: a time means nothing there.
   function buildEntry(entry, line) {
-    const { item, span } = entry;
+    const item = withBooking(entry.item);
+    const { span } = entry;
+    entry = { ...entry, item };
     const card = item.ref ? plan.cards.get(host.util.refKey(item.ref)) : null;
     const c = cardOf(item, card);
     const row = clone('tpl-row');
@@ -246,6 +269,7 @@
     row.dataset.kind = item.kind;
     row.dataset.type = c.family;
     row.classList.toggle('done', item.done);
+    if (item.kind === 'journey') { const leg = plan.outboundFor(item) ? 'return' : plan.returnFor(item.id) ? 'outbound' : ''; if (leg) row.dataset.leg = leg; }
     let time = tt(item.time);
     let sub = '';
     if (item.kind === 'link') { time = tt(timeOf(card)); sub = ''; }
@@ -719,9 +743,13 @@
       const ul = section(body, title);
       for (const i of mine) {
         const nights = stayNights(i);
+        // A round trip is one row: both days, and the route both ways ("LHR ⇄ JFK").
+        const back = kind === 'journey' ? plan.returnFor(i.id) : null;
+        const ends = back && i.fromCode && i.toCode ? [i.fromCode, i.toCode] : [i.from, i.to];
+        const route = back ? (ends[0] && ends[1] ? `${ends[0]} ⇄ ${ends[1]}` : ends.filter(Boolean).join(' ⇄ ')) : [i.from, i.to].filter(Boolean).join(' → ');
         const line = kind === 'stay'
           ? [i.checkOut && i.date ? `${dayShort(i.date)} – ${dayShort(i.checkOut)}` : dayTime(i), nights ? `${nights} night${nights === 1 ? '' : 's'}` : '', i.place || i.address].filter(Boolean).join(' · ')
-          : [dayTime(i), [i.from, i.to].filter(Boolean).join(' → ')].filter(Boolean).join(' · ');
+          : [dayTime(i), back ? dayTime(back) : '', route].filter(Boolean).join(' · ');
         row(ul, { icon: kind === 'stay' ? 'bed' : cardOf(i).badge || 'route', title: i.title, sub: line, code: i.confirm, button: 'Open', id: i.id });
       }
     }
@@ -734,7 +762,7 @@
   function renderMoney() {
     const body = $('body');
     body.replaceChildren();
-    const costs = plan.list().filter((i) => i.cost);
+    const costs = costItems(plan.list());
     if (!costs.length) return nothing(body, 'Nothing has a cost yet. Give a stop, stay or journey a cost and who paid, and it is shared out here.');
     const keys = state.people.map((p) => p.key);
     const b = balances(costs, keys);
@@ -1001,6 +1029,26 @@
   }
   const closeMenu = () => { $('item-menu').hidden = true; state.menuFor = null; };
 
+  // Deleting a leg of a round trip asks which: both legs, only this one (only the outbound: the return keeps the booking details),
+  // or neither. Anchored to the button that asked. False when the item is not a leg of a round trip.
+  function askDeleteLegs(id, anchor, before) {
+    const item = plan.list().find((i) => i.id === id);
+    if (!item || item.kind !== 'journey') return false;
+    const isReturn = Boolean(plan.outboundFor(item));
+    if (!isReturn && !plan.returnFor(id)) return false;
+    const run = (both) => () => { if (before) before(); attempt(() => plan.removeLeg(id, both)); };
+    host.menu.show({
+      id: `delete-legs-${id}`,
+      anchor,
+      items: [
+        { id: 'both', label: 'Delete both legs', icon: 'trash', danger: true, onClick: run(true) },
+        { id: 'this', label: 'Delete only this leg', icon: 'trash', hint: isReturn ? 'The outbound stays.' : 'The return stays, with the booking details.', onClick: run(false) },
+        { id: 'cancel', label: 'Cancel', icon: 'xmark', onClick: () => {} },
+      ],
+    });
+    return true;
+  }
+
   async function attempt(fn) {
     note('');
     try {
@@ -1035,6 +1083,7 @@
       return void attempt(() => plan.moveToJoint(id, after, 1e6));
     }
     if (action === 'delete') {
+      if (askDeleteLegs(id, b, closeMenu)) return;
       if (state.deleteArmed !== id) { const block = ['block', 'lane'].includes((plan.list().find((i) => i.id === id) || {}).kind); state.deleteArmed = id; fill(b, { 'delete-label': block ? 'Really remove?' : 'Really delete?' }); return; }
       closeMenu();
       return void attempt(() => plan.removeItem(id));
@@ -1299,10 +1348,14 @@
   const lengthOf = (hoursId, minutesId) => (shown(minutesId) ? joinMinutes(num(hoursId), num(minutesId)) : null);
   // Under a journey's departure: when it arrives, from its departure time and how long it takes.
   function showArrival() {
-    const out = $('f-arrives');
+    arrivalInto('f-arrives', 'f-time', 'f-hours', 'f-minutes');
+    arrivalInto('f-back-arrives', 'f-back-time', 'f-back-hours', 'f-back-minutes');
+  }
+  function arrivalInto(outId, timeId, hoursId, minutesId) {
+    const out = $(outId);
     if (!out) return;
-    const t = $('f-time').value;
-    const m = lengthOf('f-hours', 'f-minutes');
+    const t = $(timeId).value;
+    const m = lengthOf(hoursId, minutesId);
     const end = t && m ? minutesOfDay(t) + m : null;
     out.textContent = end === null ? '' : `Arrives ${tt(hm(end))}${end >= 24 * 60 ? ' the next day' : ''}`;
     out.hidden = end === null;
@@ -1359,7 +1412,8 @@
     if (lengthLabel) lengthLabel.hidden = noLength;
     // The same fields in each kind's own words (a stay's day is its check-in, a flight's time its departure).
     const labels = { ...FIELD_DEFAULTS, ...(FIELD_WORDS[key] || {}) };
-    for (const [name, id] of [['date', 'f-date-label'], ['time', 'f-time-label'], ['length', 'f-minutes-label'], ['operator', 'f-operator-label'], ['number', 'f-number-label'], ['from', 'f-from-label'], ['to', 'f-to-label']]) if ($(id)) $(id).textContent = labels[name];
+    for (const [name, id] of [['date', 'f-date-label'], ['time', 'f-time-label'], ['length', 'f-minutes-label'], ['operator', 'f-operator-label'], ['number', 'f-number-label'], ['from', 'f-from-label'], ['to', 'f-to-label'], ['time', 'f-back-time-label'], ['length', 'f-back-minutes-label'], ['number', 'f-back-number-label'], ['from', 'f-back-from-label'], ['to', 'f-back-to-label']]) if ($(id)) $(id).textContent = labels[name];
+    roundTripShown();
     showArrival();
     for (const b of $('form').querySelectorAll('.tile')) b.classList.toggle('on', b.dataset.type === tile);
     $('f-title').placeholder = key === 'block' ? markerType(tile.slice(6)).label : key === 'lane' ? markerType(tile.slice(5)).label : TITLES[tile] || '';
@@ -1443,6 +1497,7 @@
       ownerBoxes(v.owners || []);
       for (const b of $('f-travelMode').querySelectorAll('.mode')) b.classList.toggle('on', b.dataset.mode === v.travelMode);
       setLength('f-travelHours', 'f-travelMinutes', v.travelMinutes);
+      openReturn(item);
       showArrival();
       $('f-by').textContent = item && item.by ? `Added by ${item.by}` : '';
     }
@@ -1450,7 +1505,108 @@
     $('editor').hidden = false;
     $('f-title').focus();
   }
-  const openItemEditor = (id) => { const item = plan.list().find((i) => i.id === id); if (item) openEditor('item', item); };
+  // Either leg of a round trip opens the one editor with both legs; the outbound's fields are the main ones.
+  const openItemEditor = (id) => {
+    const item = plan.list().find((i) => i.id === id);
+    if (!item) return;
+    openEditor('item', plan.outboundFor(item) || item);
+    if (state.editing) state.editing.openedId = id;
+  };
+
+  // --- a round trip in the editor ---
+  // The switch shows the return's fields; an existing pair fills them from its return.
+  const roundTripOn = () => Boolean($('f-roundtrip')) && shown('f-roundtrip') && $('f-roundtrip').checked;
+  function roundTripShown() {
+    const ed = state.editing;
+    if (!$('f-roundtrip') || !ed) return;
+    const on = roundTripOn();
+    hide($('f-return'), !on);
+    hide($('f-booking-both'), !on);
+    hide($('f-roundtrip-note'), !ed.removeReturn);
+    $('f-roundtrip-note').textContent = ed.removeReturn ? 'The return leg is deleted when you save.' : '';
+    $('f-back-title').placeholder = backTitle();
+  }
+  // A return's title when none is given: "Flight to London", else "Return: <the outbound's title>".
+  function backTitle() {
+    const kicker = KICKERS[state.editing && fromTile(state.editing.tile).mode] || 'Return';
+    const to = $('f-back-to').value.trim() || $('f-back-toCode').value.trim();
+    return to ? `${kicker} to ${to}` : `Return: ${$('f-title').value.trim() || 'the outbound'}`;
+  }
+  function openReturn(item) {
+    const ed = state.editing;
+    const back = item && item.kind === 'journey' ? plan.returnFor(item.id) : null;
+    ed.backId = back ? back.id : null;
+    ed.backVersion = back ? plan.versionOf(back.id) : null;
+    ed.removeReturn = false;
+    placeOptions($('f-back-date'));
+    $('f-roundtrip').checked = Boolean(back);
+    if (back) {
+      $('f-back-title').value = back.title;
+      $('f-back-date').value = placeValue(placeOf(back));
+      $('f-back-time').value = back.time || '';
+      setLength('f-back-hours', 'f-back-minutes', back.minutes);
+      for (const f of ['number', 'fromCode', 'toCode', 'from', 'to', 'seat']) setVal(`f-back-${f}`, back[f]);
+    }
+    const extra = item ? plan.extraReturns(item.id) : [];
+    hide($('f-extra'), !extra.length);
+    roundTripShown();
+  }
+  // Turning the switch on for a new return fills it from the outbound, the ends swapped, on the trip's last day (or the outbound's
+  // own when that is later). Turning it off on an existing pair asks first; the return is deleted when the editor saves.
+  function roundTripSwitched(input) {
+    const ed = state.editing;
+    if (!ed) return;
+    if (input.checked) {
+      ed.removeReturn = false;
+      if (!ed.backId && !$('f-back-from').value && !$('f-back-to').value && !$('f-back-fromCode').value && !$('f-back-toCode').value) {
+        $('f-back-from').value = $('f-to').value;
+        $('f-back-to').value = $('f-from').value;
+        $('f-back-fromCode').value = $('f-toCode').value;
+        $('f-back-toCode').value = $('f-fromCode').value;
+        const days = plan.days();
+        const { date } = parsePlace($('f-date').value);
+        const last = days[days.length - 1];
+        $('f-back-date').value = placeValue({ date: date && last && date > last ? date : last || date });
+      }
+      return roundTripShown();
+    }
+    if (!ed.backId) return roundTripShown();
+    input.checked = true; // until the question is answered
+    host.menu.show({
+      id: 'remove-return',
+      anchor: input.closest('label'),
+      items: [
+        { id: 'remove', label: 'Remove the return leg', hint: 'It is deleted when you save.', icon: 'trash', danger: true, onClick: () => { input.checked = false; ed.removeReturn = true; roundTripShown(); } },
+        { id: 'keep', label: 'Keep it', icon: 'xmark', onClick: () => {} },
+      ],
+    });
+  }
+  // The return's own fields, from the editor. It shares the outbound's way of travelling, company, class and people.
+  function returnFields(out) {
+    return {
+      kind: 'journey',
+      confirm: '', // the outbound holds the booking details
+      cost: null,
+      paidBy: '',
+      category: 'travel',
+      mode: out.mode,
+      title: $('f-back-title').value.trim() || backTitle(),
+      ...placeFields(parsePlace($('f-back-date').value)),
+      time: $('f-back-time').value || null,
+      minutes: lengthOf('f-back-hours', 'f-back-minutes'),
+      number: get('f-back-number'),
+      seat: get('f-back-seat'),
+      fromCode: get('f-back-fromCode'),
+      toCode: get('f-back-toCode'),
+      from: get('f-back-from'),
+      to: get('f-back-to'),
+      operator: out.operator || '',
+      travelClass: out.travelClass || '',
+      owners: out.owners || [],
+    };
+  }
+  // Whether a patch would change what is stored for an item.
+  const changes = (item, patch) => JSON.stringify(cleanItem({ ...item, ...patch, id: item.id })) !== JSON.stringify(item);
   const closeEditor = () => { $('editor').hidden = true; $('editor').replaceChildren(); state.editing = null; };
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (!$('editor').hidden) closeEditor(); else closeMenu(); } });
 
@@ -1486,6 +1642,8 @@
         fields = { ...common, kind: 'link', time: $('f-time').value || null, minutes: lengthOf('f-hours', 'f-minutes') };
       } else {
         const t = fromTile(ed.tile, item);
+        // A round trip stays a journey other than a car: its return is removed first, with the switch.
+        if (ed.backId && !ed.removeReturn && !roundTripOn()) return fail('Only a journey other than a car can be a round trip. Choose one, or turn off Round trip first.');
         if (t.kind === 'lane') { common.date = null; common.travelMode = null; common.travelMinutes = null; common.owners = []; common.cost = null; common.paidBy = ''; }
         // A time block or a marker between days can be left untitled in the form (the type's own label is its
         // placeholder, shown greyed until someone types over it): store that label as the real title rather than
@@ -1500,6 +1658,8 @@
           fields.toCode = get('f-toCode');
           fields.gate = get('f-gate');
           fields.confirm = get('f-confirm');
+          // The editor always saves the main leg as a first leg (a return whose outbound is gone becomes a one-way journey).
+          fields.legOf = null;
         } else if (t.kind === 'stay') {
           fields.checkOut = $('f-checkout').value || null;
           if (fields.checkOut && !fields.date) return fail('Choose the day it checks in.');
@@ -1518,17 +1678,31 @@
           fields.confirm = get('f-confirm');
         }
       }
+      const round = fields.kind === 'journey' && roundTripOn();
+      const back = round ? returnFields(fields) : null;
       if (item) {
-        try {
-          // Someone changed it since this editor opened (the change has already arrived): do not write over it.
-          if (plan.versionOf(item.id) !== ed.version) throw Object.assign(new Error('changed'), { conflict: true });
-          await plan.updateItem(item.id, fields);
-        } catch (err) {
-          if (!err.conflict) throw err;
-          state.conflicts.set(item.id, { patch: fields });
-          closeEditor();
-          return redraw();
-        }
+        // Each leg that changed is written with its own version; a conflict is shown on that leg. Someone changed it since this
+        // editor opened (the change has already arrived): do not write over it.
+        let conflicted = false;
+        const write = async (id, version, patch) => {
+          const cur = plan.list().find((i) => i.id === id);
+          if (!cur || !changes(cur, patch)) return;
+          try {
+            if (plan.versionOf(id) !== version) throw Object.assign(new Error('changed'), { conflict: true });
+            await plan.updateItem(id, patch);
+          } catch (err) {
+            if (!err.conflict) throw err;
+            state.conflicts.set(id, { patch });
+            conflicted = true;
+          }
+        };
+        await write(item.id, ed.version, fields);
+        if (round && ed.backId && plan.list().some((i) => i.id === ed.backId)) await write(ed.backId, ed.backVersion, { ...back, legOf: item.id });
+        else if (round) await plan.addItem({ ...back, legOf: item.id });
+        else if (ed.backId && ed.removeReturn) await plan.removeItem(ed.backId);
+        if (conflicted) { closeEditor(); return redraw(); }
+      } else if (round) {
+        await plan.addRoundTrip(fields, back);
       } else {
         await plan.addItem(fields);
       }
@@ -1544,8 +1718,14 @@
   // The dialog's buttons, by delegation (its form is made afresh each time it opens).
   $('editor').addEventListener('submit', (e) => { e.preventDefault(); saveEditor(); });
   // A journey's arrival follows its departure and length as they are typed; a stay's checkout follows its check-in day.
-  $('editor').addEventListener('input', (e) => { if (['f-time', 'f-hours', 'f-minutes'].includes(e.target.id)) showArrival(); });
-  $('editor').addEventListener('change', (e) => { if (e.target.id === 'f-date') checkoutMin(); });
+  $('editor').addEventListener('input', (e) => {
+    if (['f-time', 'f-hours', 'f-minutes', 'f-back-time', 'f-back-hours', 'f-back-minutes'].includes(e.target.id)) showArrival();
+    if (['f-title', 'f-back-to', 'f-back-toCode'].includes(e.target.id) && $('f-back-title')) $('f-back-title').placeholder = backTitle();
+  });
+  $('editor').addEventListener('change', (e) => {
+    if (e.target.id === 'f-date') checkoutMin();
+    if (e.target.id === 'f-roundtrip') roundTripSwitched(e.target);
+  });
   let deleteArmedInEditor = false;
   $('editor').addEventListener('click', (e) => {
     if (e.target === $('editor')) return closeEditor();
@@ -1559,9 +1739,17 @@
       if (!was) b.classList.add('on');
       return;
     }
+    if (b.id === 'f-extra-delete') {
+      const ed = state.editing;
+      const extra = ed && ed.id ? plan.extraReturns(ed.id) : [];
+      hide($('f-extra'), true);
+      if (extra.length) attempt(() => plan.removeItem(extra[extra.length - 1].id));
+      return;
+    }
     if (b.id === 'f-delete') {
       const ed = state.editing;
       if (!ed || !ed.id) return;
+      if (askDeleteLegs(ed.openedId || ed.id, b, closeEditor)) return;
       if (!deleteArmedInEditor) {
         deleteArmedInEditor = true;
         b.textContent = 'Really delete?';

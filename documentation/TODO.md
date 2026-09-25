@@ -38,12 +38,6 @@ Open, found while building steps 1 to 4:
 Waiting on this plan: [environment templates](plans/plan-environment-templates.md) is reworked on top of it
 and builds after step 5.
 
-## Planner: adding to an empty day, and round trips
-
-Decided (September 24, 2026; plans/plan-planner-adding.md): clicking an empty day opens the add menu for
-that day (#6), and a round trip is two linked journeys with one booking (#9). Builds after the bug fixes
-for #7, #8 and #10 in the Planner; no Names step blocks it.
-
 ## Entering a space, and the first time
 
 Decided (September 24, 2026; plans/plan-entering.md): Enter is the primary action and the call is its own

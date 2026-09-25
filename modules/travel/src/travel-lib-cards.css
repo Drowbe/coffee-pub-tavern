@@ -137,6 +137,10 @@
 /* what the face has no place for, folded under the card: a "More" line, then label/value pairs. Spans the card whatever its own layout. */
 .card > .card-more { grid-column: 1 / -1; flex-basis: 100%; width: 100%; margin: 0; padding: 0 12px 8px; border-top: 1px dashed color-mix(in srgb, var(--tone) 35%, var(--border)); font-size: 12px; }
 .card.transit, .card.meal, .card.act { flex-wrap: wrap; }
+/* a leg of a round trip: a quiet line under the face with the other leg's day, and a warning when the return is before the outbound */
+.card > .card-roundtrip { grid-column: 1 / -1; flex-basis: 100%; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; padding: 6px 12px; border-top: 1px dashed color-mix(in srgb, var(--tone) 35%, var(--border)); color: var(--text-dim); font-size: 12px; }
+.card-roundtrip .ic { color: var(--tone); }
+.card-roundtrip .roundtrip-warn { color: var(--danger); font-weight: 600; }
 .card-more summary { display: flex; align-items: center; gap: 6px; padding: 5px 0; color: var(--text-dim); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; list-style: none; }
 .card-more summary::-webkit-details-marker { display: none; }
 .card-more summary::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform 0.12s ease; }

@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -489,6 +489,153 @@ test('an empty day is a button that opens the day\'s add menu, worded for the po
   assert.match(html, /<template id="tpl-day-empty-add"><li class="day-empty has-add"><button class="day-empty-add" type="button" data-action="day-menu"/, 'the empty day uses the header\'s own day-menu action');
   assert.ok(js.includes("matchMedia('(pointer: coarse)')") && js.includes('Nothing planned yet. ${') && js.includes("'Tap' : 'Click'"), 'Click or Tap to add, chosen by the pointer');
   assert.ok(!js.includes('Add something below'), 'the old sentence pointing at a hidden row is gone');
+});
+
+// --- round trips (#9): two journeys, the return pointing at the outbound with `legOf` --------------------------------
+
+const leg = (id, extra) => lib.cleanItem({ id, kind: 'journey', title: id, mode: 'flight', date: '2026-10-03', ...extra });
+
+test('cleanItem keeps legOf on a journey that is not a car, and keeps the leg\'s own booking details', () => {
+  const back = leg('b', { legOf: 'a', confirm: 'XYZ', cost: 300, paidBy: 'u1' });
+  assert.equal(back.legOf, 'a');
+  assert.equal(back.confirm, 'XYZ', 'set aside only where its outbound is found');
+  assert.equal(back.cost, 300);
+  assert.equal(leg('b', { mode: 'car', legOf: 'a' }).legOf, null, 'a car cannot be a round trip');
+  assert.equal(leg('a', { legOf: 'a' }).legOf, null, 'never its own leg');
+  assert.equal(leg('b', { legOf: 42 }).legOf, null);
+  assert.equal(lib.cleanItem({ id: 's', kind: 'stop', title: 'x', legOf: 'a' }).legOf, undefined, 'only a journey');
+  const old = leg('o', { confirm: 'ABC', cost: 120, paidBy: 'u1' });
+  assert.equal(old.legOf, null, 'an existing one-way journey has none');
+  assert.equal(old.confirm, 'ABC');
+  assert.equal(old.cost, 120);
+  assert.equal(leg('b', { mode: 'train', legOf: 'a' }).legOf, 'a');
+  assert.equal(leg('b', { mode: 'taxi', legOf: 'a' }).legOf, 'a');
+});
+
+test('returnOf and outboundOf read the pair; a return with no outbound, or a second one, reads as one-way', () => {
+  const out = leg('a', { confirm: 'XYZ', cost: 300, paidBy: 'u1' });
+  const back = leg('b', { legOf: 'a', date: '2026-10-09', order: 1000 });
+  const second = leg('c', { legOf: 'a', date: '2026-10-09', order: 2000 });
+  const items = [out, back, second];
+  assert.equal(lib.returnOf(items, 'a').id, 'b');
+  assert.equal(lib.outboundOf(items, back).id, 'a');
+  assert.equal(lib.outboundOf(items, second), null, 'the second return reads as a journey of its own');
+  assert.deepEqual(lib.legsOf(items, 'a').map((i) => i.id), ['b', 'c']);
+  assert.equal(lib.returnOf(items, 'b'), null);
+  assert.equal(lib.outboundOf(items, out), null);
+  assert.equal(lib.outboundOf([back], back), null, 'the outbound is gone');
+  assert.equal(lib.returnOf([leg('a', { mode: 'car' }), back], 'a'), null, 'a car has no return');
+});
+
+test('Bookings lists a round trip once; Money counts its cost once', () => {
+  const out = leg('a', { confirm: 'XYZ', cost: 300, paidBy: 'u1' });
+  const back = leg('b', { legOf: 'a', date: '2026-10-09', cost: 300, paidBy: 'u2' });
+  assert.deepEqual(lib.bookings([out, back]).map((i) => i.id), ['a']);
+  assert.deepEqual(lib.bookings([back]).map((i) => i.id), ['b'], 'a return whose outbound is gone is its own row');
+  assert.deepEqual(lib.costItems([out, back]).map((i) => i.id), ['a'], 'a return found with its outbound is not counted again');
+  const b = lib.balances(lib.costItems([out, back]), ['u1', 'u2']);
+  assert.equal(b.total, 300);
+  assert.equal(b.paid.u1, 300);
+  assert.equal(b.paid.u2 || 0, 0);
+});
+
+test('a return placed before its outbound is noticed', () => {
+  const out = leg('a', { date: '2026-10-05', time: '10:00' });
+  assert.equal(lib.returnBefore(leg('b', { date: '2026-10-04' }), out), true);
+  assert.equal(lib.returnBefore(leg('b', { date: '2026-10-05', time: '09:00' }), out), true);
+  assert.equal(lib.returnBefore(leg('b', { date: '2026-10-05' }), out), false);
+  assert.equal(lib.returnBefore(leg('b', { date: '2026-10-09' }), out), false);
+  assert.equal(lib.returnBefore(leg('b', { date: null }), out), false);
+});
+
+test('a journey with a leftover legOf (its outbound gone) keeps its own booking details, in Bookings and Money', () => {
+  const orphan = leg('bus', { mode: 'bus', legOf: 'gone123', confirm: 'BUS-9', cost: 15, paidBy: 'u1' });
+  assert.equal(orphan.confirm, 'BUS-9');
+  assert.equal(orphan.cost, 15);
+  assert.equal(orphan.paidBy, 'u1');
+  assert.equal(lib.outboundOf([orphan], orphan), null);
+  assert.deepEqual(lib.bookings([orphan]).map((i) => i.id), ['bus']);
+  assert.deepEqual(lib.costItems([orphan]).map((i) => i.id), ['bus']);
+  // the second return of a pair keeps its own too
+  const out = leg('a');
+  const back = leg('b', { legOf: 'a', order: 1 });
+  const second = leg('c', { legOf: 'a', order: 2, confirm: 'C2', cost: 9, paidBy: 'u1' });
+  assert.deepEqual(lib.costItems([out, back, second]).map((i) => i.id), ['c']);
+});
+
+const roundTrips = async () => {
+  const f = fakeHost();
+  const plan = lib.createPlan(f.t);
+  await plan.load();
+  await plan.saveTrip({ start: '2026-10-03', end: '2026-10-09' });
+  await assert.rejects(() => plan.addRoundTrip({ title: 'Car', mode: 'car', date: '2026-10-03' }, { title: 'Back', date: '2026-10-09' }), /car/);
+  assert.equal(plan.list().length, 0, 'nothing is added for a car');
+
+  const { out, back } = await plan.addRoundTrip({ title: 'Flight to New York', mode: 'flight', date: '2026-10-03', fromCode: 'LHR', toCode: 'JFK', confirm: 'XYZ', cost: 800, paidBy: 'u1' }, { title: 'Flight to London', date: '2026-10-09', fromCode: 'JFK', toCode: 'LHR', confirm: 'NO', cost: 5 });
+  assert.equal(back.legOf, out.id);
+  assert.equal(back.mode, 'flight');
+  assert.equal(back.cost, null);
+  assert.equal(plan.returnFor(out.id).id, back.id);
+  assert.equal(plan.outboundFor(back).id, out.id);
+  assert.equal(plan.byDay().get('2026-10-03')[0].id, out.id, 'each leg on its own day');
+  assert.equal(plan.byDay().get('2026-10-09')[0].id, back.id);
+  assert.equal(lib.balances(lib.costItems(plan.list()), ['u1']).total, 800);
+  // a return moved before its outbound is allowed
+  await plan.moveTo(back.id, '2026-10-03', 0);
+  assert.equal(plan.list().find((i) => i.id === back.id).date, '2026-10-03');
+  await plan.moveTo(back.id, '2026-10-09', 0);
+  // an orphan saved alone (its outbound gone) keeps its booking details
+  const lone = await plan.addItem({ kind: 'journey', mode: 'bus', title: 'Old bus', date: '2026-10-05', legOf: 'gone123', confirm: 'BUS-9', cost: 15, paidBy: 'u1' });
+  await plan.updateItem(lone.id, { notes: 'x' });
+  const saved = f.store.get('item:' + lone.id).value;
+  assert.equal(saved.confirm, 'BUS-9');
+  assert.equal(saved.cost, 15);
+  await plan.removeItem(lone.id);
+  n += 1;
+
+  // deleting only the outbound: the return becomes one-way and keeps the booking details
+  await plan.removeLeg(out.id, false);
+  const alone = plan.list().find((i) => i.id === back.id);
+  assert.equal(plan.list().some((i) => i.id === out.id), false);
+  assert.equal(alone.legOf, null);
+  assert.equal(alone.confirm, 'XYZ');
+  assert.equal(alone.cost, 800);
+  assert.equal(alone.paidBy, 'u1');
+  n += 1;
+
+  // deleting both legs, from the return; deleting only the return keeps the outbound as it was
+  const p2 = await plan.addRoundTrip({ title: 'Train to Porto', mode: 'train', date: '2026-10-04', confirm: 'T1', cost: 40, paidBy: 'u1' }, { title: 'Train to Lisbon', date: '2026-10-06' });
+  await plan.removeLeg(p2.back.id, true);
+  assert.equal(plan.list().some((i) => i.id === p2.out.id || i.id === p2.back.id), false);
+  const p3 = await plan.addRoundTrip({ title: 'Ferry', mode: 'ferry', date: '2026-10-04', confirm: 'F1', cost: 20, paidBy: 'u1' }, { title: 'Ferry back', date: '2026-10-05' });
+  await plan.removeLeg(p3.back.id, false);
+  const kept = plan.list().find((i) => i.id === p3.out.id);
+  assert.equal(kept.confirm, 'F1');
+  assert.equal(kept.cost, 20);
+  assert.equal(plan.returnFor(p3.out.id), null);
+  // a journey that is not a round trip is deleted alone
+  await plan.removeLeg(p3.out.id, true);
+  assert.equal(plan.list().some((i) => i.id === p3.out.id), false);
+  n += 1;
+
+  // two returns for one outbound (two people at once): the first by order is the return; the other is an extra
+  const p4 = await plan.addRoundTrip({ title: 'Bus', mode: 'bus', date: '2026-10-04' }, { title: 'Bus back', date: '2026-10-07' });
+  const extra = await plan.addItem({ kind: 'journey', mode: 'bus', title: 'Bus back again', date: '2026-10-07', legOf: p4.out.id });
+  assert.equal(plan.returnFor(p4.out.id).id, p4.back.id);
+  assert.deepEqual(plan.extraReturns(p4.out.id).map((i) => i.id), [extra.id]);
+  assert.equal(plan.outboundFor(extra), null);
+  n += 1;
+};
+await roundTrips();
+
+test('the page: the round trip switch, its mark on a card, and the delete question', () => {
+  const html = read('travel.html');
+  const js = read('travel.js');
+  assert.match(html, /<div class="fieldgroup roundtrip" data-types="flight train ferry bus taxi rideshare shuttle">/, 'every journey but a car offers a round trip');
+  assert.ok(html.includes('id="f-roundtrip" name="roundtrip" type="checkbox" role="switch"'));
+  for (const id of ['f-return', 'f-back-date', 'f-back-time', 'f-back-hours', 'f-back-minutes', 'f-back-number', 'f-back-from', 'f-back-to', 'f-back-fromCode', 'f-back-toCode']) assert.ok(html.includes(`id="${id}"`), id);
+  assert.ok(html.includes('<template id="tpl-card-roundtrip">'));
+  for (const words of ['Delete both legs', 'Delete only this leg', 'Remove the return leg', 'Return is before the outbound']) assert.ok(js.includes(words), words);
 });
 
 console.log(`check-travel: OK (${n} checks)`);
