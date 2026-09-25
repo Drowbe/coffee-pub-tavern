@@ -1,5 +1,5 @@
 // Stream: the module's own page. Every player's links for a streaming program (each carries the server's
-// access key, so this page is for admins and whoever is given "See the stream links"), and the key itself
+// access key, so this page is for owners and whoever is given "See the stream links"), and the key itself
 // with show, copy and regenerate. The views themselves are the keyed page (stream-keyed.js). The SDK
 // (window.host) is injected by the host.
 (async () => {
@@ -17,10 +17,10 @@
     $('note').hidden = false;
     return;
   }
-  const isAdmin = info.user && info.user.role === 'admin';
   $('app').hidden = false;
 
-  // The links are only worth showing with the key in them; without it (not an admin), say why.
+  // The links are only worth showing with the key in them; without it, say why. The server hands the key only to
+  // someone who runs the environment (an owner, or the host admin), so having it is what shows the key panel too.
   let accessKey = null;
   try {
     accessKey = await host.access.key();
@@ -34,7 +34,7 @@
   let shown = false;
   const say = (text) => { $('key-status').textContent = text; if (text) setTimeout(() => { if ($('key-status').textContent === text) $('key-status').textContent = ''; }, 2500); };
   const drawKey = () => { $('key-text').textContent = shown ? accessKey || '' : '••••••••'; $('key-show').textContent = shown ? 'Hide' : 'Show'; };
-  if (isAdmin && accessKey) {
+  if (accessKey) {
     $('key-panel').hidden = false;
     drawKey();
     $('key-show').addEventListener('click', () => { shown = !shown; drawKey(); });
@@ -69,7 +69,7 @@
     const list = $('people');
     list.replaceChildren();
     if (!accessKey) {
-      $('links-note').textContent = 'Only an admin sees the links, since each one carries the access key.';
+      $('links-note').textContent = 'Only an owner sees the links, since each one carries the access key.';
       $('links-note').hidden = false;
       return;
     }

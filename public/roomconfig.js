@@ -2,7 +2,7 @@
 // room in Manage > Rooms and land here, instead of editing it inline in
 // the list. Admin only.
 import { renderModuleSettings } from '/module-settings.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, roomCrumbIcon } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, escapeHtml, crumbLink, getIcons, roomCrumbIcon, hasOwnerRights } from '/brand.js';
 
 const $ = (id) => document.getElementById(id);
 const roomId = decodeURIComponent(location.pathname.split('/')[2] || '');
@@ -318,7 +318,7 @@ async function init() {
   try {
     const info = await api('GET', '/api/me');
     me = info.user;
-    if (me.role !== 'admin') { location.href = '/'; return; }
+    if (!hasOwnerRights(me)) { location.href = '/'; return; }
     $('whoami').textContent = me.displayName;
     $('whoami-img').src = imgUrl(me.key, 'profile');
     $('whoami-img').hidden = false;

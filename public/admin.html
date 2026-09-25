@@ -41,7 +41,7 @@
         <div class="fields">
           <label>Username<input id="new-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
           <label>Display name<input id="new-name" type="text" maxlength="40" autocomplete="off"></label>
-          <label>Role<select id="new-role"><option value="user">User</option><option value="admin">Admin</option></select></label>
+          <label>Role<select id="new-role"><option value="member">Member</option><option value="owner">Owner</option></select></label>
           <label>Password<input id="new-password" type="text" maxlength="200" autocomplete="off" placeholder="leave empty for link only"></label>
           <label class="check"><input id="new-link" type="checkbox" checked> Personal link (no password needed)</label>
         </div>
@@ -188,7 +188,7 @@
     <section class="tab-stack" id="tab-roles" hidden>
       <div class="panel">
         <h2>Roles</h2>
-        <p class="hint">What each kind of person can do. Admin can do everything and can't be turned down. Moderator is what someone gets in any space where they're marked Moderator on their profile's Spaces tab. Guest is everyone who joins from a space's guest link. Changes save as you click.</p>
+        <p class="hint">What each kind of person can do. Owner can do everything and can't be turned down. Moderator is what someone gets in any space where they're marked Moderator on their profile's Spaces tab. Guest is everyone who joins from a space's guest link. Changes save as you click.</p>
         <div class="roles-scroll"><table class="roles-table" id="roles-table"></table></div>
         <p class="status" id="roles-status"></p>
         <p class="hint">Kicking, muting, guest links and asides are enforced by the server. Chat, pictures, reactions and screen sharing are enforced by the page itself (they travel between browsers, not through the server), so they hold for honest use, not for someone determined to get around them.</p>

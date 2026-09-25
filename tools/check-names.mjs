@@ -55,8 +55,9 @@ const LEVELS = [
     codePatterns: [/(?<![A-Za-z])table|(?<=[a-z])Table|TABLE/g],
     wordPatterns: [/\btables?\b/gi],
   },
+  // Words: "admin" in a sentence, meaning the environment's owner; "host admin" is the host's and is not a hit.
   {
-    id: 'role', step: '4', code: 'report', words: null,
+    id: 'role', step: '4', code: 'enforce', words: 'enforce', wordPatterns: [/(?<!host )\badmins?\b/gi],
     codePatterns: [
       /\brole\s*[!=]==?\s*['"](admin|user)['"]/g, /['"](admin|user)['"]\s*[!=]==?\s*[\w.?]*\brole\b/g,
       /\brole:\s*['"](admin|user)['"]/g, /\bROLES\s*=\s*\[[^\]]*['"](admin|user)['"]/g, /\broles\.user\b/g,
@@ -1135,12 +1136,31 @@ function migrationCheck() {
       assert.equal(refuse([['app.json', newApp], ['./app.json', oldApp]]), null, 'an older copy landing last is what is restored');
       assert.equal(refuse([['tavern.json', newApp]]), names.NEWER_BACKUP);
       assert.equal(refuse([['modules/x/app.json', newApp]]), null, 'only the environment\'s own record counts');
-      assert.equal(refuse([['app.json', Buffer.from('{ not json')]]), null);
+    });
+
+    test('restore refuses a backup whose data cannot be read: app.json, or tavern.json when there is no app.json', () => {
+      const oldApp = Buffer.from(original['app.json']);
+      const refuse = (entries) => names.backupRefusal(entries);
+      assert.equal(names.UNREADABLE_BACKUP, "This backup's data can't be read, so nothing was restored.");
+      for (const bad of ['{ not json', '[]', 'null', '42', '"text"', '']) {
+        assert.equal(refuse([['app.json', Buffer.from(bad)]]), names.UNREADABLE_BACKUP, `app.json ${JSON.stringify(bad)}`);
+        assert.equal(refuse([['tavern.json', Buffer.from(bad)]]), names.UNREADABLE_BACKUP, `tavern.json alone ${JSON.stringify(bad)}`);
+      }
+      assert.equal(refuse([['app.json', oldApp], ['./app.json', Buffer.from('{ not json')]]), names.UNREADABLE_BACKUP, 'the last entry is what lands');
+      assert.equal(refuse([['app.json', Buffer.from('{ not json')], ['app.json', oldApp]]), null, 'a good copy landing last is what is restored');
+      assert.equal(refuse([['app.json', oldApp], ['tavern.json', Buffer.from('{ not json')]]), null, 'tavern.json is not read beside an app.json');
+      assert.equal(refuse([['modules/x/data/a.json', Buffer.from('{ not json')]]), null, 'only the environment\'s own data counts');
+      assert.equal(refuse([['images/a.png', Buffer.from('x')]]), null, 'a backup with no app.json starts fresh, as a new environment does');
+      assert.equal(refuse([['app.json', Buffer.from('{}')]]), null, 'an empty object is data');
     });
 
     // --- names-table, the first environment part (plan-names step 3) ---
     const appOf = (dir) => JSON.parse(fs.readFileSync(path.join(dir, 'app.json'), 'utf8'));
     const withoutTable = (settings) => Object.fromEntries(Object.entries(settings).filter(([k]) => k !== 'tableName' && k !== 'room'));
+    // The names-table tests run that part alone, so what they compare is only its own change.
+    const TABLE_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-table');
+    // settings with settings.roles' `user` key named `member`, in the same place.
+    const renamedRoles = (settings) => (settings.roles ? { ...settings, roles: Object.fromEntries(Object.entries(settings.roles).map(([k, v]) => [k === 'user' ? 'member' : k, v])) } : settings);
 
     test('names-table is the first environment part', () => {
       assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id)[0], 'names-table');
@@ -1151,7 +1171,7 @@ function migrationCheck() {
       const old = JSON.parse(original['app.json']);
       assert.ok('tableName' in old.settings && 'room' in old.settings, 'the fixture has both old settings');
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }).slice(0, 1), ['names-table']);
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: TABLE_ONLY, log: (m) => logged.push(m) }), ['names-table']);
       const after = snapshot(dir);
       const app = appOf(dir);
       assert.equal(app.version, 2);
@@ -1167,7 +1187,7 @@ function migrationCheck() {
       assert.equal(after['pre-names/names-table/app.json'], original['app.json'], 'the original app.json copied first');
       for (const rel of Object.keys(original)) if (rel !== 'app.json') assert.equal(after[rel], original[rel], `${rel} untouched`);
       assert.ok(logged.some((m) => m.includes('"names-table"')), 'one line in the log');
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: TABLE_ONLY, log: quiet }), [], 'the second start runs nothing');
       assert.deepEqual(snapshot(dir), after, 'and changes nothing');
     });
 
@@ -1189,12 +1209,12 @@ function migrationCheck() {
       const old = JSON.parse(original['app.json']);
       const { room, ...onlyName } = old.settings;
       fs.writeFileSync(path.join(one, 'app.json'), JSON.stringify({ ...old, settings: { ...onlyName, tableName: 'The Mess Hall' } }));
-      names.migrateEnvironment(one, { log: quiet });
+      names.migrateEnvironment(one, { parts: TABLE_ONLY, log: quiet });
       assert.deepEqual(appOf(one).settings, withoutTable(old.settings));
       const none = copyFixture();
       const already = { ...old, settings: withoutTable(old.settings), rooms: old.rooms.map((r) => (r.id === 'lobby' ? { ...r, description: 'Where everyone meets.' } : r)) };
       fs.writeFileSync(path.join(none, 'app.json'), JSON.stringify(already));
-      names.migrateEnvironment(none, { log: quiet });
+      names.migrateEnvironment(none, { parts: TABLE_ONLY, log: quiet });
       const { version, migrations, ...rest } = appOf(none);
       const { version: v1, ...alreadyRest } = already;
       assert.deepEqual(rest, alreadyRest, 'data already in the new shape is left as it is');
@@ -1203,7 +1223,7 @@ function migrationCheck() {
       const noSettings = copyFixture();
       const { settings, ...bare } = old;
       fs.writeFileSync(path.join(noSettings, 'app.json'), JSON.stringify(bare));
-      names.migrateEnvironment(noSettings, { log: quiet });
+      names.migrateEnvironment(noSettings, { parts: TABLE_ONLY, log: quiet });
       assert.equal('settings' in appOf(noSettings), false, 'an app.json with no settings gains none');
     });
 
@@ -1231,7 +1251,7 @@ function migrationCheck() {
     test('names-table on an install not started since app.json was tavern.json: renamed, then migrated', () => {
       const dir = copyFixture();
       fs.renameSync(path.join(dir, 'app.json'), path.join(dir, 'tavern.json'));
-      names.migrateEnvironment(dir, { log: quiet });
+      names.migrateEnvironment(dir, { parts: TABLE_ONLY, log: quiet });
       assert.ok(!fs.existsSync(path.join(dir, 'tavern.json')));
       assert.deepEqual(appOf(dir).settings, withoutTable(JSON.parse(original['app.json']).settings));
     });
@@ -1259,7 +1279,7 @@ function migrationCheck() {
         const before = JSON.parse(originalHost[`tenants/${slug}/app.json`]);
         assert.deepEqual(names.migrateEnvironment(envDir, { log: quiet }), names.ENVIRONMENT_PARTS.map((p) => p.id), slug);
         const app = appOf(envDir);
-        assert.deepEqual(app.settings, withoutTable(before.settings), `${slug}: only the old settings removed`);
+        assert.deepEqual(app.settings, renamedRoles(withoutTable(before.settings)), `${slug}: only the old settings removed, and the role keys renamed`);
         assert.equal(app.version, 2);
         assert.equal(fs.readFileSync(path.join(envDir, 'pre-names', 'names-table', 'app.json'), 'utf8'), originalHost[`tenants/${slug}/app.json`], `${slug}: its own copy`);
         const after = snapshot(envDir);
@@ -1268,6 +1288,131 @@ function migrationCheck() {
       }
       assert.equal(fs.readFileSync(path.join(dir, 'environments-deleted', 'gone-1767225600000', 'app.json'), 'utf8'), originalHost['tenants-deleted/gone-1767225600000/app.json'], 'a deleted environment is not built, so not migrated');
       assert.ok(!fs.existsSync(path.join(dir, 'pre-names')), 'no environment copy at the host\'s level');
+    });
+
+    // --- names-roles, the role values (plan-names step 4) ---
+    const ROLES_ONLY = names.ENVIRONMENT_PARTS.filter((p) => p.id === 'names-roles');
+
+    test('names-roles is the second environment part, after names-table', () => {
+      assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 2), ['names-table', 'names-roles']);
+    });
+
+    test('names-roles on an old-format environment: admin is owner, user is member, the stand-in is admin, settings.roles.user is member, recorded once, the copy kept', () => {
+      const dir = copyFixture();
+      const old = JSON.parse(original['app.json']);
+      assert.deepEqual(old.users.map((u) => [u.key, u.role, Boolean(u.hostAdmin)]), [['ownerkey01', 'admin', false], ['memberkey1', 'user', false], ['hostkey001', 'user', true]], 'the fixture has an owner, a member and a stand-in someone demoted');
+      assert.ok('user' in old.settings.roles, 'the fixture has custom member permissions under the old key');
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-table', 'names-roles']);
+      const afterTable = JSON.parse(fs.readFileSync(path.join(dir, 'pre-names', 'names-roles', 'app.json'), 'utf8'));
+      assert.deepEqual(names.recordedParts(afterTable), ['names-table'], 'the copy is app.json as names-table left it');
+      const app = appOf(dir);
+      assert.deepEqual(app.users.map((u) => [u.key, u.role]), [['ownerkey01', 'owner'], ['memberkey1', 'member'], ['hostkey001', 'admin']]);
+      assert.deepEqual(app.users.map(({ role, ...u }) => u), old.users.map(({ role, ...u }) => u), 'nothing else on an account changed');
+      assert.deepEqual(app.settings.roles, { moderator: old.settings.roles.moderator, member: old.settings.roles.user, guest: old.settings.roles.guest });
+      assert.deepEqual(Object.keys(app.settings.roles), ['moderator', 'member', 'guest'], 'the key keeps its place');
+      assert.deepEqual(app.invites, old.invites.map((i) => ({ ...i, role: 'member' })), 'an invite\'s role, where one is stored, renamed too');
+      const { version, migrations, settings, users, invites, rooms, ...rest } = app;
+      const { version: v1, settings: s1, users: u1, invites: i1, rooms: r1, ...oldRest } = old;
+      assert.deepEqual(rest, oldRest, 'nothing else in app.json changed');
+      assert.deepEqual(migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]]);
+      assert.ok(logged.some((m) => m.includes('"names-roles"')), 'one line in the log');
+      const after = snapshot(dir);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), after, 'and changes nothing');
+    });
+
+    test('names-roles, run alone again over its own result, writes nothing: the part is idempotent by shape', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const app = appOf(dir);
+      fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify({ ...app, migrations: app.migrations.filter((m) => m.id !== 'names-roles') }));
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-roles'], 'only names-roles is due');
+      const again = appOf(dir);
+      assert.deepEqual({ ...again, migrations: [] }, { ...app, migrations: [] }, 'the same data, recorded again');
+    });
+
+    test('names-roles: an owner, member or stand-in already in the new shape, and no settings.roles, are left as they are', () => {
+      const dir = copyFixture();
+      const old = JSON.parse(original['app.json']);
+      const { roles, ...noRoles } = old.settings;
+      const already = { ...old, settings: noRoles, invites: [], users: [{ ...old.users[0], role: 'owner' }, { ...old.users[1], role: 'member' }, { ...old.users[2], role: 'admin' }] };
+      fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(already));
+      names.migrateEnvironment(dir, { parts: ROLES_ONLY, log: quiet });
+      const { version, migrations, ...rest } = appOf(dir);
+      const { version: v1, ...alreadyRest } = already;
+      assert.deepEqual(rest, alreadyRest);
+      assert.equal('roles' in rest.settings, false, 'no settings.roles is made');
+    });
+
+    test('names-roles: settings.roles with both user and member refuses when they differ, and keeps one when they agree', () => {
+      const old = JSON.parse(original['app.json']);
+      const differ = copyFixture();
+      const differing = { ...old, settings: { ...old.settings, roles: { user: { chat: true }, member: { chat: false } } } };
+      fs.writeFileSync(path.join(differ, 'app.json'), JSON.stringify(differing));
+      const before = snapshot(differ);
+      assert.throws(() => names.migrateEnvironment(differ, { parts: ROLES_ONLY, log: quiet }), (err) => err instanceof names.MigrationError && /both "user" and "member"/.test(err.message) && err.file === path.join(differ, 'app.json'));
+      assert.deepEqual(snapshot(differ, (rel) => rel.startsWith('pre-names')), before, 'nothing changed, nothing recorded');
+      const agree = copyFixture();
+      fs.writeFileSync(path.join(agree, 'app.json'), JSON.stringify({ ...old, settings: { ...old.settings, roles: { user: { chat: true }, member: { chat: true } } } }));
+      names.migrateEnvironment(agree, { parts: ROLES_ONLY, log: quiet });
+      assert.deepEqual(appOf(agree).settings.roles, { member: { chat: true } });
+    });
+
+    test('names-roles after Store: the roles read by their new names, the custom member permissions kept, the record kept', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const store = new Store(dir);
+      assert.deepEqual(store.users.map((u) => u.role), ['owner', 'member', 'admin']);
+      assert.equal(store.roleSet('member').startAside, true, 'the member override (was settings.roles.user) applies');
+      assert.equal(store.roleSet('member').chat, false);
+      assert.equal(store.roomPermissions('memberkey1', null).startAside, true, 'and to a member');
+      assert.equal(store.roomPermissions('memberkey1', 'keep01').canKick, true, 'the moderator grant in The Keep still gives the Moderator column');
+      assert.equal(store.roomPermissions('memberkey1', null).canKick, false, 'but only there');
+      assert.ok(Object.values(store.roomPermissions('ownerkey01', null)).every(Boolean), 'the owner has every permission');
+      assert.ok(Object.values(store.roomPermissions('hostkey001', null)).every(Boolean), 'and the stand-in');
+      assert.deepEqual(Object.keys(store.roles()), ['owner', 'moderator', 'member', 'guest']);
+      assert.equal(store.ownerCount(), 1, 'the stand-in is not an owner');
+      store.save();
+      const app = appOf(dir);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles']);
+      assert.deepEqual(app.users.map((u) => u.role), ['owner', 'member', 'admin']);
+    });
+
+    test('names-roles on a new environment: recorded as run, moving nothing, no copy', () => {
+      const dir = path.join(base, 'fresh-roles');
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-table', 'names-roles']);
+      assert.deepEqual(appOf(dir).migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]]);
+      assert.equal(fs.existsSync(path.join(dir, 'pre-names')), false);
+    });
+
+    test('names-roles on a hosted environment: the owner, the member and the host admin\'s stand-in', () => {
+      const dir = copyHostFixture();
+      names.migrateHost(dir, { log: quiet });
+      const envDir = path.join(dir, 'environments', 'acme');
+      names.migrateEnvironment(envDir, { log: quiet });
+      const app = appOf(envDir);
+      assert.deepEqual(app.users.map((u) => [u.login, u.role, Boolean(u.hostAdmin)]), [['owner', 'owner', false], ['pat', 'member', false], ['boss', 'admin', true]]);
+      assert.deepEqual(app.settings.roles, { member: { startAside: true }, guest: { react: false } });
+      assert.ok(fs.existsSync(path.join(envDir, 'pre-names', 'names-roles', 'app.json')));
+    });
+
+    test('the Store takes only owner and member as an account\'s role, keeps one owner, and never changes the stand-in\'s', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const store = new Store(dir);
+      assert.throws(() => store.addUser({ login: 'x1', role: 'admin' }), /role must be owner or member/);
+      assert.throws(() => store.addUser({ login: 'x2', role: 'user' }), /role must be owner or member/);
+      assert.equal(store.addUser({ login: 'x3' }).role, 'member', 'no role given: a member');
+      assert.throws(() => store.updateUser('ownerkey01', { role: 'member' }), /keep at least one owner/);
+      assert.throws(() => store.removeUser('ownerkey01'), /keep at least one owner/);
+      assert.throws(() => store.updateUser('memberkey1', { role: 'admin' }), /role must be owner or member/);
+      assert.throws(() => store.updateUser('hostkey001', { role: 'member' }), /host admin's/);
+      assert.equal(store.updateUser('memberkey1', { role: 'owner' }).role, 'owner');
+      assert.equal(store.updateUser('ownerkey01', { role: 'member' }).role, 'member', 'with a second owner, the first can step down');
+      assert.throws(() => store.setRolePermissions('owner', { chat: false }), /every permission/);
+      assert.throws(() => store.setRolePermissions('user', { chat: false }), (err) => err.status === 404 && /no such role/.test(err.message));
+      assert.equal(store.setRolePermissions('member', { chat: true }).member.chat, true);
     });
 
     test('names-table: an app.json that is not valid JSON stops the start, naming it, with nothing changed', () => {

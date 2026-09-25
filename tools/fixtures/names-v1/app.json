@@ -10,7 +10,7 @@
     "room": "table",
     "roles": {
       "moderator": { "chat": true },
-      "user": { "chat": true },
+      "user": { "startAside": true, "chat": false },
       "guest": { "chat": false }
     }
   },
@@ -32,6 +32,15 @@
       "rooms": {
         "keep01": { "useDefaultImages": true, "permissions": { "moderator": true } }
       }
+    },
+    {
+      "key": "hostkey001",
+      "login": "boss",
+      "displayName": "boss",
+      "role": "user",
+      "passwordHash": null,
+      "hostAdmin": true,
+      "rooms": {}
     }
   ],
   "rooms": [

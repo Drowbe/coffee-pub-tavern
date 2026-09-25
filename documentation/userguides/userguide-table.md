@@ -75,7 +75,7 @@ The conference has the same titlebar as the chat and every module: the same butt
 
 ## Reactions
 
-The smiley button in the bar opens a tray, set up by an admin on the Theme tab of the Manage page
+The smiley button in the bar opens a tray, set up by an owner on the Theme tab of the Manage page
 (six by default: heart, thumbs up, thumbs down, laugh, question mark, and a die for a natural 20).
 The first six are also keys **1** to **6**. A reaction floats up from your tile for a couple of
 seconds on everyone's screen, and up your Participant and Character boxes in OBS. Nothing is stored.
@@ -104,7 +104,7 @@ The settings popover holds your audio and video choices:
   microphone below a threshold, and switches for the browser's noise suppression, echo cancellation
   and auto gain. Talk mode is open microphone or push to talk (hold Space by default). Hover another
   player's tile for a volume slider that applies only on your side.
-- **Video.** Camera choice, quality (360p, 540p or 720p, up to the ceiling the admin sets), and a
+- **Video.** Camera choice, quality (360p, 540p or 720p, up to the ceiling the owner sets), and a
   mirror for your own preview. Background is off, **blur**, or a **custom image** you upload on your
   profile page. Blur and custom images run on your own device and load their model only the first
   time you turn one on; nothing external is fetched.

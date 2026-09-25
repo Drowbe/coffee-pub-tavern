@@ -814,7 +814,7 @@
     },
 
     // The server's access key, the one a keyed page's link carries (`/<path>/<key>?s=<access key>`): null unless the
-    // viewer is an admin. `regenerate()` makes a new one, so every link made with the old one stops working.
+    // viewer runs the environment (an owner, or the host admin). `regenerate()` makes a new one, so every link made with the old one stops working.
     access: {
       key: () => call('access.key'),
       regenerate: () => call('access.regenerate'),

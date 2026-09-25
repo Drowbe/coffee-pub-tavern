@@ -14,7 +14,7 @@ order:
 2. Environment: the host-level migration part, `/api/host/environments`, the console's code names.
    **Built** (September 24, 2026).
 3. Table out, and the call's name. **Built** (September 24, 2026).
-4. Roles: `owner`, `member` and the host's stand-in `admin`.
+4. Roles: `owner`, `member` and the host's stand-in `admin`. **Built** (September 24, 2026).
 5. Space and the environment scope: the server and data (5a), the pages (5b), the SDK, the manifest and the
    bundled modules (5c).
 6. Canvas and module.
@@ -23,7 +23,7 @@ order:
 9. The documentation: renamed files and wiki pages, and the text.
 10. The aliases go, once a Coffee Pub Studio release reads the new names.
 
-Open, found while building steps 1 and 2:
+Open, found while building steps 1 to 4:
 
 - A check that compiles every `pattern` attribute in `public/*.html` and in the pages' JS templates with the
   `v` flag, as browsers do, so a pattern that breaks there is caught (today's: `host.html:107`,
@@ -32,9 +32,30 @@ Open, found while building steps 1 and 2:
   can no longer happen, since a blank name is refused, so the fallback can go.
 - On the host console, the shared top bar makes requests that answer 404 there. This was so before the
   Names plan.
+- The Stream module's **See the stream links and the access key** permission does nothing now: the links
+  and the key are shown to owners and the host admin only. Remove it in step 5c.
 
 Waiting on this plan: [environment templates](plans/plan-environment-templates.md) is reworked on top of it
 and builds after step 5.
+
+## Planner: adding to an empty day, and round trips
+
+Decided (September 24, 2026; plans/plan-planner-adding.md): clicking an empty day opens the add menu for
+that day (#6), and a round trip is two linked journeys with one booking (#9). Builds after the bug fixes
+for #7, #8 and #10 in the Planner; no Names step blocks it.
+
+## Entering a space, and the first time
+
+Decided (September 24, 2026; plans/plan-entering.md): Enter is the primary action and the call is its own
+control inside the space, with an owner-set "Opens with" for each space (#3); guidance in the page, a
+welcome card for each role and each space, and a setup checklist for a new owner (#2). Part 1 waits for
+Names steps 5b and 6; part 2 waits for Names steps 4 and 5b, and part 1.
+
+## Object status: action required, tentative, confirmed
+
+Decided (September 24, 2026; plans/plan-object-status.md): a status in the shared object summary, drawn by
+the SDK, with the Planner first: a filter and "Needs action" in Decisions (#12). Waits for Names step 7.
+Planner changes shown in the Calendar (#13) builds on it and is not planned yet.
 
 ## Two-step sign-in: what is left
 

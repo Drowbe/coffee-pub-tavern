@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel } from '/brand.js';
 import { pickBackground } from '/background-picker.js';
 
 const $ = (id) => document.getElementById(id);
@@ -88,7 +88,7 @@ function fill(card, user) {
   card.dataset.key = user.key;
   card.querySelector('[data-name]').textContent = user.displayName;
   card.querySelector('[data-login]').textContent = user.login;
-  card.querySelector('[data-role]').textContent = user.role;
+  card.querySelector('[data-role]').textContent = roleLabel(user);
   card.querySelector('[data-key]').textContent = user.key;
   card.querySelector('[data-thumb]').src = imgUrl(user.key, 'profile');
   card.querySelector('[data-action="edit"]').href = `/profile/${encodeURIComponent(user.key)}`;
@@ -168,10 +168,10 @@ async function loadUsers() {
 }
 
 // --- roles ---------------------------------------------------------------------
-// A grid: one row per permission, one column per role. Admin is always all
+// A grid: one row per permission, one column per role. Owner is always all
 // on and disabled; the other three save the moment a box is clicked.
 
-const ROLE_COLUMNS = [['admin', 'Admin'], ['moderator', 'Moderator'], ['user', 'User'], ['guest', 'Guest']]; // 'Admin' reads 'Owner' on a hosted environment (applyHosted)
+const ROLE_COLUMNS = [['owner', 'Owner'], ['moderator', 'Moderator'], ['member', 'Member'], ['guest', 'Guest']];
 
 function renderRoles({ permissions, roles }) {
   const rows = ['<thead><tr><th></th>' + ROLE_COLUMNS.map(([, label]) => `<th>${label}</th>`).join('') + '</tr></thead><tbody>'];
@@ -181,10 +181,10 @@ function renderRoles({ permissions, roles }) {
       group = p.group;
       rows.push(`<tr class="roles-group"><th colspan="${ROLE_COLUMNS.length + 1}">${escapeHtml(group)}</th></tr>`);
     }
-    rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map(([role]) => {
+    rows.push(`<tr><th scope="row">${escapeHtml(p.label)}</th>` + ROLE_COLUMNS.map(([role, label]) => {
       const noGuestAi = role === 'guest' && p.key === 'useAi'; // the server refuses guests whatever the box says
-      const locked = role === 'admin' || noGuestAi;
-      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${roles[role][p.key] && !noGuestAi ? 'checked' : ''} ${locked ? `disabled title="${noGuestAi ? 'Guests can never use AI' : 'Admins can always do this'}"` : ''} aria-label="${escapeHtml(p.label)}, ${role}"></td>`;
+      const locked = role === 'owner' || noGuestAi;
+      return `<td><input type="checkbox" data-role="${role}" data-perm="${p.key}" ${(roles[role] || {})[p.key] && !noGuestAi ? 'checked' : ''} ${locked ? `disabled title="${noGuestAi ? 'Guests can never use AI' : 'Owners can always do this'}"` : ''} aria-label="${escapeHtml(p.label)}, ${label}"></td>`;
     }).join('') + '</tr>');
   }
   rows.push('</tbody>');
@@ -1292,19 +1292,16 @@ function mfaBypassBanner() {
   b.className = 'env-page-banner';
   b.dataset.mfaBypass = '1';
   b.setAttribute('role', 'status');
-  b.textContent = 'The admin lockout bypass is on: admins are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
+  b.textContent = 'The lockout bypass is on: owners are not asked for their two-step code. Reset your factor on your profile if you need to, then turn ADMIN_MFA_LOCKOUT_BYPASS off on the server.';
   const topbar = document.querySelector('.topbar');
   if (topbar) topbar.after(b); else document.body.prepend(b);
 }
 
 // --- the environment on a hosted server -----------------------------------------------------------------------------
-// Words and controls: an environment's admin is its owner, and what only the host does (uploading a module zip, running a
-// module in the page) is not offered to an owner. The host's own cross sign-in sees everything.
+// What only the host does (uploading a module zip, running a module in the page) is not offered to an owner. The host's
+// own sign-in (the stand-in) sees everything.
 function applyHosted() {
   if (!environment.hosted) return;
-  ROLE_COLUMNS[0][1] = 'Owner';
-  const opt = $('new-role').querySelector('option[value="admin"]');
-  if (opt) opt.textContent = 'Owner';
   for (const el of document.querySelectorAll('[data-host-only]')) el.hidden = hostOnlyHidden();
 }
 
@@ -1403,7 +1400,7 @@ async function init() {
   try {
     const info = await api('GET', '/api/me');
     me = info.user;
-    if (me.role !== 'admin') {
+    if (!hasOwnerRights(me)) {
       location.href = '/';
       return;
     }

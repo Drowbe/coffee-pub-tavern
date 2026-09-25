@@ -29,7 +29,6 @@
   /*__LIB__*/
 
   const canEdit = host.can('edit');
-  const isAdmin = info.user && info.user.role === 'admin';
   const maplibregl = window.maplibregl;
   // The pane's width, not the window's: a bundled module runs in the page, so a media query would follow the window. The
   // stylesheet keys its narrow layout on `.app.narrow`.
@@ -388,9 +387,7 @@
     const wanted = state.settings.maps;
     const app = $('app');
     if (!wanted.length) {
-      showState(isAdmin ? 'tpl-state-nomap-admin' : 'tpl-state-nomap-member');
-      const link = $('state').querySelector('[data-action="open-settings"]');
-      if (link) link.href = '/admin.html#modules';
+      showState('tpl-state-nomap'); // the same words for everyone: a module can't tell an owner apart without a permission
       render();
       return;
     }

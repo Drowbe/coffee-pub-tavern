@@ -1,13 +1,13 @@
 # Server Settings
 
-**Audience:** an admin running a Coffee Pub Magpie server, working through the Manage page.
+**Audience:** an owner running a Coffee Pub Magpie server, working through the Manage page.
 
 Open the Manage page with the gear icon in the header. It has six tabs, in this order: **Server**,
-**Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only admins see it.
+**Theme**, **Rooms**, **Roles**, **Users** and **Modules**, plus **About**. Only owners (and, on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
 
 ## Server
 
-- **Environment** (a hosted server only). The plan's name, each cap with what is used, the overdue banner when a payment has lapsed, **Upgrade**, **Download a copy** and **Ask for deletion**. See [Your environment](userguide-environments.md). On a hosted server the Manage page calls its admin the **owner** everywhere.
+- **Environment** (a hosted server only). The plan's name, each cap with what is used, the overdue banner when a payment has lapsed, **Upgrade**, **Download a copy** and **Ask for deletion**. See [Your environment](userguide-environments.md).
 - **Server name and icon.** The name shows in the header and the browser tab. The icon is any image;
   it is used in the header, as the favicon, and on the sign-in page. Click it to change it, and the
   small **x** over its corner to clear it.

@@ -4,7 +4,7 @@
 // changed, rather than a flat table of everyone on the Manage page.
 import { renderModuleSettings } from '/module-settings.js';
 import { pickBackground } from '/background-picker.js';
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, hasOwnerRights } from '/brand.js';
 import { formatHotkey, comboFromEvent } from '/hotkeys.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 
@@ -16,7 +16,6 @@ const $ = (id) => document.getElementById(id);
 const editingKey = decodeURIComponent(location.pathname.split('/')[2] || '') || null;
 let me = null; // the signed-in admin, only used for the "last admin" check
 let user = null; // whose profile this is: me, or the person being edited
-let hosted = false; // a host with environments: an admin is the environment's owner in every word a person reads
 let mfaRequired = false; // the environment requires a second factor of the signed-in person (their own profile only)
 let mfaOffered = true; // the server offers two-step sign-in at all (ENABLE_MFA)
 let mfaBypass = false; // the server's admin lockout bypass applies to the signed-in person: no code asked, own reset offered
@@ -61,7 +60,6 @@ async function reload() {
   } else {
     const res = await api('GET', '/api/me');
     user = res.user;
-    hosted = Boolean(res.environment && res.environment.hosted);
     mfaRequired = Boolean(res.mfaRequired);
     mfaOffered = res.mfaOffered !== false;
     mfaBypass = Boolean(res.mfaBypass);
@@ -124,33 +122,41 @@ function render() {
     $('cp-cam-key').textContent = formatHotkey(cp.camKey);
   }
 
-  $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
+  $('admin-link').hidden = !hasOwnerRights(me || user);
   $('portrait-hint').textContent = editing
     ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile in the call. Click it to change it -- it is not the picture used in the recording, that's below.`
-    : 'Your own photo: it shows next to your name in the header and on your tile in the call. Click it to change it; square images look best. It is not the picture used in the recording — your admin sets that.';
+    : 'Your own photo: it shows next to your name in the header and on your tile in the call. Click it to change it; square images look best. It is not the picture used in the recording — the owner sets that.';
 
-  // Account: read-only facts normally, editable fields for an admin. Same
+  // Account: read-only facts normally, editable fields for an owner. Same
   // boxed layout either way (see .facts/.fact in style.css) -- only
   // whether a box holds plain text or an input changes.
   $('account-facts').hidden = editing;
   $('account-fields').hidden = !editing;
   $('account-save-row').hidden = !editing;
   $('account-hint').hidden = editing;
-  const adminOpt = $('e-role').querySelector('option[value="admin"]');
-  if (adminOpt) adminOpt.textContent = hosted ? 'Owner' : 'Admin';
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
-    $('f-role').textContent = user.role === 'admin' ? (hosted ? 'Owner: runs the environment' : 'Admin: runs the environment') : 'Player';
-    $('f-password').textContent = user.hasPassword ? 'Set. Only an admin can change it.' : 'None. You sign in with your personal link.';
+    $('f-role').textContent = user.hostAdmin ? 'Host admin: runs this server' : hasOwnerRights(user) ? 'Owner: runs the environment' : 'Member';
+    $('f-password').textContent = user.hasPassword ? 'Set. Only an owner can change it.' : 'None. You sign in with your personal link.';
   } else if (document.activeElement?.closest?.('#account-fields') == null) {
     $('e-name').value = user.displayName;
     $('e-login').value = user.login;
-    $('e-role').value = user.role;
-    // The last admin cannot be demoted, and neither can the admin editing
+    // The host admin's stand-in is not a role anyone is given: it shows as it is, and can't be changed here.
+    const roleSelect = $('e-role');
+    let standIn = roleSelect.querySelector('option[data-host-admin]');
+    if (user.hostAdmin && !standIn) {
+      standIn = new Option('Host admin', user.role);
+      standIn.dataset.hostAdmin = '';
+      roleSelect.add(standIn);
+    } else if (!user.hostAdmin && standIn) standIn.remove();
+    roleSelect.value = user.role;
+    roleSelect.disabled = Boolean(user.hostAdmin);
+    $('e-role-note').hidden = !user.hostAdmin;
+    // The last owner cannot be demoted, and neither can the owner editing
     // their own account here -- the disabled option itself says enough.
     const self = me && user.key === me.key;
-    $('e-role').querySelector('option[value="user"]').disabled = self;
+    roleSelect.querySelector('option[value="member"]').disabled = self;
     $('account-clear-password').hidden = !user.hasPassword;
   }
   renderMfa(editing);
@@ -220,17 +226,17 @@ function fillRoomSection(section, room, roomImages) {
   }
   section.querySelector('[data-action="room-remove"]').hidden = !editing;
 
-  // Only an admin sets any of this, same as the images themselves.
+  // Only an owner sets any of this, same as the images themselves.
   const perms = roomImages.permissions || {};
   for (const box of section.querySelectorAll('[data-permission]')) {
     box.checked = !!perms[box.dataset.permission];
-    box.disabled = !editing || user.role === 'admin';
+    box.disabled = !editing || hasOwnerRights(user);
   }
-  section.querySelector('[data-permissions-hint]').textContent = user.role === 'admin'
-    ? `${hosted ? 'Owners' : 'Admins'} can always do all of this, in every space.`
+  section.querySelector('[data-permissions-hint]').textContent = hasOwnerRights(user)
+    ? `${user.hostAdmin ? 'The host admin' : 'Owners'} can always do all of this, in every space.`
     : editing
       ? `Moderator makes ${user.displayName} a moderator in ${room.name} only -- they get everything the Moderator role has (Manage > Roles) here, and nothing extra elsewhere.`
-      : `Set by your admin. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
+      : `Set by the owner. Moderator gives you the Moderator role's permissions in ${room.name} only.`;
   const useDefault = roomImages.useDefaultImages !== false;
   const useBox = section.querySelector('[data-use-default]');
   useBox.checked = useDefault;
@@ -482,7 +488,7 @@ function renderMfa(editing) {
   $('mfa-hint').textContent = editing
     ? (on ? `${user.displayName} signs in with a code from an authenticator app. Reset it if the app is gone; they are signed out everywhere and asked nothing until they set it up again.` : `${user.displayName} signs in with a password only.`)
     : mfaBypass
-      ? (on ? 'The admin lockout bypass is on, so you are not asked for a code. Reset your factor here if the app is gone, then turn the bypass off on the server.' : 'The admin lockout bypass is on; turn it off on the server once you are back in.')
+      ? (on ? 'The lockout bypass is on, so you are not asked for a code. Reset your factor here if the app is gone, then turn the bypass off on the server.' : 'The lockout bypass is on; turn it off on the server once you are back in.')
       : on
         ? (mfaRequired ? 'A code from your authenticator app, after the password. This environment requires it.' : 'A code from your authenticator app, after the password.')
         : (mfaRequired ? 'This environment requires a second step. Set it up now.' : 'A code from an authenticator app after the password, if you want one.');
@@ -514,7 +520,8 @@ async function run(fn, statusEl) {
 }
 
 $('account-save').addEventListener('click', () => run(async () => {
-  const patch = { displayName: $('e-name').value, login: $('e-login').value, role: $('e-role').value };
+  const patch = { displayName: $('e-name').value, login: $('e-login').value };
+  if (!$('e-role').disabled) patch.role = $('e-role').value; // the host admin's stand-in keeps its role
   const password = $('e-password').value;
   if (password) patch.password = password;
   user = (await api('PATCH', `/api/users/${user.key}`, patch)).user;
@@ -612,8 +619,7 @@ async function init() {
     if (editingKey) {
       const mine = await api('GET', '/api/me');
       me = mine.user;
-      hosted = Boolean(mine.environment && mine.environment.hosted);
-      if (me.role !== 'admin') { location.href = '/'; return; }
+      if (!hasOwnerRights(me)) { location.href = '/'; return; }
     }
     const [, { rooms }] = await Promise.all([reload(), api('GET', '/api/rooms')]);
     roomsById = new Map(rooms.map((r) => [r.id, r]));

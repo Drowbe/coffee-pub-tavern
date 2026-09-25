@@ -1,31 +1,31 @@
 {
   "assistant": {
-    "version": "0.1.10",
-    "hash": "95477defcb6c5eba"
+    "version": "0.1.11",
+    "hash": "fbaee7a48a3ecd75"
   },
   "calendar": {
     "version": "1.17.7",
     "hash": "5ef4f096beb11e53"
   },
   "maps": {
-    "version": "0.7.12",
-    "hash": "c3de6705a271a77e"
+    "version": "0.7.13",
+    "hash": "4ed96f74c05e8b2b"
   },
   "places": {
     "version": "0.8.12",
     "hash": "eadaa1a8f7fcc37a"
   },
   "polls": {
-    "version": "1.12.9",
-    "hash": "13c2c96f6e8d9595"
+    "version": "1.12.10",
+    "hash": "b5b355133fd81a33"
   },
   "research": {
-    "version": "0.2.9",
-    "hash": "a0a6beb9261e5d34"
+    "version": "0.2.10",
+    "hash": "a141b2db9cc7c2a4"
   },
   "stream": {
-    "version": "0.1.2",
-    "hash": "5d47ee22775e5feb"
+    "version": "0.1.3",
+    "hash": "8b27da23b61a4e86"
   },
   "todo": {
     "version": "1.11.7",

@@ -59,13 +59,21 @@ const PLATE_TEXT_CASES = ['default', 'upper', 'lower', 'sentence'];
 // Pre-0.3 names, accepted on the way in and on image routes.
 const LEGACY_SLOTS = { novideo: 'player', normal: 'character' };
 const DEFAULT_BORDER_COLOR = '#6fae6b';
-const ROLES = ['admin', 'user'];
+// An account's role (plan-names, "Roles"): `owner` runs the environment, `member` is everyone else with an account,
+// and `admin` is only ever the host admin's stand-in account inside an environment (hostAdmin: true, see
+// resolveLoginUser in index.js). A guest has no account, and a moderator is a per-space grant (below), so neither
+// is an account's role. Only owner and member can be given to an account; admin comes with the stand-in.
+const ROLES = ['admin', 'owner', 'member'];
+const ASSIGNABLE_ROLES = ['owner', 'member'];
+// Who has every right in the environment: its owners, and the host admin signed in through the stand-in.
+const OWNER_RIGHTS = ['owner', 'admin'];
+const hasOwnerRights = (user) => Boolean(user) && OWNER_RIGHTS.includes(user.role);
 // Per-room grants on a member (user.rooms[roomId].permissions). Just one:
 // Moderator, which gives them the whole Moderator role (Settings > Roles)
 // in that room only -- anything else is a role-level permission, not a
 // per-room one.
 const ROOM_PERMISSIONS = ['moderator'];
-// The four roles (Settings > Roles): no custom roles yet. Admin always has
+// The four roles (Settings > Roles): no custom roles yet. Owner always has
 // every permission and can't be edited; the other three are a grid of
 // on/off per permission, defaults below. The last group are enforced by
 // the server (kick/mute/invite, asides and private calls); the in-call ones
@@ -99,14 +107,14 @@ const ROLE_PERMISSIONS = [
   { key: 'image_characterAside', label: 'Character: Aside', group: 'Images' },
   { key: 'image_characterPrivate', label: 'Character: Private', group: 'Images' },
 ];
-// Images: everyone but an admin starts with just the profile photo and the
-// call background; the OBS pictures are the admin's until a role is given them.
+// Images: everyone but an owner starts with just the profile photo and the
+// call background; the OBS pictures are the owner's until a role is given them.
 const IMAGE_KEYS = ROLE_PERMISSIONS.filter((p) => p.group === 'Images').map((p) => p.key);
 const imageDefaults = (own) => Object.fromEntries(IMAGE_KEYS.map((k) => [k, own && (k === 'image_profile' || k === 'image_background')]));
-const EDITABLE_ROLES = ['moderator', 'user', 'guest'];
+const EDITABLE_ROLES = ['moderator', 'member', 'guest'];
 const ROLE_DEFAULTS = {
   moderator: { ...Object.fromEntries(ROLE_PERMISSIONS.map((p) => [p.key, true])), useAi: false, ...imageDefaults(true) },
-  user: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(true) },
+  member: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: true, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(true) },
   guest: { conference: true, chatRead: true, chat: true, sendPictures: true, react: true, shareScreen: true, privateCall: false, startAside: false, canMute: false, canKick: false, canInvite: false, useAi: false, ...imageDefaults(false) },
 };
 function cleanRoomPermissions(p) {
@@ -615,7 +623,9 @@ class Store {
       key,
       login: cleanLogin(u.login) || key,
       displayName: cleanText(u.displayName, 40) || cleanLogin(u.login) || key,
-      role: ROLES.includes(u.role) ? u.role : 'user',
+      // The stand-in is always `admin` and nobody else is; anything else reads as owner or member (the names-roles
+      // migration has already renamed the old values, so this only ever meets them in hand-made data).
+      role: u.hostAdmin ? 'admin' : OWNER_RIGHTS.includes(u.role) ? 'owner' : 'member',
       passwordHash: typeof u.passwordHash === 'string' ? u.passwordHash : null,
       // A user record that stands in for a host admin signed in here (see resolveLoginUser in index.js): its own
       // passwordHash is always null, so nothing inside the environment can ever authenticate as it directly -- the
@@ -928,6 +938,7 @@ class Store {
   addUser({ login, displayName, role, passwordHash, hostAdmin }) {
     const cleaned = cleanLogin(login);
     if (!cleaned) throw new StoreError('username is required');
+    if (role !== undefined && !hostAdmin && !ASSIGNABLE_ROLES.includes(role)) throw new StoreError('role must be owner or member');
     if (this.userByLogin(cleaned)) throw new StoreError('that username is taken');
     const user = this.sanitizeUser({
       key: this.newKey(),
@@ -955,11 +966,10 @@ class Store {
       user.login = cleaned;
     }
     if (patch.displayName !== undefined) user.displayName = cleanText(patch.displayName, 40) || user.login;
-    if (patch.role !== undefined) {
-      if (!ROLES.includes(patch.role)) throw new StoreError('role must be admin or user');
-      if (user.role === 'admin' && patch.role !== 'admin' && this.adminCount() <= 1) {
-        throw new StoreError('keep at least one admin');
-      }
+    if (patch.role !== undefined && patch.role !== user.role) {
+      if (user.hostAdmin) throw new StoreError("this account is the host admin's, so its role can't be changed here");
+      if (!ASSIGNABLE_ROLES.includes(patch.role)) throw new StoreError('role must be owner or member');
+      if (user.role === 'owner' && this.ownerCount() <= 1) throw new StoreError('keep at least one owner');
       user.role = patch.role;
     }
     if (patch.passwordHash !== undefined) user.passwordHash = patch.passwordHash || null;
@@ -1029,7 +1039,7 @@ class Store {
   removeUser(key) {
     const user = this.userByKey(key);
     if (!user) throw new StoreError('no such user', 404);
-    if (user.role === 'admin' && this.adminCount() <= 1) throw new StoreError('keep at least one admin');
+    if (user.role === 'owner' && this.ownerCount() <= 1) throw new StoreError('keep at least one owner');
     this.data.users = this.data.users.filter((u) => u.key !== key);
     for (const room of this.data.rooms) room.members = room.members.filter((k) => k !== key);
     this.save();
@@ -1037,8 +1047,9 @@ class Store {
     return user;
   }
 
-  adminCount() {
-    return this.data.users.filter((u) => u.role === 'admin').length;
+  // Owners only: the host admin's stand-in is not one, so it never counts toward keeping one.
+  ownerCount() {
+    return this.data.users.filter((u) => u.role === 'owner').length;
   }
 
   // --- rooms --------------------------------------------------------------
@@ -1296,8 +1307,8 @@ class Store {
   }
 
   // --- roles -------------------------------------------------------------
-  // Every permission for a role: admin all on, the others defaults plus
-  // whatever an admin changed.
+  // Every permission for a role: owner (and the host admin's stand-in) all on,
+  // the others defaults plus whatever an owner changed.
   // Permissions enabled modules add to the Roles grid (see ModuleManager.permissionList);
   // the server sets this once modules are loaded.
   extraPermissions = () => [];
@@ -1315,20 +1326,21 @@ class Store {
 
   roleSetRaw(role) {
     const extras = this.extraPermissions();
-    if (role === 'admin') return Object.fromEntries([...ROLE_PERMISSIONS, ...extras].map((p) => [p.key, true]));
-    const defaultsFor = { moderator: 'moderator', user: 'user', guest: 'guest' }[role] || 'user';
-    const base = { ...(ROLE_DEFAULTS[role] || ROLE_DEFAULTS.user), ...Object.fromEntries(extras.map((p) => [p.key, Boolean(p.defaults?.[defaultsFor])])) };
+    if (OWNER_RIGHTS.includes(role)) return Object.fromEntries([...ROLE_PERMISSIONS, ...extras].map((p) => [p.key, true]));
+    const defaultsFor = EDITABLE_ROLES.includes(role) ? role : 'member';
+    const base = { ...ROLE_DEFAULTS[defaultsFor], ...Object.fromEntries(extras.map((p) => [p.key, Boolean(p.defaults?.[defaultsFor])])) };
     const set = { ...base };
     for (const [k, v] of Object.entries(this.data.settings.roles?.[role] || {})) if (k in base) set[k] = Boolean(v);
     return set;
   }
 
   roles() {
-    return Object.fromEntries(['admin', ...EDITABLE_ROLES].map((r) => [r, this.roleSetRaw(r)]));
+    return Object.fromEntries(['owner', ...EDITABLE_ROLES].map((r) => [r, this.roleSetRaw(r)]));
   }
 
   setRolePermissions(role, patch) {
-    if (!EDITABLE_ROLES.includes(role)) throw new StoreError('that role cannot be changed');
+    if (OWNER_RIGHTS.includes(role)) throw new StoreError("the owner has every permission, so that role can't be changed");
+    if (!EDITABLE_ROLES.includes(role)) throw new StoreError('no such role', 404);
     const mine = (this.data.settings.roles[role] ??= {});
     for (const p of this.allPermissions()) if (patch?.[p.key] !== undefined) mine[p.key] = Boolean(patch[p.key]);
     this.save();
@@ -1340,18 +1352,18 @@ class Store {
   roomPermissions(key, roomId) {
     const user = this.userByKey(key);
     if (!user) return this.roleSet('guest');
-    if (user.role === 'admin') return this.roleSet('admin');
+    if (hasOwnerRights(user)) return this.roleSet('owner');
     const set = this.roleSet(user.role);
     const flags = cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
     if (flags.moderator) Object.assign(set, Object.fromEntries(Object.entries(this.roleSet('moderator')).filter(([, v]) => v)));
     return set;
   }
 
-  // The stored per-room ticks themselves, for editing (admins read as all on).
+  // The stored per-room ticks themselves, for editing (owners read as all on).
   roomFlags(key, roomId) {
     const user = this.userByKey(key);
     if (!user) return cleanRoomPermissions();
-    if (user.role === 'admin') return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, true]));
+    if (hasOwnerRights(user)) return Object.fromEntries(ROOM_PERMISSIONS.map((k) => [k, true]));
     return cleanRoomPermissions(user.rooms?.[roomId]?.permissions);
   }
 
@@ -1543,6 +1555,6 @@ class StoreError extends Error {
 
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS,
-  LEGACY_SLOTS, ROLES, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
+  LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
   sanitizeMfa,
 };

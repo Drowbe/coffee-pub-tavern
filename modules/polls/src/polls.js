@@ -192,7 +192,8 @@
     return Date.now() >= p.closesAt ? `Closed ${when}` : `Closes ${when}`;
   }
 
-  const mayManage = (x) => canCreate && x.scope === 'own' && (x.p.byKey === me || info.user.role === 'admin');
+  const manageAny = host.can('manage_any'); // close, change and delete polls other people started (owners always can)
+  const mayManage = (x) => canCreate && x.scope === 'own' && (x.p.byKey === me || manageAny);
   function optionLinkHtml(x, o) {
     if (!o.link) return '';
     const c = optCards.get(refKey(o.link));
@@ -266,7 +267,7 @@
         <span class="fill" style="width:${width}%"></span><span class="name">${esc(o.text)}${o.date ? `<small>${esc(new Date(o.date + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }))}</small>` : ''}${o.desc ? `<small>${esc(o.desc)}</small>` : ''}</span><span class="num">${win ? (leaders.length > 1 ? 'Tied &middot; ' : 'Winner &middot; ') : ''}${names.length}</span></button>
         ${names.length ? `<div class="who">${esc(names.join(', '))}</div>` : ''}${optionLinkHtml(x, o)}`;
     }).join('');
-    const canManage = canCreate && x.scope === 'own' && (p.byKey === me || info.user.role === 'admin');
+    const canManage = mayManage(x);
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
       ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">${moreSvg}</button>` : ''}

@@ -1,7 +1,7 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.9",
+  "version": "1.12.10",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole server and for each room, with live results.",
   "author": "Coffee Pub",
@@ -55,6 +55,15 @@
         "user": true,
         "guest": false,
         "moderator": true
+      }
+    },
+    {
+      "key": "manage_any",
+      "label": "Close and delete polls other people started",
+      "default": {
+        "member": false,
+        "guest": false,
+        "moderator": false
       }
     }
   ],

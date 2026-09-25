@@ -348,6 +348,10 @@ function cleanSettings(raw) {
   return out;
 }
 
+// A module's own permission key: lowercase letters, digits and underscores, starting with a letter (tools/check-modules.mjs
+// holds the bundled modules to it).
+const PERMISSION_KEY_RE = /^[a-z][a-z0-9_]{0,23}$/;
+
 function cleanManifest(raw, files) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new ModuleError('module.json must be an object');
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
@@ -404,13 +408,15 @@ function cleanManifest(raw, files) {
   const permissions = [];
   for (const p of Array.isArray(raw.permissions) ? raw.permissions.slice(0, 20) : []) {
     const key = typeof p?.key === 'string' ? p.key.trim() : '';
-    if (!/^[a-z][a-z0-9_]{0,23}$/.test(key)) throw new ModuleError(`module.json: permission key "${key}" must be lowercase letters, digits or underscores`);
+    if (!PERMISSION_KEY_RE.test(key)) throw new ModuleError(`module.json: permission key "${key}" must be lowercase letters, digits or underscores`);
     if (permissions.some((x) => x.key === key)) throw new ModuleError(`module.json: permission "${key}" is listed twice`);
     const d = p.default && typeof p.default === 'object' ? p.default : {};
     permissions.push({
       key,
       label: text(p.label, 60) || key,
-      default: { user: Boolean(d.user), guest: Boolean(d.guest), moderator: Boolean(d.moderator ?? d.user) },
+      // A manifest names its defaults by role; `user` is the old name of `member`, read until the manifest's own
+      // rename (plan-names step 5c).
+      default: { member: Boolean(d.member ?? d.user), guest: Boolean(d.guest), moderator: Boolean(d.moderator ?? d.member ?? d.user) },
     });
   }
   const hooks = Object.fromEntries(HOOKS.map((h) => [h, Boolean(raw.hooks?.[h])]));
@@ -454,6 +460,14 @@ function cleanManifest(raw, files) {
 }
 
 // --- the registry ---------------------------------------------------------
+
+// A permission's defaults from a stored manifest (the author's original), keyed by role: `member` read under its
+// old name `user` too, until the manifests move to the new names (plan-names step 5c). A missing moderator stays
+// off, as it always has here.
+function permissionDefaults(d) {
+  const given = d && typeof d === 'object' ? d : {};
+  return { moderator: Boolean(given.moderator), member: Boolean(given.member ?? given.user), guest: Boolean(given.guest) };
+}
 
 class ModuleManager {
   constructor(dataDir) {
@@ -585,13 +599,14 @@ class ModuleManager {
     return null;
   }
 
-  // The permissions enabled modules add to the Roles grid: module.<id>.<key>.
+  // The permissions enabled modules add to the Roles grid: module.<id>.<key>. `defaults` is keyed by the editable
+  // roles (moderator, member, guest), whatever the stored manifest calls them.
   permissionList() {
     return this.enabledAll().flatMap(({ manifest }) => manifest.permissions.map((p) => ({
       key: `module.${manifest.id}.${p.key}`,
       label: p.label,
       group: `Module: ${manifest.name}`,
-      defaults: p.default,
+      defaults: permissionDefaults(p.default),
     })));
   }
 
@@ -862,4 +877,4 @@ class ModuleManager {
   }
 }
 
-module.exports = { ModuleManager, ModuleError, cleanManifest, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, cleanManifest, permissionDefaults, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

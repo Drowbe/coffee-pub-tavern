@@ -1096,7 +1096,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
       return true;
     },
-    // The server's access key (an admin's to see), for a module that builds links to a keyed page.
+    // The server's access key (an owner's to see), for a module that builds links to a keyed page.
     async 'access.key'() {
       return (await api('GET', '/api/me')).streamKey || null;
     },

@@ -17,11 +17,20 @@
 // it gets the environment's name under that old name.
 const tableName = (_answer, { environmentName }) => ({ tableName: environmentName });
 
+// Step 4: the roles. Studio refuses anyone whose role is not 'admin' and looks for an online 'admin' to know the
+// game's runner is there, so it is sent the old values: 'admin' for an owner (and for the host admin's stand-in,
+// which is 'admin' already), 'user' for a member. The field keeps its name, so the old value replaces the new one
+// in Studio's answer only. streamKey needs nothing here: the server sends it to an owner already.
+const OLD_ROLE = { owner: 'admin', admin: 'admin', member: 'user' };
+const oldRole = (role) => OLD_ROLE[role] || role;
+const meRole = (answer) => (answer.user ? { user: { ...answer.user, role: oldRole(answer.user.role) } } : {});
+const statusRoles = (answer) => (Array.isArray(answer.users) ? { users: answer.users.map((u) => ({ ...u, role: oldRole(u.role) })) } : {});
+
 // GET /api/me. Context: { role, hostAdmin, environmentName } -- the few values an entry needs, never the account
 // record itself (it holds the password hash and the two-step secret).
-const ME = [tableName];
+const ME = [tableName, meRole];
 // GET /api/status. Context: { environmentName }; the rest is in the answer.
-const STATUS = [tableName];
+const STATUS = [tableName, statusRoles];
 
 // Whether this request signed in the way Studio does: by a bearer token that actually signed someone in, rather
 // than the pages' cookie. A bearer header is read before any cookie (auth.sessionToken), so a request carrying one
@@ -44,4 +53,4 @@ function apply(entries, req, answer, context = {}) {
 const me = (req, answer, context) => apply(ME, req, answer, context);
 const status = (req, answer, context) => apply(STATUS, req, answer, context);
 
-module.exports = { me, status, fromStudio, ME, STATUS };
+module.exports = { me, status, fromStudio, oldRole, ME, STATUS };

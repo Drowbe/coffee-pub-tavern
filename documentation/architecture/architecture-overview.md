@@ -25,7 +25,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   behind strict routers. Magpie calls its server API for the participant list, kick and mute.
 - **Magpie web app** serves the pages, mints LiveKit access tokens, and keeps accounts, rooms, images and
   settings. It never touches media.
-- **Coffee Pub Studio** signs in as an admin and creates one OBS Browser Source per player, pointing at
+- **Coffee Pub Studio** signs in as an owner and creates one OBS Browser Source per player, pointing at
   that player's view page.
 
 ## Technology
@@ -65,10 +65,16 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 
 - Every account has a stable eight-character **key**. Images, view links and OBS source names use it, so
   renaming never touches OBS.
-- A user has one of four roles (admin, moderator, user, guest). The permissions each editable role has
-  live in `settings.roles` as overrides of built-in defaults, so a permission added later starts at its
-  default. A member can also be flagged Moderator in one room, which grants the Moderator role's
-  permissions there only.
+- An account's `role` is `owner` or `member`; `admin` is only the host admin's own account inside an
+  environment (`hostAdmin: true`), which can't be changed or given (`ROLES` and `ASSIGNABLE_ROLES` in
+  `server/store.js`). `owner` and `admin` have every right (`OWNER_RIGHTS`, `hasOwnerRights()`); the
+  owner-only routes use `requireOwner` and answer 403 `owners only` (the pages: "Owners only."). There is always
+  at least one owner, the host admin's account not counted. A guest is not an account. The permissions each
+  editable role (`moderator`, `member`, `guest`) has live in `settings.roles` as overrides of built-in
+  defaults, so a permission added later starts at its default; `GET /api/roles` answers them keyed `owner`,
+  `moderator`, `member` and `guest`, and `PATCH /api/roles/:role` changes one (`/api/roles/owner` answers 400
+  "the owner has every permission, so that role can't be changed"). A member can also be flagged Moderator in
+  one space, which grants the Moderator role's permissions there only.
 - A member's room entry holds their per-room pictures, whether those replace their defaults, and that
   Moderator flag. Picture lookups fall from room picture, to the member's default, to the server's
   Default Images.
@@ -95,7 +101,7 @@ an ephemeral room that holds its origin space's id and is removed when empty.
   "LiveKit: ..." when the call service fails.
 - `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ room, invite: { id } }`;
   `POST /api/asides/invite/:id/decline` answers `{ ok: true }`.
-- `POST /api/asides/recall` (an admin) tells every private conversation pulled out of the admin's space to come
+- `POST /api/asides/recall` (an owner) tells every private conversation pulled out of the owner's space to come
   back, and answers `{ recalled }`, the number of them; 400 "you need to be in a call yourself to recall anyone"
   or "nobody is off in a private conversation from here right now".
 - `POST /api/asides/return` takes the caller, and the aside's other members, back to the space the aside came
@@ -116,14 +122,14 @@ signaling, 7881 TCP and 7882 UDP for media, 3478 for TURN), and `magpie`, the No
 hostnames, because browsers only allow camera access over HTTPS.
 
 Bandwidth is the real sizing number: eight players at 720p is roughly eight times 1.5 Mbps in and about
-eight times seven times 1.5 Mbps out at the server. Player quality is capped by an admin setting.
+eight times seven times 1.5 Mbps out at the server. Player quality is capped by an owner's setting.
 
 ## Development
 
 ```bash
 npm install
 LIVEKIT_HOST=localhost:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=... \
-ADMIN_USER=gm ADMIN_PASSWORD=secret npm run dev
+ADMIN_USER=gm OWNER_PASSWORD=secret npm run dev
 ```
 
 Data goes to `./data` unless `DATA_DIR` says otherwise. `LIVEKIT_API_URL` overrides the HTTP address used

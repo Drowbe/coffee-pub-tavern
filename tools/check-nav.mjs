@@ -159,7 +159,7 @@ test('href: a path on this server or an https address, nothing else', () => {
   assert.throws(() => cleanModuleTools('m', [{ id: 'a', icon: 'x', label: 'x', href: 'http://example.org/' }]), /href/);
 });
 
-test('the primary bar: refused unless the admin allowed the module there and the tool is system-wide, and then only the right zone', () => {
+test('the primary bar: refused unless the owner allowed the module there and the tool is system-wide, and then only the right zone', () => {
   const tool = { id: 'a', icon: 'x', label: 'x', bar: 'primary' };
   assert.throws(() => cleanModuleTools('m', [tool]), (e) => /primary bar/.test(e.message) && e.status === 403);
   assert.throws(() => cleanModuleTools('m', [tool], { allowPrimary: true }), (e) => /system: true/.test(e.message) && e.status === 403);

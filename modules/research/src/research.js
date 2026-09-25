@@ -26,7 +26,7 @@
 
   const canEdit = host.can('edit');
   const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so nothing of their own
-  const isAdmin = Boolean(info.user && info.user.role === 'admin');
+  const removeAnyPhoto = host.can('remove_photos'); // a space's photos other people added (owners always can)
   const me = (info.user && info.user.key) || '';
 
   // Two stores of the same kind of thing: this room's, and the person's own (private, the same in every room).
@@ -296,7 +296,7 @@
 
   // --- the item menu ------------------------------------------------------------------------------------------------
 
-  const mayRemove = (it) => canEdit && (view === 'my' || it.kind !== 'photo' || it.by === me || isAdmin);
+  const mayRemove = (it) => canEdit && (view === 'my' || it.kind !== 'photo' || it.by === me || removeAnyPhoto);
   // Remove armed by id, cleared a few seconds after arming so a stray later click cannot remove unarmed.
   const armedRemove = new Set();
   function openMenu(id, button) {

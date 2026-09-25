@@ -98,7 +98,7 @@ export function cleanModuleTools(moduleId, tools, { allowPrimary = false } = {})
     const bar = t.bar === 'primary' ? 'primary' : 'secondary';
     const zone = ZONES.includes(t.zone) ? t.zone : 'right';
     if (bar === 'primary') {
-      if (!allowPrimary || !t.system) refuse(`nav tool "${id}": the primary bar takes only a system-wide tool (system: true) from a module the admin has allowed there (surfaces.page.nav); a module's own tools go in the secondary bar`, 403);
+      if (!allowPrimary || !t.system) refuse(`nav tool "${id}": the primary bar takes only a system-wide tool (system: true) from a module the owner has allowed there (surfaces.page.nav); a module's own tools go in the secondary bar`, 403);
       if (zone !== 'right') refuse(`nav tool "${id}": a module's system tool goes into the primary bar's right zone only`);
     }
     const icon = String(t.icon ?? '');

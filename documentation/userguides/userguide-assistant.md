@@ -1,10 +1,10 @@
 # Assistant
 
-**Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Magpie server, and an admin setting it up.
+**Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Magpie server, and an owner setting it up.
 
-Assistant is a place for an open-ended conversation with the AI the admin set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add anything with a card as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
+Assistant is a place for an open-ended conversation with the AI the owner set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add anything with a card as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
 
-## Set it up (admin)
+## Set it up (owner)
 
 1. Set up the AI itself first: on the Modules tab, **AI service** (none, OpenAI, Anthropic, or another OpenAI-compatible service), a model and a key, then **Approve and enable**. See [Modules](userguide-modules.md).
 2. On the Modules tab, choose **Install** beside Assistant, then **Approve and enable**. It asks to link to every other module's items, to ask their actions, and to use the AI hook.

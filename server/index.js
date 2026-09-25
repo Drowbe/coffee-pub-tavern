@@ -27,7 +27,7 @@ const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require(
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
-const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
+const { Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, ROOM_PROFILES, ROOM_PROFILE_SLOTS, LEGACY_SLOTS, ROLE_PERMISSIONS, hasOwnerRights, IMAGE_TYPES, MAX_IMAGE_BYTES, LOBBY, randomToken, cleanText } = require('./store');
 const auth = require('./auth');
 const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
@@ -42,11 +42,12 @@ const {
   LIVEKIT_API_URL = '',
   LIVEKIT_API_KEY = '',
   LIVEKIT_API_SECRET = '',
-  ADMIN_USER = '',
-  ADMIN_PASSWORD = '',
-  ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
+  ADMIN_USER = '', // the login of the owner OWNER_PASSWORD makes (an account name, so it keeps its name)
+  OWNER_PASSWORD = '',
+  ADMIN_PASSWORD = '', // the old name of OWNER_PASSWORD: still read, with a line on start, until a later release
+  ADMIN_KEY = '', // pre-account releases used this; accepted as the owner password
   TAVERN_ADMIN_USER = '', // deprecated: use ADMIN_USER
-  TAVERN_ADMIN_PASSWORD = '', // deprecated: use ADMIN_PASSWORD
+  TAVERN_ADMIN_PASSWORD = '', // deprecated: use OWNER_PASSWORD
   TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_KEY
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
@@ -91,8 +92,11 @@ const {
 
 // The old ADMIN_* names, from before the rename: still honoured (compose files in the wild set them), the new
 // name always winning when both are set.
-const adminUser = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
-const adminPassword = ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
+const ownerLogin = ADMIN_USER || TAVERN_ADMIN_USER || 'admin';
+// The single-environment install's owner (plan-names decisions 7, 15 and 20): OWNER_PASSWORD, or its old name
+// ADMIN_PASSWORD (the new name wins when both are set, and the old one says so on every start it is set).
+const ownerPassword = OWNER_PASSWORD || ADMIN_PASSWORD || TAVERN_ADMIN_PASSWORD;
+if (ADMIN_PASSWORD) console.warn('ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release.');
 const adminKey = ADMIN_KEY || TAVERN_ADMIN_KEY;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 // The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names
@@ -347,7 +351,7 @@ function environmentFor(slug) {
   try {
     env = buildEnvironment(dataDir, {
       slug: slug || null,
-      admin: slug ? null : { login: adminUser, password: adminPassword || adminKey },
+      owner: slug ? null : { login: ownerLogin, password: ownerPassword || adminKey },
       managed: managedAi,
     });
   } catch (err) {
@@ -538,13 +542,13 @@ async function callOf(key) {
   return p ? p.call : null;
 }
 
-// The room the stream currently hears: the first online admin's room, or the
-// Lobby if no admin is in a call. With the usual single GM this is
-// exactly "wherever the GM is"; with more than one online admin, whichever
-// is earliest in the user list wins.
+// The room the stream currently hears: the first online owner's room (the
+// host admin's stand-in counts as one), or the Lobby if no owner is in a call.
+// With the usual single GM this is exactly "wherever the GM is"; with more
+// than one online owner, whichever is earliest in the user list wins.
 function activeRoomId(online) {
   for (const u of store.users) {
-    if (u.role !== 'admin') continue;
+    if (!hasOwnerRights(u)) continue;
     const p = online.get(u.key);
     if (p) return followableRoomId(p.room);
   }
@@ -561,12 +565,12 @@ function followableRoomId(roomId) {
   return roomId;
 }
 
-// Whether activeRoom actually means anything right now: with no admin
+// Whether activeRoom actually means anything right now: with no owner
 // online there's no "wherever the GM is" to compare against, and view.js's
 // aside dim treatment needs to know that rather than reading activeRoom's
 // Lobby fallback as a real room everyone else is suddenly "aside" from.
-function hasOnlineAdmin(online) {
-  return store.users.some((u) => u.role === 'admin' && online.has(u.key));
+function hasOnlineOwner(online) {
+  return store.users.some((u) => hasOwnerRights(u) && online.has(u.key));
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -630,11 +634,11 @@ function secretsKeyBuf() {
   return _secretsKeyBuf;
 }
 
-// Whether the admin lockout bypass applies to this particular person: an environment's own admin (the owner,
-// on a hosted server) -- never the host admin's own cross sign-in pseudo-account, which has no real factor of
-// its own to be locked out of (documentation/plans/plan-mfa.md, "Regaining access").
+// Whether the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) applies to this particular person: an environment's own
+// owner -- never the host admin's own cross sign-in stand-in (role admin), which has no real factor of its own to
+// be locked out of (documentation/plans/plan-mfa.md, "Regaining access").
 function mfaBypassApplies(user) {
-  return adminMfaLockoutBypass && user.role === 'admin' && !user.hostAdmin;
+  return adminMfaLockoutBypass && user.role === 'owner';
 }
 
 // Whether the environment's policy requires this particular person to have a second factor: settings.mfaRequired,
@@ -706,13 +710,14 @@ function hasStreamKey(req) {
   return given.length === wanted.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(wanted));
 }
 
-function isAdmin(req) {
-  return currentUser(req)?.role === 'admin';
+// An owner, or the host admin signed in through the stand-in: every right in this environment.
+function isOwner(req) {
+  return hasOwnerRights(currentUser(req));
 }
 
-// Stream access: an admin session or the stream key (OBS, the Studio app).
+// Stream access: an owner's session or the stream key (OBS, the Studio app).
 function hasStreamAccess(req) {
-  return isAdmin(req) || hasStreamKey(req);
+  return isOwner(req) || hasStreamKey(req);
 }
 
 // A guest's own reads (the presence roster, everyone's pictures): any request
@@ -730,9 +735,9 @@ function requireUser(req, res, next) {
   next();
 }
 
-function requireAdmin(req, res, next) {
+function requireOwner(req, res, next) {
   if (!currentUser(req)) return res.status(401).json({ error: 'sign in first' });
-  if (!isAdmin(req)) return res.status(403).json({ error: 'admins only' });
+  if (!isOwner(req)) return res.status(403).json({ error: 'owners only' });
   next();
 }
 
@@ -779,7 +784,7 @@ function publicUser(req, u) {
 // talking colour, so tiles and frames match.
 function presenceUser(u) {
   const p = store.effectivePlayer(u);
-  return { key: u.key, displayName: u.displayName, isAdmin: u.role === 'admin', border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
+  return { key: u.key, displayName: u.displayName, isAdmin: hasOwnerRights(u), border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
@@ -969,7 +974,7 @@ hostRouter.post('/api/host/me/mfa/disable', requireMfaOffered, requireHostAdmin,
 // POST /api/me/mfa/reset).
 hostRouter.post('/api/host/me/mfa/reset', requireMfaOffered, requireHostAdmin, (req, res) => {
   const admin = currentHostAdmin(req);
-  if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the admin lockout bypass is not turned on' });
+  if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on' });
   if (!auth.verifyPassword(req.body?.password || '', admin.passwordHash)) return res.status(401).json({ error: 'wrong password' });
   hostRegistry.hostAdminMfaDisable(admin.key);
   const token = auth.issueSession(hostRegistry.sessionSecret, hostRegistry.findAdminByKey(admin.key));
@@ -982,7 +987,7 @@ hostRouter.delete('/api/host/environments/:slug/owners/:login/mfa', requireHostA
   if (!hostRegistry.findEnvironment(req.params.slug)) return res.status(404).json({ error: 'no such environment' });
   const env = environmentFor(req.params.slug);
   const owner = env.store.userByLogin(req.params.login);
-  if (!owner || owner.role !== 'admin' || owner.hostAdmin) return res.status(404).json({ error: 'no owner with that login there' });
+  if (!owner || owner.role !== 'owner') return res.status(404).json({ error: 'no owner with that login there' });
   env.store.mfaDisable(owner.key);
   res.json({ ok: true });
 });
@@ -1012,7 +1017,7 @@ hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
     const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan });
     const env = environmentFor(environment.slug); // the fresh directory and its services, built now
     const owner = req.body?.owner;
-    if (owner?.login && owner?.password) env.store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
+    if (owner?.login && owner?.password) env.store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'owner', passwordHash: auth.hashPassword(owner.password) });
     res.status(201).json({ environment });
   } catch (err) {
     sendHostError(err, res);
@@ -1212,9 +1217,10 @@ hostRouter.post('/api/host/environments/:slug/restore', requireHostAdmin, rawHos
   if (!req.body || !req.body.length) return res.status(400).json({ error: 'choose a zip file to restore' });
   try {
     const files = await readEnvironmentZip(req.body);
-    // A backup whose app.json (or older tavern.json) records a Names migration part this server does not know was
-    // made by a newer Magpie, and would be read here in a shape this server does not understand. Checked on what
-    // would actually land: names as written to disk, the last of any repeated entry.
+    // A backup whose data (app.json, or tavern.json when there is no app.json) cannot be read, or whose app.json (or
+    // older tavern.json) records a Names migration part this server does not know (made by a newer Magpie), is
+    // refused before anything is replaced. Checked on what would actually land: names as written to disk, the last
+    // of any repeated entry.
     const refusal = backupRefusal(files);
     if (refusal) return res.status(400).json({ error: refusal });
     const env = environments.get(req.params.slug);
@@ -1571,7 +1577,7 @@ app.post('/api/product/signup', (req, res) => {
     if (!owner?.login || !owner?.password) throw new HostError('an owner login and password are required');
     const free = hostRegistry.plansCatalog().free;
     const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
-    environmentFor(environment.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'admin', passwordHash: auth.hashPassword(owner.password) });
+    environmentFor(environment.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'owner', passwordHash: auth.hashPassword(owner.password) });
     // The new environment's own port, carried through the same way the PREVIOUS_BASE_DOMAINS redirect above
     // does: invisible behind a real proxy (the port is implicit there), but wrong in local development, where
     // BASE_DOMAIN is often "localhost" at some other port than 80/443.
@@ -1696,13 +1702,13 @@ app.get('/module-settings', (req, res) => {
 // see public/profile.js, which tells the two apart by the URL.
 app.get('/profile/:key', (req, res) => {
   if (!currentUser(req)) return res.redirect(`/login?next=/profile/${encodeURIComponent(req.params.key)}`);
-  if (!isAdmin(req)) return res.status(403).send('Admins only.');
+  if (!isOwner(req)) return res.status(403).send('Owners only.');
   res.sendFile(page('profile.html'));
 });
 
 app.get('/admin', (req, res) => {
   if (!currentUser(req)) return res.redirect('/login?next=/admin');
-  if (!isAdmin(req)) return res.status(403).send('Admins only.');
+  if (!isOwner(req)) return res.status(403).send('Owners only.');
   res.sendFile(page('admin.html'));
 });
 
@@ -1710,7 +1716,7 @@ app.get('/admin', (req, res) => {
 // Manage > Rooms and land here instead of editing it inline in the list.
 app.get('/rooms/:id', (req, res) => {
   if (!currentUser(req)) return res.redirect(`/login?next=/rooms/${encodeURIComponent(req.params.id)}`);
-  if (!isAdmin(req)) return res.status(403).send('Admins only.');
+  if (!isOwner(req)) return res.status(403).send('Owners only.');
   res.sendFile(page('roomconfig.html'));
 });
 
@@ -1952,7 +1958,7 @@ app.post('/api/register', (req, res) => {
   if (refuseOverMembers(res)) return;
   const { login, displayName, password } = req.body || {};
   if (!password) throw new StoreError('a password is required');
-  const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
+  const user = store.addUser({ login, displayName, role: 'member', passwordHash: auth.hashPassword(password) });
   const token = auth.issueSession(store.sessionSecret, user);
   auth.setSessionCookie(req, res, token);
   setEnvHint(req, res);
@@ -1962,7 +1968,7 @@ app.post('/api/register', (req, res) => {
 // An admin-made invite: signs someone up straight into the rooms it was
 // made with. Works even while general sign-up is off -- an admin handed
 // this out on purpose.
-app.post('/api/invites', requireAdmin, (req, res) => {
+app.post('/api/invites', requireOwner, (req, res) => {
   const invite = store.createInvite((req.body || {}).rooms);
   res.status(201).json({ invite: { ...invite, url: `${baseUrl(req)}/invite/${invite.token}` } });
 });
@@ -1977,7 +1983,7 @@ app.post('/api/invites/:token/accept', (req, res) => {
   if (refuseOverMembers(res)) return;
   const { login, displayName, password } = req.body || {};
   if (!password) throw new StoreError('a password is required');
-  const user = store.addUser({ login, displayName, role: 'user', passwordHash: auth.hashPassword(password) });
+  const user = store.addUser({ login, displayName, role: 'member', passwordHash: auth.hashPassword(password) });
   for (const roomId of invite.rooms) {
     const room = store.roomById(roomId);
     if (room) store.updateRoom(roomId, { members: [...room.members, user.key] });
@@ -1999,12 +2005,11 @@ app.get('/api/me', requireUser, (req, res) => {
   res.json(studioAlias.me(req, {
     user: publicUser(req, user),
     ...branding(),
-    // Owner is a page word, not a stored role: inside an environment role: 'admin' is the owner (see
-    // plan-tenants.md, "Phase 2: the owner role and the split"), except the host admin's own cross sign-in
-    // user, which is never one.
-    environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.serverName, owner: user.role === 'admin' && !user.hostAdmin, hostAdmin: Boolean(user.hostAdmin) },
+    // `owner`: this account is one of the environment's owners -- never the host admin's own cross sign-in stand-in
+    // (role admin), which has an owner's rights but is not one.
+    environment: { hosted: Boolean(BASE_DOMAIN), slug: currentEnvironment().slug || null, name: store.settings.serverName, owner: user.role === 'owner', hostAdmin: Boolean(user.hostAdmin) },
     livekitUrl: livekitWsUrl(req),
-    streamKey: user.role === 'admin' ? store.streamKey : undefined,
+    streamKey: hasOwnerRights(user) ? store.streamKey : undefined,
     // documentation/plans/plan-mfa.md: mfaEnrolled also rides along inside `user` (publicUser, for everyone
     // else's own account too); mfaRequired is this session's own -- the policy asks something of this person
     // that they have not met yet, so the profile page can show the inline enrolment banner -- and overrides
@@ -2074,15 +2079,14 @@ app.post('/api/me/mfa/disable', requireMfaOffered, requireUser, (req, res) => {
   auth.setSessionCookie(req, res, token);
   res.json({ ok: true, token });
 });
-// The lockout bypass's own way back in: no code needed, just the account's own password -- for an admin who
-// has a second factor but lost the means to produce a code at all. Only while ADMIN_MFA_LOCKOUT_BYPASS is on,
-// and only for an admin (documentation/plans/plan-mfa.md, "Regaining access"); the host admin's own cross
+// The lockout bypass's own way back in: no code needed, just the account's own password -- for an
+// owner who has a second factor but lost the means to produce a code at all. Only while ADMIN_MFA_LOCKOUT_BYPASS is on,
+// and only for an owner (documentation/plans/plan-mfa.md, "Regaining access"); the host admin's own cross
 // sign-in has no real factor of its own, so it is excluded the same way mfaBypassApplies excludes it.
 app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
   const user = currentUser(req);
-  if (!adminMfaLockoutBypass || user.role !== 'admin' || user.hostAdmin) {
-    return res.status(403).json({ error: 'the admin lockout bypass is not turned on' });
-  }
+  if (!adminMfaLockoutBypass) return res.status(403).json({ error: 'the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on' });
+  if (!mfaBypassApplies(user)) return res.status(403).json({ error: 'only an owner can use the lockout bypass' });
   if (!user.passwordHash || !auth.verifyPassword(req.body?.password || '', user.passwordHash)) {
     return res.status(401).json({ error: 'wrong password' });
   }
@@ -2093,7 +2097,7 @@ app.post('/api/me/mfa/reset', requireMfaOffered, requireUser, (req, res) => {
 });
 // An environment admin resets a member's factor -- never their own (use disable instead) -- signing them out
 // everywhere and asking nothing until they enrol again.
-app.delete('/api/users/:key/mfa', requireAdmin, (req, res) => {
+app.delete('/api/users/:key/mfa', requireOwner, (req, res) => {
   if (currentUser(req).key === req.params.key) return res.status(400).json({ error: 'reset your own from your profile instead' });
   if (!store.userByKey(req.params.key)) return res.status(404).json({ error: 'no such user' });
   store.mfaDisable(req.params.key);
@@ -2114,7 +2118,7 @@ app.post('/api/token', async (req, res) => {
   }
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
-  if (!theRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
+  if (!theRoom.members.includes(user.key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that room' });
   if (req.body?.call !== false && (await refuseOverCalls(res, roomId))) return;
   const media = Boolean(store.roomPermissions(user.key, roomId).conference);
   const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
@@ -2197,7 +2201,7 @@ app.patch('/api/me/rooms/:roomId', requireUser, requireOwnRoom, (req, res) => {
 app.patch('/api/me/call-prefs', requireUser, (req, res) => {
   res.json({ callPrefs: store.setCallPrefs(currentUser(req).key, req.body || {}) });
 });
-app.patch('/api/users/:key/call-prefs', requireAdmin, (req, res) => {
+app.patch('/api/users/:key/call-prefs', requireOwner, (req, res) => {
   res.json({ callPrefs: store.setCallPrefs(req.params.key, req.body || {}) });
 });
 
@@ -2254,9 +2258,9 @@ app.get('/api/presence', async (req, res) => {
   res.json({
     ...branding(),
     users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
-    rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
+    rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
     activeRoom: activeRoomId(byKey),
-    adminOnline: hasOnlineAdmin(byKey),
+    adminOnline: hasOnlineOwner(byKey),
   });
 });
 
@@ -2291,7 +2295,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
     }
     const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], originId, priv);
     // byAdmin tells the target's page whether to just go (an admin's call) or ask first.
-    const payload = asidePayload(ASIDE_TOPICS.pull, { roomId: room.id, byAdmin: initiator.role === 'admin', private: priv, from: initiator.displayName });
+    const payload = asidePayload(ASIDE_TOPICS.pull, { roomId: room.id, byAdmin: hasOwnerRights(initiator), private: priv, from: initiator.displayName });
     await roomService.sendData(initiatorCall, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: ASIDE_TOPICS.pull });
     // Everyone left behind: a private word is private from the others, not invisible to them -- this is what lets
     // their tiles turn into "in an aside" placeholders right away instead of just looking like they hung up until
@@ -2308,7 +2312,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
 // warning (aside-recall) -- their own page runs a 10-second countdown, then reconnects them back here itself,
 // rather than being yanked back instantly. Doesn't touch ordinary asides: the admin is always already in those, so
 // there's nothing to recall them from that returning (POST /api/asides/return) doesn't already cover.
-app.post('/api/asides/recall', requireAdmin, async (req, res) => {
+app.post('/api/asides/recall', requireOwner, async (req, res) => {
   try {
     const admin = currentUser(req);
     const online = await participants();
@@ -2366,7 +2370,7 @@ app.get('/api/status', requireStream, async (req, res) => {
     users: store.users.map((u) => ({ ...publicUser(req, u), online: withoutCall(byKey.get(u.key)) })),
     rooms: store.rooms,
     activeRoom: activeRoomId(byKey),
-    adminOnline: hasOnlineAdmin(byKey),
+    adminOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
   }, { signedIn: currentUser(req), environmentName: store.settings.serverName }));
 });
@@ -2386,32 +2390,32 @@ app.get('/api/rooms', (req, res) => {
   if (!currentUser(req) && !hasStreamAccess(req)) return res.status(401).json({ error: 'sign in first' });
   res.json({ rooms: store.rooms });
 });
-app.post('/api/rooms', requireAdmin, (req, res) => {
+app.post('/api/rooms', requireOwner, (req, res) => {
   const { name, description, members, profile, link, linkIcon } = req.body || {};
   res.json({ room: store.addRoom({ name, description, members, profile, link, linkIcon }) });
 });
-app.post('/api/rooms/order', requireAdmin, (req, res) => {
+app.post('/api/rooms/order', requireOwner, (req, res) => {
   res.json({ rooms: store.reorderRooms((req.body || {}).order) });
 });
-app.get('/api/rooms/:id', requireAdmin, (req, res) => {
+app.get('/api/rooms/:id', requireOwner, (req, res) => {
   const room = store.roomById(req.params.id);
   if (!room) return res.status(404).json({ error: 'no such room' });
   res.json({ room });
 });
-app.patch('/api/rooms/:id', requireAdmin, (req, res) => {
+app.patch('/api/rooms/:id', requireOwner, (req, res) => {
   res.json({ room: store.updateRoom(req.params.id, req.body || {}) });
 });
-app.delete('/api/rooms/:id', requireAdmin, (req, res) => {
+app.delete('/api/rooms/:id', requireOwner, (req, res) => {
   store.removeRoom(req.params.id);
   moduleSettings.forgetRoom(req.params.id);
   chatHistory.forgetRoom(req.params.id);
   res.json({ ok: true });
 });
-app.put('/api/rooms/:id/image', requireAdmin, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/rooms/:id/image', requireOwner, rawImage, checkStorageCap, (req, res) => {
   store.setRoomImage(req.params.id, req.body, req.get('content-type'));
   res.json({ room: store.roomById(req.params.id) });
 });
-app.delete('/api/rooms/:id/image', requireAdmin, (req, res) => {
+app.delete('/api/rooms/:id/image', requireOwner, (req, res) => {
   store.removeRoomImage(req.params.id);
   res.json({ room: store.roomById(req.params.id) });
 });
@@ -2423,7 +2427,7 @@ app.delete('/api/rooms/:id/image', requireAdmin, (req, res) => {
 function requireRoomMember(req, res, next) {
   const room = store.roomById(req.params.id);
   if (!room) return res.status(404).json({ error: 'no such room' });
-  if (!room.members.includes(currentUser(req).key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
+  if (!room.members.includes(currentUser(req).key) && !isOwner(req)) return res.status(403).json({ error: 'you are not in that room' });
   next();
 }
 // Managing the link needs Can Invite for that room (admins always can) --
@@ -2443,17 +2447,17 @@ app.delete('/api/rooms/:id/guest-link', requireUser, requireRoomMember, requireC
 
 // Admin API -------------------------------------------------------------------
 
-app.get('/api/users', requireAdmin, (req, res) => {
+app.get('/api/users', requireOwner, (req, res) => {
   res.json({ users: store.users.map((u) => publicUser(req, u)) });
 });
 
-app.get('/api/users/:key', requireAdmin, (req, res) => {
+app.get('/api/users/:key', requireOwner, (req, res) => {
   const user = store.userByKey(req.params.key);
   if (!user) return res.status(404).json({ error: 'no such user' });
   res.json({ user: publicUser(req, user) });
 });
 
-app.post('/api/users', requireAdmin, (req, res) => {
+app.post('/api/users', requireOwner, (req, res) => {
   if (refuseOverMembers(res)) return;
   const { login, displayName, role, password, passwordless } = req.body || {};
   const user = store.addUser({ login, displayName, role, passwordHash: password ? auth.hashPassword(password) : null });
@@ -2461,7 +2465,7 @@ app.post('/api/users', requireAdmin, (req, res) => {
   res.status(201).json({ user: publicUser(req, store.userByKey(user.key)) });
 });
 
-app.patch('/api/users/:key', requireAdmin, (req, res) => {
+app.patch('/api/users/:key', requireOwner, (req, res) => {
   const { login, displayName, role, password, player } = req.body || {};
   if (password !== undefined && store.userByKey(req.params.key)?.hostAdmin) {
     throw new StoreError('this account signs in through the host console; its password cannot be changed here');
@@ -2473,34 +2477,34 @@ app.patch('/api/users/:key', requireAdmin, (req, res) => {
   if (password !== undefined) patch.passwordHash = password ? auth.hashPassword(password) : null;
   if (player !== undefined) patch.player = player;
   const self = currentUser(req);
-  if (self.key === req.params.key && role !== undefined && role !== 'admin') {
+  if (self.key === req.params.key && role !== undefined && role !== self.role) {
     return res.status(400).json({ error: 'you cannot demote yourself' });
   }
   const user = store.updateUser(req.params.key, patch);
   res.json({ user: publicUser(req, user) });
 });
 
-app.delete('/api/users/:key', requireAdmin, (req, res) => {
+app.delete('/api/users/:key', requireOwner, (req, res) => {
   if (currentUser(req).key === req.params.key) return res.status(400).json({ error: 'you cannot delete yourself' });
   store.removeUser(req.params.key);
   res.json({ ok: true });
 });
 
 // Personal link: create or regenerate (POST), turn off (DELETE).
-app.post('/api/users/:key/link', requireAdmin, (req, res) => {
+app.post('/api/users/:key/link', requireOwner, (req, res) => {
   const user = store.updateUser(req.params.key, { linkToken: randomToken() });
   res.json({ user: publicUser(req, user) });
 });
-app.delete('/api/users/:key/link', requireAdmin, (req, res) => {
+app.delete('/api/users/:key/link', requireOwner, (req, res) => {
   const user = store.updateUser(req.params.key, { linkToken: null });
   res.json({ user: publicUser(req, user) });
 });
 
-app.put('/api/users/:key/images/:slot', requireAdmin, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/users/:key/images/:slot', requireOwner, rawImage, checkStorageCap, (req, res) => {
   store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'));
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
+app.delete('/api/users/:key/images/:slot', requireOwner, (req, res) => {
   const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
   store.removeImage(req.params.key, slot);
@@ -2513,19 +2517,19 @@ app.delete('/api/users/:key/images/:slot', requireAdmin, (req, res) => {
 // defaults themselves.
 // Per-room settings for one member: which pictures apply there, and what
 // they're allowed to do (Permissions on their profile's Rooms tab).
-app.patch('/api/users/:key/rooms/:roomId', requireAdmin, (req, res) => {
+app.patch('/api/users/:key/rooms/:roomId', requireOwner, (req, res) => {
   store.setRoomPrefs(req.params.key, req.params.roomId, req.body || {});
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.delete('/api/rooms/:id/members/:key', requireAdmin, (req, res) => {
+app.delete('/api/rooms/:id/members/:key', requireOwner, (req, res) => {
   store.removeMember(req.params.id, req.params.key);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.put('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/users/:key/rooms/:roomId/images/:slot', requireOwner, rawImage, checkStorageCap, (req, res) => {
   store.setImage(req.params.key, LEGACY_SLOTS[req.params.slot] || req.params.slot, req.body, req.get('content-type'), req.params.roomId);
   res.json({ user: publicUser(req, store.userByKey(req.params.key)) });
 });
-app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, (req, res) => {
+app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireOwner, (req, res) => {
   const slot = LEGACY_SLOTS[req.params.slot] || req.params.slot;
   if (!SLOTS.includes(slot)) return res.status(400).json({ error: 'unknown image slot' });
   store.removeImage(req.params.key, slot, req.params.roomId);
@@ -2539,9 +2543,9 @@ async function canModerate(req, targetKey, permission) {
   const actor = currentUser(req);
   const room = await callOf(targetKey);
   if (!room) return { error: [404, 'not in a call'] };
-  if (actor.role === 'admin') return { room };
+  if (hasOwnerRights(actor)) return { room };
   const target = store.userByKey(targetKey);
-  if (!target || target.role === 'admin' || target.key === actor.key) return { error: [403, 'not allowed'] };
+  if (!target || hasOwnerRights(target) || target.key === actor.key) return { error: [403, 'not allowed'] };
   if ((await callOf(actor.key)) !== room) return { error: [403, 'not allowed'] };
   if (!store.roomPermissions(actor.key, spaceIdOfCall(room))[permission]) return { error: [403, 'not allowed'] };
   return { room };
@@ -2597,8 +2601,8 @@ function bundledList() {
     };
   });
 }
-app.get('/api/modules', requireAdmin, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => (b.setting ? { ...b, enabled: store.settings[b.setting] !== false } : b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
-app.post('/api/modules/bundled/:id/install', requireAdmin, async (req, res) => {
+app.get('/api/modules', requireOwner, (_req, res) => res.json({ modules: modules.list(), builtin: BUILTIN_MODULES.map((b) => (b.setting ? { ...b, enabled: store.settings[b.setting] !== false } : b)), bundled: bundledList(), limits: { zipBytes: MODULE_LIMITS.zipBytes } }));
+app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
   const id = req.params.id;
   const bundled = bundledModules(BUNDLED_DIR).find((m) => m.id === id);
   if (!bundled) return res.status(404).json({ error: 'that module does not ship with this deployment' });
@@ -2614,7 +2618,7 @@ function requireHostTrust(req, res, next) {
   if (BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may add or run unvetted modules here' });
   next();
 }
-app.post('/api/modules', requireAdmin, requireHostTrust, rawZip, async (req, res) => {
+app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res) => {
   const installed = await modules.install(req.body);
   // The zip's own id is only known once it is unpacked -- refused after the fact, undoing the install, rather
   // than duplicating modules.js's own manifest parsing here just to check the plan first (plan-tenants.md,
@@ -2625,7 +2629,7 @@ app.post('/api/modules', requireAdmin, requireHostTrust, rawZip, async (req, res
   }
   res.status(201).json({ module: installed });
 });
-app.patch('/api/modules/:id', requireAdmin, (req, res) => {
+app.patch('/api/modules/:id', requireOwner, (req, res) => {
   if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: 'only the host may choose to run a module in the page' });
   if (req.body?.enabled === true) {
     const current = modules.list().find((m) => m.id === req.params.id);
@@ -2633,10 +2637,10 @@ app.patch('/api/modules/:id', requireAdmin, (req, res) => {
   }
   res.json({ module: modules.update(req.params.id, req.body || {}, { roomExists: (id) => !!store.roomById(id) }) });
 });
-app.post('/api/modules/:id/rollback', requireAdmin, (req, res) => {
+app.post('/api/modules/:id/rollback', requireOwner, (req, res) => {
   res.json({ module: modules.rollback(req.params.id, String(req.body?.version || '')) });
 });
-app.delete('/api/modules/:id', requireAdmin, (req, res) => {
+app.delete('/api/modules/:id', requireOwner, (req, res) => {
   modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
   moduleData.forget(req.params.id);
   if (req.query.keepData === '0') {
@@ -2670,7 +2674,7 @@ function moduleViewer(req) {
 // Whether someone may see a room's module at all: on for that room, and in it.
 function moduleRoomAccess(entry, who, room) {
   if (!(entry.allRooms || entry.rooms.includes(room.id))) return false;
-  if (who.user) return who.user.role === 'admin' || room.members.includes(who.user.key);
+  if (who.user) return hasOwnerRights(who.user) || room.members.includes(who.user.key);
   return who.guestRoom.id === room.id;
 }
 
@@ -2728,7 +2732,7 @@ function chatRoomFor(req, res, permission) {
   if (!who) return void res.status(401).json({ error: 'sign in first' });
   const room = store.roomById(req.params.id);
   if (!room) return void res.status(404).json({ error: 'no such room' });
-  const allowed = who.user ? who.user.role === 'admin' || room.members.includes(who.user.key) : who.guestRoom.id === room.id;
+  const allowed = who.user ? hasOwnerRights(who.user) || room.members.includes(who.user.key) : who.guestRoom.id === room.id;
   if (!allowed) return void res.status(403).json({ error: 'you are not in that room' });
   const perms = who.user ? store.roomPermissions(who.user.key, room.id) : store.roleSet('guest');
   if (!perms[permission]) return void res.status(403).json({ error: 'your role cannot do that' });
@@ -3328,7 +3332,7 @@ function overLimit(moduleId, by, kind) {
   return r;
 }
 const limitMessage = 'this module is doing that too often; try again in a moment';
-app.get('/api/modules/activity', requireAdmin, (_req, res) => {
+app.get('/api/modules/activity', requireOwner, (_req, res) => {
   res.json({
     activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? 'a guest' : a.by) })),
   });
@@ -3387,15 +3391,15 @@ function sendAiError(err, res) {
   if (err instanceof AiError) return res.status(err.status).json({ error: err.message });
   throw err;
 }
-app.get('/api/ai', requireAdmin, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView(), dependents: modules.aiDependents() }));
-app.post('/api/ai/models', requireAdmin, async (req, res) => {
+app.get('/api/ai', requireOwner, (_req, res) => res.json({ ai: ai.view(), usage: ai.usageView(), dependents: modules.aiDependents() }));
+app.post('/api/ai/models', requireOwner, async (req, res) => {
   try {
     res.json({ models: await ai.listModels({ provider: String(req.body?.provider || ''), address: req.body?.address, key: req.body?.key, workspace: req.body?.workspace }) });
   } catch (err) {
     sendAiError(err, res);
   }
 });
-app.put('/api/ai', requireAdmin, (req, res) => {
+app.put('/api/ai', requireOwner, (req, res) => {
   try {
     const before = ai.view();
     // Turning AI off (however the patch does it) while a module depends on it: the admin's page should have asked first (as it
@@ -3506,7 +3510,7 @@ app.put('/api/modules/:id/uploads/:fid/thumb', rawUpload, checkStorageCap, (req,
   if (!ctx) return;
   const meta = moduleUploads.meta(ctx.manifest.id, ctx.scopeKey, req.params.fid);
   if (!meta) return res.status(404).json({ error: 'no such file' });
-  if (meta.by !== ctx.by && ctx.who.user?.role !== 'admin') return res.status(403).json({ error: 'only the person who added it can do that' });
+  if (meta.by !== ctx.by && !hasOwnerRights(ctx.who.user)) return res.status(403).json({ error: 'only the person who added it can do that' });
   if (!Buffer.isBuffer(req.body)) return res.status(415).json({ error: 'send the thumbnail itself, as a JPEG, PNG or WebP' });
   res.json({ file: uploadView(moduleUploads.putThumb(ctx.manifest.id, ctx.scopeKey, ctx.manifest.uploads, req.params.fid, req.body)) });
 });
@@ -3526,7 +3530,7 @@ app.delete('/api/modules/:id/uploads/:fid', (req, res) => {
   const meta = moduleUploads.meta(ctx.manifest.id, ctx.scopeKey, req.params.fid);
   if (!meta) return res.status(404).json({ error: 'no such file' });
   // The person who added a file, or an administrator, removes it. (A module decides who may remove its items; this is the guard on the bytes.)
-  if (meta.by !== ctx.by && ctx.who.user?.role !== 'admin') return res.status(403).json({ error: 'only the person who added it can remove it' });
+  if (meta.by !== ctx.by && !hasOwnerRights(ctx.who.user)) return res.status(403).json({ error: 'only the person who added it can remove it' });
   moduleUploads.remove(ctx.manifest.id, ctx.scopeKey, req.params.fid);
   res.json({ ok: true });
 });
@@ -3582,12 +3586,12 @@ app.post('/api/modules/:id/geocode/use', (req, res) => {
   res.json({ ok: geocodeCache.markUsed(ctx.manifest.id, String(req.body?.key || '')) });
 });
 // For the admin: how many places are saved, and removing them by their mark.
-app.get('/api/modules/:id/geocode/stats', requireAdmin, (req, res) => {
+app.get('/api/modules/:id/geocode/stats', requireOwner, (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found || !found.manifest.geocoder) return res.status(404).json({ error: 'no such place search' });
   res.json(geocodeCache.stats(found.manifest.id));
 });
-app.post('/api/modules/:id/geocode/purge', requireAdmin, (req, res) => {
+app.post('/api/modules/:id/geocode/purge', requireOwner, (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found || !found.manifest.geocoder) return res.status(404).json({ error: 'no such place search' });
   const what = req.body?.what === 'all' ? 'all' : req.body?.what === 'unused' ? 'unused' : null;
@@ -3638,7 +3642,7 @@ async function findRegionBox(q) {
   return null;
 }
 // "Add a region": type a place's name, get back its rough rectangle to cut, before anything is fetched for real.
-app.get('/api/modules/:id/region-cut/find', requireAdmin, async (req, res) => {
+app.get('/api/modules/:id/region-cut/find', requireOwner, async (req, res) => {
   const ctx = regionCutSetup(req, res);
   if (!ctx) return;
   const q = String(req.query.q || '').trim().slice(0, 200);
@@ -3652,7 +3656,7 @@ app.get('/api/modules/:id/region-cut/find', requireAdmin, async (req, res) => {
   }
 });
 // How big a cut would be, without downloading it: the admin confirms before "Add a region" commits to anything.
-app.post('/api/modules/:id/region-cut/estimate', requireAdmin, async (req, res) => {
+app.post('/api/modules/:id/region-cut/estimate', requireOwner, async (req, res) => {
   const ctx = regionCutSetup(req, res);
   if (!ctx) return;
   try {
@@ -3662,7 +3666,7 @@ app.post('/api/modules/:id/region-cut/estimate', requireAdmin, async (req, res) 
   }
 });
 // Start the real cut; the job runs in the background, followed over the stream route below.
-app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
+app.post('/api/modules/:id/region-cut', requireOwner, async (req, res) => {
   const ctx = regionCutSetup(req, res);
   if (!ctx) return;
   try {
@@ -3685,7 +3689,7 @@ app.post('/api/modules/:id/region-cut', requireAdmin, async (req, res) => {
 });
 // Progress, in words and a percentage, over server-sent events; a late subscriber gets the job's current state first, and
 // one already finished (or one the host has never heard of) is told so at once rather than hanging.
-app.get('/api/modules/:id/region-cut/:jobId/stream', requireAdmin, (req, res) => {
+app.get('/api/modules/:id/region-cut/:jobId/stream', requireOwner, (req, res) => {
   const env = currentEnvironment(); // captured once: the close handler below fires later, outside this request
   const found = modules.enabled(req.params.id);
   if (!found || !found.manifest.regionSource) return res.status(404).json({ error: 'no such module' });
@@ -3805,7 +3809,7 @@ app.get('/api/modules/:id/files/:name', (req, res) => {
 // Remove a file an admin placed for the module (a `file`/`files` setting) -- gone for good, so admin only. Also
 // un-ticks it from any `files` setting that had it, and clears a `file` setting that pointed to it, so nothing on
 // the module's own settings keeps naming a file that is no longer there.
-app.delete('/api/modules/:id/files/:name', requireAdmin, (req, res) => {
+app.delete('/api/modules/:id/files/:name', requireOwner, (req, res) => {
   const found = modules.enabled(req.params.id);
   if (!found) return res.status(404).json({ error: 'no such module' });
   const name = req.params.name;
@@ -3854,7 +3858,7 @@ function settingsPlace(req, res, scope) {
   const user = currentUser(req);
   if (!user) return void res.status(401).json({ error: 'sign in first' });
   if (scope === 'server') {
-    if (user.role !== 'admin') return void res.status(403).json({ error: 'only an admin changes the server\'s settings' });
+    if (!hasOwnerRights(user)) return void res.status(403).json({ error: 'only an owner changes the server\'s settings' });
     return { user, ctx: {} };
   }
   if (scope === 'person') return { user, ctx: { userKey: user.key } };
@@ -3862,7 +3866,7 @@ function settingsPlace(req, res, scope) {
     const room = store.roomById(String(req.query.room || req.body?.room || ''));
     if (!room) return void res.status(404).json({ error: 'no such room' });
     // A moderator is a member ticked as one in that room (an admin ticks it on the member's profile).
-    if (!(user.role === 'admin' || (room.members.includes(user.key) && store.roomFlags(user.key, room.id).moderator))) return void res.status(403).json({ error: 'only an admin or the room\'s moderators change its settings' });
+    if (!(hasOwnerRights(user) || (room.members.includes(user.key) && store.roomFlags(user.key, room.id).moderator))) return void res.status(403).json({ error: 'only an owner or the room\'s moderators change its settings' });
     return { user, ctx: { roomId: room.id }, room };
   }
   return void res.status(404).json({ error: 'no such kind of setting' });
@@ -4239,11 +4243,11 @@ app.get('/api/modules/:id/events', (req, res) => {
   }));
 });
 
-app.get('/api/roles', requireAdmin, (_req, res) => res.json({ permissions: store.allPermissions(), roles: store.roles() }));
-app.patch('/api/roles/:role', requireAdmin, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
+app.get('/api/roles', requireOwner, (_req, res) => res.json({ permissions: store.allPermissions(), roles: store.roles() }));
+app.patch('/api/roles/:role', requireOwner, (req, res) => res.json({ roles: store.setRolePermissions(req.params.role, req.body || {}) }));
 
-app.get('/api/settings', requireAdmin, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));
-app.patch('/api/settings', requireAdmin, (req, res) => {
+app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: branding(), streamKey: store.streamKey }));
+app.patch('/api/settings', requireOwner, (req, res) => {
   store.updateSettings(req.body || {});
   res.json({ settings: branding() });
 });
@@ -4251,7 +4255,7 @@ app.patch('/api/settings', requireAdmin, (req, res) => {
 // This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
 // 2: the owner role and the split"). Only with a base domain -- a self-hosted install is on no host's plan,
 // so it has no plan or usage of its own to show.
-app.get('/api/environment', requireAdmin, async (req, res) => {
+app.get('/api/environment', requireOwner, async (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   const env = currentEnvironment();
   const environment = hostRegistry.findEnvironment(env.slug);
@@ -4276,7 +4280,7 @@ app.get('/api/environment', requireAdmin, async (req, res) => {
 });
 // The environment's own copy of its data, the same zip the host console's own backup makes -- any environment admin
 // may ask for it, not only a host admin (plan-tenants.md, "Phase 2": Download a copy).
-app.get('/api/environment/export', requireAdmin, (req, res) => {
+app.get('/api/environment/export', requireOwner, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   const env = currentEnvironment();
   flushEnvironment(env); // every debounced write on disk before it is zipped
@@ -4286,7 +4290,7 @@ app.get('/api/environment/export', requireAdmin, (req, res) => {
 });
 // Asked for by the environment's own admin, carried out by a host admin on the console (the existing Delete) --
 // never by itself. DELETE withdraws the request.
-app.post('/api/environment/delete-request', requireAdmin, (req, res) => {
+app.post('/api/environment/delete-request', requireOwner, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   try {
     res.json(hostRegistry.requestEnvironmentDeletion(currentEnvironment().slug, req.body?.reason));
@@ -4294,7 +4298,7 @@ app.post('/api/environment/delete-request', requireAdmin, (req, res) => {
     sendHostError(err, res);
   }
 });
-app.delete('/api/environment/delete-request', requireAdmin, (req, res) => {
+app.delete('/api/environment/delete-request', requireOwner, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   try {
     hostRegistry.withdrawEnvironmentDeletion(currentEnvironment().slug);
@@ -4306,43 +4310,43 @@ app.delete('/api/environment/delete-request', requireAdmin, (req, res) => {
 // Saved themes: named sets of the same seven colors /theme.css can render --
 // switching just repoints activeThemeId (see PATCH /api/settings above),
 // no re-picking needed. See store.js's "themes" section for the shape.
-app.get('/api/themes', requireAdmin, (_req, res) => res.json({ themes: store.themes, defaultTheme: store.defaultTheme, activeThemeId: store.settings.activeThemeId || null, themeMode: store.settings.themeMode }));
-app.post('/api/themes', requireAdmin, (req, res) => res.json({ theme: store.addTheme(req.body || {}) }));
-app.patch('/api/themes/:id', requireAdmin, (req, res) => res.json({ theme: store.updateTheme(req.params.id, req.body || {}) }));
-app.delete('/api/themes/:id', requireAdmin, (req, res) => {
+app.get('/api/themes', requireOwner, (_req, res) => res.json({ themes: store.themes, defaultTheme: store.defaultTheme, activeThemeId: store.settings.activeThemeId || null, themeMode: store.settings.themeMode }));
+app.post('/api/themes', requireOwner, (req, res) => res.json({ theme: store.addTheme(req.body || {}) }));
+app.patch('/api/themes/:id', requireOwner, (req, res) => res.json({ theme: store.updateTheme(req.params.id, req.body || {}) }));
+app.delete('/api/themes/:id', requireOwner, (req, res) => {
   store.removeTheme(req.params.id);
   res.json({ ok: true });
 });
 // Site images: icon, background.
 const siteImage = (req, res, next) => (req.params.image === 'icon' || req.params.image === 'background' ? next() : res.status(404).json({ error: 'unknown image' }));
-app.put('/api/settings/:image', requireAdmin, siteImage, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/settings/:image', requireOwner, siteImage, rawImage, checkStorageCap, (req, res) => {
   store.setSiteImage(req.params.image, req.body, req.get('content-type'));
   res.json({ settings: branding() });
 });
-app.delete('/api/settings/:image', requireAdmin, siteImage, (req, res) => {
+app.delete('/api/settings/:image', requireOwner, siteImage, (req, res) => {
   store.removeSiteImage(req.params.image);
   res.json({ settings: branding() });
 });
 // Shared by both the guest and the default Participant picture sets below.
 const participantImageSlot = (req, res, next) => (PARTICIPANT_SLOTS.includes(req.params.slot) ? next() : res.status(404).json({ error: 'unknown image slot' }));
-app.put('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/settings/guest-images/:slot', requireOwner, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
   store.setGuestImage(req.params.slot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/settings/guest-images/:slot', requireAdmin, participantImageSlot, (req, res) => {
+app.delete('/api/settings/guest-images/:slot', requireOwner, participantImageSlot, (req, res) => {
   store.removeGuestImage(req.params.slot);
   res.json({ ok: true });
 });
 // The server-wide Default Images set (see /img/default/:slot above).
-app.put('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
+app.put('/api/settings/default-images/:slot', requireOwner, participantImageSlot, rawImage, checkStorageCap, (req, res) => {
   store.setDefaultImage(req.params.slot, req.body, req.get('content-type'));
   res.json({ ok: true });
 });
-app.delete('/api/settings/default-images/:slot', requireAdmin, participantImageSlot, (req, res) => {
+app.delete('/api/settings/default-images/:slot', requireOwner, participantImageSlot, (req, res) => {
   store.removeDefaultImage(req.params.slot);
   res.json({ ok: true });
 });
-app.post('/api/stream-key/regenerate', requireAdmin, (_req, res) => {
+app.post('/api/stream-key/regenerate', requireOwner, (_req, res) => {
   res.json({ streamKey: store.regenerateStreamKey() });
 });
 
@@ -4398,7 +4402,7 @@ if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 // Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): the lockout bypass excuses every
 // admin from the code step and the enrol requirement for as long as it is set -- worth a loud warning on
 // every start, the same way a server running with no LiveKit secret or an open registration would be.
-if (adminMfaLockoutBypass) console.warn('The admin lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every admin skips two-step sign-in entirely. Turn it off once you are back in.');
+if (adminMfaLockoutBypass) console.warn('The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips two-step sign-in entirely. Turn it off once you are back in.');
 
 app.listen(Number(PORT), () => {
   if (!BASE_DOMAIN) {

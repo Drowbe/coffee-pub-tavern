@@ -6,7 +6,7 @@
 //   /modules/<id>?moduleRoom=<room>&popout=1   a room panel in a window of its own
 //                                          (add &guest=<token> for a guest)
 // (Not "room": a module page opened over a call already carries room=<name of the room>.)
-import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, setTopbarLocation, crumbLink, markModuleRead, hasOwnerRights } from '/brand.js';
 import { mountModule } from '/module-host.js';
 
 const $ = (id) => document.getElementById(id);
@@ -32,7 +32,7 @@ async function start() {
     $('whoami').textContent = me.displayName;
     $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/profile`;
     $('whoami-img').hidden = false;
-    $('admin-link').hidden = me.role !== 'admin';
+    $('admin-link').hidden = !hasOwnerRights(me);
   }
 
   // Which module, and how it is shown: its own page (server scope), or a room's panel.

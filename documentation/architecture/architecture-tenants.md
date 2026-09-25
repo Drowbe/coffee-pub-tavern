@@ -19,7 +19,7 @@ environment the current request resolved.
 `buildEnvironment(dataDir, { slug, admin })` is the whole of what server startup used to do at module scope:
 constructs `Store`, `ModuleManager`, `ModuleHooks` and the rest from one directory, wires the event listeners
 that turn a change into an activity-log line, starts that environment's own `ModuleHooks` 10-second poll, and
-(for the default environment only) bootstraps the admin from `ADMIN_PASSWORD`. It returns a plain object
+(for the default environment only) bootstraps the owner account from `OWNER_PASSWORD` (see "Roles" below). It returns a plain object
 with one property per service. Nothing here is a Proxy -- these are the real instances.
 
 Two things it does **not** build, because they are the host's, not any one environment's: the LiveKit
@@ -197,7 +197,7 @@ for the new names.
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` holds `names-table` (step 3, below).
+`ENVIRONMENT_PARTS` holds `names-table` (step 3) and `names-roles` (step 4), both below.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -287,6 +287,22 @@ the original is kept in `pre-names/names-table/app.json`. A new environment is s
 meets." and records the part as run. Over data with neither setting and no old description, it writes only the
 record.
 
+### The environment part: `names-roles`
+
+Step 4's part, after `names-table`. In `app.json`:
+
+- `users[].role`: `admin` becomes `owner` and `user` becomes `member`. An account with `hostAdmin: true` (the
+  host admin's own account in that environment) becomes `admin`, always, even if an owner had changed its role
+  before. So after the upgrade the host admin has every right in every environment.
+- `settings.roles`: `user` becomes `member` (and a hand-made `admin` entry becomes `owner`). When both an old
+  and a new key are there and differ, it stops with the same kind of sentence as the host part: `its
+  settings.roles has both "user" and "member", and they differ, so it cannot tell which to keep. Nothing was
+  changed: remove the out-of-date key from <file> and start again (a copy of the file as it was is in
+  <copy>).`
+- `invites[].role` values are renamed the same way.
+
+The original is kept in `pre-names/names-roles/app.json`.
+
 ### A pre-environment install
 
 With `BASE_DOMAIN` set and data still at `DATA_DIR`'s own root (`app.json`, or `tavern.json` from before that
@@ -301,6 +317,36 @@ environment is added to the registry. The old name, `MIGRATE_TENANT_SLUG`, is st
 when both are set) and logs one line to stderr on every start while it is set:
 "MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release." It goes
 in step 10 of the plan.
+
+## Roles
+
+Inside an environment an account's `role` is `owner` or `member` (`ASSIGNABLE_ROLES` in `server/store.js`), and
+`admin` only for the host admin's own account (`hostAdmin: true`). `owner` and `admin` have every right, in the
+host and in every module (`OWNER_RIGHTS`, `hasOwnerRights()`); routes that need it use `requireOwner`. The pages
+show Owner, Member and Host admin on every install.
+
+| Where | Refusal |
+|---|---|
+| An owner-only route, from a person who is not one | 403 `owners only` (a page: `Owners only.`) |
+| `POST /api/users`, `PATCH /api/users/:key` with another role | 400 `role must be owner or member` |
+| `PATCH /api/users/:key` changing the host admin's account's role | 400 `this account is the host admin's, so its role can't be changed here` |
+| Making the last owner a member, or deleting them | 400 `keep at least one owner` (the host admin's account is not counted) |
+| Changing your own role | 400 `you cannot demote yourself` |
+| `PATCH /api/roles/owner` | 400 `the owner has every permission, so that role can't be changed` |
+| `PATCH /api/roles/user` | 404 (it is `PATCH /api/roles/member` now) |
+| Module settings of the environment, or of a space | 403 `only an owner changes the server's settings` / `only an owner or the room's moderators change its settings` |
+| `POST /api/me/mfa/reset` or `/api/host/me/mfa/reset` while the lockout bypass is off | 403 `the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on` |
+
+`GET /api/roles` answers the permissions keyed `owner`, `moderator`, `member` and `guest`. A module's context
+(`GET /api/modules/:id/context`) gives `user.role` as `admin`, `owner`, `member` or `guest` (`viewer` on a keyed
+page), and a module asks `host.can()` rather than reading the role; an owner has every module permission.
+
+On a single-environment install the account made from the configuration is an owner: `ADMIN_USER` (the login,
+default `admin`) with `OWNER_PASSWORD`. The old name `ADMIN_PASSWORD` is still read (`OWNER_PASSWORD` wins when
+both are set) and logs on every start while set: "ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops
+working in a later release." `ADMIN_USER`, `ADMIN_KEY` and `ADMIN_MFA_LOCKOUT_BYPASS` keep their names. With the
+bypass on, the start logs: "The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips
+two-step sign-in entirely. Turn it off once you are back in."
 
 ## The host API: environments
 
@@ -349,8 +395,10 @@ than read in a shape this server does not understand (plan-names decision 22).
   unknown part, it answers 400 `{ error: "This backup is from a newer version of Magpie." }` and the
   environment is unchanged. Otherwise it replaces the environment's folder, builds it at once, and answers
   `{ ok: true }`, or `{ ok: true, refused: { reason, file, message, at } }` when the restored data is itself
-  refused. A backup whose `app.json` is not valid JSON is not refused by this check; it lands, and then answers
-  `{ ok: true, refused: { reason: 'unreadable', ... } }`. The other answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
+  refused. A backup whose `app.json` (or `tavern.json`, when there is no `app.json`) is not valid JSON or not an
+  object is refused the same way, before anything is replaced: 400
+  `{ error: "This backup's data can't be read, so nothing was restored." }` (`UNREADABLE_BACKUP`). The other
+  answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
   400 with the zip reader's message.
 
 ## The Studio alias
@@ -360,9 +408,15 @@ moves to the new ones (plan-names, "What Studio reads" and decision 21). `GET /a
 pass their answer through `studioAlias.me()` and `studioAlias.status()`, which change it only when a bearer
 token actually signed the request in, the way Studio signs in; the pages use the cookie and never see an old
 name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receives only
-`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. Since step 3 both
-lists hold one entry, `tableName`, set to the environment's name, since `branding()` no longer sends it and Studio
-still reads it. The later steps add the fields they rename, and step 10 removes the file.
+`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. What it adds now:
+
+- `tableName` in both answers, set to the environment's name (step 3), since `branding()` no longer sends it.
+- The old role values (step 4): `user.role` in `/api/me` and `users[].role` in `/api/status` are `admin` for an
+  owner or the host admin's account and `user` for a member. `streamKey` needs no entry: the server sends it to
+  owners and the host admin already.
+
+`isAdmin`, `adminOnline` and `byAdmin` keep their names until steps 5a and 5c; their values mean an owner or the
+host admin. The later steps add the fields they rename, and step 10 removes the file.
 
 ## The host's managed AI and shared files
 
@@ -375,7 +429,7 @@ The console page for both is `public/host.js` with the form and the region cut s
 
 ## Phases 2 to 5: the owner, the caps, the calls, self-serve and billing
 
-Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `admin` role under another name on a hosted server (`GET /api/me`'s `environment.hosted`; the pages read Owner, the Roles grid's fixed column included), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the environment's directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and an environment's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, and off unless `SIGNUP=on`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades an environment past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the environment's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
+Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `owner` role (see "Roles" below; before step 4 it was `admin`, shown as Owner only on a hosted server), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the environment's directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and an environment's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, and off unless `SIGNUP=on`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades an environment past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the environment's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
 
 ## Adding a new module-level singleton
 

@@ -1,14 +1,14 @@
 # Maps
 
-**Audience:** a player or game master using the Maps module on a Coffee Pub Magpie server, and an admin setting it up.
+**Audience:** a player or game master using the Maps module on a Coffee Pub Magpie server, and an owner setting it up.
 
 The Maps module shows a map of every place your room has: the places saved in [Places](userguide-places.md), and the items other modules give a position (a trip stop, an event with a location). Maps keeps nothing of its own and needs [Places](userguide-places.md), which is also the list of places. Install and enable Places first, then Maps; see [Modules](userguide-modules.md).
 
-## Set it up (admin)
+## Set it up (owner)
 
 **What you need:** the current Magpie (Maps and its map library ship inside it, so update the server the way you always do), and one map file. Nothing else is installed: no tile server, no database, no extra container, no account and no key.
 
-**On a host with environments,** the map is the host's: one folder of map files that every environment shows, all the files together. Only a host admin puts files there (`DATA_DIR/shared/maps/map-tiles/`) or cuts a region, on the host console's **Maps** panel, which has the same **Add a region** as below and the world map address. A cut is named after what you typed (`thailand.pmtiles` for "thailand"), and **Replace a file already there with that name** lets a fresh cut of the same region go over the old file. An environment's Maps configuration shows those files under **Provided by the host** and sets nothing of its own. On a single server the admin is the operator and the steps below apply as written.
+**On a host with environments,** the map is the host's: one folder of map files that every environment shows, all the files together. Only a host admin puts files there (`DATA_DIR/shared/maps/map-tiles/`) or cuts a region, on the host console's **Maps** panel, which has the same **Add a region** as below and the world map address. A cut is named after what you typed (`thailand.pmtiles` for "thailand"), and **Replace a file already there with that name** lets a fresh cut of the same region go over the old file. An environment's Maps configuration shows those files under **Provided by the host** and sets nothing of its own. On a single server the owner is the operator and the steps below apply as written.
 
 1. **Get a map file.** Maps reads one PMTiles file: a region or the whole world. A city is a few megabytes, a country hundreds, the world well over 100 GB. Regions can be cut from a world file with the `pmtiles extract` tool (a bounding box and a maximum zoom), and no tile server or database is needed.
 
@@ -24,7 +24,7 @@ The Maps module shows a map of every place your room has: the places saved in [P
 4. Tick **Available in every room**, or tick it per room.
 5. Under Maps' settings (**Module Configuration** on its card), **Map source** says where the map comes from: **A map file on this server** (the default, described here) or **A map file at a web address** (see below). For a file on this server, the **Map files** table lists every file in that folder with its size and a tick. Tick the ones to use: Maps draws all the ticked files together, so two regions that sit side by side (Italy and Portugal, say) become one map. Untick a file to stop using it. Until one is ticked, Maps says so.
 6. **Search (optional).** The search belongs to Places: choose its **Place search** in Places' settings (see [Places](userguide-places.md)). With a search chosen, the field at the bottom of the map searches: type a place and press Enter, and what Places finds is listed over the map and shown as pins. Without one (the default) the field says search is not set up and names the module whose setting it is, Maps' configuration page says the same under **Search on the map**, and the field still takes pasted coordinates or a map link.
-7. On the Roles tab, under **Module: Maps**, choose who can **See the map** and who can **Save places from the map**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
+7. On the Roles tab, under **Module: Maps**, choose who can **See the map** and who can **Save places from the map**. By default everyone can see it, members and moderators can edit, and guests can see but not edit.
 
 **A map file at a web address.** Choose it and give the **Map file address**: an https link to a `.pmtiles` file hosted elsewhere (your own cloud storage or a content delivery network, for example). The map is then read from that host in pieces, so it need not be stored on this server. The cost is privacy: every person's browser contacts that host directly, and the host can see their internet address and roughly which area they are looking at, so choose a host you trust and tell the people who use this server. The host must allow requests from this server's pages (CORS) and support range requests, as static hosting and most content delivery networks do; its terms, cost and reliability are yours to check. Only https addresses work, and an address with a user name or password is refused. If the address does not answer, Maps shows "The map could not load" with Try again. The credit "© OpenStreetMap contributors" stays on the map either way.
 
@@ -39,4 +39,4 @@ Nothing is sent to any service you did not choose: the map comes from your file,
 
 ## When there is no map
 
-Without a map file, an admin sees where to set one and everyone else is told Maps is not set up. A device that cannot draw the map (no WebGL) says so; your places are still in Places, each opening in your maps app.
+Without a map file, everyone, owners included, sees "Maps is not set up yet. An owner adds map files in Manage. Your places are in the Places module." A device that cannot draw the map (no WebGL) says so; your places are still in Places, each opening in your maps app.

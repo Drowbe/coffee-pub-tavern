@@ -64,8 +64,7 @@ Nothing here edits or deletes a place, and pins are not draggable.
 | State | What the script renders |
 |---|---|
 | Loading | `#state` (un-hidden) holds `tpl-state-loading` |
-| No map file, an admin | `#state` holds `tpl-state-nomap-admin`, with `[data-action=open-settings]` |
-| No map file, anyone else | `tpl-state-nomap-member`; the list is shown full width (`.app.listonly`) |
+| No map file | `#state` holds `tpl-state-nomap`, the same for everyone; the list is shown full width (`.app.listonly`) |
 | The map file will not load | `tpl-state-error` with `[data-action=retry]` |
 | No WebGL on this device | `.app.listonly`, and a `tpl-notice` at the top of the list: the places are listed, each with open-in-my-maps-app |
 | No places yet | the map, and `tpl-empty` in the list |

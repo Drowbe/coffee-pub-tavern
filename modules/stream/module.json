@@ -1,7 +1,7 @@
 {
   "id": "stream",
   "name": "Stream",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "icon": "clapperboard",
   "description": "Every player as a browser source for a streaming program, on a transparent background: their camera or picture, the talking and muted borders, the name plate. The links, the access key, and how the boxes look.",
   "author": "Coffee Pub",

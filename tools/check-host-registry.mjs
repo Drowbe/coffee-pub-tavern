@@ -321,11 +321,12 @@ async function startServer(dataDir, env = {}) {
 }
 
 // One request to the server as `host` (a subdomain of localhost, or '' for the bare base domain).
-function call(server, host, method, urlPath, { body, type, cookie, accept } = {}) {
+function call(server, host, method, urlPath, { body, type, cookie, accept, bearer } = {}) {
   const payload = body === undefined ? null : Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body));
   const headers = { host: `${host ? `${host}.` : ''}localhost:${server.port}`, accept: accept || 'application/json' };
   if (payload) { headers['content-type'] = type || 'application/json'; headers['content-length'] = payload.length; }
   if (cookie) headers.cookie = cookie;
+  if (bearer) headers.authorization = `Bearer ${bearer}`;
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port: server.port, method, path: urlPath, headers }, (res) => {
       const chunks = [];
@@ -380,17 +381,22 @@ try {
       const envDir = path.join(data, 'environments', slug);
       const app = readJson(path.join(envDir, 'app.json'));
       assert.equal(app.version, 2, `${slug}: version 2`);
-      assert.deepEqual(names.recordedParts(app), ['names-table'], `${slug}: names-table recorded once`);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles'], `${slug}: each environment part recorded once`);
       assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
       assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
     }
+    // names-roles in acme: its owner, member and the host admin's stand-in.
+    const acme = readJson(path.join(data, 'environments', 'acme', 'app.json'));
+    assert.deepEqual(acme.users.map((u) => [u.login, u.role]), [['owner', 'owner'], ['pat', 'member'], ['boss', 'admin']]);
+    assert.deepEqual(acme.settings.roles, { member: { startAside: true }, guest: { react: false } });
     assert.equal((await call(server, 'admin', 'GET', '/api/host/environments')).status, 401, 'signed out: refused');
     const made = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'beta', name: 'Beta', owner: { login: 'owner', password: 'owner-password-1' } } });
     assert.equal(made.status, 201, made.text);
     assert.equal(made.json.environment.slug, 'beta');
     assert.ok(fs.existsSync(path.join(data, 'environments', 'beta', 'app.json')));
     const betaApp = readJson(path.join(data, 'environments', 'beta', 'app.json'));
-    assert.deepEqual(betaApp.migrations.map((m) => [m.id, m.moved]), [['names-table', []]], 'a new environment records its parts as run, moving nothing');
+    assert.deepEqual(betaApp.migrations.map((m) => [m.id, m.moved]), [['names-table', []], ['names-roles', []]], 'a new environment records its parts as run, moving nothing');
+    assert.deepEqual(betaApp.users.map((u) => [u.login, u.role]), [['owner', 'owner']], 'the owner the console makes is an owner');
     assert.ok(!fs.existsSync(path.join(data, 'environments', 'beta', 'pre-names')), 'and keeps no copy');
     const again = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'beta', name: 'Beta' } });
     assert.deepEqual([again.status, again.json], [409, { error: '"beta" is already in use' }]);
@@ -406,7 +412,77 @@ try {
     assert.equal(signIn.status, 200, `the new environment's owner signs in: ${signIn.text}`);
   });
 
-  await liveTest('live: restore refuses each hand-made newer backup, and the environment is unchanged', async () => {
+  // --- roles (plan-names step 4), in acme as the fixture left it: an owner, a member, the host admin's stand-in ---
+  const cookieOf = (res) => [].concat(res.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
+  await liveTest('live: roles in an environment: the owner and the host admin\'s sign-in have every right, a member does not, one owner is kept, and Studio\'s bearer requests get the old role values', async () => {
+    const signIn = async (login, password) => {
+      const res = await call(server, 'acme', 'POST', '/api/login', { body: { login, password } });
+      assert.equal(res.status, 200, `${login} signs in: ${res.text}`);
+      return { cookie: cookieOf(res), token: res.json.token, key: res.json.user.key, role: res.json.user.role };
+    };
+    const owner = await signIn('owner', 'fixture-owner-password-1');
+    const member = await signIn('pat', 'fixture-owner-password-1');
+    const boss = await signIn(HOST_LOGIN, HOST_PASSWORD);
+    assert.deepEqual([owner.role, member.role, boss.role], ['owner', 'member', 'admin']);
+    const acmeFile = path.join(data, 'environments', 'acme', 'app.json');
+    assert.deepEqual(readJson(acmeFile).users.filter((u) => u.hostAdmin).map((u) => [u.login, u.role]), [['boss', 'admin']], 'the host admin\'s sign-in is stored as admin, and no second stand-in is made');
+    for (const [who, s] of [['owner', owner], ['host admin', boss]]) {
+      for (const [method, url] of [['GET', '/api/users'], ['GET', '/api/roles'], ['GET', '/api/settings'], ['GET', '/api/modules'], ['GET', '/api/status']]) {
+        assert.equal((await call(server, 'acme', method, url, { cookie: s.cookie })).status, 200, `${who}: ${method} ${url}`);
+      }
+      const me = (await call(server, 'acme', 'GET', '/api/me', { cookie: s.cookie })).json;
+      assert.ok(Object.values(me.user.permissions).every(Boolean), `${who}: every permission`);
+      assert.equal(typeof me.streamKey, 'string', `${who}: the stream key`);
+    }
+    const ownerMe = (await call(server, 'acme', 'GET', '/api/me', { cookie: owner.cookie })).json;
+    assert.deepEqual([ownerMe.user.role, ownerMe.environment.owner, ownerMe.environment.hostAdmin], ['owner', true, false]);
+    const bossMe = (await call(server, 'acme', 'GET', '/api/me', { cookie: boss.cookie })).json;
+    assert.deepEqual([bossMe.user.role, bossMe.environment.owner, bossMe.environment.hostAdmin], ['admin', false, true]);
+    for (const url of ['/api/users', '/api/roles', '/api/settings']) {
+      assert.deepEqual(await call(server, 'acme', 'GET', url, { cookie: member.cookie }).then((r) => [r.status, r.json]), [403, { error: 'owners only' }], `member: ${url}`);
+    }
+    assert.equal((await call(server, 'acme', 'GET', '/admin', { cookie: member.cookie, accept: 'text/html' })).text, 'Owners only.');
+    const memberMe = (await call(server, 'acme', 'GET', '/api/me', { cookie: member.cookie })).json;
+    assert.equal(memberMe.streamKey, undefined, 'a member gets no stream key');
+    assert.equal(memberMe.user.permissions.startAside, true, 'the custom member permission (was settings.roles.user) applies');
+    const roles = (await call(server, 'acme', 'GET', '/api/roles', { cookie: owner.cookie })).json.roles;
+    assert.deepEqual(Object.keys(roles), ['owner', 'moderator', 'member', 'guest']);
+    assert.equal(roles.guest.react, false);
+    assert.deepEqual((await call(server, 'acme', 'PATCH', '/api/roles/member', { cookie: owner.cookie, body: { canInvite: true } })).json.roles.member.canInvite, true);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/roles/user', { cookie: owner.cookie, body: { canInvite: true } }).then((r) => [r.status, r.json]), [404, { error: 'no such role' }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', '/api/roles/owner', { cookie: owner.cookie, body: { chat: false } }).then((r) => [r.status, r.json]), [400, { error: "the owner has every permission, so that role can't be changed" }]);
+
+    // Keep one owner: the host admin cannot demote or remove the last one; the stand-in's own role is not changed here.
+    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${owner.key}`, { cookie: boss.cookie, body: { role: 'member' } }).then((r) => [r.status, r.json]), [400, { error: 'keep at least one owner' }]);
+    assert.deepEqual(await call(server, 'acme', 'DELETE', `/api/users/${owner.key}`, { cookie: boss.cookie }).then((r) => [r.status, r.json]), [400, { error: 'keep at least one owner' }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${boss.key}`, { cookie: owner.cookie, body: { role: 'member' } }).then((r) => [r.status, r.json]), [400, { error: "this account is the host admin's, so its role can't be changed here" }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'user' } }).then((r) => [r.status, r.json]), [400, { error: 'role must be owner or member' }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'admin' } }).then((r) => [r.status, r.json]), [400, { error: 'role must be owner or member' }]);
+    assert.deepEqual(await call(server, 'acme', 'PATCH', `/api/users/${owner.key}`, { cookie: owner.cookie, body: { role: 'member' } }).then((r) => [r.status, r.json]), [400, { error: 'you cannot demote yourself' }]);
+    const made = await call(server, 'acme', 'POST', '/api/users', { cookie: owner.cookie, body: { login: 'newbie', password: 'newbie-password-1' } });
+    assert.deepEqual([made.status, made.json.user.role], [201, 'member'], 'an account made with no role is a member');
+    assert.deepEqual(await call(server, 'acme', 'POST', '/api/users', { cookie: owner.cookie, body: { login: 'sneaky', role: 'admin' } }).then((r) => [r.status, r.json]), [400, { error: 'role must be owner or member' }], 'nobody is made admin by hand');
+    assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: owner.cookie, body: { role: 'owner' } })).json.user.role, 'owner');
+    assert.equal((await call(server, 'acme', 'PATCH', `/api/users/${member.key}`, { cookie: boss.cookie, body: { role: 'member' } })).json.user.role, 'member', 'with two owners, one can step down');
+
+    // The Studio alias: a bearer request answers the old role values, the pages' cookie request the new ones.
+    const bearerMe = (await call(server, 'acme', 'GET', '/api/me', { bearer: owner.token })).json;
+    assert.deepEqual([bearerMe.user.role, typeof bearerMe.streamKey], ['admin', 'string'], 'Studio reads admin for an owner, and gets the stream key');
+    assert.equal((await call(server, 'acme', 'GET', '/api/me', { bearer: boss.token })).json.user.role, 'admin');
+    assert.equal((await call(server, 'acme', 'GET', '/api/me', { bearer: member.token })).json.user.role, 'user');
+    const bearerStatus = (await call(server, 'acme', 'GET', '/api/status', { bearer: owner.token })).json;
+    const cookieStatus = (await call(server, 'acme', 'GET', '/api/status', { cookie: owner.cookie })).json;
+    const byLogin = (st) => Object.fromEntries(st.users.map((u) => [u.login, u.role]));
+    assert.deepEqual(byLogin(bearerStatus), { owner: 'admin', pat: 'user', boss: 'admin', newbie: 'user' });
+    assert.deepEqual(byLogin(cookieStatus), { owner: 'owner', pat: 'member', boss: 'admin', newbie: 'member' });
+    assert.equal((await call(server, 'acme', 'GET', '/api/status', { bearer: member.token })).status, 403, 'a member\'s bearer token is no stream access');
+    const streamKey = ownerMe.streamKey;
+    const byKey = (await call(server, 'acme', 'GET', `/api/status?s=${encodeURIComponent(streamKey)}`)).json;
+    assert.deepEqual(byLogin(byKey), byLogin(cookieStatus), 'the stream key alone signs nobody in: the new values');
+    assert.equal((await call(server, 'acme', 'DELETE', `/api/users/${made.json.user.key}`, { cookie: owner.cookie })).status, 200);
+  });
+
+  await liveTest('live: restore refuses each hand-made newer or unreadable backup, and the environment is unchanged', async () => {
     const appFile = path.join(data, 'environments', 'beta', 'app.json');
     const good = fs.readFileSync(appFile);
     const newer = Buffer.from(JSON.stringify({ version: 2, migrations: [{ id: 'names-from-the-future', at: '', moved: [] }] }));
@@ -422,6 +498,20 @@ try {
       assert.deepEqual(fs.readFileSync(appFile), good, `${what}: app.json unchanged`);
       assert.ok(!fs.existsSync(path.join(data, 'environments', 'beta', 'tavern.json')), `${what}: nothing landed`);
     }
+    const unreadable = {
+      'app.json that is not JSON': [['app.json', Buffer.from('{ not json')]],
+      'app.json holding a list': [['app.json', Buffer.from('[]')]],
+      'app.json holding null': [['./app.json', Buffer.from('null')]],
+      'tavern.json alone, not JSON': [['tavern.json', Buffer.from('{ not')], ['images/x.png', Buffer.from('x')]],
+      'a good app.json, then a broken one landing last': [['app.json', good], ['app.json', Buffer.from('"text"')]],
+    };
+    for (const [what, entries] of Object.entries(unreadable)) {
+      const res = await call(server, 'admin', 'POST', '/api/host/environments/beta/restore', { cookie, body: zipFiles(entries), type: 'application/zip' });
+      assert.deepEqual([res.status, res.json], [400, { error: "This backup's data can't be read, so nothing was restored." }], what);
+      assert.deepEqual(fs.readFileSync(appFile), good, `${what}: app.json unchanged`);
+      assert.ok(!fs.existsSync(path.join(data, 'environments', 'beta', 'tavern.json')) && !fs.existsSync(path.join(data, 'environments', 'beta', 'images', 'x.png')), `${what}: nothing landed`);
+    }
+    assert.equal((await call(server, 'beta', 'POST', '/api/login', { body: { login: 'owner', password: 'owner-password-1' } })).status, 200, 'the environment still opens, as it was');
     const empty = await call(server, 'admin', 'POST', '/api/host/environments/beta/restore', { cookie, body: Buffer.alloc(0), type: 'application/zip' });
     assert.deepEqual([empty.status, empty.json], [400, { error: 'choose a zip file to restore' }]);
     const missing = await call(server, 'admin', 'POST', '/api/host/environments/nope/restore', { cookie, body: betaBackup, type: 'application/zip' });
@@ -583,6 +673,28 @@ try {
     await server.stop();
     server = null;
   });
+
+  // --- the single install's owner: OWNER_PASSWORD, or ADMIN_PASSWORD still read with a line on start ---
+  const passwords = [
+    ['OWNER_PASSWORD', { OWNER_PASSWORD: 'owner-password-1' }, 'owner-password-1', false],
+    ['ADMIN_PASSWORD', { ADMIN_PASSWORD: 'admin-password-1' }, 'admin-password-1', true],
+    ['both, the new name winning', { OWNER_PASSWORD: 'owner-password-1', ADMIN_PASSWORD: 'admin-password-1' }, 'owner-password-1', true],
+  ];
+  for (const [what, vars, password, logs] of passwords) {
+    await liveTest(`live: a single install with ${what} makes its account an owner`, async () => {
+      const single = path.join(liveDir, `single-owner-${what.replace(/\W+/g, '-')}`);
+      server = await startServer(single, vars);
+      assert.equal(server.output().includes('ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release.'), logs, server.output());
+      assert.match(server.output(), /Owner "admin" created from the environment\./);
+      const res = await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password } });
+      assert.equal(res.status, 200, res.text);
+      const me = (await call(server, '', 'GET', '/api/me', { cookie: cookieOf(res) })).json;
+      assert.deepEqual([me.user.role, me.environment.owner, me.environment.hostAdmin, typeof me.streamKey], ['owner', true, false, 'string']);
+      assert.equal((await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: password === 'owner-password-1' ? 'admin-password-1' : 'owner-password-1' } })).status, 401, 'only the one password');
+      await server.stop();
+      server = null;
+    });
+  }
 
   await liveTest('live: a single install whose app.json is not valid JSON stops, naming the file; a missing one starts fresh', async () => {
     const single = path.join(liveDir, 'single-unreadable');

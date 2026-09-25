@@ -44,17 +44,18 @@ function moduleCan(manifest, perms, need) {
 // run once, globally, at server startup now runs here -- once per environment, whether that is the single
 // default environment (no BASE_DOMAIN) or one environment's own directory.
 //
-// `admin`, when given `{ login, password }`, bootstraps the first admin the same way ADMIN_USER/PASSWORD
-// always has (updates an existing admin's password to match, or creates one, or -- with no password given at
-// all -- makes a random one the first time there is no admin yet). This only ever runs for the default
-// environment; an environment's first admin comes from the host API's own environment-creation flow instead (its password
+// `owner`, when given `{ login, password }`, bootstraps the first owner the same way ADMIN_USER and
+// OWNER_PASSWORD (once ADMIN_PASSWORD) always have (updates an existing account's password to match and makes it an
+// owner, or creates one, or -- with no password given at all -- makes a random one the first time there is no
+// owner yet). This only ever runs for the default environment; a hosted environment's first owner comes from the
+// host API's own environment-creation flow instead (its password
 // is that owner's own choice, not a value every environment would otherwise share).
 //
 // `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
 // AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
 // registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
 // need it.
-function buildEnvironment(dataDir, { slug = null, admin = null, log = console.log, managed = () => null } = {}) {
+function buildEnvironment(dataDir, { slug = null, owner = null, log = console.log, managed = () => null } = {}) {
   // The Names migration (documentation/plans/plan-names.md, "The migration") runs before Store reads app.json, so
   // every service below reads this environment's data in its current shape. Throws a MigrationError naming the
   // file when a part cannot finish, and nothing is built.
@@ -81,25 +82,25 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   const limiter = new auth.LoginLimiter();
   const moduleLimits = new ModuleLimits();
 
-  if (admin) {
-    const login = admin.login || 'admin';
-    const password = admin.password || admin.key;
+  if (owner) {
+    const login = owner.login || 'admin';
+    const password = owner.password || owner.key;
     if (password) {
       const existing = store.userByLogin(login);
       const passwordHash = auth.hashPassword(password);
       if (existing) {
-        if (!auth.verifyPassword(password, existing.passwordHash) || existing.role !== 'admin') {
-          store.updateUser(existing.key, { passwordHash, role: 'admin' });
-          log(`Admin "${login}" updated from the environment.`);
+        if (!auth.verifyPassword(password, existing.passwordHash) || existing.role !== 'owner') {
+          store.updateUser(existing.key, { passwordHash, role: 'owner' });
+          log(`Owner "${login}" updated from the environment.`);
         }
       } else {
-        store.addUser({ login, displayName: login, role: 'admin', passwordHash });
-        log(`Admin "${login}" created from the environment.`);
+        store.addUser({ login, displayName: login, role: 'owner', passwordHash });
+        log(`Owner "${login}" created from the environment.`);
       }
-    } else if (store.adminCount() === 0) {
+    } else if (store.ownerCount() === 0) {
       const generated = randomToken(9);
-      store.addUser({ login, displayName: login, role: 'admin', passwordHash: auth.hashPassword(generated) });
-      log(`No admin yet and no admin password set. Created "${login}" with password: ${generated}`);
+      store.addUser({ login, displayName: login, role: 'owner', passwordHash: auth.hashPassword(generated) });
+      log(`No owner yet and no owner password set. Created "${login}" with password: ${generated}`);
     }
   }
 

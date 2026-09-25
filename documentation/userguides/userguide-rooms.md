@@ -1,15 +1,15 @@
 # Rooms
 
-**Audience:** a game master or admin setting up rooms in Coffee Pub Magpie, and players moving between
+**Audience:** a game master or owner setting up rooms in Coffee Pub Magpie, and players moving between
 them.
 
 Each room is its own conversation. After signing in, a player sees the rooms they belong to, each
-with its members and a green dot on those in it right now, and joins one. Admins may join any room.
+with its members and a green dot on those in it right now, and joins one. Owners may join any room.
 
 ## The room list
 
 Every room card has a **Join** button, an icon button to the right of it that joins straight into a
-pop-out window instead of the page, and (for admins) an **Edit** button. If a room has a launch link,
+pop-out window instead of the page, and (for owners) an **Edit** button. If a room has a launch link,
 its icon button sits there too. A room you are still connected to offers **Rejoin** instead of Join.
 
 ## The dashboard
@@ -34,7 +34,7 @@ If you reload the page while you are in a room, you are put back in that room ra
 ## Add and set up a room
 
 The **Rooms** tab on the Manage page holds the **Lobby**, which everyone belongs to and which cannot
-be deleted, plus any rooms an admin adds. It is a roster: click a room to open its own page. The
+be deleted, plus any rooms an owner adds. It is a roster: click a room to open its own page. The
 arrows on each row reorder the roster; the Lobby is always first.
 
 A room's page has two tabs:
@@ -56,12 +56,12 @@ Room pictures are square; anything else is cropped to the middle.
 
 ## Step aside
 
-While in a call, an admin can pull one or more people in their current space into a private word.
+While in a call, an owner can pull one or more people in their current space into a private word.
 Click the door icon on each tile to pick who, which toggles a selection and does not move anyone
 yet, then confirm with **Step aside with N**. Everyone picked moves together at once, with nobody
 clicking anything on their own end.
 
-Each pulled player, and the admin, gets a **Rejoin call** button in the space's bar. Clicking it on any
+Each pulled player, and the owner, gets a **Rejoin call** button in the space's bar. Clicking it on any
 one of their screens brings the rest back too, to whichever space they were pulled out of. The private room is never shown as something to pick from a list, and it disappears on
 its own once everyone has left it.
 

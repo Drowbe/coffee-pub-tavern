@@ -2,11 +2,11 @@
 
 **Audience:** the owner of an environment on a hosted Coffee Pub Magpie server: what is yours to run, what your plan allows, and how to leave.
 
-An **environment** is your group's own place on a host that serves several: its own address (`yourname.<base domain>`), its own people, spaces, settings, look and modules. Nothing in it is shared with any other environment. You run it; the host runs the server underneath. A server with no base domain is one environment at its own address, run by its admin, and this page does not apply to it.
+An **environment** is your group's own place on a host that serves several: its own address (`yourname.<base domain>`), its own people, spaces, settings, look and modules. Nothing in it is shared with any other environment. You run it; the host runs the server underneath. A server with no base domain is one environment at its own address, run by its owner, and this page does not apply to it.
 
 ## The owner
 
-The person who runs an environment is its **owner**; there can be more than one. Everywhere a person reads it, an owner is what a single server calls its admin: the Roles tab's fixed column, a profile's role, the New user form. An owner has the whole Manage page: the environment's name and icon, the sign-in page, sign-up and invites, language, time and money, the theme, the spaces, the roles, the users, and the modules that come with the server, to install, turn on and configure. Two things are the host's alone and are not offered: uploading a module of your own, and running a module in the page rather than sandboxed.
+The person who runs an environment is its **owner**; there can be more than one. The role is **Owner** everywhere a person reads it, on a single server too: the Roles tab's fixed column, a profile's role, the New user form. An owner has the whole Manage page: the environment's name and icon, the sign-in page, sign-up and invites, language, time and money, the theme, the spaces, the roles, the users, and the modules that come with the server, to install, turn on and configure. Two things are the host's alone and are not offered: uploading a module of your own, and running a module in the page rather than sandboxed.
 
 ## The plan and what is used
 

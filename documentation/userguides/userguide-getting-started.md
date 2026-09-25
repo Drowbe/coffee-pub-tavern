@@ -1,7 +1,7 @@
 # Getting Started
 
 **Audience:** someone setting up a Coffee Pub Magpie server for the first time and signing in as its
-admin.
+owner.
 
 Magpie is two services: the Magpie web app and a LiveKit media server that carries the video and
 audio. This guide sets both up on a QNAP NAS with Container Station and Nginx Proxy Manager, then
@@ -16,7 +16,7 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
    ```bash
    openssl rand -hex 8    # LiveKit API key
    openssl rand -hex 32   # LiveKit API secret
-   openssl rand -hex 8    # your admin password
+   openssl rand -hex 8    # your owner password
    ```
 2. **DNS.** Add two records at your DNS provider pointing at your public IP, the same address your
    Foundry hostname uses: `magpie.<domain>` and `livekit.<domain>`. If the provider offers proxying
@@ -24,7 +24,7 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
 3. **Router.** Forward to the NAS's LAN address: `7881` TCP, `7882` UDP, `3478` UDP. Ports 80 and 443
    already reach Nginx Proxy Manager.
 4. **Container Station.** Applications, Create, give it the name `magpie`, paste the contents of
-   `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, admin
+   `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, owner
    password), and click Create. Both containers should show green within a minute.
 5. **Nginx Proxy Manager.** Two proxy hosts, each with a Let's Encrypt certificate and Force SSL:
    - `livekit.<domain>` to scheme http, forward host = NAS LAN address, port `7880`, **Websockets
@@ -34,15 +34,20 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
 Camera access requires HTTPS, which the proxy provides. Players need nothing but a browser. LiveKit
 1.12 or newer is required; the compose file pulls the latest release.
 
-## Sign in as the admin
+## Sign in as the owner
 
-Open `https://magpie.<domain>/`, sign in as `gm` with the admin password from the compose file, and
+Open `https://magpie.<domain>/`, sign in as `gm` with the owner password from the compose file, and
 choose the gear icon to open the Manage page. Add your players under **Users** and send each of them
 a login and password, or a personal link; see [Accounts, roles and permissions](userguide-accounts.md).
 
-The admin account named in the compose file is checked on every start: it is created if missing, and
-its password is reset to the compose value if it differs. If you forget the admin password, change
-`ADMIN_PASSWORD` in Container Station and restart the container.
+The owner account named in the compose file (`ADMIN_USER`, `gm` in the compose file and `admin` if it is not
+set) is checked on every start: it is created as an owner if missing, and its password is reset to the compose
+value if it differs. If you forget the password, change `OWNER_PASSWORD` in Container Station and restart the
+container.
+
+`OWNER_PASSWORD` was called `ADMIN_PASSWORD`. The old name still works for now; while it is set, the log says on
+every start: "ADMIN_PASSWORD is now OWNER_PASSWORD; the old name stops working in a later release." If both are
+set, `OWNER_PASSWORD` is used. `ADMIN_USER`, `ADMIN_KEY` and `ADMIN_MFA_LOCKOUT_BYPASS` keep their names.
 
 ## Update it later
 
@@ -79,7 +84,7 @@ To switch environments on, with the server already running as above:
    `<slug>.<base>`, one per environment) with the ordinary challenge, and add a name whenever you create one.
    Force SSL and HTTP/2 as before.
 3. **The container, for one start.** Take a copy of `/share/appdata/magpie` first. Remove
-   `ADMIN_USER` and `ADMIN_PASSWORD` (they apply only to a server without a base domain) and
+   `ADMIN_USER` and `OWNER_PASSWORD` (or `ADMIN_PASSWORD`; they apply only to a server without a base domain) and
    add:
    ```yaml
    BASE_DOMAIN: "magpie.example.com"
@@ -94,12 +99,12 @@ To switch environments on, with the server already running as above:
 
 **Two-step sign-in, and getting back in.** Three switches, one inside the other. `ENABLE_MFA` (in the
 compose file, `"true"` by default) says whether the server offers a second step at all; with it off nobody is
-asked and nobody can set one up. When it is offered, each environment's admin chooses on Manage > Server
+asked and nobody can set one up. When it is offered, each environment's owners choose on Manage > Server
 whether to **require** it of everyone, and otherwise each person chooses on their own profile. Host admins
 set theirs up on the console's Host tab, and `HOST_MFA_REQUIRED: "true"` makes it mandatory for them. The
 secrets are encrypted with a key the server makes on first start (`secrets.key` beside the data on a single
 server, inside `host.json` with environments), so an environment's export carries nothing readable. If an
-admin is locked out, set `ADMIN_MFA_LOCKOUT_BYPASS: "true"` and recreate the container: admins and host
+owner is locked out, set `ADMIN_MFA_LOCKOUT_BYPASS: "true"` and recreate the container: owners and host
 admins are then signed in on the password alone (members are still asked), their profile offers **Reset my
 second factor** with the password, and Manage and the console show a banner until you set it back to
 `"false"`. Nothing is deleted by either switch.

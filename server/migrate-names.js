@@ -108,9 +108,55 @@ const tablePart = {
   },
 };
 
+// names-roles (plan-names step 4): the role values. users[].role `admin` becomes `owner`, except the host admin's
+// stand-in account (hostAdmin: true), which is always `admin` (whatever it was set to); `user` becomes `member`.
+// settings.roles, the Roles grid's changes per role, has its `user` key renamed `member` (and an `admin` key, which
+// no build ever wrote but hand-made data could hold, `owner`), in the same place among its keys. An invite's `role`,
+// which no build wrote either, is renamed the same way if it is there. A value in the new shape is left alone, so
+// over migrated or new data it writes nothing. settings.roles holding both `user` and `member`, and differing, is
+// refused rather than guessed at.
+const OLD_ROLE_VALUES = { admin: 'owner', user: 'member' };
+const rolesPart = {
+  id: 'names-roles',
+  files: () => [ENVIRONMENT_RECORD],
+  run(ctx) {
+    const app = ctx.read(ENVIRONMENT_RECORD);
+    const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    if (!isObject(app)) return;
+    let next = app;
+    const renamedValue = (role) => (typeof role === 'string' && Object.prototype.hasOwnProperty.call(OLD_ROLE_VALUES, role) ? OLD_ROLE_VALUES[role] : role);
+    if (Array.isArray(app.users)) {
+      const roleOf = (u) => (u.hostAdmin === true ? 'admin' : renamedValue(u.role));
+      if (app.users.some((u) => isObject(u) && 'role' in u && roleOf(u) !== u.role)) {
+        next = { ...next, users: app.users.map((u) => (isObject(u) && 'role' in u && roleOf(u) !== u.role ? { ...u, role: roleOf(u) } : u)) };
+      }
+    }
+    const roles = isObject(app.settings) && isObject(app.settings.roles) ? app.settings.roles : null;
+    if (roles && Object.keys(roles).some((key) => Object.prototype.hasOwnProperty.call(OLD_ROLE_VALUES, key))) {
+      for (const [from, to] of Object.entries(OLD_ROLE_VALUES)) {
+        if (from in roles && to in roles && !isDeepStrictEqual(roles[from], roles[to])) {
+          const file = path.join(ctx.dir, ENVIRONMENT_RECORD);
+          throw new MigrationError(`its settings.roles has both "${from}" and "${to}", and they differ, so it cannot tell which to keep. Nothing was changed: remove the out-of-date key from ${file} and start again (a copy of the file as it was is in ${ctx.copyRoot}).`, file);
+        }
+      }
+      const renamed = {};
+      for (const [key, value] of Object.entries(roles)) {
+        const to = renamedValue(key);
+        if (to !== key && to in roles) continue; // the same value is there under the new name already
+        renamed[to] = value;
+      }
+      next = { ...next, settings: { ...app.settings, roles: renamed } };
+    }
+    if (Array.isArray(app.invites) && app.invites.some((i) => isObject(i) && renamedValue(i.role) !== i.role)) {
+      next = { ...next, invites: app.invites.map((i) => (isObject(i) && renamedValue(i.role) !== i.role ? { ...i, role: renamedValue(i.role) } : i)) };
+    }
+    if (next !== app) ctx.write(ENVIRONMENT_RECORD, next);
+  },
+};
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.
@@ -180,13 +226,23 @@ function unknownParts(record, parts = ENVIRONMENT_PARTS) {
 }
 
 const NEWER_BACKUP = 'This backup is from a newer version of Magpie.';
+const UNREADABLE_BACKUP = "This backup's data can't be read, so nothing was restored.";
 
 // A restore's check, over a backup's entries ([[name, Buffer]], in zip order): the files that would actually land
-// (a later entry of the same name overwrites an earlier one, and "./app.json" is app.json), app.json and the older
-// tavern.json both, since Store reads the latter when the former is missing. Answers the refusal sentence, or null.
+// (a later entry of the same name overwrites an earlier one, and "./app.json" is app.json). The environment's data
+// (app.json, or the older tavern.json when there is no app.json, the one Store would read) must be readable: valid
+// JSON holding an object, the way a start refuses unreadable data (decision 23); a backup with neither starts fresh,
+// as a new environment does. Then app.json and tavern.json both are checked for a part from a newer Magpie. Answers
+// the refusal sentence, or null.
 function backupRefusal(entries, parts = ENVIRONMENT_PARTS) {
   const landing = new Map();
   for (const [name, data] of entries) landing.set(normalRel(String(name).replace(/^\/+/, '')), data);
+  const dataName = landing.has(ENVIRONMENT_RECORD) ? ENVIRONMENT_RECORD : landing.has(LEGACY_ENVIRONMENT_RECORD) ? LEGACY_ENVIRONMENT_RECORD : null;
+  if (dataName) {
+    let value;
+    try { value = JSON.parse(Buffer.from(landing.get(dataName)).toString('utf8')); } catch { return UNREADABLE_BACKUP; }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return UNREADABLE_BACKUP;
+  }
   for (const name of [ENVIRONMENT_RECORD, LEGACY_ENVIRONMENT_RECORD]) {
     if (!landing.has(name)) continue;
     let record = null;
@@ -492,7 +548,7 @@ function refusedAtStartup(err, { hosted, log = console.error, stop = (code) => p
 }
 
 module.exports = {
-  NAMES_VERSION, HOST_PARTS, ENVIRONMENT_PARTS, ENVIRONMENT_COPY_DIR, HOST_COPY_DIR, NEWER_BACKUP,
+  NAMES_VERSION, HOST_PARTS, ENVIRONMENT_PARTS, ENVIRONMENT_COPY_DIR, HOST_COPY_DIR, NEWER_BACKUP, UNREADABLE_BACKUP,
   MigrationError, migrateEnvironment, migrateHost, recordedParts, unknownParts, backupRefusal, refusedAtStartup,
   REFUSED_NEWER, REFUSED_FAILED, REFUSED_UNREADABLE, refusalSentence, asMigrationError,
 };

@@ -1,6 +1,6 @@
 # Magpie in OBS
 
-**Audience:** a streamer or game master putting Coffee Pub Magpie players into OBS scenes, and the admin setting the Stream module up.
+**Audience:** a streamer or game master putting Coffee Pub Magpie players into OBS scenes, and the owner setting the Stream module up.
 
 Every player is available to OBS as a separate Browser Source, on a transparent background, so you lay
 them out however you like and they stay in place as people talk, join or leave. An absent player
@@ -13,7 +13,7 @@ turns it back on.
 
 ## With Coffee Pub Studio
 
-Skip everything below. Studio's Magpie tab signs in as an admin and creates and maintains both sources
+Skip everything below. Studio's Magpie tab signs in as an owner and creates and maintains both sources
 for every player in the room you pick, in one click. See Studio's own guide for that.
 
 ## By hand
@@ -30,10 +30,11 @@ view shows the Character pictures only and never the video. See
 [Participant and Character images](userguide-images.md) for how to set those up; the pictures are still
 each person's own, on their profile.
 
-The links carry the server's **access key**, which the Stream page shows (and regenerates) for an admin,
-as does **Access key** on the Server tab of the Manage page. Regenerating it stops every existing link
-working, so do it only if a link has leaked. The Stream page is for admins; give a role the module's
-**See the stream links and the access key** permission on the Roles tab to let others in.
+The links carry the server's **access key**, which the Stream page shows (and regenerates) for owners and,
+on a hosted server, the host admin, as does **Access key** on the Server tab of the Manage page. Regenerating
+it stops every existing link working, so do it only if a link has leaked. Anyone else who opens the Stream
+page sees "Only an owner sees the links, since each one carries the access key." The module's **See the
+stream links and the access key** permission on the Roles tab does not change that today.
 
 The exact options a link accepts (name plate, silent audio, hiding reactions) are in
 [OBS view links](../api/api-obs-view.md).
@@ -56,7 +57,7 @@ on the source. Add `audio=0` to the link to silence it.
 ## Kick and mute
 
 Next to each player in a call on the Manage page are buttons to kick them or mute their microphone.
-Admins can always do this; other roles need the **Mute other people** and **Kick other people**
+Owners can always do this; other roles need the **Mute other people** and **Kick other people**
 permissions on the Roles tab.
 
 ## What is not on stream

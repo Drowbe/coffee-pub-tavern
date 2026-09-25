@@ -49,7 +49,7 @@ if (theme === 'light') document.documentElement.classList.add('light');
 if (!q.has('bare')) {
   document.body.className = 'harness';
   const opt = (name, values, cur) => `<label>${name} <select data-k="${name}">${values.map((v) => `<option${v === cur ? ' selected' : ''}>${v}</option>`).join('')}</select></label>`;
-  document.body.insertAdjacentHTML('beforeend', `<div class="harness-bar">${opt('state', ['normal', 'selected', 'selected-item', 'search', 'candidates', 'adding', 'noplaces', 'nosearch', 'loading', 'nomap-admin', 'nomap-member', 'nowebgl', 'error'], state)}${opt('theme', ['dark', 'light'], theme)}${opt('size', ['phone', 'pane', 'wide'], size)}<span class="hint">phone 390 wide, pane 560, wide 1100</span></div>`);
+  document.body.insertAdjacentHTML('beforeend', `<div class="harness-bar">${opt('state', ['normal', 'selected', 'selected-item', 'search', 'candidates', 'adding', 'noplaces', 'nosearch', 'loading', 'nomap', 'nowebgl', 'error'], state)}${opt('theme', ['dark', 'light'], theme)}${opt('size', ['phone', 'pane', 'wide'], size)}<span class="hint">phone 390 wide, pane 560, wide 1100</span></div>`);
   const w = { phone: 390, pane: 560, wide: 1100 }[size];
   const f = document.createElement('iframe');
   f.className = 'harness-frame';
@@ -107,8 +107,7 @@ if (!q.has('bare')) {
 
   let body;
   if (state === 'loading') body = `<div class="app" id="app"><div class="stage"><div class="map"><div class="skel"></div></div></div></div>`;
-  else if (state === 'nomap-admin') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'No map yet', 'Maps needs a map file on this server. Put a PMTiles file in the data folder, then pick it in Manage > Modules > Maps > Settings.', '<p><a class="btn btn-primary" data-action="open-settings" href="#">Open the Maps settings</a></p>')}</div></div>`;
-  else if (state === 'nomap-member') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'Maps is not set up', 'An admin needs to add a map file to this server first. Your places are in the Places module.')}</div></div>`;
+  else if (state === 'nomap') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'Maps is not set up yet', 'An owner adds map files in Manage. Your places are in the Places module.')}</div></div>`;
   else if (state === 'error') body = `<div class="app" id="app"><div class="stage">${stateBlock('triangle-exclamation', 'The map could not load', 'The map file did not answer. Try again, or ask an admin to check it.', '<p><button class="btn" type="button" data-action="retry">Try again</button></p>')}</div></div>`;
   else if (state === 'nowebgl') body = `<div class="app" id="app"><div class="stage">${stateBlock('map', 'This device cannot draw the map', 'Your places are in the Places module, and each opens in your own maps app from there.')}</div></div>`;
   else {

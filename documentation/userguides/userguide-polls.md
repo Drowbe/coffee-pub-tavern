@@ -1,14 +1,14 @@
 # Polls
 
-**Audience:** a player or game master using the Polls module on a Coffee Pub Magpie server, and an admin setting it up.
+**Audience:** a player or game master using the Polls module on a Coffee Pub Magpie server, and an owner setting it up.
 
 Polls lets a group decide something together: where to go on a trip, where to stay, what to do on Saturday. There is one set of polls for the whole server and one for each room. Install and enable it first; see [Modules](userguide-modules.md).
 
-## Set it up (admin)
+## Set it up (owner)
 
-1. On the Modules tab, choose **Install** beside Polls under **Available with this server**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add three permissions to the Roles tab and to send notifications.
+1. On the Modules tab, choose **Install** beside Polls under **Available with this server**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). It asks to add four permissions to the Roles tab and to send notifications. Version 1.12.10 adds one of them, so updating to it waits for an owner's approval once.
 2. To use it in rooms, tick **Available in every room** on its card, or tick it per room on the room's own page.
-3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**. By default users and moderators can do all three, and guests can only see. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
+3. On the Roles tab, under **Module: Polls**, choose who can **See polls and their results**, **Vote in polls** and **Start, close and delete polls**, and who can **Close and delete polls other people started**. By default members and moderators can do the first three and guests can only see; the fourth is off for everyone but owners, who can always do everything. Guests cannot vote, because every guest shares one identity and their votes would overwrite each other.
 
 The permission to start polls is enforced by the Polls page itself, not by the server, so it is a guard against a mistake rather than against someone determined. See and vote are enforced by the server.
 
@@ -45,7 +45,7 @@ An option can have a date, chosen with the calendar button beside it when you st
 
 ## Link an option to something
 
-Drag an item from another module (an event on the Calendar, say) onto an option to link the option to it. The option shows the item, and clicking it opens the item. You can remove the link with the cross while the poll is open. Only the person who started the poll, or an admin, can link options. When the poll closes and one option wins, the item that option points at goes out with the result, so a task that follows the poll can link to it or use it. A poll that ties, or whose winner has no link, sends only the result line.
+Drag an item from another module (an event on the Calendar, say) onto an option to link the option to it. The option shows the item, and clicking it opens the item. You can remove the link with the cross while the poll is open. Only the person who started the poll, or an owner, can link options. When the poll closes and one option wins, the item that option points at goes out with the result, so a task that follows the poll can link to it or use it. A poll that ties, or whose winner has no link, sends only the result line.
 
 ## After a poll closes
 
@@ -53,7 +53,7 @@ Closing a poll (or its closing time passing) tells the other modules that were s
 
 ## Close it
 
-The person who started a poll, and an admin, can **Close** it, and **Reopen** it later. A closed poll no longer takes votes and marks its winner, or **Tied** if several options share the top count. **Delete** removes the poll and all its votes; it asks you to press it twice.
+The person who started a poll, an owner, and anyone given **Close and delete polls other people started** can **Close** it, and **Reopen** it later. A closed poll no longer takes votes and marks its winner, or **Tied** if several options share the top count. **Delete** removes the poll and all its votes; it asks you to press it twice.
 
 In a room, three icons in the Polls' titlebar, before the pane's own buttons and set off by a pipe, choose what the list shows: the open padlock for open polls (its tooltip says how many), the closed padlock for closed ones, and the list icon for all. On the server page, which has no titlebar to put them in, they stay as buttons at the top of the page.
 

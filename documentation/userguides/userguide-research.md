@@ -1,14 +1,14 @@
 # Research
 
-**Audience:** a player or game master keeping notes, links and photos with the Research module on a Coffee Pub Magpie server, and an admin setting it up.
+**Audience:** a player or game master keeping notes, links and photos with the Research module on a Coffee Pub Magpie server, and an owner setting it up.
 
 The Research module keeps what a group finds out while it plans: a note, a link with the part that mattered, a photo with a caption. Each one is a card you can tag, search, link from other modules (drag it onto a day of a plan) and, when it has a place or a date, show on the map or on its day. It is not only for travel: a house purchase or a project has the same shape. Install and enable it first; see [Modules](userguide-modules.md).
 
-## Set it up (admin)
+## Set it up (owner)
 
 1. On the Modules tab, choose **Install** beside Research, then **Approve and enable**. It asks to link to other modules' items and to use the AI hook.
 2. Tick **Available in every room**, or tick it per room.
-3. On the Roles tab, under **Module: Research**, choose who can **See research** and who can **Add, change and remove research**. By default everyone can see it, users and moderators can edit, and guests can see but not edit.
+3. On the Roles tab, under **Module: Research**, choose who can **See research**, who can **Add, change and remove research**, and who can **Remove photos other people added** to a space. By default everyone can see it, members and moderators can edit, guests can see but not edit, and only owners can remove another person's photo. Version 0.2.10 adds that last permission, so updating to it waits for an owner's approval once.
 4. **Well-known tags (optional).** Under Research's settings (**Module Configuration**), add tags with a colour each. A tag on the list wears its colour on every card; any other tag stays plain.
 5. **Suggest tags (optional).** In the dialog, this button asks the AI for tags; it appears only when the AI is set up on the Modules tab and the Roles tab lets the person use it ("Use AI in modules", off for everyone until you turn it on; a guest never can). See [Modules](userguide-modules.md). To have a whole conversation with the AI, with research as context, install the **Assistant** module (see [Assistant](userguide-assistant.md)).
 

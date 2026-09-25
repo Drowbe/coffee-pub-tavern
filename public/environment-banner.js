@@ -1,5 +1,5 @@
 // The owner's banner on every page of a hosted environment whose payment has lapsed (or that the host suspended):
-// a line under the header saying so and when the environment goes to the free plan. Only an admin (the owner) sees
+// a line under the header saying so and when the environment goes to the free plan. Only the owner (or the host admin) sees
 // it, and only on a host with environments; everyone else, and every single-environment server, costs nothing here.
 // brand.js calls this once the header is drawn.
 export async function mountEnvironmentBanner() {
@@ -13,7 +13,7 @@ export async function mountEnvironmentBanner() {
     return;
   }
   const env = me && me.environment;
-  if (!env || !env.hosted || !me.user || me.user.role !== 'admin') return;
+  if (!env || !env.hosted || !(env.owner || env.hostAdmin)) return;
   let info;
   try {
     const res = await fetch('/api/environment');

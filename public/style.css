@@ -1450,6 +1450,14 @@ body.in-space .topbar {
   letter-spacing: normal;
 }
 
+/* Why a field can't be changed (the host admin's role), under it in the same box: plain words, not the label's capitals. */
+#account-fields .hint {
+  margin: 0;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 
 .join .btn-primary {
   font-size: 16px;

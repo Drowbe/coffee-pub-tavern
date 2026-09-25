@@ -7,9 +7,17 @@
   "settings": {
     "serverName": "Acme Adventures",
     "tableName": "The Table",
-    "room": "table"
+    "room": "table",
+    "roles": {
+      "user": { "startAside": true },
+      "guest": { "react": false }
+    }
   },
-  "users": [],
+  "users": [
+    { "key": "acmeowner1", "login": "owner", "displayName": "Acme Owner", "role": "admin", "passwordHash": "scrypt$b8d3057d64f0ee1882b069a845d17175$a99a01f8a3b6b40ef83a560d744255f7f336ca7c30b44e444d6de0c31dd8dba6", "rooms": {} },
+    { "key": "acmemember", "login": "pat", "displayName": "Pat", "role": "user", "passwordHash": "scrypt$b8d3057d64f0ee1882b069a845d17175$a99a01f8a3b6b40ef83a560d744255f7f336ca7c30b44e444d6de0c31dd8dba6", "rooms": {} },
+    { "key": "acmehost01", "login": "boss", "displayName": "boss", "role": "admin", "passwordHash": null, "hostAdmin": true, "rooms": {} }
+  ],
   "rooms": [
     { "id": "lobby", "name": "Lobby", "description": "", "members": [], "createdAt": "2026-01-01T00:00:00.000Z" }
   ]

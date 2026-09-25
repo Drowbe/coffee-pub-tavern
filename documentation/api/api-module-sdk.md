@@ -2,7 +2,7 @@
 
 **Audience:** someone writing a Coffee Pub Magpie module: what a module is made of, what it can ask Magpie to do, and what it is not allowed to.
 
-To install and manage modules as an admin, read [userguide-modules](../userguides/userguide-modules.md). The server routes behind all of this are in [api-modules](api-modules.md), and how it is built is in [architecture-modules](../architecture/architecture-modules.md).
+To install and manage modules as an owner, read [userguide-modules](../userguides/userguide-modules.md). The server routes behind all of this are in [api-modules](api-modules.md), and how it is built is in [architecture-modules](../architecture/architecture-modules.md).
 
 ## What a module is
 
@@ -36,8 +36,8 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
     "panel": { "entry": "panel.html", "width": 400, "height": 580, "mode": ["dock", "float"] }
   },
   "permissions": [
-    { "key": "view", "label": "See the calendar", "default": { "user": true, "guest": true, "moderator": true } },
-    { "key": "edit", "label": "Add and change events", "default": { "user": true, "guest": false, "moderator": true } }
+    { "key": "view", "label": "See the calendar", "default": { "member": true, "guest": true, "moderator": true } },
+    { "key": "edit", "label": "Add and change events", "default": { "member": true, "guest": false, "moderator": true } }
   ],
   "access": { "read": "view", "write": "edit" },
   "hooks": { "schedule": true, "notify": true }
@@ -47,10 +47,10 @@ A zip holds a `module.json` and the HTML pages it names. Everything a page needs
 - `scope` says where the module can run. A `server` module needs a `page` surface and a `room` module needs a `panel`.
 - `icon` is the name of a Font Awesome icon, used in the header and the Modules menu.
 - `panel.mode` lists how a panel may be shown: `dock` (a column of the room beside the video and chat), `float` (a panel over the call), or both. Leave it out and both are allowed. A room opens a module docked when it can, and people can switch between them. A pane keeps the width you drag it to. `width` and `height` are the starting size.
-- `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role. Admins can always do everything.
+- `permissions` are the module's own permissions. Each appears on the Roles tab as `Module: <name>`, with the `default` you give per role: `member`, `moderator` and `guest` (a missing `moderator` takes `member`'s value; the old key `user` is still read as `member` until the manifest's own rename). A key matches `^[a-z][a-z0-9_]{0,23}$`: a lower-case letter, then up to 23 lower-case letters, digits or underscores. Owners, and the host admin on a hosted server, always have every permission, so a module never needs a role check of its own: ask `host.can()`.
 - `access` names which of those permissions guards reading and writing the module's data. Leave it out and any signed-in person who can see the module can read and write.
-- `hooks` names what the module may ask Magpie to do: `schedule` and `notify`. The admin approves them when enabling the module.
-- `refs` lets modules point at each other's items without reaching into each other's data; see [Refs](#refs-pointing-at-another-modules-items). `refs.produces` lists the kinds of item this module lets others point at, and `refs.consumes` the other modules' kinds it wants to point at, which the admin approves when enabling the module.
+- `hooks` names what the module may ask Magpie to do: `schedule` and `notify`. An owner approves them when enabling the module.
+- `refs` lets modules point at each other's items without reaching into each other's data; see [Refs](#refs-pointing-at-another-modules-items). `refs.produces` lists the kinds of item this module lets others point at, and `refs.consumes` the other modules' kinds it wants to point at, which the owner approves when enabling the module.
 
 ## Pages and the SDK
 
@@ -58,18 +58,18 @@ Magpie adds the SDK and a base stylesheet to each of your HTML pages when it ser
 
 ```js
 const t = await host.ready();
-// t.user      { key, name, role }
+// t.user      { key, name, role }   role: 'owner', 'member', 'guest', or 'admin' for the host admin's own account
 // t.context   { scope: 'server' | 'room', roomId }
 // t.permissions  { view: true, edit: false }   the module's own permissions, by short key
 // t.theme     the current theme tokens
-host.can('edit');   // true or false, from the permissions above
+host.can('edit');   // true or false, from the permissions above; always true for an owner
 ```
 
 Every call returns a promise. Do not call anything before `ready()` resolves.
 
 ### Storage
 
-A small key-value store per module, with a scope: the whole **server**, one **room**, or one **person**. The person scope (declare `"person"` in the manifest's `scope`; a page asks with `{ scope: 'person' }`) is the signed-in person's own data, kept for them alone whichever room or page they are in: nobody else can read it, not even an administrator, and a guest has none. Its changes are pushed only to that person's own pages, with `scope: 'person'` on the `change` event (check `e.scope` if your page also shows a room's data). Pointers to a personal item have `scope: 'person'` (`host.refs.make(kind, id, { scope: 'person' })`) and find nothing for anyone but the owner; personal items are not linked (`setLinks` refuses them). `host.refs.search(text, { scope: 'person' })` lists the viewer's own. A page uses its own scope (`'context'`, the default). A room panel may also ask for `{ scope: 'server' }` to read server data. A module with both a server page and a room panel may, on its server page, read `{ scope: 'rooms' }`: read-only, across every room the viewer is a member of that has the module on and lets their role read it. Each item comes back with its `roomId`, and `host.rooms()` returns those rooms as `[{ id, name, icon, svg }]`, where `svg` is the room's icon as inline SVG (a module cannot load the icon font). Live `change` events from those rooms carry a `roomId` and `scope: 'rooms'`.
+A small key-value store per module, with a scope: the whole **server**, one **room**, or one **person**. The person scope (declare `"person"` in the manifest's `scope`; a page asks with `{ scope: 'person' }`) is the signed-in person's own data, kept for them alone whichever room or page they are in: nobody else can read it, not even an owner, and a guest has none. Its changes are pushed only to that person's own pages, with `scope: 'person'` on the `change` event (check `e.scope` if your page also shows a room's data). Pointers to a personal item have `scope: 'person'` (`host.refs.make(kind, id, { scope: 'person' })`) and find nothing for anyone but the owner; personal items are not linked (`setLinks` refuses them). `host.refs.search(text, { scope: 'person' })` lists the viewer's own. A page uses its own scope (`'context'`, the default). A room panel may also ask for `{ scope: 'server' }` to read server data. A module with both a server page and a room panel may, on its server page, read `{ scope: 'rooms' }`: read-only, across every room the viewer is a member of that has the module on and lets their role read it. Each item comes back with its `roomId`, and `host.rooms()` returns those rooms as `[{ id, name, icon, svg }]`, where `svg` is the room's icon as inline SVG (a module cannot load the icon font). Live `change` events from those rooms carry a `roomId` and `scope: 'rooms'`.
 
 ```js
 await host.storage.set('event:123', { title: 'Session' });        // returns { key, value, version, updatedAt, by }
@@ -131,9 +131,9 @@ A module that lets others point at its items lists them in `module.json`. Each e
 }
 ```
 
-`consumes` lists the kinds this module wants to point at: named, as `"module:kind"`, or `"*"` for whatever other modules share. `"*"` is what lets a module link to items of modules that did not exist when it was written. The admin approves the list when enabling.
+`consumes` lists the kinds this module wants to point at: named, as `"module:kind"`, or `"*"` for whatever other modules share. `"*"` is what lets a module link to items of modules that did not exist when it was written. An owner approves the list when enabling.
 
-The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done`, `category` (a short label) and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the admin's approval, like a new permission or hook.
+The card fields are `title` (required), `subtitle`, `when`, `end`, `allDay`, `done`, `category` (a short label) and `place` (`{ lat, lng, name? }`, a spot on a map). An upgrade that adds to `consumes` waits for the owner's approval, like a new permission or hook.
 
 A pointer is `{ module, kind, id, scope: 'room' | 'server', room? }`.
 
@@ -220,7 +220,7 @@ const prefs = await host.settings.get();          // { defaultView: 'week', ... 
 host.settings.onChange((prefs) => { ... });       // called when any of them changes
 ```
 
-A `file` setting (with `"folder": "map-tiles"`, lowercase letters, digits and dashes) names a file the operator copied into that folder inside the module's own folder in the data folder (`modules/<module id>/<folder>/`; uninstalling and updating never delete it) (too large to upload through a page, such as a map archive); the admin picks it in the form, and a module running in the page reads it, range requests included, from `await host.files.url(name)`. A `url` setting holds an http or https address the admin chose.
+A `file` setting (with `"folder": "map-tiles"`, lowercase letters, digits and dashes) names a file the operator copied into that folder inside the module's own folder in the data folder (`modules/<module id>/<folder>/`; uninstalling and updating never delete it) (too large to upload through a page, such as a map archive); the owner picks it in the form, and a module running in the page reads it, range requests included, from `await host.files.url(name)`. A `url` setting holds an http or https address the owner chose.
 
 Every setting has a default, so `get()` always answers with all of them. A module cannot change settings; the forms are Magpie's, so a module never needs a settings screen of its own. Keep them to plain choices (a view, a number, a yes/no); nothing secret belongs in one.
 
@@ -234,11 +234,11 @@ const { results, configured, credit } = await host.geocode.search('colosseo', { 
 await host.geocode.used(results[0].key);     // the person picked it: the server keeps it when it is cleaned out
 ```
 
-The server looks in the places it has saved first, and asks the service the admin chose only when fewer than five match; the answers are saved if the admin allows it. Searches count against the module's rate limit.
+The server looks in the places it has saved first, and asks the service the owner chose only when fewer than five match; the answers are saved if the owner allows it. Searches count against the module's rate limit.
 
 ### AI
 
-A module that declares the `ai` hook can ask the AI the admin set up:
+A module that declares the `ai` hook can ask the AI the owner set up:
 
 ```js
 const { available, why } = await host.ai.available();
@@ -260,7 +260,7 @@ img.src = await host.uploads.url(f.id, { thumb: true, scope: 'room' });
 await host.uploads.remove(f.id, { scope: 'room' }); // when the item that shows it is removed
 ```
 
-Make the picture the size you want (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page before sending: the server does not decode pictures, it checks and cleans them. A resize in the page loses the picture's own facts, so read them first with `await host.uploads.inspect(file.slice(0, 256 * 1024, file.type))`, which answers `{ type, taken, camera, hasPosition, position }` from the start of the file; the position goes only to the person who sent it, and keeping it is then the page's decision (store it with the item). A photo's position is dropped unless `keepPosition` is true; `hasPosition` says it had one, so the page can offer to keep it (put the file again with `keepPosition`, then remove the first copy). Only the person who added a file, or an administrator, can remove it. Uploads count against a per-person rate limit.
+Make the picture the size you want (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page before sending: the server does not decode pictures, it checks and cleans them. A resize in the page loses the picture's own facts, so read them first with `await host.uploads.inspect(file.slice(0, 256 * 1024, file.type))`, which answers `{ type, taken, camera, hasPosition, position }` from the start of the file; the position goes only to the person who sent it, and keeping it is then the page's decision (store it with the item). A photo's position is dropped unless `keepPosition` is true; `hasPosition` says it had one, so the page can offer to keep it (put the file again with `keepPosition`, then remove the first copy). Only the person who added a file, or an owner, can remove it. Uploads count against a per-person rate limit.
 
 ### Shared tools
 
@@ -340,7 +340,7 @@ A tool is `{ id, zone?, icon, label, title?, order?, group?, groupOrder?, href?,
 
 The set replaces the last one; it is drawn while the module's pane is open in that space and taken out when the pane closes or the module is unmounted. It resolves `true` when the host drew the tools and `false` when there is no space bar here (the module's own page, its own window), so keep such a control in the page in that case.
 
-**The primary bar.** A module's tools go in the secondary bar. The primary bar takes a registration from a module only for a system-wide tool: the tool says `system: true` and `bar: 'primary'`, the module's manifest has `surfaces.page.nav: true` (the admin allowed it into the primary nav), and it goes into the right zone, with the system's own actions. Anything else for the primary bar is refused with an error that says which rule it broke. A module's own page link is already there, from the manifest; this is not for that.
+**The primary bar.** A module's tools go in the secondary bar. The primary bar takes a registration from a module only for a system-wide tool: the tool says `system: true` and `bar: 'primary'`, the module's manifest has `surfaces.page.nav: true` (the owner allowed it into the primary nav), and it goes into the right zone, with the system's own actions. Anything else for the primary bar is refused with an error that says which rule it broke. A module's own page link is already there, from the manifest; this is not for that.
 
 ### An action menu
 
@@ -365,7 +365,7 @@ Each item is `{ id?, label, icon?, iconColor?, regular?, hint?, disabled?, dange
 
 ### Events and actions: reacting to and asking things of other modules
 
-The other two conduits between modules, and like refs they name no module. Declare them in `module.json` and an admin approves what your module hears and asks for.
+The other two conduits between modules, and like refs they name no module. Declare them in `module.json` and an owner approves what your module hears and asks for.
 
 ```json
 "events":  { "publishes": [{ "name": "closed", "kind": "poll", "label": "A poll closed" }], "subscribes": ["*"] },
@@ -387,7 +387,7 @@ The other two conduits between modules, and like refs they name no module. Decla
 
 **Rules on links.** An event declares the data it carries (`events.publishes[].data`, for example `{ "summary": "string", "pick": "ref?" }`), and `host.refs.kinds()` returns, for each kind, the events it can report with their data. A module that links to items can then let the person choose, per link, what to do when the item reports something, offering only what the event's data supports. The To-do does this: for a linked poll's close it offers to tick the task, add the `summary` to its notes, use it as the title, or link the item in `pick`. By convention `summary` is one line about the outcome and `pick` is a pointer to the item the outcome chose; neither means anything to Magpie. Treat `pick` as untrusted: check the kind is one you may link to.
 
-**Rules that ask other modules.** A rule can also ask another module to do something with what an item reports. The To-do offers, for each action another module provides (from `host.actions.list()`), "Module: what it does" whenever every required field can be filled from the event: a `date` field from the event's `date`, a `string` or `text` field from its `summary`, a plain `ref` field from the item that reported. So a poll that declares a `date` (its winning option's date) and a Calendar that provides `createEvent` are enough for a closed poll to put the winning date on the calendar, with neither module naming the other. The module that follows asks under the person's own rights. The first page to save the rule as fired asks, so however many people have the To-do open the request is made once; that needs `actions.uses` approved by an admin.
+**Rules that ask other modules.** A rule can also ask another module to do something with what an item reports. The To-do offers, for each action another module provides (from `host.actions.list()`), "Module: what it does" whenever every required field can be filled from the event: a `date` field from the event's `date`, a `string` or `text` field from its `summary`, a plain `ref` field from the item that reported. So a poll that declares a `date` (its winning option's date) and a Calendar that provides `createEvent` are enough for a closed poll to put the winning date on the calendar, with neither module naming the other. The module that follows asks under the person's own rights. The first page to save the rule as fired asks, so however many people have the To-do open the request is made once; that needs `actions.uses` approved by an owner.
 
 **Links on parts of an item.** An item can hold links of its own for its parts. A poll option takes a link (drop an item on it) and the poll passes the winning option's link out as `pick` when it closes. Tell Magpie what the whole item points at with `host.refs.setLinks`, so those items list it under what links to them.
 
@@ -437,9 +437,9 @@ A keyed page can read its settings and what the SDK offers a page that follows p
 
 ```js
 const p = await host.presence.get();
-// p.people     [{ key, name, online, room, inCall, isAdmin }]
+// p.people     [{ key, name, online, room, inCall, isAdmin }]   isAdmin: an owner or the host admin (the name changes in a later release)
 // p.rooms      [{ id, name, ephemeral, origin, private }]   an aside is ephemeral with an origin; a private conversation is private
-// p.activeRoom the room the stream follows (the admin's), adminOnline whether one is online
+// p.activeRoom the room the stream follows (an owner's or the host admin's), adminOnline whether one is online (both names change in a later release)
 // p.reactions  [{ id, glyph }]
 const stop = host.presence.onChange((p) => { ... }, { every: 5000 }); // polls; called once at the start and whenever anything differs
 ```
@@ -467,7 +467,7 @@ w.stop();
 
 With `video: false` and `audio: false` only the state is followed (the host subscribes to the microphone alone, so it still knows who is talking, and plays nothing). The host reconnects by itself when the connection drops.
 
-**The access key.** On the module's own page (an admin's), `await host.access.key()` is the key a keyed page's link carries (null for anyone else) and `await host.access.regenerate()` makes a new one, after which every link made with the old one stops working.
+**The access key.** On the module's own page (an owner's or the host admin's), `await host.access.key()` is the key a keyed page's link carries (null for anyone else) and `await host.access.regenerate()` makes a new one, after which every link made with the old one stops working.
 
 ## Theme
 
@@ -475,7 +475,7 @@ The SDK applies the theme to your page as CSS custom properties on `:root`, so p
 
 ## Running in the page
 
-A module runs in one of two ways. Modules that ship with Magpie run **in the page**: in a container of their own with a shadow root, so their styles and elements stay apart from the page's but they share its window, and can take part in drag and drop between modules. A module an admin uploads runs **sandboxed** (below) unless the admin switches it to run in the page, after a warning that a module in the page is not walled off: it can read and change everything on the page, act as the signed-in person, and is no longer held to its approved permissions, because it can bypass the SDK. Only allow that for a module you trust.
+A module runs in one of two ways. Modules that ship with Magpie run **in the page**: in a container of their own with a shadow root, so their styles and elements stay apart from the page's but they share its window, and can take part in drag and drop between modules. A module an owner uploads runs **sandboxed** (below) unless the owner switches it to run in the page, after a warning that a module in the page is not walled off: it can read and change everything on the page, act as the signed-in person, and is no longer held to its approved permissions, because it can bypass the SDK. Only allow that for a module you trust.
 
 To work either way:
 

@@ -1,6 +1,6 @@
 // The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
-import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
+import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon, hasOwnerRights } from '/brand.js';
 import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
@@ -165,7 +165,7 @@ let recallButtonCountingDown = false;
 
 // The tool's `visible` (see its registration above): shown while the countdown runs, whatever else changes.
 function recallWanted() {
-  return recallButtonCountingDown || Boolean(me?.role === 'admin' && currentRoom && presenceRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+  return recallButtonCountingDown || Boolean(hasOwnerRights(me) && currentRoom && presenceRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
 }
 
 function updateRecallButton() {
@@ -362,11 +362,11 @@ function renderRooms() {
     card.querySelector('[data-join-label]').textContent = rejoin ? 'Rejoin' : 'Join';
     card.querySelector('[data-join-with]').hidden = Boolean(r.ephemeral);
     const edit = card.querySelector('[data-edit]');
-    edit.hidden = r.ephemeral || me?.role !== 'admin';
+    edit.hidden = r.ephemeral || !hasOwnerRights(me);
     edit.href = `/rooms/${encodeURIComponent(r.id)}`;
     // A moderator cannot open the room's page, but changes what its modules do here.
     const modSettings = card.querySelector('[data-module-settings]');
-    modSettings.hidden = r.ephemeral || me?.role === 'admin' || !me?.rooms?.[r.id]?.permissions?.moderator;
+    modSettings.hidden = r.ephemeral || hasOwnerRights(me) || !me?.rooms?.[r.id]?.permissions?.moderator;
     modSettings.href = `/module-settings?room=${encodeURIComponent(r.id)}`;
     const link = card.querySelector('[data-link]');
     link.hidden = !r.link;
@@ -466,7 +466,7 @@ async function joinInPopout(roomId) {
 // "Join with": which panes a room opens with, remembered for that room (see joinPanes in
 // room-modules.js). The list is the conference, the chat and the room's modules.
 const roomModuleList = new Map(); // room id -> the modules on for it, fetched once
-const canIn = (roomId, permission) => me?.role === 'admin' || !!(me?.rooms?.[roomId]?.effective || me?.permissions || {})[permission];
+const canIn = (roomId, permission) => hasOwnerRights(me) || !!(me?.rooms?.[roomId]?.effective || me?.permissions || {})[permission];
 
 async function toggleJoinWith(card, roomId) {
   const open = card.querySelector('.join-with');
@@ -585,7 +585,7 @@ function updateBackgroundPlaceholder(tile, key) {
 // room, see Settings > Roles and profile > Rooms), or just my role's
 // outside a room the server has no per-room entry for (an aside, a guest).
 function canDo(permission) {
-  if (me?.role === 'admin') return true;
+  if (hasOwnerRights(me)) return true;
   const inRoom = currentRoom && me?.rooms?.[currentRoom.id]?.effective;
   return !!(inRoom || me?.permissions || {})[permission];
 }
@@ -639,8 +639,8 @@ function adminToolsFor(participant) {
   // Same restriction as the corner step-aside button: you can't step aside
   // from an aside (or private) room, there's nowhere further to go. Each
   // also has its own Manage > Settings toggle, independent of the other.
-  const isAdmin = me?.role === 'admin';
-  if (isAdmin && !currentRoom?.ephemeral && features.allowAsides) {
+  const isOwner = hasOwnerRights(me);
+  if (isOwner && !currentRoom?.ephemeral && features.allowAsides) {
     const aside = document.createElement('button');
     aside.type = 'button';
     aside.className = 'tile-admin-btn';
@@ -653,7 +653,7 @@ function adminToolsFor(participant) {
     });
     tools.append(aside);
   }
-  if (isAdmin && !currentRoom?.ephemeral && features.allowPrivate) {
+  if (isOwner && !currentRoom?.ephemeral && features.allowPrivate) {
     const priv = document.createElement('button');
     priv.type = 'button';
     priv.className = 'tile-admin-btn';
@@ -714,7 +714,7 @@ function tileFor(participant) {
     // click each -- this corner button (pick one or more, then confirm) is
     // only still needed for a non-admin, who has no other way to invite
     // someone for a private word.
-    if (!currentRoom?.ephemeral && me?.role !== 'admin' && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
+    if (!currentRoom?.ephemeral && !hasOwnerRights(me) && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -727,7 +727,7 @@ function tileFor(participant) {
     // Mute/Kick for admins, or for a member granted them in this room --
     // never against an admin (the server refuses that anyway).
     const targetIsAdmin = presenceUsers.get(participant.identity)?.isAdmin;
-    if (me?.role === 'admin' || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
+    if (hasOwnerRights(me) || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
       const tools = adminToolsFor(participant);
       tools.addEventListener('pointerenter', () => (tile.draggable = false));
       tools.addEventListener('pointerleave', () => (tile.draggable = true));
@@ -3360,8 +3360,8 @@ async function init() {
     $('whoami').textContent = me.displayName;
     $('whoami-img').src = `/img/${encodeURIComponent(me.key)}/profile?v=${Date.now()}`;
     $('whoami-img').hidden = false;
-    $('admin-link').hidden = me.role !== 'admin';
-    $('admin-link-2').hidden = me.role !== 'admin';
+    $('admin-link').hidden = !hasOwnerRights(me);
+    $('admin-link-2').hidden = !hasOwnerRights(me);
     // The account's own mic/camera processing settings take over from
     // whatever this browser had locally, so joining from anywhere lands
     // already set up the way the account is configured.

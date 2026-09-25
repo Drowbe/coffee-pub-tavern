@@ -49,7 +49,7 @@ character bar. It carries no audio.
 
 A player's own **profile photo** shows only in the app itself: the header, the call's tiles and their
 profile page. It never shows in the recording, because the Online picture may be part of a matched
-set of OBS pictures the admin built. The photo falls back to a plate with the player's initials and
+set of OBS pictures the owner built. The photo falls back to a plate with the player's initials and
 always fills its square, cropped rather than letterboxed. The OBS pictures show exactly what was
 uploaded, uncropped, since they may be transparent overlays.
 

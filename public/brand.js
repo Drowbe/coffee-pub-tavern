@@ -7,6 +7,17 @@ export function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+// Whether an account has every right in this environment: its owner, or the host admin signed in through their
+// stand-in account (role `admin`, `hostAdmin: true`). The server decides the same way; this only picks what to show.
+export const hasOwnerRights = (user) => Boolean(user) && ['owner', 'admin'].includes(user.role);
+
+// The word a person reads for an account's role. The stand-in is the host's own admin, not a role anyone is given.
+export function roleLabel(user) {
+  if (!user) return '';
+  if (user.hostAdmin) return 'Host admin';
+  return { owner: 'Owner', member: 'Member', guest: 'Guest', admin: 'Host admin' }[user.role] || String(user.role || '');
+}
+
 // The admin's Font Awesome list (Theme tab), as last loaded by loadBranding().
 let ICONS = [];
 export const getIcons = () => ICONS;
