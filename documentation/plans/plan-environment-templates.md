@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decides what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
 
-**Status:** Done; addendum for switching, approved 2026-09-25 (see "Addendum: switching a template"; GitHub issue #59). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
+**Status:** Approved addendum 2 (#68), 2026-09-25: "Templates grow", not built. Done; addendum for switching, approved 2026-09-25 (see "Addendum: switching a template"; GitHub issue #59). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
 
 ## What it is today
 
@@ -155,6 +155,10 @@ Built after plan-names step 5c: the pages and the SDK already use the Names' cod
 
 The documentation (a user guide section on templates for owners, the host operator's `TEMPLATE` and console notes, the SDK's `host.locale().words` and `host.util.word`) is content-manager's, after each step lands.
 
+## Note: the Lobby (2026-09-25)
+
+The rule in [plan-modules](plan-modules.md) ("Addendum: the Lobby is for being together", GitHub issue #63) applies to templates. "In every space" here means every space except the Lobby, for any module that does not declare `surfaces.canvas.lobby: true` (the Calendar does). A template, applied at creation or offered on a switch, never puts another module in the Lobby. The Lobby's name and description still come from the template. In the Lobby, chat is always on, the conference follows the environment's switch and the Calendar is there only if it is on; a template turns none of them on there by force (Thomas, 2026-09-25). The switch's offer lists a module as missing only for the spaces it may be in.
+
 ## Addendum: switching a template
 
 **Status:** approved 2026-09-25; not built. GitHub issue #59.
@@ -224,3 +228,103 @@ Thomas answered the addendum's four questions as recommended:
 2. **Modules the previous template turned on are left on**, and in every space. A switch never turns anything off.
 3. **`templateHistory` is kept**, the last 20 switches, for support and the console; it is not shown to owners.
 4. **Switching back to a template used before makes its offer again**, listing only what is missing.
+
+## Addendum 2: templates grow
+
+**Status:** approved 2026-09-25; not built. GitHub issue #68. Builds on the switching addendum (#59), the Lobby note (#63) and [plan-themes](plan-themes.md) (#67).
+
+### The decision
+
+Thomas (#68): "we need a 'template' tab in the environment to group the template-related stuff. In admin, we need to be able to define them too. My assumption over time is there will be more and more 'template' goodness... e.g. emoticons, icon sets, default theme choice, etc." He answered the questions that followed as recommended:
+
+1. **The host defines templates.** They are made and edited on the host console and kept in `host.json`, beside the bundled ones. A single-environment install picks from the bundled templates plus template files it imports; it has no template editor in Manage.
+2. **What a template holds grows: reactions, an icon set and a default theme, each applied once.** Only the display parts stay live: words, the home icon, module display names and icons.
+3. **Editing a template in use.** Its live parts reach every environment made from it at once, unless the owner chose their own. New modules and the other applied-once parts are offered on the Template tab, never forced. A template has a version, and the offer lists only what is new since the version that environment applied.
+4. **No role defaults in templates yet.**
+5. **Template files.** `<name>.magpie-template.json`, with `magpieTemplate: 1`, embedding its theme in the theme file's shape ([plan-themes](plan-themes.md)).
+6. **A Template tab in Manage** holds what the environment was made from and switching, the left-out modules, Words, module display names and icons (the Modules cards link there), and the home icon. Reactions and the icon list move there once templates hold them. Old links keep working.
+7. **A template in use cannot be deleted**, only hidden from new choices.
+
+The Lobby rule (#63) holds for every template, bundled, host-made or imported: a template never puts a module in the Lobby unless the Lobby allows it.
+
+### What it is today
+
+Templates are bundled files only (`templates/<id>.json`, read by `server/templates.js` at start); `GET /api/host/templates` lists them. The template controls are spread across Manage: the made-from note, the left-out modules and the home icon's template choice on Environment (`public/admin.html:284-313`), **Words** on Environment (`admin.html:324`), "Shown as" on each Modules card, and **Reactions** and **Icons** on Theme (`admin.html:154-172`, validated by `cleanReactions` and `cleanIcons`, `server/store.js:382`, `403`). The record is `template: { id, appliedAt, skipped }` in `app.json`, with `templateHistory` from the switching addendum.
+
+### The contract
+
+**Where templates come from.**
+
+- **Bundled**: `templates/<id>.json`, read-only, released with the image.
+- **Host**: `host.json` `templates: [{ ...the template, version, hidden, createdAt, updatedAt }]`, made and edited on the console.
+- **Imported, single install**: `app.json` `templates: [...]`, from files an owner imports on the Template tab, so a backup carries them. On a hosted server owners do not import templates; they choose from the host's list.
+- **Ids are unique across all of them.** A new or imported template whose id is already taken is refused with 409 "There is already a template called <id>." (the import offers a new id). If a later release ships a bundled template with an id a host or imported template already has, the existing one keeps the id and the bundled one is not offered on that server, with a log line; an environment's template never changes under it.
+
+**The template's shape grows** (the same checks in `server/templates.js` and `tools/check-templates.mjs` for every source):
+
+- `version`: a whole number. The host's templates count up on every save; a bundled file carries its own, raised by hand when its applied-once part changes.
+- `reactions`: `[{ id, glyph, label }]`, the same shape and checks as `cleanReactions`. Applied once: at creation it becomes the environment's reactions list.
+- `icons`: Font Awesome Free names. Applied once: added to the environment's icon list, never removing one.
+- `theme`: an embedded theme in the theme file's shape (`{ name, author?, light, dark }`), checked as a theme import is. Applied once: added as a new theme (renamed "Name (2)" on a clash, never overwriting) and made active, with `settings.themeMode` if the template sets it. `settings.activeThemeId` naming a built-in keeps working for a template with no `theme`.
+- No `roles` (decision 4).
+- The rest is as today: `words`, `icons.home`, `moduleNames`, `moduleIcons` (live); `modules`, `settings`, `lobby`, `spaceDefaults` (once).
+
+**The record** gains `appliedVersion`: `template: { id, appliedAt, appliedVersion, skipped }`.
+
+**When a template changes** (a host edit, or a new release's bundled file):
+
+- The live parts follow at once: the next request reads the words, home icon and module names and icons from the template's current version. An owner's own choices still win.
+- The Template tab shows an offer when the template's `version` is above the environment's `appliedVersion`: the modules it now lists that are not on (outside the Lobby), and, unticked, its reactions, icons, theme, Lobby and new-space defaults when they differ from what was applied. Confirming (even with nothing ticked) records the new `appliedVersion`. This is the switching addendum's offer, run for the same template.
+- Nothing is forced, turned off or removed, and no data is touched.
+
+**Hidden and deleted.** A host template can be hidden: it is no longer offered on the create form, sign-up or a switch, and environments made from it keep reading it. Deleting answers 409 "Environments use this template: <names>. Hide it instead." while any environment's record names it; one no environment uses can be deleted.
+
+**Template files.** `<name>.magpie-template.json`: `{ "magpieTemplate": 1, ...the template's fields, "theme": { the theme file's fields } }`, at most 64 KB. Import checks it as a template (a newer `magpieTemplate` refused: "This template was made by a newer version of Magpie."; unknown keys dropped and listed, as a theme import does). A bundled template can be exported too, so the host can start one of its own from it.
+
+**Host routes** (host admin only):
+
+- `GET /api/host/templates`: every template, `{ id, name, description, source: 'bundled' | 'host', version, hidden, usedBy: [slugs] }`.
+- `POST /api/host/templates`: a new host template.
+- `PATCH /api/host/templates/:id`: edit a host template (its `version` goes up); 403 "Bundled templates can't be edited; export one to start your own." for a bundled one.
+- `PATCH /api/host/templates/:id { hidden }`: hide or show a host template.
+- `DELETE /api/host/templates/:id`: only when unused (above).
+- `GET /api/host/templates/:id/export` and `POST /api/host/templates/import`, answering `{ template, dropped }`.
+
+**Owner routes.**
+
+- `GET /api/environment/template`: the Template tab's view: made from (name, source, version), `appliedVersion`, the left-out modules, the open offer if any, and the choices for a switch (hosted: the host's shown templates and the bundled ones; single: the bundled ones and the imported ones).
+- The switching addendum's `PATCH /api/settings { template }` and `POST /api/environment/template/apply` serve both a switch and an update offer.
+- Single install only: `POST /api/templates/import` and `GET /api/templates/:id/export`; `DELETE /api/templates/:id` for an imported one no longer in use.
+
+**Manage's Template tab** (`/admin#template`), top to bottom:
+
+- **Made from**, with the template's name and version, the Template choice and the switch (the switching addendum), and the offer when one is open.
+- **Left out**: what the plan skipped.
+- **Words** (moved from Environment).
+- **Module names and icons**: every module with its display name and icon, and "Planner v0.7.30" beside each; each Modules card's "Shown as" becomes a link to its row here.
+- **Home icon** (the template's choice, moved from Environment).
+- **Reactions** and **Icons** move here from Theme in the step that makes templates hold them.
+- A single install also gets **Import a template** and **Export** here.
+- Old links keep working: `#environment`, `#settings` and `#server` still open Environment, `#theme` still opens Theme, and a link to a moved section opens the Template tab at it.
+
+**The host console** gains a **Templates** tab: the list (source, version, hidden, used by), a template editor for host templates (the fields above, with the module list showing that the Lobby keeps its own rule), Hide, Delete when unused, Export, Import, and "Start from" a bundled template (an export and import in one step).
+
+### Left to build, in order
+
+1. **Theme files** ([plan-themes](plan-themes.md), #67): the foundation for a template's `theme`.
+2. **The Template tab, switching and the Lobby rule** (experience-design for the tab; server-development for the switching addendum's routes and [plan-modules](plan-modules.md)' Lobby addendum). The tab gathers what exists today; switching and the Lobby rule land with it.
+   - Verify: live on `BASE_DOMAIN=localhost` and on a single install under `/tmp`: every control works from its new place, old links open the right tab, a switch and its offer, the Lobby keeping only what it allows.
+3. **Templates grow** (server-development, then experience-design).
+   - **3a. The server.** The shape's new fields and `version`, `appliedVersion` and the update offer, host templates in `host.json` with their routes, template files, the single install's imported templates, the id rules, hide and delete, `check-templates` for all of it.
+     - Done when: `npm run check` passes.
+     - Verify: checked by the tool (every source through the same checks; an update offer listing only what is new; apply twice gives the same result); live, a host template made on the console, an environment made from it, the template edited (the words change at once, a new module offered on the Template tab, nothing forced), hidden (gone from the create form, the environment unchanged), refused deletion while in use; a template exported and imported on a single install; a bundled template exported and started from.
+   - **3b. The pages.** The console's Templates tab and editor; reactions and icons moving to the Template tab; the single install's import and export.
+     - Verify: live in a browser on the same servers. Nothing here needs a call.
+4. **The documentation** (content-manager): the owners' guide to the Template tab, the host's guide to templates on the console, and the template file.
+
+### Open questions
+
+1. **A host template edited while the offer is open.** Recommended: the offer always compares with the template's current version, so the owner sees one offer, never a queue.
+2. **An owner on a hosted server exporting their environment's template as a file.** Recommended: yes, read-only (export only), so they can take it to a single install; import stays the host's.
+3. **A bundled template's `version`.** Recommended: raised by hand only when its applied-once part changes; a change to words or icons alone needs no new version, since those are live.
+
