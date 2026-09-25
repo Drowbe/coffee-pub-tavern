@@ -5,6 +5,7 @@ All notable changes to Coffee Pub Magpie. Format follows Keep a Changelog, and v
 ## [Unreleased]
 
 ### Changed
+- **Magpie is no longer marked MIT.** `package.json` now says `"license": "UNLICENSED"` (commercial, all rights reserved) and the README says so; the license terms, a server lock and purchased keys are coming (#72).
 - **Breaking: `TAVERN_ADMIN_PASSWORD`, `TAVERN_ADMIN_KEY` and `ADMIN_KEY` are no longer read, on single and hosted installs.** **Before updating, move the value to `ADMIN_PASSWORD`.** An install that set only one of them loses that password: a new install gets an admin with a random password, logged once; an install that already has accounts makes and changes nobody, and logs "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one." Each start that still sets one logs "<NAME> is no longer read: use ADMIN_PASSWORD instead."; the old "stops working in a later release" and "ignored on a server with environments" lines are gone. They join the names in `REMOVED_CONFIG_NAMES` (`server/index.js`). Documented in `architecture-environments.md`, `userguide-getting-started.md` and `plan-names.md`. `tools/check-host-registry.mjs` now covers each name alone on a new single install (the line is logged, the old value signs nobody in, a random password is made) and all three on a hosted server (one line each, the old value sets no password); its passing is QA's to report. Not verified live here.
 
 ## [0.4.0] - 2026-09-25

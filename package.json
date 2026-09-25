@@ -3,7 +3,7 @@
   "version": "0.4.0",
   "description": "Self-hosted voice and video for the Coffee Pub table, with per-player OBS views.",
   "private": true,
-  "license": "MIT",
+  "license": "UNLICENSED",
   "main": "server/index.js",
   "engines": {
     "node": ">=20"
