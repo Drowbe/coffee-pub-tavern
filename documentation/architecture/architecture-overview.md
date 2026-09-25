@@ -166,6 +166,13 @@ hostnames, because browsers only allow camera access over HTTPS.
 Bandwidth is the real sizing number: eight players at 720p is roughly eight times 1.5 Mbps in and about
 eight times seven times 1.5 Mbps out at the server. Player quality is capped by an owner's setting.
 
+## Design rules
+
+- **A list is not an editor.** A list shows what exists and lets you pick one; editing happens on a page about
+  that one thing. People (`/profile/<key>`) and spaces (`/spaces/<id>`) work this way: their Manage tabs are a
+  roster of a picture, a name, a status line and a link. Keep new admin surfaces to this shape rather than growing
+  an inline editor on a list; the two earlier ones scaled badly enough to need rebuilding.
+
 ## Development
 
 ```bash
