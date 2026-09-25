@@ -69,6 +69,9 @@ function cleanTemplateRecord(raw) {
     appliedAt: typeof raw.appliedAt === 'string' ? raw.appliedAt : null,
     ...(Number.isInteger(raw.appliedVersion) && raw.appliedVersion >= 0 ? { appliedVersion: raw.appliedVersion } : {}),
     ...(typeof raw.switchedAt === 'string' ? { switchedAt: raw.switchedAt } : {}),
+    // A fingerprint of each once-only part as it was when last applied or passed over (addendum 2), so an update offers
+    // only what the template changed since.
+    ...(raw.applied && typeof raw.applied === 'object' ? { applied: Object.fromEntries(Object.entries(raw.applied).filter(([k, v]) => /^[a-zA-Z]{1,20}$/.test(k) && typeof v === 'string' && v.length <= 64)) } : {}),
     skipped,
   };
 }
@@ -556,6 +559,8 @@ class Store {
       // names migration part. { id, appliedAt (null until applied), skipped: [{ id, why }] }.
       ...(cleanTemplateRecord(raw.template) ? { template: cleanTemplateRecord(raw.template) } : {}),
       ...(cleanTemplateHistory(raw.templateHistory).length ? { templateHistory: cleanTemplateHistory(raw.templateHistory) } : {}),
+      // Templates an owner imported on a single install (addendum 2), checked by server/templates.js before saving.
+      ...(Array.isArray(raw.templates) && raw.templates.length ? { templates: raw.templates.filter((t) => t && typeof t === 'object' && typeof t.id === 'string') } : {}),
       secrets: {
         session: raw.secrets?.session || randomToken(32),
         stream: raw.secrets?.stream || randomToken(18),
@@ -851,6 +856,23 @@ class Store {
     const clean = cleanTemplateRecord(record);
     if (clean) this.data.template = clean;
     else delete this.data.template;
+    this.save();
+  }
+
+  // Templates imported on this install (a single install's own; addendum 2), as saved.
+  get importedTemplates() {
+    return structuredClone(this.data.templates || []);
+  }
+
+  putImportedTemplate(template) {
+    const list = (this.data.templates || []).filter((t) => t.id !== template.id);
+    this.data.templates = [...list, structuredClone(template)];
+    this.save();
+  }
+
+  removeImportedTemplate(id) {
+    this.data.templates = (this.data.templates || []).filter((t) => t.id !== id);
+    if (!this.data.templates.length) delete this.data.templates;
     this.save();
   }
 
@@ -1894,6 +1916,6 @@ module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
   sanitizeMfa, CURRENCIES, QUALITY_OPTIONS, LANGUAGES, BUILTIN_THEME_IDS: BUILTIN_THEMES.map((t) => t.id), displayNameProblem,
-  THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanColor, cleanAuthor, cleanThemeName, MAX_THEMES,
+  THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanColor, cleanAuthor, cleanReactions, cleanThemeName, MAX_THEMES,
   DEFAULT_HOME_ICON,
 };

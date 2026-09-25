@@ -2,6 +2,7 @@ import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink
 import { pickBackground } from '/background-picker.js';
 import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
 import { renderOffer, switchQuestion } from '/template-offer.js';
+import { fileText } from '/file-text.js';
 
 const $ = (id) => document.getElementById(id);
 const userCards = new Map(); // key -> the user's card element
@@ -761,12 +762,6 @@ $('theme-apply').addEventListener('click', async () => {
 // Import…: a theme file (plan-themes.md), read here and sent as its text; the server checks it and adds it as a new
 // theme ("Name (2)" when the name is taken). It is chosen and previewed, never applied: Apply does that, as for any theme.
 $('theme-import').addEventListener('click', () => $('theme-import-file').click());
-// A file's text: UTF-16 when it starts with that byte order mark (FE FF or FF FE, as some editors save), else UTF-8.
-async function themeFileText(file) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const encoding = bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : 'utf-8';
-  return new TextDecoder(encoding).decode(bytes);
-}
 $('theme-import-file').addEventListener('change', async () => {
   const input = $('theme-import-file');
   const file = input.files[0];
@@ -776,7 +771,7 @@ $('theme-import-file').addEventListener('change', async () => {
   // Far bigger than any theme (the server takes 16 KB): not read at all.
   if (file.size > 1024 * 1024) return sayImport("That isn't a Magpie theme file.", true);
   try {
-    const { theme, dropped } = await api('POST', '/api/themes/import', new Blob([await themeFileText(file)], { type: 'text/plain' }));
+    const { theme, dropped } = await api('POST', '/api/themes/import', new Blob([await fileText(file)], { type: 'text/plain' }));
     themes.push(theme);
     selectedThemeId = theme.id;
     previewing = true;
@@ -1742,6 +1737,9 @@ let templateChoices = [];
 let templateOffer = null;
 let offerPutAway = false;
 const templateName = (t) => (t && (t.name || t.id)) || '';
+// A newer version of the template than the one applied (addendum 2): its offer lists what is new since.
+const templateUpdated = (t) => Boolean(t && t.offerOpen && t.appliedAt && t.version && t.appliedVersion && t.version > t.appliedVersion);
+const offerNote = (t) => (templateUpdated(t) ? `The ${templateName(t)} template was updated: review what's new.` : `The ${templateName(t)} template can turn on more.`);
 async function loadTemplate() {
   try {
     const answer = await api('GET', '/api/environment/template');
@@ -1758,7 +1756,7 @@ function renderTemplateBadge() {
   const tab = $('template-tab');
   const open = Boolean(madeFrom && madeFrom.offerOpen);
   tab.textContent = 'Template';
-  tab.title = open ? `The ${templateName(madeFrom)} template can turn on more` : '';
+  tab.title = open ? offerNote(madeFrom) : '';
   if (open) {
     const badge = document.createElement('span');
     badge.className = 'badge update-badge';
@@ -1822,7 +1820,7 @@ function renderTemplateOffer() {
   const box = $('template-offer');
   const open = Boolean(madeFrom && madeFrom.offerOpen && templateOffer);
   $('template-offer-note').hidden = !(open && offerPutAway);
-  $('template-offer-note-text').textContent = open ? `The ${templateName(madeFrom)} template can turn on more.` : '';
+  $('template-offer-note-text').textContent = open ? offerNote(madeFrom) : '';
   if (!open || offerPutAway) { box.hidden = true; box.replaceChildren(); return; }
   if (box.dataset.drawnFor === madeFrom.id && !box.hidden && box.childElementCount) return; // keep what is ticked
   box.dataset.drawnFor = madeFrom.id;
@@ -1863,6 +1861,7 @@ function renderTemplateNote() {
   renderTemplateBadge();
   renderTemplateSwitch();
   renderTemplateOffer();
+  renderTemplateFiles();
   $('template-hint').hidden = !madeFrom;
   const about = madeFrom && templateChoices.find((c) => c.id === madeFrom.id)?.description;
   $('template-about').textContent = about || '';
@@ -1872,7 +1871,7 @@ function renderTemplateNote() {
     $('template-skipped').hidden = true;
     return;
   }
-  $('template-made').innerHTML = `<strong>Uses the ${escapeHtml(templateName(madeFrom))} template.</strong>${madeFrom.version ? ` <span class="hint">Version ${escapeHtml(String(madeFrom.version))}</span>` : ''}`;
+  $('template-made').innerHTML = `<strong>Uses the ${escapeHtml(templateName(madeFrom))} template.</strong>${madeFrom.version ? ` <span class="hint">Version ${escapeHtml(String(madeFrom.version))}${templateUpdated(madeFrom) ? `, updated: review what's new` : ''}</span>` : ''}`;
   const modulesTab = '#modules'; // the Modules tab's address
   const modulesLink = `<a href="${modulesTab}">${escapeHtml(word('module', { many: true, cap: true }))}</a>`;
   const item = (icon, title, detail) => `<li><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><div><strong>${title}</strong>${detail ? `<div class="hint">${detail}</div>` : ''}</div></li>`;
@@ -1898,6 +1897,70 @@ function renderTemplateNote() {
   box.hidden = !items.length;
   box.innerHTML = items.length ? `<p class="hint">Left out:</p><ul>${items.join('')}</ul>` : '';
 }
+
+// Template files (addendum 2): Export of the template in use (hosted and single alike); a single install also imports
+// files (a clashing id asks for a new one) and deletes an imported template it no longer uses.
+function renderTemplateFiles() {
+  const single = !environment.hosted;
+  const exportLink = $('template-export');
+  exportLink.hidden = !madeFrom || !madeFrom.source;
+  if (madeFrom) {
+    exportLink.href = `/api/templates/${encodeURIComponent(madeFrom.id)}/export`;
+    exportLink.title = `Download the ${templateName(madeFrom)} template as a file`;
+  }
+  $('template-import').hidden = !single;
+  const imported = single ? templateChoices.filter((c) => c.source === 'imported') : [];
+  const list = $('template-imported');
+  list.hidden = !imported.length;
+  list.innerHTML = imported.map((c) => {
+    const inUse = madeFrom && madeFrom.id === c.id;
+    return `<li class="list-row"><span class="template-file-name"><strong>${escapeHtml(c.name || c.id)}</strong> <span class="hint">Imported, version ${escapeHtml(String(c.version || 1))}${inUse ? ', in use' : ''}</span></span>`
+      + `<a class="btn btn-small" href="/api/templates/${encodeURIComponent(c.id)}/export" download>Export</a>`
+      + `<button class="btn btn-small btn-danger" type="button" data-template-delete="${escapeHtml(c.id)}"${inUse ? ' disabled title="In use: switch to another template first"' : ''}>Delete</button></li>`;
+  }).join('');
+  $('template-files').hidden = exportLink.hidden && !single;
+}
+$('template-import').addEventListener('click', () => $('template-import-file').click());
+$('template-import-file').addEventListener('change', async () => {
+  const input = $('template-import-file');
+  const file = input.files[0];
+  input.value = ''; // the same file can be picked again
+  if (!file) return;
+  const status = $('template-files-status');
+  if (file.size > 1024 * 1024) return say(status, "That isn't a Magpie template file.", true);
+  const text = await fileText(file);
+  let id = '';
+  for (;;) {
+    try {
+      const { template, dropped } = await api('POST', `/api/templates/import${id ? `?id=${encodeURIComponent(id)}` : ''}`, new Blob([text], { type: 'text/plain' }));
+      await loadTemplate();
+      const left = Array.isArray(dropped) && dropped.length ? ` Left out: ${dropped.join(', ')}.` : '';
+      return say(status, `Imported ${template.name}.${left} Switch to it above to use it.`);
+    } catch (err) {
+      // A clash: the same file under another id, if the owner gives one.
+      if (/^There is already a template called /.test(err.message)) {
+        const next = window.prompt(`${err.message} Give this one another id (lowercase letters, digits and dashes):`, id || '');
+        if (next && next.trim()) { id = next.trim().toLowerCase(); continue; }
+        return say(status, 'Not imported.');
+      }
+      return say(status, err.message, true);
+    }
+  }
+});
+$('template-imported').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-template-delete]');
+  if (!b) return;
+  const t = templateChoices.find((c) => c.id === b.dataset.templateDelete);
+  if (!window.confirm(`Delete the ${templateName(t) || b.dataset.templateDelete} template? Its file can be imported again.`)) return;
+  try {
+    await api('DELETE', `/api/templates/${encodeURIComponent(b.dataset.templateDelete)}`);
+    await loadTemplate();
+    say($('template-files-status'), 'Deleted');
+    $('template-import').focus();
+  } catch (err) {
+    say($('template-files-status'), err.message, true);
+  }
+});
 
 // The plan and its use (GET /api/environment): each cap as a bar, the past-due banner with its date, the way to a bigger
 // plan (the product page's plans), a copy of the environment, and a request to delete it.

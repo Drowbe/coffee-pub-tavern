@@ -50,6 +50,7 @@
         <button class="subtab" data-tab="host" type="button">Host</button>
         <button class="subtab" data-tab="plans" type="button">Plans</button>
         <button class="subtab active" data-tab="environments" type="button">Environments</button>
+        <button class="subtab" data-tab="templates" type="button">Templates</button>
         <button class="subtab" data-tab="ai" type="button">AI</button>
         <button class="subtab" data-tab="maps" type="button">Maps</button>
       </nav>
@@ -156,6 +157,114 @@
       </form>
 
       <div id="environments" class="environments"></div>
+      </section>
+
+      <!-- Templates (plan-environment-templates, addendum 2): the list (bundled, the host's own, hidden or not, used by
+           which environments), Import, New, and the editor for a host template. Drawn by /host-templates.js. -->
+      <section class="tab-stack" id="tab-templates" hidden>
+      <section class="panel">
+        <div class="section-head">
+          <h2>Templates</h2>
+          <span class="status" id="templates-status" role="status" hidden></span>
+          <span class="grow"></span>
+          <button class="btn btn-small" id="template-import" type="button"><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i> Import…</button>
+          <input id="template-import-file" type="file" accept=".json,application/json" hidden>
+          <button class="btn btn-small btn-primary" id="template-new" type="button">New template</button>
+        </div>
+        <p class="hint">What a new environment can be made from. Bundled templates come with Magpie and can't be edited: export one and import it to start your own. Hidden templates aren't offered for new environments; the ones using them keep them.</p>
+        <ul class="template-list" id="template-list"></ul>
+      </section>
+
+      <form class="panel template-editor" id="template-editor" hidden novalidate>
+        <h2 id="template-editor-title">New template</h2>
+        <p class="hint">Words, the home icon and module names and icons reach every environment using the template at once. The rest is applied once: owners are offered it, never forced.</p>
+        <ul class="problems" id="tp-problems"></ul>
+        <div class="fields">
+          <label id="te-id-label">Id<input id="te-id" type="text" maxlength="32" pattern="[a-z][a-z0-9\-]*" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="travel"></label>
+          <label>Name<input id="te-name" type="text" maxlength="40" autocomplete="off"></label>
+          <label class="wide">Description<input id="te-description" type="text" maxlength="200" autocomplete="off"></label>
+        </div>
+        <ul class="problems" data-problems="id name description"></ul>
+
+        <fieldset>
+          <legend>Words</legend>
+          <p class="hint">Leave a word blank for the default. Give both the singular and the plural.</p>
+          <div id="te-words"></div>
+          <ul class="problems" data-problems="words"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Home icon</legend>
+          <div class="icon-field"><i class="fa-solid fa-house fa-fw" id="te-home-preview" aria-hidden="true"></i><input id="te-home" type="text" maxlength="40" placeholder="house (a Font Awesome name)" aria-label="Home icon, a Font Awesome name" autocapitalize="off" spellcheck="false"></div>
+          <ul class="problems" data-problems="icons"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Modules</legend>
+          <p class="hint">Turned on in every space of a new environment. The Lobby keeps only chat, the call and modules made for it.</p>
+          <div class="template-modules" id="te-modules"></div>
+          <ul class="problems" data-problems="modules"></ul>
+          <details class="te-module-display">
+            <summary>Module names and icons</summary>
+            <p class="hint">Blank for the module's own.</p>
+            <div id="te-module-display"></div>
+          </details>
+          <ul class="problems" data-problems="moduleNames moduleIcons"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>New environments</legend>
+          <div class="fields">
+            <label>Lobby name<input id="te-lobby-name" type="text" maxlength="40" placeholder="Lobby"></label>
+            <label>New spaces use<select id="te-profile"><option value="">The usual profile</option><option value="roleplaying">Roleplaying</option><option value="participants">Participants</option><option value="characters">Characters</option></select></label>
+            <label class="wide">Lobby description<input id="te-lobby-description" type="text" maxlength="300"></label>
+          </div>
+          <ul class="problems" data-problems="lobby spaceDefaults settings"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Reactions</legend>
+          <label class="check"><input id="te-reactions-on" type="checkbox"> Give reactions</label>
+          <div id="te-reactions-box" hidden>
+            <div class="reactions-list" id="te-reactions"></div>
+            <button class="btn btn-small" id="te-reaction-add" type="button">Add reaction</button>
+          </div>
+          <ul class="problems" data-problems="reactions"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Theme</legend>
+          <p class="hint" id="te-theme-name">None: environments keep their own theme.</p>
+          <div class="row">
+            <button class="btn btn-small" id="te-theme-pick" type="button"><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i> Choose a theme file…</button>
+            <input id="te-theme-file" type="file" accept=".json,application/json" hidden>
+            <button class="btn btn-small" id="te-theme-clear" type="button" hidden>No theme</button>
+          </div>
+          <ul class="problems" data-problems="theme"></ul>
+        </fieldset>
+
+        <fieldset>
+          <legend>Icons</legend>
+          <p class="hint">Font Awesome names, separated by spaces, added to an environment's icon list. At most 60.</p>
+          <textarea id="te-icon-set" rows="2" autocapitalize="off" spellcheck="false" aria-label="Icons, Font Awesome names separated by spaces" placeholder="dice compass map"></textarea>
+          <div class="offer-icons" id="te-icon-preview" aria-hidden="true"></div>
+          <ul class="problems" data-problems="iconSet"></ul>
+        </fieldset>
+
+        <div class="row">
+          <button class="btn btn-primary" type="submit" id="te-save">Save</button>
+          <button class="btn" type="button" id="te-cancel">Cancel</button>
+          <span class="status" id="te-status" role="status"></span>
+        </div>
+      </form>
+
+      <template id="tpl-te-reaction">
+        <div class="reaction-row">
+          <input class="reaction-glyph" type="text" maxlength="8" placeholder="🙂" aria-label="Emoji">
+          <input class="reaction-label" type="text" maxlength="40" placeholder="Label" aria-label="Label">
+          <button class="btn btn-small danger" data-action="te-reaction-remove" type="button">Remove</button>
+        </div>
+      </template>
       </section>
 
       <section class="tab-stack" id="tab-ai" hidden>

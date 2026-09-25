@@ -71,7 +71,7 @@ try {
       [with_({ settings: { clock: 24 } }), 'settings: 24 is not a value "clock" takes.'],
       [with_({ spaceDefaults: { profile: 'players' } }), 'spaceDefaults.profile must be one of roleplaying, participants, characters.'],
       [with_({ lobby: { name: 'x'.repeat(41) } }), 'lobby.name must be text of 1 to 40 characters.'],
-      [with_({ plan: 'pro' }), '"plan" is not a template field; the fields are id, name, description, words, icons, moduleNames, moduleIcons, modules, settings, lobby, spaceDefaults.'],
+      [with_({ plan: 'pro' }), '"plan" is not a template field; the fields are id, name, description, version, words, icons, moduleNames, moduleIcons, modules, settings, lobby, spaceDefaults, reactions, theme, iconSet.'],
     ];
     for (const [raw, sentence] of cases) assert.deepEqual(problems(raw), [sentence], sentence);
     assert.deepEqual(problems(travelRaw, 'trips.json'), ['"id" must match the file\'s name (trips.json).']);
@@ -251,6 +251,107 @@ try {
     chose.settings.homeIcon = 'suitcase-rolling';
     fs.writeFileSync(appFile, JSON.stringify(chose));
     assert.equal(new Store(fresh.store.dir).settings.homeIcon, 'suitcase-rolling');
+  });
+
+  // --- addendum 2: templates grow (#68) -----------------------------------------------------------------------------
+  const templateFile = require('../server/template-file.js');
+  const set = (over = {}) => ({ bg: '#ffffff', bgSection: '#f5f7f8', border: '#dde3e6', text: '#222222', textDim: '#6b7479', accent: '#1c7c8c', onAccent: '#ffffff', ...over });
+  const harbour = { name: 'Harbour', author: 'Thomas', light: set(), dark: null };
+  const grown = (over = {}) => ({ ...structuredClone(travelRaw), id: 'harbour', name: 'Harbour', version: 1, reactions: [{ id: 'wave', glyph: '👋', label: 'Wave' }], theme: harbour, ...over });
+
+  await test('the new fields are checked: version, reactions and an embedded theme (checked as a theme import is)', () => {
+    const problems = (raw) => templates.problemsOf(raw, { bundled });
+    assert.deepEqual(problems(grown()), []);
+    assert.deepEqual(problems(grown({ version: 0 })), ['"version" must be a whole number, 1 or more.']);
+    assert.deepEqual(problems(grown({ reactions: [{ label: 'x' }] })), ['reactions[0]: each reaction needs a glyph of 1 to 8 characters.']);
+    assert.deepEqual(problems(grown({ reactions: [{ glyph: '👋', size: 3 }] })), ['reactions[0]: a reaction takes only id, glyph and label.']);
+    assert.deepEqual(problems(grown({ theme: { ...harbour, light: set({ bg: 'red; background: url(x)' }) } })), ['theme: This theme has no complete light or dark set: each needs all seven base colors.']);
+    assert.deepEqual(problems(grown({ theme: { ...harbour, glow: 1 } })), ['theme: "glow" is not part of a theme.']);
+    const clean = templates.cleanTemplate(grown());
+    assert.deepEqual([clean.version, clean.reactions[0].id, clean.theme.name, clean.theme.author, clean.theme.light.bg], [1, 'wave', 'Harbour', 'Thomas', '#ffffff']);
+    assert.equal(templates.cleanTemplate(travelRaw).version, 1, 'a bundled file without a version is version 1');
+  });
+
+  await test('applied once: reactions become the environment\'s, the theme is added and made active; twice gives the same', async () => {
+    const env = freshEnvironment('grown');
+    env.modules.aiReady = () => true;
+    const t = templates.cleanTemplate(grown());
+    await templates.applyTemplate(env, t);
+    const once = { reactions: env.store.settings.reactions, active: env.store.settings.activeThemeId, themes: env.store.themes.length };
+    assert.deepEqual(once.reactions.map((r) => r.id), ['wave']);
+    assert.equal(env.store.themes.find((x) => x.id === once.active).name, 'Harbour');
+    await templates.applyTemplate(env, t);
+    assert.deepEqual({ reactions: env.store.settings.reactions, active: env.store.settings.activeThemeId, themes: env.store.themes.length }, once, 'the theme is not added twice');
+  });
+
+  await test('a newer version offers only what is new, the rest unticked; confirming applies only what is ticked', async () => {
+    const env = freshEnvironment('update');
+    env.modules.aiReady = () => true;
+    const v1 = templates.cleanTemplate(grown({ modules: ['travel', 'places', 'chat', 'conference'] }));
+    await templates.applyTemplate(env, v1);
+    assert.deepEqual(templates.offerFor(env, v1).modules, [], 'nothing new in the same version');
+    const v2 = templates.cleanTemplate(grown({ version: 2, modules: ['travel', 'places', 'calendar', 'chat', 'conference'], reactions: [{ id: 'cheer', glyph: '🎉', label: 'Cheer' }] }));
+    const offer = templates.offerFor(env, v2);
+    assert.deepEqual([offer.modules.map((m) => m.id), offer.reactions.map((r) => r.id), offer.theme], [['calendar'], ['cheer'], null], 'the new module and reactions; the theme already in use is not offered');
+    await templates.applyOffer(env, v2, { modules: ['calendar'], reactions: false });
+    assert.deepEqual([env.modules.view('calendar').enabled, env.store.settings.reactions.map((r) => r.id)], [true, ['wave']], 'the module on; the reactions, not ticked, kept');
+  });
+
+  await test('template files: a round trip gives the same template; newer, too big and not a file are refused; unknown keys dropped and listed', () => {
+    const t = templates.cleanTemplate(grown());
+    const file = templateFile.templateToFile(t);
+    assert.equal(file.magpieTemplate, 1);
+    assert.equal('magpieTheme' in file.theme, false);
+    const back = templateFile.readTemplateFile(JSON.stringify(file), { bundled });
+    assert.deepEqual(back.dropped, []);
+    assert.deepEqual(templates.cleanTemplate(back.raw), t);
+    assert.equal(templateFile.templateFileName('Harbour Trips'), 'harbour-trips.magpie-template.json');
+    const refused = (input, sentence) => assert.throws(() => templateFile.readTemplateFile(input, { bundled }), (err) => err instanceof templateFile.TemplateFileError && err.message === sentence);
+    refused({ ...file, magpieTemplate: 2 }, templateFile.NEWER);
+    refused({ ...file, magpieTemplate: undefined }, templateFile.NOT_A_TEMPLATE_FILE);
+    refused('not json', templateFile.NOT_A_TEMPLATE_FILE);
+    refused(JSON.stringify({ ...file, description: 'x'.repeat(70 * 1024) }), templateFile.NOT_A_TEMPLATE_FILE);
+    refused({ ...file, modules: ['travel'] }, 'modules: "chat" must be listed; Chat can\'t be switched off yet.');
+    const extra = templateFile.readTemplateFile({ ...file, plan: 'pro', theme: { ...file.theme, glow: 1, light: { ...file.theme.light, shine: '#000000' } } }, { bundled });
+    assert.deepEqual(extra.dropped, ['plan', 'theme.glow', 'theme.light.shine']);
+  });
+
+  // A bundled template's version is raised by hand when its applied-once part changes (PM's decision 6, addendum 2):
+  // tools/template-versions.json keeps each one's fingerprint beside its version. `--update` records the current ones
+  // (after raising the version).
+  await test('a bundled template whose applied-once part changed has a new version', () => {
+    const file = path.join(ROOT, 'tools', 'template-versions.json');
+    const now = Object.fromEntries([...templates.all().values()].map((t) => [t.id, { version: t.version, fingerprint: templates.appliedOnceFingerprint(t) }]));
+    if (process.argv.includes('--update') || !fs.existsSync(file)) fs.writeFileSync(file, `${JSON.stringify(now, null, 2)}\n`);
+    const recorded = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const [id, cur] of Object.entries(now)) {
+      const was = recorded[id];
+      if (!was) throw new Error(`templates/${id}.json is not in tools/template-versions.json; run node tools/check-templates.mjs --update`);
+      if (was.fingerprint !== cur.fingerprint && cur.version <= was.version) throw new Error(`templates/${id}.json changed what it applies once (its modules, settings, Lobby, space defaults, reactions, icon set or theme) but kept version ${cur.version}; raise "version", then run node tools/check-templates.mjs --update`);
+      if (was.fingerprint !== cur.fingerprint || was.version !== cur.version) throw new Error(`templates/${id}.json has a new version; record it with node tools/check-templates.mjs --update`);
+    }
+  });
+
+  await test('iconSet: checked, added to the icon list once at creation, and offered on a new version only if it changed', async () => {
+    const problems = (raw) => templates.problemsOf(raw, { bundled });
+    assert.deepEqual(problems(grown({ iconSet: ['anchor', 'no-such-icon-at-all'] })), ['iconSet: "no-such-icon-at-all" is not a Font Awesome Free solid icon.']);
+    assert.deepEqual(problems(grown({ iconSet: ['anchor', 'anchor'] })), ['iconSet: "anchor" is listed twice.']);
+    const env = freshEnvironment('icon-set');
+    const v1 = templates.cleanTemplate(grown({ iconSet: ['anchor', 'ship'] }));
+    await templates.applyTemplate(env, v1);
+    assert.ok(['anchor', 'ship'].every((id) => env.store.iconIds().includes(id)), 'added at creation');
+    const applied = templates.partFingerprints(v1);
+    // The owner changes their reactions and removes an icon: a new version that changed neither offers neither.
+    env.store.updateSettings({ reactions: [{ id: 'mine', glyph: '⭐', label: 'Mine' }], icons: env.store.settings.icons.filter((i) => i.id !== 'ship') });
+    const v2 = templates.cleanTemplate(grown({ version: 2, iconSet: ['anchor', 'ship'] }));
+    const quiet = templates.offerFor(env, v2, { applied });
+    assert.deepEqual([quiet.reactions, quiet.iconSet, quiet.theme, quiet.modules], [null, null, null, []], 'nothing the template didn\'t change');
+    assert.notEqual(templates.offerFor(env, v2, {}).reactions, null, 'without fingerprints: by the environment as it is (a record from before)');
+    const v3 = templates.cleanTemplate(grown({ version: 3, iconSet: ['anchor', 'ship', 'compass'] }));
+    const offer = templates.offerFor(env, v3, { applied });
+    assert.deepEqual([offer.iconSet, offer.reactions], [['ship', 'compass'].filter((id) => !env.store.iconIds().includes(id)), null], 'the changed icon set, only what is missing; reactions unchanged, not offered');
+    await templates.applyOffer(env, v3, { iconSet: true }, { applied });
+    assert.ok(env.store.iconIds().includes('compass'));
   });
 } finally {
   fs.rmSync(base, { recursive: true, force: true });

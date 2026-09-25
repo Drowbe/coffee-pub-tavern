@@ -5,6 +5,7 @@ import { loadBranding, api, renderTopbar } from '/brand.js';
 import { wireRegionCut } from '/region-cut.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
 import { renderOffer, switchQuestion } from '/template-offer.js';
+import { initTemplates } from '/host-templates.js';
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -15,7 +16,7 @@ const slot = (el, name) => el.querySelector(`[data-slot="${name}"]`);
 let settings = { baseDomain: '', version: '', hostAdmins: [], plans: {} };
 const PLAN_ORDER = (plans) => Object.keys(plans || {}).sort((a, b) => (a === 'free' ? -1 : b === 'free' ? 1 : a.localeCompare(b)));
 let environments = [];
-let templates = []; // what a new environment can be made from (GET /api/host/templates): [{ id, name, description }]
+let templates = []; // every template (GET /api/host/templates): [{ id, name, description, source, version, hidden, usedBy }]
 
 const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB` : '0');
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
@@ -45,6 +46,8 @@ async function load() {
   renderEnvironments();
   followTemplates();
   renderCreateChoices();
+  // The Templates tab: a change there (new, edited, hidden, deleted, imported) reaches the create form and the cards.
+  initTemplates(templates, (next) => { templates = next; renderCreateChoices(); renderEnvironments(); });
   renderAdmins();
   renderFacts();
   renderPlans();
@@ -568,12 +571,13 @@ function renderCreateChoices() {
   plan.replaceChildren(new Option('No caps, every module', ''), ...PLAN_ORDER(settings.plans).map((id) => new Option(settings.plans[id].name || id, id)));
   plan.value = settings.plans && settings.plans[was] ? was : '';
   const box = $('new-template');
-  box.hidden = !templates.length;
+  const offered = templates.filter((t) => !t.hidden); // a hidden template makes no new environments
+  box.hidden = !offered.length;
   const options = slot(box, 'options');
   const chosen = box.querySelector('input:checked')?.value || '';
   const option = (id, name, description) => `<label class="template-option"><input type="radio" name="new-template" value="${escapeHtml(id)}"${id === chosen ? ' checked' : ''}><span><strong>${escapeHtml(name)}</strong><span class="hint">${escapeHtml(description)}</span></span></label>`;
   options.innerHTML = option('', 'None', 'Start plain: the usual words and settings.')
-    + templates.map((t) => option(t.id, t.name || t.id, t.description || '')).join('');
+    + offered.map((t) => option(t.id, t.name || t.id, t.description || '')).join('');
   if (!options.querySelector('input:checked')) options.querySelector('input').checked = true;
 }
 // Closing the form empties it (a reset also masks its password again, brand.js), so it never reopens with an old value showing.
@@ -600,7 +604,7 @@ $('create-form').addEventListener('submit', async (e) => {
 // --- the tabs ----------------------------------------------------------------------------------------------------------
 // Host (the facts, the host admins), Plans, Environments (the list and the new-environment form), AI, Maps: the same
 // bar and the same hash routing as the Manage page. Environments is the default, being what a host admin comes for.
-const TABS = ['host', 'plans', 'environments', 'ai', 'maps'];
+const TABS = ['host', 'plans', 'environments', 'templates', 'ai', 'maps'];
 function selectTab(name) {
   const tab = TABS.includes(name) ? name : 'environments';
   for (const t of TABS) { const el = $(`tab-${t}`); if (el) el.hidden = tab !== t; }

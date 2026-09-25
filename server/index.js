@@ -27,6 +27,7 @@ const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
 const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require('./ai');
 const themeFile = require('./theme-file');
+const templateFile = require('./template-file');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -553,7 +554,7 @@ function useTemplate(env, slug, fresh) {
     else if (record.id !== templateId) console.warn(`TEMPLATE=${templateId} is ignored: this environment was made from the "${record.id}" template, which it keeps.`);
   }
   if (!record) return null;
-  const template = templates.useLive(env.store, templates.get(record.id));
+  const template = templates.useLive(env.store, templateFor(env, record.id));
   if (!template) {
     console.warn(`${where}This environment was made from the "${record.id}" template, which this server does not have, so it reads the default words.`);
     return null;
@@ -575,7 +576,7 @@ async function applyRecordedTemplate(env, slug, template) {
   // Recorded only if nothing switched the template away meanwhile (a switch waits for this, but a restore need not).
   const now = env.store.templateRecord;
   if (!now || now.id !== template.id || now.switchedAt) return;
-  env.store.recordTemplate({ id: template.id, appliedAt: new Date().toISOString(), ...(Number.isInteger(template.version) ? { appliedVersion: template.version } : {}), skipped });
+  env.store.recordTemplate({ id: template.id, appliedAt: new Date().toISOString(), appliedVersion: template.version, applied: templates.partFingerprints(template), skipped });
   console.log(`${where}Applied the "${template.id}" template${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.why})`).join(', ')}` : ''}.`);
 }
 
@@ -593,15 +594,61 @@ function templateOptions(env, slug) {
   };
 }
 
-// The templates an environment can switch to: [{ id, name, description, source, version }].
-const templateChoices = () => templates.list().map((t) => ({ ...t, source: 'bundled', version: Number.isInteger(templates.get(t.id)?.version) ? templates.get(t.id).version : null }));
+// --- where templates come from (addendum 2, "Where templates come from") ---------------------------------------------
+// Bundled (templates/<id>.json), the host's own (host.json, on a hosted server) and a single install's imported ones
+// (app.json). Ids are unique across them: a host or imported template with a bundled template's id keeps it, and that
+// bundled one is not offered here (logged once).
+const clashLogged = new Set();
+// Every template an environment can see, by id: { ...template (cleanTemplate's shape), source, hidden, usedBy? }.
+// `env` is needed only on a single install (its imported templates); { store } is enough.
+function templateCatalog(env) {
+  const own = hostRegistry
+    ? hostRegistry.templates.map((t) => [t, 'host'])
+    : (env?.store?.importedTemplates || []).map((t) => [t, 'imported']);
+  const out = new Map();
+  for (const [t, source] of own) {
+    try {
+      out.set(t.id, { ...templates.cleanTemplate(t), source, hidden: Boolean(t.hidden), createdAt: t.createdAt || null, updatedAt: t.updatedAt || null });
+    } catch (err) {
+      console.error(`The ${source} template "${t.id}" could not be read (${err.message}); it is left out.`);
+    }
+  }
+  for (const b of templates.all().values()) {
+    if (out.has(b.id)) {
+      if (!clashLogged.has(b.id)) { clashLogged.add(b.id); console.warn(`The bundled template "${b.id}" is not offered here: a ${out.get(b.id).source} template already has that id.`); }
+      continue;
+    }
+    out.set(b.id, { ...b, source: 'bundled', hidden: false });
+  }
+  return out;
+}
+const templateFor = (env, id) => (id ? templateCatalog(env).get(id) || null : null);
+// What a list shows of a template: { id, name, description, source, version, hidden }.
+const templateSummary = (t) => ({ id: t.id, name: t.name, description: t.description, source: t.source, version: t.version, hidden: t.hidden });
+// The templates an environment can be made from or switch to: every one not hidden (and `keep`, the one it has).
+const templateChoices = (env, keep = null) => [...templateCatalog(env).values()].filter((t) => !t.hidden || t.id === keep).map(templateSummary);
+// Whether a template's once-only part waits as an offer: a switch not yet confirmed, or a newer version than the one
+// applied (addendum 2: a record from before versions counts as version 1).
+// A newer version whose offer would be empty (it changed only live parts, or nothing it applies once is missing) is not
+// an open offer: there is nothing to confirm. `env` (with its modules) is needed to tell.
+function offerIsOpen(record, template, env = null) {
+  if (!record) return false;
+  if (record.switchedAt && !record.appliedAt) return true;
+  if (!record.appliedAt || !template) return false;
+  if (template.version <= (Number.isInteger(record.appliedVersion) ? record.appliedVersion : 1)) return false;
+  if (!env?.modules) return true;
+  const offer = templates.offerFor(env, template, { ...templateOptions(env, env.slug), applied: record.applied || null });
+  return Boolean(offer.modules.length || offer.reactions || offer.theme || offer.iconSet || offer.lobby || offer.spaceDefaults);
+}
 
 // Why a `template` a switch names can't be used (one sentence), or null: "none" (or null) for no template, else a
-// template this server has.
-function templateSwitchProblem(value) {
+// template this environment can see and that isn't hidden (the one it has already is fine).
+function templateSwitchProblem(env, value) {
   if (value === null || value === 'none') return null;
   if (typeof value !== 'string' || !value) return 'A template is named by its id, or "none" for no template.';
-  return templates.get(value) ? null : `There is no template called ${value.slice(0, 40)}.`;
+  const t = templateFor(env, value);
+  if (!t || (t.hidden && env.store.templateRecord?.id !== value)) return `There is no template called ${value.slice(0, 40)}.`;
+  return null;
 }
 
 // Switches an environment to template `value` ("none" or null for none), changing only its live part at once: the
@@ -614,7 +661,7 @@ async function switchTemplate(env, slug, value, by) {
   const to = value === null || value === 'none' ? null : value;
   const from = env.store.templateRecord?.id || null;
   if (from === to) return false;
-  const template = to ? templates.get(to) : null;
+  const template = to ? templateFor(env, to) : null;
   env.store.switchTemplateRecord(template ? { id: to, appliedAt: null, switchedAt: new Date().toISOString(), skipped: [] } : null, { from, to, by });
   templates.useLive(env.store, template);
   if (template) templates.addIcons(env.store, template);
@@ -625,9 +672,9 @@ async function switchTemplate(env, slug, value, by) {
 
 // The template as Manage and the console show it, with the offer while it is open: { template, offer }.
 function templateAnswer(env, slug) {
-  const view = templateView(env.store);
-  const template = view?.offerOpen ? templates.get(view.id) : null;
-  return { template: view, offer: template ? templates.offerFor(env, template, templateOptions(env, slug)) : null };
+  const view = templateView(env.store, env);
+  const template = view?.offerOpen ? templateFor(env, view.id) : null;
+  return { template: view, offer: template ? templates.offerFor(env, template, { ...templateOptions(env, slug), applied: env.store.templateRecord?.applied || null }) : null };
 }
 
 // Applies what was confirmed of the open offer ({ modules: [ids], lobby: boolean, spaceDefaults: boolean }), then
@@ -636,35 +683,36 @@ function templateAnswer(env, slug) {
 async function applyTemplateOffer(env, slug, body) {
   const b = body && typeof body === 'object' ? body : {};
   if (b.modules !== undefined && (!Array.isArray(b.modules) || b.modules.some((m) => typeof m !== 'string'))) throw new StoreError(`Name the ${env.store.word('module', { many: true })} to turn on as a list of their ids.`);
-  for (const key of ['lobby', 'spaceDefaults']) if (b[key] !== undefined && typeof b[key] !== 'boolean') throw new StoreError(`${key} must be true or false.`);
+  for (const key of ['lobby', 'spaceDefaults', 'reactions', 'theme', 'iconSet']) if (b[key] !== undefined && typeof b[key] !== 'boolean') throw new StoreError(`${key} must be true or false.`);
   await env.templateReady;
   const record = env.store.templateRecord;
   if (!record) throw new StoreError(`This ${env.store.word('environment')} has no template to apply.`, 409);
-  if (record.appliedAt) throw new StoreError('This template has already been applied.', 409);
-  const template = templates.get(record.id);
+  const template = templateFor(env, record.id);
   if (!template) throw new StoreError(`This server doesn't have the "${record.id}" template any more.`, 409);
-  const skipped = await templates.applyOffer(env, template, { modules: b.modules || [], lobby: b.lobby === true, spaceDefaults: b.spaceDefaults === true }, templateOptions(env, slug));
-  env.store.recordTemplate({ ...record, appliedAt: new Date().toISOString(), ...(Number.isInteger(template.version) ? { appliedVersion: template.version } : {}), skipped });
+  if (!offerIsOpen(record, template, env)) throw new StoreError('This template has already been applied.', 409);
+  const skipped = await templates.applyOffer(env, template, { modules: b.modules || [], lobby: b.lobby === true, spaceDefaults: b.spaceDefaults === true, reactions: b.reactions === true, theme: b.theme === true, iconSet: b.iconSet === true }, { ...templateOptions(env, slug), applied: record.applied || null });
+  // Every part is recorded as seen, applied or passed over: it is offered again only when the template changes it.
+  env.store.recordTemplate({ ...record, appliedAt: new Date().toISOString(), appliedVersion: template.version, applied: templates.partFingerprints(template), skipped });
   console.log(`${slug ? `[${slug}] ` : ''}Applied the "${template.id}" template's offer${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.why})`).join(', ')}` : ''}.`);
   return templateAnswer(env, slug);
 }
 
 // The template an environment was made from, for Manage and the console: { id, name, appliedAt, skipped: [{ id, name,
 // why }] }, or null for none. `name` is the template's, or its id when this server does not have it.
-function templateView(store) {
+function templateView(store, env = { store }) {
   const record = store.templateRecord;
   if (!record) return null;
   const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
-  const template = templates.get(record.id);
+  const template = templateFor(env, record.id);
   return {
     id: record.id,
     name: template?.name || record.id,
-    source: template ? 'bundled' : null, // where the template comes from (host and imported templates come later)
-    version: Number.isInteger(template?.version) ? template.version : null,
+    source: template ? template.source : null, // 'bundled', 'host' or 'imported'; null when this server doesn't have it
+    version: template ? template.version : null,
     appliedAt: record.appliedAt,
-    appliedVersion: Number.isInteger(record.appliedVersion) ? record.appliedVersion : null,
-    // A switch's offer, not yet confirmed (the switching addendum).
-    offerOpen: Boolean(record.switchedAt && !record.appliedAt),
+    appliedVersion: Number.isInteger(record.appliedVersion) ? record.appliedVersion : (record.appliedAt ? 1 : null),
+    // An offer waiting: a switch not yet confirmed, or a newer version of the template than the one applied.
+    offerOpen: offerIsOpen(record, template, env),
     skipped: record.skipped.map((x) => ({ id: x.id, name: store.moduleDisplay(x.id).name || names.get(x.id) || x.id, why: x.why })),
   };
 }
@@ -1368,6 +1416,8 @@ app.use(express.json({ limit: '64kb', verify: (req, _res, buf) => { req.rawBody 
 const publicDir = path.join(__dirname, '..', 'public');
 const clientDist = path.join(__dirname, '..', 'node_modules', 'livekit-client', 'dist');
 const page = (name) => path.join(publicDir, name);
+// A template file's text, whatever type it is sent as (the JSON body parser reads it when it is JSON).
+const templateFileText = express.text({ type: () => true, limit: 64 * 1024 });
 const rawZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: MODULE_LIMITS.zipBytes + 1024 });
 const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES + 1024 });
 
@@ -1544,19 +1594,123 @@ hostRouter.get('/api/host/environments', requireHostAdmin, (_req, res) => {
   res.json({ environments: hostRegistry.listEnvironments().map((t) => { const usage = environmentUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug), template: environmentTemplate(t) }; }) });
 });
 // The templates an environment can be made from, for the console's create form.
-hostRouter.get('/api/host/templates', requireHostAdmin, (_req, res) => res.json({ templates: templates.list() }));
+// Every template, with where it comes from, its version, whether it is hidden and which environments use it.
+hostRouter.get('/api/host/templates', requireHostAdmin, (_req, res) => {
+  const used = hostRegistry.listEnvironments();
+  res.json({ templates: [...templateCatalog(null).values()].map((t) => ({ ...templateSummary(t), usedBy: used.filter((e) => e.template === t.id).map((e) => e.slug) })) });
+});
+// One template in full, for the console's editor.
+hostRouter.get('/api/host/templates/:id', requireHostAdmin, (req, res) => {
+  const t = templateFor(null, req.params.id);
+  if (!t) return res.status(404).json({ error: `There is no template called ${req.params.id.slice(0, 40)}.` });
+  res.json({ template: fullTemplate(t) });
+});
+// A new host template: its fields (version, hidden and the dates are the server's). 409 when the id is taken.
+hostRouter.post('/api/host/templates', requireHostAdmin, (req, res) => {
+  const raw = templateFields(req.body);
+  const problems = templates.problemsOf(raw, { bundled: bundledIds() });
+  if (problems.length) return res.status(400).json({ error: problems[0], problems });
+  if (templateFor(null, raw.id)) return res.status(409).json({ error: `There is already a template called ${raw.id}.` });
+  const now = new Date().toISOString();
+  hostRegistry.putTemplate({ ...raw, version: 1, hidden: false, createdAt: now, updatedAt: now });
+  res.status(201).json({ template: fullTemplate(templateFor(null, raw.id)) });
+});
+// Edits a host template: its version goes up, and every environment made from it reads its words, home icon and module
+// names and icons from the new version at once. `{ hidden }` hides or shows it (no new version). A field sent as null
+// is removed. Bundled templates can't be edited.
+hostRouter.patch('/api/host/templates/:id', requireHostAdmin, (req, res) => {
+  const t = templateFor(null, req.params.id);
+  if (!t) return res.status(404).json({ error: `There is no template called ${req.params.id.slice(0, 40)}.` });
+  if (t.source === 'bundled') return res.status(403).json({ error: "Bundled templates can't be edited; export one to start your own." });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  if (body.hidden !== undefined && typeof body.hidden !== 'boolean') return res.status(400).json({ error: 'hidden must be true or false.' });
+  const stored = hostRegistry.templates.find((x) => x.id === t.id);
+  const { id: _ignored, ...edits } = templateFields(body);
+  const changed = Object.keys(edits).length > 0;
+  let next = { ...stored, ...(body.hidden !== undefined ? { hidden: body.hidden } : {}) };
+  if (changed) {
+    const merged = { ...templateFields(stored), ...edits, id: t.id };
+    for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
+    const problems = templates.problemsOf(merged, { bundled: bundledIds() });
+    if (problems.length) return res.status(400).json({ error: problems[0], problems });
+    next = { ...merged, version: (stored.version || 1) + 1, hidden: next.hidden, createdAt: stored.createdAt, updatedAt: new Date().toISOString() };
+  }
+  hostRegistry.putTemplate(next);
+  if (changed) refreshTemplateLive(t.id);
+  res.json({ template: fullTemplate(templateFor(null, t.id)) });
+});
+// Deletes a host template no environment uses; one in use is hidden instead.
+hostRouter.delete('/api/host/templates/:id', requireHostAdmin, (req, res) => {
+  const t = templateFor(null, req.params.id);
+  if (!t) return res.status(404).json({ error: `There is no template called ${req.params.id.slice(0, 40)}.` });
+  if (t.source === 'bundled') return res.status(403).json({ error: "Bundled templates can't be deleted." });
+  const users = hostRegistry.listEnvironments().filter((e) => e.template === t.id);
+  if (users.length) return res.status(409).json({ error: `${word('environment', { many: true, cap: true })} use this template: ${users.map((e) => e.name || e.slug).join(', ')}. Hide it instead.` });
+  hostRegistry.removeTemplate(t.id);
+  res.json({ ok: true });
+});
+hostRouter.get('/api/host/templates/:id/export', requireHostAdmin, (req, res) => sendTemplateFile(res, templateFor(null, req.params.id), req.params.id));
+// Imports a template file as a new host template, keeping the file's version (at least 1). `?id=` gives it another id, for a file whose id is taken.
+hostRouter.post('/api/host/templates/import', requireHostAdmin, sameOriginOnly, templateFileText, (req, res) => {
+  const read = readTemplateUpload(req, null);
+  if (read.error) return res.status(read.status).json(read.error);
+  const now = new Date().toISOString();
+  hostRegistry.putTemplate({ ...read.raw, version: Number.isInteger(read.raw.version) ? read.raw.version : 1, hidden: false, createdAt: now, updatedAt: now });
+  res.status(201).json({ template: fullTemplate(templateFor(null, read.raw.id)), dropped: read.dropped });
+});
+
+// A template's own fields from a request body (never version, hidden or the dates, which are the server's).
+function templateFields(body) {
+  const out = {};
+  for (const key of templates.FIELDS) if (key !== 'version' && body && body[key] !== undefined) out[key] = body[key];
+  return out;
+}
+const bundledIds = () => bundledModules(BUNDLED_DIR).map((m) => m.id);
+// A template in full, for an editor or an import's answer: its fields, source, version and hidden.
+const fullTemplate = (t) => (t ? { ...t } : null);
+// Every built environment made from template `id` reads its live part (words, home icon, module names and icons) again.
+function refreshTemplateLive(id) {
+  for (const env of environments.values()) if (env.store.templateRecord?.id === id) templates.useLive(env.store, templateFor(env, id));
+}
+function sendTemplateFile(res, t, id) {
+  if (!t) return res.status(404).json({ error: `There is no template called ${String(id).slice(0, 40)}.` });
+  const file = templateFile.templateToFile(t);
+  res.set('Content-Disposition', `attachment; filename="${templateFile.templateFileName(t.name)}"`);
+  res.type('application/json').send(`${JSON.stringify(file, null, 2)}\n`);
+}
+// A template file from an import request (JSON, or its text with any other type), checked, with `?id=` renaming it.
+// Answers { raw, dropped } or { status, error }.
+function readTemplateUpload(req, env) {
+  try {
+    const given = typeof req.body === 'string' ? req.body : req.body === undefined ? '' : req.body;
+    const read = templateFile.readTemplateFile(given, { bundled: bundledIds(), byteLength: req.rawBody ? req.rawBody.length : null });
+    const rename = typeof req.query.id === 'string' && req.query.id ? req.query.id : null;
+    if (rename) {
+      read.raw.id = rename;
+      const problems = templates.problemsOf(read.raw, { bundled: bundledIds() });
+      if (problems.length) return { status: 400, error: { error: problems[0], problems } };
+    }
+    if (templateFor(env, read.raw.id)) return { status: 409, error: { error: `There is already a template called ${read.raw.id}.` } };
+    return read;
+  } catch (err) {
+    if (err instanceof templateFile.TemplateFileError) return { status: err.status, error: { error: err.message, ...(err.problems ? { problems: err.problems } : {}) } };
+    throw err;
+  }
+}
+
 // A template id from a create or sign-up request, checked: null for none, else a known id; an unknown one is refused.
 function chosenTemplate(value) {
   if (value === undefined || value === null || value === '') return null;
   if (typeof value !== 'string') throw new HostError(`A template is named by its id, such as ${templates.list()[0]?.id || 'travel'}.`);
-  if (!templates.get(value)) throw new HostError(`There is no template called ${value.slice(0, 40)}.`);
+  const t = templateFor(null, value);
+  if (!t || t.hidden) throw new HostError(`There is no template called ${value.slice(0, 40)}.`);
   return value;
 }
 // One registry entry's template as the console shows it, from the environment's own record: its store when it is
 // open, else its app.json read as it is (never building the environment for it).
 function environmentTemplate(entry) {
   const env = environments.get(entry.slug);
-  if (env) return templateView(env.store);
+  if (env) return templateView(env.store, env);
   const file = path.join(DATA_DIR, 'environments', entry.slug, 'app.json');
   if (!entry.template && !fs.existsSync(file)) return null;
   const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
@@ -1566,7 +1720,7 @@ function environmentTemplate(entry) {
   if (read && (!record || typeof record !== 'object' || typeof record.id !== 'string')) return null; // its own data says none
   const id = record?.id || entry.template;
   if (!id) return null;
-  const view = { id, name: templates.get(id)?.name || id, appliedAt: null, offerOpen: false, skipped: [] };
+  const view = { id, name: templateFor(null, id)?.name || id, appliedAt: null, offerOpen: false, skipped: [] };
   if (!record || typeof record !== 'object') return view;
   return { ...view, appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : null, offerOpen: typeof record.switchedAt === 'string' && typeof record.appliedAt !== 'string', skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
 }
@@ -1589,7 +1743,7 @@ hostRouter.patch('/api/host/environments/:slug', requireHostAdmin, async (req, r
     const { template, ...rest } = req.body || {};
     if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
     if (template !== undefined) {
-      const problem = templateSwitchProblem(template);
+      const problem = templateSwitchProblem(environmentFor(req.params.slug), template);
       if (problem) throw new HostError(problem);
     }
     let environment = Object.keys(rest).length || template === undefined ? hostRegistry.updateEnvironment(req.params.slug, rest) : hostRegistry.findEnvironment(req.params.slug);
@@ -1609,7 +1763,7 @@ hostRouter.get('/api/host/environments/:slug/template', requireHostAdmin, (req, 
   try {
     if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
     const env = environmentFor(req.params.slug);
-    res.json({ ...templateAnswer(env, req.params.slug), choices: templateChoices() });
+    res.json({ ...templateAnswer(env, req.params.slug), choices: templateChoices(env, env.store.templateRecord?.id) });
   } catch (err) {
     sendHostError(err, res);
   }
@@ -2085,7 +2239,7 @@ hostRouter.delete('/api/host/admins/:key', requireHostAdmin, (req, res) => {
 function productInfo(_req, res) {
   const plans = hostRegistry ? Object.entries(hostRegistry.plansCatalog()).map(([id, p]) => ({ id, name: p.name, caps: p.caps, checkoutUrl: checkoutUrlFor(id) })) : [];
   // `templates`: what a new environment can be made from ([{ id, name, description }]), for the sign-up form.
-  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION, signup: signupEnabled, plans, templates: BASE_DOMAIN ? templates.list() : [] });
+  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION, signup: signupEnabled, plans, templates: BASE_DOMAIN ? templateChoices(null).map(({ id, name, description }) => ({ id, name, description })) : [] });
 }
 hostRouter.get('/api/product', productInfo);
 // One environment's public name, for the product page's own Sign in (a slug is an address already, so confirming
@@ -4982,14 +5136,14 @@ app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: cu
 // owner's own home icon (null: the template's or the default).
 // `templateWords` and `templateHomeIcon`: the template's own (null for none), whatever the owner has set over them;
 // `spaceDefaults`: what a new space starts with ({ profile }, or null for the built-in default).
-const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords(), ownHomeIcon: store.settings.homeIcon || null, template: templateView(store), templateWords: store.templateWordsView(), templateHomeIcon: store.templateHomeIcon || null, spaceDefaults: store.settings.spaceDefaults || null });
+const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords(), ownHomeIcon: store.settings.homeIcon || null, template: templateView(store, currentEnvironment()), templateWords: store.templateWordsView(), templateHomeIcon: store.templateHomeIcon || null, spaceDefaults: store.settings.spaceDefaults || null });
 app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: ownerSettings(), streamKey: store.streamKey }));
 // `template` ("none" for none) switches the environment's template (the switching addendum): taken out of the body
 // before the settings; an unknown one refuses the whole change. With it, the answer also carries `template` and `offer`.
 app.patch('/api/settings', requireOwner, async (req, res) => {
   const { template, ...rest } = req.body || {};
   if (template !== undefined) {
-    const problem = templateSwitchProblem(template);
+    const problem = templateSwitchProblem(currentEnvironment(), template);
     if (problem) return res.status(400).json({ error: problem });
   }
   if (template === undefined || Object.keys(rest).length) watchTheme(() => store.updateSettings(rest));
@@ -5005,8 +5159,37 @@ app.get('/api/environment/template', requireOwner, (req, res) => {
   const env = currentEnvironment();
   res.json({
     ...templateAnswer(env, env.slug),
-    choices: templateChoices(),
+    choices: templateChoices(env, env.store.templateRecord?.id),
   });
+});
+
+// A single install's own templates (addendum 2): imported from files, exported (any it can see, bundled included), and
+// an imported one deleted once this environment no longer uses it. On a hosted server the host manages templates.
+const HOST_MANAGES_TEMPLATES = 'On a hosted server, the host manages templates.';
+app.post('/api/templates/import', requireOwner, sameOriginOnly, templateFileText, (req, res) => {
+  if (BASE_DOMAIN) return res.status(403).json({ error: HOST_MANAGES_TEMPLATES });
+  const env = currentEnvironment();
+  const read = readTemplateUpload(req, env);
+  if (read.error) return res.status(read.status).json(read.error);
+  env.store.putImportedTemplate({ ...read.raw, version: Number.isInteger(read.raw.version) ? read.raw.version : 1, importedAt: new Date().toISOString() });
+  res.status(201).json({ template: fullTemplate(templateFor(env, read.raw.id)), dropped: read.dropped });
+});
+// On a hosted server an owner may export only their environment's own template (read-only); import and delete stay
+// the host's.
+app.get('/api/templates/:id/export', requireOwner, (req, res) => {
+  const env = currentEnvironment();
+  if (BASE_DOMAIN && env.store.templateRecord?.id !== req.params.id) return res.status(403).json({ error: HOST_MANAGES_TEMPLATES });
+  sendTemplateFile(res, templateFor(env, req.params.id), req.params.id);
+});
+app.delete('/api/templates/:id', requireOwner, (req, res) => {
+  if (BASE_DOMAIN) return res.status(403).json({ error: HOST_MANAGES_TEMPLATES });
+  const env = currentEnvironment();
+  const t = templateFor(env, req.params.id);
+  if (!t) return res.status(404).json({ error: `There is no template called ${req.params.id.slice(0, 40)}.` });
+  if (t.source === 'bundled') return res.status(403).json({ error: "Bundled templates can't be deleted." });
+  if (env.store.templateRecord?.id === t.id) return res.status(409).json({ error: `This ${word('environment')} uses this template. Switch to another one first.` });
+  env.store.removeImportedTemplate(t.id);
+  res.json({ ok: true });
 });
 // Confirms the open offer: { modules: [ids], lobby: boolean, spaceDefaults: boolean }; 409 with no template or one
 // already applied.
@@ -5033,7 +5216,7 @@ app.get('/api/environment', requireOwner, async (req, res) => {
     deleteRequestedAt: environment.deleteRequestedAt,
     deleteRequestReason: environment.deleteRequestReason,
     // The template it was made from, with what was skipped (templateView), or null: for the Environment panel.
-    template: templateView(store),
+    template: templateView(store, currentEnvironment()),
     plan: { name: environment.plan.name || null, modules: environment.plan.modules, members: environment.plan.members, storageBytes: environment.plan.storageBytes, aiCallsPerMonth: environment.plan.aiCallsPerMonth, calls: environment.plan.calls },
     usage: {
       members: store.users.length,
@@ -5181,6 +5364,10 @@ app.use((err, _req, res, _next) => {
   // bytes that don't unzip): the one sentence the import gives for anything that isn't a theme file.
   if (_req.path === '/api/themes/import' && (typeof err.type === 'string' || (err.status >= 400 && err.status < 500))) {
     return res.status(400).json({ error: themeFile.NOT_A_THEME_FILE });
+  }
+  // The same for a template file (the host's import and a single install's).
+  if (/^\/api\/(host\/)?templates\/import$/.test(_req.path) && (typeof err.type === 'string' || (err.status >= 400 && err.status < 500))) {
+    return res.status(400).json({ error: templateFile.NOT_A_TEMPLATE_FILE });
   }
   if (err.type === 'entity.too.large') {
     if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });

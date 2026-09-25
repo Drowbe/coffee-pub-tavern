@@ -208,6 +208,9 @@ class HostRegistry {
       ai: cleanHostAi(raw.ai),
       shared: cleanSharedFolders(raw.shared),
       plans: cleanPlansCatalog(raw.plans),
+      // The host's own templates (plan-environment-templates.md, addendum 2): each checked by server/templates.js
+      // before it is saved, with its version, hidden, createdAt and updatedAt. Kept as found here.
+      templates: Array.isArray(raw.templates) ? raw.templates.filter((t) => t && typeof t === 'object' && typeof t.id === 'string') : [],
       // The Names migration's record of the host's own parts (server/migrate-names.js), kept exactly as found.
       ...(Array.isArray(raw.migrations) ? { migrations: raw.migrations } : {}),
     };
@@ -281,6 +284,24 @@ class HostRegistry {
   seedManagedAi(provider, { address, model }) {
     if (!MANAGED_PROVIDERS.includes(provider) || this.data.ai[provider]) return;
     this.data.ai[provider] = cleanHostAi({ [provider]: { address, model, key: '' } })[provider];
+    this.save();
+  }
+
+  // templates (addendum 2) ------------------------------------------------------------------------------------
+  get templates() {
+    return structuredClone(this.data.templates);
+  }
+
+  // Adds a template, or replaces the one with its id. The caller has checked it.
+  putTemplate(template) {
+    const i = this.data.templates.findIndex((t) => t.id === template.id);
+    if (i >= 0) this.data.templates[i] = structuredClone(template);
+    else this.data.templates.push(structuredClone(template));
+    this.save();
+  }
+
+  removeTemplate(id) {
+    this.data.templates = this.data.templates.filter((t) => t.id !== id);
     this.save();
   }
 

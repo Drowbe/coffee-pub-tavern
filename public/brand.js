@@ -563,6 +563,7 @@ export async function api(method, url, body, contentType) {
     const err = new Error(data.error || `HTTP ${res.status}`);
     err.status = res.status;
     err.current = data.current; // set on a 409 from the module data store
+    if (Array.isArray(data.problems)) err.problems = data.problems; // every problem with a template, not only the first
     throw err;
   }
   return data;

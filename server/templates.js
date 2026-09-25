@@ -11,8 +11,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const words = require('./words');
-const { SPACE_PROFILES, QUALITY_OPTIONS, LANGUAGES, CURRENCIES, BUILTIN_THEME_IDS, LOBBY, displayNameProblem } = require('./store');
+const { Store, SPACE_PROFILES, QUALITY_OPTIONS, LANGUAGES, CURRENCIES, BUILTIN_THEME_IDS, LOBBY, displayNameProblem, cleanReactions } = require('./store');
+const themeFile = require('./theme-file');
 const { bundledModules, buildModule } = require('./module-build');
 
 const ROOT = path.join(__dirname, '..');
@@ -23,7 +25,29 @@ const FA_FREE_SOLID = path.join(ROOT, 'node_modules', '@fortawesome', 'fontaweso
 // The modules built into every environment: named like a bundled one, never installed.
 const BUILTIN_MODULE_IDS = ['conference', 'chat'];
 const ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
-const FIELDS = ['id', 'name', 'description', 'words', 'icons', 'moduleNames', 'moduleIcons', 'modules', 'settings', 'lobby', 'spaceDefaults'];
+const FIELDS = ['id', 'name', 'description', 'version', 'words', 'icons', 'moduleNames', 'moduleIcons', 'modules', 'settings', 'lobby', 'spaceDefaults', 'reactions', 'theme', 'iconSet'];
+const MAX_REACTIONS = 30;
+const MAX_ICON_SET = 60;
+// The applied-once parts an update can offer, each with a fingerprint of the template's value kept in the record once
+// applied or passed over (addendum 2; PM's decision 3), so a part is offered again only when the template changed it.
+const PARTS = ['modules', 'reactions', 'theme', 'iconSet', 'lobby', 'spaceDefaults'];
+const fingerprint = (value) => crypto.createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 16);
+function partFingerprints(template) {
+  return Object.fromEntries(PARTS.map((part) => [part, fingerprint(template[part])]));
+}
+// The applied-once part of a template as a whole (modules, settings, the Lobby, space defaults, reactions, icon set,
+// theme): a bundled template's version must go up when this changes (tools/template-versions.json).
+const appliedOnceFingerprint = (template) => fingerprint(['modules', 'settings', 'lobby', 'spaceDefaults', 'reactions', 'iconSet', 'theme'].map((k) => template[k] ?? null));
+// A theme's own check, without a Store: Store#sanitizeTheme reads nothing of the instance.
+const sanitizeTheme = (t) => Store.prototype.sanitizeTheme.call(null, t);
+// An embedded theme (addendum 2): the theme file's fields, checked as a theme import is. Answers { theme, dropped } or
+// throws the theme file's own refusal.
+function readEmbeddedTheme(raw) {
+  const { magpieTheme, ...fields } = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const read = themeFile.readThemeFile({ ...fields, magpieTheme: 1 }, sanitizeTheme);
+  const { dropped, ...theme } = read;
+  return { theme, dropped };
+}
 const bool = (v) => typeof v === 'boolean';
 // The settings a template may give (each also the owner's to change afterwards), with what each takes.
 const SETTINGS = {
@@ -58,6 +82,37 @@ function problemsOf(raw, { file = null, bundled = [], faDir = FA_FREE_SOLID } = 
   if (typeof raw.name !== 'string' || !raw.name.trim() || raw.name.length > 40) say('"name" must be text of 1 to 40 characters.');
   if (typeof raw.description !== 'string' || !raw.description.trim() || raw.description.length > 200) say('"description" must be text of 1 to 200 characters.');
   const knownModule = (id) => bundled.includes(id) || BUILTIN_MODULE_IDS.includes(id);
+  if (raw.version !== undefined && (!Number.isInteger(raw.version) || raw.version < 1)) say('"version" must be a whole number, 1 or more.');
+  if (raw.reactions !== undefined) {
+    if (!Array.isArray(raw.reactions) || raw.reactions.length > MAX_REACTIONS) say(`"reactions" must be a list of at most ${MAX_REACTIONS} reactions.`);
+    else {
+      raw.reactions.forEach((r, i) => {
+        if (!isObject(r) || typeof r.glyph !== 'string' || !r.glyph.trim() || r.glyph.length > 8) say(`reactions[${i}]: each reaction needs a glyph of 1 to 8 characters.`);
+        else if (r.label !== undefined && (typeof r.label !== 'string' || r.label.length > 40)) say(`reactions[${i}]: a label is text of at most 40 characters.`);
+        else if (Object.keys(r).some((k) => !['id', 'glyph', 'label'].includes(k))) say(`reactions[${i}]: a reaction takes only id, glyph and label.`);
+      });
+    }
+  }
+  if (raw.iconSet !== undefined) {
+    if (!Array.isArray(raw.iconSet) || raw.iconSet.length > MAX_ICON_SET) say(`"iconSet" must be a list of at most ${MAX_ICON_SET} icon names.`);
+    else {
+      const seen = new Set();
+      for (const icon of raw.iconSet) {
+        if (!drawable(icon, faDir)) say(`iconSet: "${icon}" is not a Font Awesome Free solid icon.`);
+        else if (seen.has(icon)) say(`iconSet: "${icon}" is listed twice.`);
+        seen.add(icon);
+      }
+    }
+  }
+  if (raw.theme !== undefined) {
+    try {
+      const { dropped } = readEmbeddedTheme(raw.theme);
+      if (!isObject(raw.theme)) say('"theme" must be a theme: { name, author?, light, dark }.');
+      else if (dropped.length) say(`theme: ${dropped.map((d) => `"${d}"`).join(', ')} ${dropped.length === 1 ? 'is' : 'are'} not part of a theme.`);
+    } catch (err) {
+      say(`theme: ${err.message}`);
+    }
+  }
 
   if (raw.words !== undefined) {
     if (!isObject(raw.words)) say('"words" must be an object of words by name.');
@@ -138,6 +193,12 @@ function cleanTemplate(raw) {
     settings: { ...(raw.settings || {}) },
     lobby: { ...(raw.lobby || {}) },
     spaceDefaults: { ...(raw.spaceDefaults || {}) },
+    // Addendum 2: a template's version (a bundled file without one is 1), its reactions and its theme, each applied
+    // once (null for none).
+    version: Number.isInteger(raw.version) ? raw.version : 1,
+    reactions: raw.reactions !== undefined ? cleanReactions(raw.reactions) : null,
+    theme: raw.theme !== undefined ? readEmbeddedTheme(raw.theme).theme : null,
+    iconSet: Array.isArray(raw.iconSet) ? [...raw.iconSet] : null,
   };
 }
 
@@ -192,8 +253,8 @@ function withRequirements(ids, manifests) {
 
 // Adds a template's icons (its home icon and its module icons) to the environment's icon list, so the owner's pickers
 // offer them. Never removes one.
-function addIcons(store, template) {
-  const want = [template.icons.home, ...Object.values(template.moduleIcons)].filter(Boolean);
+function addIcons(store, template, { iconSet = false } = {}) {
+  const want = [template.icons.home, ...Object.values(template.moduleIcons), ...(iconSet ? template.iconSet || [] : [])].filter(Boolean);
   const have = store.iconIds();
   const add = [...new Set(want)].filter((id) => !have.includes(id)).map((id) => ({ id, classes: `fa-solid fa-${id}`, label: id.replace(/-/g, ' ') }));
   if (add.length) store.updateSettings({ icons: [...store.settings.icons, ...add] });
@@ -242,11 +303,23 @@ async function applyTemplate(env, template, { allowed = () => true, modulesDir =
   if (template.lobby.name !== undefined || template.lobby.description !== undefined) store.updateSpace(LOBBY, template.lobby);
   if (template.spaceDefaults.profile) store.updateSettings({ spaceDefaults: { profile: template.spaceDefaults.profile } });
   // The home icon itself stays the template's (settings.homeIcon unset) until the owner picks one.
-  addIcons(store, template);
+  addIcons(store, template, { iconSet: true });
   if (template.icons.home) store.updateSettings({ homeIcon: null });
   store.updateSettings({ conferenceEnabled: template.modules.includes('conference') });
+  if (template.reactions) store.updateSettings({ reactions: template.reactions });
+  if (template.theme) useTheme(store, template);
   return turnOnModules(env, template.modules, { allowed, modulesDir, name });
 }
+
+// A template's theme, added as a new theme ("Name (2)" on a clash, never overwriting) and made active; one with the
+// very same colors already there is made active instead of added again.
+function useTheme(store, template) {
+  const same = sameTheme(store, template.theme);
+  const theme = same || store.importTheme(template.theme);
+  store.updateSettings({ activeThemeId: theme.id });
+}
+const setsOf = (t) => JSON.stringify([t.light || null, t.dark || null]);
+const sameTheme = (store, theme) => store.themes.find((t) => setsOf(store.sanitizeTheme(t) || {}) === setsOf(theme)) || null;
 
 // --- switching (the switching addendum, GitHub #59) ------------------------------------------------------------------
 // A switch changes only the live part at once (the store's useLive, and the template's icons into the icon list); its
@@ -258,37 +331,51 @@ async function applyTemplate(env, template, { allowed = () => true, modulesDir =
 //            the plan allows it ({ id, name, allowed, why? }); the conference when listed and off
 //   lobby: the template's Lobby name and description when they differ from the Lobby's own, else null
 //   spaceDefaults: the template's new-space profile when it differs from the environment's, else null
-function offerFor(env, template, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id } = {}) {
+function offerFor(env, template, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id, applied = null } = {}) {
   const { store, modules } = env;
+  // With fingerprints from the last time this template's once-only part was applied or passed over, a part is offered
+  // only when the template changed it since; without them (a switch, or a record from before), by the environment as
+  // it is now.
+  const prints = partFingerprints(template);
+  const changed = (part) => !applied || applied[part] !== prints[part];
   const manifests = new Map(bundledModules(modulesDir).map((m) => [m.id, m]));
   const offered = [];
-  for (const id of withRequirements(template.modules.filter((m) => !BUILTIN_MODULE_IDS.includes(m)), manifests)) {
+  if (changed('modules')) for (const id of withRequirements(template.modules.filter((m) => !BUILTIN_MODULE_IDS.includes(m)), manifests)) {
     const view = modules.isInstalled(id) ? modules.view(id) : null;
     if (view && view.enabled && view.allSpaces) continue; // on in every space it may be in already
     const ok = Boolean(allowed(id));
     offered.push({ id, name: name(id), allowed: ok, ...(ok ? {} : { why: 'not in the plan' }) });
   }
-  if (template.modules.includes('conference') && store.settings.conferenceEnabled === false) offered.push({ id: 'conference', name: name('conference'), allowed: true });
+  if (changed('modules') && template.modules.includes('conference') && store.settings.conferenceEnabled === false) offered.push({ id: 'conference', name: name('conference'), allowed: true });
   const lobby = store.spaceById(LOBBY);
   const lobbyDiffers = (template.lobby.name !== undefined && template.lobby.name !== lobby?.name) || (template.lobby.description !== undefined && template.lobby.description !== lobby?.description);
   const profile = template.spaceDefaults.profile;
+  const missingIcons = changed('iconSet') ? (template.iconSet || []).filter((id) => !store.iconIds().includes(id)) : [];
+  const reactionsDiffer = changed('reactions') && template.reactions && JSON.stringify(template.reactions) !== JSON.stringify(store.settings.reactions || []);
+  const theme = changed('theme') ? template.theme || null : null;
   return {
+    iconSet: missingIcons.length ? missingIcons : null,
+    reactions: reactionsDiffer ? template.reactions : null,
+    theme: theme && !(sameTheme(store, theme) && store.settings.activeThemeId === sameTheme(store, theme).id) ? { name: theme.name, ...(theme.author ? { author: theme.author } : {}) } : null,
     modules: offered,
-    lobby: lobbyDiffers ? { name: template.lobby.name ?? lobby?.name ?? '', description: template.lobby.description ?? lobby?.description ?? '' } : null,
-    spaceDefaults: profile && profile !== store.settings.spaceDefaults?.profile ? { profile } : null,
+    lobby: changed('lobby') && lobbyDiffers ? { name: template.lobby.name ?? lobby?.name ?? '', description: template.lobby.description ?? lobby?.description ?? '' } : null,
+    spaceDefaults: changed('spaceDefaults') && profile && profile !== store.settings.spaceDefaults?.profile ? { profile } : null,
   };
 }
 
 // Applies what was confirmed of the offer: `modules` (ids from the offer; anything else is ignored), `lobby` and
 // `spaceDefaults` (true to take the template's). Answers what was skipped: every offered module the plan leaves out,
 // and any confirmed one that could not be turned on, with why. Turns nothing off.
-async function applyOffer(env, template, { modules: ids = [], lobby = false, spaceDefaults = false } = {}, opts = {}) {
+async function applyOffer(env, template, { modules: ids = [], lobby = false, spaceDefaults = false, reactions = false, theme = false, iconSet = false } = {}, opts = {}) {
   const { store } = env;
   const offer = offerFor(env, template, opts);
   const offeredIds = new Set(offer.modules.map((m) => m.id));
   const chosen = [...new Set((Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string' && offeredIds.has(id)))];
   if (lobby === true && offer.lobby) store.updateSpace(LOBBY, offer.lobby);
   if (spaceDefaults === true && offer.spaceDefaults) store.updateSettings({ spaceDefaults: offer.spaceDefaults });
+  if (reactions === true && offer.reactions) store.updateSettings({ reactions: offer.reactions });
+  if (theme === true && offer.theme) useTheme(store, template);
+  if (iconSet === true && offer.iconSet) addIcons(store, template, { iconSet: true });
   if (chosen.includes('conference')) store.updateSettings({ conferenceEnabled: true }); // offered only while off; never turned off
   const skipped = offer.modules.filter((m) => !m.allowed).map((m) => ({ id: m.id, why: m.why }));
   const allowedChosen = chosen.filter((id) => !BUILTIN_MODULE_IDS.includes(id) && offer.modules.find((m) => m.id === id).allowed);
@@ -296,4 +383,4 @@ async function applyOffer(env, template, { modules: ids = [], lobby = false, spa
   return skipped;
 }
 
-module.exports = { loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, addIcons, turnOnModules, offerFor, applyOffer, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };
+module.exports = { PARTS, partFingerprints, appliedOnceFingerprint, loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, addIcons, turnOnModules, offerFor, applyOffer, readEmbeddedTheme, FIELDS, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };

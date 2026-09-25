@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decides what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
 
-**Status:** Addendum 2 (#68), "Templates grow", approved 2026-09-25: steps 1 and 2 built (theme files; the Template tab), step 3 not built. The switching addendum (GitHub #59) is built (2026-09-25). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
+**Status:** Addendum 2 (#68), "Templates grow", approved 2026-09-25: built (2026-09-25) except step 3b's move of **Reactions** and **Icons** from the Theme tab to the Template tab. The switching addendum (GitHub #59) is built (2026-09-25). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
 
 ## What it is today
 
@@ -231,7 +231,7 @@ Thomas answered the addendum's four questions as recommended:
 
 ## Addendum 2: templates grow
 
-**Status:** approved 2026-09-25; steps 1 and 2 built (2026-09-25), step 3 not built. GitHub issue #68. Builds on the switching addendum (#59), the Lobby note (#63) and [plan-themes](plan-themes.md) (#67).
+**Status:** approved 2026-09-25; **built** (2026-09-25) except one part of step 3b: **Reactions** and **Icons** still sit on Manage's Theme tab and have not moved to the Template tab. Checked by the tools and a headless smoke test only; the live verification of steps 3a and 3b is still to come. GitHub issue #68. Documented in [architecture-tenants](../architecture/architecture-tenants.md), "Templates", and [userguide-templates](../userguides/userguide-templates.md). As built: the icon set is its own field, `iconSet`, and `icons` stays `{ home }`; the record also keeps `applied`, a fingerprint of each applied-once part, which decides what an update offers; the console has no one-step "Start from" (a bundled template is exported, then imported under a new id). Builds on the switching addendum (#59), the Lobby note (#63) and [plan-themes](plan-themes.md) (#67).
 
 ### The decision
 
@@ -321,6 +321,14 @@ Templates are bundled files only (`templates/<id>.json`, read by `server/templat
    - **3b. The pages.** The console's Templates tab and editor; reactions and icons moving to the Template tab; the single install's import and export.
      - Verify: live in a browser on the same servers. Nothing here needs a call.
 4. **The documentation** (content-manager): the owners' guide to the Template tab, the host's guide to templates on the console, and the template file.
+
+### Decided (2026-09-25, by the project manager while building)
+
+1. **`iconSet` is a separate field.** A template's icons for the environment's icon list are `iconSet: [names]`; `icons` stays `{ home }`.
+2. **An owner on a hosted server can export** the template their environment uses, and only that one (open question 2, as recommended). Import and delete stay the host's.
+3. **Applied fingerprints decide what an update offers.** The record keeps `applied`, a fingerprint of each applied-once part as it was when last applied or passed over; an update offers only the parts the template changed since, rather than whatever differs from the environment now.
+4. **An import keeps the file's version.**
+5. **A bundled template's version is raised by hand** (open question 3, as recommended), and enforced: `tools/template-versions.json` records each bundled template's version with a fingerprint of its applied-once part, `check-templates` fails when the part changed and the version didn't, and `node tools/check-templates.mjs --update` records the new ones.
 
 ### Open questions
 

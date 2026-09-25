@@ -285,6 +285,18 @@
         </div>
         <div id="template-offer" hidden></div>
         <div class="template-skipped" id="template-skipped" hidden></div>
+        <!-- Template files (addendum 2): Export of the template in use; a single install also imports files and deletes
+             an imported template it no longer uses. Drawn by admin.js. -->
+        <div class="template-files" id="template-files" hidden>
+          <span class="field-label">Template files</span>
+          <div class="row">
+            <a class="btn btn-small" id="template-export" download hidden title="Download this template as a file"><i class="fa-solid fa-file-export fa-fw" aria-hidden="true"></i> Export</a>
+            <button class="btn btn-small" id="template-import" type="button" hidden title="Add a template from a file"><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i> Import…</button>
+            <input id="template-import-file" type="file" accept=".json,application/json" hidden>
+            <span class="status" id="template-files-status" role="status"></span>
+          </div>
+          <ul class="list-rows" id="template-imported" hidden></ul>
+        </div>
       </div>
 
       <!-- What people read for each level and role here (plan-environment-templates, "The vocabulary"): drawn by admin.js. -->
