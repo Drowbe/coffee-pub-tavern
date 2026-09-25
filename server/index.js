@@ -52,10 +52,7 @@ const {
   // host admin in host.json; on a single-environment install the one environment's `admin` account.
   ADMIN_LOGIN = '',
   ADMIN_PASSWORD = '',
-  ADMIN_KEY = '', // pre-account releases used this; accepted as the admin password
   OWNER_PASSWORD = '', // built in step 4 and dropped: ignored, with a line on start
-  TAVERN_ADMIN_PASSWORD = '', // deprecated: use ADMIN_PASSWORD
-  TAVERN_ADMIN_KEY = '', // deprecated: use ADMIN_PASSWORD
   TAVERN_REVISION = 'dev',
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
@@ -99,22 +96,14 @@ const {
 } = process.env;
 
 // The server's admin (plan-names decisions 7, 15 and 20): ADMIN_LOGIN and ADMIN_PASSWORD, on every kind of install.
-// On a single-environment install TAVERN_ADMIN_PASSWORD and TAVERN_ADMIN_KEY (with ADMIN_KEY, the pre-account
-// password) are still read for the password, each saying so on every start; a hosted server never read them.
-const oldConfigNames = BASE_DOMAIN ? [] : [['TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', 'ADMIN_PASSWORD', TAVERN_ADMIN_KEY]];
-for (const [old, now, value] of oldConfigNames) if (value) console.warn(`${old} is now ${now}; the old name stops working in a later release.`);
-// The old names that went in plan-names step 10 (decision 20) are no longer read at all; set, each says so on every
-// start, with the name to use instead, so an install that still sets one is not left guessing why it has no effect.
-const REMOVED_CONFIG_NAMES = [['ADMIN_USER', 'ADMIN_LOGIN'], ['TAVERN_ADMIN_USER', 'ADMIN_LOGIN'], ['HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'], ['HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'], ['MIGRATE_TENANT_SLUG', 'MIGRATE_ENVIRONMENT_SLUG']];
+// The old names that went in plan-names step 10 (decision 20), and after it TAVERN_ADMIN_PASSWORD, TAVERN_ADMIN_KEY
+// and ADMIN_KEY (the pre-account password), are no longer read at all; set, each says so on every start, with the
+// name to use instead, so an install that still sets one is not left guessing why it has no effect.
+const REMOVED_CONFIG_NAMES = [['ADMIN_USER', 'ADMIN_LOGIN'], ['TAVERN_ADMIN_USER', 'ADMIN_LOGIN'], ['HOST_ADMIN_LOGIN', 'ADMIN_LOGIN'], ['HOST_ADMIN_PASSWORD', 'ADMIN_PASSWORD'], ['TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD'], ['TAVERN_ADMIN_KEY', 'ADMIN_PASSWORD'], ['ADMIN_KEY', 'ADMIN_PASSWORD'], ['MIGRATE_TENANT_SLUG', 'MIGRATE_ENVIRONMENT_SLUG']];
 for (const [old, now] of REMOVED_CONFIG_NAMES) if (process.env[old]) console.warn(`${old} is no longer read: use ${now} instead.`);
-// A hosted server never read the single install's own names; set there, they are said to be ignored, once per start.
-if (BASE_DOMAIN) {
-  const ignored = [['ADMIN_KEY', ADMIN_KEY], ['TAVERN_ADMIN_PASSWORD', TAVERN_ADMIN_PASSWORD], ['TAVERN_ADMIN_KEY', TAVERN_ADMIN_KEY]].filter(([, v]) => v).map(([k]) => k);
-  if (ignored.length) console.warn(`${ignored.join(', ')} ${ignored.length === 1 ? 'is' : 'are'} ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.`);
-}
 if (OWNER_PASSWORD) console.warn("OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.");
 const adminLogin = ADMIN_LOGIN || 'admin';
-const adminPassword = ADMIN_PASSWORD || (BASE_DOMAIN ? '' : TAVERN_ADMIN_PASSWORD || ADMIN_KEY || TAVERN_ADMIN_KEY);
+const adminPassword = ADMIN_PASSWORD;
 const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 // The environment a single-environment install moves into on its first start with BASE_DOMAIN (plan-names decision 15).
 const migrateEnvironmentSlug = MIGRATE_ENVIRONMENT_SLUG;

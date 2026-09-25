@@ -1,8 +1,13 @@
 # Changelog
 
-All notable changes to Coffee Pub Tavern. Format follows Keep a Changelog, and versions follow SemVer.
+All notable changes to Coffee Pub Magpie. Format follows Keep a Changelog, and versions follow SemVer.
 
 ## [Unreleased]
+
+### Changed
+- **Breaking: `TAVERN_ADMIN_PASSWORD`, `TAVERN_ADMIN_KEY` and `ADMIN_KEY` are no longer read, on single and hosted installs.** **Before updating, move the value to `ADMIN_PASSWORD`.** An install that set only one of them loses that password: a new install gets an admin with a random password, logged once; an install that already has accounts makes and changes nobody, and logs "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one." Each start that still sets one logs "<NAME> is no longer read: use ADMIN_PASSWORD instead."; the old "stops working in a later release" and "ignored on a server with environments" lines are gone. They join the names in `REMOVED_CONFIG_NAMES` (`server/index.js`). Documented in `architecture-environments.md`, `userguide-getting-started.md` and `plan-names.md`. `tools/check-host-registry.mjs` now covers each name alone on a new single install (the line is logged, the old value signs nobody in, a random password is made) and all three on a hosted server (one line each, the old value sets no password); its passing is QA's to report. Not verified live here.
+
+## [0.4.0] - 2026-09-25
 
 ### Fixed
 - **Security: a page on another site could make changes as whoever was signed in.** A signed-in person's cookie still went along with a request from another origin on the same site (every environment is a subdomain of the host's domain), and a plain form needs no permission to send one. Now any POST, PUT, PATCH or DELETE that carries a cookie and comes from another origin is refused with 403 "This request came from another site, so it was refused." Not affected: Studio and anything else signing with a `Bearer` token, requests with no cookie, and `POST /login`, the landing page's sign-in. Follow-ups are GitHub #70. Documented in `architecture-overview.md`. Checked by the tool: `npm run check` passes, including the new `check-template-switch` and `check-origin`, and `check-modules`, `check-templates` and `check-themes`; any live check is QA's to report.

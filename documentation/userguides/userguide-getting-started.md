@@ -52,10 +52,13 @@ Without `ADMIN_PASSWORD`, a brand-new server makes an admin called `admin` (or `
 password and prints it in the log once. A server that already has accounts makes nothing and changes nobody;
 the log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
 
-**Older names.** `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are now `ADMIN_PASSWORD`; each still works for
-now, and the log says to change it. `ADMIN_USER` and `TAVERN_ADMIN_USER` are no longer read, from version 0.4.0:
-if your compose file still sets one, the admin's login is `admin` until you set `ADMIN_LOGIN`, and the log says
-"ADMIN_USER is no longer read: use ADMIN_LOGIN instead." on every start.
+**Older names.** `ADMIN_USER` and `TAVERN_ADMIN_USER` are no longer read, from version 0.4.0: if your compose
+file still sets one, the admin's login is `admin` until you set `ADMIN_LOGIN`, and the log says "ADMIN_USER is no
+longer read: use ADMIN_LOGIN instead." on every start. `TAVERN_ADMIN_PASSWORD`, `TAVERN_ADMIN_KEY` and
+`ADMIN_KEY` are no longer read either, and the log says "TAVERN_ADMIN_PASSWORD is no longer read: use
+ADMIN_PASSWORD instead." (with the name you set). **Move the value to `ADMIN_PASSWORD` before you update:** if
+one of these was your only password setting, a new server makes a random admin password instead, and a server
+that already has accounts makes no admin at all.
 `OWNER_PASSWORD`, from the previous version, is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage.
 Use ADMIN_PASSWORD for the server's admin." If you set it in that version, put the same login and password in
 `ADMIN_LOGIN` and `ADMIN_PASSWORD`, and that account becomes the admin again on the next start; without them,
@@ -68,8 +71,8 @@ the owners run the server and there is no admin.
 ## Update it later
 
 An install made before the product's rename keeps its old names: the containers `tavern-app` and
-`tavern-livekit`, the data path `/share/appdata/tavern` and the `TAVERN_ADMIN_*` variables all still work
-(the old variable names are honoured, and the old session cookie and data file are carried over on start).
+`tavern-livekit` and the data path `/share/appdata/tavern` all still work (the old session cookie and data file
+are carried over on start). The `TAVERN_ADMIN_*` variables do not: see **Older names** above.
 Do not change the volume path of an existing install: the data lives there.
 
 

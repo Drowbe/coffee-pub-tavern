@@ -816,7 +816,6 @@ try {
   });
 
   // --- the server's admin (plan-names decision 7, amended): ADMIN_LOGIN and ADMIN_PASSWORD on every install ---
-  const OLD_LINE = (old, now) => `${old} is now ${now}; the old name stops working in a later release.`;
   const GONE_LINE = (old, now) => `${old} is no longer read: use ${now} instead.`; // plan-names step 10
   const OWNER_IGNORED = "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's admin.";
   const signInSingle = async (login, password) => {
@@ -852,10 +851,12 @@ try {
     assert.equal(readJson(path.join(hosted, 'host.json')).hostAdmins.length, 2);
     await server.stop();
     // The same again: nothing to do. A new login: another host admin made beside the others.
-    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2', TAVERN_ADMIN_USER: 'x', TAVERN_ADMIN_PASSWORD: 'y', ADMIN_MFA_LOCKOUT_BYPASS: 'true' });
+    server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-2', TAVERN_ADMIN_USER: 'x', TAVERN_ADMIN_PASSWORD: 'y', TAVERN_ADMIN_KEY: 'z', ADMIN_KEY: 'w', ADMIN_MFA_LOCKOUT_BYPASS: 'true' });
     assert.ok(!/Host admin "boss" (created|password reset)/.test(server.output()), server.output());
     assert.ok(server.output().includes(GONE_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN')), server.output());
-    assert.ok(server.output().includes('TAVERN_ADMIN_PASSWORD is ignored on a server with environments: use ADMIN_LOGIN and ADMIN_PASSWORD for the host admin.'), server.output());
+    for (const old of ['TAVERN_ADMIN_PASSWORD', 'TAVERN_ADMIN_KEY', 'ADMIN_KEY']) assert.ok(server.output().includes(GONE_LINE(old, 'ADMIN_PASSWORD')), server.output());
+    assert.ok(!/ignored on a server with environments/.test(server.output()), 'one line per old name, no other');
+    assert.equal(await hostIn('boss', 'y'), 401, 'the old password names set no password');
     assert.ok(server.output().includes('The lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is on: every owner and host admin skips'), 'hosted: the host admins');
     await server.stop();
     server = await startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'chief', ADMIN_PASSWORD: 'chief-password-1', ADMIN_USER: 'ignored-here' });
@@ -965,12 +966,28 @@ try {
   });
 
   // ADMIN_USER and TAVERN_ADMIN_USER are no longer read (plan-names step 10): the login is ADMIN_LOGIN, or "admin".
-  // TAVERN_ADMIN_PASSWORD is not among the names the plan removes, and is still read, logged.
+  // TAVERN_ADMIN_PASSWORD, TAVERN_ADMIN_KEY and ADMIN_KEY are no longer read either (Thomas, after step 10): set alone
+  // on a fresh install, the admin gets a random password, logged, and the old value signs nobody in.
   const oldSingle = [
     ['ADMIN_USER', { ADMIN_USER: 'gm', ADMIN_PASSWORD: 'admin-password-1' }, 'admin', 'admin-password-1', [GONE_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
     ['ADMIN_LOGIN beside ADMIN_USER', { ADMIN_LOGIN: 'gm', ADMIN_USER: 'old', ADMIN_PASSWORD: 'admin-password-1' }, 'gm', 'admin-password-1', [GONE_LINE('ADMIN_USER', 'ADMIN_LOGIN')]],
-    ['TAVERN_ADMIN_USER and TAVERN_ADMIN_PASSWORD', { TAVERN_ADMIN_USER: 'gm', TAVERN_ADMIN_PASSWORD: 'admin-password-1' }, 'admin', 'admin-password-1', [GONE_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN'), OLD_LINE('TAVERN_ADMIN_PASSWORD', 'ADMIN_PASSWORD')]],
+    ['TAVERN_ADMIN_USER beside ADMIN_PASSWORD', { TAVERN_ADMIN_USER: 'gm', ADMIN_PASSWORD: 'admin-password-1' }, 'admin', 'admin-password-1', [GONE_LINE('TAVERN_ADMIN_USER', 'ADMIN_LOGIN')]],
   ];
+  const oldPasswordNames = ['TAVERN_ADMIN_PASSWORD', 'TAVERN_ADMIN_KEY', 'ADMIN_KEY'];
+  for (const old of oldPasswordNames) {
+    await liveTest(`live: a single install with ${old} alone: not read, the start says so, and a random admin password is made instead`, async () => {
+      const single = path.join(liveDir, `single-old-${old}`);
+      server = await startServer(single, { [old]: 'old-password-1' });
+      assert.ok(server.output().includes(GONE_LINE(old, 'ADMIN_PASSWORD')), server.output());
+      assert.ok(!/stops working in a later release/.test(server.output()), server.output());
+      const made = /No admin yet and no ADMIN_PASSWORD set\. Created "admin" with password: (\S+)/.exec(server.output());
+      assert.ok(made, server.output());
+      assert.equal(await signInSingle('admin', 'old-password-1'), 401, `${old}: the old value is not the password`);
+      assert.equal((await signInSingle('admin', made[1])).role, 'admin');
+      await server.stop();
+      server = null;
+    });
+  }
   for (const [what, vars, login, password, lines] of oldSingle) {
     await liveTest(`live: a single install with ${what}: the old login name is not read, and the start says so`, async () => {
       const single = path.join(liveDir, `single-old-${what.replace(/\W+/g, '-')}`);

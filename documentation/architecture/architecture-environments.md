@@ -426,8 +426,7 @@ page), and a module asks `host.can()` rather than reading the role; an owner has
 `ADMIN_LOGIN` and `ADMIN_PASSWORD` make the server's admin on every install, and reset its password on each
 start when it differs (plan-names decision 7, amended):
 
-- **Hosted:** the host admin (`host.json`); other host admins are untouched. `ADMIN_KEY`,
-  `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are ignored there, with one line. With no `ADMIN_PASSWORD`, a
+- **Hosted:** the host admin (`host.json`); other host admins are untouched. With no `ADMIN_PASSWORD`, a
   hosted server creates and resets no host admin; the existing ones keep their passwords.
 - **Single install:** `buildEnvironment()` makes the default environment's admin: role `admin`, every right, not
   an owner (`store.setServerAdmin()`, `store.serverAdmins()`). It is locked, per the table above. An account
@@ -436,12 +435,10 @@ start when it differs (plan-names decision 7, amended):
 - **No `ADMIN_PASSWORD`:** a brand-new install with no accounts gets an admin (`ADMIN_LOGIN`, default `admin`)
   with a random password logged once; an install with accounts gets nothing made and nobody promoted, and the
   log says "This install has no server admin. Set ADMIN_LOGIN and ADMIN_PASSWORD, then restart, to have one."
-- **Old names still read:** on a single install, `TAVERN_ADMIN_PASSWORD` and `TAVERN_ADMIN_KEY` are read as
-  `ADMIN_PASSWORD`, each logging "`<old>` is now `<new>`; the old name stops working in a later release."
-  `ADMIN_KEY`, the pre-account password, is still accepted, without a line.
-- **Old names no longer read** (0.4.0, plan-names decision 20): `ADMIN_USER`, `TAVERN_ADMIN_USER` and
-  `HOST_ADMIN_LOGIN` (for `ADMIN_LOGIN`), `HOST_ADMIN_PASSWORD` (for `ADMIN_PASSWORD`) and `MIGRATE_TENANT_SLUG`
-  (for `MIGRATE_ENVIRONMENT_SLUG`). Set, each logs "`<old>` is no longer read: use `<new>` instead." on every
+- **Old names no longer read** (0.4.0, plan-names decision 20, and the three password names after it):
+  `ADMIN_USER`, `TAVERN_ADMIN_USER` and `HOST_ADMIN_LOGIN` (for `ADMIN_LOGIN`), `HOST_ADMIN_PASSWORD`,
+  `TAVERN_ADMIN_PASSWORD`, `TAVERN_ADMIN_KEY` and `ADMIN_KEY`, the pre-account password (for `ADMIN_PASSWORD`),
+  and `MIGRATE_TENANT_SLUG` (for `MIGRATE_ENVIRONMENT_SLUG`), on single and hosted installs alike. Set, each logs "`<old>` is no longer read: use `<new>` instead." on every
   start (`REMOVED_CONFIG_NAMES` in `server/index.js`). With no `ADMIN_LOGIN` the admin's login is `admin`. `OWNER_PASSWORD`
   (step 4) is ignored: "OWNER_PASSWORD is ignored: owners are made in Manage. Use ADMIN_PASSWORD for the server's
   admin."
