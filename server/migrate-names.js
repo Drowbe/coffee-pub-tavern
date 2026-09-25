@@ -41,7 +41,8 @@ const ENVIRONMENT_COPY_DIR = 'pre-names';
 const HOST_COPY_DIR = 'pre-names-host';
 const { isDeepStrictEqual } = require('util');
 
-// `reason` is 'newer' (the data records a part this server does not know) or 'failed' (a part could not finish).
+// `reason` is 'newer' (the data records a part this server does not know), 'unreadable' (the environment's app.json
+// is there but is not valid JSON) or 'failed' (a part could not finish).
 class MigrationError extends Error {
   constructor(message, file, reason = 'failed') {
     super(message);
@@ -80,15 +81,43 @@ const environmentPart = {
   },
 };
 
+// names-table (plan-names step 3): the call is no longer "the table". app.json's settings.tableName (the call's
+// display name, "The Table") and settings.room (the call's base name, 'table') are removed; nothing else in app.json
+// changes, and the keys around them keep their order. A call's name is now worked out, never stored (decision 14).
+// The Lobby's description, when it is still exactly the one every install was seeded with ("Everyone at the
+// table."), becomes the new seed ("Where everyone meets."); a description anyone wrote is left as it is. Over data
+// with neither (a new install, or one already migrated) it writes nothing.
+const TABLE_SETTINGS = ['tableName', 'room'];
+const OLD_LOBBY_DESCRIPTION = 'Everyone at the table.';
+const NEW_LOBBY_DESCRIPTION = 'Where everyone meets.';
+const tablePart = {
+  id: 'names-table',
+  files: () => [ENVIRONMENT_RECORD],
+  run(ctx) {
+    const app = ctx.read(ENVIRONMENT_RECORD);
+    const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    if (!isObject(app)) return;
+    let next = app;
+    if (isObject(app.settings) && TABLE_SETTINGS.some((key) => Object.prototype.hasOwnProperty.call(app.settings, key))) {
+      next = { ...next, settings: Object.fromEntries(Object.entries(app.settings).filter(([key]) => !TABLE_SETTINGS.includes(key))) };
+    }
+    if (Array.isArray(app.rooms) && app.rooms.some((r) => isObject(r) && r.id === 'lobby' && r.description === OLD_LOBBY_DESCRIPTION)) {
+      next = { ...next, rooms: app.rooms.map((r) => (isObject(r) && r.id === 'lobby' && r.description === OLD_LOBBY_DESCRIPTION ? { ...r, description: NEW_LOBBY_DESCRIPTION } : r)) };
+    }
+    if (next !== app) ctx.write(ENVIRONMENT_RECORD, next);
+  },
+};
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [];
+const ENVIRONMENT_PARTS = [tablePart];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.
 const REFUSED_NEWER = "This environment's data is from a newer version of Magpie.";
 const REFUSED_FAILED = "This environment's data could not be updated. The host admin has been told.";
-const refusalSentence = (err) => (err && err.reason === 'newer' ? REFUSED_NEWER : REFUSED_FAILED);
+const REFUSED_UNREADABLE = "This environment's data could not be read. The host admin has been told.";
+const refusalSentence = (err) => (err && err.reason === 'newer' ? REFUSED_NEWER : err && err.reason === 'unreadable' ? REFUSED_UNREADABLE : REFUSED_FAILED);
 
 // Any error on the way through a migration, as a MigrationError naming a file: an environment with a permissions
 // problem is refused like any other, never an uncaught crash.
@@ -113,7 +142,8 @@ function readJson(file) {
 }
 
 // The same, but an unreadable file is simply not a record (answers null), for the newer-data check that runs even
-// when no part is due: Store has always read a broken app.json as empty, and that stays its business.
+// when no part is due. An environment's unreadable app.json is refused before this (refuseUnreadable); host.json's
+// own reading stays HostRegistry's business.
 function readRecordLeniently(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -165,6 +195,27 @@ function backupRefusal(entries, parts = ENVIRONMENT_PARTS) {
   }
   return null;
 }
+
+function refuseUnreadable(file) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return;
+    throw new MigrationError(`Could not read ${file} (${err.message}), so this environment will not be opened: nothing was changed. Fix or restore this file, then start again.`, file, 'unreadable');
+  }
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch (err) {
+    throw new MigrationError(`${file} is not valid JSON (${err.message}), so this environment will not be opened: nothing was changed. Fix or restore this file, then start again.`, file, 'unreadable');
+  }
+  // Valid JSON that is not an object ([], null, a number, a string) is no environment's data either.
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new MigrationError(`${file} is not an environment's data (it holds ${describeJson(value)}, not an object), so this environment will not be opened: nothing was changed. Fix or restore this file, then start again.`, file, 'unreadable');
+  }
+}
+const describeJson = (value) => (value === null ? 'null' : Array.isArray(value) ? 'a list' : `a ${typeof value}`);
 
 function refuseNewer(file, record, parts) {
   const unknown = unknownParts(record, parts);
@@ -395,6 +446,11 @@ function migrateEnvironment(dir, options = {}) {
 function migrateEnvironmentUnwrapped(dir, { parts = ENVIRONMENT_PARTS, log = console.log } = {}) {
   const recordFile = path.join(dir, ENVIRONMENT_RECORD);
   const legacyFile = path.join(dir, LEGACY_ENVIRONMENT_RECORD);
+  // An environment's record that is there but cannot be read is refused, whether or not any part is due: Store
+  // would otherwise start it as empty and, on its first save, write a new app.json over everything in it. The
+  // older tavern.json counts only while app.json is missing (Store reads it only then). A missing file is a new
+  // environment, and starts fresh.
+  refuseUnreadable(fs.existsSync(recordFile) ? recordFile : legacyFile);
   // An install not started since app.json was called tavern.json keeps its record there until Store renames it.
   if (!fs.existsSync(recordFile)) refuseNewer(legacyFile, readRecordLeniently(legacyFile), parts);
   // Store's own older rename (tavern.json -> app.json) is done here first when a part is about to run, so the
@@ -438,5 +494,5 @@ function refusedAtStartup(err, { hosted, log = console.error, stop = (code) => p
 module.exports = {
   NAMES_VERSION, HOST_PARTS, ENVIRONMENT_PARTS, ENVIRONMENT_COPY_DIR, HOST_COPY_DIR, NEWER_BACKUP,
   MigrationError, migrateEnvironment, migrateHost, recordedParts, unknownParts, backupRefusal, refusedAtStartup,
-  REFUSED_NEWER, REFUSED_FAILED, refusalSentence, asMigrationError,
+  REFUSED_NEWER, REFUSED_FAILED, REFUSED_UNREADABLE, refusalSentence, asMigrationError,
 };

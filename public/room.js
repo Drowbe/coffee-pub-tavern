@@ -1,4 +1,4 @@
-// The table: players see and hear each other.
+// The call page: players see and hear each other.
 import { Room, RoomEvent, Track, createLocalTracks } from '/lib/livekit-client.esm.mjs';
 import { loadBranding, api, renderTopbar, setTopbarLocation, iconClasses, roomCrumbIcon } from '/brand.js';
 import { createRoomModules, joinPanes, setJoinPanes } from '/room-modules.js';
@@ -22,7 +22,7 @@ if (new URLSearchParams(location.search).has('layout')) import('/layout-debug.js
 // The room's own bar, a second row of the header (so it moves with the header when the app is
 // popped out): the panes to open on the left (chat, the room's modules; room-modules.js fills
 // #modules-menu), and the controls for the whole app on the right, full screen and pop out,
-// which move the whole table, not the conference.
+// which move the whole call page, not the conference.
 const subnav = document.createElement('div');
 subnav.className = 'subnav';
 subnav.id = 'subnav';
@@ -61,9 +61,9 @@ const tiles = new Map(); // participant identity (user key) -> tile element
 const ghostTiles = new Map(); // identity -> tile element, for room members aside elsewhere
 const asideSelection = new Set(); // identities picked to pull aside together, before confirming
 let me = null;
-let tableName = 'The Table';
-const tableUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/table
-let tableRooms = []; // the rooms, with `mine` for the ones I may join
+let spaceName = 'Coffee Pub'; // the space I am in, once joined; the environment's name before that
+const presenceUsers = new Map(); // key -> { displayName, borderColor, online, room, ... } from /api/presence
+let presenceRooms = []; // the rooms, with `mine` for the ones I may join
 let currentRoom = null; // the room I am in, once joined
 // Reloading the page keeps you in your room: the room is remembered for this tab (not across tabs or restarts) and rejoined when the
 // page starts again. It is forgotten when you leave or are removed, but not when the page itself is going away.
@@ -93,7 +93,7 @@ const GUEST_PREFIX = 'guest-';
 const guestToken = location.pathname.startsWith('/guest/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : null;
 
 // A picture URL for a slot, guest-aware: a guest identity (however many
-// different guests are at the table) always shows the one shared guest
+// different guests are in the call) always shows the one shared guest
 // picture set, and our own guest token (if we are the guest looking) rides
 // along so the server recognises this tab without a session.
 function imgUrl(key, slot, params = {}) {
@@ -115,21 +115,21 @@ function roomPortraitUrl(key) {
   return imgUrl(key, 'player', { room: roomId, roomOnly: 1 });
 }
 
-async function loadTable() {
+async function loadPresence() {
   try {
-    const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/table?guest=${encodeURIComponent(guestToken)}` : '/api/table');
-    tableUsers.clear();
-    for (const u of users) tableUsers.set(u.key, u);
-    tableRooms = rooms || [];
+    const { users, rooms, activeRoom: active, adminOnline: hasAdmin } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
+    presenceUsers.clear();
+    for (const u of users) presenceUsers.set(u.key, u);
+    presenceRooms = rooms || [];
     activeRoom = active || LOBBY;
     adminOnline = Boolean(hasAdmin);
     for (const [key, tile] of tiles) {
-      const colour = tableUsers.get(key)?.borderColor;
+      const colour = presenceUsers.get(key)?.borderColor;
       if (colour) tile.style.setProperty('--talk', colour);
       updateBackgroundPlaceholder(tile, key);
     }
     renderRooms();
-    if (!guestToken) initDashboard({ users, rooms: tableRooms, me: me?.key }, { openInRoom, joinRoom: joinInvitedRoom });
+    if (!guestToken) initDashboard({ users, rooms: presenceRooms, me: me?.key }, { openInRoom, joinRoom: joinInvitedRoom });
     reconcileGhostTiles();
     renderGuestLink();
     renderRoomLink();
@@ -140,32 +140,32 @@ async function loadTable() {
 }
 
 // The room's own launch link, mirrored in the floatbar so it's reachable
-// without leaving the call. Reads live off tableRooms (like renderGuestLink)
+// without leaving the call. Reads live off presenceRooms (like renderGuestLink)
 // rather than the frozen currentRoom, so an admin editing the link mid-call
 // is reflected here on the next poll.
 function renderRoomLink() {
   const btn = $('room-link');
   if (!btn || !currentRoom) return;
-  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const room = presenceRooms.find((r) => r.id === currentRoom.id);
   const link = room?.link;
   btn.hidden = !link;
   if (link) btn.querySelector('.glyph').innerHTML = `<i class="${iconClasses(room.linkIcon || 'link')} fa-fw" aria-hidden="true"></i>`;
 }
 $('room-link').addEventListener('click', () => {
-  const room = currentRoom && tableRooms.find((r) => r.id === currentRoom.id);
+  const room = currentRoom && presenceRooms.find((r) => r.id === currentRoom.id);
   if (room?.link) window.open(room.link, '_blank', 'noopener');
 });
 
 // Admin only: shows "Pull Participants Back" whenever a Private
 // Conversation was pulled out of the room I'm currently in -- the admin
-// is never part of those (see /api/table/pull-aside), so without this
+// is never part of those (see /api/asides), so without this
 // there'd be no way to know one is even happening, let alone end it.
 let recallButtonTimer = 0;
 let recallButtonCountingDown = false;
 
 // The tool's `visible` (see its registration above): shown while the countdown runs, whatever else changes.
 function recallWanted() {
-  return recallButtonCountingDown || Boolean(me?.role === 'admin' && currentRoom && tableRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
+  return recallButtonCountingDown || Boolean(me?.role === 'admin' && currentRoom && presenceRooms.some((r) => r.ephemeral && r.private && r.origin === currentRoom.id));
 }
 
 function updateRecallButton() {
@@ -184,7 +184,7 @@ function resetRecallButton() {
 async function recallParticipants() {
   const btn = $('recall-button');
   try {
-    await api('POST', '/api/table/recall');
+    await api('POST', '/api/asides/recall');
     recallButtonCountingDown = true;
     btn.disabled = true;
     let n = 10;
@@ -211,7 +211,7 @@ async function recallParticipants() {
 let recallTimer = 0;
 function startRecallCountdown(roomId, roomName) {
   clearInterval(recallTimer);
-  $('recall-room-name').textContent = roomName || 'the table';
+  $('recall-room-name').textContent = roomName || 'the call';
   $('recall-overlay').hidden = false;
   let n = 10;
   $('recall-countdown').textContent = n;
@@ -220,7 +220,7 @@ function startRecallCountdown(roomId, roomName) {
     if (n <= 0) {
       clearInterval(recallTimer);
       $('recall-overlay').hidden = true;
-      reconnectTo(roomId, 'pulled back to the table...');
+      reconnectTo(roomId, 'pulled back to the call...');
       return;
     }
     $('recall-countdown').textContent = n;
@@ -230,12 +230,12 @@ function startRecallCountdown(roomId, roomName) {
 // A member of the room I'm in who is online but not actually connected
 // here -- they're in a private aside elsewhere -- gets a placeholder tile:
 // their picture stands in for video, dimmed, with who they stepped aside
-// with, so they read as "still at the table" rather than looking like they
-// hung up. Reconciled from the same polled /api/table data that already
+// with, so they read as "still in the call" rather than looking like they
+// hung up. Reconciled from the same polled /api/presence data that already
 // drives the join screen's badges, since a genuine LiveKit disconnect
 // alone can't tell "went to a private aside" apart from "actually left".
 function othersLabel(members, exclude) {
-  const names = members.filter((k) => k !== exclude).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
+  const names = members.filter((k) => k !== exclude).map((k) => presenceUsers.get(k)?.displayName).filter(Boolean);
   if (!names.length) return '';
   if (names.length === 1) return `with ${names[0]}`;
   return `with ${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`;
@@ -294,7 +294,7 @@ function removeGhost(key) {
 }
 
 function reconcileGhostTiles() {
-  if (!currentRoom || !inCall || !document.body.classList.contains('at-table')) return;
+  if (!currentRoom || !inCall || !document.body.classList.contains('in-space')) return;
   let changed = false;
   for (const key of currentRoom.members) {
     if (key === me?.key) continue;
@@ -302,8 +302,8 @@ function reconcileGhostTiles() {
       if (ghostTiles.has(key)) { removeGhost(key); changed = true; }
       continue;
     }
-    const user = tableUsers.get(key);
-    const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? tableRooms.find((r) => r.id === user.room) : null;
+    const user = presenceUsers.get(key);
+    const asideRoom = user?.online && user.room && user.room !== currentRoom.id ? presenceRooms.find((r) => r.id === user.room) : null;
     if (asideRoom?.ephemeral) {
       const tile = ghostTile(key);
       const isPrivate = Boolean(asideRoom.private);
@@ -313,7 +313,7 @@ function reconcileGhostTiles() {
       tile.querySelector('.tile-ghost-status').textContent = isPrivate ? 'In a private conversation' : 'In an aside';
       // Who a private word is with stays off the record here too, same as
       // it's kept off the OBS-facing recording -- everyone else at the
-      // table only gets to know that it's happening, not with whom.
+      // call only gets to know that it's happening, not with whom.
       tile.querySelector('.tile-ghost-with').textContent = isPrivate ? '' : othersLabel(asideRoom.members, key);
       changed = true;
     } else if (ghostTiles.has(key)) {
@@ -330,8 +330,8 @@ function reconcileGhostTiles() {
 // A room's name for display: ephemeral "pull aside" rooms carry no useful
 // stored name, so build one from whoever else is in it.
 function roomDisplayName(r) {
-  if (!r?.ephemeral) return r?.name || tableName;
-  const others = r.members.filter((k) => k !== me?.key).map((k) => tableUsers.get(k)?.displayName).filter(Boolean);
+  if (!r?.ephemeral) return r?.name || spaceName;
+  const others = r.members.filter((k) => k !== me?.key).map((k) => presenceUsers.get(k)?.displayName).filter(Boolean);
   // Says "Private" rather than "Aside" whenever it is one -- whoever's in
   // here should be able to tell at a glance that this one is genuinely off
   // the record, not just infer it from which button someone clicked earlier.
@@ -345,7 +345,7 @@ function renderRooms() {
   const list = $('rooms');
   if (!list) return;
   const keep = new Set();
-  for (const r of tableRooms.filter((x) => x.mine)) {
+  for (const r of presenceRooms.filter((x) => x.mine)) {
     keep.add(r.id);
     let card = list.querySelector(`[data-room="${CSS.escape(r.id)}"]`);
     if (!card) {
@@ -384,7 +384,7 @@ function renderRooms() {
       img.dataset.src = src;
       img.src = src;
     }
-    const members = r.members.map((k) => tableUsers.get(k)).filter(Boolean);
+    const members = r.members.map((k) => presenceUsers.get(k)).filter(Boolean);
     const here = members.filter((u) => u.online && u.room === r.id).length;
     card.querySelector('.room-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
     renderMembers(card.querySelector('.members'), members, r.id);
@@ -424,7 +424,7 @@ function renderMembers(list, members, roomId) {
     el.querySelector('.member-name').textContent = u.displayName;
     el.querySelector('.dot').classList.toggle('online', here);
     el.classList.toggle('online', here);
-    const elsewhere = u.online && !here ? tableRooms.find((r) => r.id === u.room) : null;
+    const elsewhere = u.online && !here ? presenceRooms.find((r) => r.id === u.room) : null;
     el.title = here ? `${u.displayName} is here` : elsewhere ? `${u.displayName} is in ${roomDisplayName(elsewhere)}` : u.displayName;
     // Off stream: this member is online but not in the room the stream
     // currently hears (wherever the admin/GM actually is); "aside" is the
@@ -432,7 +432,7 @@ function renderMembers(list, members, roomId) {
     // stream too. Only meaningful when an admin is actually online -- with
     // none, activeRoom is just the Lobby fallback, not a real "here's where
     // the stream is" signal, so nobody should read as off stream against it.
-    const inAside = u.online && tableRooms.find((r) => r.id === u.room)?.ephemeral;
+    const inAside = u.online && presenceRooms.find((r) => r.id === u.room)?.ephemeral;
     const offStream = u.online && adminOnline && u.room !== activeRoom;
     let badge = el.querySelector('.stream-badge');
     if (inAside || offStream) {
@@ -450,7 +450,7 @@ function renderMembers(list, members, roomId) {
   for (const el of [...list.children]) if (!keep.has(el.dataset.key)) el.remove();
 }
 setInterval(() => {
-  if (!$('join').hidden || document.body.classList.contains('at-table')) loadTable();
+  if (!$('join').hidden || document.body.classList.contains('in-space')) loadPresence();
 }, 5000);
 // Join a room straight into its own window, skipping the step of joining in
 // the page first and then popping out. The window opens first, synchronously
@@ -554,7 +554,7 @@ function setStatus(text, error = false) {
   // The page header shows the same status, except the plain "in <room>"
   // which the room name next to the brand already says.
   const top = $('topbar-status');
-  top.textContent = !error && text === `in ${tableName}` ? '' : text;
+  top.textContent = !error && text === `in ${spaceName}` ? '' : text;
   top.classList.toggle('error', error);
 }
 
@@ -565,7 +565,7 @@ function setStatus(text, error = false) {
 // the profile photo too, instead of a plain fill, so the box looks like
 // them even without video.
 function updateBackgroundPlaceholder(tile, key) {
-  const user = tableUsers.get(key);
+  const user = presenceUsers.get(key);
   const hasBg = !!user?.images?.background;
   tile.classList.toggle('has-bg-image', hasBg);
   const bg = tile.querySelector('.placeholder-bg');
@@ -627,7 +627,7 @@ function adminToolsFor(participant) {
   kick.innerHTML = '<i class="fa-solid fa-user-slash fa-fw" aria-hidden="true"></i>';
   kick.addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!window.confirm(`Kick ${participant.name || participant.identity} from the table? They can rejoin.`)) return;
+    if (!window.confirm(`Kick ${participant.name || participant.identity} from the call? They can rejoin.`)) return;
     try {
       await api('POST', `/api/users/${encodeURIComponent(participant.identity)}/kick`);
     } catch (err) {
@@ -689,7 +689,7 @@ function tileFor(participant) {
   placeholder.alt = '';
   placeholder.src = roomPortraitUrl(participant.identity);
   placeholder.onerror = () => { placeholder.onerror = null; placeholder.src = imgUrl(participant.identity, 'profile'); };
-  const colour = tableUsers.get(participant.identity)?.borderColor;
+  const colour = presenceUsers.get(participant.identity)?.borderColor;
   if (colour) tile.style.setProperty('--talk', colour);
   tile.appendChild(placeholder);
   updateBackgroundPlaceholder(tile, participant.identity);
@@ -726,7 +726,7 @@ function tileFor(participant) {
     }
     // Mute/Kick for admins, or for a member granted them in this room --
     // never against an admin (the server refuses that anyway).
-    const targetIsAdmin = tableUsers.get(participant.identity)?.isAdmin;
+    const targetIsAdmin = presenceUsers.get(participant.identity)?.isAdmin;
     if (me?.role === 'admin' || (!targetIsAdmin && (canDo('canMute') || canDo('canKick')))) {
       const tools = adminToolsFor(participant);
       tools.addEventListener('pointerenter', () => (tile.draggable = false));
@@ -803,6 +803,8 @@ const DEFAULT_PREFS = {
   chatWidth: 320, speakerId: '', masterVolume: 100,
   pttKey: 'Space', muteKey: 'Mod+KeyD', camKey: 'Mod+KeyE',
 };
+// Call preferences (layout, devices, volumes, keys). brand.js moves the key they had before the Names plan on load.
+const PREFS_KEY = 'app.call';
 const prefs = loadPrefs();
 // The room's modules: the toolbar's Modules button and its floating panels.
 const roomModules = createRoomModules({ guestToken });
@@ -824,7 +826,7 @@ nav.register({ ...SPACE_TOOL, id: 'snap-size', order: 3, element: snapSize }); /
 nav.register({ ...SPACE_TOOL, id: 'fullscreen-toggle', order: 11, icon: 'expand', activeIcon: 'compress', label: 'Full screen', title: 'Full screen (F)', toggleable: true, active: false, onClick: () => toggleFullscreen() });
 nav.register({ ...SPACE_TOOL, id: 'popout', order: 12, icon: 'up-right-from-square', activeIcon: 'window-restore', label: 'Pop out into its own window', toggleable: true, active: false, onClick: () => (pipWindow ? closePopout() : openPopout()) });
 nav.register({ ...SPACE_TOOL, id: 'recall-button', order: 51, icon: 'people-arrows', label: 'Pull Participants Back', title: 'Give everyone in a Private Conversation from this space a 10 second warning, then pull them back', labelled: true, visible: () => recallWanted(), onClick: recallParticipants });
-nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentRoom && currentRoom.ephemeral && currentRoom.origin), onClick: () => returnToTable() });
+nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentRoom && currentRoom.ephemeral && currentRoom.origin), onClick: () => returnFromAside() });
 nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-room', order: 999, icon: 'square-xmark', label: 'Leave space', onClick: () => leaveRoom() });
 // On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
 // only be reachable from the Conference view's toolbar. This tool, in the menu only (its class, see style.css) and
@@ -860,7 +862,7 @@ syncSnapBar();
 document.addEventListener('app:notification', (event) => {
   const n = event.detail;
   if (roomModules.handleNotification(n)) event.preventDefault();
-  else if (n.scope === 'server' && document.body.classList.contains('at-table')) {
+  else if (n.scope === 'server' && document.body.classList.contains('in-space')) {
     event.preventDefault();
     openOverlay(`/modules/${encodeURIComponent(n.module)}`);
   }
@@ -868,7 +870,7 @@ document.addEventListener('app:notification', (event) => {
 
 function loadPrefs() {
   try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('host.table') || '{}') };
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };
   } catch (err) {
     return { ...DEFAULT_PREFS };
   }
@@ -876,7 +878,7 @@ function loadPrefs() {
 
 function savePrefs() {
   try {
-    localStorage.setItem('host.table', JSON.stringify(prefs));
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   } catch (err) {
     // private mode or storage off: the session still works
   }
@@ -1288,7 +1290,7 @@ async function renderChatHistory(roomId) {
     el.classList.add('history');
     fragment.appendChild(el);
   }
-  // Everything above this line was said before you opened the table just
+  // Everything above this line was said before you opened the call just
   // now; everything below it is happening live. Only worth marking when
   // there's actually old chat to separate from the new.
   if (history.length) {
@@ -1429,7 +1431,7 @@ function addMessage(message, from, own = false) {
 function saveChat() {
   if (!chatLog.length) return;
   const lines = chatLog.map((e) => `[${e.at.toLocaleTimeString()}] ${e.who}: ${e.blob ? `[picture${e.name ? ' ' + e.name : ''}]` : e.text}`);
-  saveBlob(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }), `${tableName.replace(/[^\w-]+/g, '-').toLowerCase()}-chat-${new Date().toISOString().slice(0, 10)}.txt`);
+  saveBlob(new Blob([lines.join('\n') + '\n'], { type: 'text/plain' }), `${spaceName.replace(/[^\w-]+/g, '-').toLowerCase()}-chat-${new Date().toISOString().slice(0, 10)}.txt`);
 }
 
 // Pictures: pasted, dropped or picked, shrunk to a sensible size, then sent
@@ -1480,7 +1482,7 @@ function imageFiles(list) {
 
 // --- reactions ------------------------------------------------------------------
 // A reaction travels over the data channel (topic "reaction"), like chat but
-// never stored: every table page and every OBS view page of that player
+// never stored: every call page and every OBS view page of that player
 // floats it up from their tile for a couple of seconds.
 
 // The reaction tray, as the admin has set it up (Manage > Theme); keys 1
@@ -1581,7 +1583,7 @@ roomModules.registerNative({
   allowed: () => canDo('conference'),
   // A window of its own has its own document: idle/hover, popovers and keys need to hear it.
   onWindow: (win) => {
-    win.document.title = tableName;
+    win.document.title = spaceName;
     watchPointer(win.document);
     watchOutsideClick(win.document);
     win.document.addEventListener('keydown', onKey);
@@ -1631,7 +1633,7 @@ function toggleChat(open = !roomModules.nativeOpen('chat')) {
   else roomModules.closeNative('chat');
 }
 
-// --- microphone: device -> level -> gate -> what the table hears -----------
+// --- microphone: device -> level -> gate -> what the call hears -----------
 //
 // The mic is processed in the page before it is published, so the level
 // slider and the noise gate work in every browser and the meter shows what
@@ -1864,7 +1866,7 @@ room
       // An admin's word is final -- just go. A peer's "Privately" needs
       // this end to actually agree to it first. Deferred a tick so this
       // event's own dispatch finishes first.
-      else if (topic === 'pull-aside' && data.type === 'pull-aside' && data.roomId) {
+      else if (topic === 'aside-pull' && data.type === 'aside-pull' && data.roomId) {
         if (data.byAdmin) {
           setTimeout(() => reconnectTo(data.roomId, 'pulled aside...'), 0);
         } else {
@@ -1875,25 +1877,25 @@ room
           }, 0);
         }
       }
-      // The other member of a pull-aside room clicked "Back to the table";
+      // The other member of a pull-aside room clicked "Rejoin call";
       // follow them there instead of being left behind.
-      else if (topic === 'return-to-table' && data.type === 'return-to-table' && data.roomId) {
-        setTimeout(() => reconnectTo(data.roomId, 'back to the table...'), 0);
+      else if (topic === 'aside-return' && data.type === 'aside-return' && data.roomId) {
+        setTimeout(() => reconnectTo(data.roomId, 'back to the call...'), 0);
       }
       // Someone just got pulled into a private aside, myself excluded: prime
       // the local data so their tile can turn into an "in an aside"
-      // placeholder right away, without waiting for the next /api/table poll.
+      // placeholder right away, without waiting for the next /api/presence poll.
       else if (topic === 'aside-started' && data.type === 'aside-started' && data.roomId && Array.isArray(data.members)) {
-        if (!tableRooms.some((r) => r.id === data.roomId)) tableRooms.push({ id: data.roomId, name: 'Aside', members: data.members, ephemeral: true });
+        if (!presenceRooms.some((r) => r.id === data.roomId)) presenceRooms.push({ id: data.roomId, name: 'Aside', members: data.members, ephemeral: true });
         for (const key of data.members) {
-          const user = tableUsers.get(key);
+          const user = presenceUsers.get(key);
           if (user) { user.online = true; user.room = data.roomId; }
         }
         reconcileGhostTiles();
       }
       // The admin clicked "Pull Participants Back" in the room this Private
       // Conversation came from: warn, don't yank -- a countdown, then go.
-      else if (topic === 'recall' && data.type === 'recall' && data.roomId) {
+      else if (topic === 'aside-recall' && data.type === 'aside-recall' && data.roomId) {
         startRecallCountdown(data.roomId, data.roomName);
       }
     } catch (err) {
@@ -1901,7 +1903,7 @@ room
     }
   })
   .on(RoomEvent.Reconnecting, () => setStatus('reconnecting...'))
-  .on(RoomEvent.Reconnected, () => setStatus(`in ${tableName}`))
+  .on(RoomEvent.Reconnected, () => setStatus(`in ${spaceName}`))
   .on(RoomEvent.Disconnected, () => {
     roomModules.suspend(); // tearing the room down must not become its remembered layout
     inCall = false; // the whole room is gone, so there is nothing to stop; the rest of this clears it
@@ -1912,7 +1914,7 @@ room
     forgetRoom();
     currentRoom = null;
     roomModules.refresh(null);
-    document.body.classList.remove('at-table');
+    document.body.classList.remove('in-space');
     $('stage').hidden = true;
     $('room-link').hidden = true;
     resetRecallButton();
@@ -1944,12 +1946,12 @@ room
     $('chat-delete-overlay').hidden = true;
     toggleChat(false);
     toggleTray(false);
-    loadTable();
+    loadPresence();
   });
 
 async function fillDevices() {
   // Do not let the device list ask for permissions again: a denied camera
-  // would throw here and drop an audio-only player out of the table.
+  // would throw here and drop an audio-only player out of the call.
   let devices = [];
   try {
     devices = await Room.getLocalDevices(undefined, false);
@@ -1974,7 +1976,7 @@ async function fillDevices() {
 
 // Disconnect (if connected) and join a different room. Used for the admin's
 // own "pull aside" click, for the pulled player's push notification, and
-// for "Back to the table".
+// for "Rejoin call".
 // From the dashboard: go into a room with one module's pane open on one item, and nothing else changed. In the
 // room already, that is just showing the stage and opening the pane.
 // Into a room I was invited to (or started): the one I am in is left for it.
@@ -2020,9 +2022,9 @@ function updateAsideConfirm() {
   if (!overlay) return;
   overlay.hidden = asideSelection.size === 0;
   const n = asideSelection.size;
-  const names = [...asideSelection].map((k) => tableUsers.get(k)?.displayName || k);
+  const names = [...asideSelection].map((k) => presenceUsers.get(k)?.displayName || k);
   // An ordinary (recorded) aside and an off-the-record word are separate
-  // permissions -- see Settings > Roles and /api/table/pull-aside.
+  // permissions -- see Settings > Roles and /api/asides.
   const canAside = canDo('startAside') && features.allowAsides;
   const canPrivate = canDo('privateCall') && features.allowPrivate;
   $('aside-confirm').hidden = !canAside;
@@ -2039,14 +2041,14 @@ function cancelAsideSelection() {
   updateAsideConfirm();
 }
 
-// Admin only: pull one or more people who are currently at the table into a
+// Admin only: pull one or more people who are currently in the call into a
 // new room with me, for a word away from the rest. `priv` marks a real
 // off-the-record word (Studio hides it from the recording, and the stream
 // doesn't follow me there) rather than an in-fiction private moment (still
 // recorded, just muted/dimmed on the main feed while it's happening).
 async function pullAside(identities, priv = false) {
   try {
-    const { room: asideRoom } = await api('POST', '/api/table/pull-aside', { with: identities, private: priv });
+    const { room: asideRoom } = await api('POST', '/api/asides', { with: identities, private: priv });
     asideSelection.clear();
     await reconnectTo(asideRoom.id, priv ? 'stepping aside privately...' : 'stepping aside...');
   } catch (err) {
@@ -2054,29 +2056,29 @@ async function pullAside(identities, priv = false) {
   }
 }
 
-// "Back to the table": return to the room a pull-aside room came from
+// "Rejoin call": return to the room a pull-aside room came from
 // (whichever room that was, not always the Lobby), and bring whoever else
 // is still in there with me.
-async function returnToTable() {
+async function returnFromAside() {
   try {
-    const { room: homeRoom } = await api('POST', '/api/table/return');
-    await reconnectTo(homeRoom.id, 'back to the table...');
+    const { room: homeRoom } = await api('POST', '/api/asides/return');
+    await reconnectTo(homeRoom.id, 'back to the call...');
   } catch (err) {
-    setStatus(`back to the table: ${err.message}`, true);
+    setStatus(`rejoin call: ${err.message}`, true);
   }
 }
 
-// Leaving entirely (not "back to the table" -- I'm not going anywhere
+// Leaving entirely (not "Rejoin call" -- I'm not going anywhere
 // myself). If I'm in a pulled-aside space, regular or private, whoever's
 // still in there with me would otherwise be stranded -- an aside/private
 // room is normally just the two (or few) of us, so without me there's no
 // reason for them to still be off in a room by themselves. Applies to
 // anyone, not just an admin: a Private Conversation doesn't need one.
-// Same nudge /api/table/return already sends the others in
-// returnToTable() above; I just never reconnect anywhere myself afterward.
+// Same nudge /api/asides/return already sends the others in
+// returnFromAside() above; I just never reconnect anywhere myself afterward.
 async function leaveRoom() {
   if (currentRoom?.ephemeral) {
-    await api('POST', '/api/table/return').catch(() => {});
+    await api('POST', '/api/asides/return').catch(() => {});
   }
   room.disconnect();
 }
@@ -2084,7 +2086,7 @@ async function leaveRoom() {
 // Keeps the header's crumb in sync with where we actually are: the room
 // list (nobody's called join() yet, or Disconnected just fired), a real
 // room (with its own Leave), or an aside/private pulled out of one (with
-// both a Leave for the whole table and a Rejoin Call back into the room it
+// both a Leave for the whole call and a Rejoin Call back into the room it
 // came from). Same delegated click handler covers both, wired once below.
 // "Rooms" is a real ancestor, not a label that only shows up when there's
 // nothing more specific to say -- the path never skips a level, so it's
@@ -2097,7 +2099,7 @@ async function leaveRoom() {
 // leaving just the icon -- which is why every crumb-here needs one.
 const crumbHere = (icon, text) => `<span class="crumb-here"><i class="${icon.includes(' ') ? icon : `fa-solid fa-${icon}`} fa-fw" aria-hidden="true"></i><span class="crumb-label"> ${escapeHtml(text)}</span></span>`;
 
-// The space's name in the secondary nav's left zone. At the table the primary nav's crumb is empty: the secondary nav says
+// The space's name in the secondary nav's left zone. On the call page the primary nav's crumb is empty: the secondary nav says
 // where you are, and saying it twice was noise (plan-nav.md). In an aside the name is the origin's plus the kind, and the
 // Rejoin call tool (a space action, its `visible` reads currentRoom) shows in the right zone once the bar is redrawn.
 function setSpaceName(icon, text) {
@@ -2114,12 +2116,12 @@ function updateCrumb() {
   if (!currentRoom) {
     setSpaceName('couch', '');
   } else if (currentRoom.ephemeral && currentRoom.origin) {
-    const originRoom = tableRooms.find((r) => r.id === currentRoom.origin);
-    const originName = originRoom ? roomDisplayName(originRoom) : 'the table';
+    const originRoom = presenceRooms.find((r) => r.id === currentRoom.origin);
+    const originName = originRoom ? roomDisplayName(originRoom) : 'the call';
     const kind = currentRoom.private ? 'Private' : 'Aside';
     setSpaceName('people-arrows', `${originName} · ${kind}`);
   } else {
-    setSpaceName(roomCrumbIcon(currentRoom), tableName);
+    setSpaceName(roomCrumbIcon(currentRoom), spaceName);
   }
   nav.draw('secondary');
 }
@@ -2133,10 +2135,10 @@ async function join(roomId = 'lobby') {
     // Fresh permissions each join -- an admin may have changed them since
     // this page loaded.
     me = (await api('GET', '/api/me')).user;
-    await loadTable();
-    currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: tableName };
+    await loadPresence();
+    currentRoom = presenceRooms.find((r) => r.id === roomId) || { id: roomId, name: spaceName };
     await roomModules.refresh(currentRoom.ephemeral ? null : currentRoom.id); // asides have no modules
-    tableName = roomDisplayName(currentRoom);
+    spaceName = roomDisplayName(currentRoom);
     renderRoomLink();
     applyPermissions();
     updateRecallButton();
@@ -2158,12 +2160,12 @@ async function joinAsGuest(token, livekitUrl, roomId, roomName) {
   $('guest-join-error').hidden = true;
   try {
     setStatus('connecting...');
-    tableName = roomName;
-    await loadTable();
+    spaceName = roomName;
+    await loadPresence();
     // The full room object (members, ephemeral, ...), same as a real
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentRoom.members downstream breaks.
-    currentRoom = tableRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
+    currentRoom = presenceRooms.find((r) => r.id === roomId) || { id: roomId, name: roomName, members: [] };
     await roomModules.refresh(currentRoom.id);
     renderRoomLink();
     applyPermissions();
@@ -2190,15 +2192,15 @@ async function connectAndSetup(token, livekitUrl) {
     $('guest-join').hidden = true;
     $('stage').hidden = false;
     updateCrumb();
-    document.body.classList.add('at-table');
+    document.body.classList.add('in-space');
     wake();
-    setStatus(`in ${tableName}`);
+    setStatus(`in ${spaceName}`);
     if (!currentRoom.ephemeral) renderChatHistory(currentRoom.id);
     roomModules.updateMenu();
     roomModules.restore(); // the panes this room had open last time, or the conference the first time
     syncSnapBar(); // and this room's stage-level snap
     if (roomModules.nativeOpen('conference')) await callStarting;
-    else setStatus(`in ${tableName} (not in the call)`);
+    else setStatus(`in ${spaceName} (not in the call)`);
 }
 
 // Start the conference: tiles for everyone in it, their media, and my own microphone.
@@ -2242,7 +2244,7 @@ async function startCall() {
   reflectMic();
   $('cam').classList.remove('on');
   $('cam').classList.add('off');
-  setStatus(haveMic ? `in ${tableName}` : `in ${tableName} (no microphone)`);
+  setStatus(haveMic ? `in ${spaceName}` : `in ${spaceName} (no microphone)`);
   applyLayout();
 }
 
@@ -2276,13 +2278,13 @@ async function stopCall() {
   $('screen-share').classList.remove('on');
   toggleTray(false);
   closeSettings();
-  setStatus(`in ${tableName} (not in the call)`);
+  setStatus(`in ${spaceName} (not in the call)`);
 }
 
 // The hang-up button. In a pop-out window the stage comes back to the page first, since the
 // Modules button that brings the conference back is in the page's header.
 // Hang up leaves the call but keeps the conference pane, which says "Not in a call" while the toolbar's phone turns
-// green to dial back in; the pane's own close (its titlebar x) is what closes it. The whole-table popout comes back
+// green to dial back in; the pane's own close (its titlebar x) is what closes it. The whole-call popout comes back
 // in with the call, as before.
 function hangUp() {
   if (pipWindow) closePopout();
@@ -2534,7 +2536,7 @@ $('hangup').addEventListener('click', phoneButton);
 // container instead of rewiring a fresh element's click every time.
 $('topbar-crumb').addEventListener('click', (event) => {
   const action = event.target.closest('[data-crumb-action]')?.dataset.crumbAction;
-  if (action === 'rejoin') returnToTable();
+  if (action === 'rejoin') returnFromAside();
 });
 // Rejoin call and Leave live in the space's bar (registered with its other tools at the top of this file); the crumb
 // listener above is kept for any page that still draws Rejoin there.
@@ -2757,7 +2759,7 @@ document.addEventListener('click', (event) => {
 });
 
 // Guests: the room's own reusable join link, same door for everyone at the
-// table to open (see the guest-link routes) -- not just an admin.
+// call to open (see the guest-link routes) -- not just an admin.
 function say(el, text, error = false) {
   el.textContent = text;
   el.classList.toggle('error', error);
@@ -2774,7 +2776,7 @@ async function copyText(text, statusEl) {
 function renderGuestLink() {
   if (guestToken || !currentRoom) return; // a guest has no session to manage this with
   $('guest-section').hidden = !canDo('canInvite');
-  const room = tableRooms.find((r) => r.id === currentRoom.id);
+  const room = presenceRooms.find((r) => r.id === currentRoom.id);
   const token = room?.guestToken || null;
   const allowed = room?.allowGuests !== false;
   $('guest-link-off-note').hidden = allowed;
@@ -2788,7 +2790,7 @@ async function setGuestLink(body) {
   try {
     if (body === null) await api('DELETE', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`);
     else await api('POST', `/api/rooms/${encodeURIComponent(currentRoom.id)}/guest-link`, body);
-    await loadTable();
+    await loadPresence();
     renderGuestLink();
   } catch (err) {
     say($('guest-link-status'), err.message, true);
@@ -2828,7 +2830,7 @@ function onKeyUp(event) {
   }
 }
 function onKey(event) {
-  if (!document.body.classList.contains('at-table')) return;
+  if (!document.body.classList.contains('in-space')) return;
   if (typing(event)) return;
   if (prefs.ptt && hotkeyMatches(event, prefs.pttKey)) {
     event.preventDefault();
@@ -2863,7 +2865,7 @@ function onKey(event) {
 // and tab bar show and hide on scroll -- visualViewport's resize event
 // fires the moment that actually happens, so mirroring it into a custom
 // property keeps the floating controls above the browser's own chrome
-// instead of sliding out from under it (see body.at-table in style.css).
+// instead of sliding out from under it (see body.in-space in style.css).
 function syncViewportHeight() {
   const h = window.visualViewport?.height || window.innerHeight;
   document.documentElement.style.setProperty('--app-vh', `${h}px`);
@@ -2959,9 +2961,9 @@ function describeInstall() {
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   if (standalone) return '';
   const ua = navigator.userAgent;
-  if (/iPhone|iPad/.test(ua)) return 'Add to your home screen for a full-screen table: Share, then Add to Home Screen.';
+  if (/iPhone|iPad/.test(ua)) return 'Add to your home screen for a full-screen call: Share, then Add to Home Screen.';
   if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) return 'For a window without browser bars: File, then Add to Dock.';
-  if (/Firefox/.test(ua)) return 'Firefox has no install; Chrome, Edge or Safari can open the table in its own window.';
+  if (/Firefox/.test(ua)) return 'Firefox has no install; Chrome, Edge or Safari can open the call in its own window.';
   return 'For a window without browser bars, use Install in the header once your browser offers it.';
 }
 
@@ -3000,11 +3002,11 @@ function openPopout() {
 // moving the stage in before then would land it in that page's own
 // about:blank-era document, which the real navigation throws away.
 function setUpPopoutWindow(win) {
-  win.document.title = tableName;
+  win.document.title = spaceName;
   for (const sheet of document.querySelectorAll('link[rel="stylesheet"]')) {
     win.document.head.appendChild(sheet.cloneNode(true));
   }
-  win.document.body.className = 'at-table popout';
+  win.document.body.className = 'in-space popout';
   // The whole app moves: the header too, so everything works from where you are. Moving a
   // node adopts it into the new document, video and audio and all.
   win.document.body.appendChild(topbarEl);
@@ -3018,7 +3020,7 @@ function setUpPopoutWindow(win) {
   // Full screen while popped out should fullscreen that window, not the
   // (now mostly empty) main one left behind -- see toggleFullscreen().
   win.document.addEventListener('fullscreenchange', syncFullscreenButton);
-  // The header's links would navigate this window away from the table. They bring the app back
+  // The header's links would navigate this window away from the call. They bring the app back
   // first, then do their thing on the page.
   win.document.addEventListener('click', (event) => {
     const link = event.target.closest('#topbar a[href]');
@@ -3058,10 +3060,10 @@ $('bring-back').addEventListener('click', closePopout);
 // untouched. The loaded page (same origin) gets a "Back to [room]" link
 // added to its own header -- see wireOverlayBack in brand.js -- rather than
 // this page stacking a second bar of its own on top of it. Everyone else at
-// the table sees your own tile marked "Away" while you're in there; you
+// the call sees your own tile marked "Away" while you're in there; you
 // don't, since you already know.
 function openOverlay(path) {
-  const params = new URLSearchParams({ from: 'room', room: tableName });
+  const params = new URLSearchParams({ from: 'room', room: spaceName });
   // Already known here -- handing them off lets the overlay's own header
   // render correctly on its very first paint instead of flashing the
   // generic default. See the matching read in renderTopbar() (brand.js).
@@ -3105,7 +3107,7 @@ window.appApplyCallPrefs = async function (patch) {
   if (!patch || 'background' in patch || prefs.background === 'image') await applyBackground();
 };
 // Delegated (not one-time-queried) since a room card's own Edit link is
-// built later, once tableRooms comes back -- a static query here would
+// built later, once presenceRooms comes back -- a static query here would
 // miss it and open it as a real navigation instead, with no way back.
 document.addEventListener('click', (event) => {
   const link = event.target.closest('[data-overlay-link]');
@@ -3121,16 +3123,16 @@ document.addEventListener('click', (event) => {
 // page (#join), so there's nothing to load: just swap views, the same "away"
 // treatment openOverlay() gives profile/admin, and stay connected underneath.
 function showRoomList() {
-  if (!document.body.classList.contains('at-table')) return;
+  if (!document.body.classList.contains('in-space')) return;
   setAway(true);
-  document.body.classList.remove('at-table');
+  document.body.classList.remove('in-space');
   $('stage').hidden = true;
   roomModules.showFloating(false); // a floating pane lives beside the stage, not inside it
   if (guestToken) {
     $('guest-join').hidden = false;
   } else {
     $('join').hidden = false;
-    loadTable();
+    loadPresence();
   }
 }
 // The reverse: a room card recognizes the room it's still connected to (see
@@ -3142,13 +3144,13 @@ function returnToStage() {
   $('guest-join').hidden = true;
   $('stage').hidden = false;
   roomModules.showFloating(true);
-  document.body.classList.add('at-table');
+  document.body.classList.add('in-space');
   updateCrumb();
   setAway(false);
 }
 document.addEventListener('click', (event) => {
   if (!event.target.closest('#spaces-link, .brand-home')) return;
-  if (guestToken || !document.body.classList.contains('at-table')) return; // a real navigation is fine here
+  if (guestToken || !document.body.classList.contains('in-space')) return; // a real navigation is fine here
   event.preventDefault();
   showRoomList();
 });
@@ -3301,7 +3303,7 @@ function applyFeatureFlags() {
 
 async function init() {
   const branding = await loadBranding();
-  tableName = branding.tableName || tableName;
+  spaceName = branding.serverName || spaceName;
   features = {
     maxQuality: branding.maxQuality || 720,
     allowScreenShare: branding.allowScreenShare !== false,
@@ -3371,7 +3373,7 @@ async function init() {
       applyPermissions();
       populateCallSettingsUI();
     }
-    await loadTable(); // the join screen's member grid
+    await loadPresence(); // the join screen's member grid
   } catch (err) {
     location.href = '/login';
     return;
@@ -3383,7 +3385,7 @@ async function init() {
     joinInvitedRoom(invited[1]);
   } else if (!guestToken && rememberedRoom()) {
     // A reload: back into the room this tab was in, if it is still there for this person.
-    const again = tableRooms.find((r) => r.id === rememberedRoom() && !r.ephemeral);
+    const again = presenceRooms.find((r) => r.id === rememberedRoom() && !r.ephemeral);
     if (again) join(again.id);
     else forgetRoom();
   }

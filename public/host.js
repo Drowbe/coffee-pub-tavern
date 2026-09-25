@@ -217,6 +217,13 @@ function renderFacts() {
 const REFUSED_WORDS = {
   newer: "Won't open: its data is from a newer version of Magpie.",
   failed: "Won't open: its data could not be updated.",
+  unreadable: "Won't open: its data could not be read.",
+};
+// What to do about it, under the card's file and time lines.
+const REFUSED_HINTS = {
+  newer: 'Restore a good backup, or run a newer version of Magpie.',
+  failed: 'Restore a good backup. The server log has the details.',
+  unreadable: 'Fix or restore this file (the server log names it), or restore a good backup.',
 };
 
 function renderEnvironments() {
@@ -234,7 +241,7 @@ function renderEnvironments() {
     status.textContent = t.status === 'pastDue' ? 'past due' : t.status || 'active';
     status.dataset.status = t.status || 'active';
     el.querySelector('[data-action="suspend"]').textContent = t.status === 'suspended' ? 'Resume' : 'Suspend';
-    // Refused (its data is from a newer Magpie, or its data update could not finish): it answers its visitors with
+    // Refused (its data is from a newer Magpie, its app.json can't be read, or its data update could not finish): it answers its visitors with
     // a 503 until a good backup is restored, so the card says so and why, and has nothing to count.
     const refused = t.refused || null;
     if (refused) {
@@ -244,7 +251,7 @@ function renderEnvironments() {
       const when = refused.at ? new Date(refused.at) : null;
       box.innerHTML = `<p class="refused-what">${escapeHtml(REFUSED_WORDS[refused.reason] || REFUSED_WORDS.failed)}</p>`
         + `<p class="hint refused-where">${refused.file ? `<code>${escapeHtml(refused.file)}</code>` : ''}${refused.file && when ? ', ' : ''}${when ? `since ${escapeHtml(when.toLocaleString())}` : ''}</p>`
-        + `<p class="hint">${refused.reason === 'newer' ? 'Restore a good backup, or run a newer version of Magpie.' : 'Restore a good backup. The server log has the details.'}</p>`;
+        + `<p class="hint">${escapeHtml(REFUSED_HINTS[refused.reason] || REFUSED_HINTS.failed)}</p>`;
       box.title = refused.message || '';
       box.hidden = false;
       slot(el, 'owner-reset').hidden = true; // nothing inside it can be reached until a good backup is restored

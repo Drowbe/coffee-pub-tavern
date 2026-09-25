@@ -11,7 +11,7 @@ async function init() {
       $('invite-note').hidden = false;
       $('invite-note').textContent = invite.rooms.length
         ? `You're invited to join: ${invite.rooms.join(', ')}.`
-        : "You're invited to join the table.";
+        : `You're invited to join ${branding.serverName || 'Coffee Pub'}.`;
     } catch (err) {
       $('closed-text').textContent = err.message;
       $('register').hidden = true;

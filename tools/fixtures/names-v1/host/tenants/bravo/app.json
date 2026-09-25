@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "secrets": {
+    "session": "fixture-bravo-session-secret-not-real-0",
+    "stream": "fixture-bravo-stream-0"
+  },
+  "settings": {
+    "serverName": "Bravo Company",
+    "tableName": "The Mess Hall",
+    "homeIcon": "couch"
+  },
+  "users": [],
+  "rooms": [
+    { "id": "lobby", "name": "Lobby", "description": "", "members": [], "createdAt": "2026-01-05T00:00:00.000Z" }
+  ]
+}

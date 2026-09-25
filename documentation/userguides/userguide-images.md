@@ -9,7 +9,7 @@ replaced just for that room. Which of the two a room offers depends on that room
 
 Each has pictures for **Offline**, **Online**, **Talking** and **Muted**, and the Participant box adds
 **Aside** and **Private**. The box always shows Offline or Online depending on whether the person is
-at the table, and lays Talking or Muted on top while they speak or while their microphone is off. Any
+in the call, and lays Talking or Muted on top while they speak or while their microphone is off. Any
 picture left unset is simply not drawn.
 
 ## Who can change what
@@ -24,7 +24,7 @@ The call background can be a picture you upload or one of the pre-made backgroun
 ## Participant
 
 The Participant box is the person. It shows their camera when it is on, and the **Online** picture
-when it is off. Away from the table it shows **Offline**, or nothing. **Aside** shows while they are
+when it is off. Out of the call it shows **Offline**, or nothing. **Aside** shows while they are
 online but pulled into an aside elsewhere, and **Private** the same for a private conversation.
 
 While someone speaks, a **talking border** is drawn around the box, and while their microphone is off
@@ -47,7 +47,7 @@ character bar. It carries no audio.
 
 ## The profile photo is separate
 
-A player's own **profile photo** shows only in the app itself: the header, the table tiles and their
+A player's own **profile photo** shows only in the app itself: the header, the call's tiles and their
 profile page. It never shows in the recording, because the Online picture may be part of a matched
 set of OBS pictures the admin built. The photo falls back to a plate with the player's initials and
 always fills its square, cropped rather than letterboxed. The OBS pictures show exactly what was
@@ -63,7 +63,7 @@ Images are PNG, JPEG, GIF or WebP up to 20 MB. Click a picture box to change it,
 A room section on a member's profile has **Use Default Profile Images**. Leave it checked and the
 member's defaults show in that room. Uncheck it to set pictures just for that room, so someone in two
 campaigns can give each its own Character images. Any picture left unset there still falls back to
-the defaults. In the call, the room list and the table tiles show the room's Online picture (and the
+the defaults. In the call, the space list and the call's tiles show the room's Online picture (and the
 Offline one for members who are not in the room) when it has been set.
 
 ## Server defaults

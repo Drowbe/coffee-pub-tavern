@@ -13,11 +13,15 @@
 //   step 8:  aside rows in rooms with ephemeral: true (/api/status)
 'use strict';
 
-// GET /api/me: entries added by later steps. Context: { role, hostAdmin, environmentName } -- the few values an
-// entry needs, never the account record itself (it holds the password hash and the two-step secret).
-const ME = [];
-// GET /api/status: entries added by later steps. Context: { environmentName }; the rest is in the answer.
-const STATUS = [];
+// Step 3: tableName ("The Table", a stored setting until then) is gone; Studio still reads it (kept, not shown), so
+// it gets the environment's name under that old name.
+const tableName = (_answer, { environmentName }) => ({ tableName: environmentName });
+
+// GET /api/me. Context: { role, hostAdmin, environmentName } -- the few values an entry needs, never the account
+// record itself (it holds the password hash and the two-step secret).
+const ME = [tableName];
+// GET /api/status. Context: { environmentName }; the rest is in the answer.
+const STATUS = [tableName];
 
 // Whether this request signed in the way Studio does: by a bearer token that actually signed someone in, rather
 // than the pages' cookie. A bearer header is read before any cookie (auth.sessionToken), so a request carrying one

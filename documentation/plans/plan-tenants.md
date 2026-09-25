@@ -1,6 +1,6 @@
 # Tenants: one host, many environments
 
-**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles, and the ten questions at the end, answered by the author); not started.
+**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles, and the ten questions at the end, answered by the author). **Built:** phase 1 (September 23, 2026) and phases 2 to 5 (September 24, 2026); what is left and unverified is in [TODO](../TODO.md), "Environments: what is left after phases 2 to 5". Kept as the historical record of the decisions. It still uses the words of its time: since the [Names plan](plan-names.md) the code says environment, not tenant (`DATA_DIR/environments/`, `/api/host/environments`, `MIGRATE_ENVIRONMENT_SLUG`), and a call's name is no longer built from a stored setting; how the code works now is in [architecture-tenants](../architecture/architecture-tenants.md).
 
 ## What it is for
 

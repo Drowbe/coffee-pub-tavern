@@ -1,7 +1,7 @@
 {
   "id": "stream",
   "name": "Stream",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "icon": "clapperboard",
   "description": "Every player as a browser source for a streaming program, on a transparent background: their camera or picture, the talking and muted borders, the name plate. The links, the access key, and how the boxes look.",
   "author": "Coffee Pub",
@@ -68,7 +68,7 @@
     { "key": "pictureBackground", "label": "A colour behind the Participant picture", "type": "boolean", "scope": "server", "default": false, "help": "While the box shows a picture instead of the camera, the box keeps this colour, or the participant's own background picture when they have one." },
     { "key": "pictureColor", "label": "Colour behind the picture", "type": "color", "scope": "server", "default": "#1a1410" },
     { "key": "pictureScale", "label": "Portrait size (% of the box)", "type": "number", "scope": "server", "default": 100, "min": 20, "max": 100 },
-    { "key": "offlineDim", "label": "Offline: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "How a box looks while the person is not at the table: 0 leaves it untouched, 100 is black." },
+    { "key": "offlineDim", "label": "Offline: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "How a box looks while the person is not in the call: 0 leaves it untouched, 100 is black." },
     { "key": "offlineTint", "label": "Offline: tint colour", "type": "color", "scope": "server", "default": "#000000" },
     { "key": "offlineTintOpacity", "label": "Offline: tint opacity (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100 },
     { "key": "asideDim", "label": "Aside: dim (%)", "type": "number", "scope": "server", "default": 0, "min": 0, "max": 100, "help": "While they are online but not in the space the stream is following." },

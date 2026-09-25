@@ -6,15 +6,13 @@ as new.
 A defect is recorded here once it has been observed, with a workaround if one exists, and moves to
 the CHANGELOG once fixed.
 
-## A broken backup restores as an empty environment
+## A call page left open across an update must be reloaded
 
-On the host console, restoring a zip whose `app.json` is not valid JSON is not refused: the restore
-succeeds and the environment opens empty, with none of its accounts, spaces or settings. This was so before
-the newer-backup check, which only refuses a backup it can read. The rest of the zip's files are still in
-the environment's folder.
+After the server is updated to the version that renamed "the table" (step 3 of the Names plan), a call page
+that was already open still listens for the old messages and asks the old addresses. Until it is reloaded, it
+does not follow a pull aside, a recall or a return, and does not show who is online.
 
-Workaround: restore a good backup over it. Before restoring a zip you are unsure of, check that its
-`app.json` is valid JSON.
+Workaround: reload the page once after the update.
 
 ## The console's Maps tab is too wide on a phone
 

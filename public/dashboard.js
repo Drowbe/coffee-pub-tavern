@@ -92,13 +92,13 @@ function mountWidget(w) {
 // with where they are, and a button to ask them into a private conversation of two.
 let joinRoom = null;
 let whoNote = '';
-function renderWho(table) {
+function renderWho(presence) {
   const el = document.getElementById('whos-around');
   if (!el) return;
-  const rooms = new Map((table.rooms || []).map((r) => [r.id, r]));
-  const here = (table.users || []).filter((u) => u.present || u.online);
+  const rooms = new Map((presence.rooms || []).map((r) => [r.id, r]));
+  const here = (presence.users || []).filter((u) => u.present || u.online);
   const people = here.map((u) => {
-    const mine = u.key === table.me;
+    const mine = u.key === presence.me;
     const where = u.room && rooms.get(u.room) ? rooms.get(u.room).name : '';
     const label = escapeHtml(u.displayName || u.login || 'Someone');
     // One cell of the grid: who, where they are, and what can be done (in the call, invite).
@@ -111,28 +111,28 @@ function renderWho(table) {
 
 async function invite(key) {
   try {
-    const { room } = await api('POST', '/api/table/invite', { to: key });
+    const { room } = await api('POST', '/api/asides/invite', { to: key });
     whoNote = '';
     await joinRoom(room.id);
   } catch (err) {
     whoNote = err.message;
-    renderWho(lastTable);
-    setTimeout(() => { whoNote = ''; renderWho(lastTable); }, 6000);
+    renderWho(lastPresence);
+    setTimeout(() => { whoNote = ''; renderWho(lastPresence); }, 6000);
   }
 }
-let lastTable = {};
+let lastPresence = {};
 document.addEventListener('click', (event) => {
   const b = event.target.closest('#whos-around [data-invite]');
   if (b) invite(b.dataset.invite);
 });
 
 // Called each time the room list is drawn: the widgets are mounted once, who is around every time.
-export async function initDashboard(table, hooks = {}) {
+export async function initDashboard(presence, hooks = {}) {
   const root = section();
   if (!root) return;
   if (hooks.openInRoom) openInRoom = hooks.openInRoom;
   if (hooks.joinRoom) joinRoom = hooks.joinRoom;
-  lastTable = table;
+  lastPresence = presence;
   if (!started) {
     started = true;
     let widgets = [];
@@ -144,6 +144,6 @@ export async function initDashboard(table, hooks = {}) {
     for (const w of widgets) mountWidget(w);
     paintUnread();
   }
-  renderWho(table);
+  renderWho(presence);
   root.hidden = root.children.length === 0;
 }

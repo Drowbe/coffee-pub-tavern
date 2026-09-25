@@ -55,12 +55,12 @@ on the source. Add `audio=0` to the link to silence it.
 
 ## Kick and mute
 
-Next to each player at the table on the Manage page are buttons to kick them or mute their microphone.
+Next to each player in a call on the Manage page are buttons to kick them or mute their microphone.
 Admins can always do this; other roles need the **Mute other people** and **Kick other people**
 permissions on the Roles tab.
 
 ## What is not on stream
 
-Sharing a screen at the table gives it its own tile there, but the OBS view never shows a shared
+Sharing a screen in the call gives it its own tile there, but the OBS view never shows a shared
 screen; capture that window in OBS directly. Guests have no OBS view either, since the links are keyed
 by an account. A private conversation never shows the live camera, whatever the settings.

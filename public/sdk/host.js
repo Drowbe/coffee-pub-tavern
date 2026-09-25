@@ -763,7 +763,7 @@
     // ("whose is it"): store their `key`, never the name.
     people: () => call('people'),
 
-    // Who is at the table right now, everyone, for a page that follows people (a keyed page about one of them):
+    // Who is online right now, everyone, for a page that follows people (a keyed page about one of them):
     // { people: [{ key, name, online, room, inCall, isAdmin }], rooms: [{ id, name, ephemeral, origin, private }],
     //   activeRoom, adminOnline, reactions: [{ id, glyph }] }.
     // `onChange(fn)` asks every 5 seconds (`{ every }` in ms to change that) and calls fn(presence) when anything
@@ -795,7 +795,7 @@
     // One person's picture in a slot, as a blob URL to show (null when they have none there), and release it when
     // done. Slots are the profile's: profile, background, player, playerOffline, playerTalking, playerMuted, playerAside,
     // playerPrivate, character, characterOffline, talking, muted, characterAside, characterPrivate. `{ room }` asks for
-    // that room's own picture set first, the way the table shows them.
+    // that room's own picture set first, the way the call page shows them.
     // The profile slot always answers (an initials plate when no photo is set); `{ fallback: 'none' }` asks for the real
     // photo only, null otherwise, for a page that wants it only as a last resort behind the Participant pictures.
     images: {
@@ -1315,7 +1315,7 @@
       set: (items) => call('toolbar.set', { items }),
     },
 
-    // The module's tools in the space's nav bar (the secondary nav, the row under the header at the table), drawn by
+    // The module's tools in the space's nav bar (the secondary nav, the row under the header on the call page), drawn by
     // the host in its own look while the module's pane is open in that space and taken out when it closes. Not the
     // pane's toolbar (host.toolbar.set, about the module's own state): these are the space's actions the module adds.
     // set([{ id, zone?, icon, label, title?, order?, group?, groupOrder?, href?, visible?, toggleable?, active?, badge? }]):

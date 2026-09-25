@@ -317,7 +317,7 @@ Only `button` items count toward the five-item cap and collapse into the "..." (
 
 ### Registering into the nav bars
 
-The header is two bars of three zones each (see the navigation architecture): the primary nav is about the system and the secondary, at the table, about the space. Both are drawn from one registry, and a module registers tools into it the same way the host's own controls are registered: one registration, not markup, and the host draws the tool in its own look. This is for a space action the module adds while its pane is open (a quick "add" for the space, a switch for the space's view of the module), not for the module's own state, which is the toolbar's, and not for its primary inputs, which are the action bar's.
+The header is two bars of three zones each (see the navigation architecture): the primary nav is about the system and the secondary, in a space, about the space. Both are drawn from one registry, and a module registers tools into it the same way the host's own controls are registered: one registration, not markup, and the host draws the tool in its own look. This is for a space action the module adds while its pane is open (a quick "add" for the space, a switch for the space's view of the module), not for the module's own state, which is the toolbar's, and not for its primary inputs, which are the action bar's.
 
 ```js
 await host.nav.set([
@@ -433,7 +433,7 @@ const t = await host.ready();
 
 A keyed page can read its settings and what the SDK offers a page that follows people, nothing else: no storage, no refs, no uploads. `host.settings.onChange` still fires (the host asks after the settings every 10 seconds there, having no session for the event stream).
 
-**Presence.** Who is at the table right now, everyone, from any page (a keyed page, a dashboard):
+**Presence.** Who is online and in which call right now, everyone, from any page (a keyed page, a dashboard):
 
 ```js
 const p = await host.presence.get();
@@ -444,7 +444,7 @@ const p = await host.presence.get();
 const stop = host.presence.onChange((p) => { ... }, { every: 5000 }); // polls; called once at the start and whenever anything differs
 ```
 
-**Pictures.** One person's picture in a slot, as a blob URL to show, or null when they have none there; release it when you replace it. `{ room }` asks for that room's own picture set first, the way the table does.
+**Pictures.** One person's picture in a slot, as a blob URL to show, or null when they have none there; release it when you replace it. `{ room }` asks for that room's own picture set first, the way the call page does.
 
 ```js
 const url = await host.images.get(key, 'player', { room });   // profile, background, player, playerOffline, playerTalking, playerMuted,
@@ -458,7 +458,7 @@ const w = await host.media.watch(key, { video: true, audio: false, room: 'lobby'
   state: ({ online, cameraOn, micOn, speaking, name }) => { ... },
   video: (el) => { /* a <video> to place, or null when it went away */ },
   audio: (el) => { /* an <audio> to place, or null */ },
-  reaction: (id) => { ... },            // as they react at the table
+  reaction: (id) => { ... },            // as they react in the call
   connection: ({ connected, room }) => { ... },
 });
 w.follow(roomId);   // the roster says they moved: leave this room for that one

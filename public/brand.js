@@ -32,6 +32,14 @@ function migrateStoredKeys() {
       if (localStorage.getItem(next) === null) localStorage.setItem(next, localStorage.getItem(key));
       localStorage.removeItem(key);
     }
+    // Keys renamed by the Names plan: the call's preferences (step 3). Read only to move them.
+    const moves = { 'host.table': 'app.call' };
+    for (const [from, to] of Object.entries(moves)) {
+      const old = localStorage.getItem(from);
+      if (old === null) continue;
+      if (localStorage.getItem(to) === null) localStorage.setItem(to, old);
+      localStorage.removeItem(from);
+    }
   } catch {
     // no storage: nothing to move
   }
@@ -39,7 +47,7 @@ function migrateStoredKeys() {
 migrateStoredKeys();
 
 export async function loadBranding() {
-  let b = { serverName: 'Coffee Pub', tableName: 'The Table', loginText: '', hasIcon: false };
+  let b = { serverName: 'Coffee Pub', loginText: '', hasIcon: false };
   try {
     const res = await fetch('/api/branding');
     if (res.ok) b = await res.json();
@@ -54,7 +62,6 @@ export async function loadBranding() {
     el.className = `${iconClasses(b.homeIcon || 'couch')} fa-fw`;
     el.dataset.iconId = b.homeIcon || 'couch';
   });
-  document.querySelectorAll('[data-brand="tableName"]').forEach((el) => (el.textContent = b.tableName));
   document.querySelectorAll('[data-brand="loginText"]').forEach((el) => (el.textContent = b.loginText));
   document.querySelectorAll('[data-brand="version"]').forEach((el) => (el.textContent = b.version || ''));
   // The page's own title ("Sign in", "Manage", or "<old server name> - Manage" on a second load) gets the server's name in front.
@@ -81,7 +88,7 @@ export async function loadBranding() {
   return b;
 }
 
-// One header, built once here, used by every page including the table
+// One header, built once here, used by every page including the call page
 // itself -- room.html included, its live-call controls (Leave, Pull
 // Participants Back) folded in through the "location and actions" crumb
 // zone (see setTopbarLocation()) rather than kept as a bespoke header of
@@ -315,7 +322,7 @@ function showInvite(invite) {
       const taken = !document.dispatchEvent(new CustomEvent('app:invite-accept', { detail: invite, cancelable: true }));
       if (!taken) window.location.href = `/#join=${encodeURIComponent(invite.roomId)}`;
     } else {
-      fetch(`/api/table/invite/${encodeURIComponent(invite.id)}/decline`, { method: 'POST' }).catch(() => {});
+      fetch(`/api/asides/invite/${encodeURIComponent(invite.id)}/decline`, { method: 'POST' }).catch(() => {});
     }
     dismiss();
   });
@@ -364,7 +371,7 @@ async function loadModuleNav() {
     nav.unregisterAll('page-');
     listed.forEach((m, i) => {
       const el = nav.register({ id: `page-${m.id}`, bar: 'primary', zone: 'middle', group: 'core', order: Math.min(50, 11 + i), icon: m.icon, label: m.name, href: `/modules/${encodeURIComponent(m.id)}${keep}` });
-      el.classList.add('module-nav-link'); // hidden at the table, where the room's own module selector is the way in
+      el.classList.add('module-nav-link'); // hidden on the call page, where the room's own module selector is the way in
       el.dataset.module = m.id;
       el.dataset.overlayLink = '';
     });
@@ -402,7 +409,7 @@ export function setTopbarLocation(html) {
 
 // Chrome/Edge's "Install as an app" prompt -- a chromeless window (Settings
 // > Install, or here) with none of a browser tab's own address bar or tab
-// strip. Shared so any page can offer it, not just the table.
+// strip. Shared so any page can offer it, not just the call page.
 // The Install tool's `visible` reads installPromptEvent, so the bar is redrawn when it changes.
 let installPromptEvent = null;
 window.addEventListener('beforeinstallprompt', (event) => {

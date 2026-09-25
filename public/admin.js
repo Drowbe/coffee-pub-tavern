@@ -99,7 +99,7 @@ function fill(card, user) {
 function renderLive(card, online) {
   const dot = card.querySelector('[data-dot]');
   dot.classList.toggle('online', !!online);
-  dot.title = online ? 'at the table' : 'offline';
+  dot.title = online ? 'in a call' : 'offline';
   const live = card.querySelector('[data-live]');
   const inRoom = online && online.room ? rooms.find((r) => r.id === online.room) : null;
   live.textContent = online ? `${inRoom ? `in ${inRoom.name} · ` : ''}${online.micOn ? 'mic on' : 'mic off'} · ${online.cameraOn ? 'camera on' : 'camera off'}` : '';
@@ -130,7 +130,7 @@ function wire(card) {
     if (action === 'mute') {
       api('POST', `/api/users/${user.key}/mute`, { muted: true }).then(refreshLive).catch((err) => say($('party-status'), err.message, true));
     } else if (action === 'kick') {
-      if (!window.confirm(`Kick ${user.displayName} from the table? They can rejoin.`)) return;
+      if (!window.confirm(`Kick ${user.displayName} from the call? They can rejoin.`)) return;
       api('POST', `/api/users/${user.key}/kick`).then(refreshLive).catch((err) => say($('party-status'), err.message, true));
     }
   });
@@ -144,7 +144,7 @@ function renderUsers() {
       cards.delete(key);
     }
   }
-  $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} at the table`;
+  $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} in a call`;
   renderRooms(); // the member lists follow the users
 }
 
@@ -154,7 +154,7 @@ async function refreshLive() {
     const byKey = new Map(status.users.map((u) => [u.key, u]));
     users = users.map((u) => ({ ...u, online: byKey.get(u.key)?.online || null }));
     for (const user of users) renderLive(cardFor(user), user.online);
-    $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} at the table`;
+    $('party-status').textContent = `${users.filter((u) => u.online).length} of ${users.length} in a call`;
   } catch (err) {
     // leave the last known state
   }
@@ -231,7 +231,7 @@ function fillRoomRow(row, room, index) {
   row.querySelector('[data-thumb-fallback]').hidden = room.hasImage;
   row.querySelector('[data-name]').textContent = room.name;
   const count = room.isLobby ? users.length : room.members.length;
-  const who = room.isLobby ? 'Everyone at the table' : `${count} member${count === 1 ? '' : 's'}`;
+  const who = room.isLobby ? 'Everyone' : `${count} member${count === 1 ? '' : 's'}`;
   row.querySelector('[data-meta]').textContent = `${who} · ${PROFILE_LABELS[room.profile] || 'Roleplaying'}`;
   row.querySelector('[data-action="edit"]').href = `/rooms/${encodeURIComponent(room.id)}`;
   row.classList.toggle('lobby', room.isLobby);
@@ -718,7 +718,7 @@ function moduleCard(m) {
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
-    ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people at the table</span></li>'] : []),
+    ...(m.hooks.notify ? ['<li><strong>Send notifications</strong> <span class="hint">to people using it</span></li>'] : []),
     ...(m.events && m.events.subscribes.length ? [`<li><strong>Hear what happens in other modules</strong> <span class="hint">${escapeHtml(m.events.subscribes.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: their events, only for people who can see them</span></li>`] : []),
     ...(m.actions && m.actions.uses.length ? [`<li><strong>Ask other modules to do things</strong> <span class="hint">${escapeHtml(m.actions.uses.map((c) => c === '*' ? 'any module' : c.replace(':', ' ')).join(', '))}: each request is carried out by the module that owns the action</span></li>`] : []),
     ...(m.refs && m.refs.consumes.length ? [`<li><strong>Link to other modules' items</strong> <span class="hint">${escapeHtml(m.refs.consumes.map((c) => c.replace(':', ' ')).join(', '))}, shown only to people who can already see them</span></li>`] : []),

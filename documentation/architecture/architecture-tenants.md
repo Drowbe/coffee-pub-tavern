@@ -23,7 +23,7 @@ that turn a change into an activity-log line, starts that environment's own `Mod
 with one property per service. Nothing here is a Proxy -- these are the real instances.
 
 Two things it does **not** build, because they are the host's, not any one environment's: the LiveKit
-`RoomServiceClient` (one call service, shared -- see "LiveKit room names" below) and the Font Awesome Pro
+`RoomServiceClient` (one call service, shared -- see "Call names" below) and the Font Awesome Pro
 override (`DATA_DIR/fontawesome-pro/`, a host-level admin asset the migration never moves).
 
 `flushEnvironment(env)` writes the four things under the seam that only debounce rather than writing
@@ -162,24 +162,42 @@ login that already belongs to a *different*, ordinary user in that environment n
 a name collision just means the host admin cannot sign in with that particular login there, never that they
 take over someone else's account.
 
-## LiveKit room names
+## Call names
 
-One `RoomServiceClient`, shared by every environment (the plan's phase 4 territory is a per-environment call-name
-scheme and per-environment concurrent-call limits; not built yet). `livekitRoomName()`/`roomIdOfLivekit()` already
-prefix the room name with the current environment's own slug when one is resolved (`env.slug`, null for the
-default environment), so two environments with the same `room` setting cannot collide in LiveKit today, even
-before phase 4's fuller scheme.
+One `RoomServiceClient`, shared by every environment. Each space has its own call at LiveKit, and its name is
+worked out, never stored (plan-names decision 14). `server/call-names.js` holds both directions: `callName()`
+and `spaceIdOfCall()`, wrapped in `index.js` by `callName(spaceId)` and `spaceIdOfCall(name)` for the current
+environment.
+
+| Install | The Lobby | A space | An aside |
+|---|---|---|---|
+| Single environment | `lobby` | `<id>` | `aside-<id>` |
+| Hosted | `<slug>.lobby` | `<slug>.<id>` | `<slug>.aside-<id>` |
+
+No slug and no space or aside id can hold a dot, so the dot marks exactly where the slug ends and one
+environment's call can never be read as another's. `spaceIdOfCall()` answers null for a call that is not this
+environment's, which is what keeps another environment's calls out of this one's presence, its placement and
+its calls cap.
+
+For one release, `spaceIdOfCall()` also reads the names calls had before step 3, when they came from the stored
+`settings.room`: `table` and `table-<id>` on a single install, `<slug>-table` and `<slug>-table-<id>` hosted. So
+people already in a call when the server upgrades are still found, placed, muted and kicked in the call they are
+really in, and the calls cap still counts them. An id this environment really has is read as itself first (a
+space whose id is `table` is that space), a dotted name is never an old one, and when a longer slug of another
+environment also matches (`acme-table-table` is environment `acme-table`'s old Lobby), the name is that
+environment's. The old shapes go after that release, in step 10 at the latest. New tokens are only ever minted
+for the new names.
 
 ## The console
 
-`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. An environment's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip` (the server's own `Content-Disposition` name, `<slug>-backup.zip`, is not used); **Restore backup** opens a file picker, then arms as **Replace its data?** for eight seconds and posts the zip to `POST /api/host/environments/:slug/restore` on the second click (the chosen files are held in `restoreFiles`, by slug, and dropped whenever the list is drawn again), and focus returns to that card's **Restore backup** afterwards; Delete arms on the first click and acts on the second, and focus then goes to `#environments-status` (`tabindex="-1"`, `aria-live="polite"`), which says "<slug> moved aside (its data is kept under environments-deleted)."; **Suspend** reads **Resume** on a suspended environment. **Save plans** stops at the first field the browser's own validation refuses (a plan id of lower-case letters, digits and hyphens; a name that is not blank) and shows its message; the New environment form's slug is checked the same way. A card whose `refused` is set (see "Refused environments" below) shows the tag "won't open" (`data-status="refused"`), the reason, the file and the time, what to do, and a dash for every usage count, and hides the owner's second-factor reset, which could not reach the environment. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
+`public/host.html` and `public/host.js`, served for `/` at `admin.<base>` by the host router and nowhere else. It is a page like Manage (the same panels, fields and buttons, and the same tab bar: Host, Plans, Environments, AI and Maps, Environments being the default, with the hash naming the tab), with the primary nav's left zone only (`body.host-console` hides the middle and right zones: the console has no spaces to navigate to and no environment's profile or Manage to reach). It talks only to `/api/host/` through the shared `api()` helper, and reads nothing of an environment beyond the usage counts the API returns. An environment's link in the list is `<slug>.<base>` with the page's own port appended only when there is one (development); a backup is fetched as a blob and offered as `<slug>-<date>.zip` (the server's own `Content-Disposition` name, `<slug>-backup.zip`, is not used); **Restore backup** opens a file picker, then arms as **Replace its data?** for eight seconds and posts the zip to `POST /api/host/environments/:slug/restore` on the second click (the chosen files are held in `restoreFiles`, by slug, and dropped whenever the list is drawn again), and focus returns to that card's **Restore backup** afterwards; Delete arms on the first click and acts on the second, and focus then goes to `#environments-status` (`tabindex="-1"`, `aria-live="polite"`), which says "<slug> moved aside (its data is kept under environments-deleted)."; **Suspend** reads **Resume** on a suspended environment. **Save plans** stops at the first field the browser's own validation refuses (a plan id of lower-case letters, digits and hyphens; a name that is not blank) and shows its message; the New environment form's slug is checked the same way. A card whose `refused` is set (see "Refused environments" below) shows the tag "won't open" (`data-status="refused"`), the reason ("Won't open: its data could not be read." for `unreadable`, with "Fix or restore this file (the server log names it), or restore a good backup."), the file and the time, what to do, and a dash for every usage count, and hides the owner's second-factor reset, which could not reach the environment. The console never learns the host admin's session beyond `GET /api/host/me` succeeding or not: signed out, it shows the sign-in panel and nothing else.
 
 ## The Names migration
 
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` is still empty.
+`ENVIRONMENT_PARTS` holds `names-table` (step 3, below).
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -213,10 +231,16 @@ to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-env
   where it went), merged with the attempt's own, and deleted. So a part stopped between two moves, by an error or
   by the process being killed, still records every folder it moved when it runs again.
 - **The error.** Every failure is a `MigrationError` with `file` and `reason`: `newer` (the record names a
-  part this server does not know) or `failed` (a part could not finish). The newer check runs whether or not a
-  part is due, and reads the record leniently: an `app.json` that is not valid JSON is not refused here, and
-  `Store` reads it as empty, as it always has. Until an environment part exists, an environment can only be
-  refused as `newer`.
+  part this server does not know), `unreadable` (the environment's data file cannot be read, below) or `failed`
+  (a part could not finish). The newer check runs whether or not a part is due.
+- **Data that cannot be read** (plan-names decision 23). Before anything else, `migrateEnvironment()` reads the
+  environment's `app.json` (or `tavern.json` while `app.json` is missing) and refuses it as `unreadable` when it
+  is there but cannot be read, is not valid JSON, or is valid JSON but not an object (a list, `null`, a number).
+  Until step 3, `Store` read such a file as empty and its first save wrote a new `app.json` over it. `Store.load()`
+  refuses it too now, with a `StoreError` (500), in case the file changed after the build. A missing file is a new
+  environment and starts fresh. The log line names the file: `<file> is not valid JSON (...), so this environment
+  will not be opened: nothing was changed. Fix or restore this file, then start again.`, or `<file> is not an
+  environment's data (it holds a list, not an object), ...` with the same ending.
 
 `tools/check-names.mjs` (in `npm run check`) holds the frame to this: `--migration` copies
 `tools/fixtures/names-v1/` to the system's temporary folder and runs the frame twice over it with stand-in
@@ -251,6 +275,17 @@ start, since the part cannot tell which list to keep:
 > `<DATA_DIR>/pre-names-host/names-environment`).
 
 An `environments` key that is empty or the same as `tenants` is replaced by `tenants`' list without a refusal.
+
+### The first environment part: `names-table`
+
+In `ENVIRONMENT_PARTS`, run by `migrateEnvironment()` on each environment's first build after the upgrade. It
+removes `settings.tableName` (the call's old display name, "The Table") and `settings.room` (the call's old
+base name, `table`) from `app.json`, keeping the other keys in their order, and replaces the Lobby's
+description only when it is still exactly the old seed, "Everyone at the table.", with the new one, "Where
+everyone meets." (an owner's own wording is left alone). `app.json` goes to `version: 2` and records the part;
+the original is kept in `pre-names/names-table/app.json`. A new environment is seeded with "Where everyone
+meets." and records the part as run. Over data with neither setting and no old description, it writes only the
+record.
 
 ### A pre-environment install
 
@@ -290,7 +325,8 @@ Data that records a migration part this server does not know is from a newer Mag
 than read in a shape this server does not understand (plan-names decision 22).
 
 - **At startup, when nothing else can run.** An unknown part in `host.json`, or in the one environment of a
-  single-environment install, logs one line and exits with code 1. The line names the file and the part:
+  single-environment install, logs one line and exits with code 1; so does an unreadable `app.json` on a single
+  install (see "Data that cannot be read" above). For an unknown part, the line names the file and the part:
   `<file> records the migration part "<id>", which this version of Magpie does not know: this data is from a
   newer version of Magpie, so it will not be opened here.`
 - **On a hosted server, one environment.** `buildAtStartup()` in `index.js` skips an environment whose build
@@ -299,20 +335,22 @@ than read in a shape this server does not understand (plan-names decision 22).
   the message once per refusal, and tries to build again on every request, so a fixed or restored environment
   opens without a restart. The log line for a skipped environment adds "This environment is skipped and answers 503
   until its data is restored or fixed; the others run as usual." Until it builds, the error handler answers 503 with
-  `{ error: "This environment's data is from a newer version of Magpie." }` (`newer`) or
+  `{ error: "This environment's data is from a newer version of Magpie." }` (`newer`),
+  `{ error: "This environment's data could not be read. The host admin has been told." }` (`unreadable`) or
   `{ error: "This environment's data could not be updated. The host admin has been told." }` (`failed`), or a
   plain HTML page with the same sentence for a browser asking for a page. The file and the detail go to the log
   and the console only. A refused environment is left out of `GET /api/product/environments`, and the console's
   map-region search skips it.
 - **The console's list.** `GET /api/host/environments` gives each environment
-  `refused: null | { reason: 'newer' | 'failed', file, message, at }`, and every `usage` count is `null` while
+  `refused: null | { reason: 'newer' | 'unreadable' | 'failed', file, message, at }`, and every `usage` count is `null` while
   it is refused.
 - **Restore.** `POST /api/host/environments/:slug/restore` checks the zip before touching anything: when the
   `app.json` or `tavern.json` that would land (names normalised, the last of a repeated entry) records an
   unknown part, it answers 400 `{ error: "This backup is from a newer version of Magpie." }` and the
   environment is unchanged. Otherwise it replaces the environment's folder, builds it at once, and answers
   `{ ok: true }`, or `{ ok: true, refused: { reason, file, message, at } }` when the restored data is itself
-  refused. The other answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
+  refused. A backup whose `app.json` is not valid JSON is not refused by this check; it lands, and then answers
+  `{ ok: true, refused: { reason: 'unreadable', ... } }`. The other answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
   400 with the zip reader's message.
 
 ## The Studio alias
@@ -322,9 +360,9 @@ moves to the new ones (plan-names, "What Studio reads" and decision 21). `GET /a
 pass their answer through `studioAlias.me()` and `studioAlias.status()`, which change it only when a bearer
 token actually signed the request in, the way Studio signs in; the pages use the cookie and never see an old
 name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receives only
-`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. Both lists are empty
-in step 1, so the answers are unchanged; the later steps add the fields they rename, and step 10 removes the
-file.
+`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. Since step 3 both
+lists hold one entry, `tableName`, set to the environment's name, since `branding()` no longer sends it and Studio
+still reads it. The later steps add the fields they rename, and step 10 removes the file.
 
 ## The host's managed AI and shared files
 

@@ -18,6 +18,18 @@
       "deleteRequestedAt": null,
       "deleteRequestReason": "",
       "usage": { "storageBytes": 0, "measuredAt": null, "aiMonth": "", "aiCalls": 0 }
+    },
+    {
+      "slug": "bravo",
+      "name": "Bravo Company",
+      "createdAt": "2026-01-05T00:00:00.000Z",
+      "plan": { "name": null, "modules": "all", "members": null, "storageBytes": null, "aiCallsPerMonth": null, "calls": null },
+      "status": "active",
+      "pastDueSince": null,
+      "degradedAt": null,
+      "deleteRequestedAt": null,
+      "deleteRequestReason": "",
+      "usage": { "storageBytes": 0, "measuredAt": null, "aiMonth": "", "aiCalls": 0 }
     }
   ],
   "ai": {},

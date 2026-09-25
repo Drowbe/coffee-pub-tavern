@@ -126,8 +126,8 @@ function render() {
 
   $('admin-link').hidden = !(me ? me.role === 'admin' : user.role === 'admin');
   $('portrait-hint').textContent = editing
-    ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile at the table. Click it to change it -- it is not the picture used in the recording, that's below.`
-    : 'Your own photo: it shows next to your name in the header and on your tile at the table. Click it to change it; square images look best. It is not the picture used in the recording — your admin sets that.';
+    ? `${user.displayName}'s own photo: it shows next to their name in the header and on their tile in the call. Click it to change it -- it is not the picture used in the recording, that's below.`
+    : 'Your own photo: it shows next to your name in the header and on your tile in the call. Click it to change it; square images look best. It is not the picture used in the recording — your admin sets that.';
 
   // Account: read-only facts normally, editable fields for an admin. Same
   // boxed layout either way (see .facts/.fact in style.css) -- only
@@ -141,7 +141,7 @@ function render() {
   if (!editing) {
     $('f-name').textContent = user.displayName;
     $('f-login').textContent = user.login;
-    $('f-role').textContent = user.role === 'admin' ? (hosted ? 'Owner: runs the environment' : 'Admin: runs the table') : 'Player';
+    $('f-role').textContent = user.role === 'admin' ? (hosted ? 'Owner: runs the environment' : 'Admin: runs the environment') : 'Player';
     $('f-password').textContent = user.hasPassword ? 'Set. Only an admin can change it.' : 'None. You sign in with your personal link.';
   } else if (document.activeElement?.closest?.('#account-fields') == null) {
     $('e-name').value = user.displayName;
@@ -574,7 +574,7 @@ $('mute-btn').addEventListener('click', () => run(async () => {
   say('muted');
 }));
 $('kick-btn').addEventListener('click', () => run(async () => {
-  if (!window.confirm(`Kick ${user.displayName} from the table? They can rejoin.`)) return;
+  if (!window.confirm(`Kick ${user.displayName} from the call? They can rejoin.`)) return;
   await api('POST', `/api/users/${user.key}/kick`);
   say('kicked');
 }));

@@ -2,11 +2,11 @@
 //   /view/<key>?s=<access key>&kind=player|character&plate=1&audio=0&reactions=0&debug=1
 //
 // player:    the camera when it is on, the Online picture when it is off, the Offline picture (or nothing)
-//            away from the table; the talking or muted border and the name plate, plus the Talking / Muted /
+//            away from the call; the talking or muted border and the name plate, plus the Talking / Muted /
 //            Aside / Private pictures laid on top (Aside and Private also dim and tint per the module's
 //            settings, and a private conversation always keeps the live camera off). Audio plays unless
 //            audio=0; whether it reaches the mixer is the streaming program's own option on the source.
-// character: the Character picture (Offline away from the table, nothing when unset) with Talking on top
+// character: the Character picture (Offline away from the call, nothing when unset) with Talking on top
 //            while they speak and Muted while muted. Made to sit over a character bar. No audio.
 // Both float the player's reactions up the box unless reactions=0. Older links: mode=auto|video -> player,
 // mode=avatar|status -> character.
@@ -46,7 +46,7 @@
   const slots = kind === 'player' ? ['playerOffline', 'player', 'playerTalking', 'playerMuted', 'playerAside', 'playerPrivate'] : ['characterOffline', 'character', 'talking', 'muted', 'characterAside', 'characterPrivate'];
   const images = Object.fromEntries(slots.map((s) => [s, null]));
   // The Participant box's last resort, behind the Participant pictures and the server's Default Images: the person's
-  // own profile photo (the real one only, never the initials plate), the same rule the table's tiles follow. The
+  // own profile photo (the real one only, never the initials plate), the same rule the call page's tiles follow. The
   // Character box has no such fallback: a face where a character picture belongs would be wrong.
   let profile = null;
   let bgImage = null;
@@ -59,7 +59,7 @@
   let playerRoom = 'lobby';
   let imageRoom = 'lobby'; // playerRoom, or an aside's origin room: whose pictures apply
   let lastImageRoom = null;
-  let tableOnline = false; // server-tracked presence, not this page's own connection
+  let onlineNow = false; // server-tracked presence, not this page's own connection
   let isAside = false; // online, but not in the room the stream is following: for the dim and tint
   let inAside = false; // stepped away into an aside themselves: for the Aside overlay picture
   let isPrivate = false; // in a private conversation: its own dim and tint, and never the live camera
@@ -121,13 +121,13 @@
       playerRoom = (me.online && me.room) || 'lobby';
       const inRoom = (p.rooms || []).find((r) => r.id === playerRoom);
       imageRoom = inRoom && inRoom.ephemeral && inRoom.origin ? inRoom.origin : playerRoom;
-      tableOnline = Boolean(me.online);
-      isAside = tableOnline && Boolean(p.adminOnline) && me.room !== p.activeRoom;
-      const room = tableOnline ? inRoom : null;
-      inAside = tableOnline && Boolean(room && room.ephemeral) && !(room && room.private);
+      onlineNow = Boolean(me.online);
+      isAside = onlineNow && Boolean(p.adminOnline) && me.room !== p.activeRoom;
+      const room = onlineNow ? inRoom : null;
+      inAside = onlineNow && Boolean(room && room.ephemeral) && !(room && room.private);
       isPrivate = Boolean(room && room.ephemeral && room.private);
     } else {
-      tableOnline = false;
+      onlineNow = false;
       isAside = false;
       inAside = false;
       isPrivate = false;
@@ -190,7 +190,7 @@
     box.dataset.state = state;
     // Dim (a brightness filter over the box) and tint (a colour with its own opacity) per state, independent of
     // each other and not gated on a picture being there: someone with none should still read as offline.
-    const prefix = !tableOnline ? 'offline' : isPrivate ? 'private' : isAside ? 'aside' : null;
+    const prefix = !onlineNow ? 'offline' : isPrivate ? 'private' : isAside ? 'aside' : null;
     const tintOpacity = prefix ? Number(settings[`${prefix}TintOpacity`]) || 0 : 0;
     const tint = prefix && tintOpacity > 0 ? hexToRgba(settings[`${prefix}Tint`] || '#000000', tintOpacity) : null;
     $('dim').hidden = !tint;

@@ -1,5 +1,5 @@
 // A live readout of the room page's real geometry, for phones where the layout is wrong: open the
-// table with ?layout=1 (Manage > About > Troubleshooting has a link). Numbers are in CSS pixels,
+// call page with ?layout=1 (Manage > About > Troubleshooting has a link). Numbers are in CSS pixels,
 // measured from the top of the page.
 const box = document.createElement('pre');
 box.style.cssText = 'position:fixed;top:96px;left:4px;right:4px;z-index:99999;margin:0;padding:6px;font:11px/1.3 ui-monospace,Menlo,monospace;background:rgba(255,255,255,.93);color:#000;border:2px solid magenta;pointer-events:none;white-space:pre-wrap';

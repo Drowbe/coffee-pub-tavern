@@ -560,8 +560,8 @@ input[type="range"] {
 /* The join screen: the rooms I may join, one card each, on a grid that
    wraps. Each card is built like the sign-in box. */
 /* The rooms page: the header stays put and the page scrolls beneath it, so the scrollbar starts under the
-   header. At the table the stage takes over and this is gone. */
-body:has(> .page-scroll):not(.at-table) {
+   header. In a space the stage takes over and this is gone. */
+body:has(> .page-scroll):not(.in-space) {
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -569,7 +569,7 @@ body:has(> .page-scroll):not(.at-table) {
   overflow: hidden;
 }
 
-body.at-table .page-scroll {
+body.in-space .page-scroll {
   display: none;
 }
 
@@ -1080,7 +1080,7 @@ body.at-table .page-scroll {
   background: var(--border);
 }
 
-/* The room's bar, the header's second row, only at the table: the panes to open on the left, the
+/* The room's bar, the header's second row, only in a space: the panes to open on the left, the
    controls for the whole app (full screen, pop out) on the right. */
 .subnav {
   display: none;
@@ -1098,7 +1098,7 @@ body.at-table .page-scroll {
 
 /* Three zones, like the primary nav: left (the room's name, the pane switches), middle (space information and navigation),
    right (space actions); the middle is centred on the row, whatever the other two hold. See architecture-navigation.md. */
-body.at-table .subnav {
+body.in-space .subnav {
   display: grid;
   grid-column: 1 / -1; /* the header is a grid too: the second row spans all three of its columns */
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -1207,7 +1207,7 @@ body.at-table .subnav {
 }
 
 /* The bar is a second row of the header; the gap between rows would add height to the first. */
-body.at-table .topbar {
+body.in-space .topbar {
   flex-wrap: wrap;
   row-gap: 0;
 }
@@ -1851,15 +1851,15 @@ a.btn {
   margin: 4px 0 -8px;
 }
 
-/* --- the stage: full-window table with floating controls ------------------- */
+/* --- the stage: full-window call with floating controls ------------------- */
 
-/* On the page the table is a column: the site header, the tiles, and a
+/* On the page the call is a column: the site header, the tiles, and a
    toolbar locked to the bottom edge (like Zoom or Meet). Popped out, the
    stage is the whole window with the floating pill and status instead. */
-body.at-table {
+body.in-space {
   overflow: hidden;
   /* The base body rule's min-height: 100vh is the large viewport on a phone (777px in Chrome on an
-     iPhone where 740px is visible), and a min-height beats height: the table stayed taller than the
+     iPhone where 740px is visible), and a min-height beats height: the call stayed taller than the
      screen and its bottom bar sat under the browser's own. */
   min-height: 0;
   height: 100vh; /* fallback for browsers without dvh */
@@ -1877,7 +1877,7 @@ body.at-table {
   flex-direction: column;
 }
 
-body.at-table .topbar {
+body.in-space .topbar {
   flex: none;
 }
 
@@ -2033,7 +2033,7 @@ a.crumb-here:hover {
   flex-direction: column;
 }
 
-/* Popped out (the whole table, body.popout, or the conference pane alone in its own window,
+/* Popped out (the whole call, body.popout, or the conference pane alone in its own window,
    body.conference-window), the conference keeps its titlebar and toolbar, but they slide away
    when nothing has moved for a moment (the stage gets .idle) so the window is only the tiles,
    and slide back on the next movement. Gone, they leave the flow, so the tiles take the
@@ -2083,7 +2083,7 @@ a.crumb-here:hover {
 }
 
 .popout .conference-head [data-popout] {
-  display: none; /* the whole table is already in a window */
+  display: none; /* the whole call is already in a window */
 }
 
 /* The conference alone in a window of its own: no close on its titlebar, which would read as "close this window"
@@ -3081,7 +3081,7 @@ a.crumb-here:hover {
 
 /* A room member who is online but currently in a private aside elsewhere:
    their picture stands in for video, dimmed, with who they stepped away
-   with -- so they read as "still at the table, just aside" rather than
+   with -- so they read as "still in the call, just aside" rather than
    looking like they hung up. */
 .tile-ghost {
   cursor: default;
@@ -4745,8 +4745,8 @@ body.chat-window {
 /* In a room the Modules menu is the way to a module; the header's links to the global pages would be
    a second, confusing way to the same thing. The links are tools the nav-bar registry draws straight into the
    zone (and, on a phone, into the menu), so this names the link, not a wrapper, at both places. */
-body.at-table .topbar .module-nav-link,
-body.at-table .topbar.menu-open .links .module-nav-link {
+body.in-space .topbar .module-nav-link,
+body.in-space .topbar.menu-open .links .module-nav-link {
   display: none;
 }
 
@@ -4846,14 +4846,14 @@ body.at-table .topbar.menu-open .links .module-nav-link {
 @media (max-width: 640px) { .activity-row { flex-wrap: wrap; gap: 2px 10px; } .activity-time, .activity-source { width: auto; } .activity-event { flex-basis: 100%; } }
 
 /* --- phone: the room as an app ---------------------------------------------
-   Below 640px (the same width the stage calls "narrow") the table is a phone layout: a slim
+   Below 640px (the same width the stage calls "narrow") the call is a phone layout: a slim
    header, the stage, and the room bar as a tab bar fixed to the bottom, one thumb away. The
    panes in it are the same items as on a desktop, shown as tabs (icon over name, accent when
    open). The call toolbar sits directly above it.
    The page is pinned to the visible screen with position: fixed rather than a measured
    height, so a browser's own bottom bar (Chrome on an iPhone) can never cover the toolbar. */
 @media (max-width: 640px) {
-  body.at-table {
+  body.in-space {
     --tabbar-h: 54px;
     /* Sized in dynamic viewport units, not pinned with inset: 0 (which is the large viewport in
        Chrome on an iPhone, 37px taller than what shows) and not 100% (47px short in the
@@ -4866,26 +4866,26 @@ body.at-table .topbar.menu-open .links .module-nav-link {
     height: 100dvh;
   }
 
-  body.at-table .topbar {
+  body.in-space .topbar {
     min-height: calc(40px + env(safe-area-inset-top));
     padding: env(safe-area-inset-top) 10px 0;
   }
 
-  body.at-table .topbar .brand .icon {
+  body.in-space .topbar .brand .icon {
     width: 39px;
     height: 39px;
     margin-left: -10px;
   }
 
   /* The tab bar sits under the toolbar, so the toolbar has no home indicator to clear. */
-  body.at-table .floatbar,
-  body.at-table .stage.compact .floatbar {
+  body.in-space .floatbar,
+  body.in-space .stage.compact .floatbar {
     padding-bottom: 6px;
   }
 
   /* room.js moves the bar out of the header, after the stage, so it is the last thing in the
      page's column: the toolbar sits right above it with no padding to calculate. */
-  body.at-table .subnav {
+  body.in-space .subnav {
     display: flex; /* the tab bar: the pane switches are the bar; the room's name and the middle zone are not drawn */
     flex: none;
     width: auto;
@@ -4901,13 +4901,13 @@ body.at-table .topbar.menu-open .links .module-nav-link {
     border-top: 1px solid var(--border);
   }
 
-  body.at-table .subnav-panes {
+  body.in-space .subnav-panes {
     flex: 1;
     gap: 0;
     justify-content: space-around;
   }
 
-  body.at-table .subnav-panes .modules-menu-item {
+  body.in-space .subnav-panes .modules-menu-item {
     flex: 1 0 60px;
     flex-direction: column;
     justify-content: center;
@@ -4919,53 +4919,53 @@ body.at-table .topbar.menu-open .links .module-nav-link {
     line-height: 1.1;
   }
 
-  body.at-table .subnav-panes .modules-menu-item::before {
+  body.in-space .subnav-panes .modules-menu-item::before {
     display: none;
   }
 
-  body.at-table .subnav-panes .modules-menu-item i {
+  body.in-space .subnav-panes .modules-menu-item i {
     font-size: 18px;
   }
 
-  body.at-table .subnav-panes .modules-menu-item span:not(.badge) {
+  body.in-space .subnav-panes .modules-menu-item span:not(.badge) {
     display: block;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  body.at-table .subnav-panes .modules-menu-item.on {
+  body.in-space .subnav-panes .modules-menu-item.on {
     color: var(--accent);
   }
 
-  body.at-table .subnav-panes .modules-menu-item {
+  body.in-space .subnav-panes .modules-menu-item {
     position: relative;
   }
 
-  body.at-table .subnav-panes .modules-menu-item .badge {
+  body.in-space .subnav-panes .modules-menu-item .badge {
     position: absolute;
     top: 2px;
     left: calc(50% + 6px);
     margin: 0;
   }
 
-  body.at-table .subnav-tools {
+  body.in-space .subnav-tools {
     align-items: stretch;
     margin-left: 0;
   }
 
-  body.at-table .subnav #fullscreen-toggle,
-  body.at-table .subnav #popout {
+  body.in-space .subnav #fullscreen-toggle,
+  body.in-space .subnav #popout {
     display: none; /* a phone has no use for either */
   }
 
   /* A pane fills the screen: no floating it over the page or opening it in a window. */
-  body.at-table .stage [data-mode],
-  body.at-table .stage [data-popout] {
+  body.in-space .stage [data-mode],
+  body.in-space .stage [data-popout] {
     display: none;
   }
 
-  body.at-table .subnav #leave-room {
+  body.in-space .subnav #leave-room {
     height: auto;
     min-width: 48px;
     padding: 0 8px;
@@ -4975,7 +4975,7 @@ body.at-table .topbar.menu-open .links .module-nav-link {
 
   /* In the call but looking at something else: a dot on the Conference tab, green with the
      microphone off and red while it is live, so nobody talks unseen. */
-  body.at-table .subnav-panes .modules-menu-item.in-call::after {
+  body.in-space .subnav-panes .modules-menu-item.in-call::after {
     content: "";
     position: absolute;
     top: 6px;
@@ -4987,7 +4987,7 @@ body.at-table .topbar.menu-open .links .module-nav-link {
     border: 2px solid var(--header-bg);
   }
 
-  body.at-table .subnav-panes[data-mic="live"] .modules-menu-item.in-call::after {
+  body.in-space .subnav-panes[data-mic="live"] .modules-menu-item.in-call::after {
     background: var(--danger);
   }
 

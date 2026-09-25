@@ -1,12 +1,12 @@
 # Coffee Pub Magpie
 
 Voice and video for your tabletop game, on a server you run yourself. Each player signs in once, allows
-camera and microphone, and is at the table, with nothing to install. Every player is also an OBS
+camera and microphone, and is in the call, with nothing to install. Every player is also an OBS
 Browser Source, so a recorded session shows their camera or a picture you chose.
 
 ## What it does
 
-- Video and voice for the whole table in a browser, with grid, strip and spotlight layouts, chat with
+- Video and voice for the whole group in a browser, with grid, strip and spotlight layouts, chat with
   pictures, reactions, and a pop-out window.
 - Rooms: a Lobby for everyone plus a room per game, with a launch link to each game's tabletop or wiki.
 - Step aside privately with one or more players, on or off the recording.
@@ -34,7 +34,7 @@ proxy settings, is in the wiki's Getting Started guide.
 ## Where to read more
 
 Documentation lives in the [wiki](https://github.com/Drowbe/coffee-pub-tavern/wiki): guides for running
-a table and managing the server, the OBS link reference for integrators, and the architecture.
+a call and managing the server, the OBS link reference for integrators, and the architecture.
 It is the same material as the `documentation/` folder in this repository.
 
 <!-- global:ai-assistance -->

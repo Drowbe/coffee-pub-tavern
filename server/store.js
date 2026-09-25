@@ -5,7 +5,7 @@
 //   images/<key>/<slot>  one image per user slot (player, character, talking, muted...)
 //   images/site/<name>   the server icon and the sign-in background
 //   images/rooms/<id>    a room's picture
-// Everything is loaded once and written back whole; a table's worth of users
+// Everything is loaded once and written back whole; a group's worth of users
 // does not need a database.
 
 const fs = require('fs');
@@ -19,7 +19,7 @@ const crypto = require('crypto');
 // Participant box: offline, online (the camera-off picture), talking,
 // muted, aside, private. Character box: characterOffline, character
 // (online), talking, muted, characterAside, characterPrivate.
-// 'profile' is the player's own photo (header, table tiles, profile page); the
+// 'profile' is the player's own photo (header, call tiles, profile page); the
 // rest are the admin-set OBS pictures for the Participant and Character boxes.
 // The slot keys themselves stay the old "player*" names underneath -- OBS
 // scenes and view links already reference them -- only their label changed.
@@ -68,7 +68,7 @@ const ROOM_PERMISSIONS = ['moderator'];
 // The four roles (Settings > Roles): no custom roles yet. Admin always has
 // every permission and can't be edited; the other three are a grid of
 // on/off per permission, defaults below. The last group are enforced by
-// the server (kick/mute/invite, asides and private calls); the Table ones
+// the server (kick/mute/invite, asides and private calls); the in-call ones
 // are enforced by the page itself, since chat, reactions and screen share
 // travel peer to peer through LiveKit with no server hop to check.
 const ROLE_PERMISSIONS = [
@@ -175,8 +175,6 @@ const LANGUAGES = ['en'];
 const DEFAULT_SETTINGS = {
   serverName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
   homeIcon: DEFAULT_HOME_ICON,
-  tableName: 'The Table',
-  room: 'table',
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
   // Self-service sign-up at /register, off by default. A self-registered
   // account is a normal user, added automatically like everyone is to the
@@ -266,7 +264,7 @@ const DEFAULT_SETTINGS = {
   privateTintOpacity: 0,
   // Font Awesome icons picked on the Theme tab: { id, classes, label }.
   icons: DEFAULT_ICONS,
-  // The reaction tray at the table: id (also the 1-6 shortcut order and the
+  // The reaction tray in the call: id (also the 1-6 shortcut order and the
   // data-channel payload), glyph (what's drawn), label (button title/alt).
   reactions: [
     { id: 'heart', glyph: '❤️', label: 'Heart' },
@@ -443,11 +441,26 @@ class Store {
   }
 
   load() {
+    // A missing app.json is a new environment. One that is there but is not valid JSON is never started as empty
+    // (the first save would write over everything in it): the environment's build refuses it first
+    // (server/migrate-names.js, refuseUnreadable), and Store refuses it too, in case it changed since.
     let raw = {};
+    let text = null;
     try {
-      raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
+      text = fs.readFileSync(this.file, 'utf8');
     } catch (err) {
-      raw = {};
+      if (err.code !== 'ENOENT') throw new StoreError(`Could not read ${this.file} (${err.message}). Fix or restore this file, then start again.`, 500);
+    }
+    if (text !== null) {
+      try {
+        raw = JSON.parse(text);
+      } catch (err) {
+        throw new StoreError(`${this.file} is not valid JSON (${err.message}). Fix or restore this file, then start again.`, 500);
+      }
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      const what = raw === null ? 'null' : Array.isArray(raw) ? 'a list' : `a ${typeof raw}`;
+      throw new StoreError(`${this.file} is not an environment's data (it holds ${what}, not an object). Fix or restore this file, then start again.`, 500);
     }
     const data = {
       // 1 until the Names migration's first part runs (server/migrate-names.js), which records itself here as
@@ -464,7 +477,7 @@ class Store {
       invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
     };
     if (!data.rooms.some((r) => r.id === LOBBY)) {
-      data.rooms.unshift(this.sanitizeRoom({ id: LOBBY, name: 'Lobby', description: 'Everyone at the table.', members: [], createdAt: new Date().toISOString() }));
+      data.rooms.unshift(this.sanitizeRoom({ id: LOBBY, name: 'Lobby', description: 'Where everyone meets.', members: [], createdAt: new Date().toISOString() }));
     }
     // Ships BUILTIN_THEMES exactly once -- a flag rather than "seed
     // whatever's missing by id" every load, so deleting one (an admin
@@ -533,7 +546,7 @@ class Store {
       // A "pull aside" room: not shown on the manage page's Rooms tab, not
       // hand-editable, and swept away once nobody online is actually in it.
       ephemeral: Boolean(r.ephemeral),
-      // The room an ephemeral room was pulled out of, so "Back to the table"
+      // The room an ephemeral room was pulled out of, so leaving the aside
       // can return everyone there instead of always landing on the Lobby.
       origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
       // An aside is still part of the recording -- Studio mutes/dims the
@@ -688,7 +701,6 @@ class Store {
       if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
       s.homeIcon = patch.homeIcon;
     }
-    if (patch.tableName !== undefined) s.tableName = cleanText(patch.tableName, 60) || DEFAULT_SETTINGS.tableName;
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
     if (patch.mfaRequired !== undefined) s.mfaRequired = Boolean(patch.mfaRequired);
@@ -1092,7 +1104,7 @@ class Store {
 
   // Sweep aside rooms nobody is actually in any more. `online` is the
   // key -> { room, ... } map this request already built from LiveKit, so
-  // this costs nothing extra to call on every /api/table and /api/status.
+  // this costs nothing extra to call on every /api/presence and /api/status.
   // A room this young is spared even if it looks empty: the members who are
   // meant to be in it were only just told to reconnect there (a disconnect,
   // a fresh token and a new WebRTC connect all take a moment), and the very

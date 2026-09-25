@@ -77,7 +77,7 @@
        stacking a second bar of ours on top of it. -->
   <iframe class="page-overlay" id="page-overlay-frame" title="Page" hidden></iframe>
 
-  <!-- Everything at the table lives inside the stage so it can pop out as one. -->
+  <!-- Everything in the call lives inside the stage so it can pop out as one. -->
   <main class="stage" id="stage" hidden>
     <!-- Each module owns a column of the room's grid: a content area over
          an action bar, the bars sharing one bottom row so they line up. Video
@@ -200,7 +200,7 @@
             <button class="btn btn-small" id="test-speaker" type="button"><i class="fa-solid fa-play fa-fw" aria-hidden="true"></i> Test speaker</button>
             <span class="hint">Watch the meter on the mic button while you talk to test your microphone.</span>
           </div>
-          <p class="hint">A single person too loud or quiet? Hover their tile at the table for their own volume.</p>
+          <p class="hint">A single person too loud or quiet? Hover their tile in the call for their own volume.</p>
         </div>
         <div class="settings-group" data-group="camera">
           <h3>Video</h3>
@@ -265,7 +265,7 @@
       </header>
       <div class="messages" id="messages"></div>
       <!-- Covers just the chat panel, not the whole stage -- clearing chat
-           is scoped to this one room and this one browser, not a table-wide
+           is scoped to this one room and this one browser, not a call-wide
            action, so the confirmation shouldn't read as bigger than it is. -->
       <div class="chat-delete-overlay" id="chat-delete-overlay" hidden>
         <p>Clear this chat? What came before disappears from your view on this browser -- not for anyone else, and not what's already been said out loud.</p>

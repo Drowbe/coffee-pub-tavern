@@ -33,6 +33,7 @@ const { buildEnvironment, flushEnvironment } = require('./environment');
 const { HostRegistry, HostError, cleanSlug } = require('./host-registry');
 const { migrateHost, backupRefusal, refusedAtStartup, refusalSentence, MigrationError } = require('./migrate-names');
 const studioAlias = require('./studio-alias');
+const callNames = require('./call-names');
 
 const {
   PORT = 3000,
@@ -307,8 +308,8 @@ function hostAiServices() {
 
 // Build (or fetch the already-built) environment for a slug, from its own data directory. Only ever called for
 // a slug the caller already knows is real (the default, or one host.json names) -- the resolver 404s before this.
-// Environments whose data the Names migration refused (server/migrate-names.js), by slug: { reason ('newer' or
-// 'failed'), file (from DATA_DIR), message (the full sentence the log has), sentence (what a person asking is
+// Environments whose data the Names migration refused (server/migrate-names.js), by slug: { reason ('newer',
+// 'unreadable' or 'failed'), file (from DATA_DIR), message (the full sentence the log has), sentence (what a person asking is
 // told), at, logged }. An entry stays until that environment builds; each request tries again (so a restore
 // brings it back), and the full message is logged once per refusal, not on every request.
 const refusals = new Map();
@@ -316,7 +317,7 @@ function noteRefusal(key, err) {
   const prior = refusals.get(key);
   if (prior && prior.message === err.message) return prior;
   const refusal = {
-    reason: err.reason === 'newer' ? 'newer' : 'failed',
+    reason: ['newer', 'unreadable'].includes(err.reason) ? err.reason : 'failed',
     file: err.file ? path.relative(DATA_DIR, err.file).split(path.sep).join('/') : null,
     message: err.message,
     sentence: refusalSentence(err),
@@ -472,39 +473,33 @@ async function mintToken({ identity, name, room, publisher, media = publisher, i
     canSubscribe: publisher ? media : true,
     canPublishData: publisher,
     canUpdateOwnMetadata: publisher, // to say whether they are in the conference (the "call" attribute)
-    hidden: !publisher, // OBS viewers do not show up at the table
+    hidden: !publisher, // OBS viewers do not show up in the call
   });
   return token.toJwt();
 }
 
-// Each room here is its own LiveKit room: the Lobby keeps the base name
-// (so links and the Studio from before rooms still work), the others hang
-// their id off it. One LiveKit behind every environment (plan-tenants.md): with BASE_DOMAIN set, the base name
-// is prefixed with the environment's own slug, so two environments with the same "room" setting never collide --
-// the smallest safe thing ahead of phase 4's own naming. With no BASE_DOMAIN (env.slug is null) this is exactly
-// today's name, unchanged.
-function livekitBase() {
-  const env = currentEnvironment();
-  return env.slug ? `${env.slug}-${store.settings.room}` : store.settings.room;
+// A call's name at the call service, and the space a call belongs to (server/call-names.js, plan-names decision
+// 14): worked out from the environment's slug and the space, never stored.
+function callName(spaceId) {
+  const id = spaceId || LOBBY;
+  return callNames.callName({ slug: currentEnvironment().slug, spaceId: id, aside: Boolean(store.roomById(id)?.ephemeral) });
 }
-function livekitRoomName(roomId) {
-  const base = livekitBase();
-  return !roomId || roomId === LOBBY ? base : `${base}-${roomId}`;
-}
-
-function roomIdOfLivekit(name) {
-  const base = livekitBase();
-  if (name === base) return LOBBY;
-  return name.startsWith(`${base}-`) ? name.slice(base.length + 1) : null;
+function spaceIdOfCall(name) {
+  return callNames.spaceIdOfCall(name, {
+    slug: currentEnvironment().slug,
+    hasSpace: (id) => Boolean(store.roomById(id)),
+    slugs: () => (hostRegistry ? hostRegistry.listEnvironments().map((e) => e.slug) : []),
+  });
 }
 
-// Who is at the table right now, in whichever room, straight from LiveKit.
+// Who is in a call right now, in whichever space, straight from LiveKit. `call` is the call's own name, for sending
+// to it (it may be a name from before the upgrade); it is never sent in an answer (see withoutCall).
 async function participants() {
   try {
     const active = await roomService.listRooms();
     const out = [];
     for (const lk of active) {
-      const roomId = roomIdOfLivekit(lk.name);
+      const roomId = spaceIdOfCall(lk.name);
       if (!roomId) continue;
       const list = await roomService.listParticipants(lk.name).catch(() => []);
       for (const p of list) {
@@ -516,6 +511,7 @@ async function participants() {
           key: p.identity,
           name: p.name,
           room: roomId,
+          call: lk.name,
           joinedAt: Number(p.joinedAt || 0),
           inCall: p.attributes?.call !== 'off',
           micOn: !!mic && !mic.muted,
@@ -529,14 +525,21 @@ async function participants() {
   }
 }
 
-// The LiveKit room a user is in right now, or null.
-async function roomOf(key) {
+// A participant as an answer sends it: everything but the call's own name.
+function withoutCall(p) {
+  if (!p) return null;
+  const { call, ...rest } = p;
+  return rest;
+}
+
+// The call a user is in right now (its real name at the call service), or null.
+async function callOf(key) {
   const p = (await participants()).find((x) => x.key === key);
-  return p ? livekitRoomName(p.room) : null;
+  return p ? p.call : null;
 }
 
 // The room the stream currently hears: the first online admin's room, or the
-// Lobby if no admin is at the table. With the usual single GM this is
+// Lobby if no admin is in a call. With the usual single GM this is
 // exactly "wherever the GM is"; with more than one online admin, whichever
 // is earliest in the user list wins.
 function activeRoomId(online) {
@@ -712,11 +715,11 @@ function hasStreamAccess(req) {
   return isAdmin(req) || hasStreamKey(req);
 }
 
-// A guest's own reads (the table roster, everyone's pictures): any request
+// A guest's own reads (the presence roster, everyone's pictures): any request
 // carrying a room's current guest token, on top of a real session or the
 // stream key. Not scoped to that one room -- same broad-but-low-stakes
-// trust as the stream key above, and lets a guest see the table they're
-// actually sitting at without an account to check room membership against.
+// trust as the stream key above, and lets a guest see the call they're
+// actually in without an account to check room membership against.
 function hasGuestAccess(req) {
   const token = req.query.guest;
   return typeof token === 'string' && !!store.roomByGuestToken(token);
@@ -772,16 +775,16 @@ function publicUser(req, u) {
   };
 }
 
-// What the table and the view pages need about everyone: name and the
+// What the call and the view pages need about everyone: name and the
 // talking colour, so tiles and frames match.
-function tableUser(u) {
+function presenceUser(u) {
   const p = store.effectivePlayer(u);
   return { key: u.key, displayName: u.displayName, isAdmin: u.role === 'admin', border: p.border, borderColor: p.borderColor, borderWidth: p.borderWidth, mutedBorder: p.mutedBorder, mutedColor: p.mutedColor, plate: p.plate, plateLayout: p.plateLayout, plateColor: p.plateColor, plateTextColor: p.plateTextColor, plateFontSize: p.plateFontSize, plateOpacity: p.plateOpacity, plateTextCase: p.plateTextCase, charBorder: p.charBorder, charBorderColor: p.charBorderColor, charMutedBorder: p.charMutedBorder, charMutedColor: p.charMutedColor, charBorderWidth: p.charBorderWidth, pictureBackground: p.pictureBackground, pictureColor: p.pictureColor, pictureScale: p.pictureScale, images: Object.fromEntries(SLOTS.map((slot) => [slot, !!u.images[slot]])) };
 }
 
 function branding() {
   const s = store.settings;
-  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', tableName: s.tableName, room: s.room, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { serverName: s.serverName, hosted: Boolean(BASE_DOMAIN), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -1081,11 +1084,11 @@ function environmentStorageBytes(slug, dataDir) {
 // How many of this environment's own spaces have a live call right now (someone actually in it, not just
 // created), asked from LiveKit directly -- never cached, so a call ending frees the slot at once. Used by
 // /api/environment's usage.callsNow and, at join time, the calls cap itself (plan-tenants.md, "Phase 4").
-// roomIdOfLivekit already scopes to the current environment's own slug prefix (null for anything else).
+// spaceIdOfCall already scopes to the current environment's own calls (null for anything else).
 async function liveCallCount() {
   try {
     const active = await roomService.listRooms();
-    return active.filter((lk) => roomIdOfLivekit(lk.name) && lk.numParticipants > 0).length;
+    return active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0).length;
   } catch {
     return 0;
   }
@@ -1145,7 +1148,9 @@ function refuseModuleNotInPlan(res, id, name) {
 // stops opening a *new* one once the plan's concurrent-call limit is already spent on other spaces. Asked at
 // join time, in both the places that mint a real (publishing) token -- /api/token and guest-join alike, since
 // a guest link would otherwise be an unmetered way around the same cap.
-async function refuseOverCalls(res, room) {
+// `spaceId` is the space being joined: a call already running for it (under its name from before the upgrade too,
+// for that one release) is joining, never opening.
+async function refuseOverCalls(res, spaceId) {
   const cap = planCap('calls');
   if (cap === null) return false;
   let active;
@@ -1154,10 +1159,10 @@ async function refuseOverCalls(res, room) {
   } catch {
     return false; // can't ask LiveKit -- fail open, same as liveCallCount()
   }
-  const live = active.filter((lk) => roomIdOfLivekit(lk.name) && lk.numParticipants > 0);
-  if (live.some((lk) => lk.name === room)) return false;
+  const live = active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0);
+  if (live.some((lk) => spaceIdOfCall(lk.name) === spaceId)) return false;
   if (live.length < cap) return false;
-  const runningName = store.roomById(roomIdOfLivekit(live[0].name))?.name || 'another space';
+  const runningName = store.roomById(spaceIdOfCall(live[0].name))?.name || 'another space';
   res.status(403).json({ error: `This environment's plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
   return true;
 }
@@ -1656,7 +1661,7 @@ app.get('/invite/:token', (req, res) => {
   res.sendFile(page('register.html'));
 });
 
-// Personal link: signs the user in and drops them at the table.
+// Personal link: signs the user in and drops them in the call page.
 app.get('/j/:token', (req, res) => {
   const user = store.userByLinkToken(req.params.token);
   if (!user) return res.status(404).sendFile(page('bad-link.html'));
@@ -1794,7 +1799,7 @@ app.get('/img/:key/:slot', (req, res) => {
   res.set('Cache-Control', 'no-cache').type('image/svg+xml').send(initialsSvg(user.displayName));
 });
 
-// Web app manifest, so the table installs as a chromeless window
+// Web app manifest, so the call page installs as a chromeless window
 // (Chrome/Edge "Install app", Safari "Add to Dock").
 app.get('/manifest.webmanifest', (_req, res) => {
   const s = store.settings;
@@ -1805,7 +1810,7 @@ app.get('/manifest.webmanifest', (_req, res) => {
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').json({
     name: s.serverName,
     short_name: s.serverName.length > 12 ? s.serverName.slice(0, 12) : s.serverName,
-    description: `${s.serverName}: voice and video for the table`,
+    description: `${s.serverName}: voice and video calls`,
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -2101,7 +2106,7 @@ app.post('/api/token', async (req, res) => {
   const roomId = typeof req.body?.room === 'string' && req.body.room ? req.body.room : LOBBY;
   const theRoom = store.roomById(roomId);
   if (!theRoom) return res.status(404).json({ error: 'no such room' });
-  const room = livekitRoomName(roomId);
+  const room = callName(roomId);
   if (req.body?.role === 'viewer') {
     if (!hasStreamAccess(req)) return res.status(403).json({ error: 'stream key required' });
     const identity = `obs-${Date.now().toString(36)}-${randomToken(4)}`;
@@ -2110,7 +2115,7 @@ app.post('/api/token', async (req, res) => {
   const user = currentUser(req);
   if (!user) return res.status(401).json({ error: 'sign in first' });
   if (!theRoom.members.includes(user.key) && !isAdmin(req)) return res.status(403).json({ error: 'you are not in that room' });
-  if (req.body?.call !== false && (await refuseOverCalls(res, room))) return;
+  if (req.body?.call !== false && (await refuseOverCalls(res, roomId))) return;
   const media = Boolean(store.roomPermissions(user.key, roomId).conference);
   const token = await mintToken({ identity: user.key, name: user.displayName, room, publisher: true, media, inCall: req.body?.call !== false });
   res.json({ token, livekitUrl: livekitWsUrl(req), identity: user.key, room, roomId, conference: media });
@@ -2128,8 +2133,8 @@ app.post('/api/guest-join', async (req, res) => {
   if (!theRoom) return res.status(404).json({ error: 'that guest link is off or wrong' });
   const name = cleanText(req.body?.name, 40);
   if (!name) return res.status(400).json({ error: 'a name is required' });
-  const room = livekitRoomName(theRoom.id);
-  if (req.body?.call !== false && (await refuseOverCalls(res, room))) return;
+  const room = callName(theRoom.id);
+  if (req.body?.call !== false && (await refuseOverCalls(res, theRoom.id))) return;
   const identity = `guest-${randomToken(8)}`;
   const permissions = store.roleSet('guest');
   const token = await mintToken({ identity, name, room, publisher: true, media: Boolean(permissions.conference), inCall: req.body?.call !== false });
@@ -2196,10 +2201,10 @@ app.patch('/api/users/:key/call-prefs', requireAdmin, (req, res) => {
   res.json({ callPrefs: store.setCallPrefs(req.params.key, req.body || {}) });
 });
 
-// Everyone at the table: names, talking colours and Player options for the
-// tiles and view pages, who is at the table right now and in which room,
-// and the rooms themselves (with the ones the caller may join marked).
-// Who is on the site right now, in a room or not: a page tells the server it is open every half minute
+// Presence: everyone in the environment, with names, talking colours and Player options for the tiles and view
+// pages, who is in a call right now and in which space, and the spaces themselves (the ones the caller may join
+// marked). GET /api/presence answers it; POST /api/presence is a page's heartbeat.
+// Who is on the site right now, in a call or not: a page tells the server it is open every half minute
 // (POST /api/presence), and a person counts as present for a little longer than that. Held in memory, so it
 // starts empty when the server does and fills within half a minute.
 const PRESENT_MS = 75 * 1000;
@@ -2209,11 +2214,17 @@ app.post('/api/presence', requireUser, (req, res) => {
   res.json({ ok: true });
 });
 
-// An invitation to a conversation of two: a private room (off the record, like an aside) for the inviter and the
-// person invited, who is told wherever they have the app open (the notification stream) and can join or decline.
-// It lives a couple of minutes; the room is swept away when nobody is in it, as any aside is.
+// Asides (plan-names step 3 moved these from /api/table/*; their own record comes in step 8). Each nudge to a page
+// in a call goes over the call's data channel, on a topic that names it: aside-pull, aside-started, aside-recall and
+// aside-return. The data's `type` is the topic.
+const ASIDE_TOPICS = { pull: 'aside-pull', started: 'aside-started', recall: 'aside-recall', return: 'aside-return' };
+const asidePayload = (type, fields) => new TextEncoder().encode(JSON.stringify({ type, ...fields }));
+
+// An invitation to a conversation of two: a private aside (off the record) for the inviter and the person invited,
+// who is told wherever they have the app open (the notification stream) and can join or decline. It lives a couple
+// of minutes; the aside is swept away when nobody is in it, as any aside is.
 const INVITE_MS = 2 * 60 * 1000;
-app.post('/api/table/invite', requireUser, (req, res) => {
+app.post('/api/asides/invite', requireUser, (req, res) => {
   const me = currentUser(req);
   const to = store.userByKey(String(req.body?.to || ''));
   if (!to || to.key === me.key) return res.status(400).json({ error: 'pick someone else to invite' });
@@ -2227,14 +2238,14 @@ app.post('/api/table/invite', requireUser, (req, res) => {
   inviteEvents.emit('invite', { ...invite, fromName: me.displayName });
   res.json({ room, invite: { id: invite.id } });
 });
-// Declining just ends the invitation; the inviter is not told anything unfriendly, the room simply stays empty.
-app.post('/api/table/invite/:id/decline', requireUser, (req, res) => {
+// Declining just ends the invitation; the inviter is not told anything unfriendly, the aside simply stays empty.
+app.post('/api/asides/invite/:id/decline', requireUser, (req, res) => {
   const invite = invites.get(req.params.id);
   if (invite && invite.to === currentUser(req).key) invites.delete(invite.id);
   res.json({ ok: true });
 });
 
-app.get('/api/table', async (req, res) => {
+app.get('/api/presence', async (req, res) => {
   const user = currentUser(req);
   if (!user && !hasStreamAccess(req) && !hasGuestAccess(req)) return res.status(401).json({ error: 'sign in first' });
   const online = await participants();
@@ -2242,27 +2253,22 @@ app.get('/api/table', async (req, res) => {
   store.pruneAsideRooms(byKey);
   res.json({
     ...branding(),
-    users: store.users.map((u) => ({ ...tableUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
+    users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), room: byKey.get(u.key)?.room || null, inCall: byKey.get(u.key)?.inCall ?? false })),
     rooms: store.rooms.map((r) => ({ ...r, mine: !user || r.members.includes(user.key) || user.role === 'admin' })),
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
   });
 });
 
-// An admin pulls one or more people who are currently in their room into a
-// new room with them, for a word away from the rest of the table. LiveKit
-// here is a single, un-clustered node, so there is no server-side "move a
-// live participant" primitive to lean on: the admin's own browser gets the
-// new room directly in this response and reconnects itself; everyone else
-// pulled gets a data-channel nudge (the same mechanism chat already uses)
-// telling their page which room to reconnect to.
-// An ordinary aside is a GM move -- pulling someone into an in-fiction
-// private moment, admin only. A Private Conversation is a real off-the-
-// record word, which any two (or more) people at the table should be able
-// to step into together without needing the admin to broker it -- so this
-// route allows any signed-in user, but still requires admin for anything
-// that isn't private.
-app.post('/api/table/pull-aside', requireUser, async (req, res) => {
+// An admin pulls one or more people who are in their call into a new aside with them, for a word away from
+// everyone else. LiveKit here is a single, un-clustered node, so there is no server-side "move a live participant"
+// primitive to lean on: the admin's own browser gets the aside directly in this response and reconnects itself;
+// everyone else pulled gets a data-channel nudge (aside-pull) telling their page which aside to reconnect to.
+// An ordinary aside is a GM move -- pulling someone into an in-fiction private moment, admin only. A Private
+// Conversation is a real off-the-record word, which any two (or more) people in a call should be able to step
+// into together without needing the admin to broker it -- so this route allows any signed-in user, but still
+// requires admin for anything that isn't private.
+app.post('/api/asides', requireUser, async (req, res) => {
   try {
     const initiator = currentUser(req);
     const priv = Boolean(req.body?.private);
@@ -2272,78 +2278,75 @@ app.post('/api/table/pull-aside', requireUser, async (req, res) => {
     const keys = [...new Set(Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [])];
     const targets = keys.filter((k) => k !== initiator.key).map((k) => store.userByKey(k)).filter(Boolean);
     if (!targets.length) return res.status(400).json({ error: 'pick someone to pull aside' });
-    const initiatorRoom = await roomOf(initiator.key);
-    if (!initiatorRoom) return res.status(400).json({ error: 'you need to be at the table yourself to pull someone aside' });
-    const perms = store.roomPermissions(initiator.key, roomIdOfLivekit(initiatorRoom));
-    if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
     const here = new Map((await participants()).map((p) => [p.key, p]));
+    const initiatorCall = here.get(initiator.key)?.call;
+    if (!initiatorCall) return res.status(400).json({ error: 'you need to be in a call yourself to pull someone aside' });
+    const originId = spaceIdOfCall(initiatorCall);
+    const perms = store.roomPermissions(initiator.key, originId);
+    if (priv ? !perms.privateCall : !perms.startAside) return res.status(403).json({ error: priv ? 'you can\'t start a private conversation' : 'you can\'t pull someone into an aside' });
     for (const target of targets) {
       const there = here.get(target.key);
-      if (!there || livekitRoomName(there.room) !== initiatorRoom) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
+      if (!there || there.call !== initiatorCall) return res.status(404).json({ error: `${target.displayName} is not with you right now` });
       if (!there.inCall) return res.status(409).json({ error: `${target.displayName} is not in the conference right now` });
     }
-    const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], roomIdOfLivekit(initiatorRoom), priv);
-    // byAdmin tells the target's client whether to just go (an admin's
-    // call) or ask first -- see the 'pull-aside' handler in room.js.
-    const payload = new TextEncoder().encode(
-      JSON.stringify({ type: 'pull-aside', roomId: room.id, byAdmin: initiator.role === 'admin', private: priv, from: initiator.displayName })
-    );
-    await roomService.sendData(initiatorRoom, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: 'pull-aside' });
-    // Everyone left behind: a private word is private from the table, not
-    // invisible to it -- this is what lets their tiles turn into "in an
-    // aside" placeholders right away instead of just looking like they hung
-    // up until the next poll catches up.
-    const bystanderPayload = new TextEncoder().encode(JSON.stringify({ type: 'aside-started', roomId: room.id, members: room.members }));
-    await roomService.sendData(initiatorRoom, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: 'aside-started' }).catch(() => {});
+    const room = store.addAsideRoom([initiator.key, ...targets.map((t) => t.key)], originId, priv);
+    // byAdmin tells the target's page whether to just go (an admin's call) or ask first.
+    const payload = asidePayload(ASIDE_TOPICS.pull, { roomId: room.id, byAdmin: initiator.role === 'admin', private: priv, from: initiator.displayName });
+    await roomService.sendData(initiatorCall, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: targets.map((t) => t.key), topic: ASIDE_TOPICS.pull });
+    // Everyone left behind: a private word is private from the others, not invisible to them -- this is what lets
+    // their tiles turn into "in an aside" placeholders right away instead of just looking like they hung up until
+    // the next poll catches up.
+    const bystanderPayload = asidePayload(ASIDE_TOPICS.started, { roomId: room.id, members: room.members });
+    await roomService.sendData(initiatorCall, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.started }).catch(() => {});
     res.json({ room });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
 });
 
-// Admin-only recall: every Private Conversation pulled out of the admin's
-// own current room gets a data-channel warning -- their own page runs a
-// 10-second countdown, then reconnects them back here itself (see the
-// 'recall' topic in room.js), rather than being yanked back instantly.
-// Doesn't touch ordinary asides: the admin is always already in those, so
-// there's nothing to recall them from that "Back to the table" doesn't
-// already cover.
-app.post('/api/table/recall', requireAdmin, async (req, res) => {
+// Admin-only recall: every Private Conversation pulled out of the admin's own current space gets a data-channel
+// warning (aside-recall) -- their own page runs a 10-second countdown, then reconnects them back here itself,
+// rather than being yanked back instantly. Doesn't touch ordinary asides: the admin is always already in those, so
+// there's nothing to recall them from that returning (POST /api/asides/return) doesn't already cover.
+app.post('/api/asides/recall', requireAdmin, async (req, res) => {
   try {
     const admin = currentUser(req);
-    const adminRoom = await roomOf(admin.key);
-    if (!adminRoom) return res.status(400).json({ error: 'you need to be at the table yourself to recall anyone' });
-    const originId = roomIdOfLivekit(adminRoom);
+    const online = await participants();
+    const adminCall = online.find((p) => p.key === admin.key)?.call;
+    if (!adminCall) return res.status(400).json({ error: 'you need to be in a call yourself to recall anyone' });
+    const originId = spaceIdOfCall(adminCall);
     const destRoom = store.roomById(originId);
     const privateRooms = store.rooms.filter((r) => r.ephemeral && r.private && r.origin === originId);
     if (!privateRooms.length) return res.status(400).json({ error: 'nobody is off in a private conversation from here right now' });
-    const payload = new TextEncoder().encode(JSON.stringify({ type: 'recall', roomId: originId, roomName: destRoom?.name || 'the table' }));
-    await Promise.all(privateRooms.map((r) => roomService.sendData(livekitRoomName(r.id), payload, DataPacket_Kind.RELIABLE, { topic: 'recall' }).catch(() => {})));
+    const payload = asidePayload(ASIDE_TOPICS.recall, { roomId: originId, roomName: destRoom?.name || 'the call' });
+    // Each private aside's call by its name, and by whatever name the people in it are really in (a call from
+    // before the upgrade, for that one release).
+    const ids = new Set(privateRooms.map((r) => r.id));
+    const calls = new Set([...privateRooms.map((r) => callName(r.id)), ...online.filter((p) => ids.has(p.room)).map((p) => p.call)]);
+    await Promise.all([...calls].map((call) => roomService.sendData(call, payload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.recall }).catch(() => {})));
     res.json({ recalled: privateRooms.length });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
 });
 
-// Whoever clicks "Back to the table" while in a pull-aside room returns to
-// the room it was pulled from (the Lobby if that room is gone by now), and
-// takes the room's other member(s) with them the same way pull-aside does:
-// a data-channel nudge, since leaving would otherwise be as one-sided as
-// arriving used to be.
-app.post('/api/table/return', requireUser, async (req, res) => {
+// Whoever leaves an aside returns to the space it was pulled from (the Lobby if that space is gone by now), and
+// takes the aside's other member(s) with them the same way a pull does: a data-channel nudge (aside-return), since
+// leaving would otherwise be as one-sided as arriving used to be.
+app.post('/api/asides/return', requireUser, async (req, res) => {
   try {
     const me = currentUser(req);
     const mine = (await participants()).find((p) => p.key === me.key);
-    if (!mine) return res.status(400).json({ error: 'you need to be at the table' });
+    if (!mine) return res.status(400).json({ error: 'you need to be in a call' });
     const current = store.roomById(mine.room);
-    if (!current || !current.ephemeral) return res.status(400).json({ error: 'not in a pull-aside room' });
+    if (!current || !current.ephemeral) return res.status(400).json({ error: 'you are not in an aside' });
     const dest = (current.origin && store.roomById(current.origin)) || store.roomById(LOBBY);
     const others = current.members.filter((k) => k !== me.key);
     if (others.length) {
-      const payload = new TextEncoder().encode(JSON.stringify({ type: 'return-to-table', roomId: dest.id }));
+      const payload = asidePayload(ASIDE_TOPICS.return, { roomId: dest.id });
       // Best-effort: I still get to leave even if the others cannot be nudged.
       await roomService
-        .sendData(livekitRoomName(mine.room), payload, DataPacket_Kind.RELIABLE, { destinationIdentities: others, topic: 'return-to-table' })
+        .sendData(mine.call, payload, DataPacket_Kind.RELIABLE, { destinationIdentities: others, topic: ASIDE_TOPICS.return })
         .catch(() => {});
     }
     res.json({ room: dest });
@@ -2360,8 +2363,7 @@ app.get('/api/status', requireStream, async (req, res) => {
   store.pruneAsideRooms(byKey);
   res.json(studioAlias.status(req, {
     ...branding(),
-    users: store.users.map((u) => ({ ...publicUser(req, u), online: byKey.get(u.key) || null })),
-    table: store.users.map(tableUser),
+    users: store.users.map((u) => ({ ...publicUser(req, u), online: withoutCall(byKey.get(u.key)) })),
     rooms: store.rooms,
     activeRoom: activeRoomId(byKey),
     adminOnline: hasOnlineAdmin(byKey),
@@ -2535,13 +2537,13 @@ app.delete('/api/users/:key/rooms/:roomId/images/:slot', requireAdmin, (req, res
 // user's profile, Rooms tab.
 async function canModerate(req, targetKey, permission) {
   const actor = currentUser(req);
-  const room = await roomOf(targetKey);
-  if (!room) return { error: [404, 'not at the table'] };
+  const room = await callOf(targetKey);
+  if (!room) return { error: [404, 'not in a call'] };
   if (actor.role === 'admin') return { room };
   const target = store.userByKey(targetKey);
   if (!target || target.role === 'admin' || target.key === actor.key) return { error: [403, 'not allowed'] };
-  if ((await roomOf(actor.key)) !== room) return { error: [403, 'not allowed'] };
-  if (!store.roomPermissions(actor.key, roomIdOfLivekit(room))[permission]) return { error: [403, 'not allowed'] };
+  if ((await callOf(actor.key)) !== room) return { error: [403, 'not allowed'] };
+  if (!store.roomPermissions(actor.key, spaceIdOfCall(room))[permission]) return { error: [403, 'not allowed'] };
   return { room };
 }
 

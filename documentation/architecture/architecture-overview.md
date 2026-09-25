@@ -31,7 +31,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 ## Technology
 
 - **LiveKit** on both sides, with `livekit-client` served by Magpie itself from `/lib/`. It was chosen
-  over a hand-rolled mesh, whose upload cost grows with the table, and over Jitsi, where per-participant
+  over a hand-rolled mesh, whose upload cost grows with every person in the call, and over Jitsi, where per-participant
   OBS views would need low-level work.
 - **Node 22 and Express 5.** One app serves every page and the JSON API.
 - **No database.** Users, rooms, settings and roles live in one JSON file in the data volume, images next
@@ -52,14 +52,14 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `server/modules.js` | Module install and registry; see [architecture-modules](architecture-modules.md) |
 | `public/login.html` | Sign-in page |
 | `public/register.html` | Self sign-up and invite acceptance |
-| `public/room.html` | The room list and the table |
+| `public/room.html` | The space list and the call |
 | `public/profile.html` | A player's profile: photo, call settings, default images, a section per room |
 | `public/admin.html` | The Manage page |
 | `public/roomconfig.html` | A room's own settings page |
 | `public/view.html` | The OBS view |
 | `public/brand.js` | Shared header, branding and icon lookup |
 | `public/style.css` | The one stylesheet |
-| `public/sw.js` | The service worker that lets the table install as an app |
+| `public/sw.js` | The service worker that lets the app install |
 
 ## Data and permissions
 
@@ -72,18 +72,40 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 - A member's room entry holds their per-room pictures, whether those replace their defaults, and that
   Moderator flag. Picture lookups fall from room picture, to the member's default, to the server's
   Default Images.
-- **Presence and invitations.** A page tells the server it is open with `POST /api/presence` every half minute while it is visible (`startPresence` in `public/brand.js`); the server remembers when in memory, counts a person as present for 75 seconds, and `/api/table` returns `present` beside `online` (in a room). `POST /api/table/invite` makes a private aside room (ephemeral, private, no origin) for the inviter and one present person, and sends an `invite` event down the same server-sent stream as notifications (`/api/notifications/stream`); `brand.js` shows the invitation toast, and the room page joins on accept (`app:invite-accept`, or `/#join=<room>` from another page). It needs the private-conversation permission and the server setting; an invitation lasts two minutes.
+- **Presence and invitations.** A page tells the server it is open with `POST /api/presence` every half minute while it is visible (`startPresence` in `public/brand.js`); the server remembers when in memory, counts a person as present for 75 seconds, and `GET /api/presence` returns `present` beside `online` (in a call). `POST /api/asides/invite` makes a private aside room (ephemeral, private, no origin) for the inviter and one present person, and sends an `invite` event down the same server-sent stream as notifications (`/api/notifications/stream`); `brand.js` shows the invitation toast, and the room page joins on accept (`app:invite-accept`, or `/#join=<room>` from another page). It needs the private-conversation permission and the server setting; an invitation lasts two minutes.
 - **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/rooms/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per room, none older than 30 days, in `DATA_DIR/chat.json`, and `GET /api/rooms/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 
-## Rooms and the table
+## Spaces and calls
 
-Each Magpie room is one LiveKit room. Chat, reactions and away status travel over the LiveKit data
-channel between participants and are never stored. Stepping aside creates an ephemeral room that holds
-its origin room's id and is removed when empty; the server tells each moved participant to switch.
-Presence for the Manage page and for OBS views comes from LiveKit's participant list, polled by
-`/api/table`.
+Each space has one call, a LiveKit room named from the space's id (`lobby` for the Lobby, `aside-<id>` for an
+aside, each prefixed `<slug>.` on a hosted server; see "Call names" in
+[architecture-tenants](architecture-tenants.md)). Nothing about the name is stored. Chat, reactions and away
+status travel over the LiveKit data channel between participants and are never stored. Stepping aside creates
+an ephemeral room that holds its origin space's id and is removed when empty.
+
+- `GET /api/presence` answers who is online and where (`users`, `rooms`, `activeRoom`, `adminOnline`, and the
+  environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
+  person, the access key or a guest's token (`?guest=`) may ask; anyone else gets 401.
+- `POST /api/asides` `{ with, private }` pulls people who are in the caller's call into a new aside and answers
+  `{ room }`. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
+  lacks the permission), 400 "pick someone to pull aside" or "you need to be in a call yourself to pull someone
+  aside", 404 "`<name>` is not with you right now", 409 "`<name>` is not in the conference right now", and 502
+  "LiveKit: ..." when the call service fails.
+- `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ room, invite: { id } }`;
+  `POST /api/asides/invite/:id/decline` answers `{ ok: true }`.
+- `POST /api/asides/recall` (an admin) tells every private conversation pulled out of the admin's space to come
+  back, and answers `{ recalled }`, the number of them; 400 "you need to be in a call yourself to recall anyone"
+  or "nobody is off in a private conversation from here right now".
+- `POST /api/asides/return` takes the caller, and the aside's other members, back to the space the aside came
+  from (the Lobby when that space is gone) and answers `{ room }`; 400 "you need to be in a call" or "you are not
+  in an aside".
+
+The server tells the other people involved over the data channel, on four topics: `aside-pull`
+`{ type, roomId, byAdmin, private, from }` to the people pulled, `aside-started` `{ type, roomId, members }` to
+everyone left behind, `aside-recall` `{ type, roomId, roomName }` and `aside-return` `{ type, roomId }`. The old
+`/api/table...` routes answer 404 and the old topics are no longer sent.
 
 ## Hosting
 

@@ -699,7 +699,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
     async people() {
       if (scope !== 'room' || !roomId) return [];
       const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
-      const { users, rooms } = await api('GET', `/api/table${q}`);
+      const { users, rooms } = await api('GET', `/api/presence${q}`);
       const members = new Set((rooms || []).find((r) => r.id === roomId)?.members || []);
       return (users || []).filter((u) => members.has(u.key)).map((u) => ({ key: u.key, name: u.displayName }));
     },
@@ -1069,10 +1069,10 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       if (onTitle) onTitle(String(title || '').slice(0, 80));
       return true;
     },
-    // Who is at the table right now, everyone: the same roster the table page reads. For a page that follows
+    // Who is online right now, everyone: the same roster the call page reads. For a page that follows
     // people (a keyed page about one of them, a dashboard) rather than a room panel's own members (`people`).
     async 'presence.get'() {
-      const d = await api('GET', `/api/table${busGuest()}`);
+      const d = await api('GET', `/api/presence${busGuest()}`);
       return {
         people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), room: u.room || null, inCall: Boolean(u.inCall), isAdmin: Boolean(u.isAdmin) })),
         rooms: (d.rooms || []).map((r) => ({ id: r.id, name: r.name, ephemeral: Boolean(r.ephemeral), origin: r.origin || null, private: Boolean(r.private) })),
@@ -1082,7 +1082,7 @@ export function mountModule({ module, frame = null, container = null, scope, roo
       };
     },
     // One person's picture in a slot (profile, player, character, talking ...), as a blob URL the module shows and
-    // releases; null when they have none there. `room` asks for that room's own picture set, the way the table does.
+    // releases; null when they have none there. `room` asks for that room's own picture set, the way the call page does.
     async 'images.get'({ key, slot, room, fallback }) {
       const p = new URLSearchParams();
       if (room) p.set('room', String(room));

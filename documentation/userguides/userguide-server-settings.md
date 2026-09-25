@@ -42,7 +42,7 @@ On the Server tab. **Language** is the interface language (English, until transl
   in has set one; the last fallback before the box goes transparent.
 - **Guest images.** The Participant pictures every guest shows, since a guest has no account of their
   own.
-- **Reactions.** The emoji tray at the table and on stream, also offered in chat. Add, remove, reorder
+- **Reactions.** The emoji tray in the call and on stream, also offered in chat. Add, remove, reorder
   and edit the emoji and label, or leave the list empty to turn reactions off. The first six are keys
   **1** to **6**.
 - **Font Awesome.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example

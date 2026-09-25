@@ -13,7 +13,7 @@ order:
 1. The check and the migration's frame. **Built** (September 24, 2026).
 2. Environment: the host-level migration part, `/api/host/environments`, the console's code names.
    **Built** (September 24, 2026).
-3. Table out, and the call's name.
+3. Table out, and the call's name. **Built** (September 24, 2026).
 4. Roles: `owner`, `member` and the host's stand-in `admin`.
 5. Space and the environment scope: the server and data (5a), the pages (5b), the SDK, the manifest and the
    bundled modules (5c).

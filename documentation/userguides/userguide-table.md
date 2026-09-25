@@ -1,11 +1,11 @@
-# The Table
+# The Call
 
 **Audience:** a player using Coffee Pub Magpie in a browser: joining a room, talking, chatting, and
 stepping away.
 
 ## Join and leave
 
-The join screen lists the rooms you belong to. Join is one click. The page then becomes the table:
+The join screen lists the rooms you belong to. Join is one click. The page then becomes the call:
 the header stays, now naming the room you are in, with the room bar under it (see below), the tiles fill the
 middle, and a bar of controls sits at the bottom edge like Zoom or Meet.
 
@@ -63,7 +63,7 @@ Open chat from the **room bar**, under the header, or with **C**. The room bar i
 - **History.** Text messages travel live over the media server, and the server also keeps a rolling
   window for each room: the last 500 messages, none older than 30 days. Whoever joins, late or from
   another browser, sees what was said above a line that marks where they came in. Pictures are live
-  only and are not kept. A pull-aside (private conversation) room keeps nothing. **Clear chat**
+  only and are not kept. An aside or a private conversation keeps nothing. **Clear chat**
   hides what came before from your view on that browser; it does not delete anything for anyone else.
 
 Who may send messages or pictures is set per role on the Roles tab; if a permission is off the
@@ -78,7 +78,7 @@ The conference has the same titlebar as the chat and every module: the same butt
 The smiley button in the bar opens a tray, set up by an admin on the Theme tab of the Manage page
 (six by default: heart, thumbs up, thumbs down, laugh, question mark, and a die for a natural 20).
 The first six are also keys **1** to **6**. A reaction floats up from your tile for a couple of
-seconds on everyone's table, and up your Participant and Character boxes in OBS. Nothing is stored.
+seconds on everyone's screen, and up your Participant and Character boxes in OBS. Nothing is stored.
 
 ## Deafen
 
@@ -118,7 +118,7 @@ because leaving the page would drop the call. A **Back to** button in that page'
 
 ## Install it as an app, and pop it out
 
-To run the table without browser bars, install it as an app: Chrome and Edge show **Install as an
+To run Magpie without browser bars, install it as an app: Chrome and Edge show **Install as an
 app** in the settings popover, Safari on macOS has **File, Add to Dock**, and iPhones and iPads use
 **Share, Add to Home Screen**.
 

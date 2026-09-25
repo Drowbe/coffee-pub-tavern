@@ -16,7 +16,7 @@ The header is two rows, and each row is three zones. The rows are about differen
 
 ## The secondary nav: the space
 
-`.subnav`, built in `public/room.js`, only at the table (`body.at-table`). Its left zone is markup; its right zone is drawn from the registry, and it is the bar a module's tools go into.
+`.subnav`, built in `public/room.js`, only in a space (`body.in-space`). Its left zone is markup; its right zone is drawn from the registry, and it is the bar a module's tools go into.
 
 | Zone | Class | Holds |
 |---|---|---|

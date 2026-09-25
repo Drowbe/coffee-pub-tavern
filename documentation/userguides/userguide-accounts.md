@@ -13,7 +13,7 @@ Each account can sign in either way, or both:
 
 - **Login and password.** The admin picks both and tells the player.
 - **Personal link.** Turn it on for a player and copy the link, something like
-  `https://host.<domain>/j/2f3kd...`. Opening it signs them in and lands them at the table.
+  `https://host.<domain>/j/2f3kd...`. Opening it signs them in and lands them on the list of spaces, ready to join.
   Regenerate it to make the old one stop working; turn it off to require a password.
 
 Nobody changes their own password; an admin sets it. Sessions last 30 days. Changing someone's
@@ -28,7 +28,7 @@ Every account has a **key**, eight letters and digits made when the account is c
 changes. Images, OBS view links and OBS source names use the key, so an admin can rename a login or
 a display name without touching anything in OBS.
 
-A player with no camera and no microphone still joins: they sit at the table with their picture, use
+A player with no camera and no microphone still joins: they sit in the call with their picture, use
 chat and reactions, and can be published to OBS like anyone else.
 
 ## Let people sign themselves up
@@ -42,12 +42,12 @@ sign-up is on, expires after 7 days, and works once.
 
 ## Guests
 
-A guest has no account, for someone dropping in once. While at the table, open the settings popover
+A guest has no account, for someone dropping in once. While in a call, open the settings popover
 (the gear next to chat and reactions) and, under **Guests**, turn on that room's link. Anyone with it
 lands on a page asking only for a name, then joins straight into that room with video, microphone,
 chat and reactions.
 
-Anyone at the table with the right permission can turn the link on, copy it, or turn it off. It is a
+Anyone in the call with the right permission can turn the link on, copy it, or turn it off. It is a
 standing door rather than single-use: it works for as many guests as show up until someone turns it
 off or generates a new one. Nothing about a guest is kept once they leave. A guest with their camera
 off shows the shared **Guest images** picture set (see
@@ -59,7 +59,7 @@ Guests** on its own settings page, which also turns off any link already in use 
 Everyone has one of four roles. Open **Roles** on the Manage page to see a grid of checkboxes: one
 row per permission, one column per role. Changes save as you click.
 
-- **Admin** can do everything, and cannot be turned down. Admins run the table: they add people, set
+- **Admin** can do everything, and cannot be turned down. Admins run the environment: they add people, set
   passwords and change settings.
 - **Moderator** is what someone gets in any room where they are marked **Moderator** on their
   profile's Rooms tab, on top of their ordinary role there.

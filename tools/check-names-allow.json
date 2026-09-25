@@ -10,5 +10,12 @@
   { "file": "server/index.js", "level": "space", "pattern": "^room$", "line": "^\\s*room,\\s*$", "reason": "The LiveKit grant's own room field in mintToken's addGrant({ room, ... })." },
   { "file": "**", "level": "table", "pattern": "^fa-table(-[a-z-]+)?$", "reason": "Font Awesome's own icon names (fa-table-columns, fa-table-cells-large)." },
   { "file": "**", "level": "table", "pattern": "^(table|thead|tbody|tfoot)$", "line": "</?(table|thead|tbody|tfoot)\\b", "reason": "HTML table elements, not the call." },
-  { "file": "**", "level": "table", "pattern": "^(table\\.)?(files|roles)-table$", "reason": "The styles of HTML tables (files, roles), not the call." }
+  { "file": "**", "level": "table", "pattern": "^(table\\.)?(files|roles)-table$", "reason": "The styles of HTML tables (files, roles), not the call." },
+  { "file": "server/call-names.js", "level": "table", "pattern": "^table$", "line": "^const PREVIOUS_CALL_BASE = 'table';", "reason": "The call names from before step 3 (table, table-<id>, <slug>-table[-<id>]), still read back for one release so people in a call during the upgrade are found and placed; removed after that release, in step 10 at the latest (plan-names decisions 10 and 14)." },
+  { "file": "tools/check-host-registry.mjs", "level": "table", "pattern": "^(names-table|tableName)$|^(environments/)?acme-(aside-)?table", "reason": "The check asserts the names-table migration part ran and the old tableName setting is gone, and runs environments named acme-table and acme-aside with their old-shape call names (<slug>-table...) beside acme's, to prove the call-name fallback never claims another environment's calls." },
+  { "file": "server/module-build.js", "level": "table", "pattern": "^crcTable$", "reason": "A CRC-32 lookup table for the zip writer, not the call." },
+  { "file": "server/store.js", "level": "table", "pattern": "^EDITABLE_ROLES(\\.\\w+)?$", "reason": "Editable, not the call: EDITABLE_ROLES keeps its name (plan-names, The server, Roles)." },
+  { "file": "public/brand.js", "level": "table", "pattern": "^host\\.table$", "line": "'host\\.table': 'app\\.call'", "reason": "The old browser key, read only to move it once to app.call (plan-names, The migration, The browser)." },
+  { "file": "public/room.js", "level": "table", "pattern": "^table-columns$", "line": "icon: 'table-columns'", "reason": "A Font Awesome icon name (fa-table-columns) passed bare to the nav registry, not the call." },
+  { "file": "modules/travel/src/travel.js", "level": "table", "pattern": "^Table$", "line": "`Table for \\$\\{item\\.partySize\\}`", "reason": "Plain English on a restaurant booking (\"Table for 4\"), not the call." }
 ]

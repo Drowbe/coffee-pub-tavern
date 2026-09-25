@@ -373,12 +373,25 @@ try {
     const list = await call(server, 'admin', 'GET', '/api/host/environments', { cookie });
     assert.equal(list.status, 200);
     assert.equal('tenants' in list.json, false);
-    assert.deepEqual(list.json.environments.map((e) => [e.slug, e.refused]), [['acme', null]]);
+    assert.deepEqual(list.json.environments.map((e) => [e.slug, e.refused]), [['acme', null], ['bravo', null]]);
+    // Each environment's own part (names-table) runs when it is built: the old settings gone, recorded once, the copy kept.
+    for (const slug of ['acme', 'bravo']) {
+      assert.equal((await call(server, slug, 'GET', '/api/branding')).status, 200);
+      const envDir = path.join(data, 'environments', slug);
+      const app = readJson(path.join(envDir, 'app.json'));
+      assert.equal(app.version, 2, `${slug}: version 2`);
+      assert.deepEqual(names.recordedParts(app), ['names-table'], `${slug}: names-table recorded once`);
+      assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
+      assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
+    }
     assert.equal((await call(server, 'admin', 'GET', '/api/host/environments')).status, 401, 'signed out: refused');
     const made = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'beta', name: 'Beta', owner: { login: 'owner', password: 'owner-password-1' } } });
     assert.equal(made.status, 201, made.text);
     assert.equal(made.json.environment.slug, 'beta');
     assert.ok(fs.existsSync(path.join(data, 'environments', 'beta', 'app.json')));
+    const betaApp = readJson(path.join(data, 'environments', 'beta', 'app.json'));
+    assert.deepEqual(betaApp.migrations.map((m) => [m.id, m.moved]), [['names-table', []]], 'a new environment records its parts as run, moving nothing');
+    assert.ok(!fs.existsSync(path.join(data, 'environments', 'beta', 'pre-names')), 'and keeps no copy');
     const again = await call(server, 'admin', 'POST', '/api/host/environments', { cookie, body: { slug: 'beta', name: 'Beta' } });
     assert.deepEqual([again.status, again.json], [409, { error: '"beta" is already in use' }]);
     const edited = await call(server, 'admin', 'PATCH', '/api/host/environments/beta', { cookie, body: { name: 'Beta Two', plan: { members: 10 } } });
@@ -422,7 +435,7 @@ try {
     server = await startServer(data, hostedEnv);
     assert.match(server.output(), /names-from-the-future", which this version of Magpie does not know: this data is from a newer version of Magpie, so it will not be opened here\. This environment is skipped and answers 503/);
     const product = await call(server, '', 'GET', '/api/product/environments');
-    assert.deepEqual(product.json.environments.map((e) => e.slug), ['acme'], 'left out of the sign-in list');
+    assert.deepEqual(product.json.environments.map((e) => e.slug), ['acme', 'bravo'], 'left out of the sign-in list');
     const page = await call(server, 'beta', 'GET', '/', { accept: 'text/html' });
     assert.equal(page.status, 503);
     assert.match(page.headers['content-type'], /text\/html/);
@@ -441,7 +454,7 @@ try {
     assert.deepEqual([restored.status, restored.json], [200, { ok: true }]);
     const after = await call(server, 'admin', 'GET', '/api/host/environments', { cookie });
     assert.equal(after.json.environments.find((e) => e.slug === 'beta').refused, null);
-    assert.deepEqual((await call(server, '', 'GET', '/api/product/environments')).json.environments.map((e) => e.slug), ['acme', 'beta']);
+    assert.deepEqual((await call(server, '', 'GET', '/api/product/environments')).json.environments.map((e) => e.slug), ['acme', 'beta', 'bravo']);
     assert.equal((await call(server, 'beta', 'GET', '/api/me')).status, 401, 'opens again, without a restart');
   });
 
@@ -483,6 +496,111 @@ try {
       server = null;
     });
   }
+
+  // --- call names against a stand-in LiveKit (plan-names decision 14; QA on step 3) ---
+  // A small Twirp JSON server answering ListRooms and ListParticipants from `calls` ({ name: [identity, ...] }), so
+  // the calls cap and callsNow can be checked with other environments' calls running beside this one's.
+  const calls = {};
+  const standIn = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      const ask = body ? JSON.parse(body) : {};
+      let answer = {};
+      if (req.url.endsWith('/ListRooms')) answer = { rooms: Object.entries(calls).map(([name, people]) => ({ sid: `RM_${name}`, name, numParticipants: people.length })) };
+      else if (req.url.endsWith('/ListParticipants')) answer = { participants: (calls[ask.room] || []).map((identity) => ({ sid: `PA_${identity}`, identity, name: identity, joinedAt: '1', permission: { hidden: false }, tracks: [], attributes: {} })) };
+      else { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(answer));
+    });
+  });
+  await new Promise((resolve) => standIn.listen(0, '127.0.0.1', resolve));
+  const setCalls = (next) => { for (const k of Object.keys(calls)) delete calls[k]; Object.assign(calls, next); };
+  try {
+    await liveTest('live: the calls cap and callsNow count only this environment\'s calls, never another\'s that starts with its slug', async () => {
+      const data = path.join(liveDir, 'calls');
+      fs.mkdirSync(data);
+      server = await startServer(data, { ...hostedEnv, LIVEKIT_API_URL: `http://127.0.0.1:${standIn.address().port}` });
+      const hostCookie = await signInHost(server);
+      for (const slug of ['acme', 'acme-aside', 'acme-table']) {
+        const made = await call(server, 'admin', 'POST', '/api/host/environments', { cookie: hostCookie, body: { slug, name: slug, owner: { login: 'owner', password: 'owner-password-1' } } });
+        assert.equal(made.status, 201, made.text);
+      }
+      assert.equal((await call(server, 'admin', 'PATCH', '/api/host/environments/acme', { cookie: hostCookie, body: { plan: { calls: 1 } } })).status, 200);
+      const signIn = await call(server, 'acme', 'POST', '/api/login', { body: { login: 'owner', password: 'owner-password-1' } });
+      const owner = [].concat(signIn.headers['set-cookie'] || []).map((c) => c.split(';')[0]).join('; ');
+      const ownerKey = signIn.json.user.key;
+      const keep = (await call(server, 'acme', 'POST', '/api/rooms', { cookie: owner, body: { name: 'The Keep' } })).json.room.id;
+      const callsNow = async () => (await call(server, 'acme', 'GET', '/api/environment', { cookie: owner })).json.usage.callsNow;
+      const token = (room) => call(server, 'acme', 'POST', '/api/token', { cookie: owner, body: { room } });
+
+      // Other environments' calls only: new names of acme-aside and acme-table, their old shapes, and QA's acme-table-lobby.
+      setCalls({ 'acme-aside.lobby': ['x1'], 'acme-table.lobby': ['x2'], 'acme-aside-table': ['x3'], 'acme-table-table': ['x4'], [`acme-table-table-${keep}`]: ['x5'], 'acme-table-lobby': ['x6'], lobby: ['x7'] });
+      assert.equal(await callsNow(), 0, 'none of them is acme\'s');
+      const first = await token('lobby');
+      assert.equal(first.status, 200, `acme's owner is not refused by other environments' calls: ${first.text}`);
+      assert.equal(first.json.room, 'acme.lobby', 'the new hosted name');
+      assert.equal((await token(keep)).json.room, `acme.${keep}`);
+      const presence = (await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json;
+      assert.equal(presence.users.find((u) => u.key === ownerKey).online, false, 'nobody in another environment\'s call is placed here');
+
+      // One of acme's own calls running: counted, and a second is refused, while joining the running one is not.
+      setCalls({ 'acme-aside.lobby': ['x1'], [`acme.${keep}`]: [ownerKey] });
+      assert.equal(await callsNow(), 1);
+      const refused = await token('lobby');
+      assert.deepEqual([refused.status, refused.json], [403, { error: 'This environment\'s plan allows 1 call at once; one is running in The Keep' }]);
+      assert.equal((await token(keep)).status, 200, 'joining the running call is never refused');
+      const placed = (await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json.users.find((u) => u.key === ownerKey);
+      assert.deepEqual([placed.online, placed.room], [true, keep]);
+
+      // acme's own call under its old name (someone in it across the upgrade): counted and placed, and joining it is joining.
+      setCalls({ 'acme-table': [ownerKey], 'acme-aside-table': ['x3'] });
+      assert.equal(await callsNow(), 1);
+      assert.equal((await token('lobby')).status, 200, 'the Lobby\'s call is running under its old name: joining');
+      assert.equal((await token(keep)).status, 403, 'a second call is refused');
+      assert.equal((await call(server, 'acme', 'GET', '/api/presence', { cookie: owner })).json.users.find((u) => u.key === ownerKey).room, 'lobby');
+      await server.stop();
+      server = null;
+    });
+  } finally {
+    standIn.close();
+  }
+
+  // --- an app.json that is there but is not valid JSON is refused, never started as empty ---
+  await liveTest('live: a hosted environment whose app.json is not valid JSON answers 503, the others run, and the file is untouched', async () => {
+    const data = path.join(liveDir, 'calls');
+    const appFile = path.join(data, 'environments', 'acme-table', 'app.json');
+    fs.writeFileSync(appFile, '{ not json');
+    server = await startServer(data, hostedEnv);
+    assert.ok(server.output().includes(`${appFile} is not valid JSON`) && server.output().includes('Fix or restore this file, then start again.'), server.output());
+    const api = await call(server, 'acme-table', 'GET', '/api/me');
+    assert.deepEqual([api.status, api.json], [503, { error: names.REFUSED_UNREADABLE }]);
+    assert.equal((await call(server, 'acme', 'GET', '/api/me')).status, 401, 'the other environments still run');
+    const list = await call(server, 'admin', 'GET', '/api/host/environments', { cookie: await signInHost(server) });
+    const refused = list.json.environments.find((e) => e.slug === 'acme-table').refused;
+    assert.deepEqual([refused.reason, refused.file], ['unreadable', 'environments/acme-table/app.json']);
+    assert.equal(fs.readFileSync(appFile, 'utf8'), '{ not json', 'never written over');
+    await server.stop();
+    server = null;
+  });
+
+  await liveTest('live: a single install whose app.json is not valid JSON stops, naming the file; a missing one starts fresh', async () => {
+    const single = path.join(liveDir, 'single-unreadable');
+    fs.mkdirSync(single);
+    fs.writeFileSync(path.join(single, 'app.json'), '{ not json');
+    let stopped = null;
+    try { server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' }); } catch (err) { stopped = err; }
+    assert.ok(stopped, 'the start stops');
+    assert.match(stopped.message, /the server stopped \(1\)/);
+    assert.ok(stopped.message.includes(`${path.join(single, 'app.json')} is not valid JSON`) && stopped.message.includes('Fix or restore this file, then start again.'), stopped.message);
+    assert.equal(fs.readFileSync(path.join(single, 'app.json'), 'utf8'), '{ not json');
+    server = null;
+    const fresh = path.join(liveDir, 'single-fresh');
+    server = await startServer(fresh, { ADMIN_PASSWORD: 'admin-password-1' });
+    assert.equal((await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } })).status, 200);
+    await server.stop();
+    server = null;
+  });
 } finally {
   if (server) await server.stop();
   fs.rmSync(liveDir, { recursive: true, force: true });
