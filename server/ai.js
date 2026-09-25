@@ -36,7 +36,7 @@ function openKey(stored, buf) {
 // service that speaks the OpenAI chat interface (a model server on the admin's network, or another company), whose address is typed.
 const PROVIDERS = ['none', 'openai', 'anthropic', 'compatible'];
 const SOURCES = ['managed', 'custom'];
-// The companies the host may offer a managed service for (documentation/plans/plan-tenants.md, "Managed AI,
+// The companies the host may offer a managed service for (documentation/plans/plan-environments.md, "Managed AI,
 // per company") -- PROVIDERS minus 'none', in the order a fresh environment picks its first offered one.
 const MANAGED_PROVIDERS = ['openai', 'anthropic', 'compatible'];
 const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
@@ -111,7 +111,7 @@ function applyAiFields(current, patch) {
   return next;
 }
 
-// One company's own slot in the host's managed AI (documentation/plans/plan-tenants.md, "Managed AI, per
+// One company's own slot in the host's managed AI (documentation/plans/plan-environments.md, "Managed AI, per
 // company"): openai and anthropic keep a model and a key (their address is always the company's own, never
 // stored); compatible keeps an address too. `key` replaces only when a non-empty string is sent; `clearKey`
 // removes it. Used by HostRegistry.setManagedAi -- the validation an environment's own custom slot has,

@@ -11,7 +11,7 @@ build step), `public/sdk/`, and the front end of modules in `modules/<id>/`.
 ## Before you change anything
 
 - Read the parts of the architecture documents that apply: `architecture-navigation.md`,
-  `architecture-module-window.md`, `architecture-room-layout.md`, and `designsystem/design-theme.md`
+  `architecture-module-window.md`, `architecture-canvas.md`, and `designsystem/design-theme.md`
   for colors and tokens.
 - Reuse what exists: theme tokens instead of hard-coded colors, `host.menu.show`, `host.toolbar.set`,
   `host.ui.viewSwitch` and the nav registry (`public/nav-bar.js`) instead of hand-rolled equivalents.

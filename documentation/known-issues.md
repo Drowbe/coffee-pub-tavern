@@ -14,13 +14,13 @@ does not follow a pull aside, a recall or a return, and does not show who is onl
 
 Workaround: reload the page once after the update.
 
-## Opening a dashboard item a second time doesn't open the item
+## Opening a dashboard object a second time doesn't open the object
 
-On the spaces page, clicking an item on the dashboard (a task, an event, a poll) opens its module and the item
-the first time. Clicking it a second time opens the module but not the item.
+On the spaces page, clicking an object on the dashboard (a task, an event, a poll) opens its module and the object
+the first time. Clicking it a second time opens the module but not the object.
 GitHub #20.
 
-Workaround: find the item in the module itself.
+Workaround: find the object in the module itself.
 
 ## Some data files are still readable by other users on the server
 

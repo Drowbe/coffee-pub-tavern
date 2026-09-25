@@ -68,7 +68,7 @@ const {
   HOST_ADMIN_PASSWORD = '', // hosted: the old name of ADMIN_PASSWORD, likewise
   PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
   CONTACT_EMAIL = '',
-  // Seed the host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per
+  // Seed the host's managed AI service, per company (documentation/plans/plan-environments.md, "Managed AI, per
   // company"): AI_OPENAI_KEY/AI_ANTHROPIC_KEY name a company's key directly; AI_PROVIDER (with AI_ADDRESS,
   // AI_MODEL, AI_KEY) is the older one-company form, filling whichever company it names -- both still work.
   AI_PROVIDER = '',
@@ -80,7 +80,7 @@ const {
   AI_ANTHROPIC_KEY = '',
   // An organisation-level Anthropic key needs its workspace id sent with every call (an id, not a secret).
   AI_ANTHROPIC_WORKSPACE = '',
-  // Self-serve and billing (plan-tenants.md, "Phase 5"): SIGNUP gates POST /api/product/signup -- off unless a
+  // Self-serve and billing (plan-environments.md, "Phase 5"): SIGNUP gates POST /api/product/signup -- off unless a
   // host explicitly opts in with SIGNUP=on, so a freshly upgraded host never offers public self-service by
   // surprise. BILLING_SECRET signs the billing webhook (x-billing-signature, HMAC-SHA256 of the raw body) --
   // unset, the webhook route answers 404, same as a feature that was never turned on. A plan's own checkout URL
@@ -149,7 +149,7 @@ const mfaOffered = ENABLE_MFA !== 'false';
 const adminMfaLockoutBypass = ADMIN_MFA_LOCKOUT_BYPASS === 'true';
 const hostMfaRequired = HOST_MFA_REQUIRED === 'true' || HOST_MFA === 'required';
 // BILLING_CHECKOUT_<PLAN ID>, e.g. BILLING_CHECKOUT_PRO for the plan "pro"; none set means that plan is not
-// sold online (plan-tenants.md, "Phase 5").
+// sold online (plan-environments.md, "Phase 5").
 function checkoutUrlFor(planId) {
   return process.env[`BILLING_CHECKOUT_${String(planId).toUpperCase().replace(/[^A-Z0-9]/g, '_')}`] || null;
 }
@@ -161,7 +161,7 @@ if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
   process.exit(1);
 }
 
-// --- environments (one host, many environments: documentation/plans/plan-tenants.md, phase 1) -----------------
+// --- environments (one host, many environments: documentation/plans/plan-environments.md, phase 1) -----------------
 // With no BASE_DOMAIN there is exactly one environment, built straight from DATA_DIR: today's install, unchanged.
 // With BASE_DOMAIN set, one environment per slug (DATA_DIR/environments/<slug>/), resolved from the request's
 // hostname by the resolver middleware below (see "the door"). Either way, request handlers keep reading `store`,
@@ -277,7 +277,7 @@ if (!hostRegistry && fs.existsSync(path.join(DATA_DIR, 'secrets.key'))) {
 }
 // (Up here, not beside the two-step sign-in below: environmentFor() runs at module load and hands it to each
 // environment's Ai, which encrypts a plain saved key on its first load.)
-// The host's own region-cut jobs, over its shared folders (documentation/plans/plan-tenants.md, "Shared files:
+// The host's own region-cut jobs, over its shared folders (documentation/plans/plan-environments.md, "Shared files:
 // the host's map") -- lands a cut in DATA_DIR/shared/<module id>/<folder>/ (`under: ''`, no per-environment
 // "modules" segment), never DATA_DIR/shared/modules/... An environment's own regionCutJobs (per environment,
 // built in buildEnvironment) is untouched; this is the host's own, only reachable from hostRouter.
@@ -375,7 +375,7 @@ function ownersFromServerAdmin(dir) {
 }
 migrateIfNeeded();
 
-// On a first start with BASE_DOMAIN where a shared folder (documentation/plans/plan-tenants.md, "Shared files:
+// On a first start with BASE_DOMAIN where a shared folder (documentation/plans/plan-environments.md, "Shared files:
 // the host's map") does not exist yet: if exactly one environment has files in its own, pre-shared folder for
 // it, those files move to the shared one, so that environment's map keeps working without anyone copying
 // anything by hand; more than one, or none, and the folder is simply left to start empty (an admin adds files
@@ -1124,7 +1124,7 @@ function currentUser(req) {
 
 // A hint, not a session: on a real sign-in at this environment (never the host admin's own), remembers which
 // slugs this browser has used, most recent first, so the product page's own Sign in can offer them back without
-// the host ever learning who anyone is (see "Sign in from the product page" in plan-tenants.md). Only set with a
+// the host ever learning who anyone is (see "Sign in from the product page" in plan-environments.md). Only set with a
 // base domain; never cleared on sign-out, since it names no person, just a short list of addresses.
 function setEnvHint(req, res) {
   if (!BASE_DOMAIN) return;
@@ -1412,7 +1412,7 @@ function sameOriginOnly(req, res, next) {
 }
 app.use((req, res, next) => (WRITE_METHODS.has(req.method) && !CROSS_ORIGIN_EXEMPT.has(req.path) ? sameOriginOnly(req, res, next) : next()));
 // verify stashes the exact bytes received, alongside the parsed req.body -- the billing webhook's signature
-// (plan-tenants.md, "Phase 5") is an HMAC over those bytes, not a re-serialization of the parsed object, which
+// (plan-environments.md, "Phase 5") is an HMAC over those bytes, not a re-serialization of the parsed object, which
 // would not reliably reproduce what the sender actually signed (key order, whitespace).
 app.use(express.json({ limit: '64kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
@@ -1424,7 +1424,7 @@ const templateFileText = express.text({ type: () => true, limit: 64 * 1024 });
 const rawZip = express.raw({ type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'], limit: MODULE_LIMITS.zipBytes + 1024 });
 const rawImage = express.raw({ type: Object.keys(IMAGE_TYPES), limit: MAX_IMAGE_BYTES + 1024 });
 
-// --- the host console and its API (documentation/plans/plan-tenants.md) ----------------------------------------
+// --- the host console and its API (documentation/plans/plan-environments.md) ----------------------------------------
 // A separate mini-app, reached only at admin.<base>: never mounted on the main app directly, so a request routed
 // here can never fall through to an environment's own routes below (which need an environment resolved, and none is,
 // for the host admin -- see requireHostAdmin, its own session, auth.HOST_COOKIE, never an environment's).
@@ -1818,7 +1818,7 @@ function walkFiles(dir, base = dir, out = []) {
   return out;
 }
 // Total bytes in a directory tree, without reading any file's contents -- walkFiles reads every file (for
-// zipping) and would be wasteful just to measure an environment's own storage use (plan-tenants.md, "Phase 3").
+// zipping) and would be wasteful just to measure an environment's own storage use (plan-environments.md, "Phase 3").
 function dirSize(dir) {
   let total = 0;
   let names;
@@ -1845,7 +1845,7 @@ function environmentStorageBytes(slug, dataDir) {
 }
 // How many of this environment's own spaces have a live call right now (someone actually in it, not just
 // created), asked from LiveKit directly -- never cached, so a call ending frees the slot at once. Used by
-// /api/environment's usage.callsNow and, at join time, the calls cap itself (plan-tenants.md, "Phase 4").
+// /api/environment's usage.callsNow and, at join time, the calls cap itself (plan-environments.md, "Phase 4").
 // spaceIdOfCall already scopes to the current environment's own calls (null for anything else).
 async function liveCallCount() {
   try {
@@ -1856,7 +1856,7 @@ async function liveCallCount() {
   }
 }
 
-// --- plan caps (plan-tenants.md, "Phase 3: the caps, enforced at the seam") --------------------------------
+// --- plan caps (plan-environments.md, "Phase 3: the caps, enforced at the seam") --------------------------------
 // A cap is null for none. Self-hosted (no BASE_DOMAIN, or a slug the registry somehow has no environment for) is
 // nobody's environment, so it is never capped -- every planCap() reads null there, same as an uncapped plan.
 function planCap(name) {
@@ -1912,7 +1912,7 @@ function refuseModuleNotInPlan(res, id, name) {
   res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${store.moduleDisplay(id).name || name}.` });
   return true;
 }
-// The calls cap (plan-tenants.md, "Phase 4"): joining a room already in a call is never refused, so this only
+// The calls cap (plan-environments.md, "Phase 4"): joining a room already in a call is never refused, so this only
 // stops opening a *new* one once the plan's concurrent-call limit is already spent on other spaces. Asked at
 // join time, in both the places that mint a real (publishing) token -- /api/token and guest-join alike, since
 // a guest link would otherwise be an unmetered way around the same cap.
@@ -2020,14 +2020,14 @@ hostRouter.get('/api/host/settings', requireHostAdmin, (_req, res) => {
     modules: [...BUILTIN_MODULES, ...bundledModules(BUNDLED_DIR)].map((m) => ({ id: m.id, name: m.name || m.id, icon: m.icon || null })),
   });
 });
-// The plan catalog (plan-tenants.md, "Phase 5"): the console's Plans panel edits a plan's name and its five caps;
+// The plan catalog (plan-environments.md, "Phase 5"): the console's Plans panel edits a plan's name and its five caps;
 // PUT replaces the whole catalog (the same shape GET's own `plans` field is), free always kept present regardless
 // of what is sent.
 hostRouter.put('/api/host/plans', requireHostAdmin, (req, res) => {
   res.json({ plans: hostRegistry.setPlansCatalog(req.body || {}) });
 });
 // Provider-agnostic billing webhook: a provider's own format is adapted into this shape outside the app (a
-// small relay), which is what keeps every provider's own card handling out of it (plan-tenants.md, "Phase 5").
+// small relay), which is what keeps every provider's own card handling out of it (plan-environments.md, "Phase 5").
 // No host-admin session -- the sender is never signed in here -- so this route sits outside requireHostAdmin
 // entirely and authenticates by signature alone, over the exact bytes received (req.rawBody, see express.json's
 // verify above), never a re-serialization of the parsed body.
@@ -2045,7 +2045,7 @@ hostRouter.post('/api/host/billing', (req, res) => {
   }
 });
 
-// The host's own managed AI service (documentation/plans/plan-tenants.md, "Managed AI, per company"), above
+// The host's own managed AI service (documentation/plans/plan-environments.md, "Managed AI, per company"), above
 // every environment, one row per company: an environment chooses one of them (source "managed", a
 // managedProvider) or "custom" (its own, see PUT /api/ai). A key never leaves the server, same as an
 // environment's own never does.
@@ -2074,7 +2074,7 @@ hostRouter.post('/api/host/ai/models', requireHostAdmin, async (req, res) => {
   }
 });
 
-// The host's own shared file folders (documentation/plans/plan-tenants.md, "Shared files: the host's map"):
+// The host's own shared file folders (documentation/plans/plan-environments.md, "Shared files: the host's map"):
 // every bundled module that declares one (Maps' map-tiles), whether or not it happens to be installed anywhere
 // yet -- an admin manages the folder from here regardless. { module, name, folder, key } each.
 function bundledSharedFolders() {
@@ -2286,7 +2286,7 @@ hostRouter.use((_req, res) => res.status(404).json({ error: 'not found' }));
 // admin.<base> is the console above; <base> alone is a plain "this is the host" page (sign-up is phase 5, not
 // this); <slug>.<base> resolves that environment; anything else is a plain 404. A request at an old base domain
 // (PREVIOUS_BASE_DOMAINS) is redirected (301) to the same path at the current one, before any of that -- see
-// "Previous base domains" in plan-tenants.md. The resolver never reads a path, only the hostname.
+// "Previous base domains" in plan-environments.md. The resolver never reads a path, only the hostname.
 if (BASE_DOMAIN) {
   app.use((req, res, next) => {
     const host = (req.hostname || '').toLowerCase();
@@ -2328,7 +2328,7 @@ if (BASE_DOMAIN) {
 app.get('/api/product', productInfo);
 app.get('/api/product/environment', productEnvironment);
 app.get('/api/product/environments', productEnvironments);
-// Sign-up at the bare base domain (plan-tenants.md, "Phase 5"): always the free plan -- any other named plan
+// Sign-up at the bare base domain (plan-environments.md, "Phase 5"): always the free plan -- any other named plan
 // needs billing first, so the sign-up form only ever offers it as the plan to move to afterwards, through the
 // checkout link, never straight from this route. Rate-limited (five an hour per address) the same way a login
 // is, just counting every attempt rather than only failed ones.
@@ -3395,7 +3395,7 @@ function bundledList() {
       displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon, templateDisplayName: display.templateName, templateDisplayIcon: display.templateIcon,
       requires: m.requires || [], // what it needs installed and on (Maps needs Places), so the list can say so before Install
       update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
-      notInPlan: !moduleAllowedByPlan(m.id), // plan-tenants.md, "Phase 3": the Available list marks these "Not in your plan"
+      notInPlan: !moduleAllowedByPlan(m.id), // plan-environments.md, "Phase 3": the Available list marks these "Not in your plan"
     };
   });
 }
@@ -3411,7 +3411,7 @@ app.post('/api/modules/bundled/:id/install', requireOwner, async (req, res) => {
   res.status(201).json({ module: installed });
 });
 // Uploading a module's own zip, and choosing to run one in the page rather than sandboxed, are the host's own
-// trust decision (plan-tenants.md, "Phase 2": what Manage hides from an owner) -- a hosted environment's owner
+// trust decision (plan-environments.md, "Phase 2": what Manage hides from an owner) -- a hosted environment's owner
 // may still install and enable any module its plan allows, but never bring in code the host itself hasn't
 // vetted. The host admin's own cross sign-in is exempt, same as a self-hosted install (no BASE_DOMAIN at all).
 function requireHostTrust(req, res, next) {
@@ -3421,7 +3421,7 @@ function requireHostTrust(req, res, next) {
 app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res) => {
   const installed = await modules.install(req.body);
   // The zip's own id is only known once it is unpacked -- refused after the fact, undoing the install, rather
-  // than duplicating modules.js's own manifest parsing here just to check the plan first (plan-tenants.md,
+  // than duplicating modules.js's own manifest parsing here just to check the plan first (plan-environments.md,
   // "Phase 3"). keepData: false since this was never really installed from the plan's point of view.
   if (!moduleAllowedByPlan(installed.id)) {
     modules.uninstall(installed.id, { keepData: false });
@@ -4333,7 +4333,7 @@ app.post('/api/modules/:id/ai', async (req, res) => {
     const out = await ai.run(task, material, req.body?.question);
     // Counted on the registry entry regardless of provider (managed or the environment's own key) -- the plan's
     // aiCallsPerMonth cap is about how much of the environment's own allowance is used, not who is paying for
-    // the tokens (plan-tenants.md, "Phase 3"). ai.js keeps its own separate per-provider token accounting.
+    // the tokens (plan-environments.md, "Phase 3"). ai.js keeps its own separate per-provider token accounting.
     if (BASE_DOMAIN && hostRegistry) {
       const slug = currentEnvironment().slug;
       if (slug) hostRegistry.recordAiCall(slug);
@@ -4599,7 +4599,7 @@ function sendSettingError(err, res) {
 // module's settings, and the module reads it here, by range, like any static file. Nothing else in that folder
 // is reachable, and only by name. Uninstalling and updating never touch it.
 //
-// A folder declared `shared: "host"` (documentation/plans/plan-tenants.md, "Shared files: the host's map") is
+// A folder declared `shared: "host"` (documentation/plans/plan-environments.md, "Shared files: the host's map") is
 // the host's, one for every environment, rather than each environment's own -- but only with a base domain;
 // without one there is no separate host, so the declaration has no effect and an environment keeps its files
 // and region cutting exactly as it always has.
@@ -5210,7 +5210,7 @@ app.post('/api/environment/template/apply', requireOwner, async (req, res) => {
   res.json(await applyTemplateOffer(env, env.slug, req.body));
 });
 
-// This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
+// This environment's own view of itself: its plan and how it stands against each cap (plan-environments.md, "Phase
 // 2: the owner role and the split"). Only with a base domain -- a self-hosted install is on no host's plan,
 // so it has no plan or usage of its own to show.
 app.get('/api/environment', requireOwner, async (req, res) => {
@@ -5239,7 +5239,7 @@ app.get('/api/environment', requireOwner, async (req, res) => {
   });
 });
 // The environment's own copy of its data, the same zip the host console's own backup makes -- any environment admin
-// may ask for it, not only a host admin (plan-tenants.md, "Phase 2": Download a copy).
+// may ask for it, not only a host admin (plan-environments.md, "Phase 2": Download a copy).
 app.get('/api/environment/export', requireOwner, (req, res) => {
   if (!BASE_DOMAIN) return res.status(404).json({ error: 'not hosted' });
   const env = currentEnvironment();
@@ -5392,7 +5392,7 @@ app.use((err, _req, res, _next) => {
 });
 
 // The grace: an environment pastDue for 14 days is degraded to the free plan once an hour, never deleted
-// (plan-tenants.md, "Phase 5"). Only with a base domain -- a self-hosted install has no environments to sweep.
+// (plan-environments.md, "Phase 5"). Only with a base domain -- a self-hosted install has no environments to sweep.
 if (BASE_DOMAIN) setInterval(() => hostRegistry.degradeStalePastDue(), 3600000);
 
 // Regaining access (documentation/plans/plan-mfa.md, "Regaining access"): the lockout bypass excuses every

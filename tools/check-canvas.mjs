@@ -3,7 +3,7 @@
  * check-canvas.mjs -- keep the canvas's grid honest.
  *
  * A space's canvas is a grid of module columns (content over an action bar), and the layout rules are in
- * documentation/architecture/architecture-room-layout.md. This fails when the stylesheet drifts back
+ * documentation/architecture/architecture-canvas.md. This fails when the stylesheet drifts back
  * to the measured, absolute-positioned layout it replaced, or when something other than the shared
  * token sets a module header height.
  *

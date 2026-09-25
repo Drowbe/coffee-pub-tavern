@@ -2,11 +2,11 @@
 
 **Audience:** whoever is building the room page's pane model, and the author reviewing it before any of it is built.
 
-**Status:** All four stages built, awaiting a real call to verify. Delete this plan once the real-call checks below pass and the TODO entry is done; the rules are already in [architecture-room-layout](../architecture/architecture-room-layout.md). The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-room-layout](../architecture/architecture-room-layout.md).
+**Status:** All four stages built, awaiting a real call to verify. Delete this plan once the real-call checks below pass and the TODO entry is done; the rules are already in [architecture-canvas](../architecture/architecture-canvas.md). The decisions below are settled. Delete this plan once the last stage is done and its rules are in [architecture-canvas](../architecture/architecture-canvas.md).
 
 ## The idea
 
-Today the room is "a video conference with optional modules". The better picture is a **canvas** with three kinds of pane on it: the conference, the chat, and any number of modules. Chat and modules already go through one pane manager and can each be docked, floating or in a window of their own ([architecture-room-layout](../architecture/architecture-room-layout.md)). The conference is the exception: it is the stage itself, always present, always the first column.
+Today the room is "a video conference with optional modules". The better picture is a **canvas** with three kinds of pane on it: the conference, the chat, and any number of modules. Chat and modules already go through one pane manager and can each be docked, floating or in a window of their own ([architecture-canvas](../architecture/architecture-canvas.md)). The conference is the exception: it is the stage itself, always present, always the first column.
 
 The plan is to make the conference a pane too, with the same three modes, so a person can join a room and use only chat, or chat and the Calendar, or the Calendar and the conference. The default stays what it is today: everything docked, conference then chat.
 

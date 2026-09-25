@@ -12,7 +12,7 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
 
 ```
 +----------------------------------------------------+
-| Titlebar   name                    [icons] [X]      |  host.header.set, the pane's own buttons
+| Titlebar   name                    [icons] [X]      |  host.header.set, the host's own buttons
 +----------------------------------------------------+
 | Toolbar    text | tabs | ===progress=== | [buttons]  |  host.toolbar.set (optional)
 +----------------------------------------------------+
@@ -25,8 +25,8 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
 ```
 
 - **Titlebar.** Identifies the module and holds window-level actions: the host's own dock/float/window/close
-  buttons, plus whatever icon buttons the module adds with `host.header.set`, ahead of the pane's own and
-  set off by a pipe. Always present wherever a module has a pane or a window; absent on a module's own page
+  buttons, plus whatever icon buttons the module adds with `host.header.set`, ahead of the host's own and
+  set off by a pipe. Always present wherever a module is on the canvas or in a window; absent on a module's own page
   unless it is popped out (there is nothing to identify or act on when the page already says which module it
   is).
 - **Toolbar.** Optional, under the titlebar: information, tabs or a progress bar about the module's current
@@ -36,22 +36,22 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
   standalone page still has room under its own header for one). **It is not a second row of titlebar
   icons.** A view or filter switch is `type: 'tabs'`, not `type: 'button'` items repeating what the
   titlebar already looks like -- a tab can still carry an icon when the icon itself means something
-  (Places' Mine/This room/Everyone), that is a different thing from a button row standing in for the
+  (Places' Mine/This space/Everyone), that is a different thing from a button row standing in for the
   titlebar. `type: 'button'` is for the one action that goes with the toolbar's own state (a Sync button
   next to an import's progress, say), not a place to relocate the titlebar's row. See "Reusable toolbar
   tools" below before building one from raw items.
 - **Content.** The module's frame or in-page root. This is the section that scrolls, and the drop target for
   a dragged ref, either as a whole or onto specific items within it.
 - **Action bar.** Optional, along the bottom: the module's primary inputs and actions -- an Add button, a
-  quick-add field. Set with `host.bar.set`. Docked, it is a cell in the room's shared bottom row, lined up
-  with the call's own control strip and the chat box (see [architecture-room-layout](architecture-room-layout.md));
+  quick-add field. Set with `host.bar.set`. Docked, it is a cell in the canvas's shared bottom row, lined up
+  with the call's own control strip and the chat box (see [architecture-canvas](architecture-canvas.md));
   elsewhere it is a strip under the module. The call's own bottom control strip and the chat's input row are
   the same idea as a module's action bar, drawn natively rather than through `bar.set` because they predate
   it -- not a different concept with a different name.
 
 A module never draws its own titlebar or reimplements dock/float/close: `public/module-host.js` draws all
 four zones from what a module hands it (`header`, `toolbar`, `bar`, and the frame itself), so the same
-`bar.set`/`header.set`/`toolbar.set` calls work whether the pane is docked (`public/canvas.js`), floating,
+`bar.set`/`header.set`/`toolbar.set` calls work whether the module is docked (`public/canvas.js`), floating,
 popped into its own window (`public/module.js`, only when popped out for the titlebar; the toolbar and action
 bar are there regardless), or the module's own standalone page.
 
@@ -93,7 +93,7 @@ is `host.menu.show({ id, items, at, anchor })`, drawn inside the module's own fr
 [api-module-sdk](../api/api-module-sdk.md) ("An action menu") for the shape. The host's own overflow menus
 (above) are the same idea applied to the host's own chrome, where a module cannot reach to draw one itself;
 they share no code with `host.menu.show` (different documents, in general -- a sandboxed module frame and
-the room or module page around it), only the same visual language and the same "showing the same id again
+the space or module page around it), only the same visual language and the same "showing the same id again
 closes it" rule.
 
 ## Reuse across dock and float
@@ -122,14 +122,14 @@ switch would otherwise lose whatever `host.toolbar.set`/`host.bar.set` last drew
   actions.
 
 `tools/check-module-window.mjs` enforces the first rule mechanically, as part of `npm run check`, the way
-`check-canvas.mjs` enforces the room grid's; add a rule there when the next drift shows the shape of one.
+`check-canvas.mjs` enforces the canvas grid's; add a rule there when the next drift shows the shape of one.
 
 ## What is not built yet
 
 - **More enforcement.** The zones themselves (a module drawing its own titlebar-like row instead of using
   `header.set`, a bespoke action list instead of `menu.show`) are not checked yet; worth adding to
   `check-module-window.mjs` once a violation shows what to match.
-- **Language, not code.** `architecture-room-layout.md` still calls the call's own bottom control strip "the
+- **Language, not code.** `architecture-canvas.md` still calls the call's own bottom control strip "the
   video toolbar"/"the call toolbar" in places. It is the same idea as a module's action bar (above); the
   wording there should catch up, without needing the call's own native implementation to actually move onto
   `bar.set`.

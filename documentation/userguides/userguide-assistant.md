@@ -2,18 +2,18 @@
 
 **Audience:** a player or game master having a conversation with the AI using the Assistant module on a Coffee Pub Magpie server, and an owner setting it up.
 
-Assistant is a place for an open-ended conversation with the AI the owner set up: docked, floated or popped out like any other pane. It keeps nothing of its own. Add any object (a note, a place, an event) as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
+Assistant is a place for an open-ended conversation with the AI the owner set up: docked, floated or popped out like any other module. It keeps nothing of its own. Add any object (a note, a place, an event) as context if you want the answer to draw on it, or ask it anything. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (owner)
 
 1. Set up the AI itself first: on the Modules tab, **AI service** (none, OpenAI, Anthropic, or another OpenAI-compatible service), a model and a key, then **Approve and enable**. See [Modules](userguide-modules.md).
-2. On the Modules tab, choose **Install** beside Assistant, then **Approve and enable**. It asks to link to every other module's items, to ask their actions, and to use the AI hook.
-3. Tick **Available in every space**, or tick it per room.
-4. On the Roles tab, **Use AI in modules** (under AI) governs who may actually get an answer here; it is off for everyone until you turn it on, and a guest never can. A separate **Use the assistant** permission, under Module: Assistant, governs who may open the pane at all (on by default).
+2. On the Modules tab, choose **Install** beside Assistant, then **Approve and enable**. It asks to link to every other module's objects, to ask their actions, and to use the AI hook.
+3. Tick **Available in every space**, or tick it per space.
+4. On the Roles tab, **Use AI in modules** (under AI) governs who may actually get an answer here; it is off for everyone until you turn it on, and a guest never can. A separate **Use the assistant** permission, under Module: Assistant, governs who may open the module at all (on by default).
 
 ## Ask
 
-Type a question and send it. With no context, it answers from what the AI already knows; add context (**Add context**, a checklist of everything reachable here: this room's items and your own) to have it draw on your notes, places, plans and anything else, and it says which parts of the answer came from them. **New conversation** clears the thread; closing the pane does the same. Nothing here is stored, on the server or on your device.
+Type a question and send it. With no context, it answers from what the AI already knows; add context (**Add context**, a checklist of everything reachable here: this space's objects and your own) to have it draw on your notes, places, plans and anything else, and it says which parts of the answer came from them. **New conversation** clears the thread; closing the module does the same. Nothing here is stored, on the server or on your device.
 
 When the AI writes something worth keeping, it appears as an answer of its own: a title, the text (which may use headings, **bold**, lists and links), tags, and where it came from. Asked for several things at once (an itinerary, a few hotel options), it writes one answer per thing rather than folding them into prose. The bookmark keeps it: an answer that is plainly a flight, a hotel, a sight and so on is placed as that proper kind of object if Planner is installed, on the day it names; any other answer, or without Planner, is saved as a note (a module that keeps notes, such as Research, must be installed; without one, the button is disabled and says so). The copy button copies its text, and it can be dragged onto a plan or anywhere else that takes one.
 

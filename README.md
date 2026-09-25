@@ -8,11 +8,12 @@ Browser Source, so a recorded session shows their camera or a picture you chose.
 
 - Video and voice for the whole group in a browser, with grid, strip and spotlight layouts, chat with
   pictures, reactions, and a pop-out window.
-- Rooms: a Lobby for everyone plus a room per game, with a launch link to each game's tabletop or wiki.
+- Spaces: a Lobby for everyone plus a space per game, with a launch link to each game's tabletop or wiki.
+- Modules on the canvas beside the call, such as a calendar, a to-do list and polls, docked or floating.
 - Step aside privately with one or more players, on or off the recording.
 - Every player as their own transparent OBS source, with pictures for offline, online, talking and
   muted, on top of a Participant box and a Character box.
-- Roles and permissions: admin, moderator, user and guest, with a grid to decide what each can do.
+- Roles and permissions: admin, owner, moderator, member and guest, with a grid to decide what each can do.
 - Guest links for someone dropping in once, with no account.
 - Your own colors and icons, and add-on modules you can install from a zip.
 
@@ -34,7 +35,7 @@ proxy settings, is in the wiki's Getting Started guide.
 ## Where to read more
 
 Documentation lives in the [wiki](https://github.com/Drowbe/coffee-pub-tavern/wiki): guides for running
-a call and managing the server, the OBS link reference for integrators, and the architecture.
+a call and managing an environment, the OBS link reference for integrators, and the architecture.
 It is the same material as the `documentation/` folder in this repository.
 
 <!-- global:ai-assistance -->

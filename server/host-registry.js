@@ -1,7 +1,7 @@
 // The host's own registry: which environments exist, their slugs and plans, and the host admins who run
 // the deployment itself (a different kind of account from any environment's users -- a member of no environment).
 // Persists to DATA_DIR/host.json. Only built and read when BASE_DOMAIN is set; a self-hosted install with no base
-// domain never has this file at all (see documentation/plans/plan-tenants.md).
+// domain never has this file at all (see documentation/plans/plan-environments.md).
 'use strict';
 
 const fs = require('fs');
@@ -54,7 +54,7 @@ function cleanCaps(raw, fallback) {
 }
 
 // An environment's own plan: the catalog key it was copied from (`name`, null for one hand-set rather than assigned
-// from the catalog) beside its own caps, which may since have been adjusted per environment (plan-tenants.md,
+// from the catalog) beside its own caps, which may since have been adjusted per environment (plan-environments.md,
 // "Phase 5": "copied from the catalog at assignment and may be adjusted per environment").
 function cleanPlan(raw, fallback) {
   if (!raw || typeof raw !== 'object') return fallback || defaultPlan();
@@ -63,7 +63,7 @@ function cleanPlan(raw, fallback) {
   return { name, ...cleanCaps(raw, base) };
 }
 
-// The host's own plan catalog (plan-tenants.md, "Phase 5"): { <id>: { name, caps } }, free always present so a
+// The host's own plan catalog (plan-environments.md, "Phase 5"): { <id>: { name, caps } }, free always present so a
 // self-serve sign-up and the degrade sweep always have somewhere to land. Lenient, like cleanHostAi: a bad
 // entry just drops that one plan rather than crashing the registry.
 const PLAN_ID_RE = /^[a-z][a-z0-9-]{0,31}$/;
@@ -79,7 +79,7 @@ function cleanPlansCatalog(raw) {
   return out;
 }
 
-// The host's managed AI service, per company (documentation/plans/plan-tenants.md, "Managed AI, per company"):
+// The host's managed AI service, per company (documentation/plans/plan-environments.md, "Managed AI, per company"):
 // { openai: { model, key }, anthropic: { model, key }, compatible: { address, model, key } }, any subset --
 // lenient like cleanEnvironmentRecord, not the way a PUT is (applyManagedFields, used by setManagedAi): corrupt data
 // for one company just drops that company's slot rather than crashing the registry.
@@ -112,7 +112,7 @@ function cleanHostAi(raw) {
   return out;
 }
 
-// A shared file folder's own settings (documentation/plans/plan-tenants.md, "Shared files: the host's map"):
+// A shared file folder's own settings (documentation/plans/plan-environments.md, "Shared files: the host's map"):
 // today just the region source's address (a module's `worldSource`, e.g.) -- the files themselves live on
 // disk (DATA_DIR/shared/<module>/<folder>/), never in host.json. Lenient, like cleanHostAi: bad data just
 // drops that one folder rather than crashing the registry.
@@ -148,14 +148,14 @@ function cleanEnvironmentRecord(raw) {
     status: STATUSES.includes(raw.status) ? raw.status : 'active',
     pastDueSince: typeof raw.pastDueSince === 'string' ? raw.pastDueSince : null,
     // Set once, by the hourly sweep, the moment a pastDue environment is degraded to the free plan's caps
-    // (plan-tenants.md, "Phase 5: the grace") -- never cleared except by a fresh "paid" billing event.
+    // (plan-environments.md, "Phase 5: the grace") -- never cleared except by a fresh "paid" billing event.
     degradedAt: typeof raw.degradedAt === 'string' ? raw.degradedAt : null,
     // Asked for by the environment's own admin (POST /api/environment/delete-request), carried out by a host
-    // admin on the console -- never by itself (plan-tenants.md, "Phase 2").
+    // admin on the console -- never by itself (plan-environments.md, "Phase 2").
     deleteRequestedAt: typeof raw.deleteRequestedAt === 'string' ? raw.deleteRequestedAt : null,
     deleteRequestReason: cleanText(raw.deleteRequestReason, 500) || '',
     // Cap usage the registry itself tracks or caches, cheaper to keep here than to recompute on every read
-    // (plan-tenants.md, "Phase 3"): storageBytes/measuredAt (server/index.js remeasures at most once a minute),
+    // (plan-environments.md, "Phase 3"): storageBytes/measuredAt (server/index.js remeasures at most once a minute),
     // aiMonth/aiCalls (a plain "YYYY-MM" counter, rolled over on a new month the same way Ai's own per-
     // environment usage is).
     usage: {
@@ -189,7 +189,7 @@ class HostRegistry {
       baseDomain: typeof raw.baseDomain === 'string' ? raw.baseDomain : '',
       // A base domain a request may still arrive at (the product was renamed): <slug>.<one of these> and
       // host.<one of these> redirect to the same path at the current baseDomain. See "Previous base domains" in
-      // documentation/plans/plan-tenants.md.
+      // documentation/plans/plan-environments.md.
       previousBaseDomains: Array.isArray(raw.previousBaseDomains) ? [...new Set(raw.previousBaseDomains.filter((d) => typeof d === 'string' && d))] : [],
       // Signs a host admin's own session cookie (never an environment's own secret, kept in that environment's own store).
       // `key` encrypts every environment's own TOTP secret at rest (documentation/plans/plan-mfa.md): one key
@@ -397,7 +397,7 @@ class HostRegistry {
     this.save();
   }
 
-  // storage and AI usage, cached on the entry (plan-tenants.md, "Phase 3") -------------------------------------
+  // storage and AI usage, cached on the entry (plan-environments.md, "Phase 3") -------------------------------------
   // storageBytes/measuredAt: server/index.js decides when a minute has passed and remeasures; this just records
   // what it found. aiMonth/aiCalls: one call counted per successful host.ai.ask, rolled over to 0 on a new
   // month the same way Ai's own per-environment usage already is.
@@ -424,7 +424,7 @@ class HostRegistry {
     return environment.usage.aiMonth === new Date().toISOString().slice(0, 7) ? environment.usage.aiCalls : 0;
   }
 
-  // the plan catalog and billing (plan-tenants.md, "Phase 5: self-serve, plans and billing") -------------------
+  // the plan catalog and billing (plan-environments.md, "Phase 5: self-serve, plans and billing") -------------------
   plansCatalog() {
     return Object.fromEntries(Object.entries(this.data.plans).map(([id, p]) => [id, { name: p.name, caps: { ...p.caps } }]));
   }

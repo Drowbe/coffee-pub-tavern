@@ -10,7 +10,7 @@
 // A module's manifest says which of docked and floating it supports (both, if it
 // does not say); every module can be popped into a window. Modules follow the call
 // when it is popped out: they open in whichever window the canvas is in.
-// See documentation/architecture/architecture-room-layout.md.
+// See documentation/architecture/architecture-canvas.md.
 
 import { api, markModuleRead, followTheme } from '/brand.js';
 import { mountModule } from '/module-host.js';

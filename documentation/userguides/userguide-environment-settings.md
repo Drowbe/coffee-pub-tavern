@@ -1,6 +1,6 @@
 # Manage
 
-**Audience:** an owner or the admin running a Coffee Pub Magpie server, working through the Manage page.
+**Audience:** an owner or the admin running a Coffee Pub Magpie environment, working through the Manage page.
 
 Open the Manage page with the gear icon in the header. It has seven tabs, in this order: **Environment**,
 **Template**, **Theme**, **Spaces**, **Roles**, **Users** and **Modules**, plus **About**. On a phone the row of tabs scrolls sideways within itself. (Old addresses still work: `/admin#server` and `#settings` open Environment, `#rooms` opens Spaces, and `#words` and `#home-icon` open the Template tab at that section.) The header's crumb on the pages reached from here (a space's settings, a person's profile, a module's configuration, the AI configuration) says **Manage**. Only owners and the admin (on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."
@@ -24,7 +24,7 @@ Open the Manage page with the gear icon in the header. It has seven tabs, in thi
 
 ## Language, time and money
 
-On the Environment tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the server and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. The list has a **Common** group first, then **All currencies**, each by its name in your language: exactly the currencies the server accepts. The server refuses any other code ("XYZ is not a currency this server knows. Choose one from the list, such as USD."). A code saved before this check keeps working and still shows in the list. A trip in the Planner picks its own currency from the same list. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
+On the Environment tab. **Language** is the interface language (English, until translations arrive). **Clock** is how every time is shown, across the environment and every module: 12-hour (10:30 PM, the default) or 24-hour (22:30). **Currency** is the one amounts are shown in (the Planner's costs and settling up), unless a trip names its own currency in Edit trip. The list has a **Common** group first, then **All currencies**, each by its name in your language: exactly the currencies the server accepts. The server refuses any other code ("XYZ is not a currency this server knows. Choose one from the list, such as USD."). A code saved before this check keeps working and still shows in the list. A trip in the Planner picks its own currency from the same list. Showing a trip's own currency with a conversion beside it needs a source of exchange rates, which is not set up yet.
 
 ## Template
 
@@ -44,7 +44,7 @@ The **Template** tab gathers what a template gives an environment. From the top:
   **1** to **6**.
 - **Icons.** The icons you want available. Paste an icon's HTML from fontawesome.com, for example
   `<i class="fa-solid fa-dice"></i>`, and the preview shows it. These icons are the choices offered for a
-  room's launch link, the home icon and a module's icon. Only the Free icons that ship with Magpie will
+  space's launch link, the home icon and a module's icon. Only the Free icons that ship with Magpie will
   draw, unless you have added your own Pro package (see "Font Awesome Pro" under Theme).
 
 An old link to `#reactions` or `#icons` on the Manage page opens this tab at that section.
@@ -79,7 +79,7 @@ labels and help) still uses the default words.
 - **Theme.** The environment's colours, in a light and a dark version, with **Dark by default** choosing which one
   people see until they pick their own. Choose a theme, change its colours, preview, then **Apply**; **Export** and
   **Import…** share a theme as a file. See [Creating themes](userguide-themes.md).
-- **Default Images.** The Participant pictures a member shows once neither they nor the room they are
+- **Default Images.** The Participant pictures a member shows once neither they nor the space they are
   in has set one; the last fallback before the box goes transparent.
 - **Guest images.** The Participant pictures every guest shows, since a guest has no account of their
   own.
@@ -92,10 +92,10 @@ labels and help) still uses the default words.
 
 The tab ends with a line pointing to **Reactions** and **Icons**, which are on the Template tab.
 
-## Rooms and Users
+## Spaces and Users
 
 Both are rosters: a thumbnail, a name and a link to that one thing's own page. See
-[Rooms](userguide-rooms.md) and [Accounts, roles and permissions](userguide-accounts.md).
+[Spaces](userguide-spaces.md) and [Accounts, roles and permissions](userguide-accounts.md).
 
 ## Roles
 

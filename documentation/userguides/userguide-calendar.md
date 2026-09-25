@@ -1,24 +1,24 @@
 # Calendar
 
-**Audience:** a player or game master using the Calendar module on a Coffee Pub Magpie server, and an owner setting it up.
+**Audience:** a player or game master using the Calendar module in a Coffee Pub Magpie environment, and an owner setting it up.
 
-The Calendar keeps sessions and events. There is one for the whole server, and one for each room. An event can remind people before it starts. Install and enable it first; see [Modules](userguide-modules.md).
+The Calendar keeps sessions and events. There is one for the whole environment, and one for each space. An event can remind people before it starts. Install and enable it first; see [Modules](userguide-modules.md).
 
 ## Set it up (owner)
 
 1. On the Modules tab, choose **Install** beside Calendar under **Available with this server**, then **Approve and enable** (when a newer version comes with a server update, choose **Update** on its card instead; see [Modules](userguide-modules.md)). The Calendar asks to add two permissions to the Roles tab and to run reminders.
-2. To use it in rooms, tick **Available in every space** on its card, or tick it per room on the room's own page.
+2. To use it in spaces, tick **Available in every space** on its card, or tick it per space on the space's own page.
 3. On the Roles tab, under **Module: Calendar**, choose who can **See the calendar** and who can **Add and change events**. By default everyone can see it, members and moderators can edit, and guests can see but not edit.
 
-## The server calendar
+## The environment's calendar
 
-On the rooms page, click the **Coming up** card's heading to open the full calendar. You see a month with each day's events. Use the arrows and **Today** to move around, and the four view buttons (icons; hover for the name) to switch between **Month** (the grid), **Week** (seven days with their events in full; the arrows step a week), **Month + list** (the grid with that month's events listed under it) and **List** (what is coming up). On a narrow window it starts in the list.
+On the spaces page, click the **Coming up** card's heading to open the full calendar. You see a month with each day's events. Use the arrows and **Today** to move around, and the four view buttons (icons; hover for the name) to switch between **Month** (the grid), **Week** (seven days with their events in full; the arrows step a week), **Month + list** (the grid with that month's events listed under it) and **List** (what is coming up). On a narrow window it starts in the list.
 
-The server calendar also shows, read-only, the events of every room you belong to that has the Calendar on. Each shows its room's icon (the room's launch-link icon, or the message icon if it has none) before the time and title, and in the list beside the room's name. A row of your rooms under the toolbar shows or hides each room. To change a room's event, open that room's Calendar from a call.
+The environment's calendar also shows, read-only, the events of every space you belong to that has the Calendar on. Each shows its space's icon (the space's launch-link icon, or the message icon if it has none) before the time and title, and in the list beside the space's name. A row of your spaces under the toolbar shows or hides each space. To change a space's event, open that space's Calendar from a call.
 
-## A room's calendar
+## A space's calendar
 
-In a call, choose the Modules button in the header and then **Calendar**. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to a floating panel or open it in a window of its own. It shows that room's events, and the server's events beside them marked **server**. Server events are read-only in a room; change them on the server calendar.
+In a call, switch on **Calendar** in the space bar under the header. It opens as a column beside the video and the chat: a month on top and that month's events listed beneath it. The header buttons switch it to floating over the canvas or open it in a window of its own. It shows that space's events, and the environment's events beside them marked **environment**. The environment's events are read-only in a space; change them on the environment's calendar.
 
 ## Settings
 
@@ -26,7 +26,7 @@ On your profile page, under Module settings, **Open on** chooses the view the Ca
 
 ## Coming up on the dashboard
 
-On the rooms page, the dashboard's **Coming up** card lists the next seven days of events, up to eight, across every room you are in that has the Calendar on and the server's own calendar, each with its room's icon; repeating events show on the days they land on. Clicking an event opens it in its room; the heading opens the full calendar. See [Rooms](userguide-rooms.md).
+On the spaces page, the dashboard's **Coming up** card lists the next seven days of events, up to eight, across every space you are in that has the Calendar on and the environment's own calendar, each with its space's icon; repeating events show on the days they land on. Clicking an event opens it in its space; the heading opens the full calendar. See [Spaces](userguide-spaces.md).
 
 ## Add and change events
 
@@ -50,7 +50,7 @@ An event can be dragged onto a task in the To-do module, or onto an open task th
 
 ## Dropping something on the calendar
 
-Drag an item from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the item to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choice you made last time for that kind of item and place is listed first, marked "last used", so a repeat drop is one click. The choices come from what the other modules can do with the item, so a module added later can add more. A short note confirms what was done.
+Drag an object from another module (a task, say) onto a day or an event. If there is one thing to do with it, it happens; if there are several, a small menu asks which. On a day you can add the object to the calendar as an event on that day, or, for a task, set the task's due date to that day. On an event you can link the task to the event, or set the task's due date to the event's date. The choice you made last time for that kind of object and place is listed first, marked "last used", so a repeat drop is one click. The choices come from what the other modules can do with the object, so a module added later can add more. A short note confirms what was done.
 
 ## When an event has passed
 
@@ -62,7 +62,7 @@ Set **Repeats** to every day, week, 2 weeks, month or year, and optionally an **
 
 ## Reminders
 
-Set **Remind people** on an event to send a notification when it starts, 15 minutes before, an hour before, or a day before. Everyone in that room (or everyone on the server, for a server event) who is allowed to see the calendar gets a toast, and a number on the Calendar item and the Modules button until they open it. Changing an event moves its reminder, and deleting it cancels the reminder. An event with a reminder time that has already passed gets no reminder. A repeating event reminds people before every occurrence, including while nobody has the calendar open.
+Set **Remind people** on an event to send a notification when it starts, 15 minutes before, an hour before, or a day before. Everyone in that space (or everyone in the environment, for one of its events) who is allowed to see the calendar gets a toast, and a number on the Calendar's switch in the space bar until they open it. Changing an event moves its reminder, and deleting it cancels the reminder. An event with a reminder time that has already passed gets no reminder. A repeating event reminds people before every occurrence, including while nobody has the calendar open.
 
 ## Limits
 

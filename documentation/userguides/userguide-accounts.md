@@ -47,22 +47,22 @@ chat and reactions, and can be published to OBS like anyone else.
 Off by default. On the **Environment** tab, under **Sign-up**, turn on **Let anyone at /register sign themselves up** and anyone
 who finds that link can make their own account, as a member in the Lobby.
 
-Without opening it up, an owner can still **invite** someone straight into specific rooms: pick the
-rooms and choose **Generate invite link**, then send the link. It works whether or not general
+Without opening it up, an owner can still **invite** someone straight into specific spaces: pick the
+spaces and choose **Generate invite link**, then send the link. It works whether or not general
 sign-up is on, expires after 7 days, and works once.
 
 ## Guests
 
 A guest has no account, for someone dropping in once. While in a call, open the settings popover
-(the gear next to chat and reactions) and, under **Guests**, turn on that room's link. Anyone with it
-lands on a page asking only for a name, then joins straight into that room with video, microphone,
+(the gear next to chat and reactions) and, under **Guests**, turn on that space's link. Anyone with it
+lands on a page asking only for a name, then joins straight into that space with video, microphone,
 chat and reactions.
 
 Anyone in the call with the right permission can turn the link on, copy it, or turn it off. It is a
 standing door rather than single-use: it works for as many guests as show up until someone turns it
 off or generates a new one. Nothing about a guest is kept once they leave. A guest with their camera
 off shows the shared **Guest images** picture set (see
-[Manage](userguide-server-settings.md)). A room can turn guests off entirely with **Allow
+[Manage](userguide-environment-settings.md)). A space can turn guests off entirely with **Allow
 Guests** on its own settings page, which also turns off any link already in use there.
 
 ## Roles and what they can do
@@ -73,18 +73,18 @@ Open **Roles** on the Manage page to see a grid of checkboxes: one row per permi
 - **Owner** can do everything, and its column is locked ("Owners can always do this"). The admin can too. Owners run the
   environment: they add people, set passwords and change settings. An owner also has every permission a
   module adds.
-- **Moderator** is what someone gets in any room where they are marked **Moderator** on their
+- **Moderator** is what someone gets in any space where they are marked **Moderator** on their
   profile's **Spaces** tab, on top of their ordinary role there.
 - **Member** is an ordinary account.
-- **Guest** is everyone who joins from a room's guest link.
+- **Guest** is everyone who joins from a space's guest link.
 
 The permissions are grouped:
 
 - **Modules** (the environment's word for it): see and join the conference, open and read the chat. Everyone has both by default. Without
-  the first, a person joins a room for its chat and modules only and cannot send or receive audio or video.
+  the first, a person joins a space for its chat and modules only and cannot send or receive audio or video.
 - **In the Space**: send chat messages, send pictures in chat, use reactions, share their screen.
 - **Asides**: start a private conversation, step aside with someone (recorded).
-- **Moderation**: mute other people, kick other people, manage a room's guest link.
+- **Moderation**: mute other people, kick other people, manage a space's guest link.
 - **Images**: change their own profile photo, call background, and each of the Participant and
   Character pictures. By default only owners change the OBS pictures; everyone else can change their
   own profile photo and call background.
@@ -92,12 +92,12 @@ The permissions are grouped:
 A permission that is off for a role hides the control for that person, and the server refuses it even
 if someone tries the request by hand.
 
-## Per-room settings for a member
+## Per-space settings for a member
 
 An owner opens someone's profile and chooses the **Spaces** tab to see one section for each space they
-belong to. In each, **Moderator** makes them a moderator in that room only, so they get everything
+belong to. In each, **Moderator** makes them a moderator in that space only, so they get everything
 the Moderator role has there and nothing extra elsewhere. **Use Default Profile Images** decides
-whether the room's own pictures replace their defaults, and **Remove** takes them out of the room.
+whether the space's own pictures replace their defaults, and **Remove** takes them out of the space.
 
 ## Light or dark
 
@@ -115,4 +115,4 @@ A second step after the password, if you or your owner want one: a six-digit cod
 - **A personal link** still gets the code step once you have one; it is the first step, not a way around the second.
 - **Turning it off** asks for a code. If the environment requires it (below), it cannot be turned off.
 - **Locked out.** Ask an owner: on your profile they can **Reset your second factor**, which signs you out everywhere and lets you set it up again. An owner locked out of their own account on a hosted server asks the host; on a single server, the operator turns on the lockout bypass (`ADMIN_MFA_LOCKOUT_BYPASS`) in the compose file, signs in on the password, and presses **Reset my second factor** on their profile (see the getting-started guide).
-- **The rule for the whole server** is one switch on Manage > Environment, under the sign-in page: **Require two-step sign-in for everyone**. Off (the default), anyone may set it up and is then asked; on, everyone must, from their next sign-in, which lands on the set-up page first; a session already open keeps working. Whether the server offers two-step sign-in at all is the operator's compose setting; when it does not, none of this appears.
+- **The rule for the whole environment** is one switch on Manage > Environment, under the sign-in page: **Require two-step sign-in for everyone**. Off (the default), anyone may set it up and is then asked; on, everyone must, from their next sign-in, which lands on the set-up page first; a session already open keeps working. Whether the server offers two-step sign-in at all is the operator's compose setting; when it does not, none of this appears.

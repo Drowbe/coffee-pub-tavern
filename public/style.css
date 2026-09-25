@@ -1998,7 +1998,7 @@ a.crumb-here:hover {
 /* The space is a grid: each module owns a column with a content area over an
    action bar, and the bars share one bottom row so they line up. The row is
    as tall as the tallest bar; nothing is measured. See
-   documentation/architecture/architecture-room-layout.md. */
+   documentation/architecture/architecture-canvas.md. */
 .canvas {
   position: relative;
   width: 100%;

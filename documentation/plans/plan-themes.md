@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decided how themes are shared, and the sessions that build it: server-development (`server/`, the routes, the checks), experience-design (Manage > Theme) and content-manager (the owners' guide to creating themes).
 
-**Status:** approved 2026-09-25; server built (step 1), pages landing (step 2), guide written (step 3, `userguide-themes.md`, ahead of the pages so it is ready when they land). GitHub issue #67. Thomas asked for theme import and export next, and whether the wiki had a place on creating themes (it does not: `userguide-server-settings.md` has one paragraph on Manage > Theme, and `designsystem/design-theme.md` is for people building pages and modules).
+**Status:** approved 2026-09-25; server built (step 1), pages landing (step 2), guide written (step 3, `userguide-themes.md`, ahead of the pages so it is ready when they land). GitHub issue #67. Thomas asked for theme import and export next, and whether the wiki had a place on creating themes (it does not: `userguide-environment-settings.md` has one paragraph on Manage > Theme, and `designsystem/design-theme.md` is for people building pages and modules).
 
 ## What it is today
 
@@ -67,7 +67,7 @@ On Manage > Theme, beside the chooser:
 
 ### The owners' guide: "Creating themes"
 
-A new user guide, `userguide-themes.md`, for owners, which the Theme paragraph in `userguide-server-settings.md` then points to. Content-manager's, after the pages step. Its outline:
+A new user guide, `userguide-themes.md`, for owners, which the Theme paragraph in `userguide-environment-settings.md` then points to. Content-manager's, after the pages step. Its outline:
 
 1. What a theme changes: colors only, never the layout; every page and module follows it.
 2. The seven base colors, one line each on where it shows (the labels in `admin.html:96-102` are the starting point).
@@ -85,7 +85,7 @@ A new user guide, `userguide-themes.md`, for owners, which the Theme paragraph i
 2. **The pages** (experience-design). Export and Import… on Manage > Theme, the preview after an import, the status line.
    - Done when: `npm run check` passes.
    - Verify: live in a browser on the same server: export, import in another environment (on `BASE_DOMAIN=localhost`) and apply it there, and a refused file's sentence shown. Nothing here needs a call.
-3. **The guide** (content-manager). `userguide-themes.md` from the outline above, and the pointer from `userguide-server-settings.md`.
+3. **The guide** (content-manager). `userguide-themes.md` from the outline above, and the pointer from `userguide-environment-settings.md`.
    - Verify: `npm run check:docs` and `npm run docs:build`.
 
 Later, not in this plan: bundled `themes/<id>.json` (the built-ins could move there from `store.js`), a template naming one (decision 5), and a host library if wanted (decision 4).

@@ -23,7 +23,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 - **LiveKit server** is open source and runs as its own container. It is a selective forwarding unit:
   each player uploads once and the server fans the stream out. It has a built-in TURN relay for players
   behind strict routers. Magpie calls its server API for the participant list, kick and mute.
-- **Magpie web app** serves the pages, mints LiveKit access tokens, and keeps accounts, rooms, images and
+- **Magpie web app** serves the pages, mints LiveKit access tokens, and keeps accounts, spaces, images and
   settings. It never touches media.
 - **Coffee Pub Studio** signs in as an owner and creates one OBS Browser Source per player, pointing at
   that player's view page.
@@ -34,7 +34,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   over a hand-rolled mesh, whose upload cost grows with every person in the call, and over Jitsi, where per-participant
   OBS views would need low-level work.
 - **Node 22 and Express 5.** One app serves every page and the JSON API.
-- **No database.** Users, rooms, settings and roles live in one JSON file in the data volume, images next
+- **No database.** Users, spaces, settings and roles live in one JSON file in the data volume, images next
   to it, and installed modules in their own folder. Everything is loaded once and written back whole.
 - **Accounts.** Passwords are scrypt hashes. A session is a signed cookie, so there is no session table.
 - **Everything self-hosted.** Font Awesome, the LiveKit client and the background-blur model are served
@@ -46,14 +46,14 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | Path | What |
 | --- | --- |
 | `server/index.js` | Routes, tokens, LiveKit server API, permission checks |
-| `server/store.js` | Users, rooms, settings, roles and images on disk |
+| `server/store.js` | Users, spaces, settings, roles and images on disk |
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
-| `server/chat-history.js` | A room's recent chat text (500 messages, 30 days), in `chat.json` |
+| `server/chat-history.js` | A space's recent chat text (500 messages, 30 days), in `chat.json` |
 | `server/modules.js` | Module install and registry; see [architecture-modules](architecture-modules.md) |
 | `public/login.html` | Sign-in page |
 | `public/register.html` | Self sign-up and invite acceptance |
 | `public/space.html` | The space list and the call. Until step 5b of the Names plan these were `room.html`, `room.js`, `roomconfig.*` and `room-modules.js`; `/room.html`, `/roomconfig.html` and `/module-settings?room=` answer 301 to the new pages, keeping the query |
-| `public/profile.html` | A player's profile: photo, call settings, default images, a section per room |
+| `public/profile.html` | A player's profile: photo, call settings, default images, a section per space |
 | `public/admin.html` | The Manage page |
 | `public/space-settings.html` | A space's own settings page, at `/spaces/<id>` |
 | `public/canvas.js` | The space's canvas: docking, floating, snapping and popping out the conference, the chat and the modules |
@@ -79,10 +79,10 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   `moderator`, `member` and `guest`, and `PATCH /api/roles/:role` changes one (`/api/roles/owner` answers 400
   "the owner has every permission, so that role can't be changed"). A member can also be flagged Moderator in
   one space, which grants the Moderator role's permissions there only.
-- A member's room entry holds their per-room pictures, whether those replace their defaults, and that
-  Moderator flag. Picture lookups fall from room picture, to the member's default, to the server's
+- A member's entry for a space holds their pictures for that space, whether those replace their defaults, and that
+  Moderator flag. Picture lookups fall from the space's picture, to the member's default, to the environment's
   Default Images.
-- **Presence and invitations.** A page tells the server it is open with `POST /api/presence` every half minute while it is visible (`startPresence` in `public/brand.js`); the server remembers when in memory, counts a person as present for 75 seconds, and `GET /api/presence` returns `present` beside `online` (in a call). `POST /api/asides/invite` makes a private aside room (ephemeral, private, no origin) for the inviter and one present person, and sends an `invite` event down the same server-sent stream as notifications (`/api/notifications/stream`); `brand.js` shows the invitation toast, and the room page joins on accept (`app:invite-accept`, or `/#join=<room>` from another page). It needs the private-conversation permission and the server setting; an invitation lasts two minutes.
+- **Presence and invitations.** A page tells the server it is open with `POST /api/presence` every half minute while it is visible (`startPresence` in `public/brand.js`); the server remembers when in memory, counts a person as present for 75 seconds, and `GET /api/presence` returns `present` beside `online` (in a call). `POST /api/asides/invite` makes a private aside (an `asides` record, `private`, no origin) for the inviter and one present person, and sends an `invite` event down the same server-sent stream as notifications (`/api/notifications/stream`); `brand.js` shows the invitation toast, and the space page joins on accept (`app:invite-accept`, or `/#join=<aside id>` from another page). It needs the private-conversation permission and the environment's setting; an invitation lasts two minutes.
 - **Currencies.** `GET /api/currencies` (anyone signed in; otherwise 401 `sign in first`) answers
   `{ currencies: [codes] }`, sorted: exactly the codes `PATCH /api/settings` accepts, the ISO 4217 codes the
   server's Node knows (`CURRENCIES` in `server/store.js`), plus the one already stored if it is not among them
@@ -150,7 +150,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   and zero-width characters (a joiner inside a combined emoji is kept); the name is cut to 40 whole characters,
   the author to 60 (`cleanThemeText()` in `server/store.js`). `tools/check-themes.mjs` holds the round trip and the
   refusals.
-- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. An aside has no chat (its id answers 404), pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
+- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the space (an owner or the admin, or a guest of that space, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. An aside has no chat (its id answers 404), pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a space deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the space.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 
@@ -168,9 +168,9 @@ old `/api/rooms...` paths answer 404. Saved links redirect for good (301, the re
 `/rooms/:id` to `/spaces/:id`, `/img/room/:id` to `/img/space/:id`, `/img/:key/:slot?room=&roomOnly=1` to
 `?space=&spaceOnly=1`, and `/modules/:id?moduleRoom=` to `?space=` (`server/old-links.js`).
 
-Each space has one call, a LiveKit room named from the space's id (`lobby` for the Lobby, `aside-<id>` for an
+Each space has one call, a LiveKit room (LiveKit's own word for a call) named from the space's id (`lobby` for the Lobby, `aside-<id>` for an
 aside, each prefixed `<slug>.` on a hosted server; see "Call names" in
-[architecture-tenants](architecture-tenants.md)). Nothing about the name is stored. Chat, reactions and away
+[architecture-environments](architecture-environments.md)). Nothing about the name is stored. Chat, reactions and away
 status travel over the LiveKit data channel between participants and are never stored.
 
 An aside is not a space. Since step 8 of the Names plan it is its own record, `asides` in `app.json`:

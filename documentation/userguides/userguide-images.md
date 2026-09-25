@@ -4,8 +4,8 @@
 each player.
 
 Each user has two things the recording can show, and both react to the same live signal: who is
-speaking and who is muted. Both can be set once as a **Default** on the account and, for a room,
-replaced just for that room. Which of the two a room offers depends on that room's **Profile**.
+speaking and who is muted. Both can be set once as a **Default** on the account and, for a space,
+replaced just for that space. Which of the two a space offers depends on that space's **Profile**.
 
 Each has pictures for **Offline**, **Online**, **Talking** and **Muted**, and the Participant box adds
 **Aside** and **Private**. The box always shows Offline or Online depending on whether the person is
@@ -41,7 +41,7 @@ fills the box.
 ## Character
 
 The Character box is a second box for OBS with the same pictures and its own talking and muted
-borders (off by default, set server-wide under **Character borders**). With no Online picture and no
+borders (off by default, set for the whole environment under **Character borders**). With no Online picture and no
 borders it stays transparent until the person talks or mutes, so it can sit over an existing
 character bar. It carries no audio.
 
@@ -58,16 +58,16 @@ uploaded, uncropped, since they may be transparent overlays.
 Images are PNG, JPEG, GIF or WebP up to 20 MB. Click a picture box to change it, and the small
 **x** over its corner to clear it. An empty box says "not set".
 
-## Per-room pictures
+## Per-space pictures
 
-A room section on a member's profile has **Use Default Profile Images**. Leave it checked and the
-member's defaults show in that room. Uncheck it to set pictures just for that room, so someone in two
+A space section on a member's profile has **Use Default Profile Images**. Leave it checked and the
+member's defaults show in that space. Uncheck it to set pictures just for that space, so someone in two
 campaigns can give each its own Character images. Any picture left unset there still falls back to
-the defaults. In the call, the space list and the call's tiles show the room's Online picture (and the
-Offline one for members who are not in the room) when it has been set.
+the defaults. In the call, the space list and the call's tiles show the space's Online picture (and the
+Offline one for members who are not in the space) when it has been set.
 
 ## Server defaults
 
-When neither the member nor the room has set a picture, the box shows the server-wide **Default
+When neither the member nor the space has set a picture, the box shows the environment-wide **Default
 Images** from the Theme tab of the Manage page. Guests show the shared **Guest images** set instead of
 a member's own.

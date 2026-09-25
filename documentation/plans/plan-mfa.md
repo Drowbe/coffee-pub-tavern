@@ -46,7 +46,7 @@
 - **Manage > Server** gains the **Require two-step sign-in for everyone** switch under Sign-in (hidden when the server does not offer it); **Users** shows a small mark on accounts with a factor.
 - **The host console**'s Host tab gains the host admin's own enrolment (the same block as the profile's) and, on an environment's card, a way to reset one of its owners' factor. The Roles and Users wording says "Owner" on a hosted server as elsewhere.
 - **The sign-in page** says "You will be asked for a code from your authenticator app" when the environment requires it.
-- **Docs:** [userguide-accounts](../userguides/userguide-accounts.md) gains "Two-step sign-in" (enrolling, recovery codes, a lost phone, trusted browsers), [userguide-server-settings](../userguides/userguide-server-settings.md) the policy, [userguide-environments](../userguides/userguide-environments.md) the owner's reset, the getting-started guide `HOST_MFA` and `secrets.key`, and the API notes for Studio: the `mfaRequired` answer and the verify route. `architecture-tenants.md` notes where the key lives.
+- **Docs:** [userguide-accounts](../userguides/userguide-accounts.md) gains "Two-step sign-in" (enrolling, recovery codes, a lost phone, trusted browsers), [userguide-environment-settings](../userguides/userguide-environment-settings.md) the policy, [userguide-environments](../userguides/userguide-environments.md) the owner's reset, the getting-started guide `HOST_MFA` and `secrets.key`, and the API notes for Studio: the `mfaRequired` answer and the verify route. `architecture-environments.md` notes where the key lives.
 
 ## Phase 2: passkeys
 

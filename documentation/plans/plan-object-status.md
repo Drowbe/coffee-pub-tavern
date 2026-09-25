@@ -92,5 +92,5 @@ Documentation (content-manager, after each step): the SDK and manifest documents
 
 ## Builds on this
 
-**#13, Planner changes shown in the Calendar**, is not planned yet. It would carry the status across with no more work, since the Calendar would draw Planner objects from their summaries. It builds on `objects.search` (as the Planner already uses it to find other modules' dated objects, `modules/travel/src/travel-lib-plan.js:199-212`) and on [plan-linked-items](plan-linked-items.md)'s change events and date sync, none of which is built. It also needs the Planner's summary to carry `end` and a time.
+**#13, Planner changes shown in the Calendar**, is not planned yet. It would carry the status across with no more work, since the Calendar would draw Planner objects from their summaries. It builds on `objects.search` (as the Planner already uses it to find other modules' dated objects, `modules/travel/src/travel-lib-plan.js:199-212`) and on [plan-linked-objects](plan-linked-objects.md)'s change events and date sync, none of which is built. It also needs the Planner's summary to carry `end` and a time.
 

@@ -1,6 +1,6 @@
 // The host console (admin.<base domain>): the deployment's own door. The environments (each its own people, spaces,
 // settings and modules), their plans against their use, the host admins, the host itself. It shows no environment's
-// data beyond the counts. The API is /api/host/ (documentation/plans/plan-tenants.md, "Phase 1 in detail").
+// data beyond the counts. The API is /api/host/ (documentation/plans/plan-environments.md, "Phase 1 in detail").
 import { loadBranding, api, renderTopbar } from '/brand.js';
 import { wireRegionCut } from '/region-cut.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';

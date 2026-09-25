@@ -1,10 +1,10 @@
-# Tenants Architecture
+# Environments Architecture
 
 **Audience:** developers changing `server/index.js`, `server/environment.js`, `server/host-registry.js`,
 `server/migrate-names.js` or `server/studio-alias.js`, or adding a new module-level singleton to the server.
 
-What this is for and the decisions behind it are [plan-tenants](../plans/plan-tenants.md) (phase 1 is built;
-later phases are still a plan). This document is what you can only learn from the code: how the seam actually
+What this is for and the decisions behind it are [plan-environments](../plans/plan-environments.md) (phases 1 to 5
+are built; the plan was written as "tenants" and renamed with the [Names plan](../plans/plan-names.md)). This document is what you can only learn from the code: how the seam actually
 works, and the one thing to get right whenever you touch it.
 
 ## The seam, in one sentence
@@ -314,7 +314,7 @@ Step 5a's part, after `names-roles`. It renames an environment's stored data:
 | `images/` | `images/rooms/`, `images/<key>/rooms/` | `images/spaces/`, `images/<key>/spaces/` |
 | `modules/registry.json` | `allRooms`, `rooms` | `allSpaces`, `spaces` |
 | `modules/settings.json` | `{ server, rooms, people }` | `{ environment, spaces, people }` |
-| a module's data | `data/server.json`, `data/room-<id>.json` | `data/environment.json`, `data/space-<id>.json` (moved; pointers inside a module's own values wait for step 7) |
+| a module's data | `data/server.json`, `data/room-<id>.json` | `data/environment.json`, `data/space-<id>.json` (moved; pointers inside a module's own values are rewritten by `names-pointers`, below) |
 | a module's uploads | `uploads/server/`, `uploads/room-<id>/` | `uploads/environment/`, `uploads/space-<id>/` |
 | `modules/links.json`, `bus.json` | scope keys and pointers (`server`, `room:<id>`, `scope: 'room'`, `room`) | `environment`, `space:<id>`, `scope: 'space'`, `space` |
 | `modules/schedules.json` | `scopeKey`, `id`, `roomId`, `notify.to` | the same with the new scope names, and `spaceId` |
@@ -326,7 +326,7 @@ in `pre-names/names-spaces/`, and every folder and file it moves is listed in th
 
 ### The environment part: `names-pointers`
 
-Step 5c's part, after `names-spaces`. A module's pointers to other modules' items sit inside its own stored
+Step 5c's part, after `names-spaces`. A module's pointers to other modules' objects sit inside its own stored
 values, where the host cannot read them by meaning, and since step 5c the SDK refuses a pointer with an old
 scope. So this part rewrites, by shape and never by module, every `.json` file under `modules/<id>/data/` and
 `modules/bus.json` (its events and its actions). A value with string `module`, `kind` and `id` and
@@ -400,7 +400,7 @@ show Owner, Member, Admin ("Admin: runs this server") and Host admin.
 | Changing your own role | 400 `you cannot demote yourself` |
 | `PATCH /api/roles/owner` | 400 `the owner has every permission, so that role can't be changed` |
 | `PATCH /api/roles/user` | 404 (it is `PATCH /api/roles/member` now) |
-| Module settings of the environment, or of a space | 403 `only an owner changes the server's settings` / `only an owner or the room's moderators change its settings` |
+| Module settings of the environment, or of a space | 403 `only an owner changes the environment's settings` / `only an owner or the space's moderators change its settings` (in the environment's words) |
 | `POST /api/me/mfa/reset` or `/api/host/me/mfa/reset` while the lockout bypass is off | 403 `the lockout bypass (ADMIN_MFA_LOCKOUT_BYPASS) is not turned on` |
 
 `GET /api/roles` answers the permissions keyed `owner`, `moderator`, `member` and `guest`. A module's context
@@ -693,7 +693,7 @@ The console page for both is `public/host.js` with the form and the region cut s
 
 ## Phases 2 to 5: the owner, the caps, the calls, self-serve and billing
 
-Built to the contract in plan-tenants.md, "Phases 2 to 5 in detail". The owner is the environment's `owner` role (see "Roles" below; before step 4 it was `admin`, shown as Owner only on a hosted server), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the environment's directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and an environment's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, and off unless `SIGNUP=on`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades an environment past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the environment's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
+Built to the contract in plan-environments.md, "Phases 2 to 5 in detail". The owner is the environment's `owner` role (see "Roles" below; before step 4 it was `admin`, shown as Owner only on a hosted server), and the host's own cross sign-in (`environment.hostAdmin`) is the one viewer who still sees the host-only controls on Manage (uploading a module zip, running a module in the page). `GET /api/environment` gives an owner the plan and the usage; the caps are enforced at the seam, one thing at a time, with a 403 and a sentence: members on account creation, registration and invites; storage on uploads and pictures (the environment's directory measured at most once a minute and cached on the registry entry); assistant calls on `host.ai.ask` (counted per month on the entry); the module list on install and enable; calls at once on the join that would start a call (LiveKit's rooms with the slug prefix, asked at join time). The plan catalog lives in `host.json` (`plans`, `free` always present) and an environment's plan carries the catalog's `name` beside its own caps. Sign-up is `POST /api/product/signup` on the free plan, rate-limited, and off unless `SIGNUP=on`; billing is the signed webhook `POST /api/host/billing` (`BILLING_SECRET`) with `paid`, `lapsed` and `cancelled`, an hourly sweep that degrades an environment past due for fourteen days to the free caps, and checkout pages that are configuration (`BILLING_CHECKOUT_<PLAN>`). An owner's export is the environment's zip; a deletion request is a mark on the registry entry the console shows and a host admin acts on.
 
 ## Adding a new module-level singleton
 

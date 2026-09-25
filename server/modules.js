@@ -421,7 +421,7 @@ function cleanSettings(raw) {
     } else if (type === 'file' || type === 'files') {
       // A file (or, for `files`, several: a table of what is there with a tick for each) the admin placed for the module, in a folder of the module's own (DATA_DIR/modules/<id>/<folder>/): only the
       // server can choose one. `shared: "host"` makes the folder the host's, one for every environment, rather
-      // than each environment's own (documentation/plans/plan-tenants.md, "Shared files: the host's map") --
+      // than each environment's own (documentation/plans/plan-environments.md, "Shared files: the host's map") --
       // only with a base domain; without one the declaration has no effect, since there is no separate host.
       if (def.scope !== 'environment') throw new ModuleError(`module.json: setting "${key}" is a file, so its scope must be "environment"`);
       const folder = r.folder === undefined ? 'files' : String(r.folder);

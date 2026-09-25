@@ -37,16 +37,16 @@ display name does. The page needs no sign-in; the stream key stands in for it.
 The parameter is still spelled `kind=player` for the Participant box because existing OBS scenes
 already reference it.
 
-## Which room and which pictures
+## Which space and which pictures
 
-A link never carries a room. The view page reads which room the player is in right now, the same live
-presence that lets it follow them from room to room, and uses that room's own pictures for a slot when
+A link never carries a space. The view page reads which space the player is in right now, the same live
+presence that lets it follow them from space to space, and uses that space's own pictures for a slot when
 the player has set any there (with **Use Default Profile Images** off). Otherwise it falls back to the
-player's defaults, then to the server's Default Images, and, for the Participant box only, to the
+player's defaults, then to the environment's Default Images, and, for the Participant box only, to the
 player's profile photo when no Participant picture is set anywhere (the real photo; never the initials
 plate, and never for the Character box). One link keeps working as someone moves
-between rooms with different picture sets. While someone is in a private aside, their pictures come
-from the room they were pulled out of.
+between spaces with different picture sets. While someone is in a private aside, their pictures come
+from the space they were pulled out of.
 
 ## Pictures over HTTP
 

@@ -1,7 +1,7 @@
 // One environment's own services: everything under the seam server/index.js reaches by name (store, modules,
 // moduleData, moduleHooks, chatHistory, moduleLinks, moduleBus, moduleSettings, ai, moduleUploads, geocodeCache,
 // regionCutJobs, and the smaller in-memory state beside them), built once from one data directory. This is
-// phase 1 of documentation/plans/plan-tenants.md: with no BASE_DOMAIN there is exactly one environment, built
+// phase 1 of documentation/plans/plan-environments.md: with no BASE_DOMAIN there is exactly one environment, built
 // from DATA_DIR directly -- this file is what that construction always was, factored out so index.js can build
 // the same set again for each environment's own directory (DATA_DIR/environments/<slug>/), and index.js's request handlers
 // keep reading `store`, `modules` and the rest by the names they use today (see the AsyncLocalStorage + Proxy
@@ -10,7 +10,7 @@
 // What is NOT built here, because it is the host's, not any one environment's: the LiveKit client for the call
 // service (one call service, shared -- each environment's calls are named apart, see server/call-names.js), the pre-made backgrounds and Font
 // Awesome files (part of the app itself, or an admin's own Pro package at DATA_DIR/fontawesome-pro -- see the
-// migration note in plan-tenants.md: that folder and host.json are the two things a migration never moves).
+// migration note in plan-environments.md: that folder and host.json are the two things a migration never moves).
 'use strict';
 
 const fs = require('fs');
@@ -52,7 +52,7 @@ function moduleCan(manifest, perms, need) {
 // for the default environment; a hosted environment's server admin is the host admin, in host.json.
 //
 // `managed`, when given, is the function this environment's own Ai instance calls to read the host's managed
-// AI service (documentation/plans/plan-tenants.md, "Managed AI") -- index.js's own, closing over the host
+// AI service (documentation/plans/plan-environments.md, "Managed AI") -- index.js's own, closing over the host
 // registry and the AI_* environment variables. Defaults to offering none, for a caller (a test) that does not
 // need it. `secretsKey`, when given, returns the key (a 32-byte Buffer) the environment's own AI key is encrypted
 // with at rest in ai.json -- index.js's secretsKeyBuf, the same key as every two-step secret. Without it (a test

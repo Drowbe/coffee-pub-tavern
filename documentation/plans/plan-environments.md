@@ -1,6 +1,6 @@
 # Tenants: one host, many environments
 
-**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles, and the ten questions at the end, answered by the author). **Built:** phase 1 (September 23, 2026) and phases 2 to 5 (September 24, 2026); what is left and unverified is in [TODO](../TODO.md), "Environments: what is left after phases 2 to 5". Kept as the historical record of the decisions. It still uses the words of its time: since the [Names plan](plan-names.md) the code says environment, not tenant (`DATA_DIR/environments/`, `/api/host/environments`, `MIGRATE_ENVIRONMENT_SLUG`), and a call's name is no longer built from a stored setting; how the code works now is in [architecture-tenants](../architecture/architecture-tenants.md).
+**Status:** decided September 23, 2026 (the shape, the seam, the URL, the roles, and the ten questions at the end, answered by the author). **Built:** phase 1 (September 23, 2026) and phases 2 to 5 (September 24, 2026); what is left and unverified is in [TODO](../TODO.md), "Environments: what is left after phases 2 to 5". Kept as the historical record of the decisions. It still uses the words of its time: since the [Names plan](plan-names.md) the code says environment, not tenant (`DATA_DIR/environments/`, `/api/host/environments`, `MIGRATE_ENVIRONMENT_SLUG`), and a call's name is no longer built from a stored setting; how the code works now is in [architecture-environments](../architecture/architecture-environments.md).
 
 ## What it is for
 
@@ -113,7 +113,7 @@ Built by two sessions at once against this contract: the server half (the regist
 
 The seam, the registry, the resolver, the host API and the migration are built (`server/environment.js`,
 `server/host-registry.js`, the changes to `server/index.js` and `server/auth.js`), and the mechanism is written
-up for whoever touches it next in [architecture-tenants](../architecture/architecture-tenants.md). What is not
+up for whoever touches it next in [architecture-environments](../architecture/architecture-environments.md). What is not
 in this list is the console page itself (`public/host.html` + `public/host.js`), the other session's own half.
 
 **The critical acceptance test -- no `BASE_DOMAIN`, nothing under the seam changed -- passed live, not just in
@@ -208,4 +208,4 @@ Each cap is `null` for none. Over a cap, the one thing stops with a 403 and a pl
 
 ### The pages (the UI session)
 
-Manage: the Owner wording, the hidden host-only controls, the Environment panel with its bars, banner, export, delete request and Upgrade link, the Available list's "Not in your plan". The host console: the Plans panel, past-due and deletion-requested marks on a tenant with the plan picker taking the catalog's names, and the webhook's address and secret note in "The host". The landing page: the Plans section from the catalog, and the sign-up form (slug with a live check, name, owner login, display name, password) that lands in the new environment. Every page shows an owner's past-due banner. Docs: a new user guide, `userguide-environments.md` (an owner's view: what is theirs, the caps, the plan, export and deletion), and the getting-started guide's Environments section for the host operator (plans, the webhook, sign-up), plus `architecture-tenants.md`.
+Manage: the Owner wording, the hidden host-only controls, the Environment panel with its bars, banner, export, delete request and Upgrade link, the Available list's "Not in your plan". The host console: the Plans panel, past-due and deletion-requested marks on a tenant with the plan picker taking the catalog's names, and the webhook's address and secret note in "The host". The landing page: the Plans section from the catalog, and the sign-up form (slug with a live check, name, owner login, display name, password) that lands in the new environment. Every page shows an owner's past-due banner. Docs: a new user guide, `userguide-environments.md` (an owner's view: what is theirs, the caps, the plan, export and deletion), and the getting-started guide's Environments section for the host operator (plans, the webhook, sign-up), plus `architecture-environments.md`.

@@ -5,7 +5,7 @@
 Every player is available to OBS as a separate Browser Source, on a transparent background, so you lay
 them out however you like and they stay in place as people talk, join or leave. An absent player
 renders as their Offline picture. A player with no Participant picture set anywhere (their own, the
-space's, or the server's Default Images) shows their profile photo instead, and one with neither shows
+space's, or the environment's Default Images) shows their profile photo instead, and one with neither shows
 nothing. This is the **Stream** module's work: it ships with the
 server and is installed and turned on by itself, so an existing server's sources keep working across the
 update. If it has been turned off, every view link answers with a sentence saying so, and Manage > Modules
@@ -14,7 +14,7 @@ turns it back on.
 ## With Coffee Pub Studio
 
 Skip everything below. Studio's Magpie tab signs in as an owner and creates and maintains both sources
-for every player in the room you pick, in one click. See Studio's own guide for that.
+for every player in the space you pick, in one click. See Studio's own guide for that.
 
 ## By hand
 
@@ -47,7 +47,7 @@ Under the module's settings (**Module Configuration** on its card on the Modules
 muted borders and their colours and width for the Participant box and, separately, the Character box;
 the name plate (on or off, position, box colour and opacity, text colour, size and case); a colour behind
 the Participant picture and how large the portrait sits in the box; and how a box is dimmed or tinted
-while the person is offline, in an aside away from the room the stream follows, or in a private
+while the person is offline, in an aside away from the space the stream follows, or in a private
 conversation. These are the same for everyone. A server that had these on its Server tab (now Environment) before the
 module arrived keeps its values: they were carried over when the module installed itself.
 

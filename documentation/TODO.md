@@ -6,8 +6,8 @@ side of things.
 
 ## In progress
 
-- **Names** ([plan-names](plans/plan-names.md)): steps 1 to 8 are built (September 24 and 25, 2026). Steps 9
-  and 10 (the documentation, the aliases going): #24.
+- **Names** ([plan-names](plans/plan-names.md)): steps 1 to 9 are built (September 24 and 25, 2026). Step 10
+  (the aliases going) waits for Coffee Pub Studio's release: #24.
 - **Environment templates** ([plan-environment-templates](plans/plan-environment-templates.md)): done, except the live verification of addendum 2's steps 3a and 3b (#68).
   (September 25, 2026).
 
