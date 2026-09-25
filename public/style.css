@@ -5655,3 +5655,30 @@ body.in-space .topbar.menu-open .links .module-nav-link {
   .word-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .word-row label:last-of-type { grid-column: 1 / -1; }
 }
+
+/* Templates (plan-environment-templates): the Template choice on the host console's create form and the product page's
+   sign-up (None, then each template with its description), one option per row, the whole row the radio's label. */
+.template-choice { margin: 12px 0; padding: 0; border: none; min-width: 0; }
+.template-choice legend { padding: 0; margin-bottom: 4px; color: var(--text); font-size: 13px; font-weight: 600; }
+.template-choice > .hint { margin-bottom: 8px; }
+.template-options { display: grid; gap: 6px; }
+.template-option, .panel .template-option { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text); cursor: pointer; text-transform: none; letter-spacing: normal; font-size: 13px; }
+.template-option input { flex: none; margin: 2px 0 0; }
+.template-option > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.template-option:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg-card)); }
+/* What a template left out: on the console's environment card and on Manage's Template note. */
+.template-skipped { margin-top: 10px; }
+.template-skipped ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; }
+.template-skipped li { margin: 2px 0; }
+.template-skipped li .hint { display: block; }
+/* Manage > Environment: which template it was made from. */
+.template-note p { margin: 0; }
+.template-note .template-skipped ul { list-style: none; padding-left: 0; }
+.template-note .template-skipped li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); }
+.template-note .template-skipped li > i { margin-top: 3px; color: var(--text-dim); }
+.template-note .template-skipped li > div { min-width: 0; }
+/* A word, module name or icon that comes from the template, not the owner: said beside it. */
+.from-template { color: var(--text-dim); font-size: 12px; font-style: italic; }
+.home-icon-template { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.home-icon-template .btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg-card)); }
+.module-display-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }

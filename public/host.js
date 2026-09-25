@@ -14,6 +14,7 @@ const slot = (el, name) => el.querySelector(`[data-slot="${name}"]`);
 let settings = { baseDomain: '', version: '', hostAdmins: [], plans: {} };
 const PLAN_ORDER = (plans) => Object.keys(plans || {}).sort((a, b) => (a === 'free' ? -1 : b === 'free' ? 1 : a.localeCompare(b)));
 let environments = [];
+let templates = []; // what a new environment can be made from (GET /api/host/templates): [{ id, name, description }]
 
 const gb = (bytes) => (bytes ? `${(bytes / 1e9).toFixed(bytes < 1e8 ? 2 : 1)} GB` : '0');
 const cap = (used, limit, unit = '') => (limit ? `${used}${unit} of ${limit}${unit}` : `${used}${unit}, no cap`);
@@ -34,12 +35,15 @@ async function load() {
   try {
     settings = await api('GET', '/api/host/settings');
     environments = (await api('GET', '/api/host/environments')).environments;
+    templates = (await api('GET', '/api/host/templates').catch(() => ({ templates: [] }))).templates || [];
   } catch (err) {
     say($('environments-status'), err.message, true);
     return;
   }
   $('base-hint').textContent = `<slug>.${settings.baseDomain}`;
   renderEnvironments();
+  followTemplates();
+  renderCreateChoices();
   renderAdmins();
   renderFacts();
   renderPlans();
@@ -280,8 +284,10 @@ function renderEnvironments() {
         tile('Calls at once', p.calls ? `${u.callsNow ?? 0} of ${p.calls}` : 'no cap', pctOf(u.callsNow ?? 0, p.calls)),
       ]),
       tile('Modules', mods),
+      ...(t.template ? [tile('Template', t.template.name || t.template.id)] : []),
       tile('Since', t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''),
     ].join('');
+    renderSkipped(slot(el, 'template-skipped'), t.template);
     // the plan form, filled from the plan
     const form = slot(el, 'plan-form');
     form.elements.name.value = t.name || '';
@@ -434,7 +440,55 @@ $('environments').addEventListener('submit', async (e) => {
   } catch (err) { say(slot(form, 'plan-status'), err.message, true); }
 });
 
+// What a template left out when an environment was made from it (plan-environment-templates.md, "Entitlement"): each
+// module with why. Not in the plan (or needing one that was not) means it was never installed; anything else means it is
+// installed and in every space but not on yet, for the owner to turn on once what it needs is set up.
+const leftOut = (why) => why === 'not in the plan' || /^needs .+, which was skipped$/.test(why || '');
+function renderSkipped(box, template) {
+  const skipped = (template && template.skipped) || [];
+  box.hidden = !skipped.length;
+  if (!skipped.length) { box.replaceChildren(); return; }
+  box.innerHTML = `<p class="hint">Left out of the ${escapeHtml(template.name || template.id)} template:</p><ul>${skipped.map((x) => `<li><strong>${escapeHtml(x.name || x.id)}</strong>: ${leftOut(x.why) ? escapeHtml(x.why) : `not on yet. ${escapeHtml(/[.!?]$/.test(x.why || '') ? x.why : `${x.why}.`)}`}</li>`).join('')}</ul>`;
+}
+
+// A template's modules install in the background after the create answers, so what it left out is known a moment
+// later: while an environment's template reads as not applied yet, look again a few times, then stop.
+let templateLooks = 0;
+let templateTimer = null;
+function followTemplates() {
+  clearTimeout(templateTimer);
+  if (!environments.some((t) => t.template && !t.template.appliedAt)) { templateLooks = 0; return; }
+  if (++templateLooks > 5) return;
+  templateTimer = setTimeout(async () => {
+    // Never redraw under someone's hands (an open Edit form, or a card being used): look again later instead.
+    if ($('environments').querySelector('.plan-form:not([hidden])') || $('environments').contains(document.activeElement)) { followTemplates(); return; }
+    try {
+      environments = (await api('GET', '/api/host/environments')).environments;
+      renderEnvironments();
+      followTemplates();
+    } catch (err) {
+      // the next full load says what is wrong
+    }
+  }, 1500);
+}
+
 // --- creating one ----------------------------------------------------------------------------------------------
+// The create form's Plan (the catalog; none chosen means no caps and every module, as before) and Template (None, then
+// each template with its description; hidden when the host has none).
+function renderCreateChoices() {
+  const plan = $('new-plan');
+  const was = plan.value;
+  plan.replaceChildren(new Option('No caps, every module', ''), ...PLAN_ORDER(settings.plans).map((id) => new Option(settings.plans[id].name || id, id)));
+  plan.value = settings.plans && settings.plans[was] ? was : '';
+  const box = $('new-template');
+  box.hidden = !templates.length;
+  const options = slot(box, 'options');
+  const chosen = box.querySelector('input:checked')?.value || '';
+  const option = (id, name, description) => `<label class="template-option"><input type="radio" name="new-template" value="${escapeHtml(id)}"${id === chosen ? ' checked' : ''}><span><strong>${escapeHtml(name)}</strong><span class="hint">${escapeHtml(description)}</span></span></label>`;
+  options.innerHTML = option('', 'None', 'Start plain: the usual words and settings.')
+    + templates.map((t) => option(t.id, t.name || t.id, t.description || '')).join('');
+  if (!options.querySelector('input:checked')) options.querySelector('input').checked = true;
+}
 $('create-toggle').addEventListener('click', () => { $('create-form').hidden = !$('create-form').hidden; if (!$('create-form').hidden) $('new-slug').focus(); });
 $('create-cancel').addEventListener('click', () => { $('create-form').hidden = true; });
 $('create-form').addEventListener('submit', async (e) => {
@@ -444,6 +498,8 @@ $('create-form').addEventListener('submit', async (e) => {
     await api('POST', '/api/host/environments', {
       slug: $('new-slug').value.trim().toLowerCase(),
       name: $('new-name').value.trim(),
+      ...($('new-plan').value && settings.plans[$('new-plan').value] ? { plan: { name: $('new-plan').value, ...settings.plans[$('new-plan').value].caps } } : {}),
+      ...($('new-template').querySelector('input:checked')?.value ? { template: $('new-template').querySelector('input:checked').value } : {}),
       owner: { login: $('new-owner-login').value.trim(), displayName: $('new-owner-name').value.trim(), password: $('new-owner-password').value },
     });
     $('create-form').reset();

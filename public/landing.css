@@ -88,3 +88,7 @@ body.landing { margin: 0; background: var(--bg); color: var(--text); }
 
 /* A call to action while sign-up from this page is off: reads "Coming soon", looks like a button, does nothing. */
 .btn.coming-soon { opacity: 0.55; cursor: default; pointer-events: none; }
+
+/* The sign-up's Template choice (style.css's .template-choice): each option a row, the radio beside its name. */
+.signup-form .template-choice { margin: 0; }
+.signup-form .template-option { flex-direction: row; gap: 10px; color: var(--text); }

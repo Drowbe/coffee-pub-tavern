@@ -1,0 +1,13 @@
+{
+  "id": "travel",
+  "name": "Travel",
+  "description": "Plan trips together: the itinerary, places, maps, research and a calendar.",
+  "words": { "space": { "one": "trip", "many": "trips" } },
+  "icons": { "home": "suitcase-rolling" },
+  "moduleNames": { "travel": "Itinerary" },
+  "moduleIcons": {},
+  "modules": ["travel", "places", "maps", "research", "calendar", "chat", "conference"],
+  "settings": {},
+  "lobby": { "name": "Home base", "description": "Everyone on every trip." },
+  "spaceDefaults": { "profile": "participants" }
+}

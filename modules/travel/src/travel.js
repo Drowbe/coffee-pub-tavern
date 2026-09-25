@@ -22,7 +22,9 @@
     return;
   }
   if (info.context.scope !== 'space') {
-    $('msg').textContent = `A trip belongs to ${word('space', { a: true })}. Open the ${word('space')}, then ${info.module.name} there; the dashboard lists your trips.`;
+    // Named by the module's own name here and the environment's space word, never the Planner's own item (a trip), which
+    // a template may also call its space word.
+    $('msg').textContent = `${info.module.name} works inside ${word('space', { a: true })}. Open ${word('space', { a: true })}, then ${info.module.name} there; the dashboard lists your ${word('space', { many: true })}.`;
     return;
   }
 

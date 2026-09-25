@@ -280,6 +280,14 @@
           <button class="btn btn-small" type="button" id="env-delete-back">Never mind</button>
         </form>
       </div>
+      <!-- The template this environment was made from (plan-environment-templates), and what it left out: drawn by admin.js,
+           hidden when there is none. -->
+      <div class="panel template-note" id="template-panel" hidden>
+        <h2>Template</h2>
+        <p id="template-made"></p>
+        <p class="hint" id="template-hint" data-fill>It set this {environment}'s words, its home icon and some {module} names. Each is marked "from the template" where it applies; change any of them, and Reset goes back to the template's.</p>
+        <div class="template-skipped" id="template-skipped" hidden></div>
+      </div>
       <div class="panel">
       <h2>Name and icon</h2>
       <p class="hint">The icon and name show in the header, the browser tab and on the sign-in page.</p>
@@ -298,6 +306,11 @@
       </div>
       <div class="icon-pick-field">
         <span class="field-label">Home icon</span>
+        <!-- With a template: its own home icon (or the default when it gives none) as the first choice; saved as none of the owner's. -->
+        <div class="home-icon-template" id="home-icon-template" hidden>
+          <button class="btn btn-small" type="button" id="home-icon-template-btn" aria-pressed="false"><i class="fa-solid fa-fw" aria-hidden="true"></i> <span>Template's own</span></button>
+          <span class="hint" id="home-icon-template-hint"></span>
+        </div>
         <div class="icon-grid" id="set-home-icon" role="group" aria-label="Home icon"></div>
       </div>
       <p class="hint" data-fill>Shown next to the name wherever it's a link back to the {space} list.</p>
@@ -310,7 +323,7 @@
       <!-- What people read for each level and role here (plan-environment-templates, "The vocabulary"): drawn by admin.js. -->
       <div class="panel" id="words-panel">
       <h2>Words</h2>
-      <p class="hint" data-fill>What people read here for each level and role: in the header, on every page and in {modules}. Type each as it reads in the middle of a sentence (capitals are added where one is needed), and leave a word blank for its default. The host and admin words are the host's own and don't change.</p>
+      <p class="hint" data-fill>What people read here for each level and role: in the header, on every page and in {modules}. Type each as it reads in the middle of a sentence (capitals are added where one is needed). <span id="words-blank">Leave a word blank for its default.</span> The host and admin words are the host's own and don't change.</p>
       <div class="words-list" id="words-list"></div>
       <div class="row">
         <button class="btn btn-primary" id="save-words" type="button">Save</button>

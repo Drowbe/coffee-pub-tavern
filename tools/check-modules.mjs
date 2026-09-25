@@ -273,7 +273,7 @@ test('a display name and icon are checked before anything is saved, each with on
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-display-'));
   try {
     const store = new Store(dir);
-    assert.deepEqual(store.moduleDisplay('travel'), { name: null, icon: null, ownName: null, ownIcon: null });
+    assert.deepEqual(store.moduleDisplay('travel'), { name: null, icon: null, ownName: null, ownIcon: null, templateName: null, templateIcon: null });
     assert.deepEqual(store.checkModuleDisplay('travel', { displayName: '  Trip   planner ', displayIcon: 'compass' }), { name: 'Trip planner', icon: 'compass' });
     assert.deepEqual(store.checkModuleDisplay('travel', { displayName: '', displayIcon: null }), { name: null, icon: null });
     assert.deepEqual(store.checkModuleDisplay('travel', {}), {});
@@ -293,12 +293,13 @@ test('a display name and icon are checked before anything is saved, each with on
       [{ displayIcon: 'unicorn-rocket' }, "There is no icon called unicorn-rocket in this environment's icons."],
     ]) assert.throws(() => store.checkModuleDisplay('travel', patch), (err) => err.status === 400 && err.message === sentence, JSON.stringify(patch));
     store.applyModuleDisplay('travel', { name: 'Itinerary', icon: 'compass' });
-    assert.deepEqual(store.moduleDisplay('travel'), { name: 'Itinerary', icon: 'compass', ownName: 'Itinerary', ownIcon: 'compass' });
+    assert.deepEqual(store.moduleDisplay('travel'), { name: 'Itinerary', icon: 'compass', ownName: 'Itinerary', ownIcon: 'compass', templateName: null, templateIcon: null });
     store.templateModuleNames = { travel: 'Journey', places: 'Stops' };
     store.templateModuleIcons = { places: 'map', calendar: 'not-in-the-list' };
     assert.equal(store.moduleDisplay('travel').name, 'Itinerary', 'the owner\'s, over the template\'s');
-    assert.deepEqual(store.moduleDisplay('places'), { name: 'Stops', icon: 'map', ownName: null, ownIcon: null }, 'else the template\'s');
-    assert.equal(store.moduleDisplay('calendar').icon, null, 'an icon not in the environment\'s icons reads the module\'s own');
+    assert.deepEqual(store.moduleDisplay('places'), { name: 'Stops', icon: 'map', ownName: null, ownIcon: null, templateName: 'Stops', templateIcon: 'map' }, 'else the template\'s');
+    assert.equal(store.moduleDisplay('calendar').icon, 'not-in-the-list', 'a template\'s icon counts as drawable: server/templates.js takes only Font Awesome Free solid icons');
+    assert.deepEqual(store.checkModuleDisplay('travel', { displayIcon: 'map' }), { icon: 'map' }, 'and the owner may pick a template\'s icon');
     // Any installed or built-in module's own icon is allowed too, though it is not in the environment's icon list.
     assert.throws(() => store.checkModuleDisplay('travel', { displayIcon: 'suitcase-rolling' }), /There is no icon called suitcase-rolling/);
     store.moduleIconIds = () => ['suitcase-rolling', 'video'];

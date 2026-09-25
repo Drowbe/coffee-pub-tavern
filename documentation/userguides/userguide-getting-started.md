@@ -59,6 +59,10 @@ Use ADMIN_PASSWORD for the server's admin." If you set it in that version, put t
 `ADMIN_LOGIN` and `ADMIN_PASSWORD`, and that account becomes the admin again on the next start; without them,
 the owners run the server and there is no admin.
 
+**A template (optional).** To set the server up for one use from the start, such as planning trips, add
+`TEMPLATE: "travel"` to the compose file before the first start. It is read only when the data folder is new; see
+[Templates](userguide-templates.md).
+
 ## Update it later
 
 An install made before the product's rename keeps its old names: the containers `tavern-app` and

@@ -421,8 +421,9 @@ one. The old `/api/host/tenants...` paths are gone and answer 404; there is no a
 
 | Route | Answer |
 |---|---|
-| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused }] }` |
-| `POST /api/host/environments` `{ slug, name, plan?, owner?: { login, displayName, password } }` | 201 `{ environment }`; 409 `"<slug>" is already in use`; a bad slug answers `cleanSlug`'s own error |
+| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused, template }] }`, `template` being `{ id, name, appliedAt, skipped: [{ id, name, why }] }` or null, read from the environment itself |
+| `GET /api/host/templates` | `{ templates }`, the templates this server has |
+| `POST /api/host/environments` `{ slug, name, plan?, template?, owner?: { login, displayName, password } }` | 201 `{ environment }`; 409 `"<slug>" is already in use`; a bad slug answers `cleanSlug`'s own error; 400 `There is no template called <id>.` or `A template is named by its id, such as travel.` |
 | `PATCH /api/host/environments/:slug` `{ name?, plan?, status? }` | `{ environment }`; 404 `no such environment`; 400 for a status not in the list |
 | `DELETE /api/host/environments/:slug` | `{ ok: true }`, the data moved to `DATA_DIR/environments-deleted/<slug>-<ms>/`, never removed; 404 `no such environment` |
 | `POST /api/host/environments/:slug/backup` | the environment's folder as a zip (`Content-Disposition` `<slug>-backup.zip`); 404 `no such environment` |
@@ -465,6 +466,40 @@ than read in a shape this server does not understand (plan-names decision 22).
   `{ error: "This backup's data can't be read, so nothing was restored." }` (`UNREADABLE_BACKUP`). The other
   answers are as before: 404 `no such environment`, 400 `choose a zip file to restore`, and
   400 with the zip reader's message.
+
+## Templates
+
+A template sets an environment up for one use when it is made (plan-environment-templates; the owner's view is
+[userguide-templates](../userguides/userguide-templates.md)). It is data, not code: `templates/<id>.json` at the
+repository's root (the Dockerfile copies `templates/`), read by `server/templates.js`. Nothing in the code knows
+which template names which module.
+
+**The file.** `{ id, name, description, words, icons: { home }, moduleNames, moduleIcons, modules, settings, lobby:
+{ name, description }, spaceDefaults: { profile } }`. `words` covers only the ten changeable keys (never `host` or
+`admin`), in the form Manage takes. `icons.home` and `moduleIcons` must be plain solid Font Awesome Free icons.
+`modules` lists module ids, bundled or built in, and must include `chat`. `settings` takes only `language`,
+`clock`, `currency`, `loginText`, `allowRegistration`, `mfaRequired`, `maxQuality`, `allowScreenShare`,
+`allowAsides`, `allowPrivate`, `allowReactions`, `activeThemeId` and `themeMode`. `spaceDefaults.profile` is
+`roleplaying`, `participants` or `characters`. Every file is checked when the server starts, and an invalid one
+stops the start with a line naming each problem; `tools/check-templates.mjs` (in `npm run check`) checks the same.
+
+**Picked once.** Only when an environment is made: `POST /api/host/environments` `{ template }`, the product
+page's `POST /api/product/signup` `{ template }` (`GET /api/product` lists `templates`), or `TEMPLATE=<id>` on a
+single install's new data folder. `TEMPLATE` on existing data, or on a hosted server, is ignored with a log line;
+an unknown id stops the start with a line listing the templates there are.
+
+**Applied once, then the owner's.** Its settings, its modules (turned on, and on in every space), the Lobby's name
+and description, and `spaceDefaults` are applied when the environment is made, and recorded in `app.json`'s
+`template`: `{ id, name, appliedAt, skipped: [{ id, name, why }] }`. A module is skipped when the plan doesn't
+include it, when it needs a skipped one, or (Research) until the AI service is on; the console card and Manage's
+**Template** panel list them. A backup carries the record, and a restore brings it back.
+
+**Followed live.** Its words, home icon and module display names and icons are read from the template file on
+every build, as the layer between the default and the owner's own: an owner's change wins, and a reset goes
+back to the template's. `GET` and `PATCH /api/settings` give the owner `template`, `ownHomeIcon`, `templateWords`,
+`templateHomeIcon` and `spaceDefaults`; `PATCH` takes `homeIcon: null` (back to the template's) and
+`spaceDefaults: { profile } | null` (400 `spaceDefaults takes only profile.` or `profile must be roleplaying,
+participants or characters`). `GET /api/modules` adds `templateDisplayName` and `templateDisplayIcon`.
 
 ## The Studio alias
 

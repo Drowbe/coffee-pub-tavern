@@ -1117,6 +1117,56 @@ try {
     server = null;
   });
 
+  // plan-environment-templates step 3: an environment made from a template on the console, what it tells the owner and
+  // the console, and a restart that applies nothing again.
+  await liveTest('live: an environment made from the travel template reports its template, skips what the plan leaves out, and keeps the template\'s values readable under the owner\'s', async () => {
+    const hosted = path.join(liveDir, 'hosted-template');
+    const start = () => startServer(hosted, { BASE_DOMAIN: 'localhost', ADMIN_LOGIN: 'boss', ADMIN_PASSWORD: 'host-password-3' });
+    server = await start();
+    const boss = cookieOf(await call(server, 'admin', 'POST', '/api/host/login', { body: { login: 'boss', password: 'host-password-3' } }));
+    assert.deepEqual((await call(server, 'admin', 'GET', '/api/host/templates', { cookie: boss })).json.templates.map((t) => t.id), ['travel']);
+    assert.deepEqual(await call(server, 'admin', 'POST', '/api/host/environments', { cookie: boss, body: { slug: 'nope', name: 'Nope', template: 'camping' } }).then((r) => [r.status, r.json]), [400, { error: 'There is no template called camping.' }]);
+    for (const template of [['travel'], { id: 'travel' }, 7]) assert.deepEqual(await call(server, 'admin', 'POST', '/api/host/environments', { cookie: boss, body: { slug: 'nope', name: 'Nope', template } }).then((r) => [r.status, r.json]), [400, { error: 'A template is named by its id, such as travel.' }], JSON.stringify(template));
+    const plan = { modules: fs.readdirSync(path.join(ROOT, 'modules')).filter((m) => m !== 'maps') };
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/environments', { cookie: boss, body: { slug: 'trips', name: 'Trips', plan, template: 'travel', owner: { login: 'olga', password: 'olga-password-1' } } })).status, 201);
+    const listed = async () => (await call(server, 'admin', 'GET', '/api/host/environments', { cookie: boss })).json.environments.find((e) => e.slug === 'trips').template;
+    let template;
+    for (let i = 0; i < 100 && !(template = await listed())?.appliedAt; i += 1) await new Promise((r) => setTimeout(r, 50));
+    assert.deepEqual([template.id, template.name, template.skipped.map((x) => [x.id, x.name, x.why])[0]], ['travel', 'Travel', ['maps', 'Maps', 'not in the plan']]);
+    const owner = cookieOf(await call(server, 'trips', 'POST', '/api/login', { body: { login: 'olga', password: 'olga-password-1' } }));
+    const settingsOf = async () => (await call(server, 'trips', 'GET', '/api/settings', { cookie: owner })).json.settings;
+    let st = await settingsOf();
+    assert.deepEqual([st.template.id, st.words.space.one, st.homeIcon, st.ownHomeIcon, st.templateWords, st.templateHomeIcon, st.spaceDefaults], ['travel', 'trip', 'suitcase-rolling', null, { space: { one: 'trip', many: 'trips' } }, 'suitcase-rolling', { profile: 'participants' }]);
+    await call(server, 'trips', 'PATCH', '/api/settings', { cookie: owner, body: { words: { space: { one: 'journey', many: 'journeys' } }, homeIcon: 'couch' } });
+    await call(server, 'trips', 'PATCH', '/api/modules/travel', { cookie: owner, body: { displayName: 'Plans' } });
+    st = await settingsOf();
+    assert.deepEqual([st.words.space.one, st.homeIcon, st.templateWords.space.one, st.templateHomeIcon], ['journey', 'couch', 'trip', 'suitcase-rolling'], 'the template\'s stay readable under the owner\'s');
+    const travel = (await call(server, 'trips', 'GET', '/api/modules', { cookie: owner })).json.modules.find((m) => m.id === 'travel');
+    assert.deepEqual([travel.displayName, travel.ownDisplayName, travel.templateDisplayName, travel.templateDisplayIcon], ['Plans', 'Plans', 'Itinerary', null]);
+    const places = (await call(server, 'trips', 'GET', '/api/modules', { cookie: owner })).json.modules.find((m) => m.id === 'places');
+    assert.deepEqual([places.templateDisplayName, places.templateDisplayIcon], [null, null]);
+    await server.stop();
+    server = await start();
+    const again = (await call(server, 'admin', 'GET', '/api/host/environments', { cookie: (cookieOf(await call(server, 'admin', 'POST', '/api/host/login', { body: { login: 'boss', password: 'host-password-3' } }))) })).json.environments.find((e) => e.slug === 'trips').template;
+    assert.deepEqual(again, template, 'after a restart the console reads the same record');
+    assert.ok(!server.output().includes('Applied the'), `nothing applied again:\n${server.output()}`);
+    // A Travel backup restored into an environment made with no template: the console follows the restored record.
+    const boss2 = cookieOf(await call(server, 'admin', 'POST', '/api/host/login', { body: { login: 'boss', password: 'host-password-3' } }));
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/environments', { cookie: boss2, body: { slug: 'plain', name: 'Plain' } })).status, 201);
+    const plainTemplate = async () => (await call(server, 'admin', 'GET', '/api/host/environments', { cookie: boss2 })).json.environments.find((e) => e.slug === 'plain').template;
+    assert.equal(await plainTemplate(), null);
+    const backup = await call(server, 'admin', 'POST', '/api/host/environments/trips/backup', { cookie: boss2 });
+    assert.equal(backup.status, 200);
+    assert.equal((await call(server, 'admin', 'POST', '/api/host/environments/plain/restore', { cookie: boss2, body: backup.raw, type: 'application/zip' })).status, 200);
+    const restored = await plainTemplate();
+    assert.deepEqual([restored.id, restored.name, restored.appliedAt, restored.skipped[0].id], ['travel', 'Travel', template.appliedAt, 'maps']);
+    assert.equal(readJson(path.join(hosted, 'host.json')).environments.find((e) => e.slug === 'plain').template, 'travel', 'the registry follows the record');
+    assert.equal((await call(server, 'plain', 'GET', '/api/branding')).json.words.space.one, 'journey', 'the owner\'s own word travels with the backup too');
+    assert.ok(!/\[plain\] Applied the/.test(server.output()), 'a restored record is not applied again');
+    await server.stop();
+    server = null;
+  });
+
   await liveTest('live: a single install whose app.json is not valid JSON stops, naming the file; a missing one starts fresh', async () => {
     const single = path.join(liveDir, 'single-unreadable');
     fs.mkdirSync(single);

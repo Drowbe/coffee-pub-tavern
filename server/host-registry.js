@@ -142,6 +142,9 @@ function cleanEnvironmentRecord(raw) {
     name: cleanText(raw.name, 80) || slug,
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
     plan: cleanPlan(raw.plan),
+    // The template it was made from (plan-environment-templates.md), for the console; null for none. The environment's
+    // own app.json records it too, with what was skipped.
+    template: typeof raw.template === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(raw.template) ? raw.template : null,
     status: STATUSES.includes(raw.status) ? raw.status : 'active',
     pastDueSince: typeof raw.pastDueSince === 'string' ? raw.pastDueSince : null,
     // Set once, by the hourly sweep, the moment a pastDue environment is degraded to the free plan's caps
@@ -295,17 +298,28 @@ class HostRegistry {
     return t ? { ...t, plan: { ...t.plan } } : null;
   }
 
-  // { slug, name, plan? }. plan defaults to uncapped, every module -- the shape a migrated install gets, and a
-  // reasonable starting point for one the host console creates (an admin narrows it after).
-  addEnvironment({ slug, name, plan }) {
+  // { slug, name, plan?, template? }. plan defaults to uncapped, every module -- the shape a migrated install gets, and a
+  // reasonable starting point for one the host console creates (an admin narrows it after). template: a template id the
+  // caller has already checked (server/templates.js), or null.
+  addEnvironment({ slug, name, plan, template = null }) {
     const clean = cleanSlug(slug);
     if (this.data.environments.some((t) => t.slug === clean)) throw new HostError(`"${clean}" is already in use`, 409);
     // Built through cleanEnvironmentRecord so a brand new environment carries the same defaults (usage, the delete-request
     // fields) a loaded-from-disk one does -- the registry's other methods all assume environment.usage exists.
-    const environment = cleanEnvironmentRecord({ slug: clean, name, createdAt: new Date().toISOString(), plan: cleanPlan(plan) });
+    const environment = cleanEnvironmentRecord({ slug: clean, name, createdAt: new Date().toISOString(), plan: cleanPlan(plan), template });
     this.data.environments.push(environment);
     this.save();
     return { ...environment, plan: { ...environment.plan }, usage: { ...environment.usage } };
+  }
+
+  // The template an environment's own record (its app.json) names, so the console matches it after a restore: an id, or
+  // null for none.
+  setEnvironmentTemplate(slug, template) {
+    const environment = this.data.environments.find((t) => t.slug === slug);
+    const id = typeof template === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(template) ? template : null;
+    if (!environment || environment.template === id) return;
+    environment.template = id;
+    this.save();
   }
 
   updateEnvironment(slug, patch) {

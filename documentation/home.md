@@ -25,6 +25,7 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Magpie in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
 - [Manage](userguides/userguide-server-settings.md) -- every tab of the Manage page.
 - [Your environment](userguides/userguide-environments.md) -- an owner's view on a hosted server: the plan, the caps, a copy, leaving.
+- [Templates](userguides/userguide-templates.md) -- setting an environment up for one use when it is made, such as Travel.
 - [Modules](userguides/userguide-modules.md) -- adding features with a module zip.
 - [Calendar](userguides/userguide-calendar.md) -- events and reminders, for the server and for each room.
 

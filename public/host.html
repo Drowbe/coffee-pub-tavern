@@ -133,7 +133,14 @@
         <div class="fields">
           <label>Slug<input id="new-slug" type="text" minlength="3" maxlength="30" pattern="[a-z0-9\-]+" placeholder="stayingblonde" required autocapitalize="off" autocomplete="off"></label>
           <label>Name<input id="new-name" type="text" maxlength="60" placeholder="Staying Blonde" required autocomplete="off"></label>
+          <label>Plan<select id="new-plan"><option value="">No caps, every module</option></select></label>
         </div>
+        <!-- What it is set up for (plan-environment-templates): None, then each template. Filled by host.js; hidden when the host has none. -->
+        <fieldset class="template-choice" id="new-template" hidden>
+          <legend>Template</legend>
+          <p class="hint">Sets it up for one use: its words, home icon, module names and which modules are on. Picked now only; the owner can change anything it sets. A module the plan leaves out is skipped.</p>
+          <div class="template-options" data-slot="options"></div>
+        </fieldset>
         <h3>The first owner</h3>
         <div class="fields">
           <label>Login<input id="new-owner-login" type="text" maxlength="40" required autocapitalize="off" autocomplete="off"></label>
@@ -274,6 +281,7 @@
       </div>
       <div class="refused" data-slot="refused" role="status" hidden></div>
       <dl class="facts" data-slot="facts"></dl>
+      <div class="template-skipped" data-slot="template-skipped" hidden></div>
       <form class="row owner-reset" data-slot="owner-reset" autocomplete="off">
         <span class="hint">An owner locked out of their authenticator app:</span>
         <input name="login" type="text" maxlength="40" placeholder="their login" autocapitalize="off" required>

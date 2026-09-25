@@ -565,7 +565,7 @@ class ModuleManager {
     // This environment's words (for the placeholders in a manifest's text) and a module's display name and icon (the
     // owner's, else the template's; null for the manifest's own), set by the environment's build (environment.js).
     this.wordsOf = () => null;
-    this.displayOf = () => ({ name: null, icon: null, ownName: null, ownIcon: null });
+    this.displayOf = () => ({ name: null, icon: null, ownName: null, ownIcon: null, templateName: null, templateIcon: null });
     this.filled = new Map(); // "id@version|words" -> the manifest with its placeholders filled
     this.withPlaceholders = new WeakSet(); // the stored manifests that have any
     try {
@@ -796,6 +796,9 @@ class ModuleManager {
       displayIcon: display.icon,
       ownDisplayName: display.ownName,
       ownDisplayIcon: display.ownIcon,
+      // What the environment's template gives it, whether or not the owner's own is set over it (null for none).
+      templateDisplayName: display.templateName,
+      templateDisplayIcon: display.templateIcon,
       // An outdated module is off (it can't run) and says why: `outdated` for its card, `outdatedWhy` naming the
       // old name its module.json uses. The registry keeps the admin's own choice, so an update that fixes it
       // runs again as it was.

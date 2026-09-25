@@ -13,6 +13,7 @@ const QRCode = require('qrcode');
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions, oldNameIn, pendingWidensNothing } = require('./modules');
 const { buildModule, bundledModules, zipFiles } = require('./module-build');
 const { fillManifest } = require('./modules');
+const templates = require('./templates');
 const { ModuleLinks } = require('./module-links');
 const { Backgrounds } = require('./backgrounds');
 const { ModuleBus } = require('./module-bus');
@@ -94,6 +95,10 @@ const {
   ADMIN_MFA_LOCKOUT_BYPASS = 'false',
   HOST_MFA_REQUIRED = 'false',
   HOST_MFA = '',
+  // A single-environment install made from a template (plan-environment-templates.md): its id, e.g. "travel". Applied
+  // only to a fresh data directory; ignored, with a line, on existing data and on a server with BASE_DOMAIN (where the
+  // host console and the sign-up pick one).
+  TEMPLATE = '',
 } = process.env;
 
 // The server's admin (plan-names decisions 7, 15 and 20): ADMIN_LOGIN and ADMIN_PASSWORD, on every kind of install.
@@ -123,6 +128,20 @@ const aiKeyFromEnv = AI_KEY || TAVERN_AI_KEY;
 const migrateEnvironmentSlug = MIGRATE_ENVIRONMENT_SLUG || MIGRATE_TENANT_SLUG;
 if (MIGRATE_TENANT_SLUG) console.warn('MIGRATE_TENANT_SLUG is now MIGRATE_ENVIRONMENT_SLUG; the old name stops working in a later release.');
 const signupEnabled = Boolean(BASE_DOMAIN) && SIGNUP === 'on';
+// The bundled templates, checked now: an invalid one stops the start, naming the file and what is wrong.
+try {
+  templates.all();
+} catch (err) {
+  console.error(err.message);
+  process.exit(1);
+}
+const templateId = String(TEMPLATE || '').trim();
+if (templateId && BASE_DOMAIN) console.warn(`TEMPLATE=${templateId} is ignored on a server with environments: pick a template when an environment is made, on the host console or the sign-up.`);
+if (templateId && !BASE_DOMAIN && !templates.get(templateId)) {
+  const known = templates.list().map((t) => t.id);
+  console.error(`TEMPLATE=${templateId} is not a template this server has${known.length ? `; the templates are ${known.join(', ')}` : '; it has none'}. Set one of those, or remove TEMPLATE.`);
+  process.exit(1);
+}
 const mfaOffered = ENABLE_MFA !== 'false';
 const adminMfaLockoutBypass = ADMIN_MFA_LOCKOUT_BYPASS === 'true';
 const hostMfaRequired = HOST_MFA_REQUIRED === 'true' || HOST_MFA === 'required';
@@ -393,6 +412,8 @@ function environmentFor(slug) {
   let env = environments.get(key);
   if (env) return env;
   const dataDir = slug ? path.join(DATA_DIR, 'environments', slug) : DATA_DIR;
+  // A template applies only to an environment being made now: a data directory with no app.json yet.
+  const fresh = !fs.existsSync(path.join(dataDir, 'app.json')) && !fs.existsSync(path.join(dataDir, 'tavern.json'));
   try {
     env = buildEnvironment(dataDir, {
       slug: slug || null,
@@ -415,6 +436,7 @@ function environmentFor(slug) {
     env.store.updateSettings({ environmentName: slug ? (hostRegistry.findEnvironment(slug)?.name || PRODUCT_NAME) : PRODUCT_NAME });
   }
   environments.set(key, env);
+  const pendingTemplate = useTemplate(env, slug, fresh);
   // An environment that just migrated its own old custom AI setting to "managed" (see Ai's constructor) gives
   // that company's own managed slot a starting point, once, if the host has nothing saved for it yet -- so what
   // worked through the old per-environment AI_KEY keeps working through the host's now instead.
@@ -425,8 +447,63 @@ function environmentFor(slug) {
   // delay before an auto-installed module is actually usable is fine today, since nothing yet depends on it
   // being installed (see plan-stream-module.md's phases: the old GET /view/:key keeps answering on its own
   // until phase 3 removes it); it will matter once that changes, at which point this may need to be awaited.
-  autoInstallBundled(env).catch((err) => console.error(`Auto-install failed for "${slug || DEFAULT_SLUG}": ${err.message}`));
+  // A template's once-only part is applied first, then the automatic installs, in that order (never at the same time).
+  env.templateReady = (pendingTemplate ? applyRecordedTemplate(env, slug, pendingTemplate) : Promise.resolve())
+    .then(() => autoInstallBundled(env))
+    .catch((err) => console.error(`Auto-install failed for "${slug || DEFAULT_SLUG}": ${err.message}`));
   return env;
+}
+
+// The template an environment is made from, and its live part (plan-environment-templates.md). A fresh environment
+// records the one it was made with (the registry's, hosted; TEMPLATE, single); one made before, or without one, keeps
+// what it has. Its words, home icon and module names and icons are read from the template on every build, so a newer
+// template file reaches it on the next start. Answers the template still to apply (recorded, never applied), or null.
+function useTemplate(env, slug, fresh) {
+  const where = slug ? `[${slug}] ` : '';
+  const chosen = slug ? hostRegistry?.findEnvironment(slug)?.template || null : (!BASE_DOMAIN && templateId) || null;
+  if (fresh && chosen && !env.store.templateRecord) env.store.recordTemplate({ id: chosen, appliedAt: null, skipped: [] });
+  const record = env.store.templateRecord;
+  // The environment's own record is the truth (it travels with a backup and a restore); the registry follows it.
+  if (slug && hostRegistry) hostRegistry.setEnvironmentTemplate(slug, record?.id || null);
+  if (!slug && templateId && !BASE_DOMAIN && !(fresh && chosen)) {
+    if (!record) console.warn(`TEMPLATE=${templateId} is ignored: ${DATA_DIR} was made without a template, and a template is picked only when an environment is made.`);
+    else if (record.id !== templateId) console.warn(`TEMPLATE=${templateId} is ignored: this environment was made from the "${record.id}" template, which it keeps.`);
+  }
+  if (!record) return null;
+  const template = templates.useLive(env.store, templates.get(record.id));
+  if (!template) {
+    console.warn(`${where}This environment was made from the "${record.id}" template, which this server does not have, so it reads the default words.`);
+    return null;
+  }
+  return record.appliedAt ? null : template;
+}
+
+// A template's once-only part (its settings, Lobby, space defaults, icons and modules), then the record's appliedAt,
+// so it never runs again. A module the environment's plan does not include is skipped, and recorded with why.
+async function applyRecordedTemplate(env, slug, template) {
+  const where = slug ? `[${slug}] ` : '';
+  const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
+  const skipped = await templates.applyTemplate(env, template, {
+    modulesDir: BUNDLED_DIR,
+    allowed: (id) => moduleAllowedFor(slug, id),
+    name: (id) => env.store.moduleDisplay(id).name || names.get(id) || id,
+  });
+  env.store.recordTemplate({ id: template.id, appliedAt: new Date().toISOString(), skipped });
+  console.log(`${where}Applied the "${template.id}" template${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.why})`).join(', ')}` : ''}.`);
+}
+
+// The template an environment was made from, for Manage and the console: { id, name, appliedAt, skipped: [{ id, name,
+// why }] }, or null for none. `name` is the template's, or its id when this server does not have it.
+function templateView(store) {
+  const record = store.templateRecord;
+  if (!record) return null;
+  const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
+  return {
+    id: record.id,
+    name: templates.get(record.id)?.name || record.id,
+    appliedAt: record.appliedAt,
+    skipped: record.skipped.map((x) => ({ id: x.id, name: store.moduleDisplay(x.id).name || names.get(x.id) || x.id, why: x.why })),
+  };
 }
 
 // A bundled module with install.auto (see cleanManifest in modules.js) gets installed and enabled once, ever,
@@ -940,7 +1017,7 @@ function presenceUser(u) {
 
 function branding() {
   const s = store.settings;
-  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), words: store.resolvedWords(), homeIcon: s.homeIcon || 'couch', loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
+  return { environmentName: s.environmentName, hosted: Boolean(BASE_DOMAIN), words: store.resolvedWords(), homeIcon: store.homeIcon, loginText: s.loginText, language: s.language || 'en', clock: s.clock === '24' ? '24' : '12', currency: s.currency || 'USD', allowRegistration: Boolean(s.allowRegistration), mfaOffered, mfaRequired: Boolean(s.mfaRequired), maxQuality: s.maxQuality || 720, allowScreenShare: s.allowScreenShare !== false, allowAsides: s.allowAsides !== false, allowPrivate: s.allowPrivate !== false, allowReactions: s.allowReactions !== false, conferenceEnabled: s.conferenceEnabled !== false, activeThemeId: s.activeThemeId || null, hasIcon: !!store.iconPath(), hasBackground: !!store.siteImagePath('background'), version: VERSION, border: s.border, borderColor: s.borderColor, borderWidth: s.borderWidth || 6, mutedBorder: s.mutedBorder !== false, mutedColor: s.mutedColor || '#b8503f', plate: Boolean(s.plate), plateLayout: s.plateLayout || 'lower-left', plateColor: s.plateColor || '#000000', plateTextColor: s.plateTextColor || '#f1e6d8', plateFontSize: s.plateFontSize || 16, plateOpacity: s.plateOpacity ?? 60, plateTextCase: s.plateTextCase || 'default', charBorder: Boolean(s.charBorder), charBorderColor: s.charBorderColor || '#6fae6b', charMutedBorder: Boolean(s.charMutedBorder), charMutedColor: s.charMutedColor || '#b8503f', charBorderWidth: s.charBorderWidth || 6, pictureBackground: Boolean(s.pictureBackground), pictureColor: s.pictureColor || '#1a1410', pictureScale: s.pictureScale || 100, offlineDim: s.offlineDim ?? 0, offlineTint: s.offlineTint || '#000000', offlineTintOpacity: s.offlineTintOpacity ?? 0, asideDim: s.asideDim ?? 0, asideTint: s.asideTint || '#000000', asideTintOpacity: s.asideTintOpacity ?? 0, privateDim: s.privateDim ?? 0, privateTint: s.privateTint || '#000000', privateTintOpacity: s.privateTintOpacity ?? 0, reactions: Array.isArray(s.reactions) ? s.reactions : [], icons: Array.isArray(s.icons) ? s.icons : [], guestImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.guestImagePath(slot)])), defaultImages: Object.fromEntries(PARTICIPANT_SLOTS.map((slot) => [slot, !!store.defaultImagePath(slot)])) };
 }
 
 function initials(name) {
@@ -1161,15 +1238,44 @@ function environmentUsage(slug) {
 }
 hostRouter.get('/api/host/environments', requireHostAdmin, (_req, res) => {
   // `refused`: null, or why this environment is not opening (see refusalView), for the console to show.
-  res.json({ environments: hostRegistry.listEnvironments().map((t) => { const usage = environmentUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug) }; }) });
+  // `template`: the template it was made from, with what was skipped (templateView), or null.
+  res.json({ environments: hostRegistry.listEnvironments().map((t) => { const usage = environmentUsage(t.slug); return { ...t, usage, refused: refusalView(t.slug), template: environmentTemplate(t) }; }) });
 });
+// The templates an environment can be made from, for the console's create form.
+hostRouter.get('/api/host/templates', requireHostAdmin, (_req, res) => res.json({ templates: templates.list() }));
+// A template id from a create or sign-up request, checked: null for none, else a known id; an unknown one is refused.
+function chosenTemplate(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') throw new HostError(`A template is named by its id, such as ${templates.list()[0]?.id || 'travel'}.`);
+  if (!templates.get(value)) throw new HostError(`There is no template called ${value.slice(0, 40)}.`);
+  return value;
+}
+// One registry entry's template as the console shows it, from the environment's own record: its store when it is
+// open, else its app.json read as it is (never building the environment for it).
+function environmentTemplate(entry) {
+  const env = environments.get(entry.slug);
+  if (env) return templateView(env.store);
+  const file = path.join(DATA_DIR, 'environments', entry.slug, 'app.json');
+  if (!entry.template && !fs.existsSync(file)) return null;
+  const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
+  let record = null;
+  let read = false;
+  try { record = JSON.parse(fs.readFileSync(file, 'utf8')).template || null; read = true; } catch { record = null; }
+  if (read && (!record || typeof record !== 'object' || typeof record.id !== 'string')) return null; // its own data says none
+  const id = record?.id || entry.template;
+  if (!id) return null;
+  const view = { id, name: templates.get(id)?.name || id, appliedAt: null, skipped: [] };
+  if (!record || typeof record !== 'object') return view;
+  return { ...view, appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : null, skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
+}
 hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
   try {
-    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan });
-    const env = environmentFor(environment.slug); // the fresh directory and its services, built now
+    const template = chosenTemplate(req.body?.template);
+    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: req.body?.plan, template });
+    const env = environmentFor(environment.slug); // the fresh directory and its services, built now (a template applied)
     const owner = req.body?.owner;
     if (owner?.login && owner?.password) env.store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'owner', passwordHash: auth.hashPassword(owner.password) });
-    res.status(201).json({ environment });
+    res.status(201).json({ environment: { ...environment, template: environmentTemplate(environment) } });
   } catch (err) {
     sendHostError(err, res);
   }
@@ -1293,6 +1399,12 @@ function refuseOverAiCalls(res) {
 // plan shrinks under it is untouched here -- this only gates turning one on, never keeps one already running.
 function moduleAllowedByPlan(id) {
   const cap = planCap('modules');
+  return cap === null || cap === 'all' || (Array.isArray(cap) && cap.includes(id));
+}
+// The same for an environment by its slug, outside a request (a template applied when the environment is made).
+function moduleAllowedFor(slug, id) {
+  if (!BASE_DOMAIN || !hostRegistry || !slug) return true;
+  const cap = hostRegistry.findEnvironment(slug)?.plan.modules ?? null;
   return cap === null || cap === 'all' || (Array.isArray(cap) && cap.includes(id));
 }
 function refuseModuleNotInPlan(res, id, name) {
@@ -1632,7 +1744,8 @@ hostRouter.delete('/api/host/admins/:key', requireHostAdmin, (req, res) => {
 // here, so an old-base-domain request still 301s instead of this one route quietly bypassing that.
 function productInfo(_req, res) {
   const plans = hostRegistry ? Object.entries(hostRegistry.plansCatalog()).map(([id, p]) => ({ id, name: p.name, caps: p.caps, checkoutUrl: checkoutUrlFor(id) })) : [];
-  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION, signup: signupEnabled, plans });
+  // `templates`: what a new environment can be made from ([{ id, name, description }]), for the sign-up form.
+  res.json({ name: PRODUCT_NAME, contact: CONTACT_EMAIL || null, baseDomain: BASE_DOMAIN || null, version: VERSION, signup: signupEnabled, plans, templates: BASE_DOMAIN ? templates.list() : [] });
 }
 hostRouter.get('/api/product', productInfo);
 // One environment's public name, for the product page's own Sign in (a slug is an address already, so confirming
@@ -1727,7 +1840,8 @@ app.post('/api/product/signup', (req, res) => {
     const owner = req.body?.owner;
     if (!owner?.login || !owner?.password) throw new HostError('an owner login and password are required');
     const free = hostRegistry.plansCatalog().free;
-    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps } });
+    const template = chosenTemplate(req.body?.template);
+    const environment = hostRegistry.addEnvironment({ slug: req.body?.slug, name: req.body?.name, plan: { name: 'free', ...free.caps }, template });
     environmentFor(environment.slug).store.addUser({ login: owner.login, displayName: owner.displayName || owner.login, role: 'owner', passwordHash: auth.hashPassword(owner.password) });
     // The new environment's own port, carried through the same way the PREVIOUS_BASE_DOMAINS redirect above
     // does: invisible behind a real proxy (the port is implicit there), but wrong in local development, where
@@ -2748,7 +2862,7 @@ function shownModule(m) {
 // and whether it is on, for one with an environment-wide switch.
 function builtinView(b) {
   const display = store.moduleDisplay(b.id);
-  const view = { ...b, displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon };
+  const view = { ...b, displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon, templateDisplayName: display.templateName, templateDisplayIcon: display.templateIcon };
   for (const k of ['description', 'permissions', 'needs', 'turnOff', 'turnOn']) if (typeof view[k] === 'string') view[k] = fillWords(view[k]);
   if (b.setting) view.enabled = store.settings[b.setting] !== false;
   return view;
@@ -2765,7 +2879,7 @@ function bundledList() {
     const display = store.moduleDisplay(m.id);
     return {
       id: m.id, name: m.name, icon: m.icon, description: fillManifest(m, words).description, version: m.version, installed: have,
-      displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon,
+      displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon, templateDisplayName: display.templateName, templateDisplayIcon: display.templateIcon,
       requires: m.requires || [], // what it needs installed and on (Maps needs Places), so the list can say so before Install
       update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
       notInPlan: !moduleAllowedByPlan(m.id), // plan-tenants.md, "Phase 3": the Available list marks these "Not in your plan"
@@ -4485,7 +4599,11 @@ app.patch('/api/roles/:role', requireOwner, (req, res) => res.json({ roles: stor
 app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: currencyCodes(store.settings.currency) }));
 // For the owner, beside branding()'s resolved `words`: `ownWords`, the owner's own words as stored, so Manage can tell
 // an owner's word from the template's or the default.
-const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords() });
+// `template`: the template the environment was made from and what was skipped (templateView), or null; `ownHomeIcon` the
+// owner's own home icon (null: the template's or the default).
+// `templateWords` and `templateHomeIcon`: the template's own (null for none), whatever the owner has set over them;
+// `spaceDefaults`: what a new space starts with ({ profile }, or null for the built-in default).
+const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords(), ownHomeIcon: store.settings.homeIcon || null, template: templateView(store), templateWords: store.templateWordsView(), templateHomeIcon: store.templateHomeIcon || null, spaceDefaults: store.settings.spaceDefaults || null });
 app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: ownerSettings(), streamKey: store.streamKey }));
 app.patch('/api/settings', requireOwner, (req, res) => {
   store.updateSettings(req.body || {});
@@ -4509,6 +4627,8 @@ app.get('/api/environment', requireOwner, async (req, res) => {
     graceEndsAt: environment.pastDueSince ? new Date(new Date(environment.pastDueSince).getTime() + 14 * 86400000).toISOString() : null,
     deleteRequestedAt: environment.deleteRequestedAt,
     deleteRequestReason: environment.deleteRequestReason,
+    // The template it was made from, with what was skipped (templateView), or null: for the Environment panel.
+    template: templateView(store),
     plan: { name: environment.plan.name || null, modules: environment.plan.modules, members: environment.plan.members, storageBytes: environment.plan.storageBytes, aiCallsPerMonth: environment.plan.aiCallsPerMonth, calls: environment.plan.calls },
     usage: {
       members: store.users.length,

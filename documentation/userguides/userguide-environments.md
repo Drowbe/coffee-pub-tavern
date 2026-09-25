@@ -39,6 +39,12 @@ updated, nothing in it has been lost, but it cannot be used until the host puts 
 restoring a backup. The host console shows the host admin that it won't open, and why. Other environments on the
 same host are not affected.
 
+## Made from a template
+
+An environment can be made from a template, such as Travel, which calls spaces trips and turns on the modules a
+trip needs. Manage > Environment's **Template** panel says which one, and lists any module it couldn't turn on,
+with why. See [Templates](userguide-templates.md).
+
 ## Signing up
 
 On the host's product page, **Get started** makes an environment on the free plan in a minute: an address (letters, digits and hyphens, three to thirty, checked as you type, and fixed once chosen), a name, and the owner's login, display name and password. It takes you straight to the new environment's sign-in.

@@ -154,6 +154,32 @@ if (signupOpen) {
   const slugInput = document.getElementById('signup-slug');
   const slugNote = document.getElementById('signup-slug-note');
   const status = document.getElementById('signup-status');
+  // The Template choice (GET /api/product's `templates`): None, then each with its description; hidden when there are none.
+  const templates = (Array.isArray(product.templates) ? product.templates : []).filter((t) => t && typeof t.id === 'string');
+  const templateBox = document.getElementById('signup-template');
+  if (templates.length) {
+    const options = document.getElementById('signup-template-options');
+    const option = (id, name, description) => {
+      const label = document.createElement('label');
+      label.className = 'template-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'template';
+      input.value = id;
+      input.checked = !id;
+      const text = document.createElement('span');
+      const strong = document.createElement('strong');
+      strong.textContent = name;
+      const about = document.createElement('span');
+      about.className = 'hint';
+      about.textContent = description;
+      text.append(strong, about);
+      label.append(input, text);
+      return label;
+    };
+    options.replaceChildren(option('', 'None', 'Start plain: the usual words and settings.'), ...templates.map((t) => option(t.id, t.name || t.id, t.description || '')));
+    templateBox.hidden = false;
+  }
   let checkToken = 0;
   slugInput.addEventListener('input', async () => {
     slugInput.value = slugInput.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
@@ -174,6 +200,7 @@ if (signupOpen) {
     const body = {
       slug: slugInput.value.trim(),
       name: document.getElementById('signup-name').value.trim(),
+      ...(templateBox.querySelector('input:checked')?.value ? { template: templateBox.querySelector('input:checked').value } : {}),
       owner: { login: document.getElementById('signup-login').value.trim(), displayName: document.getElementById('signup-display').value.trim(), password: document.getElementById('signup-password').value },
     };
     status.classList.remove('error');

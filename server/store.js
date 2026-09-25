@@ -48,6 +48,21 @@ const DEFAULT_SPACE_LINK_ICON = 'link';
 const DEFAULT_HOME_ICON = 'couch';
 // A module's display name (settings.moduleNames), at most this long.
 const MODULE_NAME_MAX = 40;
+// What is wrong with a display name (tidied: its whitespace collapsed), in one sentence, or null. The owner's and a
+// template's alike (server/templates.js).
+function displayNameProblem(name) {
+  if (/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(name)) return "A display name can't hold control or text-direction characters.";
+  if (/[<>]/.test(name)) return 'A display name is plain text, without < or >.';
+  if (name.length > MODULE_NAME_MAX) return `A display name can be at most ${MODULE_NAME_MAX} characters.`;
+  return null;
+}
+// The template record in app.json (plan-environment-templates.md, "Recording"), or null when there is none or it is
+// not one.
+function cleanTemplateRecord(raw) {
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(raw.id)) return null;
+  const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id.slice(0, 40), why: String(x.why ?? '').slice(0, 300) })) : [];
+  return { id: raw.id, appliedAt: typeof raw.appliedAt === 'string' ? raw.appliedAt : null, skipped };
+}
 const SPACE_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
   participants: PARTICIPANT_SLOTS,
@@ -460,6 +475,7 @@ class Store {
     // The module display names and icons this environment's template gives, by module id (step 3; none until then).
     this.templateModuleNames = null;
     this.templateModuleIcons = null;
+    this.templateHomeIcon = null; // the template's home icon, for an environment whose own homeIcon is unset
     // The icons installed and built-in modules have of their own (their manifests'), which a display icon may also be;
     // set by the environment's build (environment.js, index.js).
     this.moduleIconIds = () => [];
@@ -492,6 +508,9 @@ class Store {
       // `migrations`; both are kept exactly as found, so the record survives every later save.
       version: Number.isInteger(raw.version) && raw.version > 1 ? raw.version : 1,
       ...(Array.isArray(raw.migrations) ? { migrations: raw.migrations } : {}),
+      // The template this environment was made from (plan-environment-templates.md, decision 14): its own record, not a
+      // names migration part. { id, appliedAt (null until applied), skipped: [{ id, why }] }.
+      ...(cleanTemplateRecord(raw.template) ? { template: cleanTemplateRecord(raw.template) } : {}),
       secrets: {
         session: raw.secrets?.session || randomToken(32),
         stream: raw.secrets?.stream || randomToken(18),
@@ -727,6 +746,11 @@ class Store {
     return words.resolve(this.data.settings.words, this.templateWords);
   }
 
+  // The template's own words, unresolved ({ <key>: { one, many, a? } }), or null for an environment with no template.
+  templateWordsView() {
+    return this.templateWords ? words.ownOnly(this.templateWords) : null;
+  }
+
   // The owner's own words as stored (settings.words), unresolved: { <key>: { one, many, a? } }, {} when none are set.
   ownWords() {
     return words.ownOnly(this.data.settings.words);
@@ -745,14 +769,34 @@ class Store {
     // entry taken off the icon list) is kept as the owner's, and reported as such, but reads the next one down.
     const icons = this.displayIconIds();
     const icon = [ownIcon, from(this.templateModuleIcons)].find((i) => i && icons.includes(i)) || null;
-    return { name: ownName || from(this.templateModuleNames), icon, ownName, ownIcon };
+    // templateName/templateIcon: what the template gives, whether or not the owner's own is set over it.
+    return { name: ownName || from(this.templateModuleNames), icon, ownName, ownIcon, templateName: from(this.templateModuleNames), templateIcon: from(this.templateModuleIcons) };
   }
 
   // What a display icon may be: one the pages can draw as a module's icon (`fa-solid fa-<id>`), so one of this
   // environment's icons whose classes are exactly that, or any installed or built-in module's own icon.
+  // A template's module icons count too: server/templates.js only takes Font Awesome Free solid icons.
   displayIconIds() {
     const solid = (this.data.settings.icons || []).filter((i) => i.classes === `fa-solid fa-${i.id}`).map((i) => i.id);
-    return [...new Set([...solid, ...this.moduleIconIds()])];
+    const template = this.templateModuleIcons && typeof this.templateModuleIcons === 'object' ? Object.values(this.templateModuleIcons) : [];
+    return [...new Set([...solid, ...this.moduleIconIds(), ...template])];
+  }
+
+  // The template this environment was made from, as recorded, or null (server/templates.js).
+  get templateRecord() {
+    return this.data.template || null;
+  }
+
+  recordTemplate(record) {
+    const clean = cleanTemplateRecord(record);
+    if (clean) this.data.template = clean;
+    else delete this.data.template;
+    this.save();
+  }
+
+  // The home icon people see: the owner's (settings.homeIcon), else the template's, else the default.
+  get homeIcon() {
+    return this.data.settings.homeIcon || this.templateHomeIcon || DEFAULT_HOME_ICON;
   }
 
   // A change to a module's display name and icon, checked: { displayName?, displayIcon? }, each a value or null (or
@@ -766,9 +810,8 @@ class Store {
       else if (typeof displayName !== 'string') throw new StoreError(`A display name must be text, or null to use the ${this.word('module')}'s own name.`);
       else {
         const name = displayName.replace(/\s+/g, ' ').trim(); // tabs and new lines read as spaces
-        if (/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(name)) throw new StoreError("A display name can't hold control or text-direction characters.");
-        if (/[<>]/.test(name)) throw new StoreError('A display name is plain text, without < or >.');
-        if (name.length > MODULE_NAME_MAX) throw new StoreError(`A display name can be at most ${MODULE_NAME_MAX} characters.`);
+        const problem = displayNameProblem(name);
+        if (problem) throw new StoreError(problem);
         draft.name = name || null;
       }
     }
@@ -815,9 +858,21 @@ class Store {
       else { delete s.words; clearWords = true; }
     }
     if (patch.environmentName !== undefined) s.environmentName = cleanText(patch.environmentName, 60) || DEFAULT_SETTINGS.environmentName;
+    // null (or '') goes back to the template's home icon, else the default.
     if (patch.homeIcon !== undefined) {
-      if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
-      s.homeIcon = patch.homeIcon;
+      if (patch.homeIcon === null || patch.homeIcon === '') s.homeIcon = null;
+      else if (!this.iconIds().includes(patch.homeIcon)) throw new StoreError('unknown home icon');
+      else s.homeIcon = patch.homeIcon;
+    }
+    // What a new space starts with (a template sets it; plan-environment-templates.md, spaceDefaults): its profile.
+    // null clears it (a new space then starts as roleplaying); anything but profile inside it is refused.
+    let clearSpaceDefaults = false;
+    if (patch.spaceDefaults !== undefined) {
+      const given = patch.spaceDefaults;
+      if (given === null) { delete s.spaceDefaults; clearSpaceDefaults = true; }
+      else if (!given || typeof given !== 'object' || Array.isArray(given) || Object.keys(given).some((k) => k !== 'profile')) throw new StoreError('spaceDefaults takes only profile.');
+      else if (!SPACE_PROFILES.includes(given.profile)) throw new StoreError('profile must be roleplaying, participants or characters');
+      else s.spaceDefaults = { profile: given.profile };
     }
     if (patch.loginText !== undefined) s.loginText = String(patch.loginText ?? '').trim().slice(0, 1000);
     if (patch.allowRegistration !== undefined) s.allowRegistration = Boolean(patch.allowRegistration);
@@ -901,6 +956,7 @@ class Store {
     }
     Object.assign(this.data.settings, s);
     if (clearWords) delete this.data.settings.words;
+    if (clearSpaceDefaults) delete this.data.settings.spaceDefaults;
     this.save();
     return this.data.settings;
   }
@@ -1229,7 +1285,8 @@ class Store {
     let id;
     do id = randomKey();
     while (this.data.spaces.some((r) => r.id === id));
-    const space = this.sanitizeSpace({ id, name: name || `New ${this.word('space')}`, description, members, profile, link, linkIcon, createdAt: new Date().toISOString() });
+    const startsWith = profile ?? this.data.settings.spaceDefaults?.profile; // the environment's default (a template's)
+    const space = this.sanitizeSpace({ id, name: name || `New ${this.word('space')}`, description, members, profile: startsWith, link, linkIcon, createdAt: new Date().toISOString() });
     space.members = space.members.filter((k) => this.userByKey(k));
     this.data.spaces.push(space);
     this.save();
@@ -1717,5 +1774,6 @@ class StoreError extends Error {
 module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
-  sanitizeMfa, CURRENCIES,
+  sanitizeMfa, CURRENCIES, QUALITY_OPTIONS, LANGUAGES, BUILTIN_THEME_IDS: BUILTIN_THEMES.map((t) => t.id), displayNameProblem,
+  DEFAULT_HOME_ICON,
 };

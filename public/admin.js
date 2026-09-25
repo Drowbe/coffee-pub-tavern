@@ -14,8 +14,26 @@ let environment = { hosted: false, owner: false, hostAdmin: false, slug: '', nam
 const hostOnlyHidden = () => environment.hosted && !environment.hostAdmin;
 let users = [];
 
-// The choices come from the Font Awesome list on the Theme tab.
+// The choices come from the Font Awesome list on the Theme tab. null (only with a template) is the template's own.
 let selectedHomeIcon = 'couch';
+
+// The template this environment was made from (plan-environment-templates.md; GET /api/settings' `template`: { id, name,
+// appliedAt, skipped }), or null for none, and the owner's own words and home icon (`ownWords`, `ownHomeIcon`).
+let madeFrom = null;
+let ownWords = {};
+let ownHomeIcon = null;
+// What the template gives, whatever the owner has set over it (`templateWords`: { <key>: { one, many, a? } }, and
+// `templateHomeIcon`), each null for none.
+let templateWords = {};
+let templateHomeIcon = null;
+const DEFAULT_HOME_ICON = 'couch';
+function useOwnerSettings(settings) {
+  madeFrom = settings.template || null;
+  ownWords = settings.ownWords || {};
+  ownHomeIcon = settings.ownHomeIcon || null;
+  templateWords = (madeFrom && settings.templateWords) || {};
+  templateHomeIcon = (madeFrom && settings.templateHomeIcon) || null;
+}
 
 function buildHomeIconGrid() {
   const grid = $('set-home-icon');
@@ -35,7 +53,22 @@ function buildHomeIconGrid() {
 }
 function renderHomeIconSelection() {
   for (const btn of $('set-home-icon').children) btn.classList.toggle('selected', btn.dataset.icon === selectedHomeIcon);
+  // With a template, its own icon is the first choice: "Template's own" (or "Default" when it gives none), saved as no
+  // icon of the owner's, so the template's stays in use.
+  const box = $('home-icon-template');
+  box.hidden = !madeFrom;
+  if (!madeFrom) return;
+  const btn = $('home-icon-template-btn');
+  const on = selectedHomeIcon === null;
+  btn.querySelector('span').textContent = templateHomeIcon ? "Template's own" : 'Default';
+  btn.querySelector('i').className = `fa-solid fa-${templateHomeIcon || DEFAULT_HOME_ICON} fa-fw`;
+  btn.setAttribute('aria-pressed', String(on));
+  $('home-icon-template-hint').textContent = on ? 'In use. Pick an icon below to choose your own.' : '';
 }
+$('home-icon-template-btn').addEventListener('click', () => {
+  selectedHomeIcon = null;
+  renderHomeIconSelection();
+});
 
 // A status line's message; a plain one clears after 3 s. Each new message cancels the last one's timer, so an earlier
 // message's clearing never takes a later one with it (two saves within 3 s).
@@ -173,6 +206,8 @@ async function loadUsers() {
   users = status.users;
   spaces = status.spaces || spaces;
   renderUsers();
+  // The Words group's descriptions, now the Lobby's name is known (in place: nothing typed there is lost).
+  for (const hint of document.querySelectorAll('#words-list [data-word-about]')) hint.textContent = wordAbout(hint.closest('[data-word-key]').dataset.wordKey);
 }
 
 // --- roles ---------------------------------------------------------------------
@@ -321,7 +356,11 @@ $('add-user').addEventListener('submit', async (event) => {
 
 async function saveSettings(patch, statusEl) {
   try {
-    await api('PATCH', '/api/settings', patch);
+    const answer = await api('PATCH', '/api/settings', patch);
+    if (answer && answer.settings) {
+      useOwnerSettings(answer.settings);
+      renderHomeIconSelection();
+    }
     await loadBranding();
     say(statusEl, 'saved');
   } catch (err) {
@@ -336,7 +375,7 @@ $('save-settings').addEventListener('click', () => saveSettings({ environmentNam
 // refused save changes nothing. Host and admin are the host's own words, so they are not here.
 const WORD_ABOUT = {
   environment: 'What people sign in to',
-  space: 'Where people meet: the Lobby, and each one you add',
+  space: 'Where people meet: {lobby}, and each one you add',
   aside: 'A short, private call apart from the {space}',
   canvas: 'Where {modules} are used in {a space}',
   module: 'A tool on the {canvas}',
@@ -346,15 +385,22 @@ const WORD_ABOUT = {
   member: 'A person with an account',
   guest: 'A person in by {a guest} link',
 };
+// A word's description; the space word's names the Lobby by its own name (a template may rename it: "Home base"), or
+// "the first one" until the spaces are loaded.
+function wordAbout(key) {
+  const lobby = spaces.find((sp) => sp.isLobby);
+  const name = !lobby ? 'the first one' : lobby.name === 'Lobby' ? 'the Lobby' : lobby.name;
+  return fillWords(WORD_ABOUT[key]).replace('{lobby}', name);
+}
 const usualArticle = (one) => `${/^[aeiou]/i.test(one) ? 'an' : 'a'} ${one}`;
 const capitalOf = (text) => text.charAt(0).toLocaleUpperCase('en') + text.slice(1);
-// Whether a resolved word is not the default (the owner's own, until templates can also set one).
-const isOwnWord = (key, w) => w.one !== DEFAULTS[key].one || w.many !== DEFAULTS[key].many || w.a !== usualArticle(DEFAULTS[key].one);
 
 function renderWords() {
   const list = $('words-list');
   const now = words();
   list.textContent = '';
+  // With a template, a blank word is the template's (marked "From the template"), else the default.
+  $('words-blank').textContent = madeFrom ? `Leave a word blank for the ${madeFrom.name || madeFrom.id} template's word, or the default where it gives none.` : 'Leave a word blank for its default.';
   const head = document.createElement('div');
   head.className = 'word-row word-row-head';
   head.setAttribute('aria-hidden', 'true');
@@ -363,19 +409,24 @@ function renderWords() {
   for (const key of CHANGEABLE) {
     const d = DEFAULTS[key];
     const w = now[key];
-    const own = isOwnWord(key, w);
+    const own = Boolean(ownWords[key]);
+    // What a blank field reads: the template's word where it gives one, else the default.
+    const t = templateWords[key] || null;
+    const base = t ? { one: t.one, many: t.many, a: t.a || usualArticle(t.one) } : { one: d.one, many: d.many, a: usualArticle(d.one) };
     const name = capitalOf(d.one);
+    const note = !t ? '' : own ? `The template's: ${t.one}` : 'From the template';
+    const back = t ? `Back to ${t.one}, the template's` : `Back to ${d.one}, the default`;
     const row = document.createElement('div');
     row.className = 'word-row';
     row.dataset.wordKey = key;
     row.setAttribute('role', 'group');
     row.setAttribute('aria-label', name);
     row.innerHTML = `
-      <div class="word-name"><strong>${escapeHtml(name)}</strong><span class="hint">${escapeHtml(fillWords(WORD_ABOUT[key]))}</span></div>
-      <label><span class="word-field-label">Singular</span><input type="text" data-word-part="one" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(d.one)}" aria-label="${escapeHtml(name)}, singular"></label>
-      <label><span class="word-field-label">Plural</span><input type="text" data-word-part="many" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(d.many)}" aria-label="${escapeHtml(name)}, plural"></label>
-      <label><span class="word-field-label">With its article</span><input type="text" data-word-part="a" maxlength="41" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(usualArticle(d.one))}" aria-label="${escapeHtml(name)}, with its article (optional)"></label>
-      <button class="btn btn-small" type="button" data-word-reset ${own ? '' : 'disabled'} title="Back to ${escapeHtml(d.one)}, the default" aria-label="Reset ${escapeHtml(name)} to its default">Reset</button>`;
+      <div class="word-name"><strong>${escapeHtml(name)}</strong><span class="hint" data-word-about>${escapeHtml(wordAbout(key))}</span>${note ? `<span class="from-template">${escapeHtml(note)}</span>` : ''}</div>
+      <label><span class="word-field-label">Singular</span><input type="text" data-word-part="one" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(base.one)}" aria-label="${escapeHtml(name)}, singular${t ? `, blank for ${escapeHtml(t.one)}, the template's` : ''}"></label>
+      <label><span class="word-field-label">Plural</span><input type="text" data-word-part="many" maxlength="30" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(base.many)}" aria-label="${escapeHtml(name)}, plural"></label>
+      <label><span class="word-field-label">With its article</span><input type="text" data-word-part="a" maxlength="41" autocomplete="off" spellcheck="false" placeholder="${escapeHtml(base.a)}" aria-label="${escapeHtml(name)}, with its article (optional)"></label>
+      <button class="btn btn-small" type="button" data-word-reset ${own ? '' : 'disabled'} title="${escapeHtml(back)}" aria-label="Reset ${escapeHtml(name)}: ${escapeHtml(back.charAt(0).toLowerCase() + back.slice(1))}">Reset</button>`;
     const input = (part) => row.querySelector(`[data-word-part="${part}"]`);
     if (own) {
       input('one').value = w.one;
@@ -383,16 +434,17 @@ function renderWords() {
       if (w.a !== usualArticle(w.one)) input('a').value = w.a;
     }
     // The article's placeholder follows the singular being typed ("a trip"), so the usual one is always shown.
-    const follow = () => { input('a').placeholder = usualArticle(input('one').value.trim() || d.one); };
+    const follow = () => { const typed = input('one').value.trim(); input('a').placeholder = typed ? usualArticle(typed) : base.a; };
     input('one').addEventListener('input', follow);
     follow();
     list.appendChild(row);
   }
 }
 
-// After the words change: the page's own words (data-word and data-fill are done by loadBranding), then the parts this
-// page draws with word(), then the group itself.
-async function wordsChanged() {
+// After the words change (`settings`: the PATCH's answer): the page's own words (data-word and data-fill are done by
+// loadBranding), then the parts this page draws with word(), then the group itself.
+async function wordsChanged(settings) {
+  if (settings) useOwnerSettings(settings);
   await loadBranding();
   renderWords();
   loadRoles().catch(() => {});
@@ -407,7 +459,7 @@ $('save-words').addEventListener('click', async () => {
     const value = (part) => row.querySelector(`[data-word-part="${part}"]`).value.trim();
     const [one, many, a] = [value('one'), value('many'), value('a')];
     if (one || many || a) patch[key] = a ? { one, many, a } : { one, many };
-    else if (isOwnWord(key, words()[key])) patch[key] = null; // emptied: back to the default
+    else if (ownWords[key]) patch[key] = null; // emptied: back to the template's word or the default
   }
   if (!Object.keys(patch).length) {
     say($('words-status'), 'nothing to save');
@@ -416,8 +468,8 @@ $('save-words').addEventListener('click', async () => {
   const button = $('save-words');
   button.disabled = true;
   try {
-    await api('PATCH', '/api/settings', { words: patch });
-    await wordsChanged();
+    const answer = await api('PATCH', '/api/settings', { words: patch });
+    await wordsChanged(answer && answer.settings);
     say($('words-status'), 'saved');
   } catch (err) {
     say($('words-status'), err.message, true); // the server's own sentence; nothing was changed
@@ -432,9 +484,10 @@ $('words-list').addEventListener('click', async (event) => {
   const key = reset.closest('[data-word-key]').dataset.wordKey;
   reset.disabled = true;
   try {
-    await api('PATCH', '/api/settings', { words: { [key]: null } });
-    await wordsChanged();
-    say($('words-status'), `${capitalOf(DEFAULTS[key].one)} is back to its default`);
+    const answer = await api('PATCH', '/api/settings', { words: { [key]: null } });
+    await wordsChanged(answer && answer.settings);
+    const t = templateWords[key];
+    say($('words-status'), t ? `${capitalOf(DEFAULTS[key].one)} is back to ${t.one}, the template's` : `${capitalOf(DEFAULTS[key].one)} is back to its default`);
     $('words-list').querySelector(`[data-word-key="${key}"] [data-word-part="one"]`)?.focus();
   } catch (err) {
     reset.disabled = false;
@@ -814,6 +867,7 @@ async function loadModules() {
   builtinModules = data.builtin || [];
   bundledModules = data.bundled || [];
   renderModules();
+  renderTemplateNote();
   loadActivity();
   loadAi();
   // Say on the tab itself when an update is waiting, so it is seen without opening it.
@@ -835,6 +889,9 @@ async function loadModules() {
   }
 }
 
+// What a module needs turned on first, as HTML: the AI service (with the way to its page), or another module.
+const needsText = (r) => (r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${escapeHtml(shownNameOf(r))} installed and turned on`);
+
 // What a bundled module still needs before it can be turned on (Maps needs Places): said in its row of the list, so the
 // admin installs those first instead of meeting a disabled Approve button afterwards.
 function bundledNeeds(b) {
@@ -852,7 +909,6 @@ function moduleCard(m) {
   const staleVersions = new Set(m.outdatedVersions || (m.outdated ? [m.version] : []));
   // What a requirement needs to be turned on first (one built for an older Magpie is in needsUpdate instead).
   const nameOf = (r) => escapeHtml(shownName(installedModules.find((x) => x.id === r)) || r);
-  const needsText = (r) => (r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${nameOf(r)} installed and turned on`);
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
     ...(m.hooks.schedule ? ['<li><strong>Run things on a schedule</strong> <span class="hint">reminders and timed events</span></li>'] : []),
@@ -926,20 +982,27 @@ function displayIconChoices() {
   for (const m of [...builtinModules, ...installedModules]) if (m.icon && !out.has(m.icon)) out.set(m.icon, m.icon.replace(/-/g, ' '));
   return [...out];
 }
+// What the template gives a module (`templateDisplayName`, `templateDisplayIcon`): { name, icon }, each null for none.
+const templateDisplay = (m) => ({ name: m.templateDisplayName || null, icon: m.templateDisplayIcon || null });
 function displayEditor(m) {
-  // What a blank field and "its own icon" mean: the module's own (or, later, its template's).
-  const fallbackName = m.ownDisplayName ? m.name : shownName(m);
-  const fallbackIcon = m.ownDisplayIcon ? m.icon : shownIcon(m);
+  // What a blank field and "its own icon" mean: the template's name and icon where it gives them, else the module's own.
+  const t = templateDisplay(m);
+  const fallbackName = m.ownDisplayName ? t.name || m.name : shownName(m);
+  const fallbackIcon = m.ownDisplayIcon ? t.icon || m.icon : shownIcon(m);
   const chosen = m.ownDisplayIcon || '';
   const own = Boolean(m.ownDisplayName || m.ownDisplayIcon);
+  const fromT = Boolean(t.name || t.icon);
+  const back = fromT ? "Back to the template's name and icon" : 'Back to its own name and icon';
+  const note = !fromT ? '' : own ? (t.name ? `The template's: ${t.name}` : '') : 'From the template';
+  const firstIcon = t.icon ? "The template's icon" : 'Its own icon';
   const iconButton = (id, label, pressed) => `<button type="button" data-display-icon="${escapeHtml(id)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" aria-pressed="${pressed}"${pressed ? ' class="selected"' : ''}><i class="fa-solid fa-${escapeHtml(id || fallbackIcon)} fa-fw" aria-hidden="true"></i></button>`;
   return `<div class="module-display" data-display-id="${escapeHtml(m.id)}" data-display-chosen="${escapeHtml(chosen)}" data-display-fallback="${escapeHtml(fallbackIcon)}" data-display-was-name="${escapeHtml(m.ownDisplayName || '')}" data-display-was-icon="${escapeHtml(chosen)}"${own ? ' data-display-own="1"' : ''} role="group" aria-label="What this ${escapeHtml(word('environment'))} calls it">
-      <span class="field-label">Shown as</span>
+      <div class="module-display-head"><span class="field-label">Shown as</span>${note ? `<span class="from-template">${escapeHtml(note)}</span>` : ''}</div>
       <div class="module-display-row">
-        <details class="icon-pick"><summary title="Icon" aria-label="Icon: ${escapeHtml(chosen || 'its own')}"><i class="fa-solid fa-${escapeHtml(chosen || fallbackIcon)} fa-fw" aria-hidden="true"></i></summary><div class="icon-grid" role="group" aria-label="Icon">${iconButton('', 'Its own icon', !chosen)}${displayIconChoices().map(([id, label]) => iconButton(id, label, id === chosen)).join('')}</div></details>
+        <details class="icon-pick"><summary title="Icon" aria-label="Icon: ${escapeHtml(chosen || (t.icon ? "the template's" : 'its own'))}"><i class="fa-solid fa-${escapeHtml(chosen || fallbackIcon)} fa-fw" aria-hidden="true"></i></summary><div class="icon-grid" role="group" aria-label="Icon">${iconButton('', firstIcon, !chosen)}${displayIconChoices().map(([id, label]) => iconButton(id, label, id === chosen)).join('')}</div></details>
         <input type="text" data-display-name maxlength="40" autocomplete="off" spellcheck="false" value="${escapeHtml(m.ownDisplayName || '')}" placeholder="${escapeHtml(fallbackName)}" aria-label="Display name (blank for ${escapeHtml(fallbackName)})">
         <button class="btn btn-small" type="button" data-display-save>Save</button>
-        <button class="btn btn-small" type="button" data-display-reset ${own ? '' : 'disabled'} title="Back to its own name and icon">Reset</button>
+        <button class="btn btn-small" type="button" data-display-reset ${own ? '' : 'disabled'} title="${escapeHtml(back)}" data-display-back="${escapeHtml(back)}">Reset</button>
       </div>
       <span class="status" data-display-status aria-live="polite"></span>
     </div>`;
@@ -981,7 +1044,7 @@ $('modules-list').addEventListener('click', (event) => {
     }
     const summary = box.querySelector('summary');
     summary.querySelector('i').className = `fa-solid fa-${choice.dataset.displayIcon || box.dataset.displayFallback} fa-fw`;
-    summary.setAttribute('aria-label', `Icon: ${choice.dataset.displayIcon || 'its own'}`);
+    summary.setAttribute('aria-label', `Icon: ${choice.dataset.displayIcon || choice.getAttribute('aria-label').replace(/ icon$/, '').toLowerCase()}`);
     box.querySelector('details').open = false;
     summary.focus();
     return;
@@ -998,7 +1061,8 @@ $('modules-list').addEventListener('click', (event) => {
     return;
   }
   if (event.target.closest('[data-display-reset]')) {
-    saveDisplay(box, { displayName: null, displayIcon: null }, () => 'Back to its own name and icon');
+    const back = event.target.closest('[data-display-reset]').dataset.displayBack || 'Back to its own name and icon';
+    saveDisplay(box, { displayName: null, displayIcon: null }, () => back);
   }
 });
 $('modules-list').addEventListener('keydown', (event) => {
@@ -1559,6 +1623,40 @@ function applyHosted() {
   for (const el of document.querySelectorAll('[data-host-only]')) el.hidden = hostOnlyHidden();
 }
 
+// The template this environment was made from (Environment tab): "Made from the <name> template", and what it left out
+// that is still left out, each with why and where to put it right. A module turned on since is no longer listed.
+const sentence = (text) => { const t = String(text || '').trim(); return t ? capitalOf(t) + (/[.!?]$/.test(t) ? '' : '.') : ''; };
+function renderTemplateNote() {
+  const panel = $('template-panel');
+  panel.hidden = !madeFrom;
+  if (!madeFrom) return;
+  $('template-made').innerHTML = `<strong>Made from the ${escapeHtml(madeFrom.name || madeFrom.id)} template.</strong>`;
+  const modulesTab = '#modules'; // the Modules tab's address
+  const modulesLink = `<a href="${modulesTab}">${escapeHtml(word('module', { many: true, cap: true }))}</a>`;
+  const item = (icon, title, detail) => `<li><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><div><strong>${title}</strong>${detail ? `<div class="hint">${detail}</div>` : ''}</div></li>`;
+  const items = (madeFrom.skipped || []).map((x) => {
+    const installed = installedModules.find((m) => m.id === x.id);
+    if (installed && installed.enabled) return ''; // turned on since: nothing left to do
+    const name = escapeHtml(x.name || shownNameOf(x.id));
+    // Installed and in every space, but off until what it needs is set up.
+    if (installed) {
+      const missing = (installed.missing || []).map((r) => (r === 'ai' ? '<a href="/ai-config.html">the AI service</a>' : escapeHtml(shownNameOf(r))));
+      const then = missing.length ? `Once ${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} ready, turn it on under ${modulesLink}.` : `Once that is done, turn it on under ${modulesLink}.`;
+      return item('circle-pause', `${name}: not on yet`, `${escapeHtml(sentence(x.why))} ${then}`);
+    }
+    if (x.why === 'not in the plan') {
+      const bundled = bundledModules.find((b) => b.id === x.id);
+      // The plan may have been widened since: then it was left out when it was made, and can be installed now.
+      if (bundled && !bundled.notInPlan) return item('circle-plus', `${name}: can be installed now`, `Your plan includes it now: install it under ${modulesLink}.`);
+      return item('lock', `${name}: not in your plan`, `Ask the ${escapeHtml(word('host'))} for a plan that includes it.`);
+    }
+    return item('circle-minus', `${name}: left out`, escapeHtml(sentence(x.why)));
+  }).filter(Boolean);
+  const box = $('template-skipped');
+  box.hidden = !items.length;
+  box.innerHTML = items.length ? `<p class="hint">Left out when it was made:</p><ul>${items.join('')}</ul>` : '';
+}
+
 // The plan and its use (GET /api/environment): each cap as a bar, the past-due banner with its date, the way to a bigger
 // plan (the product page's plans), a copy of the environment, and a request to delete it.
 let envInfo = null;
@@ -1648,8 +1746,8 @@ $('env-delete-cancel').addEventListener('click', async () => {
 
 async function init() {
   renderTopbar({ location: crumbLink('gear', 'Manage', '/admin') });
-  buildHomeIconGrid();
   await loadBranding();
+  buildHomeIconGrid(); // after the branding: the choices are its icon list
   wireOverlayBack(word('space', { many: true, cap: true }));
   try {
     const info = await api('GET', '/api/me');
@@ -1672,10 +1770,13 @@ async function init() {
     $('set-language').value = settings.language || 'en';
     $('set-clock').value = settings.clock === '24' ? '24' : '12';
     fillCurrencies(settings.currency || 'USD');
-    selectedHomeIcon = settings.homeIcon || 'couch';
+    useOwnerSettings(settings);
+    // With a template, no icon of the owner's is the template's own (null); without one, as before.
+    selectedHomeIcon = madeFrom ? ownHomeIcon : settings.homeIcon || DEFAULT_HOME_ICON;
     renderHomeIconSelection();
     setWords(settings.words);
     renderWords();
+    renderTemplateNote();
     await loadThemes();
     await loadRoles();
     await loadModules();

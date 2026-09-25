@@ -34,9 +34,8 @@ Open, found while building steps 1 to 4:
 - On the host console, the shared top bar makes requests that answer 404 there. This was so before the
   Names plan.
 
-Next: [environment templates](plans/plan-environment-templates.md), reworked on top of this plan. Its step 1,
-the words, and step 2, module display names and icons, are **built** (September 25, 2026); step 3,
-the templates themselves, is next.
+[Environment templates](plans/plan-environment-templates.md), built on top of this plan, is **done**
+(September 25, 2026): the words, module display names and icons, and the templates themselves.
 
 ## Entering a space, and the first time
 

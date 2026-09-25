@@ -123,6 +123,12 @@
           <span class="hint" id="signup-slug-note">Letters, digits and hyphens, 3 to 30; it cannot be changed later.</span>
         </label>
         <label>Environment name<input id="signup-name" name="name" type="text" maxlength="60" placeholder="The Elegant Eight" required></label>
+        <!-- What it is set up for (plan-environment-templates): None, then each of the host's templates. Filled by landing.js; hidden when there are none. -->
+        <fieldset class="template-choice" id="signup-template" hidden>
+          <legend>Template</legend>
+          <p class="hint">Set it up for one use: its words, home icon and modules. You can change anything it sets later.</p>
+          <div class="template-options" id="signup-template-options"></div>
+        </fieldset>
         <div class="signup-owner">
           <label>Owner login<input id="signup-login" name="login" type="text" maxlength="40" autocapitalize="off" autocomplete="off" required></label>
           <label>Display name<input id="signup-display" name="displayName" type="text" maxlength="40" autocomplete="off"></label>

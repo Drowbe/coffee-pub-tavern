@@ -35,6 +35,7 @@ COPY server ./server
 COPY public ./public
 # The modules that ship with Tavern (sources, not zips): Manage > Modules installs and updates them from here.
 COPY modules ./modules
+COPY templates ./templates
 ARG GIT_SHA=dev
 ENV NODE_ENV=production
 ENV TAVERN_REVISION=$GIT_SHA
