@@ -3446,6 +3446,18 @@ a.crumb-here:hover {
   font-weight: 700;
 }
 
+/* The theme chooser never grows wider than its row: a 40-character name would otherwise push a phone's page sideways. */
+#theme-select {
+  min-width: 0;
+  max-width: 100%;
+}
+/* Update "<name>, dark" carries the same name, so it may break inside the name rather than run off the row. */
+#theme-update {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* The Light/Dark switch beside the theme chooser: sun, a track, moon; on (aria-checked) is dark. */
 .theme-mode {
   display: inline-flex;
@@ -5740,3 +5752,43 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 .home-icon-template { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .home-icon-template .btn[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg-card)); }
 .module-display-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+
+/* Manage's Template tab (plan-environment-templates, addendum 2): the switch, the offer after it (shared with the host
+   console's environment card, /template-offer.js), and one row per module's name and icon. */
+.template-note .hint { margin: 4px 0 0; }
+.template-switch { margin-top: 12px; align-items: flex-end; }
+.template-switch-pick { flex: 1 1 14rem; min-width: 0; max-width: 24rem; }
+.template-switch-pick select { width: 100%; min-width: 0; }
+.template-offer-note { margin-top: 10px; }
+.template-offer { margin-top: 12px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 6%, var(--bg-card)); display: grid; gap: 8px; min-width: 0; }
+.template-offer h3 { margin: 0; color: var(--text); font-size: 15px; text-transform: none; letter-spacing: normal; }
+.template-offer p { margin: 0; }
+.offer-group { display: grid; gap: 4px; min-width: 0; }
+.offer-group .field-label { margin: 0; }
+.template-offer label.check { align-items: flex-start; min-width: 0; }
+.template-offer label.check input { flex: none; margin-top: 2px; }
+.template-offer label.check > span { min-width: 0; overflow-wrap: anywhere; }
+.template-offer label.check .hint { display: block; margin: 0; }
+.template-offer .offer-refused { color: var(--text-dim); cursor: default; }
+.module-names { display: grid; }
+.module-name-row { padding: 10px 0 0; border-top: 1px solid var(--border); scroll-margin-top: 80px; }
+.module-name-row:first-child { border-top: none; }
+.module-name-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.module-name-head .module-icon { color: var(--accent); }
+.module-name-row .module-display { margin-top: 6px; }
+.module-shown-as { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 10px 0; font-size: 14px; }
+.module-shown-as .field-label { margin: 0; }
+#home-icon-section, #module-names-section, #words-panel, #template-panel { scroll-margin-top: 80px; }
+/* The console's environment card: the same switch and offer, in its own box under the facts. */
+.env-template { margin-top: 10px; display: grid; gap: 6px; min-width: 0; }
+.env-template > .row:first-child { align-items: flex-end; }
+.env-template-pick { flex: 1 1 12rem; min-width: 0; max-width: 20rem; }
+.env-template-pick select { width: 100%; min-width: 0; }
+/* A row of tabs (Manage, a space's settings, the host console) wider than the page: it scrolls inside itself, by touch or
+   drag, as a module's toolbar does, rather than pushing the page sideways. The tab chosen is scrolled into view. */
+.subtabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab { flex: none; white-space: nowrap; }
+@media (max-width: 760px) {
+  .subtab { padding: 8px 12px; }
+}

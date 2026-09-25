@@ -1,10 +1,11 @@
 'use strict';
 
 // Environment templates (documentation/plans/plan-environment-templates.md): a bundled templates/<id>.json sets an
-// environment up for one use. Picked at creation only (the host console, the product sign-up, or TEMPLATE= on a fresh
-// single install), never switched afterwards. Its words, home icon and module display names and icons follow the
-// template live (the store reads them from here on every build); its settings, Lobby, space defaults and modules are
-// applied once, when the environment is made, and recorded in app.json's own `template` (decision 14).
+// environment up for one use. Picked at creation (the host console, the product sign-up, or TEMPLATE= on a fresh
+// single install), or switched to later by an owner or the host (the switching addendum). Its words, home icon and
+// module display names and icons follow the template live (the store reads them from here on every build); its
+// settings, Lobby, space defaults and modules are applied once when the environment is made, or offered on a switch
+// and applied as confirmed, and recorded in app.json's own `template` (decision 14).
 //
 // A template is data: nothing in the code knows which template names which module.
 
@@ -189,28 +190,24 @@ function withRequirements(ids, manifests) {
   return out;
 }
 
-// Applies a template's once-only part to an environment (settings, the Lobby, the space defaults, its icons into the
-// icon list, then its modules), and answers what was skipped: [{ id, why }]. Safe to run again (the same result), but
-// the server runs it only while the record has no appliedAt. `allowed(id)`: whether the billing plan includes a
-// bundled module (a template never widens a plan); `modulesDir` where the bundled modules are.
-async function applyTemplate(env, template, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id } = {}) {
-  const { store, modules } = env;
-  if (Object.keys(template.settings).length) store.updateSettings(template.settings);
-  if (template.lobby.name !== undefined || template.lobby.description !== undefined) store.updateSpace(LOBBY, template.lobby);
-  if (template.spaceDefaults.profile) store.updateSettings({ spaceDefaults: { profile: template.spaceDefaults.profile } });
-  // Its icons join the environment's icon list, so the owner's pickers offer them; the home icon itself stays the
-  // template's (settings.homeIcon unset) until the owner picks one.
+// Adds a template's icons (its home icon and its module icons) to the environment's icon list, so the owner's pickers
+// offer them. Never removes one.
+function addIcons(store, template) {
   const want = [template.icons.home, ...Object.values(template.moduleIcons)].filter(Boolean);
   const have = store.iconIds();
   const add = [...new Set(want)].filter((id) => !have.includes(id)).map((id) => ({ id, classes: `fa-solid fa-${id}`, label: id.replace(/-/g, ' ') }));
   if (add.length) store.updateSettings({ icons: [...store.settings.icons, ...add] });
-  if (template.icons.home) store.updateSettings({ homeIcon: null });
+}
 
-  store.updateSettings({ conferenceEnabled: template.modules.includes('conference') });
+// Installs (when needed), puts in every space and turns on the bundled modules `ids`, each after what it requires,
+// with those added. Answers what was skipped: [{ id, why }]. `allSpaces` means every space the module may be in, so
+// a module not made for the Lobby never lands there (plan-modules, "the Lobby is for being together").
+async function turnOnModules(env, ids, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id } = {}) {
+  const { modules } = env;
   const manifests = new Map(bundledModules(modulesDir).map((m) => [m.id, m]));
   const skipped = [];
   const failed = new Set();
-  for (const id of withRequirements(template.modules.filter((m) => !BUILTIN_MODULE_IDS.includes(m)), manifests)) {
+  for (const id of withRequirements(ids.filter((m) => !BUILTIN_MODULE_IDS.includes(m)), manifests)) {
     const manifest = manifests.get(id);
     const missing = (manifest.requires || []).find((r) => failed.has(r));
     let why = null;
@@ -235,4 +232,68 @@ async function applyTemplate(env, template, { allowed = () => true, modulesDir =
   return skipped;
 }
 
-module.exports = { loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };
+// Applies a template's once-only part to an environment made from it (settings, the Lobby, the space defaults, its
+// icons into the icon list, then its modules), and answers what was skipped: [{ id, why }]. Safe to run again (the
+// same result), but the server runs it only while the record has no appliedAt. `allowed(id)`: whether the billing plan
+// includes a bundled module (a template never widens a plan); `modulesDir` where the bundled modules are.
+async function applyTemplate(env, template, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id } = {}) {
+  const { store } = env;
+  if (Object.keys(template.settings).length) store.updateSettings(template.settings);
+  if (template.lobby.name !== undefined || template.lobby.description !== undefined) store.updateSpace(LOBBY, template.lobby);
+  if (template.spaceDefaults.profile) store.updateSettings({ spaceDefaults: { profile: template.spaceDefaults.profile } });
+  // The home icon itself stays the template's (settings.homeIcon unset) until the owner picks one.
+  addIcons(store, template);
+  if (template.icons.home) store.updateSettings({ homeIcon: null });
+  store.updateSettings({ conferenceEnabled: template.modules.includes('conference') });
+  return turnOnModules(env, template.modules, { allowed, modulesDir, name });
+}
+
+// --- switching (the switching addendum, GitHub #59) ------------------------------------------------------------------
+// A switch changes only the live part at once (the store's useLive, and the template's icons into the icon list); its
+// once-only part is offered, and applied only as confirmed. A switch never turns anything off, never clears the owner's
+// home icon, never touches the environment's settings (decision 1 at approval) or any module's data.
+
+// What a switch to `template` would add, for the person switching to confirm:
+//   modules: each module it lists (with what it requires) not already on in every space it may be in, with whether
+//            the plan allows it ({ id, name, allowed, why? }); the conference when listed and off
+//   lobby: the template's Lobby name and description when they differ from the Lobby's own, else null
+//   spaceDefaults: the template's new-space profile when it differs from the environment's, else null
+function offerFor(env, template, { allowed = () => true, modulesDir = MODULES_DIR, name = (id) => id } = {}) {
+  const { store, modules } = env;
+  const manifests = new Map(bundledModules(modulesDir).map((m) => [m.id, m]));
+  const offered = [];
+  for (const id of withRequirements(template.modules.filter((m) => !BUILTIN_MODULE_IDS.includes(m)), manifests)) {
+    const view = modules.isInstalled(id) ? modules.view(id) : null;
+    if (view && view.enabled && view.allSpaces) continue; // on in every space it may be in already
+    const ok = Boolean(allowed(id));
+    offered.push({ id, name: name(id), allowed: ok, ...(ok ? {} : { why: 'not in the plan' }) });
+  }
+  if (template.modules.includes('conference') && store.settings.conferenceEnabled === false) offered.push({ id: 'conference', name: name('conference'), allowed: true });
+  const lobby = store.spaceById(LOBBY);
+  const lobbyDiffers = (template.lobby.name !== undefined && template.lobby.name !== lobby?.name) || (template.lobby.description !== undefined && template.lobby.description !== lobby?.description);
+  const profile = template.spaceDefaults.profile;
+  return {
+    modules: offered,
+    lobby: lobbyDiffers ? { name: template.lobby.name ?? lobby?.name ?? '', description: template.lobby.description ?? lobby?.description ?? '' } : null,
+    spaceDefaults: profile && profile !== store.settings.spaceDefaults?.profile ? { profile } : null,
+  };
+}
+
+// Applies what was confirmed of the offer: `modules` (ids from the offer; anything else is ignored), `lobby` and
+// `spaceDefaults` (true to take the template's). Answers what was skipped: every offered module the plan leaves out,
+// and any confirmed one that could not be turned on, with why. Turns nothing off.
+async function applyOffer(env, template, { modules: ids = [], lobby = false, spaceDefaults = false } = {}, opts = {}) {
+  const { store } = env;
+  const offer = offerFor(env, template, opts);
+  const offeredIds = new Set(offer.modules.map((m) => m.id));
+  const chosen = [...new Set((Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string' && offeredIds.has(id)))];
+  if (lobby === true && offer.lobby) store.updateSpace(LOBBY, offer.lobby);
+  if (spaceDefaults === true && offer.spaceDefaults) store.updateSettings({ spaceDefaults: offer.spaceDefaults });
+  if (chosen.includes('conference')) store.updateSettings({ conferenceEnabled: true }); // offered only while off; never turned off
+  const skipped = offer.modules.filter((m) => !m.allowed).map((m) => ({ id: m.id, why: m.why }));
+  const allowedChosen = chosen.filter((id) => !BUILTIN_MODULE_IDS.includes(id) && offer.modules.find((m) => m.id === id).allowed);
+  for (const miss of await turnOnModules(env, allowedChosen, opts)) if (!skipped.some((x) => x.id === miss.id)) skipped.push(miss);
+  return skipped;
+}
+
+module.exports = { loadTemplates, problemsOf, cleanTemplate, get, list, all, useLive, applyTemplate, withRequirements, addIcons, turnOnModules, offerFor, applyOffer, BUILTIN_MODULE_IDS, SETTINGS, TEMPLATES_DIR };

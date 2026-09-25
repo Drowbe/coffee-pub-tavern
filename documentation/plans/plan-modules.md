@@ -49,7 +49,7 @@ The object a module talks to -- the thing that mounts it, keeps its data, broker
 
 ## Addendum: the Lobby is for being together (decided September 25, 2026)
 
-**Status:** decided 2026-09-25; not built. GitHub issue #63.
+**Status:** decided 2026-09-25; **built** (2026-09-25), both steps; the Calendar declares the field from 1.17.15. GitHub issue #63. As built, a rollback also runs the sync. Documented in [api-modules](../api/api-modules.md), "The Lobby", and [architecture-modules](../architecture/architecture-modules.md).
 
 ### The decision
 

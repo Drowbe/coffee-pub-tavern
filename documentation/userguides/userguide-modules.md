@@ -36,14 +36,17 @@ The zip can be up to 10 MB. Magpie refuses a zip that holds files it does not al
 
 A module that opens on a space's canvas is off in every space until you turn it on. Either tick **Available in every space** on its card here, or open a room's own page from the Rooms tab, go to its **Modules** tab (it appears when there are modules to set) and tick the module. The Modules section of a room only lists modules that are enabled.
 
+The Lobby is for being together: it has the chat, the call, and only the modules made for it (the Calendar is one). Other modules are never on there. **Available in every space** leaves the Lobby out for them, and says so beside the tick: "(not in <Lobby>)", with the Lobby's own name. The Lobby's own settings page lists only the modules made for it, and turning another on there is refused with a sentence naming the module and the Lobby. When a server is updated, a module that was on in the Lobby and isn't made for it is taken out of the Lobby only: it stays on in its other spaces, and its data is kept.
+
 ## Show a module under another name
 
-Every card on the Modules tab, the built-in Conference and Chat included, has **Shown as**: an icon and a name
-this environment shows the module as, everywhere: the header, the dashboard (beside a widget's own title), the
+Every module, the built-in Conference and Chat included, has **Shown as**: an icon and a name this environment
+shows the module as, everywhere: the header, the dashboard (beside a widget's own title), the
 Roles grid ("Tool: Itinerary"), a space's module menu and each module's header, **Join with**, pop-out windows,
 Module Configuration, notifications and messages. Only an owner can change it.
 
-1. On Manage > **Modules**, find the module's card and its **Shown as** row.
+1. On Manage > **Template**, under **Module names and icons**, find the module's row. (On the Modules tab, each
+   card's **Shown as** line has a **Change** link to it.)
 2. Choose an icon: **Its own icon** first, then the environment's icons and every module's own icon.
 3. Type a name, up to 40 characters, or leave it blank for the module's own name.
 4. Click **Save**. The line says "Saved. Shown as <name>", and the card's title changes, with the module's own

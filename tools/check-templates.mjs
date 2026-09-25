@@ -170,6 +170,88 @@ try {
     assert.deepEqual([env.store.templateWordsView(), env.store.moduleDisplay('travel').templateName], [null, null]);
     assert.deepEqual([env.store.resolvedWords().space.one, env.store.homeIcon, env.store.moduleDisplay('travel').name], ['space', 'couch', null], 'no template: the defaults');
   });
+
+  await test('made from a template, its modules are in every space but the Lobby; the Calendar, made for it, is there too', async () => {
+    const env = freshEnvironment('lobby-rule');
+    env.modules.aiReady = () => true;
+    await templates.applyTemplate(env, travel);
+    for (const id of ['travel', 'places', 'maps', 'research']) assert.equal(env.modules.isOnIn(id, LOBBY), false, `${id} not in the Lobby`);
+    const trip = env.store.addSpace({ name: 'Lisbon' });
+    for (const id of ['travel', 'places', 'maps', 'research', 'calendar']) assert.equal(env.modules.isOnIn(id, trip.id), true, `${id} in a new trip`);
+    assert.equal(env.modules.isOnIn('calendar', LOBBY), true, 'the Calendar is allowed in the Lobby, and on');
+    const registry = JSON.parse(fs.readFileSync(path.join(env.modules.dir, 'registry.json'), 'utf8')).modules;
+    assert.ok(Object.values(registry).every((e) => !(e.spaces || []).includes(LOBBY)), 'nothing adds the Lobby to a module\'s spaces');
+  });
+
+  // A switch (the switching addendum): the offer, then only what is confirmed, never turning anything off.
+  const switchSnapshot = (env) => ({ ...snapshot(env), words: env.store.settings.words || null });
+  await test('a switch offers what the template would add, and applying the confirmed part twice gives the same environment', async () => {
+    const env = freshEnvironment('switch');
+    env.modules.aiReady = () => true;
+    const icons = env.store.iconIds();
+    env.store.updateSettings({ homeIcon: icons[icons.length - 1], conferenceEnabled: false, words: { member: { one: 'player', many: 'players' } } });
+    const owned = { homeIcon: env.store.settings.homeIcon, words: env.store.settings.words };
+    const opts = { allowed: (id) => id !== 'research', name: (id) => `name of ${id}` };
+    const offer = templates.offerFor(env, travel, opts);
+    assert.deepEqual(offer.modules.map((m) => [m.id, m.allowed, m.why || null]), [['travel', true, null], ['places', true, null], ['maps', true, null], ['research', false, 'not in the plan'], ['calendar', true, null], ['conference', true, null]]);
+    assert.equal(offer.modules[0].name, 'name of travel');
+    assert.deepEqual(offer.lobby, { name: 'Home base', description: 'Everyone on every trip.' });
+    assert.deepEqual(offer.spaceDefaults, { profile: 'participants' });
+    // Only Maps, the conference and the new-space profile ticked (and Research, which the plan refuses, asked for too).
+    const confirm = { modules: ['maps', 'conference', 'research', 'not-offered'], lobby: false, spaceDefaults: true };
+    const first = await templates.applyOffer(env, travel, confirm, opts);
+    const once = switchSnapshot(env);
+    assert.deepEqual(first, [{ id: 'research', why: 'not in the plan' }]);
+    assert.deepEqual([once.modules.maps.slice(1), once.modules.places.slice(1)], [[true, true], [true, true]], 'Maps, with Places which it needs');
+    assert.equal(once.modules.travel, undefined, 'the Planner, not ticked, is not installed');
+    assert.deepEqual([once.settings.conferenceEnabled, once.settings.spaceDefaults, once.lobby[0]], [true, { profile: 'participants' }, 'Lobby'], 'the conference on, the profile taken, the Lobby left as it was');
+    assert.deepEqual([env.store.settings.homeIcon, env.store.settings.words], [owned.homeIcon, owned.words], 'the owner\'s home icon and words untouched');
+    assert.equal(env.modules.isOnIn('maps', LOBBY), false, 'not in the Lobby');
+    const second = await templates.applyOffer(env, travel, confirm, opts);
+    assert.deepEqual(second, first);
+    assert.deepEqual(switchSnapshot(env), once, 'twice: the same');
+    // What is left to offer: only what is still missing.
+    assert.deepEqual(templates.offerFor(env, travel, opts).modules.map((m) => m.id), ['travel', 'research', 'calendar']);
+    assert.equal(templates.offerFor(env, travel, opts).spaceDefaults, null);
+  });
+
+  await test('a switch never turns the conference or a module off, and nothing ticked changes nothing', async () => {
+    const env = freshEnvironment('never-off');
+    env.modules.aiReady = () => true; // Research on too (without an AI service it stays off, and a switch offers it)
+    await templates.applyTemplate(env, travel);
+    const before = snapshot(env);
+    const noConference = { ...travel, modules: travel.modules.filter((m) => m !== 'conference' && m !== 'maps') };
+    assert.deepEqual(templates.offerFor(env, noConference).modules, [], 'everything it lists is on already');
+    assert.deepEqual(await templates.applyOffer(env, noConference, {}), []);
+    assert.deepEqual(snapshot(env), before, 'the conference still on, Maps still on');
+  });
+
+  await test('the home icon is stored only as the owner\'s choice, so a template\'s shows after a switch; an old stored default is not a choice', async () => {
+    const { Store } = require('../server/store.js');
+    const fresh = freshEnvironment('home-icon');
+    const appFile = path.join(fresh.store.dir, 'app.json');
+    assert.equal(JSON.parse(fs.readFileSync(appFile, 'utf8')).settings.homeIcon, null, 'a new environment stores no home icon');
+    assert.equal(fresh.store.homeIcon, 'couch', 'and shows the default');
+    templates.useLive(fresh.store, travel);
+    assert.equal(fresh.store.homeIcon, 'suitcase-rolling', 'a template switched to shows its own');
+    fresh.store.updateSettings({ homeIcon: 'couch' });
+    assert.equal(fresh.store.homeIcon, 'couch', 'an owner who picks the default keeps it, under a template too');
+    assert.equal(new Store(fresh.store.dir).settings.homeIcon, 'couch', 'and after a restart');
+    // Data from before: the default stored as if chosen, with no mark that it was looked at.
+    const old = JSON.parse(fs.readFileSync(appFile, 'utf8'));
+    delete old.settings.homeIconChoiceSeeded;
+    fs.writeFileSync(appFile, JSON.stringify(old));
+    const reloaded = new Store(fresh.store.dir);
+    assert.deepEqual([reloaded.settings.homeIcon, reloaded.settings.homeIconChoiceSeeded], [null, true], 'an old stored default is read as not chosen, once');
+    reloaded.templateHomeIcon = 'suitcase-rolling';
+    assert.equal(reloaded.homeIcon, 'suitcase-rolling');
+    // An old owner's real choice (anything but the default) is kept.
+    const chose = JSON.parse(fs.readFileSync(appFile, 'utf8'));
+    delete chose.settings.homeIconChoiceSeeded;
+    chose.settings.homeIcon = 'suitcase-rolling';
+    fs.writeFileSync(appFile, JSON.stringify(chose));
+    assert.equal(new Store(fresh.store.dir).settings.homeIcon, 'suitcase-rolling');
+  });
 } finally {
   fs.rmSync(base, { recursive: true, force: true });
 }

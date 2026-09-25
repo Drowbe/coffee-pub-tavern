@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decides what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
 
-**Status:** Approved addendum 2 (#68), 2026-09-25: "Templates grow", not built. Done; addendum for switching, approved 2026-09-25 (see "Addendum: switching a template"; GitHub issue #59). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
+**Status:** Addendum 2 (#68), "Templates grow", approved 2026-09-25: steps 1 and 2 built (theme files; the Template tab), step 3 not built. The switching addendum (GitHub #59) is built (2026-09-25). Approved by Thomas on September 25, 2026 (reworked 2026-09-24); **done** (2026-09-25): steps 1 to 3 built. Deferred: the chat and the conference as modules a template can switch off stay in [plan-optional-conference](plan-optional-conference.md); more templates come later, each only a new file. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
 
 ## What it is today
 
@@ -161,7 +161,7 @@ The rule in [plan-modules](plan-modules.md) ("Addendum: the Lobby is for being t
 
 ## Addendum: switching a template
 
-**Status:** approved 2026-09-25; not built. GitHub issue #59.
+**Status:** approved 2026-09-25; **built** (2026-09-25), both steps. GitHub issue #59. As built: the question before a switch adds "Then you choose what else it turns on."; the choice sits on Manage's Template tab (addendum 2) rather than Environment; `GET /api/environment/template` and `GET /api/host/environments/:slug/template` read the offer again; a switched record carries `switchedAt`, so it is never applied on its own at a start; and the home icon is stored only when an owner picks one (an old stored default is cleared once). Documented in [architecture-tenants](../architecture/architecture-tenants.md), "Templates", and [userguide-templates](../userguides/userguide-templates.md).
 
 ### The decision
 
@@ -231,7 +231,7 @@ Thomas answered the addendum's four questions as recommended:
 
 ## Addendum 2: templates grow
 
-**Status:** approved 2026-09-25; not built. GitHub issue #68. Builds on the switching addendum (#59), the Lobby note (#63) and [plan-themes](plan-themes.md) (#67).
+**Status:** approved 2026-09-25; steps 1 and 2 built (2026-09-25), step 3 not built. GitHub issue #68. Builds on the switching addendum (#59), the Lobby note (#63) and [plan-themes](plan-themes.md) (#67).
 
 ### The decision
 

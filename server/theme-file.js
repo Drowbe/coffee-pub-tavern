@@ -9,7 +9,7 @@
 // Store.importTheme's.
 'use strict';
 
-const { THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanText, cleanAuthor } = require('./store');
+const { THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanAuthor, cleanThemeName } = require('./store');
 
 const THEME_FILE_VERSION = 1; // the newest magpieTheme this server reads
 const MAX_THEME_FILE_BYTES = 16 * 1024;
@@ -53,7 +53,7 @@ function themeFileName(name) {
 //   base color, or with one that isn't #rrggbb, is dropped whole ("dark"); an optional one that isn't a color goes
 //   back to Auto ("light.card")
 //   no complete set left                                                            -> NO_COMPLETE_SET
-//   name cleaned to 40 characters ("Theme" when empty), author to 60 of plain text
+//   name cleaned to 40 characters ("Theme" when empty), author to 60, both without control or format characters
 // Answers { name, author, light, dark, dropped }; `byteLength`, when the caller knows the size of what was sent.
 function readThemeFile(input, sanitize, { byteLength = null } = {}) {
   let file = input;
@@ -90,7 +90,7 @@ function readThemeFile(input, sanitize, { byteLength = null } = {}) {
   if (!sets.light && !sets.dark) throw new ThemeFileError(NO_COMPLETE_SET);
   if (file.name !== undefined && typeof file.name !== 'string') dropped.push('name');
   if (file.author !== undefined && file.author !== null && typeof file.author !== 'string') dropped.push('author');
-  const name = cleanText(typeof file.name === 'string' ? file.name : '', 40) || 'Theme';
+  const name = cleanThemeName(typeof file.name === 'string' ? file.name : '');
   const author = cleanAuthor(file.author);
   return { name, ...(author ? { author } : {}), light: sets.light, dark: sets.dark, dropped };
 }

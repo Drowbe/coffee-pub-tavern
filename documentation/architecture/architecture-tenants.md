@@ -436,10 +436,12 @@ one. The old `/api/host/tenants...` paths are gone and answer 404; there is no a
 
 | Route | Answer |
 |---|---|
-| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused, template }] }`, `template` being `{ id, name, appliedAt, skipped: [{ id, name, why }] }` or null, read from the environment itself |
+| `GET /api/host/environments` | `{ environments: [{ ...the registry record, usage: { members, storageBytes, aiCallsThisMonth, spaces }, refused, template }] }`, `template` being `{ id, name, source, version, appliedVersion, appliedAt, offerOpen, skipped: [{ id, name, why }] }` or null, read from the environment itself (see "Templates") |
 | `GET /api/host/templates` | `{ templates }`, the templates this server has |
 | `POST /api/host/environments` `{ slug, name, plan?, template?, owner?: { login, displayName, password } }` | 201 `{ environment }`; 409 `"<slug>" is already in use`; a bad slug answers `cleanSlug`'s own error; 400 `There is no template called <id>.` or `A template is named by its id, such as travel.` |
-| `PATCH /api/host/environments/:slug` `{ name?, plan?, status? }` | `{ environment }`; 404 `no such environment`; 400 for a status not in the list |
+| `PATCH /api/host/environments/:slug` `{ name?, plan?, status?, template? }` | `{ environment }`; 404 `no such environment`; 400 for a status not in the list. With `template` (an id, or `"none"`) it switches the environment's template, building the environment if it isn't built yet, and `environment` also carries `template` and `offer` (see "Templates"); 400 `There is no template called <id>.` or `A template is named by its id, or "none" for no template.` |
+| `GET /api/host/environments/:slug/template` | `{ template, offer, choices }`, as the owner's `GET /api/environment/template`; read-only; 404 `no such environment` |
+| `POST /api/host/environments/:slug/template/apply` `{ modules?, lobby?, spaceDefaults? }` | `{ environment }` with `template` and `offer`; the same body and refusals as the owner's apply; 404 `no such environment` |
 | `DELETE /api/host/environments/:slug` | `{ ok: true }`, the data moved to `DATA_DIR/environments-deleted/<slug>-<ms>/`, never removed; 404 `no such environment` |
 | `POST /api/host/environments/:slug/backup` | the environment's folder as a zip (`Content-Disposition` `<slug>-backup.zip`); 404 `no such environment` |
 | `POST /api/host/environments/:slug/restore` | see "Refused environments", Restore |
@@ -498,16 +500,20 @@ which template names which module.
 `roleplaying`, `participants` or `characters`. Every file is checked when the server starts, and an invalid one
 stops the start with a line naming each problem; `tools/check-templates.mjs` (in `npm run check`) checks the same.
 
-**Picked once.** Only when an environment is made: `POST /api/host/environments` `{ template }`, the product
+**Picked at creation.** When an environment is made: `POST /api/host/environments` `{ template }`, the product
 page's `POST /api/product/signup` `{ template }` (`GET /api/product` lists `templates`), or `TEMPLATE=<id>` on a
 single install's new data folder. `TEMPLATE` on existing data, or on a hosted server, is ignored with a log line;
-an unknown id stops the start with a line listing the templates there are.
+an unknown id stops the start with a line listing the templates there are. It can be switched later (below).
 
 **Applied once, then the owner's.** Its settings, its modules (turned on, and on in every space), the Lobby's name
 and description, and `spaceDefaults` are applied when the environment is made, and recorded in `app.json`'s
-`template`: `{ id, name, appliedAt, skipped: [{ id, name, why }] }`. A module is skipped when the plan doesn't
-include it, when it needs a skipped one, or (Research) until the AI service is on; the console card and Manage's
-**Template** panel list them. A backup carries the record, and a restore brings it back.
+`template`: `{ id, appliedAt, appliedVersion?, switchedAt?, skipped: [{ id, why }] }` (`appliedVersion` when the
+template file has a `version`). A module is skipped when the plan doesn't include it, when it needs a skipped one,
+or (Research) until the AI service is on; the console card and Manage's **Template** tab list them. Its modules go
+on in every space they may be in, which leaves the Lobby out for a module not made for it (plan-modules, "the Lobby
+is for being together"). A backup carries the record, and a restore brings it back. The view the pages get
+(`templateView()` in `server/index.js`) is `{ id, name, source, version, appliedVersion, appliedAt, offerOpen,
+skipped: [{ id, name, why }] }`; `source` is `bundled` for now.
 
 **Followed live.** Its words, home icon and module display names and icons are read from the template file on
 every build, as the layer between the default and the owner's own: an owner's change wins, and a reset goes
@@ -515,6 +521,38 @@ back to the template's. `GET` and `PATCH /api/settings` give the owner `template
 `templateHomeIcon` and `spaceDefaults`; `PATCH` takes `homeIcon: null` (back to the template's) and
 `spaceDefaults: { profile } | null` (400 `spaceDefaults takes only profile.` or `profile must be roleplaying,
 participants or characters`). `GET /api/modules` adds `templateDisplayName` and `templateDisplayIcon`.
+`settings.homeIcon` is stored only when an owner picks one (null otherwise, so the template's shows, else the
+default). Environments made before this stored the default `couch` as if chosen; the first start clears a stored
+`couch` once and sets `homeIconChoiceSeeded`, so an owner who picks it from then on keeps it.
+
+**Switched later** (plan-environment-templates, "Addendum: switching a template", GitHub #59). An owner or the
+host can switch an environment to another template, or to none. `switchTemplate()` in `server/index.js` waits for
+a creation-time template to finish applying, then replaces the record with `{ id, appliedAt: null, switchedAt,
+skipped: [] }` (none removes it), runs `templates.useLive()` against the new template and adds its icons to the
+icon list (`templates.addIcons()`), and follows the registry entry on a hosted server. Words, the home icon and
+module display names and icons change at once; the owner's own still win. Nothing is turned off and no data is
+touched. A record with `switchedAt` is never applied on its own at the next start, the way a creation-time one
+is. Each switch adds `{ from, to, at, by }` (`by`: the owner's key or `host`) to `app.json`'s `templateHistory`,
+kept to the last 20 and not shown to owners. Switching to the template already in use changes nothing.
+
+**The offer.** Until it is applied, a switched template's once-only part is an offer (`offerOpen: true`),
+`templates.offerFor()`: `{ modules: [{ id, name, allowed, why? }], lobby: { name, description } | null,
+spaceDefaults: { profile } | null }`. `modules` holds each module the template lists (with what it requires) that
+isn't already on in every space it may be in, `allowed: false` with `why: "not in the plan"` when the plan leaves
+it out, and the conference when listed and off. `lobby` is the template's Lobby name and description when they
+differ from the Lobby's, `spaceDefaults` its new-space profile when it differs. `templates.applyOffer()` applies
+only what is confirmed: the ticked modules (installed if needed, enabled, `allSpaces`), the Lobby and the profile
+only when `true`; it never turns anything off. Applying, even with nothing ticked, writes `appliedAt` and
+`skipped` (every refused module, and any confirmed one that couldn't be turned on), so the offer closes. The
+template's settings are never offered.
+
+| Route (owner) | Answer |
+|---|---|
+| `PATCH /api/settings` `{ template: "<id>" \| "none", ...settings? }` | `{ settings, template, offer }`; any other fields save as before. 400 `There is no template called <id>.` or `A template is named by its id, or "none" for no template.` |
+| `GET /api/environment/template` | `{ template, offer, choices }`: the view above (or null), the open offer (or null), and each template this server has as `{ id, name, description, source, version }` |
+| `POST /api/environment/template/apply` `{ modules?: [ids], lobby?: boolean, spaceDefaults?: boolean }` | `{ template, offer }`; ids not in the offer are ignored. 400 `Name the modules to turn on as a list of their ids.` or `<key> must be true or false.`; 409 `This environment has no template to apply.`, `This template has already been applied.` or `This server doesn't have the "<id>" template any more.` (the module and environment words are the environment's own) |
+
+`tools/check-template-switch.mjs` (in `npm run check`) covers switching, the offer and applying it.
 
 ## The Studio alias
 

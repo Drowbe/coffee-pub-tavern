@@ -58,10 +58,29 @@ function displayNameProblem(name) {
 }
 // The template record in app.json (plan-environment-templates.md, "Recording"), or null when there is none or it is
 // not one.
+// `switchedAt` marks a template an owner or the host switched to (the switching addendum): its once-only part is an
+// offer, applied only as confirmed, never on its own at the next build the way a template picked at creation is.
+// `appliedVersion`: the template's version when its once-only part was applied (templates grow, addendum 2), or null.
 function cleanTemplateRecord(raw) {
   if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || !/^[a-z][a-z0-9-]{0,31}$/.test(raw.id)) return null;
   const skipped = Array.isArray(raw.skipped) ? raw.skipped.filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id.slice(0, 40), why: String(x.why ?? '').slice(0, 300) })) : [];
-  return { id: raw.id, appliedAt: typeof raw.appliedAt === 'string' ? raw.appliedAt : null, skipped };
+  return {
+    id: raw.id,
+    appliedAt: typeof raw.appliedAt === 'string' ? raw.appliedAt : null,
+    ...(Number.isInteger(raw.appliedVersion) && raw.appliedVersion >= 0 ? { appliedVersion: raw.appliedVersion } : {}),
+    ...(typeof raw.switchedAt === 'string' ? { switchedAt: raw.switchedAt } : {}),
+    skipped,
+  };
+}
+// The last switches of template (the switching addendum): [{ from, to, at, by }], `from`/`to` a template id or null
+// for none, `by` the owner's key or 'host'. Kept to the last TEMPLATE_HISTORY_MAX; for support and the console only.
+const TEMPLATE_HISTORY_MAX = 20;
+const templateIdOrNull = (v) => (typeof v === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(v) ? v : null);
+function cleanTemplateHistory(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((x) => x && typeof x === 'object' && typeof x.at === 'string')
+    .map((x) => ({ from: templateIdOrNull(x.from), to: templateIdOrNull(x.to), at: x.at, by: typeof x.by === 'string' ? x.by.slice(0, 40) : null }))
+    .slice(-TEMPLATE_HISTORY_MAX);
 }
 const SPACE_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
@@ -205,7 +224,9 @@ const LANGUAGES = ['en'];
 const CURRENCIES = new Set(typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : []);
 const DEFAULT_SETTINGS = {
   environmentName: 'Coffee Pub Tavern', // a sentinel for a never-renamed install; environmentFor() replaces it once, on start
-  homeIcon: DEFAULT_HOME_ICON,
+  // null: the owner hasn't chosen one, so the template's shows, else DEFAULT_HOME_ICON (Store#homeIcon). Stored only
+  // when the owner picks one.
+  homeIcon: null,
   loginText: 'Your browser will ask for camera and microphone once. Nothing to install.',
   // Self-service sign-up at /register, off by default. A self-registered
   // account is a normal user, added automatically like everyone is to the
@@ -366,10 +387,25 @@ function cleanWidth(value) {
   return Number.isFinite(n) ? Math.max(1, Math.min(24, n)) : null;
 }
 
-// A theme's author: plain text (no control characters) up to 60 characters, or '' for none.
-function cleanAuthor(value) {
-  return typeof value === 'string' ? cleanText(value.replace(/\p{Cc}/gu, ' '), 60) : '';
+// A theme's name or author as plain text: line breaks (U+2028 and U+2029 too) and tabs become spaces, every other
+// control or format character (direction marks, zero-width ones) is dropped -- except the zero-width joiner between
+// two characters, which holds a combined emoji together -- then trimmed and cut to `max` characters, counted by code
+// point so an emoji is never cut in half. '' when nothing is left.
+function cleanThemeText(value, max) {
+  const tidy = (text) => text.replace(/(?<!\S)\u200d+|\u200d+(?!\S)/gu, '').replace(/\u200d{2,}/gu, '\u200d').trim();
+  const plain = tidy(String(value ?? '').replace(/[\t\n\v\f\r\u2028\u2029]+/gu, ' ').replace(/(?!\u200d)[\p{Cc}\p{Cf}]/gu, ''));
+  return tidy(Array.from(plain).slice(0, max).join(''));
 }
+// A theme's name, up to 40 characters, "Theme" when nothing is left.
+function cleanThemeName(value) {
+  return cleanThemeText(value, 40) || 'Theme';
+}
+// A theme's author: plain text up to 60 characters, or '' for none.
+function cleanAuthor(value) {
+  return typeof value === 'string' ? cleanThemeText(value, 60) : '';
+}
+// The most themes one environment keeps (Thomas's decision, 2026-09-25); an import past it is refused.
+const MAX_THEMES = 100;
 
 function cleanColor(value) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : '';
@@ -519,6 +555,7 @@ class Store {
       // The template this environment was made from (plan-environment-templates.md, decision 14): its own record, not a
       // names migration part. { id, appliedAt (null until applied), skipped: [{ id, why }] }.
       ...(cleanTemplateRecord(raw.template) ? { template: cleanTemplateRecord(raw.template) } : {}),
+      ...(cleanTemplateHistory(raw.templateHistory).length ? { templateHistory: cleanTemplateHistory(raw.templateHistory) } : {}),
       secrets: {
         session: raw.secrets?.session || randomToken(32),
         stream: raw.secrets?.stream || randomToken(18),
@@ -578,7 +615,17 @@ class Store {
       data.settings.iconsSeeded = true;
       seededIcons = true;
     }
-    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.spaces) || seededThemes || seededIcons) {
+    // Once: environments made before the home icon was stored only as the owner's choice kept the default ("couch") as
+    // if chosen, which hid a template's home icon after a switch. A stored default from then is not a choice; one
+    // picked from now on is (the flag stays set, so an owner who picks the default later keeps it). An owner who
+    // deliberately picked the default before this can't be told apart; with no template it reads the same either way.
+    let clearedHomeIcon = false;
+    if (!data.settings.homeIconChoiceSeeded) {
+      if (data.settings.homeIcon === DEFAULT_HOME_ICON) data.settings.homeIcon = null;
+      data.settings.homeIconChoiceSeeded = true;
+      clearedHomeIcon = true;
+    }
+    if (!raw.secrets?.session || !raw.secrets?.stream || !Array.isArray(raw.spaces) || seededThemes || seededIcons || clearedHomeIcon) {
       this.data = data;
       this.save();
     }
@@ -807,6 +854,20 @@ class Store {
     this.save();
   }
 
+  // The last switches of template, oldest first (see cleanTemplateHistory).
+  get templateHistory() {
+    return this.data.templateHistory || [];
+  }
+
+  // A switch: the new record (null removes it, for none) and one more line of history, saved together.
+  switchTemplateRecord(record, { from, to, by }) {
+    const clean = record ? cleanTemplateRecord(record) : null;
+    if (clean) this.data.template = clean;
+    else delete this.data.template;
+    this.data.templateHistory = cleanTemplateHistory([...this.templateHistory, { from, to, at: new Date().toISOString(), by }]);
+    this.save();
+  }
+
   // The home icon people see: the owner's (settings.homeIcon), else the template's, else the default.
   get homeIcon() {
     return this.data.settings.homeIcon || this.templateHomeIcon || DEFAULT_HOME_ICON;
@@ -997,7 +1058,7 @@ class Store {
     // Who made it, when it came in from a theme file (documentation/plans/plan-themes.md): plain text up to 60
     // characters, kept so a theme exported again still names them. A theme made in Manage has none.
     const author = cleanAuthor(t.author);
-    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', ...(author ? { author } : {}), light, dark };
+    return { id: t.id, name: cleanThemeName(t.name), ...(author ? { author } : {}), light, dark };
   }
 
   get themes() {
@@ -1016,7 +1077,7 @@ class Store {
     while (this.data.settings.themes.some((t) => t.id === id));
     const colors = cleanThemeColors(fields);
     if (!colors) throw new StoreError('every color is required');
-    const theme = { id, name: cleanText(fields.name, 40) || 'Theme', light: null, dark: null, [cleanMode(fields.mode)]: colors };
+    const theme = { id, name: cleanThemeName(fields.name), light: null, dark: null, [cleanMode(fields.mode)]: colors };
     this.data.settings.themes.push(theme);
     this.save();
     return theme;
@@ -1027,7 +1088,7 @@ class Store {
   updateTheme(id, patch) {
     const theme = this.data.settings.themes.find((t) => t.id === id);
     if (!theme) throw new StoreError('no such theme', 404);
-    if (patch.name !== undefined) theme.name = cleanText(patch.name, 40) || theme.name;
+    if (patch.name !== undefined) theme.name = cleanThemeText(patch.name, 40) || theme.name;
     if (patch.bgSection === undefined && patch.bgCard !== undefined) patch = { ...patch, bgSection: patch.bgCard }; // the old name
     const mode = cleanMode(patch.mode);
     const set = { ...(theme[mode] || theme.light || theme.dark) };
@@ -1052,6 +1113,7 @@ class Store {
   // at least one set whole): added as a new theme with a new id, and a name already in use is never overwritten --
   // it becomes "Name (2)", then "(3)" and so on (plan-themes decision 2). Never changes the active theme or the mode.
   importTheme(fields) {
+    if (this.data.settings.themes.length >= MAX_THEMES) throw new StoreError(`This ${this.word('environment')} has ${MAX_THEMES} themes, the most it can hold. Delete one to import another.`);
     const clean = this.sanitizeTheme({ id: null, name: fields.name, author: fields.author, light: fields.light, dark: fields.dark });
     if (!clean || (!clean.light && !clean.dark)) throw new StoreError('This theme has no complete light or dark set: each needs all seven base colors.');
     let id;
@@ -1071,7 +1133,7 @@ class Store {
     if (!taken.has(lower(name))) return name;
     for (let n = 2; ; n += 1) {
       const suffix = ` (${n})`;
-      const candidate = `${name.slice(0, 40 - suffix.length).trimEnd()}${suffix}`;
+      const candidate = `${Array.from(name).slice(0, 40 - suffix.length).join('').trimEnd()}${suffix}`; // by code point, as cleanThemeName
       if (!taken.has(lower(candidate))) return candidate;
     }
   }
@@ -1832,6 +1894,6 @@ module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
   sanitizeMfa, CURRENCIES, QUALITY_OPTIONS, LANGUAGES, BUILTIN_THEME_IDS: BUILTIN_THEMES.map((t) => t.id), displayNameProblem,
-  THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanColor, cleanAuthor,
+  THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanColor, cleanAuthor, cleanThemeName, MAX_THEMES,
   DEFAULT_HOME_ICON,
 };

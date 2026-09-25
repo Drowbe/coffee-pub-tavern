@@ -45,7 +45,7 @@ test('a manifest\'s scopes are environment, space and person', () => {
   const both = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html', width: 500, height: 9999, mode: ['dock', 'sideways'] } };
   const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }, { key: 'c', label: 'C', type: 'boolean', scope: 'person' }], install: { auto: true, settingsFrom: 'environment' } }, files);
   assert.deepEqual(m.scope, ['environment', 'space', 'person']);
-  assert.deepEqual(m.surfaces.canvas, { entry: 'canvas.html', width: 500, height: 1000, mode: ['dock'] }, 'surfaces.canvas: its size kept within bounds, its modes only dock and float');
+  assert.deepEqual(m.surfaces.canvas, { entry: 'canvas.html', width: 500, height: 1000, mode: ['dock'], lobby: false }, 'surfaces.canvas: its size kept within bounds, its modes only dock and float, not in the Lobby unless it says so');
   assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment', 'person'], 'a setting with no scope is the environment\'s');
   assert.equal(m.install.settingsFrom, 'environment');
   assert.throws(() => cleanManifest({ ...base(), scope: ['nowhere'] }, files), /"scope" must include "environment", "space", or both/);
@@ -401,6 +401,52 @@ test('a display name and icon are checked before anything is saved, each with on
     store.applyModuleDisplay('travel', { name: null, icon: null });
     assert.equal(store.moduleDisplay('travel').name, 'Journey');
     assert.equal('moduleNames' in store.settings, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The Lobby is for being together (plan-modules, GitHub #63): surfaces.canvas.lobby, the one check, and the start-up
+// sync that takes the Lobby out of a module's spaces when it isn't made for it, keeping its data.
+test('the Lobby: surfaces.canvas.lobby is checked, the one check keeps other modules out, and the sync switches them off there only', () => {
+  const canvas = (lobby) => ({ ...base(), scope: ['space'], surfaces: { canvas: { entry: 'canvas.html', ...(lobby === undefined ? {} : { lobby }) } } });
+  assert.equal(cleanManifest(canvas(true), files).surfaces.canvas.lobby, true);
+  assert.equal(cleanManifest(canvas(undefined), files).surfaces.canvas.lobby, false, 'absent: never in the Lobby');
+  assert.throws(() => cleanManifest(canvas('yes'), files), (err) => err instanceof ModuleError && err.message === 'module.json: surfaces.canvas.lobby must be true or false');
+  const bundledLobby = fs.readdirSync(path.join(ROOT, 'modules')).filter((id) => {
+    const f = path.join(ROOT, 'modules', id, 'module.json');
+    return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).surfaces?.canvas?.lobby === true;
+  });
+  assert.deepEqual(bundledLobby, ['calendar'], 'the Calendar declares it, and no other bundled module');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-lobby-'));
+  try {
+    const put = (id, lobby) => {
+      const d = path.join(dir, 'modules', id, 'versions', '1.0.0');
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'module.json'), JSON.stringify({ id, name: id, version: '1.0.0', scope: ['space'], surfaces: { canvas: { entry: 'canvas.html', ...(lobby ? { lobby: true } : {}) } } }));
+    };
+    put('tasks', false);
+    put('every', false);
+    put('dates', true);
+    const entry = (id, allSpaces, spaces) => ({ id, versions: ['1.0.0'], version: '1.0.0', enabled: true, allSpaces, spaces, approved: { permissions: [], hooks: [], refs: [], events: [], actions: [] }, source: 'upload' });
+    const file = path.join(dir, 'modules', 'registry.json');
+    fs.writeFileSync(file, JSON.stringify({ modules: { tasks: entry('tasks', false, ['lobby', 's1']), every: entry('every', true, []), dates: entry('dates', true, []) }, autoInstalled: [] }));
+    const lobbyData = path.join(dir, 'modules', 'tasks', 'data', 'space-lobby.json');
+    fs.mkdirSync(path.dirname(lobbyData), { recursive: true });
+    fs.writeFileSync(lobbyData, '{"task:a":{"value":1}}');
+    const mm = new ModuleManager(dir);
+    const on = (id) => ['lobby', 's1', 's2'].filter((sp) => mm.isOnIn(id, sp));
+    assert.deepEqual(on('tasks'), ['s1'], 'on in s1, and never in the Lobby though its spaces still name it');
+    assert.deepEqual(on('every'), ['s1', 's2'], '"every space" leaves the Lobby out');
+    assert.deepEqual(on('dates'), ['lobby', 's1', 's2'], 'a module made for the Lobby is in it with every space');
+    assert.equal(mm.view('tasks').lobby, false);
+    assert.equal(mm.view('dates').lobby, true);
+    assert.deepEqual(mm.lobbySync(), ['tasks']);
+    const disk = JSON.parse(fs.readFileSync(file, 'utf8')).modules;
+    assert.deepEqual([disk.tasks.spaces, disk.tasks.allSpaces, disk.every.allSpaces, disk.dates.allSpaces], [['s1'], false, true, true], 'the Lobby taken out, allSpaces never changed');
+    assert.equal(fs.readFileSync(lobbyData, 'utf8'), '{"task:a":{"value":1}}', 'its Lobby data kept, untouched');
+    assert.deepEqual(mm.lobbySync(), [], 'nothing more the second time');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

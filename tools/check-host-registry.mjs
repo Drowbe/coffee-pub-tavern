@@ -1091,7 +1091,9 @@ try {
     const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
     const byId = Object.fromEntries((await call(server, '', 'GET', '/api/modules', { cookie: admin })).json.modules.map((m) => [m.id, m]));
     for (const id of ['maps', 'places', 'stream']) assert.deepEqual([id, byId[id].version, byId[id].enabled, byId[id].missing, byId[id].needsUpdate], [id, current[id], true, [], []]);
-    assert.equal((await call(server, '', 'GET', '/api/modules/maps/context?scope=space&space=lobby', { cookie: admin })).status, 200, 'Maps runs');
+    // An ordinary space: the Lobby keeps only the modules made for it (plan-modules, the Lobby addendum).
+    const side = (await call(server, '', 'POST', '/api/spaces', { cookie: admin, body: { name: 'Side' } })).json.space.id;
+    assert.equal((await call(server, '', 'GET', `/api/modules/maps/context?scope=space&space=${side}`, { cookie: admin })).status, 200, 'Maps runs');
     await server.stop();
     server = null;
   });
@@ -1104,6 +1106,8 @@ try {
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
     const waitFor = async (text) => { for (let i = 0; i < 100 && !server.output().includes(text); i += 1) await new Promise((r) => setTimeout(r, 50)); assert.ok(server.output().includes(text), `${text}\n${server.output()}`); };
     await waitFor('Auto-installed and enabled "stream"');
+    // An ordinary space for the Planner's data: the Lobby keeps only the modules made for it (the Lobby addendum).
+    const side = (await call(server, '', 'POST', '/api/spaces', { cookie: cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } })), body: { name: 'Side' } })).json.space.id;
     await server.stop();
     const modulesDir = path.join(single, 'modules');
     const registry = readJson(path.join(modulesDir, 'registry.json'));
@@ -1127,7 +1131,7 @@ try {
     const entry = (value) => ({ value, version: 3, updatedAt: '2026-09-01T00:00:00.000Z', by: 'someone' });
     const dataDir = path.join(modulesDir, 'travel', 'data');
     fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(path.join(dataDir, 'space-lobby.json'), JSON.stringify({ 'trip:main': entry({ title: 'Lisbon' }), 'item:a1': entry({ title: 'Ferry to Cacilhas', date: '2026-10-01' }), 'item:c1': entry({ title: 'old copy' }), 'plan:c1': entry({ title: 'new copy' }) }));
+    fs.writeFileSync(path.join(dataDir, `space-${side}.json`), JSON.stringify({ 'trip:main': entry({ title: 'Lisbon' }), 'item:a1': entry({ title: 'Ferry to Cacilhas', date: '2026-10-01' }), 'item:c1': entry({ title: 'old copy' }), 'plan:c1': entry({ title: 'new copy' }) }));
     fs.writeFileSync(path.join(dataDir, 'environment.json'), JSON.stringify({ 'item:e1': entry({ title: 'Passports' }) }));
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
     for (const id of ['places', 'maps', 'travel']) await waitFor(`Updated "${id}" from ${older(current[id])} to ${current[id]}, the version this server ships.`);
@@ -1135,7 +1139,7 @@ try {
     await waitFor('Renamed "travel"\'s stored keys from item: to plan: (2 in 2 places; kept 1 whose new name was already taken).');
     const out = server.output();
     assert.ok(out.indexOf('Updated "places"') < out.indexOf('Updated "maps"'), `Places before Maps:\n${out}`);
-    const space = readJson(path.join(dataDir, 'space-lobby.json'));
+    const space = readJson(path.join(dataDir, `space-${side}.json`));
     assert.deepEqual(Object.keys(space).sort(), ['item:c1', 'plan:a1', 'plan:c1', 'trip:main'], 'moved, and the taken name never overwritten');
     assert.deepEqual([space['plan:a1'], space['plan:c1'].value.title, space['item:c1'].value.title], [entry({ title: 'Ferry to Cacilhas', date: '2026-10-01' }), 'new copy', 'old copy'], 'value, version, time and author kept');
     assert.deepEqual(Object.keys(readJson(path.join(dataDir, 'environment.json'))), ['plan:e1']);
@@ -1144,23 +1148,23 @@ try {
     const byId = Object.fromEntries((await as('GET', '/api/modules')).json.modules.map((m) => [m.id, m]));
     for (const id of ['places', 'maps', 'travel']) assert.deepEqual([id, byId[id].version, byId[id].enabled, byId[id].allSpaces], [id, current[id], true, true]);
     assert.deepEqual([byId.todo.version, byId.todo.enabled], [older(current.todo), true], 'the To-do waits, still on, on its old version');
-    assert.equal((await as('GET', '/api/modules/maps/context?scope=space&space=lobby')).status, 200, 'Maps runs');
+    assert.equal((await as('GET', `/api/modules/maps/context?scope=space&space=${side}`)).status, 200, 'Maps runs');
     // Found as plan: objects without anyone having opened the Planner.
-    const found = await as('GET', '/api/objects/search?from=todo&scope=space&space=lobby&q=ferry');
+    const found = await as('GET', `/api/objects/search?from=todo&scope=space&space=${side}&q=ferry`);
     assert.deepEqual(found.json.summaries.map((x) => [x.kind, x.ref.id, x.title]), [['plan', 'a1', 'Ferry to Cacilhas']]);
-    const resolved = await as('POST', '/api/objects/resolve', { from: 'todo', refs: [{ module: 'travel', kind: 'plan', id: 'a1', scope: 'space', space: 'lobby' }, { module: 'travel', kind: 'plan', id: 'e1', scope: 'environment' }] });
+    const resolved = await as('POST', '/api/objects/resolve', { from: 'todo', refs: [{ module: 'travel', kind: 'plan', id: 'a1', scope: 'space', space: side }, { module: 'travel', kind: 'plan', id: 'e1', scope: 'environment' }] });
     assert.deepEqual(resolved.json.summaries.map((x) => x.title), ['Ferry to Cacilhas', 'Passports']);
     assert.deepEqual(readJson(path.join(modulesDir, 'registry.json')).modules.travel.renamed.map((r) => [r.from, r.to]), [['item:', 'plan:']]);
     await server.stop();
     // Every start, not once: an old key written again after the rename (an old page still open) is moved on the next start.
-    const again = readJson(path.join(dataDir, 'space-lobby.json'));
+    const again = readJson(path.join(dataDir, `space-${side}.json`));
     again['item:z9'] = entry({ title: 'late' });
-    fs.writeFileSync(path.join(dataDir, 'space-lobby.json'), JSON.stringify(again));
+    fs.writeFileSync(path.join(dataDir, `space-${side}.json`), JSON.stringify(again));
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
     await waitFor(`"todo" ${current.todo} is here`);
     await waitFor('Renamed "travel"\'s stored keys from item: to plan: (1 in 1 place; kept 1 whose new name was already taken).');
     assert.ok(!server.output().includes('Updated "'), server.output());
-    assert.deepEqual(Object.keys(readJson(path.join(dataDir, 'space-lobby.json'))).sort(), ['item:c1', 'plan:a1', 'plan:c1', 'plan:z9', 'trip:main']);
+    assert.deepEqual(Object.keys(readJson(path.join(dataDir, `space-${side}.json`))).sort(), ['item:c1', 'plan:a1', 'plan:c1', 'plan:z9', 'trip:main']);
     await server.stop();
     // The conflict already counted is not logged, or added to the activity, again.
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
@@ -1179,10 +1183,11 @@ try {
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
     const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
     const as = (method, url, body, type) => call(server, '', method, url, { cookie: admin, body, type });
+    const side = (await as('POST', '/api/spaces', { name: 'Side' })).json.space.id; // not the Lobby (the Lobby addendum)
     assert.equal((await as('POST', '/api/modules/bundled/todo/install')).status, 201);
     assert.equal((await as('PATCH', '/api/modules/todo', { enabled: true, allSpaces: true })).status, 200);
     const shipped = readJson(path.join(ROOT, 'modules', 'todo', 'module.json'));
-    for (const id of ['t1', 't2', 't3']) assert.equal((await as('PUT', `/api/modules/todo/data/task:${id}?scope=space&space=lobby`, { value: { title: id } })).status, 200);
+    for (const id of ['t1', 't2', 't3']) assert.equal((await as('PUT', `/api/modules/todo/data/task:${id}?scope=space&space=${side}`, { value: { title: id } })).status, 200);
     // The next version renames task: to job:, as an author would (an uploaded copy of the To-do).
     const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'check-rename-todo-'));
     fs.cpSync(path.join(ROOT, 'modules', 'todo'), copy, { recursive: true });
@@ -1193,13 +1198,13 @@ try {
     const up = await as('POST', '/api/modules', buildModule(copy).zip, 'application/zip');
     fs.rmSync(copy, { recursive: true, force: true });
     assert.equal(up.status, 201, up.text);
-    const keys = () => Object.keys(readJson(path.join(single, 'modules', 'todo', 'data', 'space-lobby.json'))).sort();
+    const keys = () => Object.keys(readJson(path.join(single, 'modules', 'todo', 'data', `space-${side}.json`))).sort();
     assert.deepEqual(keys(), ['job:t1', 'job:t2', 'job:t3'], 'renamed on install');
     // Back to the version from before the rename: its keys are where it looks for them.
     assert.equal((await as('POST', '/api/modules/todo/rollback', { version: shipped.version })).status, 200);
     assert.deepEqual(keys(), ['task:t1', 'task:t2', 'task:t3'], 'moved back on rollback');
-    assert.equal((await as('GET', '/api/modules/todo/data?scope=space&space=lobby&prefix=task:')).json.items.length, 3, 'the older version finds them');
-    assert.equal((await as('PUT', '/api/modules/todo/data/task:rb?scope=space&space=lobby', { value: { title: 'written while rolled back' } })).status, 200);
+    assert.equal((await as('GET', `/api/modules/todo/data?scope=space&space=${side}&prefix=task:`)).json.items.length, 3, 'the older version finds them');
+    assert.equal((await as('PUT', `/api/modules/todo/data/task:rb?scope=space&space=${side}`, { value: { title: 'written while rolled back' } })).status, 200);
     // And forward again: every key under the old prefix moves, the one written meanwhile too.
     assert.equal((await as('POST', '/api/modules/todo/rollback', { version: next })).status, 200);
     assert.deepEqual(keys(), ['job:rb', 'job:t1', 'job:t2', 'job:t3']);
@@ -1218,7 +1223,7 @@ try {
     assert.deepEqual(readJson(path.join(single, 'modules', 'registry.json')).modules.todo.renamed.map((r) => [r.from, r.to, r.version]), [['task:', 'job:', next]]);
     await server.stop();
     // A key under the old prefix on disk (an old page's late write) is moved on the next start.
-    const file = path.join(single, 'modules', 'todo', 'data', 'space-lobby.json');
+    const file = path.join(single, 'modules', 'todo', 'data', `space-${side}.json`);
     fs.writeFileSync(file, JSON.stringify({ ...readJson(file), 'task:late': { value: { title: 'late' }, version: 1, updatedAt: '2026-09-01T00:00:00.000Z', by: 'k' } }));
     server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
     for (let i = 0; i < 100 && !keys().includes('job:late'); i += 1) await new Promise((r) => setTimeout(r, 50));
@@ -1241,6 +1246,7 @@ try {
     const waitFor = async (text) => { for (let i = 0; i < 100 && !server.output().includes(text); i += 1) await new Promise((r) => setTimeout(r, 50)); assert.ok(server.output().includes(text), `${text}\n${server.output()}`); };
     const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
     const as = (method, url, body) => call(server, '', method, url, { cookie: admin, body });
+    const side = (await as('POST', '/api/spaces', { name: 'Side' })).json.space.id; // not the Lobby (the Lobby addendum)
     assert.equal((await as('POST', '/api/modules/bundled/travel/install')).status, 201);
     await waitFor('Auto-installed and enabled "stream"');
     assert.equal((await as('PATCH', '/api/modules/travel', { enabled: true, allSpaces: true })).status, 200);
@@ -1259,7 +1265,7 @@ try {
     assert.deepEqual([nav.name, nav.icon], ['Itinerary', 'compass'], 'the nav');
     const widget = shown((await as('GET', '/api/modules/widgets')).json.widgets);
     assert.deepEqual([widget.name, widget.icon, widget.title], ['Itinerary', 'compass', 'Trips'], 'the dashboard: the widget keeps its own title');
-    const canvas = shown((await as('GET', '/api/modules/for-space?space=lobby')).json.modules);
+    const canvas = shown((await as('GET', `/api/modules/for-space?space=${side}`)).json.modules);
     assert.deepEqual([canvas.name, canvas.icon], ['Itinerary', 'compass'], 'the canvas');
     const context = (await as('GET', '/api/modules/travel/context?scope=environment')).json.module;
     assert.deepEqual([context.name, context.icon, context.version], ['Itinerary', 'compass', before.version], 'host.info.module');

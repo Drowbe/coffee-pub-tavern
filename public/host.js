@@ -4,6 +4,7 @@
 import { loadBranding, api, renderTopbar } from '/brand.js';
 import { wireRegionCut } from '/region-cut.js';
 import { mountEnrolment, mountDisable } from '/mfa-enrol.js';
+import { renderOffer, switchQuestion } from '/template-offer.js';
 
 const $ = (id) => document.getElementById(id);
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -288,6 +289,7 @@ function renderEnvironments() {
       tile('Since', t.createdAt ? new Date(t.createdAt).toLocaleDateString() : ''),
     ].join('');
     renderSkipped(slot(el, 'template-skipped'), t.template);
+    if (!refused) renderTemplateBox(el, t);
     // the plan form, filled from the plan
     const form = slot(el, 'plan-form');
     form.elements.name.value = t.name || '';
@@ -327,6 +329,8 @@ $('environments').addEventListener('click', async (e) => {
   const action = b.dataset.action;
   if (action === 'plan') { slot(card, 'plan-form').hidden = false; return; }
   if (action === 'plan-cancel') { slot(card, 'plan-form').hidden = true; return; }
+  if (action === 'template-switch') { switchEnvironmentTemplate(card, t); return; }
+  if (action === 'template-review') { reviewEnvironmentOffer(card, t); return; }
   if (action === 'suspend') {
     try {
       await api('PATCH', `/api/host/environments/${encodeURIComponent(slug)}`, { status: t.status === 'suspended' ? 'active' : 'suspended' });
@@ -451,17 +455,100 @@ function renderSkipped(box, template) {
   box.innerHTML = `<p class="hint">Left out of the ${escapeHtml(template.name || template.id)} template:</p><ul>${skipped.map((x) => `<li><strong>${escapeHtml(x.name || x.id)}</strong>: ${leftOut(x.why) ? escapeHtml(x.why) : `not on yet. ${escapeHtml(/[.!?]$/.test(x.why || '') ? x.why : `${x.why}.`)}`}</li>`).join('')}</ul>`;
 }
 
+// Switching an environment's template from its card (the switching addendum): the chooser (No template, then each
+// template not hidden), Switch, and the offer after a switch, drawn by /template-offer.js as on Manage's Template tab.
+// The offer comes with the switch's answer; an offer left open (offerOpen in the list) is fetched again by Review, which
+// asks for the same template (a switch to the one in use changes nothing and answers the offer).
+const openOffers = new Map(); // slug -> the offer on show: { name, offer }
+function renderTemplateBox(el, t) {
+  const box = slot(el, 'template-box');
+  box.hidden = !templates.length;
+  if (box.hidden) return;
+  const current = t.template ? t.template.id : 'none';
+  const select = slot(el, 'template-select');
+  const choices = templates.filter((x) => !x.hidden || x.id === current);
+  select.replaceChildren(new Option('No template', 'none'), ...choices.map((x) => new Option(x.name || x.id, x.id)));
+  if (t.template && !choices.some((x) => x.id === current)) select.append(new Option(t.template.name || current, current));
+  select.value = current;
+  select.setAttribute('aria-label', `Template of ${t.name || t.slug}`);
+  const shown = openOffers.get(t.slug);
+  const open = Boolean(t.template && t.template.offerOpen);
+  slot(el, 'template-offer-note').hidden = !open || Boolean(shown);
+  slot(el, 'template-offer-note-text').textContent = open ? `The ${t.template.name || t.template.id} template can turn on more here.` : '';
+  const offerBox = slot(el, 'template-offer');
+  if (!open || !shown) { offerBox.hidden = true; openOffers.delete(t.slug); return; }
+  renderOffer(offerBox, {
+    templateName: shown.name,
+    offer: shown.offer,
+    later: () => { openOffers.delete(t.slug); renderEnvironments(); cardOf(t.slug)?.querySelector('[data-action="template-review"]')?.focus(); },
+    apply: async (body) => {
+      const answer = await api('POST', `/api/host/environments/${encodeURIComponent(t.slug)}/template/apply`, body);
+      openOffers.delete(t.slug);
+      const skipped = (answer.environment.template && answer.environment.template.skipped) || [];
+      await refreshEnvironments(t.slug, skipped.length ? `Applied. ${skipped.length} left out, listed above.` : 'Applied.');
+    },
+  });
+}
+const cardOf = (slug) => [...$('environments').querySelectorAll('.environment')].find((c) => c.dataset.slug === slug);
+// The list again, then a word on one card's template line, with focus on its chooser.
+async function refreshEnvironments(slug, message, error = false) {
+  try { environments = (await api('GET', '/api/host/environments')).environments; } catch { /* the last list */ }
+  renderEnvironments();
+  const card = cardOf(slug);
+  if (!card) return;
+  if (message) say(slot(card, 'template-status'), message, error);
+  slot(card, 'template-select').focus();
+}
+async function switchEnvironmentTemplate(card, t) {
+  const value = slot(card, 'template-select').value;
+  const chosen = templates.find((x) => x.id === value);
+  if (!window.confirm(switchQuestion(value === 'none' ? null : chosen ? chosen.name || chosen.id : value))) return;
+  const button = card.querySelector('[data-action="template-switch"]');
+  button.disabled = true;
+  say(slot(card, 'template-status'), 'Switching…');
+  try {
+    const { environment } = await api('PATCH', `/api/host/environments/${encodeURIComponent(t.slug)}`, { template: value });
+    if (environment.template && environment.template.offerOpen && environment.offer) openOffers.set(t.slug, { name: environment.template.name || environment.template.id, offer: environment.offer });
+    await refreshEnvironments(t.slug, environment.template ? `Switched to ${environment.template.name || environment.template.id}.` : 'Switched to no template.');
+    const first = cardOf(t.slug)?.querySelector('[data-slot="template-offer"]:not([hidden]) input:not(:disabled)');
+    if (first) first.focus();
+  } catch (err) {
+    button.disabled = false;
+    say(slot(card, 'template-status'), err.message, true); // the server's own sentence
+  }
+}
+async function reviewEnvironmentOffer(card, t) {
+  try {
+    const { template, offer } = await api('GET', `/api/host/environments/${encodeURIComponent(t.slug)}/template`);
+    if (offer) openOffers.set(t.slug, { name: template.name || template.id, offer });
+    await refreshEnvironments(t.slug);
+    cardOf(t.slug)?.querySelector('[data-slot="template-offer"]:not([hidden]) input:not(:disabled), [data-slot="template-offer"]:not([hidden]) button')?.focus();
+  } catch (err) {
+    say(slot(card, 'template-status'), err.message, true);
+  }
+}
+$('environments').addEventListener('change', (e) => {
+  if (e.target.dataset.slot !== 'template-select') return;
+  const card = e.target.closest('.environment');
+  const t = environments.find((x) => x.slug === card.dataset.slug);
+  const other = e.target.value !== (t && t.template ? t.template.id : 'none');
+  const button = card.querySelector('[data-action="template-switch"]');
+  button.disabled = !other;
+  button.classList.toggle('btn-primary', other);
+});
+
 // A template's modules install in the background after the create answers, so what it left out is known a moment
 // later: while an environment's template reads as not applied yet, look again a few times, then stop.
 let templateLooks = 0;
 let templateTimer = null;
 function followTemplates() {
   clearTimeout(templateTimer);
-  if (!environments.some((t) => t.template && !t.template.appliedAt)) { templateLooks = 0; return; }
+  // A switch's offer (offerOpen) waits for the host, not for the server: nothing to follow.
+  if (!environments.some((t) => t.template && !t.template.appliedAt && !t.template.offerOpen)) { templateLooks = 0; return; }
   if (++templateLooks > 5) return;
   templateTimer = setTimeout(async () => {
     // Never redraw under someone's hands (an open Edit form, or a card being used): look again later instead.
-    if ($('environments').querySelector('.plan-form:not([hidden])') || $('environments').contains(document.activeElement)) { followTemplates(); return; }
+    if ($('environments').querySelector('.plan-form:not([hidden]), [data-slot="template-offer"]:not([hidden])') || $('environments').contains(document.activeElement)) { followTemplates(); return; }
     try {
       environments = (await api('GET', '/api/host/environments')).environments;
       renderEnvironments();

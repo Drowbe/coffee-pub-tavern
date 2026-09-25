@@ -163,12 +163,13 @@ $('members').addEventListener('change', async (event) => {
 let spaceModules = [];
 async function loadSpaceModules() {
   try {
-    spaceModules = (await api('GET', '/api/modules')).modules.filter((m) => m.enabled && m.scope.includes('space'));
+    // The Lobby keeps only the modules made for it (plan-modules, "the Lobby is for being together").
+    spaceModules = (await api('GET', '/api/modules')).modules.filter((m) => m.enabled && m.scope.includes('space') && (!space.isLobby || m.lobby === true));
   } catch {
     spaceModules = [];
   }
   $('section-modules').hidden = spaceModules.length === 0;
-  $('space-modules').innerHTML = spaceModules.map((m) => {
+  $('space-modules').innerHTML = (space.isLobby ? `<p class="hint">${escapeHtml(space.name)} keeps only chat, the call and ${escapeHtml(word('module', { many: true }))} made for it.</p>` : '') + spaceModules.map((m) => {
     const everywhere = m.allSpaces;
     const on = everywhere || m.spaces.includes(space.id);
     return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.displayIcon || m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.displayName || m.name)}${everywhere ? ` <span class="hint">(on for every ${escapeHtml(word('space'))})</span>` : ''}</label>`;

@@ -282,6 +282,20 @@
       <div class="refused" data-slot="refused" role="status" hidden></div>
       <dl class="facts" data-slot="facts"></dl>
       <div class="template-skipped" data-slot="template-skipped" hidden></div>
+      <!-- Switching its template, and the offer after a switch (plan-environment-templates, the switching addendum):
+           drawn by host.js with /template-offer.js; hidden when the host has no templates. -->
+      <div class="env-template" data-slot="template-box" hidden>
+        <div class="row">
+          <label class="env-template-pick">Template <select data-slot="template-select"></select></label>
+          <button class="btn btn-small" data-action="template-switch" type="button" disabled>Switch</button>
+          <span class="status" data-slot="template-status" role="status" hidden></span>
+        </div>
+        <div class="row" data-slot="template-offer-note" hidden>
+          <span class="hint" data-slot="template-offer-note-text"></span>
+          <button class="btn btn-small btn-primary" data-action="template-review" type="button">Review</button>
+        </div>
+        <div data-slot="template-offer" hidden></div>
+      </div>
       <form class="row owner-reset" data-slot="owner-reset" autocomplete="off">
         <span class="hint">An owner locked out of their authenticator app:</span>
         <input name="login" type="text" maxlength="40" placeholder="their login" autocapitalize="off" required>

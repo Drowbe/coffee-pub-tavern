@@ -48,16 +48,21 @@ until you choose **Apply**, which puts the theme and the default mode live on ev
 A theme can be saved as a file and brought into another environment.
 
 1. To share one, choose it in the chooser and click **Export**. The browser saves `<name>.magpie-theme.json`. Any
-   theme can be exported, the built-in ones and Strong Coffee included.
+   theme can be exported, the built-in ones and Strong Coffee included. Export saves the theme as it was last
+   saved, not changes still in the editor, so choose **Update** or **Save as new theme** first.
 2. To bring one in, click **Import…** and choose the file. It is added as a new theme and chosen in the chooser, so
    you can preview it. It is not applied: click **Apply** when you want to use it.
 
-The line beside the buttons says what came in, such as "Imported Harbour by Thomas.", and, when anything in the
-file wasn't a colour Magpie knows, "Left out: ...". An import never replaces a theme: if the name is taken, it is
-added as "Harbour (2)", then "(3)". A theme file can only hold colours, so importing one can't change anything else.
+When the chosen theme has an author, a "Made by ..." line under the buttons shows who made it. Below that, after
+an import, a line says what came in, such as "Imported Harbour by Thomas.", and, when anything in the file wasn't
+a colour Magpie knows, "Left out: ...". An import never replaces a theme: if the name is taken, it is added as
+"Harbour (2)", then "(3)". A theme file can only hold colours, so importing one can't change anything else.
+
+A file saved as UTF-16, such as one saved by Windows Notepad, imports like any other.
 
 A file that isn't a theme, was made by a newer version of Magpie, or has neither a complete light nor a complete
-dark version is refused, with a sentence saying which.
+dark version is refused, with a sentence saying which. An environment holds at most 100 themes. At that limit an
+import is refused with "This environment has 100 themes, the most it can hold. Delete one to import another."
 
 ## Where to start
 

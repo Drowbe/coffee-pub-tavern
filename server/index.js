@@ -558,7 +558,8 @@ function useTemplate(env, slug, fresh) {
     console.warn(`${where}This environment was made from the "${record.id}" template, which this server does not have, so it reads the default words.`);
     return null;
   }
-  return record.appliedAt ? null : template;
+  // A template switched to (switchedAt) is an offer, applied only as confirmed, never here.
+  return record.appliedAt || record.switchedAt ? null : template;
 }
 
 // A template's once-only part (its settings, Lobby, space defaults, icons and modules), then the record's appliedAt,
@@ -571,8 +572,81 @@ async function applyRecordedTemplate(env, slug, template) {
     allowed: (id) => moduleAllowedFor(slug, id),
     name: (id) => env.store.moduleDisplay(id).name || names.get(id) || id,
   });
-  env.store.recordTemplate({ id: template.id, appliedAt: new Date().toISOString(), skipped });
+  // Recorded only if nothing switched the template away meanwhile (a switch waits for this, but a restore need not).
+  const now = env.store.templateRecord;
+  if (!now || now.id !== template.id || now.switchedAt) return;
+  env.store.recordTemplate({ id: template.id, appliedAt: new Date().toISOString(), ...(Number.isInteger(template.version) ? { appliedVersion: template.version } : {}), skipped });
   console.log(`${where}Applied the "${template.id}" template${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.why})`).join(', ')}` : ''}.`);
+}
+
+// --- switching a template (plan-environment-templates.md, "Addendum: switching a template", GitHub #59) ------------
+// Every function here takes the environment explicitly: the host's routes run outside any environment's context.
+
+// What the offer and a confirmed apply need: the bundled modules, the plan's say (a template never widens a plan) and
+// each module's name as this environment shows it (Conference and Chat included).
+function templateOptions(env, slug) {
+  const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
+  return {
+    modulesDir: BUNDLED_DIR,
+    allowed: (id) => moduleAllowedFor(slug, id),
+    name: (id) => env.store.moduleDisplay(id).name || names.get(id) || BUILTIN_MODULES.find((b) => b.id === id)?.name || id,
+  };
+}
+
+// The templates an environment can switch to: [{ id, name, description, source, version }].
+const templateChoices = () => templates.list().map((t) => ({ ...t, source: 'bundled', version: Number.isInteger(templates.get(t.id)?.version) ? templates.get(t.id).version : null }));
+
+// Why a `template` a switch names can't be used (one sentence), or null: "none" (or null) for no template, else a
+// template this server has.
+function templateSwitchProblem(value) {
+  if (value === null || value === 'none') return null;
+  if (typeof value !== 'string' || !value) return 'A template is named by its id, or "none" for no template.';
+  return templates.get(value) ? null : `There is no template called ${value.slice(0, 40)}.`;
+}
+
+// Switches an environment to template `value` ("none" or null for none), changing only its live part at once: the
+// record (appliedAt and skipped cleared; switchedAt set, so its once-only part waits as an offer), the words, the home
+// icon and the module names and icons, and the template's icons into the icon list. The owner's own words, home icon
+// and module names are untouched and still win; nothing is turned off. The same template as now changes nothing.
+// `by`: the owner's key, or 'host'. Answers whether anything changed.
+async function switchTemplate(env, slug, value, by) {
+  await env.templateReady; // a template picked at creation finishes applying before it can be switched away
+  const to = value === null || value === 'none' ? null : value;
+  const from = env.store.templateRecord?.id || null;
+  if (from === to) return false;
+  const template = to ? templates.get(to) : null;
+  env.store.switchTemplateRecord(template ? { id: to, appliedAt: null, switchedAt: new Date().toISOString(), skipped: [] } : null, { from, to, by });
+  templates.useLive(env.store, template);
+  if (template) templates.addIcons(env.store, template);
+  if (slug && hostRegistry) hostRegistry.setEnvironmentTemplate(slug, to);
+  console.log(`${slug ? `[${slug}] ` : ''}Switched from ${from ? `the "${from}" template` : 'no template'} to ${to ? `the "${to}" template` : 'none'} (by ${by === 'host' ? 'the host' : by}).`);
+  return true;
+}
+
+// The template as Manage and the console show it, with the offer while it is open: { template, offer }.
+function templateAnswer(env, slug) {
+  const view = templateView(env.store);
+  const template = view?.offerOpen ? templates.get(view.id) : null;
+  return { template: view, offer: template ? templates.offerFor(env, template, templateOptions(env, slug)) : null };
+}
+
+// Applies what was confirmed of the open offer ({ modules: [ids], lobby: boolean, spaceDefaults: boolean }), then
+// records appliedAt and what was skipped, so the offer is not made again for this template. Throws a StoreError for
+// a refusal. Answers templateAnswer.
+async function applyTemplateOffer(env, slug, body) {
+  const b = body && typeof body === 'object' ? body : {};
+  if (b.modules !== undefined && (!Array.isArray(b.modules) || b.modules.some((m) => typeof m !== 'string'))) throw new StoreError(`Name the ${env.store.word('module', { many: true })} to turn on as a list of their ids.`);
+  for (const key of ['lobby', 'spaceDefaults']) if (b[key] !== undefined && typeof b[key] !== 'boolean') throw new StoreError(`${key} must be true or false.`);
+  await env.templateReady;
+  const record = env.store.templateRecord;
+  if (!record) throw new StoreError(`This ${env.store.word('environment')} has no template to apply.`, 409);
+  if (record.appliedAt) throw new StoreError('This template has already been applied.', 409);
+  const template = templates.get(record.id);
+  if (!template) throw new StoreError(`This server doesn't have the "${record.id}" template any more.`, 409);
+  const skipped = await templates.applyOffer(env, template, { modules: b.modules || [], lobby: b.lobby === true, spaceDefaults: b.spaceDefaults === true }, templateOptions(env, slug));
+  env.store.recordTemplate({ ...record, appliedAt: new Date().toISOString(), ...(Number.isInteger(template.version) ? { appliedVersion: template.version } : {}), skipped });
+  console.log(`${slug ? `[${slug}] ` : ''}Applied the "${template.id}" template's offer${skipped.length ? `; skipped ${skipped.map((x) => `${x.id} (${x.why})`).join(', ')}` : ''}.`);
+  return templateAnswer(env, slug);
 }
 
 // The template an environment was made from, for Manage and the console: { id, name, appliedAt, skipped: [{ id, name,
@@ -581,10 +655,16 @@ function templateView(store) {
   const record = store.templateRecord;
   if (!record) return null;
   const names = new Map(bundledModules(BUNDLED_DIR).map((m) => [m.id, m.name]));
+  const template = templates.get(record.id);
   return {
     id: record.id,
-    name: templates.get(record.id)?.name || record.id,
+    name: template?.name || record.id,
+    source: template ? 'bundled' : null, // where the template comes from (host and imported templates come later)
+    version: Number.isInteger(template?.version) ? template.version : null,
     appliedAt: record.appliedAt,
+    appliedVersion: Number.isInteger(record.appliedVersion) ? record.appliedVersion : null,
+    // A switch's offer, not yet confirmed (the switching addendum).
+    offerOpen: Boolean(record.switchedAt && !record.appliedAt),
     skipped: record.skipped.map((x) => ({ id: x.id, name: store.moduleDisplay(x.id).name || names.get(x.id) || x.id, why: x.why })),
   };
 }
@@ -698,6 +778,22 @@ async function updateBundled(env) {
 function afterModulesChanged(env) {
   carryReplacedGrants(env);
   for (const id of Object.keys(env.modules.registry.modules)) syncStoredKeys(env, id);
+  lobbySync(env);
+}
+
+// The Lobby keeps only the modules made for it (plan-modules, "the Lobby is for being together"): any other one on in
+// the Lobby is switched off there, and only there -- it stays on in its other spaces, its data kept. Runs on every
+// start (after the bundled updates, so a new version's flag is what counts), after an install or an update, and after
+// a rollback, since any of them can change whether a module declares surfaces.canvas.lobby. A sync, not a migration
+// part: the rule can be broken again by a module update, not only once.
+function lobbySync(env) {
+  const where = env.slug ? `[${env.slug}] ` : '';
+  const lobbyName = env.store.spaceById(LOBBY)?.name || 'the Lobby';
+  for (const id of env.modules.lobbySync()) {
+    const entry = env.modules.registry.modules[id];
+    const manifest = env.modules.manifestOf(id, entry.version);
+    console.log(`${where}${env.modules.shownName(manifest)} is no longer on in ${lobbyName}; it stays on in its other ${env.store.word('space', { many: true })}.`);
+  }
 }
 
 // A module's author renamed a prefix of its stored keys (`storage.renamed: [{ from, to }]` in module.json, see
@@ -1244,6 +1340,26 @@ function guestSvg() {
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', true);
+// Writes only from this origin. A SameSite=Lax cookie still goes along with a request from another origin on the same
+// site (on a hosted server every environment is *.BASE_DOMAIN, the console admin.BASE_DOMAIN), and a plain form or a
+// no-cors fetch needs no preflight. So a POST, PUT, PATCH or DELETE that carries a cookie is refused when the browser
+// says it came from anywhere but this origin (Sec-Fetch-Site), or its Origin isn't this one (baseUrl minds
+// X-Forwarded-*). Passes: a Bearer token (Studio; a page elsewhere can't add one without a preflight nobody answers),
+// no cookie at all (webhooks, server-to-server), and neither header (old browsers, curl).
+// Exempt: POST /login, the sign-in form, which the landing page at the bare base domain posts across origins by
+// design; it trusts only the login and password it is sent, never a cookie, and replaces whatever session there was.
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const CROSS_ORIGIN_EXEMPT = new Set(['/login']);
+function sameOriginOnly(req, res, next) {
+  if (/^bearer\s/i.test(req.get('authorization') || '') || !req.get('cookie')) return next();
+  const site = req.get('sec-fetch-site');
+  const origin = req.get('origin');
+  if ((site && site !== 'same-origin' && site !== 'none') || (origin && origin.toLowerCase() !== baseUrl(req).toLowerCase())) {
+    return res.status(403).json({ error: 'This request came from another site, so it was refused.' });
+  }
+  next();
+}
+app.use((req, res, next) => (WRITE_METHODS.has(req.method) && !CROSS_ORIGIN_EXEMPT.has(req.path) ? sameOriginOnly(req, res, next) : next()));
 // verify stashes the exact bytes received, alongside the parsed req.body -- the billing webhook's signature
 // (plan-tenants.md, "Phase 5") is an HMAC over those bytes, not a re-serialization of the parsed object, which
 // would not reliably reproduce what the sender actually signed (key order, whitespace).
@@ -1450,9 +1566,9 @@ function environmentTemplate(entry) {
   if (read && (!record || typeof record !== 'object' || typeof record.id !== 'string')) return null; // its own data says none
   const id = record?.id || entry.template;
   if (!id) return null;
-  const view = { id, name: templates.get(id)?.name || id, appliedAt: null, skipped: [] };
+  const view = { id, name: templates.get(id)?.name || id, appliedAt: null, offerOpen: false, skipped: [] };
   if (!record || typeof record !== 'object') return view;
-  return { ...view, appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : null, skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
+  return { ...view, appliedAt: typeof record.appliedAt === 'string' ? record.appliedAt : null, offerOpen: typeof record.switchedAt === 'string' && typeof record.appliedAt !== 'string', skipped: (Array.isArray(record.skipped) ? record.skipped : []).filter((x) => x && typeof x.id === 'string').map((x) => ({ id: x.id, name: names.get(x.id) || x.id, why: String(x.why ?? '') })) };
 }
 hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
   try {
@@ -1466,10 +1582,48 @@ hostRouter.post('/api/host/environments', requireHostAdmin, (req, res) => {
     sendHostError(err, res);
   }
 });
-hostRouter.patch('/api/host/environments/:slug', requireHostAdmin, (req, res) => {
+// `template`: switch the environment to a template ("none" for none), building it if it isn't built yet; the answer
+// then carries the template and its offer. Every other field is the registry entry's, as before.
+hostRouter.patch('/api/host/environments/:slug', requireHostAdmin, async (req, res) => {
   try {
-    res.json({ environment: hostRegistry.updateEnvironment(req.params.slug, req.body || {}) });
+    const { template, ...rest } = req.body || {};
+    if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
+    if (template !== undefined) {
+      const problem = templateSwitchProblem(template);
+      if (problem) throw new HostError(problem);
+    }
+    let environment = Object.keys(rest).length || template === undefined ? hostRegistry.updateEnvironment(req.params.slug, rest) : hostRegistry.findEnvironment(req.params.slug);
+    if (template === undefined) return res.json({ environment });
+    const env = environmentFor(req.params.slug);
+    await switchTemplate(env, req.params.slug, template, 'host');
+    environment = hostRegistry.findEnvironment(req.params.slug);
+    res.json({ environment: { ...environment, ...templateAnswer(env, req.params.slug) } });
   } catch (err) {
+    if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
+    sendHostError(err, res);
+  }
+});
+// The environment's template as the owner's Template tab reads it, read-only: { template, offer, choices } (the
+// console's Review asks this rather than repeating a switch). Builds the environment if it isn't built yet.
+hostRouter.get('/api/host/environments/:slug/template', requireHostAdmin, (req, res) => {
+  try {
+    if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
+    const env = environmentFor(req.params.slug);
+    res.json({ ...templateAnswer(env, req.params.slug), choices: templateChoices() });
+  } catch (err) {
+    sendHostError(err, res);
+  }
+});
+// Confirms the open offer of the environment's template (the same body as the owner's), and answers the environment
+// with its template and offer.
+hostRouter.post('/api/host/environments/:slug/template/apply', requireHostAdmin, async (req, res) => {
+  try {
+    if (!hostRegistry.findEnvironment(req.params.slug)) throw new HostError('no such environment', 404);
+    const env = environmentFor(req.params.slug);
+    const answer = await applyTemplateOffer(env, req.params.slug, req.body);
+    res.json({ environment: { ...hostRegistry.findEnvironment(req.params.slug), ...answer } });
+  } catch (err) {
+    if (err instanceof StoreError) return res.status(err.status).json({ error: err.message });
     sendHostError(err, res);
   }
 });
@@ -3126,6 +3280,11 @@ app.patch('/api/modules/:id', requireOwner, (req, res) => {
     const current = modules.list().find((m) => m.id === req.params.id);
     if (current && refuseModuleNotInPlan(res, current.id, current.name)) return;
   }
+  if (Array.isArray(rest.spaces) && rest.spaces.includes(LOBBY)) {
+    const entry = modules.get(req.params.id);
+    const manifest = modules.manifestOf(req.params.id, entry.version);
+    if (refusedInLobby(manifest, LOBBY)) return res.status(400).json({ error: lobbyRefusal(manifest) });
+  }
   if (Object.keys(rest).length) modules.update(req.params.id, rest, { spaceExists: (id) => !!store.spaceById(id) });
   else modules.get(req.params.id); // 404 for a module that is not installed
   store.applyModuleDisplay(req.params.id, display);
@@ -3135,7 +3294,8 @@ app.post('/api/modules/:id/rollback', requireOwner, (req, res) => {
   const rolled = modules.rollback(req.params.id, String(req.body?.version || ''));
   // The stored keys follow the version now running (storage.renamed): a rename it does not declare is undone.
   syncStoredKeys(currentEnvironment(), req.params.id);
-  res.json({ module: rolled });
+  lobbySync(currentEnvironment()); // the version rolled back to may not be made for the Lobby
+  res.json({ module: modules.view(req.params.id) || rolled });
 });
 app.delete('/api/modules/:id', requireOwner, (req, res) => {
   modules.uninstall(req.params.id, { keepData: req.query.keepData !== '0' });
@@ -3169,9 +3329,17 @@ function moduleViewer(req) {
   return hasStreamKey(req) ? { user: null, guestSpace: null, keyed: true } : null;
 }
 
-// Whether someone may see a module in a space at all: on for that space, and in it.
+// The sentence for a module that can't be in the Lobby (plan-modules, "the Lobby is for being together"): its display
+// name, and the Lobby's own name as this environment has it ("Home base" under the travel template).
+function lobbyRefusal(manifest) {
+  return `${modules.shownName(manifest)} can't be turned on in ${store.spaceById(LOBBY)?.name || 'the Lobby'}, which is kept for chat, the call and a few ${word('module', { many: true })} made for it.`;
+}
+const refusedInLobby = (manifest, spaceId) => spaceId === LOBBY && manifest && !ModuleManager.lobbyAllowed(manifest);
+
+// Whether someone may see a module in a space at all: on for that space (modules.isOnIn, the one check, which keeps
+// the Lobby for the modules that declare it), and in it.
 function moduleSpaceAccess(entry, who, space) {
-  if (!(entry.allSpaces || entry.spaces.includes(space.id))) return false;
+  if (!modules.isOnIn(entry.id, space.id)) return false;
   if (who.user) return hasOwnerRights(who.user) || space.members.includes(who.user.key);
   return who.guestSpace.id === space.id;
 }
@@ -3234,6 +3402,7 @@ function moduleAccess(req, res, need) {
   } else if (scope === 'space') {
     const space = store.spaceById(String(req.query.space || ''));
     if (!space) return void res.status(404).json({ error: `no such ${word('space')}` });
+    if (refusedInLobby(manifest, space.id)) return void res.status(404).json({ error: lobbyRefusal(manifest) });
     if (!moduleSpaceAccess(entry, who, space)) return void res.status(403).json({ error: `this ${word('module')} is not available in that ${word('space')} for you` });
     spaceId = space.id;
   } else if (!who.user) {
@@ -3336,7 +3505,7 @@ function moduleSpacesFor(req, res) {
   if (!manifest.scope.includes('space')) return void res.status(400).json({ error: `this ${word('module')} has no space scope` });
   if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: `your role can't do that in this ${word('module')}` });
   const spaces = store.spaces.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
-    && (entry.allSpaces || entry.spaces.includes(r.id)) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
+    && modules.isOnIn(entry.id, r.id) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
   return { manifest, spaces };
 }
 const spaceSummary = (r) => {
@@ -4428,7 +4597,7 @@ app.get('/api/module-settings/:scope', (req, res) => {
   if (!place) return;
   const scope = req.params.scope;
   const out = modules.enabledAll()
-    .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'space' || entry.allSpaces || entry.spaces.includes(place.space.id)))
+    .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'space' || modules.isOnIn(entry.id, place.space.id)))
     .map(({ manifest }) => ({ id: manifest.id, ...shownModule(manifest), settings: withValues(manifest, scope, place.ctx) }));
   res.json({ modules: out });
 });
@@ -4496,6 +4665,9 @@ app.get('/api/modules/for-space', (req, res) => {
 // space in the query, ?space=<id> (and a guest's link token, if that is who is looking).
 app.get('/modules/:id', (req, res) => {
   if (!currentUser(req) && !hasGuestAccess(req)) return res.redirect(`/login?next=${encodeURIComponent(req.originalUrl)}`);
+  // A module popped out of the Lobby that the Lobby doesn't allow: the sentence, not its page.
+  const found = req.query.space === LOBBY ? modules.enabled(req.params.id) : null;
+  if (found && refusedInLobby(found.manifest, LOBBY)) return res.status(404).type('text').send(lobbyRefusal(found.manifest));
   res.sendFile(page('module.html'));
 });
 
@@ -4708,7 +4880,7 @@ app.get('/api/modules/stream', (req, res) => {
     if (space) {
       return r.id === space.id && moduleSpaceAccess(entry, who, r) && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'space', spaceId: r.id } : null;
     }
-    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && (entry.allSpaces || entry.spaces.includes(r.id));
+    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && modules.isOnIn(entry.id, r.id);
     return mine && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'spaces', spaceId: r.id } : null;
   };
   const onChange = (change) => {
@@ -4812,9 +4984,35 @@ app.get('/api/currencies', requireUser, (_req, res) => res.json({ currencies: cu
 // `spaceDefaults`: what a new space starts with ({ profile }, or null for the built-in default).
 const ownerSettings = () => ({ ...branding(), ownWords: store.ownWords(), ownHomeIcon: store.settings.homeIcon || null, template: templateView(store), templateWords: store.templateWordsView(), templateHomeIcon: store.templateHomeIcon || null, spaceDefaults: store.settings.spaceDefaults || null });
 app.get('/api/settings', requireOwner, (_req, res) => res.json({ settings: ownerSettings(), streamKey: store.streamKey }));
-app.patch('/api/settings', requireOwner, (req, res) => {
-  watchTheme(() => store.updateSettings(req.body || {}));
-  res.json({ settings: ownerSettings() });
+// `template` ("none" for none) switches the environment's template (the switching addendum): taken out of the body
+// before the settings; an unknown one refuses the whole change. With it, the answer also carries `template` and `offer`.
+app.patch('/api/settings', requireOwner, async (req, res) => {
+  const { template, ...rest } = req.body || {};
+  if (template !== undefined) {
+    const problem = templateSwitchProblem(template);
+    if (problem) return res.status(400).json({ error: problem });
+  }
+  if (template === undefined || Object.keys(rest).length) watchTheme(() => store.updateSettings(rest));
+  if (template === undefined) return res.json({ settings: ownerSettings() });
+  const env = currentEnvironment();
+  await switchTemplate(env, env.slug, template, currentUser(req).key);
+  res.json({ settings: ownerSettings(), ...templateAnswer(env, env.slug) });
+});
+
+// The Template tab (addendum 2): what the environment was made from (name, source, version), the version applied, what
+// was left out, the open offer if any, and the templates it could switch to. Hosted and single installs alike.
+app.get('/api/environment/template', requireOwner, (req, res) => {
+  const env = currentEnvironment();
+  res.json({
+    ...templateAnswer(env, env.slug),
+    choices: templateChoices(),
+  });
+});
+// Confirms the open offer: { modules: [ids], lobby: boolean, spaceDefaults: boolean }; 409 with no template or one
+// already applied.
+app.post('/api/environment/template/apply', requireOwner, async (req, res) => {
+  const env = currentEnvironment();
+  res.json(await applyTemplateOffer(env, env.slug, req.body));
 });
 
 // This environment's own view of itself: its plan and how it stands against each cap (plan-tenants.md, "Phase
@@ -4898,7 +5096,9 @@ app.get('/api/themes/:id/export', requireOwner, (req, res) => {
 // any other type is read as text up to the limit (a bigger one, and one the app's parser can't read, get the same
 // sentence -- see the error handler).
 const themeFileText = express.text({ type: () => true, limit: themeFile.MAX_THEME_FILE_BYTES });
-app.post('/api/themes/import', requireOwner, themeFileText, (req, res) => {
+// Any body type is read here, so sameOriginOnly (see "the app", above) is named on the route as well as run for every
+// write: this route must never lose it.
+app.post('/api/themes/import', requireOwner, sameOriginOnly, themeFileText, (req, res) => {
   try {
     const given = typeof req.body === 'string' ? req.body : req.body === undefined ? '' : req.body;
     const read = themeFile.readThemeFile(given, (t) => store.sanitizeTheme(t), { byteLength: req.rawBody ? req.rawBody.length : null });
@@ -4977,8 +5177,9 @@ app.use((err, _req, res, _next) => {
     }
     return res.status(503).json({ error: sentence });
   }
-  // A theme file too big or not JSON: the one sentence the import gives for anything that isn't a theme file.
-  if (_req.path === '/api/themes/import' && (err.type === 'entity.too.large' || err.type === 'entity.parse.failed')) {
+  // A theme file too big, not JSON, or a body the parser can't read at all (an unknown charset or content-encoding,
+  // bytes that don't unzip): the one sentence the import gives for anything that isn't a theme file.
+  if (_req.path === '/api/themes/import' && (typeof err.type === 'string' || (err.status >= 400 && err.status < 500))) {
     return res.status(400).json({ error: themeFile.NOT_A_THEME_FILE });
   }
   if (err.type === 'entity.too.large') {

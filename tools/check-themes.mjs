@@ -7,7 +7,10 @@
  *   - each refusal in the plan's order, with its sentence: over 16 KB, not JSON, not an object, no magpieTheme or not
  *     a whole number, a newer magpieTheme, no complete set;
  *   - unknown keys dropped and named; a bad color drops its set; an import never changes the active theme or mode;
- *   - CSS typed into a color (`red; background: url(x)`) never reaches /theme.css.
+ *   - CSS typed into a color (`red; background: url(x)`) never reaches /theme.css;
+ *   - control and format characters never reach a name or author; the 101st theme is refused;
+ *   - an import from another origin is refused; a body the parser can't read is 400, not 500; and no owner write
+ *     route reads a body another origin can send without asking (text/plain, a form, multipart).
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -114,6 +117,68 @@ await test('Store.importTheme: a new id, "Name (2)" on a clash (Strong Coffee\'s
   assert.equal(store.sanitizeTheme({ ...again, author: `x${'y'.repeat(70)}` }).author.length, 60);
   assert.equal('author' in store.sanitizeTheme({ name: 'Plain', light: set() }), false, 'a theme made in Manage has none');
 });
+
+await test('control and format characters (direction marks, zero-width ones) are dropped from a name and author, from a file or the editor', () => {
+  const hidden = '\u202e\u200b\u200f\u2066\ufeff\u00ad\u0007\u007f\u0085';
+  const got = tf.readThemeFile(file({ name: `${hidden} Har${hidden}bour ${hidden}`, author: `Tho\nmas${hidden}\t` }), sanitize);
+  assert.deepEqual([got.name, got.author], ['Harbour', 'Tho mas']);
+  const empty = tf.readThemeFile(file({ name: ` ${hidden} `, author: hidden }), sanitize);
+  assert.deepEqual([empty.name, 'author' in empty], ['Theme', false], 'nothing left: "Theme", and no author');
+  assert.equal(store.sanitizeTheme({ name: `A\u202eb`, author: `c\u200bd`, light: set() }).name, 'Ab');
+  const made = store.addTheme({ name: `Ma\u200bde\u202e`, mode: 'light', ...set() });
+  assert.equal(made.name, 'Made');
+  assert.equal(store.updateTheme(made.id, { name: `Re\u2066named` }).name, 'Renamed');
+  assert.equal(store.updateTheme(made.id, { name: hidden }).name, 'Renamed', 'a rename to nothing keeps the name');
+  store.removeTheme(made.id);
+  // The zero-width joiner holds a combined emoji together, so it stays between two characters; alone, at an edge or
+  // beside a space it goes. U+2028 and U+2029 are line breaks, so they become spaces.
+  const family = '\u{1f468}\u200d\u{1f469}\u200d\u{1f467}';
+  const named = (name) => tf.readThemeFile(file({ name }), sanitize).name;
+  assert.equal(named(`Family ${family}`), `Family ${family}`);
+  assert.equal(named('\u200d'), 'Theme');
+  assert.equal(named(' \u200dA\u200d\u200d\u200dB\u200d '), 'A\u200dB');
+  assert.equal(named('A B C'), 'A B C');
+  // Cut at 40 characters by code point, never between the halves of one.
+  const smiles = '\u{1f600}'.repeat(45);
+  assert.equal(named(smiles), '\u{1f600}'.repeat(40));
+  assert.equal(named(`${'x'.repeat(39)}\u{1f600}\u{1f600}`), `${'x'.repeat(39)}\u{1f600}`);
+  assert.ok(!/[\ud800-\udfff](?![\udc00-\udfff])/.test(named(`${'x'.repeat(39)}\u{1f600}`).replace(/[\ud800-\udbff][\udc00-\udfff]/g, '')), 'no half emoji');
+  const first = store.importTheme(tf.readThemeFile(file({ name: smiles }), sanitize));
+  const second = store.importTheme(tf.readThemeFile(file({ name: smiles }), sanitize));
+  assert.equal(second.name, `${'\u{1f600}'.repeat(36)} (2)`, 'the "(2)" name is cut by code point too');
+  store.removeTheme(first.id);
+  store.removeTheme(second.id);
+});
+
+await test('Store.importTheme: the 101st theme is refused with its sentence, and nothing is added', () => {
+  assert.equal(require('../server/store.js').MAX_THEMES, 100);
+  while (store.themes.length < 100) store.importTheme(tf.readThemeFile(file({ name: 'Fill' }), sanitize));
+  assert.throws(() => store.importTheme(tf.readThemeFile(file(), sanitize)), (err) => err.status === 400 && err.message === 'This environment has 100 themes, the most it can hold. Delete one to import another.');
+  assert.equal(store.themes.length, 100);
+  store.removeTheme(store.themes.at(-1).id);
+  assert.ok(store.importTheme(tf.readThemeFile(file(), sanitize)).id, 'one deleted, one more comes in');
+});
+
+// Only two parsers in the app read a body a page on another origin can send without asking first (text/plain, a
+// form, multipart): the sign-in form, which signs in rather than trusting a cookie, and the theme import, which
+// refuses anything but its own origin. Every other body is JSON, which the browser won't send cross-origin without a
+// preflight the server never answers. A new parser taking one of those types must be added here, with its guard.
+await test('only /login and /api/themes/import read a body another origin can send; the import is behind sameOriginOnly', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'server', 'index.js'), 'utf8');
+  const SIMPLE = /text\/|x-www-form-urlencoded|multipart\/form-data|\*\/\*|=>/;
+  const found = [];
+  for (const m of src.matchAll(/(?:const (\w+) = )?express\.(json|text|raw|urlencoded)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)) {
+    const [, name = '(inline)', kind, opts] = m;
+    const type = /type:\s*([^,}]+(?:\[[^\]]*\])?)/.exec(opts)?.[1] || '';
+    const takesSimple = type ? SIMPLE.test(type) : kind === 'text' || kind === 'urlencoded';
+    if (takesSimple) found.push(name);
+  }
+  assert.deepEqual(found.sort(), ['loginForm', 'themeFileText']);
+  for (const m of src.matchAll(/app\.(?:post|put|patch|delete)\(([^\n]*?\b(?:loginForm|themeFileText)\b[^\n]*)/g)) {
+    if (m[1].includes('themeFileText')) assert.match(m[1], /^'\/api\/themes\/import', requireOwner, sameOriginOnly, themeFileText,/);
+    else assert.match(m[1], /^'\/login', loginForm,/);
+  }
+});
 fs.rmSync(dir, { recursive: true, force: true });
 
 // --- a real server ---------------------------------------------------------------------------------------------
@@ -134,8 +199,8 @@ const port = await new Promise((resolve, reject) => {
   child.once('exit', (code) => { clearTimeout(timer); reject(new Error(`the server stopped (${code}):\n${out}`)); });
 });
 let cookie = '';
-async function call(method, urlPath, { body, type = 'application/json', raw = false } = {}) {
-  const headers = { accept: 'application/json', ...(cookie ? { cookie } : {}) };
+async function call(method, urlPath, { body, type = 'application/json', raw = false, headers: extra = {} } = {}) {
+  const headers = { accept: 'application/json', ...(cookie ? { cookie } : {}), ...extra };
   if (body !== undefined) headers['content-type'] = type;
   const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body) });
   const text = await res.text();
@@ -254,6 +319,94 @@ try {
     const back = (await call('GET', `/api/themes/${r.json.theme.id}/export`)).json;
     assert.deepEqual([back.name, back.author, back.dark, back.light.secondary], ['Harbour', 'Thomas', null, null]);
     await apply(null);
+  });
+
+  await test('live: an import from another origin is refused -- Sec-Fetch-Site other than same-origin, or an Origin that isn\'t this one -- and adds nothing; this origin, a proxied one and a Bearer token are not', async () => {
+    const count = async () => (await call('GET', '/api/themes')).json.themes.length;
+    const had = await count();
+    const refused = { error: 'This request came from another site, so it was refused.' }; // sameOriginOnly, as every write (tools/check-origin.mjs)
+    const self = `http://127.0.0.1:${port}`;
+    for (const headers of [
+      { 'sec-fetch-site': 'same-site' },
+      { 'sec-fetch-site': 'cross-site' },
+      { origin: 'https://other.example.com' },
+      { origin: 'null' },
+      { origin: `http://127.0.0.1:${port + 1}` },
+      { origin: self, 'sec-fetch-site': 'same-site' },
+      { origin: 'https://other.example.com', 'sec-fetch-site': 'same-origin' },
+    ]) {
+      for (const type of ['text/plain', 'application/json']) {
+        const r = await call('POST', '/api/themes/import', { body: JSON.stringify(file({ name: 'Cross' })), type, headers });
+        assert.deepEqual([r.status, r.json], [403, refused], `${type} ${JSON.stringify(headers)}`);
+      }
+    }
+    assert.equal(await count(), had);
+    const ok = async (headers, bearer = false) => {
+      const saved = cookie;
+      if (bearer) cookie = '';
+      const r = await call('POST', '/api/themes/import', { body: JSON.stringify(file({ name: 'Same' })), type: 'text/plain', headers: bearer ? { ...headers, authorization: `Bearer ${saved.slice('app_session='.length)}` } : headers });
+      cookie = saved;
+      assert.equal(r.status, 200, `${JSON.stringify(headers)} ${r.text}`);
+      await call('DELETE', `/api/themes/${r.json.theme.id}`);
+    };
+    await ok({ origin: self, 'sec-fetch-site': 'same-origin' });
+    await ok({ 'sec-fetch-site': 'none' });
+    await ok({ origin: 'https://env.example.com', 'x-forwarded-proto': 'https', 'x-forwarded-host': 'env.example.com' });
+    await ok({}, true);
+    assert.equal(await count(), had);
+  });
+
+  await test('live: a body the parser can\'t read -- an unknown charset or content-encoding, bytes that don\'t unzip -- is 400 with the sentence, not 500', async () => {
+    const body = JSON.stringify(file({ name: 'Encoded' }));
+    for (const [type, headers] of [
+      ['text/plain; charset=bogus', {}],
+      ['application/json; charset=bogus', {}],
+      ['application/octet-stream; charset=bogus', {}],
+      ['text/plain', { 'content-encoding': 'bogus' }],
+      ['application/json', { 'content-encoding': 'bogus' }],
+      ['text/plain', { 'content-encoding': 'gzip' }],
+      ['application/json', { 'content-encoding': 'deflate' }],
+    ]) {
+      const r = await call('POST', '/api/themes/import', { body, type, headers });
+      assert.deepEqual([r.status, r.json], [400, { error: tf.NOT_A_THEME_FILE }], `${type} ${JSON.stringify(headers)}`);
+    }
+  });
+
+  await test('live: a body a page on another origin can send without asking (text/plain, a form, multipart) is never read by an owner write route', async () => {
+    const fields = { environmentName: 'Taken over', name: 'From text', login: 'fromtext', password: 'fromtext1234', mode: 'light', themeMode: 'light', ...set() };
+    const bodies = [
+      ['text/plain', JSON.stringify(fields)],
+      ['application/x-www-form-urlencoded', new URLSearchParams(fields).toString()],
+      ['multipart/form-data; boundary=x', `${Object.entries(fields).map(([k, v]) => `--x\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`).join('')}--x--\r\n`],
+    ];
+    const state = async () => ({
+      environmentName: (await call('GET', '/api/settings')).json.settings.environmentName,
+      themes: (await call('GET', '/api/themes')).json.themes.map((t) => t.name).sort(),
+      spaces: (await call('GET', '/api/spaces')).json.spaces.map((s) => s.name).sort(),
+      users: (await call('GET', '/api/users')).json.users.map((u) => u.login).sort(),
+      themeMode: (await call('GET', '/api/me')).json.user.themeMode ?? null,
+    });
+    const before = await state();
+    for (const [method, route] of [['PATCH', '/api/settings'], ['POST', '/api/themes'], ['PATCH', '/api/themes/staying-blonde'], ['POST', '/api/spaces'], ['POST', '/api/users'], ['PATCH', '/api/me']]) {
+      for (const [type, body] of bodies) {
+        const r = await call(method, route, { body, type });
+        assert.ok(r.status < 500, `${method} ${route} ${type}: ${r.status} ${r.text}`);
+        if (r.json?.space) await call('DELETE', `/api/spaces/${r.json.space.id}`); // made without reading the body
+      }
+    }
+    const after = await state();
+    assert.deepEqual(after, before);
+  });
+
+  await test('live: the 101st theme is refused with its sentence', async () => {
+    let themes = (await call('GET', '/api/themes')).json.themes.length;
+    while (themes < 100) {
+      assert.equal((await call('POST', '/api/themes/import', { body: file({ name: 'Fill' }) })).status, 200);
+      themes += 1;
+    }
+    const r = await call('POST', '/api/themes/import', { body: file() });
+    assert.deepEqual([r.status, r.json], [400, { error: 'This environment has 100 themes, the most it can hold. Delete one to import another.' }]);
+    assert.equal((await call('GET', '/api/themes')).json.themes.length, 100);
   });
 } finally {
   await new Promise((resolve) => { if (child.exitCode !== null) return resolve(); child.once('exit', resolve); child.kill('SIGTERM'); });

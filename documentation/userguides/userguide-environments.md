@@ -42,8 +42,8 @@ same host are not affected.
 ## Made from a template
 
 An environment can be made from a template, such as Travel, which calls spaces trips and turns on the modules a
-trip needs. Manage > Environment's **Template** panel says which one, and lists any module it couldn't turn on,
-with why. See [Templates](userguide-templates.md).
+trip needs. Manage's **Template** tab says which one, lists any module it couldn't turn on, with why, and lets
+you switch to another template or to none. See [Templates](userguide-templates.md).
 
 ## Signing up
 

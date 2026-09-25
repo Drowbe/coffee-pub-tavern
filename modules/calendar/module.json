@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.17.14",
+  "version": "1.17.15",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole {environment} and for each {space}, with reminders.",
   "author": "Coffee Pub",
@@ -20,7 +20,8 @@
       "mode": [
         "dock",
         "float"
-      ]
+      ],
+      "lobby": true
     },
     "widget": {
       "entry": "widget.html",

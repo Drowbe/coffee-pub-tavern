@@ -1,6 +1,7 @@
 import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords, refreshModuleNav, themeMode } from '/brand.js';
 import { pickBackground } from '/background-picker.js';
 import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
+import { renderOffer, switchQuestion } from '/template-offer.js';
 
 const $ = (id) => document.getElementById(id);
 const userCards = new Map(); // key -> the user's card element
@@ -94,23 +95,45 @@ function imgUrl(key, slot) {
   return `/img/${encodeURIComponent(key)}/${slot}?v=${Date.now()}`;
 }
 
-// Environment / Theme / Spaces / Roles / Users / Modules / About tabs, remembered in the address
-const TABS = ['environment', 'theme', 'spaces', 'roles', 'users', 'modules', 'about'];
+// Environment / Template / Theme / Spaces / Roles / Users / Modules / About tabs, remembered in the address
+const TABS = ['environment', 'template', 'theme', 'spaces', 'roles', 'users', 'modules', 'about'];
 // Their old names, from links and bookmarks: #settings and #server are the Environment tab, #rooms the Spaces tab.
 const OLD_TABS = { settings: 'environment', server: 'environment', rooms: 'spaces' };
+// Old names of sections that moved to the Template tab (addendum 2): a link to one opens the tab at it.
+const OLD_SECTIONS = { words: 'words-panel', 'home-icon': 'home-icon-section' };
 function selectTab(name) {
   if (OLD_TABS[name]) name = OLD_TABS[name];
+  // A link to a section (an element's id, such as #words-panel or a module's row on the Template tab) opens its tab at it.
+  const at = !TABS.includes(name) && name ? $(OLD_SECTIONS[name] || name) : null;
+  const inTab = at && at.closest('section[id^="tab-"]');
+  if (inTab) name = inTab.id.slice(4);
   const tab = TABS.includes(name) ? name : 'environment';
   for (const t of TABS) $(`tab-${t}`).hidden = tab !== t;
   for (const b of document.querySelectorAll('.subtab')) b.classList.toggle('active', b.dataset.tab === tab);
+  // A strip wider than the page scrolls inside itself (style.css): bring the chosen tab into it, the page left as it is.
+  const strip = $('subtabs');
+  const on = strip.querySelector('.subtab.active');
+  if (on && strip.scrollWidth > strip.clientWidth) {
+    const t = on.getBoundingClientRect();
+    const s = strip.getBoundingClientRect();
+    if (t.left < s.left) strip.scrollLeft += t.left - s.left;
+    else if (t.right > s.right) strip.scrollLeft += t.right - s.right;
+  }
   if (location.hash !== `#${tab}`) history.replaceState(null, '', `#${tab}`);
+  if (inTab) {
+    at.scrollIntoView({ block: 'start' });
+    const field = at.querySelector('input[type="text"]') || at.querySelector('input, select, button, summary');
+    if (field) field.focus({ preventScroll: true });
+  }
 }
 $('subtabs').addEventListener('click', (event) => {
   const b = event.target.closest('.subtab');
   if (b) selectTab(b.dataset.tab);
 });
 window.addEventListener('hashchange', () => selectTab(location.hash.slice(1)));
-selectTab(location.hash.slice(1));
+// A section drawn later (a module's row on the Template tab) is opened again once the page has drawn it (init).
+const firstHash = location.hash.slice(1);
+selectTab(firstHash);
 
 $('add-toggle').addEventListener('click', () => {
   $('add-user').hidden = !$('add-user').hidden;
@@ -206,6 +229,7 @@ async function loadUsers() {
   users = status.users;
   spaces = status.spaces || spaces;
   renderUsers();
+  renderModules(); // the "(not in <Lobby>)" hints, now the Lobby's name is known
   // The Words group's descriptions, now the Lobby's name is known (in place: nothing typed there is lost).
   for (const hint of document.querySelectorAll('#words-list [data-word-about]')) hint.textContent = wordAbout(hint.closest('[data-word-key]').dataset.wordKey);
 }
@@ -367,7 +391,9 @@ async function saveSettings(patch, statusEl) {
     say(statusEl, err.message, true);
   }
 }
-$('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-environment-name').value, homeIcon: selectedHomeIcon }, $('settings-status')));
+$('save-settings').addEventListener('click', () => saveSettings({ environmentName: $('set-environment-name').value }, $('settings-status')));
+// The home icon, on the Template tab (addendum 2): saved on its own.
+$('save-home-icon').addEventListener('click', () => saveSettings({ homeIcon: selectedHomeIcon }, $('home-icon-status')));
 // --- words ---------------------------------------------------------------------
 // The Words group (Environment tab): the ten level and role words an owner may change, each a singular, a plural and,
 // when "a"/"an" is wrong for it, the singular with its article. Blank is the default, shown as the placeholder. Saved
@@ -735,6 +761,12 @@ $('theme-apply').addEventListener('click', async () => {
 // Import…: a theme file (plan-themes.md), read here and sent as its text; the server checks it and adds it as a new
 // theme ("Name (2)" when the name is taken). It is chosen and previewed, never applied: Apply does that, as for any theme.
 $('theme-import').addEventListener('click', () => $('theme-import-file').click());
+// A file's text: UTF-16 when it starts with that byte order mark (FE FF or FF FE, as some editors save), else UTF-8.
+async function themeFileText(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const encoding = bytes[0] === 0xfe && bytes[1] === 0xff ? 'utf-16be' : bytes[0] === 0xff && bytes[1] === 0xfe ? 'utf-16le' : 'utf-8';
+  return new TextDecoder(encoding).decode(bytes);
+}
 $('theme-import-file').addEventListener('change', async () => {
   const input = $('theme-import-file');
   const file = input.files[0];
@@ -744,7 +776,7 @@ $('theme-import-file').addEventListener('change', async () => {
   // Far bigger than any theme (the server takes 16 KB): not read at all.
   if (file.size > 1024 * 1024) return sayImport("That isn't a Magpie theme file.", true);
   try {
-    const { theme, dropped } = await api('POST', '/api/themes/import', new Blob([await file.text()], { type: 'text/plain' }));
+    const { theme, dropped } = await api('POST', '/api/themes/import', new Blob([await themeFileText(file)], { type: 'text/plain' }));
     themes.push(theme);
     selectedThemeId = theme.id;
     previewing = true;
@@ -928,6 +960,7 @@ async function loadModules() {
   builtinModules = data.builtin || [];
   bundledModules = data.bundled || [];
   renderModules();
+  renderModuleNames();
   renderTemplateNote();
   loadActivity();
   loadAi();
@@ -992,14 +1025,14 @@ function moduleCard(m) {
       ${state}
     </div>
     ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ''}
-    ${displayEditor(m)}
+    ${shownAsLink(m)}
     <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
       <p class="hint"><strong>${m.runMode === 'page' ? 'Runs in the page' : 'Runs sandboxed'}</strong>${m.source === 'bundled' ? ', ships with this server' : ', uploaded'}. ${m.runMode === 'page' ? `It can read and change anything on the page, including what you can see and do. Only allow that for ${escapeHtml(word('module', { a: true }))} you trust.` : `It is walled off in its own frame and can only reach the host through its approved permissions. ${escapeHtml(word('module', { a: true, cap: true }))} in a frame cannot take part in drag and drop between ${escapeHtml(word('module', { many: true }))}.`}</p>
       ${m.source === 'bundled' || m.outdated || hostOnlyHidden() ? '' : `<button class="btn" data-module-runmode="${m.runMode === 'page' ? 'sandbox' : 'page'}" type="button">${m.runMode === 'page' ? 'Switch back to sandboxed' : 'Run in the page...'}</button>`}
     </div>
-    ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every ${escapeHtml(word('space'))}</label>` : ''}
+    ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every ${escapeHtml(word('space'))}${m.lobby === false ? ` <span class="hint">${escapeHtml(notInLobby())}</span>` : ''}</label>` : ''}
     <div class="row">
       ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(shownName(m))} does in this ${escapeHtml(word('environment'))}"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(shownName(m))} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</button><span class="hint">No settings.</span>`}
       ${m.outdated ? '' : `<button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && (m.missing?.length || m.needsUpdate?.length) ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>`}
@@ -1068,7 +1101,25 @@ function displayEditor(m) {
       <span class="status" data-display-status aria-live="polite"></span>
     </div>`;
 }
-const displayBox = (id) => $('modules-list').querySelector(`.module-display[data-display-id="${CSS.escape(id)}"]`);
+// The Lobby's own name here ("Home base" under the travel template), and the hint beside "every space" for a module
+// not made for it (plan-modules, "the Lobby is for being together": the server keeps it out of the Lobby).
+const lobbyName = () => spaces.find((sp) => sp.isLobby)?.name || 'the Lobby';
+const notInLobby = () => `(not in ${lobbyName()})`;
+// On a Modules card: the name and icon it is shown as, and a link to its row on the Template tab, where they change.
+function shownAsLink(m) {
+  return `<div class="module-shown-as"><span class="field-label">Shown as</span> <span><i class="fa-solid fa-${escapeHtml(shownIcon(m))} fa-fw" aria-hidden="true"></i> ${escapeHtml(shownName(m))}</span> <a href="#template-module-${escapeHtml(m.id)}" aria-label="Change the name and icon of ${escapeHtml(shownName(m))}">Change</a></div>`;
+}
+// The Template tab's list (addendum 2): every module, built-in ones first, with its own name and version beside the
+// editor. Each row's id is what the Modules cards link to.
+function renderModuleNames() {
+  const list = $('module-names');
+  const row = (m, about) => `<div class="module-name-row" id="template-module-${escapeHtml(m.id)}"><div class="module-name-head"><i class="fa-solid fa-${escapeHtml(shownIcon(m))} fa-fw module-icon" aria-hidden="true"></i> <strong>${escapeHtml(shownName(m))}</strong> <span class="hint">${escapeHtml(about)}</span></div>${displayEditor(m)}</div>`;
+  list.innerHTML = [
+    ...builtinModules.map((b) => row(b, `${b.name}, built in`)),
+    ...installedModules.map((m) => row(m, `${m.name} v${m.version}`)),
+  ].join('');
+}
+const displayBox = (id) => $('module-names').querySelector(`.module-display[data-display-id="${CSS.escape(id)}"]`);
 async function saveDisplay(box, patch, done) {
   const id = box.dataset.displayId;
   for (const b of box.querySelectorAll('button')) b.disabled = true;
@@ -1089,9 +1140,9 @@ async function saveDisplay(box, patch, done) {
   }
 }
 function closeIconPicks(except) {
-  for (const d of $('modules-list').querySelectorAll('.module-display details[open]')) if (d !== except) d.open = false;
+  for (const d of $('module-names').querySelectorAll('.module-display details[open]')) if (d !== except) d.open = false;
 }
-$('modules-list').addEventListener('click', (event) => {
+$('module-names').addEventListener('click', (event) => {
   const box = event.target.closest('.module-display');
   if (!box) { closeIconPicks(); return; }
   const choice = event.target.closest('[data-display-icon]');
@@ -1126,7 +1177,7 @@ $('modules-list').addEventListener('click', (event) => {
     saveDisplay(box, { displayName: null, displayIcon: null }, () => back);
   }
 });
-$('modules-list').addEventListener('keydown', (event) => {
+$('module-names').addEventListener('keydown', (event) => {
   const box = event.target.closest('.module-display');
   if (!box) return;
   if (event.key === 'Enter' && event.target.matches('[data-display-name]')) {
@@ -1138,7 +1189,7 @@ $('modules-list').addEventListener('keydown', (event) => {
     box.querySelector('summary').focus();
   }
 });
-document.addEventListener('click', (event) => { if (!event.target.closest('#modules-list')) closeIconPicks(); });
+document.addEventListener('click', (event) => { if (!event.target.closest('#module-names')) closeIconPicks(); });
 
 // Recent activity, in the box at the top of the tab: one row per thing a module did (when, which module, what, by whom), newest
 // first. Redrawn in place when it changes, keeping the scroll position, and refreshed while the tab is open.
@@ -1289,7 +1340,7 @@ function renderModules() {
         <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
-      ${displayEditor(b)}
+      ${shownAsLink(b)}
       <p class="hint">It comes with the server and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>
       ${b.switchable ? `<div class="row"><button class="btn ${b.enabled ? '' : 'btn-primary'}" type="button" data-builtin-toggle="${escapeHtml(b.id)}">${b.enabled ? 'Disable' : 'Approve and enable'}</button>${b.needs ? `<span class="hint">${escapeHtml(b.needs)}</span>` : ''}</div>` : ''}`;
     list.appendChild(el);
@@ -1684,14 +1735,144 @@ function applyHosted() {
   for (const el of document.querySelectorAll('[data-host-only]')) el.hidden = hostOnlyHidden();
 }
 
-// The template this environment was made from (Environment tab): "Made from the <name> template", and what it left out
+// --- the Template tab (plan-environment-templates.md, the switching addendum and addendum 2) ------------------------
+// The templates it can switch to (GET /api/environment/template's `choices`: [{ id, name, description, source, version }]),
+// the open offer after a switch (the same answer's `offer`, or the switch's), and whether "Not now" put it away for now.
+let templateChoices = [];
+let templateOffer = null;
+let offerPutAway = false;
+const templateName = (t) => (t && (t.name || t.id)) || '';
+async function loadTemplate() {
+  try {
+    const answer = await api('GET', '/api/environment/template');
+    templateChoices = answer.choices || [];
+    madeFrom = answer.template || null;
+    templateOffer = answer.offer || null;
+  } catch (err) {
+    // the tab still shows what the settings said
+  }
+  renderTemplateNote();
+}
+// The Template tab's own badge while the offer is open: it waits for the owner's Apply, even after "Not now".
+function renderTemplateBadge() {
+  const tab = $('template-tab');
+  const open = Boolean(madeFrom && madeFrom.offerOpen);
+  tab.textContent = 'Template';
+  tab.title = open ? `The ${templateName(madeFrom)} template can turn on more` : '';
+  if (open) {
+    const badge = document.createElement('span');
+    badge.className = 'badge update-badge';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.textContent = '1';
+    tab.append(badge);
+  }
+}
+// The chooser: "No template", then each template this environment can switch to; Switch only once another is chosen.
+function renderTemplateSwitch() {
+  const select = $('template-select');
+  const current = madeFrom ? madeFrom.id : 'none';
+  const keep = select.dataset.filled ? select.value : current;
+  const options = [new Option('No template', 'none'), ...templateChoices.map((c) => new Option(c.name || c.id, c.id))];
+  // The template in use, even one this server no longer offers, so the chooser always says what is in use.
+  if (madeFrom && !templateChoices.some((c) => c.id === madeFrom.id)) options.push(new Option(templateName(madeFrom), madeFrom.id));
+  select.replaceChildren(...options);
+  select.value = options.some((o) => o.value === keep) ? keep : current;
+  select.dataset.filled = '1';
+  syncTemplateSwitch();
+}
+function syncTemplateSwitch() {
+  const select = $('template-select');
+  const current = madeFrom ? madeFrom.id : 'none';
+  const other = select.value !== current;
+  $('template-switch').disabled = !other;
+  $('template-switch').classList.toggle('btn-primary', other);
+  const chosen = templateChoices.find((c) => c.id === select.value);
+  const about = $('template-choice-about');
+  about.textContent = !other ? '' : chosen ? chosen.description || '' : 'The default words and icons.';
+  about.hidden = !about.textContent;
+}
+$('template-select').addEventListener('change', syncTemplateSwitch);
+$('template-switch').addEventListener('click', async () => {
+  const value = $('template-select').value;
+  const chosen = templateChoices.find((c) => c.id === value);
+  if (!window.confirm(switchQuestion(value === 'none' ? null : chosen ? chosen.name || chosen.id : value))) return;
+  const button = $('template-switch');
+  button.disabled = true;
+  say($('template-status'), 'Switching...');
+  try {
+    const answer = await api('PATCH', '/api/settings', { template: value });
+    templateOffer = answer.offer || null;
+    offerPutAway = false;
+    useOwnerSettings(answer.settings);
+    madeFrom = answer.template || null;
+    selectedHomeIcon = madeFrom ? ownHomeIcon : answer.settings.homeIcon || DEFAULT_HOME_ICON;
+    renderHomeIconSelection();
+    await wordsChanged(); // the words, the module names and icons, and every place that shows them
+    renderTemplateNote();
+    say($('template-status'), madeFrom ? `Switched to ${templateName(madeFrom)}` : 'Switched to no template');
+    const first = $('template-offer').querySelector('input:not(:disabled), button');
+    (first && !$('template-offer').hidden ? first : $('template-select')).focus(); // Switch is off again: never lose focus
+  } catch (err) {
+    say($('template-status'), err.message, true); // the server's own sentence; nothing was changed
+    syncTemplateSwitch();
+  }
+});
+// The offer: drawn while it is open and not put away; put away, a line says it waits, with Review to bring it back.
+function renderTemplateOffer() {
+  const box = $('template-offer');
+  const open = Boolean(madeFrom && madeFrom.offerOpen && templateOffer);
+  $('template-offer-note').hidden = !(open && offerPutAway);
+  $('template-offer-note-text').textContent = open ? `The ${templateName(madeFrom)} template can turn on more.` : '';
+  if (!open || offerPutAway) { box.hidden = true; box.replaceChildren(); return; }
+  if (box.dataset.drawnFor === madeFrom.id && !box.hidden && box.childElementCount) return; // keep what is ticked
+  box.dataset.drawnFor = madeFrom.id;
+  renderOffer(box, {
+    templateName: templateName(madeFrom),
+    offer: templateOffer,
+    lobbyName: spaces.find((sp) => sp.isLobby)?.name || '',
+    later: () => {
+      offerPutAway = true;
+      renderTemplateOffer();
+      $('template-offer-open').focus();
+    },
+    apply: async (body) => {
+      const answer = await api('POST', '/api/environment/template/apply', body);
+      madeFrom = answer.template || null;
+      templateOffer = answer.offer || null;
+      box.dataset.drawnFor = '';
+      await loadModules(); // what was turned on (and renders the note, with what was left out)
+      await loadUsers(); // the Lobby's name, if it was taken
+      await loadRoles().catch(() => {});
+      refreshModuleNav();
+      const skipped = (madeFrom && madeFrom.skipped) || [];
+      say($('template-status'), skipped.length ? `Applied. ${skipped.length} left out, listed below` : 'Applied');
+      $('template-select').focus();
+    },
+  });
+}
+$('template-offer-open').addEventListener('click', () => {
+  offerPutAway = false;
+  renderTemplateOffer();
+  $('template-offer').querySelector('input:not(:disabled), button')?.focus();
+});
+
+// The template in use: "Uses the <name> template", its description, the switch and the offer, and what it left out
 // that is still left out, each with why and where to put it right. A module turned on since is no longer listed.
 const sentence = (text) => { const t = String(text || '').trim(); return t ? capitalOf(t) + (/[.!?]$/.test(t) ? '' : '.') : ''; };
 function renderTemplateNote() {
-  const card = $('template-panel');
-  card.hidden = !madeFrom;
-  if (!madeFrom) return;
-  $('template-made').innerHTML = `<strong>Made from the ${escapeHtml(madeFrom.name || madeFrom.id)} template.</strong>`;
+  renderTemplateBadge();
+  renderTemplateSwitch();
+  renderTemplateOffer();
+  $('template-hint').hidden = !madeFrom;
+  const about = madeFrom && templateChoices.find((c) => c.id === madeFrom.id)?.description;
+  $('template-about').textContent = about || '';
+  $('template-about').hidden = !about;
+  if (!madeFrom) {
+    $('template-made').innerHTML = `<strong>No template.</strong> This ${escapeHtml(word('environment'))} uses the default words and icons.`;
+    $('template-skipped').hidden = true;
+    return;
+  }
+  $('template-made').innerHTML = `<strong>Uses the ${escapeHtml(templateName(madeFrom))} template.</strong>${madeFrom.version ? ` <span class="hint">Version ${escapeHtml(String(madeFrom.version))}</span>` : ''}`;
   const modulesTab = '#modules'; // the Modules tab's address
   const modulesLink = `<a href="${modulesTab}">${escapeHtml(word('module', { many: true, cap: true }))}</a>`;
   const item = (icon, title, detail) => `<li><i class="fa-solid fa-${icon} fa-fw" aria-hidden="true"></i><div><strong>${title}</strong>${detail ? `<div class="hint">${detail}</div>` : ''}</div></li>`;
@@ -1715,7 +1896,7 @@ function renderTemplateNote() {
   }).filter(Boolean);
   const box = $('template-skipped');
   box.hidden = !items.length;
-  box.innerHTML = items.length ? `<p class="hint">Left out when it was made:</p><ul>${items.join('')}</ul>` : '';
+  box.innerHTML = items.length ? `<p class="hint">Left out:</p><ul>${items.join('')}</ul>` : '';
 }
 
 // The plan and its use (GET /api/environment): each cap as a bar, the past-due banner with its date, the way to a bigger
@@ -1857,6 +2038,8 @@ async function init() {
     showStreamKey();
     await loadUsers();
     await loadEnvironment();
+    await loadTemplate();
+    if (firstHash && !TABS.includes(firstHash) && !OLD_TABS[firstHash]) selectTab(firstHash); // a section drawn just now
     setInterval(refreshLive, 5000);
   } catch (err) {
     location.href = '/login?next=/admin';

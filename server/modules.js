@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const yauzl = require('yauzl');
-const { StoreError } = require('./store');
+const { StoreError, LOBBY } = require('./store');
 const { word, fill } = require('./words');
 
 // The text a person reads from a manifest, which may name levels by {space}-style placeholders (server/words.js's fill):
@@ -487,6 +487,12 @@ function cleanManifest(raw, files) {
         const modes = [...new Set(Array.isArray(c.mode) ? c.mode : [])].filter((m) => ['float', 'dock'].includes(m));
         return modes.length ? modes : ['float'];
       })(),
+      // Whether it belongs on the Lobby's canvas (plan-modules, "the Lobby is for being together"): absent or false
+      // keeps it out of the Lobby. Narrows where a module can be and widens nothing, so it asks for no approval.
+      lobby: (() => {
+        if (c.lobby !== undefined && typeof c.lobby !== 'boolean') throw new ModuleError('module.json: surfaces.canvas.lobby must be true or false');
+        return c.lobby === true;
+      })(),
     };
   }
   if (raw.surfaces?.widget) {
@@ -618,6 +624,8 @@ class ModuleManager {
       // first run, or unreadable: start empty (module files are untouched)
     }
     if (!Array.isArray(this.registry.autoInstalled)) this.registry.autoInstalled = [];
+    // Each entry knows its own id (the one check for where a module is on is asked by entry); read, never saved here.
+    for (const [id, entry] of Object.entries(this.registry.modules)) if (entry && typeof entry === 'object' && !entry.id) entry.id = id;
   }
 
   save() {
@@ -872,6 +880,8 @@ class ModuleManager {
       needsUpdate: this.needsUpdateFor(manifest),
       allSpaces: Boolean(entry.allSpaces),
       spaces: entry.spaces || [],
+      // Whether it may be on in the Lobby (surfaces.canvas.lobby); `allSpaces` leaves the Lobby out when it may not.
+      lobby: ModuleManager.lobbyAllowed(manifest),
       versions: [...entry.versions].sort(compareVersions).reverse(),
       // The installed versions whose manifest uses an old name: kept, but never run or rolled back to.
       outdatedVersions: [...entry.versions].sort(compareVersions).reverse().filter((v) => this.manifestOf(id, v)?.outdated),
@@ -887,6 +897,41 @@ class ModuleManager {
       installedAt: entry.installedAt,
       updatedAt: entry.updatedAt,
     };
+  }
+
+  // --- where a module is on (plan-modules, "the Lobby is for being together") -------------------------------------
+  // The one check for "is this module on in this space": `allSpaces` or the space in `spaces`, and the Lobby only for a
+  // module whose manifest declares surfaces.canvas.lobby. `allSpaces` means every space the module may be in.
+  static lobbyAllowed(manifest) {
+    return manifest?.surfaces?.canvas?.lobby === true;
+  }
+
+  static onInSpace(entry, manifest, spaceId) {
+    if (!entry || !manifest) return false;
+    if (spaceId === LOBBY && !ModuleManager.lobbyAllowed(manifest)) return false;
+    return Boolean(entry.allSpaces) || (Array.isArray(entry.spaces) && entry.spaces.includes(spaceId));
+  }
+
+  // The same, by id, on its active version.
+  isOnIn(id, spaceId) {
+    const entry = this.registry.modules[id];
+    return entry ? ModuleManager.onInSpace(entry, this.manifestOf(id, entry.version), spaceId) : false;
+  }
+
+  // Takes the Lobby out of `spaces` for every installed module whose active version isn't allowed there (its data
+  // is kept, untouched). Run after each environment build's bundled updates, so a new version that adds or drops the
+  // flag is what counts. Answers the ids it changed; `allSpaces` is never changed.
+  lobbySync() {
+    const changed = [];
+    for (const [id, entry] of Object.entries(this.registry.modules)) {
+      if (!Array.isArray(entry.spaces) || !entry.spaces.includes(LOBBY)) continue;
+      const manifest = this.manifestOf(id, entry.version);
+      if (!manifest || ModuleManager.lobbyAllowed(manifest)) continue;
+      entry.spaces = entry.spaces.filter((s) => s !== LOBBY);
+      changed.push(id);
+    }
+    if (changed.length) this.save();
+    return changed;
   }
 
   // The enabled modules that list `id` in their `requires`.

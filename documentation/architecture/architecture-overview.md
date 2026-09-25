@@ -122,6 +122,15 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   start and again after a restore or a migration. An AI key that can't be read with this server's key (data
   restored onto another host) doesn't stop the other AI settings from saving; the AI settings say "the saved AI
   key can't be read on this server; enter the key again".
+- **Writes only from this origin.** A POST, PUT, PATCH or DELETE that carries a cookie is refused with 403
+  `{ error: "This request came from another site, so it was refused." }` when the browser says it came from
+  anywhere but this origin (`Sec-Fetch-Site`), or its `Origin` isn't this one (`baseUrl()`, which minds
+  `X-Forwarded-*`). A `SameSite=Lax` cookie still rides along from another origin on the same site (every
+  environment is `*.BASE_DOMAIN`), which is why this is needed. Passed through: a `Bearer` token (Studio), a request
+  with no cookie (webhooks, server-to-server), one with neither header (old browsers, curl), and `POST /login`, which
+  the landing page at the bare base domain posts across origins by design and which trusts only the login and
+  password it is sent. `sameOriginOnly` in `server/index.js`; `tools/check-origin.mjs` covers it. Follow-ups are
+  GitHub #70.
 - **Themes.** A theme is `{ id, name, author?, light, dark }` in the environment's settings, each set holding the
   seven base colours and nine optional ones by their stored names (`bg`, `bgSection`, `border`, `text`, `textDim`,
   `accent`, `onAccent`, `card`, `headerBg`, `headerText`, `icon`, `iconHover`, `primaryHover`, `secondary`,
@@ -133,8 +142,14 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   ("Name (2)" when the name is taken, never overwriting) without applying it, and answers `{ theme, dropped }`:
   `dropped` lists what was left out, unknown keys and any optional colour that isn't `#rrggbb` (which goes back to
   Auto). It refuses with 400 "That isn't a Magpie theme file.", "This theme was made by a newer version of
-  Magpie." or "This theme has no complete light or dark set: each needs all seven base colors."
-  `tools/check-themes.mjs` holds the round trip and the refusals.
+  Magpie." or "This theme has no complete light or dark set: each needs all seven base colors." A body the parser
+  can't read at all (an unknown charset or encoding) gets the same "That isn't a Magpie theme file."; Manage
+  decodes a UTF-16 file by its byte-order mark before sending it. An environment holds at most 100 themes
+  (`MAX_THEMES`): an import past that answers 400 "This environment has 100 themes, the most it can hold. Delete
+  one to import another." A theme's name and author lose line breaks and tabs (made spaces) and control, direction
+  and zero-width characters (a joiner inside a combined emoji is kept); the name is cut to 40 whole characters,
+  the author to 60 (`cleanThemeText()` in `server/store.js`). `tools/check-themes.mjs` holds the round trip and the
+  refusals.
 - **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
