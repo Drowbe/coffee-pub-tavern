@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decided the names and what this plan commits to, and the sessions that build it: server-development (`server/`, the API, the stored data, the migration, the checks), experience-design (the pages, the SDK, the bundled modules) and content-manager (the documentation, once each phase lands).
 
-**Status:** decided 2026-09-24; steps 1 to 4 and 5a built (2026-09-24), steps 5b to 10 left. Thomas has asked many times for the code to use the architecture's names, and has been told each time that "the code will still say room". This plan ends that. His rule (CLAUDE.md, "Names"): "The level or role name and the code name are the same word and never change: code, routes, API fields and stored keys use them. Only the word a person reads can change, per environment template." This plan does the rename; [plan-environment-templates](plan-environment-templates.md) is reworked on top of it and builds after step 5.
+**Status:** decided 2026-09-24; steps 1 to 4 and 5a built (2026-09-24), steps 5b to 10 left. Thomas has asked many times for the code to use the architecture's names, and has been told each time that "the code will still say room". This plan ends that. His rule (CLAUDE.md, "Names"): "The level or role name and the code name are the same word and never change: code, routes, API fields and stored keys use them. Only the word a person reads can change, per environment template." This plan does the rename; [plan-environment-templates](plan-environment-templates.md) is reworked on top of it and is built right after step 5c, before steps 6 to 10.
 
 ## Why
 
@@ -197,6 +197,8 @@ The hard break: an installed module whose manifest uses an old name (`scope` con
 
 ## Left to build, in order
 
+The order changed on 2026-09-24: after 5b and 5c comes [plan-environment-templates](plan-environment-templates.md), then steps 6 to 10.
+
 Each step leaves the app working. "Live" means on a local server; there is no LiveKit server locally, so anything that needs a real call is read as code only and says so.
 
 1. **The check and the migration's frame** (server-development). `tools/check-names.mjs` in report mode with its allow-list, `--words` and `--migration`; `tools/fixtures/names-v1/`; `server/migrate-names.js` with the version, the record of parts, `pre-names/`, the refusal of a newer backup, and no parts yet; `server/studio-alias.js` wired to bearer requests on `GET /api/me` and `GET /api/status`, adding nothing yet.
@@ -240,7 +242,7 @@ Each step leaves the app working. "Live" means on a local server; there is no Li
    - Verify: checked by the tool, and the routes' answers live (a pull-aside without a call answers its refusal). Everything else (being pulled aside, recall, return, the chat not being offered, OBS pictures while in an aside) needs a real call with two people and is read as code only until then.
 9. **Documentation** (content-manager). Renamed files and wiki pages (`architecture-canvas.md`, `architecture-environments.md`, `userguide-spaces.md`, `userguide-environment-settings.md`, the call guide in place of `userguide-table.md`, and the plans' names), the text, the SDK and OBS documents, TODO's "Spaces: the documentation, and the internals" entry marked replaced, the CHANGELOG entry for a breaking change to modules.
    - Verify: `npm run check:docs`, `npm run docs:build`, and every old wiki page name checked for a link left pointing at it.
-10. **The aliases go** (server-development). When Studio's release reads the new names: `server/studio-alias.js` and the old configuration names (decision 20) removed, and a migration part deletes `pre-names/`. The call-name fallback goes after its one release, which may be sooner.
+10. **The aliases go** (server-development). Coffee Pub Studio v0.2.3 is released and reads the new names, falling back to the old ones; this step waits until Thomas confirms that version is installed and in use. Then: `server/studio-alias.js` and the old configuration names (decision 20) removed, and a migration part deletes `pre-names/`. The call-name fallback goes after its one release, which may be sooner.
     - Done when: the allow-list holds no alias and every level is `enforce`.
     - Verify: checked by the tool; live, a bearer-token `GET /api/status` answers only the new fields, an install setting only an old name (`ADMIN_USER`, `HOST_ADMIN_LOGIN`, `HOST_ADMIN_PASSWORD`, `MIGRATE_TENANT_SLUG`) is told on start that it is no longer read, and `pre-names/` is gone after one start.
 

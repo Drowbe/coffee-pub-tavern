@@ -1,87 +1,78 @@
 # Environment Templates Plan
 
-**Audience:** the author deciding what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
+**Audience:** Thomas, who decides what a template sets and how an environment follows it, and the sessions that build it: server-development (`server/`, the host registry, the checks) and experience-design (the pages, the console, the SDK's words).
 
-**Status:** decided 2026-09-24; nothing built. Asked for by the author: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the old words, the author: "we are not supposed to even have the idea of rooms and tables anymore. Remove them. Further, I want to be clear that "spaces" is still the internal word (and same for our other names hierarchy), but the template will map that to a template-appropriate word."
-
-**Blocked on [plan-names](plan-names.md) (2026-09-24).** The rename to the architecture's names comes first, and this plan will be reworked on top of it. What changes here once it lands:
-
-- Open questions 1 (keeping `room` in the code) and 2 (the call's base name) and decision 11 (a `room` in the code) are replaced by plan-names: the code says `space`, and the call's name is no longer a stored setting.
-- Removing `tableName` and `settings.room` moves from step 1 here to plan-names step 3.
-- `tools/check-words.mjs` is not built; it becomes the `--words` mode of `tools/check-names.mjs`.
-- The `owner` key's default word is "owner" everywhere, not "admin" on a single-environment install, since the role is `owner` on every install.
-- The rest of this plan's code names follow plan-names: `allRooms` is `allSpaces`, `addRoom` is `addSpace`, `room.profile` is `space.profile`, built-in panes are built-in modules, and `serverName` is `environmentName`.
-- This plan builds after plan-names step 5.
+**Status:** Approved by Thomas on September 25, 2026 (reworked 2026-09-24); nothing built. Built right after [plan-names](plan-names.md) step 5c, before its steps 6 to 10. Asked for by Thomas: "Environment profiles: an environment can have a profile, e.g. "travel", that sets it up for that use: what things are called, icons, which modules are on, and possibly more." Named a **template**, since "profile" already means a space's profile and a person's profile page. On the words, Thomas (2026-09-24): "based on the template, the level name and code name NEVER change, but what's exposed to the user could change." Everything the first draft said about rooms and tables is done by plan-names and is not repeated here.
 
 ## What it is today
 
-**Names.** Every word a person reads is typed into the pages and the server, one at a time:
+This is the code after plan-names steps 1 to 5a; steps 5b (the pages) and 5c (the SDK and the bundled modules) come before this plan is built.
 
-- The environment's own name is the `serverName` setting (`server/store.js:176`), set once from the registry or `PRODUCT_NAME` on first start (`server/index.js:301`). The product's name is `PRODUCT_NAME` (`server/index.js:54`), the host's, not an environment's.
-- "Space" and "spaces" are written into the pages about 110 times: `public/room.js` (22), `roomconfig.html` (14), `admin.html` (12), `landing.html` (9), `module-host.js` (8), `room.html` (7), `sdk/host.js` (6), `brand.js` (6), `admin.js` (5), and a few each in thirteen more files. The primary nav's Spaces link is `label: 'Spaces'` in `public/brand.js:150`.
-- The Lobby's name and description are stored on the space, seeded once (`server/store.js:464`, "Everyone at the table."); an unnamed space falls back to `'Room'` and a new one to `'New room'` (`store.js:526`, `1066`).
-- A module's name is its `module.json` `name` only (the Travel module's is "Planner"); nothing renames it per environment.
-- Modules already get the environment's display settings from the SDK: `host.locale` is `{ language, clock, currency }` (`public/sdk/host.js:241`, `389`), which `host.util.time` and `host.util.money` apply. That is the generic channel words join.
-- Pages fill branded text by `data-brand` attributes in `loadBranding()` (`public/brand.js:41-60`), from `GET /api/branding` (`branding()`, `server/index.js:709-711`).
-
-**Rooms and tables, still in what people read.**
-
-- `tableName` ("The Table"): a stored setting (`store.js:178`, validated at `688`), sent by `branding()` (`index.js:711`), a fallback in `brand.js:42` and a `data-brand="tableName"` fill at `brand.js:57` that no page uses any more, and the call page's name for the space it is in (`public/room.js:64`, `3304`, and the status lines built from it at `557`, `1904`, `2195`, `2201`, `2245`, `2279`, the chat export's file name at `1432`, the pop-out's title at `1584`, `3003`).
-- "The table" in sentences: `admin.html:154`, `247`; `room.html:203`; `roomconfig.html:89`; `admin.js:102`, `133`, `147`, `157`, `234`, `721`; `register.js:14`; `profile.js:129`, `130`, `144` ("Admin: runs the table"), `577`; `room.js:214`, `223`, `630`, `1881`, `2063`, `2065`, `2118`, `2964`; the web app manifest's description (`index.js:1704`); server messages at `index.js:2172`, `2211`, `2216`, `2233`, `2435`. `dashboard.js`, `landing.html`, `module-host.js` and a few others use the word too and need the same sweep.
-- "Room" in sentences: about fifty server messages (`index.js` 31 lines, `store.js` 14, `modules.js` 5, such as "no such room", "not a member of that room"), and the built-in panes' descriptions ("Voice and video for the room", `index.js:2475-2476`).
-- `room: 'table'` (`store.js:179`) is **not** a word. It is the base name of every call on the call service (`livekitBase()`, `index.js:413-420`): the Lobby's call is `table`, another space's is `table-<id>`, and on a hosted server `<slug>-table`. The comment there says the Lobby keeps the base name "so links and the Studio from before rooms still work". `branding()` also sends it to every page, which reads nothing from it.
-
-**Icons.** The `homeIcon` setting (default `couch`, `store.js:47`, `177`), also used for the Spaces link (`brand.js:150`); the uploaded site icon (`/img/site/icon`, `index.js:1616`); each module's `icon` in `module.json`; each nav tool's own icon (`public/nav-bar.js:104`).
-
-**Which modules are on.** A bundled module is installed, then enabled for the environment (`server/modules.js:764`), then turned on per space (`entry.allRooms` or `entry.rooms`, `index.js:2566`); plan-modules decided that a space's modules stay off until an admin turns them on there. `install.auto` installs and enables a bundled module once per environment, recorded so it never runs again (`modules.js:439-447`, `autoInstallBundled`, `index.js:319-340`). Conference and Chat are the two built-in panes listed beside the modules (`BUILTIN_MODULES`, `index.js:2474-2477`); Conference has an environment-wide switch (`conferenceEnabled`, stage 1 of [plan-optional-conference](plan-optional-conference.md), built), Chat has none. A billing plan's `modules` list is the hard limit on what an environment may enable (plan-tenants phase 3).
-
-**Where an environment starts.** `hostRegistry.addEnvironment({ slug, name, plan })` (`server/host-registry.js:300`), from the console's `POST /api/host/environments` and the product page's `POST /api/product/signup` (`index.js:1454`). The first time an environment is built, `environmentFor()` (`index.js:~290-316`) runs its one-time setup. "Apply once and record it" is already how four things work: the server name, the built-in themes (`store.js:466-494`), the starter icons (`store.js:504-509`) and `install.auto`.
+- **Words.** Every word a person reads is typed into the pages and the server one at a time. The level and role words ("space", "spaces", "owner", "member") appear throughout `public/*.html`, `public/*.js` and the server's messages; the primary nav's Spaces link is `label: 'Spaces'` (`public/brand.js:181`). Pages fill branded text by `data-brand` attributes in `loadBranding()` (`public/brand.js:73-110`), from `GET /api/branding` (`branding()`, `server/index.js:833-835`). `tools/check-names.mjs --words` already scans what a person reads, for the old names only.
+- **The environment's name** is `settings.environmentName` (`server/store.js:189`), set on first build by `environmentFor()` (`server/index.js:379`).
+- **Icons.** `settings.homeIcon` (default `couch`, `store.js:47`, `190`), validated against the environment's own icon list (`iconIds()`, `store.js:708`, seeded from `STARTER_ICONS`, `store.js:40`), used for the home icon and the Spaces link. Each module's `icon` is its manifest's.
+- **Module names.** A module's name is its manifest's `name` only. The Travel module's id is `travel` and its name "Planner" (version 0.7.30 today). The server sends `manifest.name` in about twelve places, among them the module's own context (`server/index.js:4014`), the nav, the widgets and the Modules tab.
+- **The SDK.** `host.locale()` answers `{ language, clock, currency, currencies }` (`public/sdk/host.js:293`, `443`), the generic channel for how the environment shows things. No template id or environment identity reaches a module.
+- **The Lobby** is seeded once as "Lobby", "Where everyone meets." (`store.js:493`). A new space starts with the `roleplaying` profile unless `addSpace()` is told otherwise (`store.js:1126`, `574`).
+- **Which modules are on.** A bundled module is installed, enabled for the environment, then turned on per space (`allSpaces` or `spaces` on its registry entry, `server/modules.js:664`, `835`). `install.auto` installs and enables a bundled module once per environment, recorded (`autoInstallBundled()`, `server/index.js:424`). Conference and Chat are built in (`BUILTIN_MODULES`, `server/index.js:2634`): Conference has an environment-wide switch (`conferenceEnabled`); Chat has none. A billing plan's `modules` list is the hard limit on what an environment may enable.
+- **Where an environment starts.** `hostRegistry.addEnvironment({ slug, name, plan })` (`server/host-registry.js:300`), from the console's `POST /api/host/environments` (`server/index.js:1058`) and the product page's `POST /api/product/signup` (`server/index.js:1612`). The first build of an environment runs `environmentFor()`. "Apply once and record it" is already how `install.auto`, the built-in themes, the starter icons and the names migration's parts work.
 
 ## Decisions
 
-1. **The name is "template".** "Profile" already means a space's profile (`room.profile`) and a person's own page; "plan" already means a billing plan.
-2. **Words and icons follow the template live; settings and modules are applied once**, when the environment is created. A change to a template file's words or icons reaches every environment made from it on the next release; a change to its modules or settings reaches only environments made after.
-3. **Defaults, never locks.** An owner can change anything a template set. Only the billing plan limits what an environment may use.
-4. **Chosen at creation only**, on the host console or the sign-up form, and never switched afterwards.
-5. **Words are a fixed set of core words, plus module display names.** The pages fill them in; modules read them from `host.locale`. No template id ever reaches a module or a page's logic.
-6. **A template's modules are on in every space**, and new spaces start with them. This changes the plan-modules default ("off in a space until an admin turns it on") for environments made from a template only.
-7. **A single-environment install takes `TEMPLATE=<id>`.** Unset, it behaves exactly as today. Its settings and modules apply only to a fresh data directory; its words and icons are live.
-8. **Templates are bundled only**: `templates/<id>.json` in the repository, released with the image. Templates the host admin makes are a later step.
-9. **Separate from billing plans.** A template module the environment's plan does not include is skipped, and the skip is recorded and shown.
-10. **The first template is "travel"**: the modules are, in the author's words, "planner, places, maps, research, calendar, chat (we need to make chat and conference optional modules too)", and the space word is **Trip**.
-11. **Rooms and tables go as ideas.** No person reads "room" or "the table" anywhere. "Space" stays the internal word, and the same for the rest of the names below; a template maps each to its own word.
+1. **The name is "template".** "Profile" already means a space's profile and a person's page; "plan" already means a billing plan.
+2. **Mixed.** Words and icons follow the template live. Settings and modules are applied once, when the environment is created.
+3. **Defaults, never locks.** The owner can change anything a template set. Only the billing plan limits what an environment may use.
+4. **Picked at creation only**: the host console's create form and the product page's sign-up form, and `TEMPLATE=` on a single-environment install. Unset, everything is as today. Never switched afterwards.
+5. **Bundled only**: `templates/<id>.json` in the repository, released with the image.
+6. **Separate from billing plans.** A template module the environment's plan does not include is skipped, and the skip is recorded and shown.
+7. **A template's modules are on in every space**, and new spaces start with them.
+8. **The words are the Names.** The keys are exactly the levels (`host`, `environment`, `space`, `aside`, `canvas`, `module`, `object`) and the roles (`admin`, `owner`, `moderator`, `member`, `guest`). A template maps each to its words. The code names never change; only what a person reads does.
+9. **Modules keep their names; a template gives them a display name.** Thomas: "'Planner' is the module name. The host will enable that for the environment. BUT for travel, because of our templates, 'Planner' will be exposed to the user as 'Trip Planner' or 'Itinerary' or whatever is declared in the template. SO, in the settings for the environment, we will call it what the template declares... but it would behoove us to append the proper module name to the version number... so they see both the title 'Itinerary' and the version 'planner v123.34.455'." A template declares module display names and icons; Manage shows the display name, with the module's own name and version beside it.
+10. **The travel template**: the modules Planner (`travel`), Places, Maps, Research, Calendar and Chat, with the Conference on (Thomas: "On"); the space word is **Trip**.
+11. **Chat and Conference as optional modules is not a blocker.** The travel template turns both on, as they are today. Making them switchable belongs to [plan-optional-conference](plan-optional-conference.md), a later plan of its own.
+12. **Words reach pages and modules without the template.** Pages read them through `data-word` and a `word()` helper; modules through `host.locale().words`. No template id reaches a page's logic or a module (the conduit rule).
+
+Recommended, and accepted by Thomas at approval (September 25, 2026):
+
+13. **`TEMPLATE` on a hosted server is ignored**, with a log line on start; there, templates come from the console and sign-up.
+14. **The record is the template's own**, not a names migration part: `template: { id, appliedAt, skipped }` in `app.json`. A migration part means "data a newer build wrote", which an older build must refuse; a template is not that.
+15. **The word check is a mode of `check-names`**: `--words` gains the level-word rule below, rather than a separate `check-words.mjs`. Template files get their own `tools/check-templates.mjs`, since that is checking data, not names.
+
+Decided at approval (September 25, 2026):
+
+16. **Beside a display name, Manage shows the module's own name and version**: "Itinerary", with "Planner v0.7.30" beside it (the manifest's `name`, not its id).
+17. **The travel template's defaults**: Planner shown as "Itinerary"; the Lobby named "Home base", described "Everyone on every trip."; the home icon `suitcase-rolling`; new trips start with the Participants profile.
+18. **Owners and templates can change every word except `host` and `admin`**, which are the host's own words. That is ten keys; `host` and `admin` always read their default words.
 
 ## The contract
 
-### The names: the keys
+### The vocabulary
 
-The names, from the host down, are the keys of the vocabulary. The code refers to a key, never to the word a template gives it. Each key's default words are today's words, so an environment with no template reads exactly as it does now, apart from the removal of "room" and "table" (phase 1).
-
-| Key | What it names | Default words (one / many) |
+| Key | Names | Default words (one / many) |
 |---|---|---|
-| `environment` | the tenant, as its owner sees it | environment / environments |
-| `space` | a space (a `room` in the code) | space / spaces |
-| `lobby` | the space everyone is in | Lobby (a proper name; one form) |
-| `call` | the voice and video in a space | call / calls |
-| `chat` | the space's text chat | chat (one form) |
-| `aside` | a pull-aside inside a space | aside / asides |
-| `private` | a private conversation of two | private conversation / private conversations |
-| `owner` | who runs the environment | owner / owners on a hosted server; admin / admins otherwise (today's rule, `plan-tenants` phase 2) |
-| `moderator` | who runs one space | moderator / moderators |
+| `host` | the whole server | host / hosts |
+| `environment` | what people sign in to | environment / environments |
+| `space` | a space | space / spaces |
+| `aside` | a temporary space for a quick call | aside / asides |
+| `canvas` | where modules are used in a space | canvas / canvases |
+| `module` | a tool on the canvas | module / modules |
+| `object` | a thing a module holds | object / objects |
+| `admin` | the server's admin | admin / admins |
+| `owner` | who runs the environment | owner / owners |
+| `moderator` | who runs things in one space | moderator / moderators |
 | `member` | a person with an account | member / members |
 | `guest` | a person in by a guest link | guest / guests |
 
-Not keys: the host and the product (the host's, never an environment's), "module" (a platform word, the same everywhere), and a module's own words (see "Module names" below). Adding a key is a change to this plan.
+- **A word's shape** is `{ one, many, a? }`: the singular, the plural, and the article when it is not the usual one ("an aside"). Capitals come from the helper, never from a second copy. English only, the one language there is; a later language adds a set per language under the same keys.
+- **Where a word comes from, in order:** the owner's own (`settings.words.<key>`), else the template's, else the default. `host` and `admin` are the host's own words and always read their defaults (decision 18); neither an owner nor a template can change them. Resolved on the server, per request, so a template file's change is live on the next release.
+- **No other keys.** The first draft's `call`, `chat`, `lobby` and `private` are not levels and are dropped. The Lobby's name is stored on the space (below). Chat and Conference are built-in modules, named by module display names. "Private" describes an aside and stays a fixed word. Adding a key means adding a level, which is a change to CLAUDE.md's Names first.
 
-**A word's shape** is `{ one, many, a? }`: the singular, the plural, and the article when it is not the usual one ("an aside"). Capitals come from a helper, never from a second copy of the word. English only, the one language there is; a later language adds a set per language under the same keys.
+### Module display names and icons
 
-**Where the words come from, in order:** the owner's own word for that key (`settings.words.<key>`, when set), else the template's, else the default. Words are resolved on the server, per request, so a template file's change is live on the next start.
-
-### Module names
-
-A template may give a module a display name and an icon for this environment (`moduleNames`, `moduleIcons`, by module id). The owner may change either. The server puts the display name wherever it sends a module's name: the Modules tab, the pane switches, the nav, the dashboard's widget titles, and `host.info.module.name` on the module's own page. A module that prints its own name reads it from there, never from its manifest's text.
-
-A template naming module ids is data, like a billing plan's module list: nothing in the code knows which template names which module.
+- A template may give a module a display name and an icon (`moduleNames`, `moduleIcons`, by module id, bundled or built in: `travel`, `conference`, `chat`). The owner may change or clear either.
+- The server sends the display name wherever it sends a module's name today (the Modules tab, the nav, the dashboard's widgets, the canvas's module switches, and `host.info.module.name` on the module's own page), and the icon likewise. A module that prints its own name reads it from there, never from its manifest text.
+- **Manage shows both.** A module's card on the Modules tab shows the display name as its title and, where the version is shown, the module's own name and version: "Itinerary", with "Planner v0.7.30" beside it. With no display name, the card reads as today.
+- A template naming module ids is data, like a billing plan's module list: nothing in the code knows which template names which module.
 
 ### The template file
 
@@ -96,77 +87,67 @@ A template naming module ids is data, like a billing plan's module list: nothing
   "icons": { "home": "suitcase-rolling" },
   "moduleNames": { "travel": "Itinerary" },
   "moduleIcons": {},
-  "modules": ["travel", "places", "maps", "research", "calendar", "chat"],
+  "modules": ["travel", "places", "maps", "research", "calendar", "chat", "conference"],
   "settings": {},
-  "lobby": { "name": "...", "description": "..." },
+  "lobby": { "name": "Home base", "description": "Everyone on every trip." },
   "spaceDefaults": { "profile": "participants" }
 }
 ```
 
-- `words`: any keys from the table above; the rest keep their defaults. Live.
-- `icons.home`: the home icon (and the Spaces link, which uses it). Font Awesome names in the Free set. Live. `moduleIcons` likewise.
-- `modules`: bundled module ids and the built-in pane ids (`conference`, `chat`). Applied once. A bundled module listed is installed, enabled and on in every space (`allRooms: true`); a built-in pane listed is on, and a switchable built-in pane not listed is switched off. Order does not matter; a module's `requires` are added as well (Maps needs Places).
-- `settings`: values for a fixed list of environment settings a template may set (language, clock, currency, `loginText`, `allowRegistration`, `mfaRequired`, the call features, the active built-in theme and its mode), each passed through `store.updateSettings`, so a template can set nothing the owner cannot. Applied once.
-- `lobby`: the Lobby's name and description, stored on the space. Applied once, since the Lobby's name is the owner's to change like any space's.
-- `spaceDefaults`: what a new space starts with; `profile` only for now (`roleplaying`, `participants` or `characters`). Kept on the environment and read by `addRoom` for every space made later.
+- `words`: any of the ten changeable keys (every key but `host` and `admin`, decision 18); the rest keep their defaults. Live.
+- `icons.home`: the home icon and the Spaces link's. A Font Awesome Free name. Live; applied once as well, by adding it to the environment's icon list so the owner's icon picker shows it.
+- `moduleNames`, `moduleIcons`: live.
+- `modules`: bundled module ids and the built-in `conference` and `chat`. Applied once. A bundled module listed is installed, enabled and on in every space (`allSpaces: true`), with its `requires` added (Maps needs Places). `conference` listed leaves `conferenceEnabled` on; left out, it is switched off. `chat` must be listed until plan-optional-conference gives Chat a switch; `check-templates` refuses a template that leaves it out.
+- `settings`: values for a fixed list the owner can set anyway (language, clock, currency, `loginText`, `allowRegistration`, `mfaRequired`, the call features, the active built-in theme and its mode), each through `store.updateSettings`. Applied once.
+- `lobby`: the Lobby's name and description, stored on the space. Applied once; afterwards they are the owner's, like any space's.
+- `spaceDefaults`: what a new space starts with; `profile` only (`roleplaying`, `participants` or `characters`). Kept on the environment and read by `addSpace()` for every space made later.
 
-The "Itinerary" name above is a proposal, not decided (see the open questions).
+The travel values above are decided (decision 17).
 
 ### Server
 
-- **Loading.** `server/templates.js` reads `templates/*.json` at start, validates each (the rules `check-templates.mjs` holds), and refuses to start on an invalid one. `templates.get(id)`, `templates.list()` -> `[{ id, name, description }]`.
-- **Recording.** The environment's own data keeps `template: { id, appliedAt, skipped: [{ id, why }] }` in `app.json` (so an export and a restore carry it). A hosted environment's registry entry keeps `template: id` too, for the console. An environment made before this plan has no `template` and behaves exactly as today.
-- **Applying once.** In `environmentFor()`, after `buildEnvironment`, an environment with a template id and no `appliedAt` has it applied: settings, the Lobby, the space defaults, then the modules (install the bundled ones as `autoInstallBundled` does, enable, `allRooms: true`; switch built-in panes), then `appliedAt` is recorded. It runs before `autoInstallBundled`, and never twice. A module that fails to install is recorded in `skipped` with its reason, as a plan refusal is.
-- **Entitlement.** A module the plan's `modules` list does not include is not installed and is recorded as `skipped: [{ id, why: 'not in the plan' }]`. The template never widens a plan.
-- **Live words and icons.** `branding()` gains `words` (every key, resolved: owner, template, default) and the resolved `homeIcon`. For an environment made from a template, `settings.homeIcon` starts unset, meaning "the template's"; an owner's choice sets it. An environment with no template keeps its stored `homeIcon` as it is.
-- **The owner's changes.** `PUT /api/settings` takes `words: { <key>: { one, many, a? } | null }` (null returns that key to the template's or the default) and `homeIcon: null`. Module display names and icons are set per module (`PATCH /api/modules/:id` gains `displayName` and `displayIcon`, null to clear).
+- **Loading.** `server/templates.js` reads `templates/*.json` at start, validates each with the same rules as `check-templates.mjs`, and refuses to start on an invalid one. `templates.get(id)`, `templates.list()` answering `[{ id, name, description }]`.
+- **Recording.** `app.json` keeps `template: { id, appliedAt, skipped: [{ id, why }] }` (decision 14), so an export and a restore carry it. A hosted environment's registry entry keeps `template: id` too, for the console. An environment made before this plan has no `template` and is exactly as today. An environment whose recorded template id this build does not have reads the default words, and the log says so once.
+- **Applying once.** In `environmentFor()`, after `buildEnvironment`, an environment with a template id and no `appliedAt` has it applied, in order: settings, the Lobby, the space defaults, the home icon into the icon list, then the modules (installed as `autoInstallBundled()` does, enabled, `allSpaces: true`; `conferenceEnabled` set), then `appliedAt` is written. It runs before `autoInstallBundled()`, and never twice. A module that fails to install is recorded in `skipped` with its reason.
+- **Entitlement.** A module the plan's `modules` list does not include is not installed and is recorded as `{ id, why: 'not in the plan' }`. The template never widens a plan.
+- **Live words and icons.** `branding()` gains `words` (every key, resolved) and the resolved `homeIcon`. For an environment made from a template, `settings.homeIcon` starts unset, meaning "the template's"; an owner's choice sets it. Module display names and icons are resolved the same way (the owner's, else the template's, else the manifest's).
+- **The owner's changes.** `PUT /api/settings` takes `words: { <key>: { one, many, a? } | null }` for the ten changeable keys (`host` or `admin` answers 400) (null returns that key to the template's word or the default) and `homeIcon: null`. `PATCH /api/modules/:id` takes `displayName` and `displayIcon`, null to clear.
 - **Creating.** `POST /api/host/environments` and `POST /api/product/signup` take an optional `template` (an id; an unknown one answers 400 "There is no template called <id>."). `GET /api/host/templates` and `GET /api/product`'s new `templates` list them. `GET /api/host/environments` shows each environment's template and its `skipped` list. `GET /api/environment` gains `template: { name, skipped }` for the owner's Environment panel.
-- **`TEMPLATE=`.** Without `BASE_DOMAIN`: the id is checked at start (an unknown id refuses to start, with the list of known ones). On a data directory with no `app.json` yet, the template is recorded and applied as above. On an existing data directory with no template recorded, its words and icons apply live, but nothing is applied once. On one with a different template recorded, the recorded one wins and the log says so once. With `BASE_DOMAIN` set, `TEMPLATE` is ignored and the log says so; templates come from the console and sign-up.
-- **Server messages** that name a key word ("no such space", "you need to be in the space yourself to pull someone aside") are built from the resolved words, through one helper.
-- **The call's base name** (`settings.room`) stops being sent by `branding()` and is kept as it is (see the open questions).
+- **`TEMPLATE=` on a single-environment install.** Checked at start: an unknown id refuses to start, listing the known ones. On a new data directory (no `app.json` yet), the template is recorded and applied as above. On an existing data directory with no template recorded, it is ignored with a log line, since a template is picked at creation only (decision 4). On one with a different template recorded, the recorded one wins and the log says so once. With `BASE_DOMAIN` set, `TEMPLATE` is ignored with a log line (decision 13).
+- **Server messages** that name a level ("no such space", "you are not a member of that space") are built from the resolved words, through one helper.
 
 ### Pages
 
-- **One helper.** `public/brand.js` gains `word(key, { many, cap, a })`, filled from `/api/branding`'s `words`, and a `data-word="space"` attribute (with `data-word-form="many"`, `"cap"`, `"a"`) that `loadBranding()` fills the way it fills `data-brand`. Every hard-coded key word in the pages becomes one or the other; the Spaces link's label becomes `word('space', { many: true, cap: true })`.
-- **Nothing reads a template id.** No page branches on which template an environment has; pages only read words.
-- **Manage.** The Server tab gains a **Words** group: each key with its one and many, blank for the template's or the default word, and a note naming the template the environment was made from ("Made from the Travel template"). The Modules tab gains a display name and icon on each module's card. The Environment panel lists what was skipped ("Not in your plan: Maps").
+- **One helper.** `public/brand.js` gains `word(key, { many, cap, a })`, filled from `/api/branding`'s `words`, and a `data-word="space"` attribute (with `data-word-form="many"`, `"cap"`, `"a"`) that `loadBranding()` fills as it fills `data-brand`. Every level and role word typed into the pages becomes one or the other; the Spaces link's label becomes `word('space', { many: true, cap: true })`.
+- **Nothing reads a template id.** No page branches on the template; pages only read words.
+- **Manage.** The Environment tab gains a **Words** group: each of the ten changeable keys with its one and many, blank for the template's or the default word, and a note naming the template the environment was made from ("Made from the Travel template"). The Modules tab gains a display name and an icon on each module's card, and shows the module's own name and version beside the display name. The Environment panel lists what was skipped ("Not in your plan: Maps").
 - **The host console.** The create form gains a **Template** choice (None, then each template's name and description). The environment list shows each one's template and what was skipped.
-- **The product page's sign-up form** gains the same choice when the host has any templates.
+- **The sign-up form** on the product page gains the same choice when the host has any templates.
 
 ### SDK
 
-- `host.locale` gains `words`: the same resolved object the pages get, `{ space: { one, many, a }, ... }`, and `host.util.word(key, { many, cap, a })` applies it, so a module never copies the capitals and plural rules.
-- `host.info.module.name` is the module's display name in this environment.
-- No template id, template name or environment identity reaches a module. A module written against `host.locale.words` works under any template and none.
+- `host.locale()` gains `words`: the same resolved object the pages get. `host.util.word(key, { many, cap, a })` applies it, so a module never copies the capitals and plural rules.
+- `host.info.module.name` and `.icon` are the module's display name and icon in this environment.
+- No template id, template name or environment identity reaches a module. A module written against `host.locale().words` works under any template and none. Bundled modules that print a level word move to `host.util.word` and get a version bump.
 
-## Chat and Conference as switchable modules: a dependency
+### `check-names --words` and `check-templates`
 
-The travel template lists `chat` and leaves out `conference`. Stage 1 of plan-optional-conference already switches the Conference off for the environment (`conferenceEnabled`), so a template that leaves it out works as soon as phase 3 below is built. Chat has no switch. Until it has one, listing `chat` changes nothing (it is always on), and a template that left it out could not turn it off.
-
-Recommended: making Chat switchable, and turning either pane on and off per space rather than only for the environment, belongs to plan-optional-conference as a stage of its own, not to this plan. That plan already owns the built-in panes, their Modules-tab cards and the risks of taking chat off its transport. This plan needs only what exists: the `modules` list naming built-in panes, and a pane without a switch staying on.
+- **`tools/check-names.mjs --words`** gains a rule: a level or role word (either form, any capital) typed into a page's text, the SDK's text or a server message, rather than going through `word()`, `data-word` or the server's word helper, fails. The allow-list takes the few places where the word is not the level (for example "a guest link" in the host console's own words, if any). It also checks that every key the pages use exists in the vocabulary with both forms.
+- **`tools/check-templates.mjs`** checks each template file: known fields and types, known changeable vocabulary keys (not `host` or `admin`) with `one` and `many`, module ids that are bundled or built in, `chat` present, Font Awesome Free icon names, allowed settings only, a known `profile`; and runs the apply step twice against a throwaway store, with the same result both times, and with a plan that leaves one module out recording it as skipped.
+- `npm run check` runs both.
 
 ## Left to build, in order
 
-1. **Rooms and tables out of what people read** (server-development and experience-design). Every sentence listed under "What it is today" says space, the call, or the Lobby instead; `tableName` goes from the settings, `branding()` and `brand.js`, and `room.js`'s `tableName` variable becomes the space's name; the Lobby's seeded description stops mentioning the table (existing stored descriptions are left as their owners have them); `branding()` stops sending `room`. Code identifiers, routes, API fields and stored keys keep `room` (see the open questions). This is independent of templates and can go first. Done when `tools/check-words.mjs` (below) finds no "room" or "table" in anything a person reads, and every page reads right on a local server.
-2. **The words** (both). The keys and their defaults in one server module; `branding()`'s `words`; `word()` and `data-word` in the pages; the ~110 "space" strings and the other key words converted; server messages through the helper; `host.locale.words` and `host.util.word` in the SDK; `settings.words` and the Words group on Manage. Done when an environment with no template reads exactly as after step 1 (checked word by word by the tool), and an owner's word for `space` shows on every page and in a module that uses `host.util.word`.
-3. **Templates** (server-development first, then experience-design). `server/templates.js`, `tools/check-templates.mjs`, the record in `app.json` and the registry, the apply-once step in `environmentFor()`, entitlement skips, live icons and module display names, `TEMPLATE=`, the create and sign-up fields, the console, Manage's note and skipped list, `templates/travel.json`. Done when a travel environment made on the console reads "trip" everywhere, has the six modules on in every space and in a new one, shows what its plan skipped, and an owner can change each word, icon and module name back.
-4. **Chat as a switch** (plan-optional-conference's stage, not this plan's). The travel template needs nothing more from it until a template leaves Chat out.
+Built after plan-names step 5c: the pages and the SDK already use the Names' code names, so the words go in once. plan-names steps 6 to 10 come after; anything they touch that a person reads already goes through `word()` and must keep doing so (`check-names --words` holds them to it).
 
-The documentation (a user guide section on templates for owners, the host operator's `TEMPLATE` and console notes, the SDK's `host.locale.words`) is content-manager's, after each step lands.
+1. **The words** (server-development, then experience-design). The vocabulary and its defaults in one server module; `branding()`'s `words`; `settings.words` and `PUT /api/settings`; the server's messages through the helper; `word()` and `data-word` in the pages, and every level and role word converted; `host.locale().words` and `host.util.word`; bundled modules that print a level word moved and bumped; the Words group on Manage; the `--words` rule.
+   - Done when: `check-names --words` passes with the new rule, and an environment with no template reads exactly as before.
+   - Verify: checked by the tool (every page's text before and after, word for word); live, an owner's word for `space` shown on every page and in a bundled module that prints it; server messages read as code where they only happen in a call.
+2. **Module display names and icons** (server-development, then experience-design). The resolved display name and icon everywhere a module's name is sent, `host.info.module`, `PATCH /api/modules/:id`, the Modules tab's card with the module's own name and version.
+   - Done when: `npm run check` passes and a module with no display name reads as today.
+   - Verify: live, an owner's display name for Planner shown on the Modules tab (with "Planner v<version>" beside it), in the nav, on the dashboard and on the module's own page; `check-modules` covers the field.
+3. **Templates** (server-development first, then experience-design). `server/templates.js`, `templates/travel.json`, `tools/check-templates.mjs`, the record, applying once in `environmentFor()`, entitlement skips, live words and icons from the template, `TEMPLATE=`, the create and sign-up fields, the console, Manage's note and skipped list.
+   - Done when: `npm run check` passes with `check-templates`.
+   - Verify: live on `BASE_DOMAIN=localhost` with a throwaway `DATA_DIR` under `/tmp`: create a travel environment on the console with a plan that leaves Maps out, sign in, and check the words ("trip" everywhere), the modules on in the Lobby and in a new trip, Planner shown by its display name, the Environment panel's skipped list, and an owner changing a word, the home icon and a module name back; sign up from the product page with the template. Without `BASE_DOMAIN`: `TEMPLATE=travel` on a fresh `DATA_DIR`; the same variable on an existing directory (ignored, logged); an unknown id refusing to start. The Conference in a real call is read as code only.
 
-## Verify
-
-- **Step 1.** `tools/check-words.mjs`: every string a person reads in `public/*.html`, `public/*.js`, `public/sdk/*.js` and the server's messages, scanned for "room", "rooms", "table" as words, with an allow-list for code identifiers, ids, routes, and the call service's internal names (the `return-to-table` data topic stays internal). Then each page loaded on a local server (checked live for the pages; the call page's status lines, recall, asides and the "pulled back" messages need a real call and are read as code only, since there is no LiveKit locally).
-- **Step 2.** The same tool also fails on a key word typed into a page's text instead of `word()` or `data-word`, and checks every key used by the pages exists with its forms. A local server with no template: the pages compared with step 1. With an owner's word for `space`: every page and one bundled module showing it (checked live). A call-only message is read as code only.
-- **Step 3.** `tools/check-templates.mjs`: each file's fields and types, known keys only, module ids that are bundled or built in, Free Font Awesome icon names, allowed settings only, and the apply step run twice against a throwaway store giving the same result, with a plan that excludes one module recording it as skipped. Live, on `BASE_DOMAIN=localhost` with a throwaway `DATA_DIR` under `/tmp`: create a travel environment on the console with a plan that leaves Maps out, sign in, check the words, the modules in the Lobby and in a new space, the Environment panel's skipped list, and an owner's changes; sign up from the product page with the template. Without `BASE_DOMAIN`: `TEMPLATE=travel` on a fresh `DATA_DIR`, then unset on the same directory (words fall back to the default, nothing else changes), and an unknown id refusing to start. With the Conference left out, joining a space shows no call; a real call with it on can't be checked without LiveKit.
-- `npm run check` runs both new tools.
-
-## Open questions
-
-1. **Keeping `room` in the code.** Thomas said "spaces" is the internal word. Recommended: the vocabulary's key is `space`, and new code and new fields say space; existing identifiers, routes (`/rooms/:id`), API fields (`roomId`, `scope: 'room'`) and stored keys keep `room`, as CLAUDE.md requires, since renaming them breaks stored data, links and every module. A rename is a separate plan with a migration, if ever. Does that match what you meant?
-2. **The call's base name, `settings.room` ("table").** It is not a word people read; it names every call on the call service, and the Studio and old OBS links reach the Lobby's call by it. Recommended: keep the value, stop sending it to pages, and leave the stored key's name for the rename plan in question 1. Renaming the value to something else moves every call and breaks those links.
-3. **Planner's display name under the travel template.** It can't be "Trip". Proposed: **Itinerary**. Or "Plan"?
-4. **The travel template's other defaults.** Recommended: the Lobby named "Home base" (its description "Everyone on every trip"); new trips start with the Participants profile (no character pictures); the home icon `suitcase-rolling`; the Conference off, since it is not in the list. Confirm the Conference is meant to be off.
-5. **Chat and Conference switching.** Recommended: a stage in plan-optional-conference, not a phase here (see the dependency above).
-6. **`TEMPLATE` on a hosted server.** Recommended: ignored, with a log line. It could instead preselect the console's choice.
-7. **Words owners change.** Recommended: every key is the owner's to change (decision 3). Should any stay fixed, such as `owner`?
+The documentation (a user guide section on templates for owners, the host operator's `TEMPLATE` and console notes, the SDK's `host.locale().words` and `host.util.word`) is content-manager's, after each step lands.
