@@ -568,6 +568,9 @@ class Store {
       settings: { ...DEFAULT_SETTINGS, ...migrateMfaSettings(raw.settings) },
       users: Array.isArray(raw.users) ? raw.users.map((u) => this.sanitizeUser(u)).filter(Boolean) : [],
       spaces: Array.isArray(raw.spaces) ? raw.spaces.map((r) => this.sanitizeSpace(r)).filter(Boolean) : [],
+      // Asides (plan-names step 8): their own record, never among the spaces. Each lives only while someone is in it
+      // (pruneAsides), so a list from before a restart is swept on the first presence poll that finds it empty.
+      asides: Array.isArray(raw.asides) ? raw.asides.map((a) => this.sanitizeAside(a)).filter(Boolean) : [],
       invites: Array.isArray(raw.invites) ? raw.invites.map((i) => this.sanitizeInvite(i)).filter(Boolean) : [],
     };
     if (!data.spaces.some((r) => r.id === LOBBY)) {
@@ -647,19 +650,6 @@ class Store {
       description: String(r.description ?? '').trim().slice(0, 300),
       members: Array.isArray(r.members) ? [...new Set(r.members.filter((k) => typeof k === 'string'))] : [],
       createdAt: typeof r.createdAt === 'string' ? r.createdAt : new Date().toISOString(),
-      // A "pull aside" space: not shown on the manage page's Spaces tab, not
-      // hand-editable, and swept away once nobody online is actually in it.
-      ephemeral: Boolean(r.ephemeral),
-      // The space an ephemeral space was pulled out of, so leaving the aside
-      // can return everyone there instead of always landing on the Lobby.
-      origin: typeof r.origin === 'string' && /^[a-z0-9]{4,16}$/.test(r.origin) ? r.origin : null,
-      // An aside is still part of the recording -- Studio mutes/dims the
-      // members who stepped out, but the two of them stay on stream. A
-      // *private* aside is a real off-the-record word: Studio hides those
-      // sources entirely, and the admin stepping into one must not drag the
-      // stream's "follow the admin" space along with them (see activeRoomId
-      // in server/index.js). Only meaningful on an ephemeral space.
-      private: Boolean(r.private),
       // Which image sections a member's per-space section (and Studio) offer
       // for this space -- see SPACE_PROFILE_SLOTS.
       profile: SPACE_PROFILES.includes(r.profile) ? r.profile : 'roleplaying',
@@ -673,6 +663,25 @@ class Store {
       // Whether this space allows a guest link at all. Default on: existing
       // spaces from before this setting existed keep working as before.
       allowGuests: r.allowGuests === undefined ? true : Boolean(r.allowGuests),
+    };
+  }
+
+  // An aside (plan-names step 8): a conversation pulled out of a space, for the call only. It is not a space: no
+  // name, modules, chat, layout, pictures or settings of its own. `origin` is the space it was pulled out of, so
+  // leaving it returns everyone there rather than to the Lobby (null for a private conversation started by invite).
+  // An aside is still part of the recording -- Studio mutes/dims the members who stepped out, but they stay on stream.
+  // A *private* one is a real off-the-record word: Studio hides those sources entirely, and the owner stepping into
+  // one must not drag the stream's "follow the owner" space along (followableSpaceId in server/index.js).
+  sanitizeAside(a) {
+    if (!a || typeof a !== 'object') return null;
+    const id = typeof a.id === 'string' && /^[a-z0-9]{4,16}$/.test(a.id) ? a.id : null;
+    if (!id) return null;
+    return {
+      id,
+      members: Array.isArray(a.members) ? [...new Set(a.members.filter((k) => typeof k === 'string'))] : [],
+      origin: typeof a.origin === 'string' && /^[a-z0-9]{4,16}$/.test(a.origin) ? a.origin : null,
+      private: Boolean(a.private),
+      createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date().toISOString(),
     };
   }
 
@@ -1361,6 +1370,7 @@ class Store {
     if (user.role === 'admin' && !user.hostAdmin) throw new StoreError("this account is the server's admin, so it can't be removed here");
     this.data.users = this.data.users.filter((u) => u.key !== key);
     for (const space of this.data.spaces) space.members = space.members.filter((k) => k !== key);
+    for (const aside of this.data.asides) aside.members = aside.members.filter((k) => k !== key);
     this.save();
     fs.rmSync(path.join(this.imagesDir, key), { recursive: true, force: true });
     return user;
@@ -1425,7 +1435,7 @@ class Store {
   addSpace({ name, description, members, profile, link, linkIcon }) {
     let id;
     do id = randomKey();
-    while (this.data.spaces.some((r) => r.id === id));
+    while (this.idTaken(id));
     const startsWith = profile ?? this.data.settings.spaceDefaults?.profile; // the environment's default (a template's)
     const space = this.sanitizeSpace({ id, name: name || `New ${this.word('space')}`, description, members, profile: startsWith, link, linkIcon, createdAt: new Date().toISOString() });
     space.members = space.members.filter((k) => this.userByKey(k));
@@ -1434,27 +1444,41 @@ class Store {
     return this.spaceById(id);
   }
 
-  // A "pull aside" space for exactly the members given (typically an admin
-  // and one player). No name worth keeping server-side; the client builds
-  // one from the other member's display name. `origin` is the space they
-  // were pulled out of, so they can all be sent back to it later. `priv`
-  // marks a real off-the-record word rather than an in-fiction private
-  // moment -- see the `private` field's comment in sanitizeSpace.
+  // Whether a space or an aside already has this id: the two share the call's names and the `space` a person is in.
+  idTaken(id) {
+    return this.data.spaces.some((r) => r.id === id) || this.data.asides.some((a) => a.id === id);
+  }
+
+  // --- asides ----------------------------------------------------------------
+  // Their own record (sanitizeAside), never a space.
+
+  get asides() {
+    const everyone = this.data.users.map((u) => u.key);
+    return this.data.asides.map((a) => ({ ...a, members: a.members.filter((k) => everyone.includes(k)) }));
+  }
+
+  asideById(id) {
+    return this.asides.find((a) => a.id === id) || null;
+  }
+
+  // An aside for exactly the members given (typically an owner and one member). `origin` is the space they were
+  // pulled out of, so they can all be sent back to it later; `priv` marks a real off-the-record word rather than an
+  // in-fiction private moment (see sanitizeAside).
   addAside(members, origin, priv = false) {
     let id;
     do id = randomKey();
-    while (this.data.spaces.some((r) => r.id === id));
-    const space = this.sanitizeSpace({ id, name: this.word('aside', { cap: true }), description: '', members, ephemeral: true, origin, private: priv, createdAt: new Date().toISOString() });
-    space.members = space.members.filter((k) => this.userByKey(k));
-    this.data.spaces.push(space);
+    while (this.idTaken(id));
+    const aside = this.sanitizeAside({ id, members, origin, private: priv, createdAt: new Date().toISOString() });
+    aside.members = aside.members.filter((k) => this.userByKey(k));
+    this.data.asides.push(aside);
     this.save();
-    return this.spaceById(id);
+    return this.asideById(id);
   }
 
-  // Sweep aside spaces nobody is actually in any more. `online` is the
+  // Sweep asides nobody is actually in any more. `online` is the
   // key -> { space, ... } map this request already built from LiveKit, so
   // this costs nothing extra to call on every /api/presence and /api/status.
-  // A space this young is spared even if it looks empty: the members who are
+  // An aside this young is spared even if it looks empty: the members who are
   // meant to be in it were only just told to reconnect there (a disconnect,
   // a fresh token and a new WebRTC connect all take a moment), and the very
   // first poll after creation would otherwise see nobody there yet and
@@ -1462,13 +1486,12 @@ class Store {
   pruneAsides(online) {
     const GRACE_MS = 20000;
     const now = Date.now();
-    const before = this.data.spaces.length;
-    this.data.spaces = this.data.spaces.filter((r) => {
-      if (!r.ephemeral) return true;
-      if (now - new Date(r.createdAt).getTime() < GRACE_MS) return true;
-      return r.members.some((k) => online.get(k)?.space === r.id);
+    const before = this.data.asides.length;
+    this.data.asides = this.data.asides.filter((a) => {
+      if (now - new Date(a.createdAt).getTime() < GRACE_MS) return true;
+      return a.members.some((k) => online.get(k)?.space === a.id);
     });
-    if (this.data.spaces.length !== before) this.save();
+    if (this.data.asides.length !== before) this.save();
   }
 
   updateSpace(id, patch) {

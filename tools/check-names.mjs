@@ -109,11 +109,12 @@ const LEVELS = [
       /\bask\(\s*\{[^}]*\bitems\b/g, /\bitems:\s*o\s*&&\s*o\.items\b/g, /\breq\.body\??\.items\b/g,
     ],
   },
-  // Step 8: an aside stops being an `ephemeral` row among the spaces (addAsideRoom, pruneAsideRooms becoming
-  // pruneAsides, the pages' asideRoom). The data topics before step 3 (pull-aside, recall, return-to-table) are kept
-  // as a guard: step 3 removed them everywhere with no overlap, so any hit is one coming back.
+  // Step 8: an aside stopped being an `ephemeral` row among the spaces (addAsideRoom, pruneAsideRooms becoming
+  // pruneAsides, the pages' asideRoom): it is its own record, `asides`. The data topics before step 3 (pull-aside,
+  // recall, return-to-table) are kept as a guard: step 3 removed them everywhere with no overlap, so any hit is one
+  // coming back.
   {
-    id: 'aside', step: '8', code: 'report', words: null,
+    id: 'aside', step: '8', code: 'enforce', words: null,
     codePatterns: [/ephemeral/gi, /\b(addAsideRoom|pruneAsideRooms|asideRoom)\b/g, /['"`](pull-aside|return-to-table|recall)['"`]/g],
   },
 ];
@@ -1847,7 +1848,8 @@ function migrationCheck() {
       const dir = copyFixture();
       names.migrateEnvironment(dir, { log: quiet });
       const store = new Store(dir);
-      assert.deepEqual(store.spaces.map((r) => r.id), ['lobby', 'keep01', 'aside1']);
+      assert.deepEqual(store.spaces.map((r) => r.id), ['lobby', 'keep01'], 'the aside row dropped by names-asides');
+      assert.deepEqual(store.asides, [], 'and no aside carried over');
       assert.equal(store.spaceById('keep01').hasImage, true, 'the space\'s picture');
       assert.ok(store.spaceImagePath('keep01').endsWith(path.join('images', 'spaces', 'keep01.png')));
       assert.equal(store.usesSpaceImages('memberkey1', 'keep01'), true);
@@ -1902,7 +1904,7 @@ function migrationCheck() {
       assert.deepEqual(snapshot(differ, (rel) => rel.startsWith('pre-names')), before, 'nothing changed, nothing recorded');
       const agree = copyFixture();
       fs.writeFileSync(path.join(agree, 'app.json'), JSON.stringify({ ...old, spaces: [] }));
-      names.migrateEnvironment(agree, { log: quiet });
+      names.migrateEnvironment(agree, { parts: UP_TO_SPACES, log: quiet });
       assert.deepEqual(appOf(agree).spaces.map((r) => r.id), ['lobby', 'keep01', 'aside1'], 'an empty new key gives way to the old one');
       const clash = copyFixture();
       fs.writeFileSync(path.join(clash, 'modules', 'todo', 'data', 'environment.json'), '{}');
@@ -1923,7 +1925,7 @@ function migrationCheck() {
       names.migrateEnvironment(dir, { parts: UP_TO_SPACES, log: quiet });
       const before = snapshot(dir);
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-pointers', 'names-objects']);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-pointers', 'names-objects', 'names-asides']);
       const after = snapshot(dir);
       // To-do's links: a space's and the environment's, inside a list inside a value.
       const todo = jsonOf(dir, 'modules/todo/data/space-keep01.json');
@@ -1969,7 +1971,7 @@ function migrationCheck() {
       bus.events.push({ id: 4, at: 1767225600000, module: 'polls', name: 'closed', ref: { module: 'polls', kind: 'poll', id: 'p1', scope: 'space', space: 'keep01' }, data: { pick, all: [pick, { module: 'calendar', kind: 'event', id: 'e2', scope: 'server' }], own }, scopeKey: 'space:keep01', by: 'ownerkey01' });
       fs.writeFileSync(path.join(dir, 'modules', 'bus.json'), JSON.stringify(bus));
       const before = fs.readFileSync(path.join(dir, 'modules', 'bus.json'), 'utf8');
-      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers', 'names-objects']);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-pointers', 'names-objects', 'names-asides']);
       const after = jsonOf(dir, 'modules/bus.json');
       const e = after.events.find((x) => x.id === 4);
       assert.deepEqual(e.data.pick, { module: 'travel', kind: 'plan', id: 'i1', scope: 'space', space: 'keep01' });
@@ -1991,6 +1993,7 @@ function migrationCheck() {
 
     // --- names-objects (plan-names step 7): nothing the host stores carries step 7's names, so it is recorded, moving nothing ---
     const UP_TO_POINTERS = names.ENVIRONMENT_PARTS.slice(0, 4);
+    const UP_TO_OBJECTS = names.ENVIRONMENT_PARTS.slice(0, 5);
     test('names-objects is the fifth environment part, after names-pointers', () => {
       assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 5), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects']);
     });
@@ -2010,22 +2013,115 @@ function migrationCheck() {
       const recordBefore = fs.readFileSync(path.join(dir, 'app.json'), 'utf8');
       const before = snapshot(dir, (rel) => rel === 'app.json');
       const logged = [];
-      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-objects']);
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_OBJECTS, log: (m) => logged.push(m) }), ['names-objects']);
       const after = snapshot(dir, (rel) => rel === 'app.json' || rel.startsWith('pre-names/names-objects'));
       assert.deepEqual(after, before, 'nothing but the record written');
       assert.equal(fs.readFileSync(path.join(dir, 'pre-names', 'names-objects', 'app.json'), 'utf8'), recordBefore, 'the record copied first');
       assert.deepEqual(fs.readdirSync(path.join(dir, 'pre-names', 'names-objects')), ['app.json'], 'and nothing else copied');
       const app = appOf(dir);
-      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(app.migrations.map((m) => m.id), UP_TO_OBJECTS.map((p) => p.id));
       assert.deepEqual(app.migrations.find((m) => m.id === 'names-objects').moved, []);
       assert.ok(logged.some((m) => m.includes('"names-objects"')), logged.join('\n'));
+      const settled = snapshot(dir);
+      assert.deepEqual(names.migrateEnvironment(dir, { parts: UP_TO_OBJECTS, log: quiet }), [], 'the second start runs nothing');
+      assert.deepEqual(snapshot(dir), settled, 'and changes nothing');
+    });
+
+    test('names-objects: a build from before step 7 refuses data that records it', () => {
+      assert.deepEqual(names.unknownParts({ version: 2, migrations: UP_TO_OBJECTS.map((p) => ({ id: p.id })) }, UP_TO_POINTERS), ['names-objects']);
+    });
+
+    // --- names-asides (plan-names step 8): an aside is its own record, never a row among the spaces ---
+    test('names-asides is the sixth environment part, after names-objects', () => {
+      assert.deepEqual(names.ENVIRONMENT_PARTS.map((p) => p.id).slice(0, 6), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects', 'names-asides']);
+    });
+
+    test('names-asides drops the aside rows from spaces and the aside-only keys from every other space, in place, and changes nothing else', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { parts: UP_TO_OBJECTS, log: quiet });
+      // As a Store before step 8 saved it: every space carrying the aside keys at their space values, among its others.
+      const saved = appOf(dir);
+      saved.spaces = saved.spaces.map((r) => (r.ephemeral ? r : { id: r.id, name: r.name, description: r.description, members: r.members, createdAt: r.createdAt, ephemeral: false, origin: null, private: false, profile: 'roleplaying' }));
+      saved.spaces.push({ id: 'priv01', name: 'Aside', description: '', members: ['memberkey1'], createdAt: '2026-01-05T00:00:00.000Z', ephemeral: true, origin: null, private: true, profile: 'roleplaying' });
+      fs.writeFileSync(path.join(dir, 'app.json'), `${JSON.stringify(saved, null, 2)}\n`);
+      const recordBefore = fs.readFileSync(path.join(dir, 'app.json'), 'utf8');
+      const before = snapshot(dir, (rel) => rel === 'app.json');
+      const logged = [];
+      assert.deepEqual(names.migrateEnvironment(dir, { log: (m) => logged.push(m) }), ['names-asides']);
+      const app = appOf(dir);
+      assert.deepEqual(app.spaces.map((r) => r.id), ['lobby', 'keep01'], 'both aside rows dropped, the spaces kept in order');
+      assert.deepEqual(app.spaces.map((r) => Object.keys(r)), [['id', 'name', 'description', 'members', 'createdAt', 'profile'], ['id', 'name', 'description', 'members', 'createdAt', 'profile']], 'ephemeral, origin and private gone, the rest in place');
+      assert.equal('asides' in app, false, 'the aside rows are dropped, not moved: an aside lives only while someone is in it');
+      const { spaces: _s, migrations: _m, ...rest } = app;
+      const { spaces: _s0, migrations: _m0, ...restBefore } = saved;
+      assert.deepEqual(rest, restBefore, 'nothing else in app.json changed');
+      assert.deepEqual(snapshot(dir, (rel) => rel === 'app.json' || rel.startsWith('pre-names/names-asides')), before, 'no other file written or moved');
+      assert.equal(fs.readFileSync(path.join(dir, 'pre-names', 'names-asides', 'app.json'), 'utf8'), recordBefore, 'the original copied first');
+      assert.deepEqual(app.migrations.map((m) => m.id), ALL_PARTS);
+      assert.deepEqual(app.migrations.find((m) => m.id === 'names-asides').moved, []);
+      assert.ok(logged.some((m) => m.includes('"names-asides"')), logged.join('\n'));
       const settled = snapshot(dir);
       assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), [], 'the second start runs nothing');
       assert.deepEqual(snapshot(dir), settled, 'and changes nothing');
     });
 
-    test('names-objects: a build from before step 7 refuses data that records it', () => {
-      assert.deepEqual(names.unknownParts({ version: 2, migrations: ALL_PARTS.map((id) => ({ id })) }, UP_TO_POINTERS), ['names-objects']);
+    test('names-asides, run again over data in the new shape (an asides record, spaces without the aside keys), writes nothing but its record', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const app = appOf(dir);
+      const asides = [{ id: 'aside9', members: ['ownerkey01'], origin: 'keep01', private: false, createdAt: '2026-01-06T00:00:00.000Z' }];
+      fs.writeFileSync(path.join(dir, 'app.json'), `${JSON.stringify({ ...app, asides, migrations: app.migrations.filter((m) => m.id !== 'names-asides') }, null, 2)}\n`);
+      const before = appOf(dir);
+      assert.deepEqual(names.migrateEnvironment(dir, { log: quiet }), ['names-asides']);
+      const { migrations, ...after } = appOf(dir);
+      const { migrations: _m, ...unchanged } = before;
+      assert.deepEqual(after, unchanged, 'the spaces and the asides record exactly as they were');
+    });
+
+    test('names-asides: a build from before step 8 refuses data that records it', () => {
+      assert.deepEqual(names.unknownParts({ version: 2, migrations: ALL_PARTS.map((id) => ({ id })) }, UP_TO_OBJECTS), ['names-asides']);
+    });
+
+    test('the Store keeps asides in their own record: never a space, swept once empty, a removed account taken out of them', () => {
+      const dir = copyFixture();
+      names.migrateEnvironment(dir, { log: quiet });
+      const store = new Store(dir);
+      const aside = store.addAside(['ownerkey01', 'memberkey1', 'nobody000'], 'keep01', true);
+      assert.deepEqual(Object.keys(aside), ['id', 'members', 'origin', 'private', 'createdAt']);
+      assert.deepEqual([aside.members, aside.origin, aside.private], [['ownerkey01', 'memberkey1'], 'keep01', true], 'only real accounts');
+      assert.equal(store.spaceById(aside.id), null, 'an aside is not a space');
+      assert.equal(store.spaces.some((r) => r.id === aside.id), false);
+      assert.deepEqual(store.asideById(aside.id), aside);
+      const onDisk = appOf(dir);
+      assert.deepEqual(onDisk.asides.map((a) => a.id), [aside.id], 'stored under asides');
+      assert.equal(onDisk.spaces.some((r) => r.id === aside.id || 'ephemeral' in r || 'origin' in r || 'private' in r), false, 'and the spaces carry no aside keys');
+      assert.deepEqual(new Store(dir).asideById(aside.id), aside, 'read back the same');
+      store.pruneAsides(new Map());
+      assert.ok(store.asideById(aside.id), 'a new aside is spared while its members reconnect');
+      store.data.asides[0].createdAt = '2026-01-01T00:00:00.000Z';
+      store.pruneAsides(new Map([['memberkey1', { space: aside.id }]]));
+      assert.ok(store.asideById(aside.id), 'kept while someone is in it');
+      store.removeUser('memberkey1');
+      assert.deepEqual(store.asideById(aside.id).members, ['ownerkey01'], 'a removed account leaves it');
+      store.pruneAsides(new Map([['ownerkey01', { space: 'keep01' }]]));
+      assert.equal(store.asideById(aside.id), null, 'swept once nobody is in it');
+      assert.deepEqual(appOf(dir).asides, []);
+      assert.throws(() => store.updateSpace(aside.id, { name: 'x' }), (err) => err.status === 404, 'no settings');
+    });
+
+    test('the Studio alias, step 8: each aside as a row in rooms with ephemeral: true, after the spaces, for a bearer request only', () => {
+      const alias = require('../server/studio-alias.js');
+      const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
+      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }];
+      const asides = [{ id: 'aside1', members: ['k', 'm'], origin: 'lobby', private: true, createdAt: '2026-01-03T00:00:00.000Z' }];
+      const status = { environmentName: 'Acme', users: [], spaces, asides, activeSpace: 'lobby' };
+      const sent = alias.status(req({ authorization: 'Bearer good' }), status, { signedIn: { key: 'k' }, environmentName: 'Acme', asideName: 'Aside' });
+      assert.deepEqual(sent.rooms.map((r) => [r.id, r.ephemeral, r.private, r.origin]), [['lobby', false, false, null], ['aside1', true, true, 'lobby']], 'the spaces as their rows were, then the asides');
+      const row = sent.rooms[1];
+      assert.deepEqual([row.name, row.ephemeral, row.private, row.origin, row.members, row.isLobby, row.hasImage, row.description, row.profile], ['Aside', true, true, 'lobby', ['k', 'm'], false, false, '', 'roleplaying']);
+      assert.deepEqual([sent.spaces, sent.asides], [spaces, asides], 'the new names as they were');
+      assert.equal(alias.status(req({ authorization: 'Bearer good' }), status, { signedIn: { key: 'k' }, environmentName: 'Acme', asideName: 'Sidebar' }).rooms[1].name, 'Sidebar', 'named with the environment\'s word');
+      assert.equal(alias.status(req({ cookie: 'session=x' }), status, { signedIn: { key: 'k' } }), status, 'the pages\' cookie request: exactly the answer');
     });
 
     test('names-spaces on a hosted environment: its module data and the rest take the new names', () => {
@@ -2043,10 +2139,10 @@ function migrationCheck() {
       const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
       const bearer = req({ authorization: 'Bearer good' });
       const cookie = req({ cookie: 'session=x' });
-      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }, { id: 'aside1', name: 'Aside', ephemeral: true, private: true, members: ['k'] }];
-      const status = { environmentName: 'Acme', users: [{ key: 'k', role: 'owner', online: { key: 'k', space: 'aside1', micOn: true, cameraOn: false } }, { key: 'm', role: 'member', online: null }], spaces, activeSpace: 'lobby' };
+      const spaces = [{ id: 'lobby', name: 'Lobby', isLobby: true }, { id: 'keep01', name: 'The Keep', isLobby: false }];
+      const status = { environmentName: 'Acme', users: [{ key: 'k', role: 'owner', online: { key: 'k', space: 'aside1', micOn: true, cameraOn: false } }, { key: 'm', role: 'member', online: null }], spaces, asides: [], activeSpace: 'lobby' };
       const sent = alias.status(bearer, status, { signedIn: { key: 'k' }, environmentName: 'Acme' });
-      assert.deepEqual([sent.serverName, sent.rooms, sent.activeRoom], ['Acme', spaces, 'lobby']);
+      assert.deepEqual([sent.serverName, sent.rooms, sent.activeRoom], ['Acme', spaces.map((r) => ({ ...r, ephemeral: false, origin: null, private: false })), 'lobby']);
       assert.deepEqual([sent.environmentName, sent.spaces, sent.activeSpace], ['Acme', spaces, 'lobby'], 'the new names too');
       assert.deepEqual(sent.users.map((u) => [u.role, u.online && u.online.room, u.online && u.online.space]), [['admin', 'aside1', 'aside1'], ['user', null, null]]);
       assert.equal(alias.me(bearer, { environmentName: 'Acme' }, { signedIn: { key: 'k' }, role: 'owner', environmentName: 'Acme' }).serverName, 'Acme');

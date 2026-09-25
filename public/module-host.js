@@ -1082,15 +1082,13 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     },
     // Who is online right now, everyone: the same roster the call page reads. For a page that follows
     // people (a keyed page about one of them, a dashboard) rather than the members of the space a module is in (`people`).
-    // Until asides get their own record (plan-names step 8) the server lists them among the spaces, marked `ephemeral`;
-    // the module hears them apart, as it will then.
+    // The asides are their own record (plan-names step 8), never among the spaces.
     async 'presence.get'() {
       const d = await api('GET', `/api/presence${busGuest()}`);
-      const rows = d.spaces || [];
       return {
         people: (d.users || []).map((u) => ({ key: u.key, name: u.displayName, online: Boolean(u.online), space: u.space || null, inCall: Boolean(u.inCall), isOwner: Boolean(u.isOwner) })),
-        spaces: rows.filter((r) => !r.ephemeral).map((r) => ({ id: r.id, name: r.name })),
-        asides: (d.asides || rows.filter((r) => r.ephemeral)).map((r) => ({ id: r.id, origin: r.origin || null, private: Boolean(r.private) })),
+        spaces: (d.spaces || []).map((r) => ({ id: r.id, name: r.name })),
+        asides: (d.asides || []).map((r) => ({ id: r.id, origin: r.origin || null, private: Boolean(r.private) })),
         activeSpace: d.activeSpace || null,
         ownerOnline: Boolean(d.ownerOnline),
         reactions: (d.reactions || []).map((r) => ({ id: r.id, glyph: r.glyph })),

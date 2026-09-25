@@ -1023,12 +1023,12 @@ async function mintToken({ identity, name, call, publisher, media = publisher, i
 // 14): worked out from the environment's slug and the space, never stored.
 function callName(spaceId) {
   const id = spaceId || LOBBY;
-  return callNames.callName({ slug: currentEnvironment().slug, spaceId: id, aside: Boolean(store.spaceById(id)?.ephemeral) });
+  return callNames.callName({ slug: currentEnvironment().slug, spaceId: id, aside: Boolean(store.asideById(id)) });
 }
 function spaceIdOfCall(name) {
   return callNames.spaceIdOfCall(name, {
     slug: currentEnvironment().slug,
-    hasSpace: (id) => Boolean(store.spaceById(id)),
+    hasSpace: (id) => Boolean(store.spaceById(id) || store.asideById(id)),
     slugs: () => (hostRegistry ? hostRegistry.listEnvironments().map((e) => e.slug) : []),
   });
 }
@@ -1097,8 +1097,8 @@ function activeSpaceId(online) {
 // behind) an aside Studio is told to treat as not-recording. Walk back to the
 // nearest non-private ancestor, normally just the one `origin` hop.
 function followableSpaceId(spaceId) {
-  const space = store.spaceById(spaceId);
-  if (space?.private && space.origin) return followableSpaceId(space.origin);
+  const aside = store.asideById(spaceId);
+  if (aside?.private && aside.origin) return followableSpaceId(aside.origin);
   return spaceId;
 }
 
@@ -1930,7 +1930,8 @@ async function refuseOverCalls(res, spaceId) {
   const live = active.filter((lk) => spaceIdOfCall(lk.name) && lk.numParticipants > 0);
   if (live.some((lk) => spaceIdOfCall(lk.name) === spaceId)) return false;
   if (live.length < cap) return false;
-  const runningName = store.spaceById(spaceIdOfCall(live[0].name))?.name || `another ${word('space')}`;
+  const runningId = spaceIdOfCall(live[0].name);
+  const runningName = store.spaceById(runningId)?.name || (store.asideById(runningId) ? word('aside', { a: true }) : `another ${word('space')}`);
   res.status(403).json({ error: `This ${word('environment')}'s plan allows ${cap} call${cap === 1 ? '' : 's'} at once; one is running in ${runningName}` });
   return true;
 }
@@ -2880,11 +2881,12 @@ app.delete('/api/users/:key/mfa', requireOwner, (req, res) => {
   res.json({ ok: true });
 });
 
-// A token for the call service, for a space (the Lobby unless asked, as `space`): players need a session and must
-// belong to the space; OBS viewers need the stream key. `call` in the answer is the call's own name there.
+// A token for the call service, for a space or an aside (the Lobby unless asked, as `space`): players need a session
+// and must belong to it; OBS viewers need the stream key. `call` in the answer is the call's own name there. An aside
+// is the call only: its token is the same kind, and nothing else (modules, chat) is reached through it.
 app.post('/api/token', async (req, res) => {
   const spaceId = typeof req.body?.space === 'string' && req.body.space ? req.body.space : LOBBY;
-  const theSpace = store.spaceById(spaceId);
+  const theSpace = store.spaceById(spaceId) || store.asideById(spaceId);
   if (!theSpace) return res.status(404).json({ error: `no such ${word('space')}` });
   const call = callName(spaceId);
   if (req.body?.role === 'viewer') {
@@ -2994,7 +2996,8 @@ app.post('/api/presence', requireUser, (req, res) => {
   res.json({ ok: true });
 });
 
-// Asides (plan-names step 3 moved these from /api/table/*; their own record comes in step 8). Each nudge to a page
+// Asides (plan-names step 3 moved these from /api/table/*; step 8 gave them their own record, store.asides, and made
+// them the call only: no modules, chat, layout, pictures or settings). Each nudge to a page
 // in a call goes over the call's data channel, on a topic that names it: aside-pull, aside-started, aside-recall and
 // aside-return. The data's `type` is the topic.
 const ASIDE_TOPICS = { pull: 'aside-pull', started: 'aside-started', recall: 'aside-recall', return: 'aside-return' };
@@ -3016,7 +3019,7 @@ app.post('/api/asides/invite', requireUser, (req, res) => {
   invites.set(invite.id, invite);
   for (const [id, i] of invites) if (Date.now() - i.at > INVITE_MS) invites.delete(id);
   inviteEvents.emit('invite', { ...invite, fromName: me.displayName });
-  res.json({ aside: shownSpace(req, aside), invite: { id: invite.id } });
+  res.json({ aside, invite: { id: invite.id } });
 });
 // Declining just ends the invitation; the inviter is not told anything unfriendly, the aside simply stays empty.
 app.post('/api/asides/invite/:id/decline', requireUser, (req, res) => {
@@ -3035,6 +3038,7 @@ app.get('/api/presence', async (req, res) => {
     ...branding(),
     users: store.users.map((u) => ({ ...presenceUser(u), online: byKey.has(u.key), present: byKey.has(u.key) || isPresent(u.key), space: byKey.get(u.key)?.space || null, inCall: byKey.get(u.key)?.inCall ?? false })),
     spaces: store.spaces.map((r) => ({ ...shownSpace(req, r), mine: !user || r.members.includes(user.key) || hasOwnerRights(user) })),
+    asides: store.asides.map((a) => ({ ...a, mine: !user || a.members.includes(user.key) || hasOwnerRights(user) })),
     activeSpace: activeSpaceId(byKey),
     ownerOnline: hasOnlineOwner(byKey),
   });
@@ -3078,7 +3082,7 @@ app.post('/api/asides', requireUser, async (req, res) => {
     // the next poll catches up.
     const bystanderPayload = asidePayload(ASIDE_TOPICS.started, { spaceId: aside.id, members: aside.members });
     await callService.sendData(initiatorCall, bystanderPayload, DataPacket_Kind.RELIABLE, { topic: ASIDE_TOPICS.started }).catch(() => {});
-    res.json({ aside: shownSpace(req, aside) });
+    res.json({ aside });
   } catch (err) {
     res.status(502).json({ error: `LiveKit: ${err.message}` });
   }
@@ -3096,7 +3100,7 @@ app.post('/api/asides/recall', requireOwner, async (req, res) => {
     if (!adminCall) return res.status(400).json({ error: 'you need to be in a call yourself to recall anyone' });
     const originId = spaceIdOfCall(adminCall);
     const destSpace = store.spaceById(originId);
-    const privateAsides = store.spaces.filter((r) => r.ephemeral && r.private && r.origin === originId);
+    const privateAsides = store.asides.filter((a) => a.private && a.origin === originId);
     if (!privateAsides.length) return res.status(400).json({ error: 'nobody is off in a private conversation from here right now' });
     const payload = asidePayload(ASIDE_TOPICS.recall, { spaceId: originId, spaceName: destSpace?.name || 'the call' });
     // Each private aside's call by its name, and by whatever name the people in it are really in (a call from
@@ -3118,8 +3122,8 @@ app.post('/api/asides/return', requireUser, async (req, res) => {
     const me = currentUser(req);
     const mine = (await participants()).find((p) => p.key === me.key);
     if (!mine) return res.status(400).json({ error: 'you need to be in a call' });
-    const current = store.spaceById(mine.space);
-    if (!current || !current.ephemeral) return res.status(400).json({ error: `you are not in ${word('aside', { a: true })}` });
+    const current = store.asideById(mine.space);
+    if (!current) return res.status(400).json({ error: `you are not in ${word('aside', { a: true })}` });
     const dest = (current.origin && store.spaceById(current.origin)) || store.spaceById(LOBBY);
     const others = current.members.filter((k) => k !== me.key);
     if (others.length) {
@@ -3145,10 +3149,11 @@ app.get('/api/status', requireStream, async (req, res) => {
     ...branding(),
     users: store.users.map((u) => ({ ...publicUser(req, u, { link: false }), online: withoutCall(byKey.get(u.key)) })),
     spaces: store.spaces.map((r) => shownSpace(req, r)),
+    asides: store.asides,
     activeSpace: activeSpaceId(byKey),
     ownerOnline: hasOnlineOwner(byKey),
     pages: modules.keyedPaths(), // every keyed path an enabled module claims, e.g. ["view"] (Coffee Pub Studio asks for this)
-  }, { signedIn: currentUser(req), environmentName: store.settings.environmentName }));
+  }, { signedIn: currentUser(req), environmentName: store.settings.environmentName, asideName: word('aside', { cap: true }) }));
 });
 
 // What a keyed page (public/keyed.html) needs to mount the module that claims its path: the surface's own entry
@@ -3577,8 +3582,8 @@ function moduleAccess(req, res, need) {
 
 // --- chat history --------------------------------------------------------------------------------
 // Chat travels live over LiveKit; the sender also posts the text here so someone who joins later reads what
-// was said (see server/chat-history.js for what is kept and for how long). Only a real space keeps history, never
-// an aside. Reading needs the "open and read the chat" permission, posting "send chat messages", and the person
+// was said (see server/chat-history.js for what is kept and for how long). Only a space has a chat: an aside is not
+// a space (plan-names step 8), so its id answers 404 here, reading or posting. Reading needs the "open and read the chat" permission, posting "send chat messages", and the person
 // must be in the space (or an owner, or a guest of that space).
 function chatSpaceFor(req, res, permission) {
   const who = moduleViewer(req);
@@ -3595,14 +3600,13 @@ function chatSpaceFor(req, res, permission) {
 app.get('/api/spaces/:id/chat', (req, res) => {
   const found = chatSpaceFor(req, res, 'chatRead');
   if (!found) return;
-  res.json({ messages: found.space.ephemeral ? [] : chatHistory.list(found.space.id) });
+  res.json({ messages: chatHistory.list(found.space.id) });
 });
 
 app.post('/api/spaces/:id/chat', (req, res) => {
   const found = chatSpaceFor(req, res, 'chat');
   if (!found) return;
   const { who, space } = found;
-  if (space.ephemeral) return res.json({ message: null });
   const key = who.user ? who.user.key : `guest:${space.id}`;
   const now = Date.now();
   const recent = (chatPosts.get(key) || []).filter((t) => now - t < 10000);
@@ -3666,7 +3670,7 @@ function moduleSpacesFor(req, res) {
   const { manifest, entry } = found;
   if (!manifest.scope.includes('space')) return void res.status(400).json({ error: `this ${word('module')} has no space scope` });
   if (!moduleCan(manifest, modulePerms(who, null), 'read')) return void res.status(403).json({ error: `your role can't do that in this ${word('module')}` });
-  const spaces = store.spaces.filter((r) => !r.ephemeral && r.members.includes(who.user.key)
+  const spaces = store.spaces.filter((r) => r.members.includes(who.user.key)
     && modules.isOnIn(entry.id, r.id) && moduleCan(manifest, modulePerms(who, r.id), 'read'));
   return { manifest, spaces };
 }
@@ -5042,7 +5046,7 @@ app.get('/api/modules/stream', (req, res) => {
     if (space) {
       return r.id === space.id && moduleSpaceAccess(entry, who, r) && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'space', spaceId: r.id } : null;
     }
-    const mine = who.user && !r.ephemeral && r.members.includes(who.user.key) && modules.isOnIn(entry.id, r.id);
+    const mine = who.user && r.members.includes(who.user.key) && modules.isOnIn(entry.id, r.id);
     return mine && moduleCan(manifest, modulePerms(who, r.id), 'read') ? { scope: 'spaces', spaceId: r.id } : null;
   };
   const onChange = (change) => {

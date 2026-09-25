@@ -112,17 +112,24 @@ function imgUrl(key, slot, params = {}) {
 // (Use Default Profile Images off); otherwise the tile falls back to their
 // profile photo. Private asides count as their origin space.
 function spacePortraitUrl(key) {
-  const spaceId = currentSpace?.ephemeral ? currentSpace.origin : currentSpace?.id;
+  const spaceId = currentSpace?.isAside ? currentSpace.origin : currentSpace?.id;
   if (!spaceId || spaceId === LOBBY || key.startsWith(GUEST_PREFIX)) return imgUrl(key, 'profile');
   return imgUrl(key, 'player', { space: spaceId, spaceOnly: 1 });
 }
 
+// An aside as the page lists it beside the spaces: its record, the environment's word for it, and the mark.
+const asideEntry = (a) => ({ ...a, name: word('aside', { cap: true }), isAside: true });
+// Whether I am in an aside right now: the call only, no modules, chat or chat pictures (plan-names decision 5).
+const inAside = () => Boolean(currentSpace?.isAside);
+
 async function loadPresence() {
   try {
-    const { users, spaces, activeSpace: active, ownerOnline: hasOwner } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
+    const { users, spaces, asides, activeSpace: active, ownerOnline: hasOwner } = await api('GET', guestToken ? `/api/presence?guest=${encodeURIComponent(guestToken)}` : '/api/presence');
     presenceUsers.clear();
     for (const u of users) presenceUsers.set(u.key, u);
-    presenceSpaces = spaces || [];
+    // The asides are their own record (plan-names step 8); the page lists them after the spaces, marked isAside, so
+    // everything that finds where someone is reads one list.
+    presenceSpaces = [...(spaces || []), ...(asides || []).map(asideEntry)];
     activeSpace = active || LOBBY;
     ownerOnline = Boolean(hasOwner);
     for (const [key, tile] of tiles) {
@@ -167,7 +174,7 @@ let recallButtonCountingDown = false;
 
 // The tool's `visible` (see its registration above): shown while the countdown runs, whatever else changes.
 function recallWanted() {
-  return recallButtonCountingDown || Boolean(hasOwnerRights(me) && currentSpace && presenceSpaces.some((r) => r.ephemeral && r.private && r.origin === currentSpace.id));
+  return recallButtonCountingDown || Boolean(hasOwnerRights(me) && currentSpace && presenceSpaces.some((r) => r.isAside && r.private && r.origin === currentSpace.id));
 }
 
 function updateRecallButton() {
@@ -306,7 +313,7 @@ function reconcileGhostTiles() {
     }
     const user = presenceUsers.get(key);
     const aside = user?.online && user.space && user.space !== currentSpace.id ? presenceSpaces.find((r) => r.id === user.space) : null;
-    if (aside?.ephemeral) {
+    if (aside?.isAside) {
       const tile = ghostTile(key);
       const isPrivate = Boolean(aside.private);
       tile.classList.toggle('tile-ghost-private', isPrivate);
@@ -329,10 +336,10 @@ function reconcileGhostTiles() {
   if (changed) applyLayout();
 }
 
-// A space's name for display: ephemeral "pull aside" spaces carry no useful
+// A space's name for display: asides carry no useful
 // stored name, so build one from whoever else is in it.
 function spaceDisplayName(r) {
-  if (!r?.ephemeral) return r?.name || spaceName;
+  if (!r?.isAside) return r?.name || spaceName;
   const others = r.members.filter((k) => k !== me?.key).map((k) => presenceUsers.get(k)?.displayName).filter(Boolean);
   // Says "Private" rather than "Aside" whenever it is one -- whoever's in
   // here should be able to tell at a glance that this one is genuinely off
@@ -357,19 +364,19 @@ function renderSpaces() {
       card.querySelector('[data-join]').dataset.join = r.id;
       list.appendChild(card);
     }
-    card.classList.toggle('aside', Boolean(r.ephemeral));
+    card.classList.toggle('aside', Boolean(r.isAside));
     // Still connected to this one (just browsing the space list -- see
     // showSpaceList()): offer to jump back in instead of joining fresh.
     const rejoin = call.state === 'connected' && currentSpace?.id === r.id;
     card.querySelector('[data-join-icon]').className = `fa-solid fa-${rejoin ? 'circle-left' : 'comments'} fa-fw`;
     card.querySelector('[data-join-label]').textContent = rejoin ? 'Rejoin' : 'Join';
-    card.querySelector('[data-join-with]').hidden = Boolean(r.ephemeral);
+    card.querySelector('[data-join-with]').hidden = Boolean(r.isAside);
     const edit = card.querySelector('[data-edit]');
-    edit.hidden = r.ephemeral || !hasOwnerRights(me);
+    edit.hidden = r.isAside || !hasOwnerRights(me);
     edit.href = `/spaces/${encodeURIComponent(r.id)}`;
     // A moderator cannot open the space's page, but changes what its modules do here.
     const modSettings = card.querySelector('[data-module-settings]');
-    modSettings.hidden = r.ephemeral || hasOwnerRights(me) || !me?.spaces?.[r.id]?.permissions?.moderator;
+    modSettings.hidden = r.isAside || hasOwnerRights(me) || !me?.spaces?.[r.id]?.permissions?.moderator;
     modSettings.href = `/module-settings?space=${encodeURIComponent(r.id)}`;
     const link = card.querySelector('[data-link]');
     link.hidden = !r.link;
@@ -379,9 +386,9 @@ function renderSpaces() {
     }
     card.querySelector('.space-choice-name').textContent = spaceDisplayName(r);
     card.querySelector('.space-choice-desc').textContent = r.description;
-    card.querySelector('.space-choice-desc').hidden = !r.description || r.ephemeral;
+    card.querySelector('.space-choice-desc').hidden = !r.description || r.isAside;
     const img = card.querySelector('.space-choice-image');
-    const src = !r.ephemeral && r.hasImage ? `/img/space/${encodeURIComponent(r.id)}` : '';
+    const src = !r.isAside && r.hasImage ? `/img/space/${encodeURIComponent(r.id)}` : '';
     img.hidden = !src;
     if (src && img.dataset.src !== src) {
       img.dataset.src = src;
@@ -389,7 +396,7 @@ function renderSpaces() {
     }
     const members = r.members.map((k) => presenceUsers.get(k)).filter(Boolean);
     const here = members.filter((u) => u.online && u.space === r.id).length;
-    card.querySelector('.space-choice-count').textContent = r.ephemeral ? '' : `${here}/${members.length} Online`;
+    card.querySelector('.space-choice-count').textContent = r.isAside ? '' : `${here}/${members.length} Online`;
     renderMembers(card.querySelector('.members'), members, r.id);
   }
   for (const card of [...list.children]) if (!keep.has(card.dataset.space)) card.remove();
@@ -435,17 +442,17 @@ function renderMembers(list, members, spaceId) {
     // stream too. Only meaningful when an owner is actually online -- with
     // none, activeSpace is just the Lobby fallback, not a real "here's where
     // the stream is" signal, so nobody should read as off stream against it.
-    const inAside = u.online && presenceSpaces.find((r) => r.id === u.space)?.ephemeral;
+    const asideNow = u.online && presenceSpaces.find((r) => r.id === u.space)?.isAside;
     const offStream = u.online && ownerOnline && u.space !== activeSpace;
     let badge = el.querySelector('.stream-badge');
-    if (inAside || offStream) {
+    if (asideNow || offStream) {
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'stream-badge';
         el.appendChild(badge);
       }
-      badge.textContent = inAside ? word('aside') : 'off stream';
-      badge.classList.toggle('aside', Boolean(inAside));
+      badge.textContent = asideNow ? word('aside') : 'off stream';
+      badge.classList.toggle('aside', Boolean(asideNow));
     } else if (badge) {
       badge.remove();
     }
@@ -591,7 +598,9 @@ function updateBackgroundPlaceholder(tile, key) {
 // effective set (my role's permissions plus anything ticked for me in that
 // space, see Settings > Roles and profile > Spaces), or just my role's
 // outside a space the server has no per-space entry for (an aside, a guest).
+const CHAT_PERMISSIONS = ['chatRead', 'chat', 'sendPictures'];
 function canDo(permission) {
+  if (inAside() && CHAT_PERMISSIONS.includes(permission)) return false; // an aside has no chat and no chat pictures, for anyone
   if (hasOwnerRights(me)) return true;
   const inSpace = currentSpace && me?.spaces?.[currentSpace.id]?.effective;
   return !!(inSpace || me?.permissions || {})[permission];
@@ -647,7 +656,7 @@ function adminToolsFor(participant) {
   // from an aside (or private) space, there's nowhere further to go. Each
   // also has its own Manage > Settings toggle, independent of the other.
   const isOwner = hasOwnerRights(me);
-  if (isOwner && !currentSpace?.ephemeral && features.allowAsides) {
+  if (isOwner && !currentSpace?.isAside && features.allowAsides) {
     const aside = document.createElement('button');
     aside.type = 'button';
     aside.className = 'tile-admin-btn';
@@ -660,7 +669,7 @@ function adminToolsFor(participant) {
     });
     tools.append(aside);
   }
-  if (isOwner && !currentSpace?.ephemeral && features.allowPrivate) {
+  if (isOwner && !currentSpace?.isAside && features.allowPrivate) {
     const priv = document.createElement('button');
     priv.type = 'button';
     priv.className = 'tile-admin-btn';
@@ -721,7 +730,7 @@ function tileFor(participant) {
     // click each -- this corner button (pick one or more, then confirm) is
     // only still needed for a non-admin, who has no other way to invite
     // someone for a private word.
-    if (!currentSpace?.ephemeral && !hasOwnerRights(me) && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
+    if (!currentSpace?.isAside && !hasOwnerRights(me) && ((features.allowPrivate && canDo('privateCall')) || (features.allowAsides && canDo('startAside')))) {
       const aside = document.createElement('button');
       aside.type = 'button';
       aside.className = 'tile-aside';
@@ -838,7 +847,7 @@ function registerWordTools() {
   nav.register({ bar: 'secondary', zone: 'right', group: 'leave', groupOrder: 999, id: 'leave-space', order: 999, icon: 'square-xmark', label: `Leave ${word('space')}`, onClick: () => leaveSpace() });
 }
 registerWordTools();
-nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentSpace && currentSpace.ephemeral && currentSpace.origin), onClick: () => returnFromAside() });
+nav.register({ ...SPACE_TOOL, id: 'rejoin-call', order: 52, icon: 'circle-left', label: 'Rejoin call', visible: () => Boolean(currentSpace && currentSpace.isAside && currentSpace.origin), onClick: () => returnFromAside() });
 // On a phone the header's links are a menu (see brand.js), and the call's settings would otherwise
 // only be reachable from the Conference view's toolbar. This tool, in the menu only (its class, see style.css) and
 // only while in the call, shows the conference and opens them. It sits in the session group, ahead of the clock.
@@ -1277,7 +1286,7 @@ async function fetchChatHistory(spaceId) {
 }
 // Tell the server what was just said, so the space's history has it. Best effort: the message already went out live.
 function postChatMessage(text) {
-  if (!currentSpace || currentSpace.ephemeral) return;
+  if (!currentSpace || currentSpace.isAside) return;
   const q = guestToken ? `?guest=${encodeURIComponent(guestToken)}` : '';
   api('POST', `/api/spaces/${encodeURIComponent(currentSpace.id)}/chat${q}`, { text, name: me?.displayName || call.localParticipant.name }).catch(() => {});
 }
@@ -1477,6 +1486,7 @@ async function sendImage(file) {
 }
 
 call.registerByteStreamHandler('chat-image', async (reader, { identity }) => {
+  if (!canDo('chatRead')) return; // not in an aside, nor for a role that can't read the chat
   try {
     const chunks = await reader.readAll();
     const blob = new Blob(chunks, { type: reader.info.mimeType || 'image/png' });
@@ -1908,7 +1918,7 @@ call
       // the local data so their tile can turn into an "in an aside"
       // placeholder right away, without waiting for the next /api/presence poll.
       else if (topic === 'aside-started' && data.type === 'aside-started' && data.spaceId && Array.isArray(data.members)) {
-        if (!presenceSpaces.some((r) => r.id === data.spaceId)) presenceSpaces.push({ id: data.spaceId, name: word('aside', { cap: true }), members: data.members, ephemeral: true });
+        if (!presenceSpaces.some((r) => r.id === data.spaceId)) presenceSpaces.push(asideEntry({ id: data.spaceId, members: data.members }));
         for (const key of data.members) {
           const user = presenceUsers.get(key);
           if (user) { user.online = true; user.space = data.spaceId; }
@@ -2099,7 +2109,7 @@ async function returnFromAside() {
 // Same nudge /api/asides/return already sends the others in
 // returnFromAside() above; I just never reconnect anywhere myself afterward.
 async function leaveSpace() {
-  if (currentSpace?.ephemeral) {
+  if (currentSpace?.isAside) {
     await api('POST', '/api/asides/return').catch(() => {});
   }
   call.disconnect();
@@ -2137,7 +2147,7 @@ function updateCrumb() {
   setTopbarLocation('');
   if (!currentSpace) {
     setSpaceName('couch', '');
-  } else if (currentSpace.ephemeral && currentSpace.origin) {
+  } else if (currentSpace.isAside && currentSpace.origin) {
     const originSpace = presenceSpaces.find((r) => r.id === currentSpace.origin);
     const originName = originSpace ? spaceDisplayName(originSpace) : 'the call';
     const kind = currentSpace.private ? 'Private' : word('aside', { cap: true });
@@ -2159,7 +2169,7 @@ async function join(spaceId = 'lobby') {
     me = (await api('GET', '/api/me')).user;
     await loadPresence();
     currentSpace = presenceSpaces.find((r) => r.id === spaceId) || { id: spaceId, name: spaceName };
-    await canvas.refresh(currentSpace.ephemeral ? null : currentSpace.id); // asides have no modules
+    await canvas.refresh(currentSpace.isAside ? null : currentSpace.id); // asides have no modules
     spaceName = spaceDisplayName(currentSpace);
     renderSpaceLink();
     applyPermissions();
@@ -2184,7 +2194,7 @@ async function joinAsGuest(token, livekitUrl, joinedId, joinedName) {
     setStatus('connecting...');
     spaceName = joinedName;
     await loadPresence();
-    // The full space object (members, ephemeral, ...), same as a real
+    // The full space object (members, isAside, ...), same as a real
     // member's join -- not just the {id, name} guest-join handed back, or
     // anything reading currentSpace.members downstream breaks.
     currentSpace = presenceSpaces.find((r) => r.id === joinedId) || { id: joinedId, name: joinedName, members: [] };
@@ -2209,7 +2219,7 @@ async function joinAsGuest(token, livekitUrl, joinedId, joinedName) {
 async function connectAndSetup(token, livekitUrl) {
     await call.connect(livekitUrl, token, { autoSubscribe: false });
     console.debug('[app] connected to', currentSpace.id);
-    if (!guestToken && currentSpace && !currentSpace.ephemeral) rememberSpace(currentSpace.id); // an aside is gone once it ends, so it is not kept
+    if (!guestToken && currentSpace && !currentSpace.isAside) rememberSpace(currentSpace.id); // an aside is gone once it ends, so it is not kept
     $('join').hidden = true;
     $('guest-join').hidden = true;
     $('canvas').hidden = false;
@@ -2217,7 +2227,7 @@ async function connectAndSetup(token, livekitUrl) {
     document.body.classList.add('in-space');
     wake();
     setStatus(`in ${spaceName}`);
-    if (!currentSpace.ephemeral) renderChatHistory(currentSpace.id);
+    if (!currentSpace.isAside) renderChatHistory(currentSpace.id);
     canvas.updateMenu();
     canvas.restore(); // the modules this space had open last time, or the conference the first time
     syncSnapBar(); // and this space's canvas-level snap
@@ -3409,7 +3419,7 @@ async function init() {
     joinInvitedSpace(invited[1]);
   } else if (!guestToken && rememberedSpace()) {
     // A reload: back into the space this tab was in, if it is still there for this person.
-    const again = presenceSpaces.find((r) => r.id === rememberedSpace() && !r.ephemeral);
+    const again = presenceSpaces.find((r) => r.id === rememberedSpace() && !r.isAside);
     if (again) join(again.id);
     else forgetSpace();
   }

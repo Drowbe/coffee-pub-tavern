@@ -150,7 +150,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   and zero-width characters (a joiner inside a combined emoji is kept); the name is cut to 40 whole characters,
   the author to 60 (`cleanThemeText()` in `server/store.js`). `tools/check-themes.mjs` holds the round trip and the
   refusals.
-- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. Asides keep nothing, pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
+- **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the room (an admin, or a guest of that room, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. An aside has no chat (its id answers 404), pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a room deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the room.
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 
@@ -171,18 +171,29 @@ old `/api/rooms...` paths answer 404. Saved links redirect for good (301, the re
 Each space has one call, a LiveKit room named from the space's id (`lobby` for the Lobby, `aside-<id>` for an
 aside, each prefixed `<slug>.` on a hosted server; see "Call names" in
 [architecture-tenants](architecture-tenants.md)). Nothing about the name is stored. Chat, reactions and away
-status travel over the LiveKit data channel between participants and are never stored. Stepping aside creates
-an ephemeral room that holds its origin space's id and is removed when empty.
+status travel over the LiveKit data channel between participants and are never stored.
 
-- `GET /api/presence` answers who is online and where (`users` with each one's `space`, `spaces`, `activeSpace`,
-  `ownerOnline`, and the environment's branding), from LiveKit's participant list and each page's own presence ping. A signed-in
-  person, the access key or a guest's token (`?guest=`) may ask; anyone else gets 401.
+An aside is not a space. Since step 8 of the Names plan it is its own record, `asides` in `app.json`:
+`{ id, members, origin, private, createdAt }`, where `origin` is the space it was pulled out of (null for a
+private conversation started by invite) and `private` marks an off-the-record conversation. It holds the call
+only: no name, modules, chat, chat pictures, layout or settings of its own. The server removes it once nobody
+online is in it (`pruneAsides()` in `server/store.js`, after a short grace period). Spaces no longer carry
+`ephemeral`, `origin` or `private`. `POST /api/token` accepts an aside's id as `space`; any other route under
+`/api/spaces/:id` (chat, settings, modules) answers 404 "no such space" for one. In an aside the page offers the
+call alone: no chat, no chat pictures, no modules (`inAside()` in `public/space.js`).
+
+- `GET /api/presence` answers who is online and where (`users` with each one's `space`, `spaces`, `asides`,
+  `activeSpace`, `ownerOnline`, and the environment's branding), from LiveKit's participant list and each page's
+  own presence ping. `spaces` holds spaces only; `asides` holds each aside's record plus `mine`, true when the
+  caller is one of its members or has owner rights. A signed-in person, the access key or a guest's token
+  (`?guest=`) may ask; anyone else gets 401. `GET /api/status` also carries `asides` (the records), and
+  `GET /api/spaces` lists spaces only.
 - `POST /api/asides` `{ with, private }` pulls people who are in the caller's call into a new aside and answers
-  `{ aside }`. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
+  `{ aside }`, the aside's record. It answers 403 "asides are turned off" or "private conversations are turned off" (or the caller
   lacks the permission), 400 "pick someone to pull aside" or "you need to be in a call yourself to pull someone
   aside", 404 "`<name>` is not with you right now", 409 "`<name>` is not in the conference right now", and 502
   "LiveKit: ..." when the call service fails.
-- `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ aside, invite: { id } }`;
+- `POST /api/asides/invite` `{ to }` makes a private aside for two and answers `{ aside, invite: { id } }` (the aside's record);
   `POST /api/asides/invite/:id/decline` answers `{ ok: true }`.
 - `POST /api/asides/recall` (an owner) tells every private conversation pulled out of the owner's space to come
   back, and answers `{ recalled }`, the number of them; 400 "you need to be in a call yourself to recall anyone"

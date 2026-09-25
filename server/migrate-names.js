@@ -169,7 +169,7 @@ const rolesPart = {
 //                     modules, with scope keys room:<id> -> space:<id> and server -> environment, a pointer's scope
 //                     room -> space (its `room` -> `space`) and server -> environment, roomId -> spaceId, and a
 //                     notification's scope and a schedule's notify.to likewise.
-// Asides stay rows in `spaces` with `ephemeral` until names-asides (step 8). A key in both its old and new name that
+// Asides stayed rows in `spaces` with `ephemeral` until names-asides (step 8, below). A key in both its old and new name that
 // differ is refused rather than guessed at; over data already in the new shape it writes nothing and moves nothing.
 const SPACE_FILES = ['chat.json', 'modules/registry.json', 'modules/settings.json', 'modules/links.json', 'modules/bus.json', 'modules/schedules.json', 'modules/notifications.json', 'modules/activity.json'];
 const IMAGE_FOLDERS_NOT_PEOPLE = ['rooms', 'spaces', 'site', 'guest', 'default'];
@@ -384,9 +384,30 @@ const objectsPart = {
   run() {},
 };
 
+// names-asides (plan-names step 8): an aside is no longer an `ephemeral` row among the spaces but its own record,
+// app.json's `asides`. The rows in `spaces` with `ephemeral` set are dropped rather than moved: an aside lives only
+// while someone is in it, and anyone still in one when the server upgrades is back in a space after the reload. Every
+// other space loses the three keys only an aside ever used (`ephemeral`, `origin` and `private`, which every space
+// carried as false, null and false), each in place, the rest of the row and its order kept. Nothing else changes: an
+// aside never had chat history, pictures, modules or settings of its own. Over data already in the new shape (no
+// such row, no such key) it writes nothing.
+const ASIDE_ONLY_KEYS = ['ephemeral', 'origin', 'private'];
+const asidesPart = {
+  id: 'names-asides',
+  files: () => [ENVIRONMENT_RECORD],
+  run(ctx) {
+    const app = ctx.read(ENVIRONMENT_RECORD);
+    if (!isPlainObject(app) || !Array.isArray(app.spaces)) return;
+    const spaces = app.spaces
+      .filter((r) => !(isPlainObject(r) && r.ephemeral))
+      .map((r) => (isPlainObject(r) && ASIDE_ONLY_KEYS.some((k) => has(r, k)) ? Object.fromEntries(Object.entries(r).filter(([k]) => !ASIDE_ONLY_KEYS.includes(k))) : r));
+    if (!isDeepStrictEqual(spaces, app.spaces)) ctx.write(ENVIRONMENT_RECORD, { ...app, spaces });
+  },
+};
+
 // Every part this server knows, in the order they run; each step of the plan adds its own to the end of its list.
 const HOST_PARTS = [environmentPart];
-const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart, objectsPart];
+const ENVIRONMENT_PARTS = [tablePart, rolesPart, spacesPart(), pointersPart, objectsPart, asidesPart];
 
 // What a person asking for a refused environment is told (plan-names.md, "The migration"); the file and the detail
 // go to the log and the host console only.

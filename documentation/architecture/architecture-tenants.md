@@ -197,7 +197,7 @@ for the new names.
 `server/migrate-names.js` is the frame for [plan-names](../plans/plan-names.md)'s data migration: stored keys,
 files and folders renamed from the old words to the new, one recorded part per step of that plan. Each step adds its part
 to the end of `HOST_PARTS` or `ENVIRONMENT_PARTS`. `HOST_PARTS` holds `names-environment` (step 2, below);
-`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4), `names-spaces` (step 5a), `names-pointers` (step 5c) and `names-objects` (step 7), all below.
+`ENVIRONMENT_PARTS` holds `names-table` (step 3), `names-roles` (step 4), `names-spaces` (step 5a), `names-pointers` (step 5c), `names-objects` (step 7) and `names-asides` (step 8), all below.
 
 - **Where it runs.** `buildEnvironment()` calls `migrateEnvironment(dataDir)` before `Store` reads `app.json`,
   so every service sees the data in its current shape, including an environment restored from an old backup.
@@ -341,6 +341,16 @@ in `links.json`, `bus.json`, `schedules.json` and `notifications.json` keep thei
 module's `module.json` is never rewritten, and a module's own keys are its own to rename (with
 `storage.renamed`, see [architecture-modules](architecture-modules.md)). It is recorded like every part, so data
 from after step 7 is refused by a build from before it.
+
+### The environment part: `names-asides`
+
+Step 8's part rewrites `app.json` only. An aside used to be a row in `spaces` with `ephemeral: true`; now it is
+its own record, `asides`. The old aside rows are dropped rather than moved: an aside lives only while someone is
+in it, and anyone still in one when the server upgrades is back in a space after the page reloads. Every other
+space loses `ephemeral`, `origin` and `private` (which every space carried as false, null and false), the rest of
+the row and the order kept. An aside never had chat history, pictures, modules or settings, so nothing else
+changes. Over data already in the new shape it writes nothing. The original `app.json` is kept in
+`pre-names/names-asides/`.
 
 ### Bundled modules built for an older Magpie
 
@@ -654,15 +664,21 @@ moves to the new ones (plan-names, "What Studio reads" and decision 21). `GET /a
 pass their answer through `studioAlias.me()` and `studioAlias.status()`, which change it only when a bearer
 token actually signed the request in, the way Studio signs in; the pages use the cookie and never see an old
 name. Each entry in `ME` or `STATUS` answers the extra fields to add, and receives only
-`{ role, hostAdmin, environmentName }` or `{ environmentName }`, never the account record. What it adds now:
+`{ role, hostAdmin, environmentName }` or `{ environmentName, asideName }`, never the account record. What it adds now:
 
 - `tableName` in both answers, set to the environment's name (step 3), since `branding()` no longer sends it.
 - The old role values (step 4): `user.role` in `/api/me` and `users[].role` in `/api/status` are `admin` for an
   owner or the server's admin and `user` for a member. `streamKey` needs no entry: the server sends it to
   owners and the host admin already.
 - The old space names (step 5a): `serverName` in both answers, set to the environment's name; and in
-  `/api/status`, `rooms` (the `spaces` rows, asides included), `activeRoom` (= `activeSpace`) and
+  `/api/status`, `rooms` (the `spaces` rows), `activeRoom` (= `activeSpace`) and
   `users[].online.room` (= `users[].online.space`).
+- The aside rows (step 8): asides are their own record now, but Studio still finds them in `rooms`, marked
+  `ephemeral: true`. Each aside is added to `rooms` after the spaces, in the shape such a row had (its id,
+  members, origin, private and createdAt, the other space fields at the values an aside row always had), named
+  with the environment's word for an aside ("Aside" unless the template renames it). The space rows in `rooms`
+  carry `ephemeral: false`, `origin: null` and `private: false`, as before. `STATUS` entries receive
+  `{ environmentName, asideName }`.
 
 Since step 5c the pages' own answers use `isOwner`, `ownerOnline` and, on the aside pull topic, `byOwner`. The later steps add the fields they rename, and step 10 removes the file.
 

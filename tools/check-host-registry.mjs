@@ -399,7 +399,7 @@ try {
       const envDir = path.join(data, 'environments', slug);
       const app = readJson(path.join(envDir, 'app.json'));
       assert.equal(app.version, 2, `${slug}: version 2`);
-      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects'], `${slug}: each environment part recorded once`);
+      assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects', 'names-asides'], `${slug}: each environment part recorded once`);
       assert.equal('tableName' in app.settings || 'room' in app.settings, false, `${slug}: tableName and room gone`);
       assert.ok('tableName' in readJson(path.join(envDir, 'pre-names', 'names-table', 'app.json')).settings, `${slug}: the original kept`);
     }
@@ -610,7 +610,7 @@ try {
     assert.deepEqual([redirected.status, redirected.headers.location], [301, `/img/space/keep01?s=${s}`]);
     const envDir = path.join(data, 'environments', 'bravo');
     const app = readJson(path.join(envDir, 'app.json'));
-    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects']);
+    assert.deepEqual(names.recordedParts(app), ['names-table', 'names-roles', 'names-spaces', 'names-pointers', 'names-objects', 'names-asides']);
     assert.ok(Array.isArray(app.spaces) && !('rooms' in app) && app.settings.environmentName === 'Fixture Table');
     for (const rel of ['modules/todo/data/space-keep01.json', 'modules/todo/data/environment.json', 'modules/research/uploads/space-keep01', 'chat.json']) assert.ok(fs.existsSync(path.join(envDir, rel)), rel);
     assert.ok('spaces' in readJson(path.join(envDir, 'chat.json')));
