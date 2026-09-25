@@ -92,6 +92,9 @@
   const tt = (t) => (t ? host.util.time(t) : '');
   const hm = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   const lengthText = gapText; // "8 h 15 min", "45 min"
+  // When a timed item arrives, on the environment's clock, with the day when it is not the day it leaves ("2:00 AM the next day").
+  // `sep` goes between the time and the day: the narrow time column puts the day on a line of its own ("\n").
+  const arriveText = (item, sep = ' ') => { const a = arrivalOf(item); return a ? [tt(a.time), laterText(a.days)].filter(Boolean).join(sep) : ''; };
   // One letter, or two when another traveller of the room starts with the same one.
   const initial = (key) => {
     const name = nameOf(key);
@@ -142,7 +145,7 @@
     const { item, span } = entry;
     const c = cardOf(item, card);
     const el = clone(`tpl-card-${span === 'middle' ? 'hotel-mid' : span === 'end' ? 'hotel-out' : c.card}`);
-    const arrive = item.time && item.minutes ? tt(hm(minutesOfDay(item.time) + item.minutes)) : '';
+    const arrive = arriveText(item);
     const duration = lengthText(item.minutes);
     const where = item.place || item.address;
     const badge = el.querySelector('.badge [data-icon]');
@@ -274,7 +277,7 @@
     let sub = '';
     if (item.kind === 'link') { time = tt(timeOf(card)); sub = ''; }
     else if (item.kind === 'stay') { time = span === 'end' ? tt(item.checkOutTime) : span === 'middle' ? '' : tt(item.time); sub = span === 'end' ? 'check out' : span === 'middle' ? '' : 'check in'; }
-    else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${tt(hm(minutesOfDay(item.time) + item.minutes))}` : '';
+    else if (item.kind === 'journey') sub = item.time && item.minutes ? `→ ${arriveText(item, '\n')}` : '';
     else sub = lengthText(item.minutes);
     if (line) { time = ''; sub = ''; }
     fill(row, { time, sub });
@@ -372,7 +375,11 @@
       if (day === days[0]) rows.push(buildMarker('planning-start', dateText(day), 'the plan begins'));
       if (bounds && bounds.start.day === day) rows.push(buildMarker('trip-start', tt(bounds.start.time), describe(itemOf(bounds.start.id) || {})));
     } else {
-      if (bounds && bounds.end.day === day) rows.push(buildMarker('trip-end', tt(bounds.end.time), describe(itemOf(bounds.end.id) || {})));
+      // An arrival after the plan's last day (a journey home overnight) ends the trip under the last day, with its own date.
+      const last = day === days[days.length - 1];
+      const after = bounds && bounds.end.day > days[days.length - 1];
+      const endDate = after ? parseYmd(bounds.end.day).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+      if (bounds && (bounds.end.day === day || (last && after))) rows.push(buildMarker('trip-end', [endDate, tt(bounds.end.time)].filter(Boolean).join('\n'), describe(itemOf(bounds.end.id) || {})));
       if (day === days[days.length - 1]) rows.push(buildMarker('planning-end', dateText(day), 'the plan ends'));
     }
     if (!rows.length) return null;
@@ -700,7 +707,7 @@
         const row = clone('tpl-decision');
         setIcon(row.querySelector('[data-icon]'), c.module && c.module.icon);
         const w = cardWhen(c);
-        const when = w ? `${parseYmd(w.day).toLocaleDateString([], { month: 'short', day: 'numeric' })}${w.time ? ' ' + w.time : ''}` : '';
+        const when = w ? `${parseYmd(w.day).toLocaleDateString([], { month: 'short', day: 'numeric' })}${w.time ? ' ' + tt(w.time) : ''}` : '';
         fill(row, { title: c.title, sub: [when, c.subtitle].filter(Boolean).join(' · ') });
         const btn = row.querySelector('[data-action="open"]');
         btn.textContent = 'Open';
@@ -729,7 +736,7 @@
     return ul;
   }
   const nothing = (body, text) => { const ul = document.createElement('ul'); ul.className = 'decisions'; const e = clone('tpl-day-empty'); e.textContent = text; ul.append(e); body.append(ul); };
-  const dayTime = (i) => [i.date ? parseYmd(i.date).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : 'no day yet', i.time].filter(Boolean).join(' ');
+  const dayTime = (i) => [i.date ? parseYmd(i.date).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : 'no day yet', tt(i.time)].filter(Boolean).join(' ');
 
   // Bookings: the stays and journeys with their reference codes, in date order.
   function renderBookings() {
@@ -1346,6 +1353,8 @@
   // A length in the editor is hours and minutes side by side; stored, it stays whole minutes.
   const setLength = (hoursId, minutesId, total) => { const p = splitMinutes(total); $(hoursId).value = p.hours ?? ''; $(minutesId).value = p.minutes ?? ''; };
   const lengthOf = (hoursId, minutesId) => (shown(minutesId) ? joinMinutes(num(hoursId), num(minutesId)) : null);
+  // A length typed past the longest an item can have (7 days), which would otherwise be cut when stored.
+  const tooLong = (hoursId, minutesId) => shown(minutesId) && (num(hoursId) || 0) * 60 + (num(minutesId) || 0) > MAX_MINUTES;
   // Under a journey's departure: when it arrives, from its departure time and how long it takes.
   function showArrival() {
     arrivalInto('f-arrives', 'f-time', 'f-hours', 'f-minutes');
@@ -1356,9 +1365,9 @@
     if (!out) return;
     const t = $(timeId).value;
     const m = lengthOf(hoursId, minutesId);
-    const end = t && m ? minutesOfDay(t) + m : null;
-    out.textContent = end === null ? '' : `Arrives ${tt(hm(end))}${end >= 24 * 60 ? ' the next day' : ''}`;
-    out.hidden = end === null;
+    const a = t && m && !tooLong(hoursId, minutesId) ? arrivalOf({ time: t, minutes: m }) : null;
+    out.textContent = a ? `Arrives ${[tt(a.time), laterText(a.days)].filter(Boolean).join(' ')}` : '';
+    out.hidden = !a;
   }
   // What the shared fields are called for each kind of thing: a stay checks in, a flight departs, a taxi picks up.
   const FIELD_WORDS = {
@@ -1627,6 +1636,7 @@
       }
       const item = ed.id ? plan.list().find((i) => i.id === ed.id) : null;
       if (!ed.isLink && !ed.tile.startsWith('block:') && !ed.tile.startsWith('lane:') && !$('f-title').value.trim()) return fail('Give it a title.');
+      if (tooLong('f-hours', 'f-minutes') || tooLong('f-travelHours', 'f-travelMinutes') || (roundTripOn() && tooLong('f-back-hours', 'f-back-minutes'))) return fail('A length can be at most 7 days (168 hours).');
       const common = {
         title: $('f-title').value.trim(),
         ...placeFields(parsePlace($('f-date').value)),

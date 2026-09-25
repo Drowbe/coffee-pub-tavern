@@ -14,28 +14,13 @@ does not follow a pull aside, a recall or a return, and does not show who is onl
 
 Workaround: reload the page once after the update.
 
-## A refused module update can still apply part of it
+## A link that no longer works never shows the environment's name
 
-On the Modules tab, when one request changes a module in two ways and the second part is refused (for
-example, turning a module off with force together with a run mode the server doesn't accept), the first part
-is still applied, even though the page shows the error. GitHub #17.
+The page shown for a personal link that no longer works (turned off or regenerated) is meant to name the
+environment, but it never does: the script that fills the name in is blocked by the page's own security policy.
+The page still says the link doesn't work. GitHub #18.
 
-Workaround: make one change at a time, and reload the Modules tab after an error to see the module's real
-state.
-
-## A Planner journey can't be longer than 24 hours
-
-In the Planner, a journey's length is at most 24 hours, so a longer trip, such as a long flight with a
-stop, is cut to 24 h, and its arrival time is worked out from that.
-
-Workaround: enter it as two journeys, one for each part, or put the real arrival in the notes.
-
-## The Planner's Bookings view shows 24-hour times on a 12-hour install
-
-On an install set to the 12-hour clock, the Planner's **Bookings** view still shows times as 24-hour
-(16:40).
-
-Workaround: none; read the time from the item's card in the day.
+Workaround: none needed; ask the environment's owner for a new link.
 
 ## The console's Maps tab is too wide on a phone
 

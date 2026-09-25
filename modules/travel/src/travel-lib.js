@@ -15,6 +15,8 @@
   const TRAVEL_MODES = ['walk', 'drive', 'transit', 'bike', 'taxi', 'rideshare', 'none'];
   const MAX_DAYS = 60;
   const DAY_MS = 24 * 60 * 60 * 1000;
+  // The longest length an item can have (a journey of several days, a ferry overnight and more): 7 days, in minutes.
+  const MAX_MINUTES = 7 * 24 * 60;
 
   const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(parseYmd(s).getTime()) && ymd(parseYmd(s)) === s;
   const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
@@ -36,7 +38,7 @@
       title: clip(raw.title, 120),
       date: isYmd(raw.date) ? raw.date : null,
       time: isTime(raw.time) ? raw.time : null,
-      minutes: Number.isFinite(raw.minutes) && raw.minutes > 0 ? Math.min(Math.round(raw.minutes), 24 * 60) : null,
+      minutes: Number.isFinite(raw.minutes) && raw.minutes > 0 ? Math.min(Math.round(raw.minutes), MAX_MINUTES) : null,
       category: CATEGORIES.includes(raw.category) ? raw.category : kind === 'stay' ? 'stay' : kind === 'journey' ? 'travel' : 'do',
       place: clip(raw.place, 120),
       address: clip(raw.address, 200),
@@ -46,7 +48,7 @@
       to: clip(raw.to, 80),
       checkOut: isYmd(raw.checkOut) ? raw.checkOut : null,
       travelMode: TRAVEL_MODES.includes(raw.travelMode) ? raw.travelMode : null,
-      travelMinutes: Number.isFinite(raw.travelMinutes) && raw.travelMinutes > 0 ? Math.min(Math.round(raw.travelMinutes), 24 * 60) : null,
+      travelMinutes: Number.isFinite(raw.travelMinutes) && raw.travelMinutes > 0 ? Math.min(Math.round(raw.travelMinutes), MAX_MINUTES) : null,
       order: Number.isFinite(raw.order) ? raw.order : 0,
       owners: Array.isArray(raw.owners) ? [...new Set(raw.owners.filter((k) => typeof k === 'string').map((k) => k.slice(0, 40)))].slice(0, 20) : [],
       done: Boolean(raw.done),
@@ -259,8 +261,22 @@
     const h = Number.isFinite(hours) && hours > 0 ? hours : 0;
     const m = Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
     const total = Math.round(h * 60 + m);
-    return total > 0 ? Math.min(total, 24 * 60) : null;
+    return total > 0 ? Math.min(total, MAX_MINUTES) : null;
   }
+
+  // When a timed item ends: its day (null when it has none), the time of day ("HH:MM"), and how many days after the day it starts
+  // that is (0 the same day, 1 the next). Null without a time and a length.
+  function arrivalOf(item) {
+    if (!item || !item.time || !item.minutes) return null;
+    const m = minutesOfDay(item.time) + item.minutes;
+    const days = Math.floor(m / (24 * 60));
+    const rest = m % (24 * 60);
+    const time = `${String(Math.floor(rest / 60)).padStart(2, '0')}:${String(rest % 60).padStart(2, '0')}`;
+    const start = item.date ? parseYmd(item.date) : null;
+    return { day: start ? ymd(new Date(start.getFullYear(), start.getMonth(), start.getDate() + days)) : null, time, days };
+  }
+  // The words after an arrival time for the days it is later than the start: '' the same day, "the next day", "+2 days".
+  const laterText = (days) => (days === 1 ? 'the next day' : days > 1 ? `+${days} days` : '');
 
   // A stay covers the nights from its date up to (not including) its check-out day.
   function stayNights(item) {
@@ -435,7 +451,8 @@
     if (!pool.length) return null;
     const endOf = (i) => {
       if (i.kind === 'stay') return { day: i.checkOut || i.date, time: i.checkOutTime || '' };
-      if (i.time && i.minutes) { const m = minutesOfDay(i.time) + i.minutes; return m < 24 * 60 ? { day: i.date, time: `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` } : { day: i.date, time: i.time }; }
+      const a = arrivalOf(i);
+      if (a) return { day: a.day, time: a.time };
       return { day: i.date, time: i.time || '' };
     };
     // An item with no time is the least certain: it does not start the day's trip before a timed one, nor end it after one.

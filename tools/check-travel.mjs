@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems'];
+const names = ['bookings', 'balances', 'cardWhen', 'TRIP_KEY', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems', 'MAX_MINUTES', 'arrivalOf', 'laterText'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -480,12 +480,70 @@ test('a length is typed as hours and minutes and stored as minutes, and shown as
   assert.equal(lib.joinMinutes(null, 90), 90, 'minutes past 59 still count');
   assert.equal(lib.joinMinutes(null, null), null, 'nothing entered');
   assert.equal(lib.joinMinutes(0, 0), null);
-  assert.equal(lib.joinMinutes(30, 0), 24 * 60, 'at most a day, as cleanItem keeps');
+  assert.equal(lib.joinMinutes(24, 30), 24 * 60 + 30, 'a journey longer than a day keeps its length (#14)');
+  assert.equal(lib.joinMinutes(26, 0), 26 * 60);
+  assert.equal(lib.MAX_MINUTES, 7 * 24 * 60);
+  assert.equal(lib.joinMinutes(200, 0), lib.MAX_MINUTES, 'at most 7 days, as cleanItem keeps');
   assert.equal(lib.gapText(495), '8 h 15 min');
   assert.equal(lib.gapText(480), '8 h');
   // A length saved before (whole minutes) reads back the same: the stored shape did not change.
   assert.equal(lib.cleanItem({ id: 'f', kind: 'journey', mode: 'flight', title: 'x', minutes: 495 }).minutes, 495);
   assert.equal(lib.cleanItem({ id: 'l', kind: 'stop', title: 'x', travelMode: 'taxi', travelMinutes: 20 }).travelMinutes, 20);
+  assert.equal(lib.cleanItem({ id: 'f', kind: 'journey', mode: 'flight', title: 'x', minutes: 1470 }).minutes, 1470, '24 h 30 min is stored as it is');
+  assert.equal(lib.cleanItem({ id: 'f', kind: 'journey', mode: 'ferry', title: 'x', minutes: 99999 }).minutes, lib.MAX_MINUTES);
+});
+
+// The page's own one-line helpers (`const name = ...;`), run with the model and a stand-in for host.util.time on either clock.
+const pageLine = (name) => {
+  const line = read('travel.js').split('\n').find((l) => l.trimStart().startsWith(`const ${name} = `));
+  assert.ok(line, `travel.js has ${name}`);
+  return line.trim();
+};
+const clockTime = (clock) => (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+  if (!m) return hhmm || '';
+  if (clock === '24') return `${m[1].padStart(2, '0')}:${m[2]}`;
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+};
+const pageHelpers = (clock) => new Function('lib', 'host', 'parseYmd', `const { arrivalOf, laterText } = lib;\n${pageLine('tt')}\n${pageLine('arriveText')}\n${pageLine('dayTime')}\nreturn { tt, arriveText, dayTime };`)(lib, { util: { time: clockTime(clock) } }, parseYmd);
+
+test('a journey arrives on the day it arrives: the next day, or +2 days (#14)', () => {
+  const ferry = lib.cleanItem({ id: 'f', kind: 'journey', mode: 'ferry', title: 'Ferry', date: '2026-10-03', time: '08:00', minutes: 26 * 60 });
+  assert.deepEqual(lib.arrivalOf(ferry), { day: '2026-10-04', time: '10:00', days: 1 });
+  assert.deepEqual(lib.arrivalOf({ time: '22:30', minutes: 90 }), { day: null, time: '00:00', days: 1 });
+  assert.deepEqual(lib.arrivalOf({ date: '2026-10-31', time: '20:00', minutes: 50 * 60 }), { day: '2026-11-02', time: '22:00', days: 2 });
+  assert.deepEqual(lib.arrivalOf({ date: '2026-10-03', time: '09:00', minutes: 60 }), { day: '2026-10-03', time: '10:00', days: 0 });
+  assert.equal(lib.arrivalOf({ time: '09:00' }), null);
+  assert.equal(lib.laterText(0), '');
+  assert.equal(lib.laterText(1), 'the next day');
+  assert.equal(lib.laterText(3), '+3 days');
+  const page = pageHelpers('12');
+  assert.equal(page.arriveText(ferry), '10:00 AM the next day', 'the card and the time column say the day');
+  assert.equal(page.arriveText({ date: '2026-10-03', time: '20:00', minutes: 50 * 60 }), '10:00 PM +2 days');
+  assert.equal(page.arriveText({ date: '2026-10-03', time: '09:00', minutes: 40 }), '9:40 AM');
+  // The trip ends when and where the last journey arrives.
+  assert.deepEqual(lib.tripBounds([ferry]).end, { id: 'f', day: '2026-10-04', time: '10:00' });
+  const js = read('travel.js');
+  assert.ok(!/tt\(hm\(minutesOfDay\(item\.time\) \+ item\.minutes\)\)/.test(js), 'no arrival is worked out without its day');
+  const html = read('travel.html');
+  // One message for a length over 7 days: the form's own (no browser bubble from a max on the hours box).
+  for (const id of ['f-hours', 'f-back-hours', 'f-travelHours']) assert.match(html, new RegExp(`id="${id}" name="\\w+" type="number" min="0" step="1"`), `${id} has no max of its own`);
+  assert.ok(js.includes("fail('A length can be at most 7 days (168 hours).')"), 'the form says the longest length');
+  // The narrow time column holds the whole arrival: the day on its own line, wrapping, never running under the card.
+  assert.ok(js.includes("`→ ${arriveText(item, '\\n')}`"), 'the time column puts the arrival day on its own line');
+  assert.match(read('travel-lib-cards.css'), /\.when small, \.row\.marker \.when b \{ white-space: pre-line; \}/, 'the time column keeps those lines and wraps');
+  assert.equal(page.arriveText(ferry, '\n'), '10:00 AM\nthe next day');
+});
+
+test('Bookings and Money follow the environment\'s clock (#15)', () => {
+  const flight = lib.cleanItem({ id: 'f', kind: 'journey', mode: 'flight', title: 'Flight', date: '2026-10-03', time: '09:40' });
+  const day = parseYmd('2026-10-03').toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  assert.equal(pageHelpers('12').dayTime(flight), `${day} 9:40 AM`);
+  assert.equal(pageHelpers('24').dayTime(flight), `${day} 09:40`);
+  assert.equal(pageHelpers('12').dayTime({ ...flight, date: null, time: '16:40' }), 'no day yet 4:40 PM');
+  // No stored time goes on the page as it is stored: Decisions' card times too.
+  assert.ok(!/w\.time \? ' ' \+ w\.time/.test(read('travel.js')), 'Decisions shows a card\'s time on the clock');
 });
 
 test('taxi, ride share and shuttle are journeys with a tile and a card, and ride share is a way to a stop', () => {

@@ -109,6 +109,9 @@
 .when { padding-top: 14px; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
 .when b { display: block; font-size: 14px; }
 .when small { color: var(--text-dim); font-size: 11px; }
+/* A journey's arrival on a later day puts the day on a line of its own ("→ 10:00 AM" / "the next day"), and a long one may wrap:
+   the time column is narrow and nothing in it may run under the card. The same for a trip's end after the plan's last day. */
+.when small, .row.marker .when b { white-space: pre-line; }
 .rail { position: relative; }
 .rail::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: color-mix(in srgb, var(--text) 14%, transparent); }
 .row:first-child .rail::before { top: 20px; }
@@ -286,6 +289,7 @@
 .app.narrow .rail { grid-area: rail; }
 .app.narrow .when { grid-area: when; display: flex; align-items: baseline; gap: 6px; padding: 8px 0 3px; text-align: left; }
 .app.narrow .when b { display: inline; font-size: 13px; }
+.app.narrow .when small { white-space: normal; }
 .app.narrow .when:empty, .app.narrow .when:has(b:empty) { display: none; }
 .app.narrow .slot { grid-area: slot; padding-top: 0; }
 .app.narrow .row.leg-row { grid-template-areas: "rail slot"; }
