@@ -16,6 +16,34 @@ const yauzl = require('yauzl');
 const { StoreError } = require('./store');
 const { word, fill } = require('./words');
 
+// The text a person reads from a manifest, which may name levels by {space}-style placeholders (server/words.js's fill):
+// its description, the dashboard widget's title, its permissions' labels, its settings' labels and help (and their
+// options'), its events' and actions' labels, and what its kinds of item are called. The module's name is a name and
+// is not filled. Answers the manifest itself when it has no placeholder, else a filled copy.
+const PLACEHOLDER_RE = /\{(?:(?:a|an|A|An) )?[A-Za-z]+\}/;
+function manifestTexts(m) {
+  const out = [];
+  const at = (obj, key) => { if (obj && typeof obj[key] === 'string') out.push([obj, key]); };
+  at(m, 'description');
+  at(m.surfaces?.widget, 'title');
+  for (const p of m.permissions || []) at(p, 'label');
+  for (const d of m.settings || []) {
+    at(d, 'label'); at(d, 'help');
+    for (const o of d.options || []) { at(o, 'label'); at(o, 'help'); }
+  }
+  for (const e of m.events?.publishes || []) at(e, 'label');
+  for (const a of m.actions?.provides || []) at(a, 'label');
+  for (const k of m.refs?.produces || []) at(k, 'name');
+  return out;
+}
+const hasPlaceholders = (manifest) => manifestTexts(manifest).some(([o, k]) => PLACEHOLDER_RE.test(o[k]));
+function fillManifest(manifest, resolved) {
+  if (!manifest || !hasPlaceholders(manifest)) return manifest;
+  const copy = structuredClone(manifest);
+  for (const [o, k] of manifestTexts(copy)) o[k] = fill(o[k], resolved);
+  return copy;
+}
+
 const MB = 1024 * 1024;
 const LIMITS = {
   zipBytes: 10 * MB, // the upload itself
@@ -534,6 +562,12 @@ class ModuleManager {
     // one module can depend on another (see cleanGeocoder... no, see 'ai' in missing/aiDependents below). Set once, after
     // both this and the Ai instance exist (index.js), since the AI service is not a module Modules otherwise knows about.
     this.aiReady = () => false;
+    // This environment's words (for the placeholders in a manifest's text) and a module's display name and icon (the
+    // owner's, else the template's; null for the manifest's own), set by the environment's build (environment.js).
+    this.wordsOf = () => null;
+    this.displayOf = () => ({ name: null, icon: null, ownName: null, ownIcon: null });
+    this.filled = new Map(); // "id@version|words" -> the manifest with its placeholders filled
+    this.withPlaceholders = new WeakSet(); // the stored manifests that have any
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       if (raw && typeof raw.modules === 'object') this.registry = raw;
@@ -576,7 +610,26 @@ class ModuleManager {
     return path.join(this.dir, id, 'data');
   }
 
+  // A module's manifest with its text in this environment's words (fillManifest): the stored one itself when it has
+  // no placeholders, else a filled copy, kept per set of words.
   manifestOf(id, version) {
+    const manifest = this.storedManifestOf(id, version);
+    if (!manifest || !this.withPlaceholders.has(manifest)) return manifest;
+    const words = this.wordsOf();
+    const key = `${id}@${version}|${words ? JSON.stringify(words) : ''}`;
+    if (!this.filled.has(key)) {
+      if (this.filled.size > 500) this.filled.clear();
+      this.filled.set(key, fillManifest(manifest, words));
+    }
+    return this.filled.get(key);
+  }
+
+  // What a person reads a module called: its display name in this environment, else its manifest's name.
+  shownName(manifest) {
+    return this.displayOf(manifest.id).name || manifest.name;
+  }
+
+  storedManifestOf(id, version) {
     const cacheKey = `${id}@${version}`;
     if (this.manifests.has(cacheKey)) return this.manifests.get(cacheKey);
     let manifest = null;
@@ -616,6 +669,7 @@ class ModuleManager {
       try { manifest.geocoder = cleanGeocoder(manifest.geocoder, manifest.settings); } catch { manifest.geocoder = null; }
       try { manifest.regionSource = cleanRegionSource(manifest.regionSource, manifest.settings); } catch { manifest.regionSource = null; }
       try { manifest.uploads = cleanUploads(manifest.uploads); } catch { manifest.uploads = null; }
+      if (hasPlaceholders(manifest)) this.withPlaceholders.add(manifest);
       this.manifests.set(cacheKey, manifest);
     }
     return manifest;
@@ -690,7 +744,7 @@ class ModuleManager {
     return this.enabledAll().flatMap(({ manifest }) => manifest.permissions.map((p) => ({
       key: `module.${manifest.id}.${p.key}`,
       label: p.label,
-      group: `${word('module', { cap: true })}: ${manifest.name}`,
+      group: `${word('module', { cap: true })}: ${this.shownName(manifest)}`,
       defaults: permissionDefaults(p.default),
     })));
   }
@@ -733,8 +787,15 @@ class ModuleManager {
     if (!manifest) return null;
     const pending = this.pendingFor(entry, manifest);
     const { outdated, ...shown } = manifest;
+    const display = this.displayOf(id);
     return {
       ...shown,
+      // `name` and `icon` stay the manifest's own; `displayName`/`displayIcon` are what this environment calls it and
+      // shows it as (the owner's, else the template's), null for none; `ownDisplayName`/`ownDisplayIcon` the owner's alone.
+      displayName: display.name,
+      displayIcon: display.icon,
+      ownDisplayName: display.ownName,
+      ownDisplayIcon: display.ownIcon,
       // An outdated module is off (it can't run) and says why: `outdated` for its card, `outdatedWhy` naming the
       // old name its module.json uses. The registry keeps the admin's own choice, so an update that fixes it
       // runs again as it was.
@@ -787,16 +848,17 @@ class ModuleManager {
   // The enabled modules that declare the `ai` hook: what depends on the AI service, the way `dependentsOf` says what depends
   // on a module. For the AI service's own admin page, and to cascade turning it off.
   aiDependents() {
-    return this.enabledAll().filter(({ manifest }) => manifest.hooks.ai).map(({ manifest }) => ({ id: manifest.id, name: manifest.name }));
+    return this.enabledAll().filter(({ manifest }) => manifest.hooks.ai).map(({ manifest }) => ({ id: manifest.id, name: this.shownName(manifest) }));
   }
 
   // A missing id's name for a message: another module's, or "the AI service".
   missingName(r) {
-    return r === 'ai' ? 'the AI service' : (this.registry.modules[r] ? this.manifestOf(r, this.registry.modules[r].version).name : r);
+    return r === 'ai' ? 'the AI service' : (this.registry.modules[r] ? this.shownName(this.manifestOf(r, this.registry.modules[r].version)) : r);
   }
 
   list() {
-    return Object.keys(this.registry.modules).map((id) => this.view(id)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+    const shown = (m) => m.displayName || m.name;
+    return Object.keys(this.registry.modules).map((id) => this.view(id)).filter(Boolean).sort((a, b) => shown(a).localeCompare(shown(b)));
   }
 
   // Where a module runs. A module that ships with the app is the server's own code and runs in the page;
@@ -825,7 +887,7 @@ class ModuleManager {
     if (existing) {
       const newest = [...existing.versions].sort(compareVersions).pop();
       if (compareVersions(manifest.version, newest) <= 0) {
-        throw new ModuleError(`${manifest.name} ${newest} is already installed; upload a newer version, or use Roll back for an older one`);
+        throw new ModuleError(`${this.shownName(manifest)} ${newest} is already installed; upload a newer version, or use Roll back for an older one`);
       }
     }
 
@@ -858,6 +920,7 @@ class ModuleManager {
     if (this.hasPending(this.pendingFor(entry, manifest))) entry.enabled = false;
     this.registry.modules[manifest.id] = entry;
     this.manifests.delete(`${manifest.id}@${manifest.version}`);
+    this.filled.clear();
     this.prune(entry);
     this.save();
     return this.view(manifest.id);
@@ -890,20 +953,20 @@ class ModuleManager {
     let switchOff = []; // the modules that need this one, to turn off with it
     if (patch.enabled !== undefined) {
       if (patch.enabled) {
-        if (manifest.outdated) throw new ModuleError(`${manifest.name} was built for an older Magpie and needs an update from its author.`, 409);
+        if (manifest.outdated) throw new ModuleError(`${this.shownName(manifest)} was built for an older Magpie and needs an update from its author.`, 409);
         const waiting = this.needsUpdateFor(manifest);
-        if (waiting.length) throw new ModuleError(`${manifest.name} needs ${waiting.map((r) => this.missingName(r)).join(' and ')}, which ${waiting.length === 1 ? 'needs an update from its author' : 'need an update from their authors'}.`, 409);
+        if (waiting.length) throw new ModuleError(`${this.shownName(manifest)} needs ${waiting.map((r) => this.missingName(r)).join(' and ')}, which ${waiting.length === 1 ? 'needs an update from its author' : 'need an update from their authors'}.`, 409);
         const missing = this.missingFor(manifest);
-        if (missing.length) throw new ModuleError(`${manifest.name} needs ${missing.map((r) => this.missingName(r)).join(' and ')} installed and turned on first`);
+        if (missing.length) throw new ModuleError(`${this.shownName(manifest)} needs ${missing.map((r) => this.missingName(r)).join(' and ')} installed and turned on first`);
         // One enabled module per keyed path: another one already there means naming it, not silently taking over.
         if (manifest.surfaces.keyed) {
           const holder = this.keyedFor(manifest.surfaces.keyed.path);
-          if (holder && holder.manifest.id !== id) throw new ModuleError(`"${manifest.surfaces.keyed.path}" is already claimed by ${holder.manifest.name}`);
+          if (holder && holder.manifest.id !== id) throw new ModuleError(`"${manifest.surfaces.keyed.path}" is already claimed by ${this.shownName(holder.manifest)}`);
         }
       } else {
         // Turning off a module others need: those go off with it, but only when the caller said so (`force`).
         const needing = this.dependentsOf(id);
-        if (needing.length && patch.force !== true) throw new ModuleError(`${needing.map((r) => this.manifestOf(r, this.registry.modules[r].version).name).join(' and ')} needs ${manifest.name}; turn ${needing.length === 1 ? 'it' : 'them'} off too?`);
+        if (needing.length && patch.force !== true) throw new ModuleError(`${needing.map((r) => this.shownName(this.manifestOf(r, this.registry.modules[r].version))).join(' and ')} needs ${this.shownName(manifest)}; turn ${needing.length === 1 ? 'it' : 'them'} off too?`);
         switchOff = needing;
       }
       draft.enabled = Boolean(patch.enabled);
@@ -944,7 +1007,7 @@ class ModuleManager {
   rollback(id, version) {
     const entry = this.get(id);
     if (!entry.versions.includes(version) || version === entry.version) throw new ModuleError('that version is not available');
-    if (this.manifestOf(id, version)?.outdated) throw new ModuleError(`${this.manifestOf(id, version).name} ${version} was built for an older Magpie, so it can't be rolled back to.`, 409);
+    if (this.manifestOf(id, version)?.outdated) throw new ModuleError(`${this.shownName(this.manifestOf(id, version))} ${version} was built for an older Magpie, so it can't be rolled back to.`, 409);
     entry.version = version;
     entry.updatedAt = new Date().toISOString();
     const manifest = this.manifestOf(id, version);
@@ -984,8 +1047,9 @@ class ModuleManager {
     }
     delete this.registry.modules[id];
     for (const key of [...this.manifests.keys()]) if (key.startsWith(`${id}@`)) this.manifests.delete(key);
+    this.filled.clear();
     this.save();
   }
 }
 
-module.exports = { ModuleManager, ModuleError, cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, fillManifest, manifestTexts, cleanManifest, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

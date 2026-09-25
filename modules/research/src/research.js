@@ -26,6 +26,8 @@
   /*__LIB__*/
 
   const canEdit = host.can('edit');
+  // Its heading reads its name as this environment shows it (host.info's: the display name, else its own).
+  for (const el of root.querySelectorAll('[data-slot="own-name"]')) el.textContent = info.module.name;
   const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so nothing of their own
   const removeAnyPhoto = host.can('remove_photos'); // a space's photos other people added (owners always can)
   const me = (info.user && info.user.key) || '';

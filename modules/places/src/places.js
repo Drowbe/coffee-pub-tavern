@@ -23,7 +23,7 @@
   // On a space's canvas or on the module's own page: a space has its own list; the page has only mine and everyone's.
   const inSpace = info.context.scope === 'space';
   if (!inSpace && info.context.scope !== 'environment') {
-    $('msg').textContent = 'Places could not open here.';
+    $('msg').textContent = `${info.module.name} could not open here.`;
     return;
   }
 
@@ -31,6 +31,8 @@
   /*__LIB__*/
 
   const canEdit = host.can('edit');
+  // Its heading reads its name as this environment shows it (host.info's: the display name, else its own).
+  for (const el of root.querySelectorAll('[data-slot="own-name"]')) el.textContent = info.module.name;
   const personal = Boolean(info.user && info.user.key !== 'guest'); // a guest has no profile, so no personal places
   const apple = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document;
   const CAT_ORDER = ['do', 'eat', 'stay', 'travel', 'other'];

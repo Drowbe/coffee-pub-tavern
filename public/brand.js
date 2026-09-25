@@ -402,6 +402,8 @@ async function loadUpdateBadge() {
 // Modules with a page of their own get an item in the header: a tool in the core navigation, after Spaces, in the
 // secondary band (11-50) so the system's own core items stay ahead. Opened from inside a call they use the same
 // in-page overlay as the profile, so the call keeps running (see openOverlay in space.js).
+// Called again by a page that changed what a module is called (Manage > Modules), so the header follows at once.
+export const refreshModuleNav = () => loadModuleNav();
 async function loadModuleNav() {
   if (!nav.has('primary')) return;
   try {

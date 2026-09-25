@@ -479,15 +479,19 @@ async function toggleJoinWith(card, spaceId) {
   card.appendChild(pop);
   if (!spaceModuleList.has(spaceId)) {
     try {
-      spaceModuleList.set(spaceId, (await api('GET', `/api/modules/for-space?space=${encodeURIComponent(spaceId)}`)).modules);
+      const { modules, builtin } = await api('GET', `/api/modules/for-space?space=${encodeURIComponent(spaceId)}`);
+      spaceModuleList.set(spaceId, { modules, builtin: builtin || [] });
     } catch {
-      spaceModuleList.set(spaceId, []);
+      spaceModuleList.set(spaceId, { modules: [], builtin: [] });
     }
   }
+  // The conference and the chat as this environment shows them (their display names and icons, else their own).
+  const { modules: onHere, builtin } = spaceModuleList.get(spaceId);
+  const shownBuiltin = (id, name, icon) => ({ id, name, icon, ...builtin.find((b) => b.id === id) });
   const items = [
-    ...(canIn(spaceId, 'conference') ? [{ id: 'conference', name: 'Conference', icon: 'video' }] : []),
-    ...(canIn(spaceId, 'chatRead') ? [{ id: 'chat', name: 'Chat', icon: 'message' }] : []),
-    ...spaceModuleList.get(spaceId).map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
+    ...(canIn(spaceId, 'conference') ? [shownBuiltin('conference', 'Conference', 'video')] : []),
+    ...(canIn(spaceId, 'chatRead') ? [shownBuiltin('chat', 'Chat', 'message')] : []),
+    ...onHere.map((m) => ({ id: m.id, name: m.name, icon: m.icon })),
   ];
   const chosen = new Set(joinPanes(spaceId) ?? ['conference']);
   const list = pop.querySelector('.join-with-list');
@@ -1568,6 +1572,15 @@ function openSettings(group) {
   toggleTray(false);
 }
 
+// A built-in pane's own header, with the name and icon this environment shows it by (canvas.js hands them over once the
+// space's modules are loaded).
+function showPaneName(def) {
+  const name = def.el.querySelector('[data-pane-name]');
+  if (name) name.textContent = def.name;
+  const icon = def.el.querySelector('[data-pane-icon]');
+  if (icon) icon.className = `fa-solid fa-${def.icon} fa-fw`;
+}
+
 // The conference is a pane too: docked, floating or in a window of its own, and it can be
 // closed, which leaves the call but not the space. It is the flexible column, and the first
 // one. Opening it starts the call (from a join or "Rejoin call"), closing it stops it;
@@ -1578,6 +1591,7 @@ spaceModules.registerNative({
   closedLabel: 'Rejoin call',
   icon: 'video',
   el: $('conference'),
+  onShown: showPaneName,
   order: -1,
   flex: true,
   modes: ['dock', 'float', 'window'],
@@ -1618,6 +1632,7 @@ spaceModules.registerNative({
   name: 'Chat',
   icon: 'message',
   el: $('chat'),
+  onShown: showPaneName,
   allowed: () => canDo('chatRead'),
   width: prefs.chatWidth,
   onWidth: (w) => { prefs.chatWidth = w; savePrefs(); },

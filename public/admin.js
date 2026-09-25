@@ -1,4 +1,4 @@
-import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords } from '/brand.js';
+import { loadBranding, api, wireOverlayBack, renderTopbar, escapeHtml, crumbLink, getIcons, setUpdateBadge, hasOwnerRights, roleLabel, word, setWords, applyWords, refreshModuleNav } from '/brand.js';
 import { pickBackground } from '/background-picker.js';
 import { CHANGEABLE, DEFAULTS, words, fill as fillWords } from '/words.js';
 
@@ -801,6 +801,12 @@ $('save-reactions').addEventListener('click', async () => {
 let installedModules = [];
 let builtinModules = [];
 let bundledModules = []; // the modules that ship with this server, and whether each is installed or has an update
+// What this environment calls a module and shows it as (plan-environment-templates.md, "Module display names and icons"):
+// its display name and icon, else its own (the manifest's `name` and `icon`, which the card keeps beside them).
+const shownName = (m) => (m && (m.displayName || m.name)) || '';
+const shownIcon = (m) => (m && (m.displayIcon || m.icon)) || 'puzzle-piece';
+// Any module's name as shown, by id: installed first, then the ones that ship with the server.
+const shownNameOf = (id) => shownName(installedModules.find((m) => m.id === id) || bundledModules.find((b) => b.id === id)) || id;
 
 async function loadModules() {
   const data = await api('GET', '/api/modules');
@@ -834,7 +840,7 @@ async function loadModules() {
 function bundledNeeds(b) {
   const waiting = (b.requires || []).filter((r) => !installedModules.some((m) => m.id === r && m.enabled));
   if (!waiting.length) return '';
-  const name = (r) => (installedModules.find((m) => m.id === r) || bundledModules.find((x) => x.id === r) || {}).name || r;
+  const name = shownNameOf;
   return `<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Needs ${waiting.map((r) => `<strong>${escapeHtml(name(r))}</strong>`).join(' and ')} installed and turned on first.</div>`;
 }
 
@@ -845,7 +851,7 @@ function moduleCard(m) {
   // Versions built for an older Magpie can't be switched to: marked, and not offered.
   const staleVersions = new Set(m.outdatedVersions || (m.outdated ? [m.version] : []));
   // What a requirement needs to be turned on first (one built for an older Magpie is in needsUpdate instead).
-  const nameOf = (r) => escapeHtml((installedModules.find((x) => x.id === r) || {}).name || r);
+  const nameOf = (r) => escapeHtml(shownName(installedModules.find((x) => x.id === r)) || r);
   const needsText = (r) => (r === 'ai' ? '<a href="/ai-config.html">the AI service</a> enabled' : `${nameOf(r)} installed and turned on`);
   const asks = [
     ...m.permissions.map((p) => `<li><strong>${escapeHtml(p.label)}</strong> <span class="hint">permission, appears in Roles</span></li>`),
@@ -863,12 +869,13 @@ function moduleCard(m) {
   el.dataset.id = m.id;
   el.innerHTML = `
     <div class="module-head">
-      <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw module-icon" aria-hidden="true"></i>
-      <div class="grow"><h2>${escapeHtml(m.name)} <span class="hint">v${escapeHtml(m.version)}${m.author ? ' by ' + escapeHtml(m.author) : ''}</span></h2>
+      <i class="fa-solid fa-${escapeHtml(shownIcon(m))} fa-fw module-icon" aria-hidden="true"></i>
+      <div class="grow"><h2>${escapeHtml(shownName(m))} <span class="hint">${m.displayName ? `${escapeHtml(m.name)} ` : ''}v${escapeHtml(m.version)}${m.author ? ' by ' + escapeHtml(m.author) : ''}</span></h2>
         <div class="hint">${escapeHtml(scopes)}</div></div>
       ${state}
     </div>
     ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ''}
+    ${displayEditor(m)}
     <p class="hint">${asks.length ? (m.needsApproval ? 'Asks for these -- enabling approves them:' : 'Approved to:') : 'Asks for nothing beyond showing itself.'}</p>
     ${asks.length ? `<ul class="module-asks">${asks.join('')}</ul>` : ''}
     <div class="module-runmode">
@@ -877,7 +884,7 @@ function moduleCard(m) {
     </div>
     ${m.scope.includes('space') && !m.outdated ? `<label class="check"><input type="checkbox" data-module-all-spaces ${m.allSpaces ? 'checked' : ''}> Available in every ${escapeHtml(word('space'))}</label>` : ''}
     <div class="row">
-      ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(m.name)} does in this ${escapeHtml(word('environment'))}"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(m.name)} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</button><span class="hint">No settings.</span>`}
+      ${m.outdated || m.needsUpdate?.length ? '' : isConfigurable(m) ? `<a class="btn" href="/module-config.html?id=${encodeURIComponent(m.id)}" title="Change what ${escapeHtml(shownName(m))} does in this ${escapeHtml(word('environment'))}"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</a>` : `<button class="btn" type="button" disabled title="${escapeHtml(shownName(m))} has no settings"><i class="fa-solid fa-sliders fa-fw" aria-hidden="true"></i> ${escapeHtml(word('module', { cap: true }))} Configuration</button><span class="hint">No settings.</span>`}
       ${m.outdated ? '' : `<button class="btn ${m.enabled ? '' : 'btn-primary'}" data-module-action="toggle" type="button" ${!m.enabled && (m.missing?.length || m.needsUpdate?.length) ? 'disabled' : ''}>${m.enabled ? 'Disable' : m.needsApproval ? 'Approve and enable' : 'Enable'}</button>`}
       ${!m.outdated && !m.enabled && m.missing?.length ? `<span class="hint">Needs ${m.missing.map(needsText).join(', and ')} first.</span>` : ''}
       ${!m.outdated && m.needsUpdate?.length ? `<span class="hint">Needs ${m.needsUpdate.map(nameOf).join(' and ')}, which ${m.needsUpdate.length === 1 ? 'needs' : 'need'} an update from ${m.needsUpdate.length === 1 ? 'its author' : 'their authors'}.</span>` : ''}
@@ -903,6 +910,110 @@ function moduleCard(m) {
   }
   return el;
 }
+
+// What this environment calls a module and the icon it wears (plan-environment-templates.md, "Module display names and
+// icons"), on each card, built-in modules too: a name (blank for the module's own), an icon from the same list as the
+// home icon, Save, and Reset back to the module's own. The server checks both and says why it refused one; a refused
+// save changes nothing. Its own name and version stay beside the display name in the card's heading.
+// The icons offered: this environment's (Theme tab) that draw as a plain solid Font Awesome icon, as every module icon
+// does, then every module's own icon.
+function displayIconChoices() {
+  const out = new Map();
+  for (const i of getIcons()) {
+    const tokens = String(i.classes || '').split(/\s+/).filter((t) => t && !/^fa-(fw|lg|xs|sm|2x|3x)$/.test(t));
+    if (tokens.length === 2 && tokens.includes('fa-solid') && tokens.includes(`fa-${i.id}`)) out.set(i.id, i.label || i.id.replace(/-/g, ' '));
+  }
+  for (const m of [...builtinModules, ...installedModules]) if (m.icon && !out.has(m.icon)) out.set(m.icon, m.icon.replace(/-/g, ' '));
+  return [...out];
+}
+function displayEditor(m) {
+  // What a blank field and "its own icon" mean: the module's own (or, later, its template's).
+  const fallbackName = m.ownDisplayName ? m.name : shownName(m);
+  const fallbackIcon = m.ownDisplayIcon ? m.icon : shownIcon(m);
+  const chosen = m.ownDisplayIcon || '';
+  const own = Boolean(m.ownDisplayName || m.ownDisplayIcon);
+  const iconButton = (id, label, pressed) => `<button type="button" data-display-icon="${escapeHtml(id)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" aria-pressed="${pressed}"${pressed ? ' class="selected"' : ''}><i class="fa-solid fa-${escapeHtml(id || fallbackIcon)} fa-fw" aria-hidden="true"></i></button>`;
+  return `<div class="module-display" data-display-id="${escapeHtml(m.id)}" data-display-chosen="${escapeHtml(chosen)}" data-display-fallback="${escapeHtml(fallbackIcon)}" data-display-was-name="${escapeHtml(m.ownDisplayName || '')}" data-display-was-icon="${escapeHtml(chosen)}"${own ? ' data-display-own="1"' : ''} role="group" aria-label="What this ${escapeHtml(word('environment'))} calls it">
+      <span class="field-label">Shown as</span>
+      <div class="module-display-row">
+        <details class="icon-pick"><summary title="Icon" aria-label="Icon: ${escapeHtml(chosen || 'its own')}"><i class="fa-solid fa-${escapeHtml(chosen || fallbackIcon)} fa-fw" aria-hidden="true"></i></summary><div class="icon-grid" role="group" aria-label="Icon">${iconButton('', 'Its own icon', !chosen)}${displayIconChoices().map(([id, label]) => iconButton(id, label, id === chosen)).join('')}</div></details>
+        <input type="text" data-display-name maxlength="40" autocomplete="off" spellcheck="false" value="${escapeHtml(m.ownDisplayName || '')}" placeholder="${escapeHtml(fallbackName)}" aria-label="Display name (blank for ${escapeHtml(fallbackName)})">
+        <button class="btn btn-small" type="button" data-display-save>Save</button>
+        <button class="btn btn-small" type="button" data-display-reset ${own ? '' : 'disabled'} title="Back to its own name and icon">Reset</button>
+      </div>
+      <span class="status" data-display-status aria-live="polite"></span>
+    </div>`;
+}
+const displayBox = (id) => $('modules-list').querySelector(`.module-display[data-display-id="${CSS.escape(id)}"]`);
+async function saveDisplay(box, patch, done) {
+  const id = box.dataset.displayId;
+  for (const b of box.querySelectorAll('button')) b.disabled = true;
+  try {
+    const { module } = await api('PATCH', `/api/modules/${encodeURIComponent(id)}`, patch);
+    await loadModules();
+    loadRoles().catch(() => {}); // the Roles grid's group is named by it
+    refreshModuleNav(); // and so is the header's link to its page
+    const again = displayBox(id);
+    if (again) {
+      say(again.querySelector('[data-display-status]'), done(module));
+      again.querySelector('[data-display-name]').focus();
+    }
+  } catch (err) {
+    for (const b of box.querySelectorAll('button')) b.disabled = false;
+    box.querySelector('[data-display-reset]').disabled = !box.dataset.displayOwn; // as it was: only a saved one resets
+    say(box.querySelector('[data-display-status]'), err.message, true); // the server's own sentence; nothing was changed
+  }
+}
+function closeIconPicks(except) {
+  for (const d of $('modules-list').querySelectorAll('.module-display details[open]')) if (d !== except) d.open = false;
+}
+$('modules-list').addEventListener('click', (event) => {
+  const box = event.target.closest('.module-display');
+  if (!box) { closeIconPicks(); return; }
+  const choice = event.target.closest('[data-display-icon]');
+  if (choice) {
+    // Picked, not saved yet: Save sends it with the name.
+    box.dataset.displayChosen = choice.dataset.displayIcon;
+    for (const b of box.querySelectorAll('[data-display-icon]')) {
+      const on = b === choice;
+      b.classList.toggle('selected', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    const summary = box.querySelector('summary');
+    summary.querySelector('i').className = `fa-solid fa-${choice.dataset.displayIcon || box.dataset.displayFallback} fa-fw`;
+    summary.setAttribute('aria-label', `Icon: ${choice.dataset.displayIcon || 'its own'}`);
+    box.querySelector('details').open = false;
+    summary.focus();
+    return;
+  }
+  if (event.target.closest('summary')) { closeIconPicks(box.querySelector('details')); return; }
+  if (event.target.closest('[data-display-save]')) {
+    // Only what the owner changed here, so a stored choice this page can't show (an icon it doesn't offer) is kept.
+    const name = box.querySelector('[data-display-name]').value.trim().replace(/\s+/g, ' ');
+    const patch = {};
+    if (name !== box.dataset.displayWasName) patch.displayName = name || null;
+    if (box.dataset.displayChosen !== box.dataset.displayWasIcon) patch.displayIcon = box.dataset.displayChosen || null;
+    if (!Object.keys(patch).length) { say(box.querySelector('[data-display-status]'), 'Nothing to save'); return; }
+    saveDisplay(box, patch, (m) => `Saved. Shown as ${shownName(m)}`);
+    return;
+  }
+  if (event.target.closest('[data-display-reset]')) {
+    saveDisplay(box, { displayName: null, displayIcon: null }, () => 'Back to its own name and icon');
+  }
+});
+$('modules-list').addEventListener('keydown', (event) => {
+  const box = event.target.closest('.module-display');
+  if (!box) return;
+  if (event.key === 'Enter' && event.target.matches('[data-display-name]')) {
+    event.preventDefault();
+    box.querySelector('[data-display-save]').click();
+  } else if (event.key === 'Escape' && box.querySelector('details[open]')) {
+    event.preventDefault();
+    box.querySelector('details').open = false;
+    box.querySelector('summary').focus();
+  }
+});
+document.addEventListener('click', (event) => { if (!event.target.closest('#modules-list')) closeIconPicks(); });
 
 // Recent activity, in the box at the top of the tab: one row per thing a module did (when, which module, what, by whom), newest
 // first. Redrawn in place when it changes, keeping the scroll position, and refreshed while the tab is open.
@@ -1047,12 +1158,13 @@ function renderModules() {
     el.className = 'panel module-card';
     el.innerHTML = `
       <div class="module-head">
-        <i class="fa-solid fa-${escapeHtml(b.icon)} fa-fw module-icon" aria-hidden="true"></i>
-        <div class="grow"><h2>${escapeHtml(b.name)} <span class="hint">built in</span></h2>
+        <i class="fa-solid fa-${escapeHtml(shownIcon(b))} fa-fw module-icon" aria-hidden="true"></i>
+        <div class="grow"><h2>${escapeHtml(shownName(b))} <span class="hint">${b.displayName ? `${escapeHtml(b.name)}, ` : ''}built in</span></h2>
           <div class="hint">On ${escapeHtml(word('space', { a: true }))}'s ${escapeHtml(word('canvas'))}</div></div>
         <span class="pill ${b.switchable ? (b.enabled ? 'on' : '') : 'on'}">${b.switchable ? (b.enabled ? 'Enabled' : 'Disabled') : 'Always on'}</span>
       </div>
       <p>${escapeHtml(b.description)}</p>
+      ${displayEditor(b)}
       <p class="hint">It comes with the server and can't be removed. Its permissions are on the Roles tab: ${escapeHtml(b.permissions)}.</p>
       ${b.switchable ? `<div class="row"><button class="btn ${b.enabled ? '' : 'btn-primary'}" type="button" data-builtin-toggle="${escapeHtml(b.id)}">${b.enabled ? 'Disable' : 'Approve and enable'}</button>${b.needs ? `<span class="hint">${escapeHtml(b.needs)}</span>` : ''}</div>` : ''}`;
     list.appendChild(el);
@@ -1071,8 +1183,8 @@ function renderModules() {
     box.className = 'panel';
     box.innerHTML = `<h2>Available with this server</h2><p class="hint">These come with the server, so there is nothing to upload.</p>${available.map((b) => `
       <div class="row module-available">
-        <i class="fa-solid fa-${escapeHtml(b.icon || 'puzzle-piece')} fa-fw module-icon" aria-hidden="true"></i>
-        <div class="grow"><strong>${escapeHtml(b.name)}</strong> <span class="hint">v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${b.notInPlan ? '<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Not in your plan.</div>' : bundledNeeds(b)}</div>
+        <i class="fa-solid fa-${escapeHtml(shownIcon(b))} fa-fw module-icon" aria-hidden="true"></i>
+        <div class="grow"><strong>${escapeHtml(shownName(b))}</strong> <span class="hint">${b.displayName ? `${escapeHtml(b.name)} ` : ''}v${escapeHtml(b.version)}</span><div class="hint">${escapeHtml(b.description || '')}</div>${b.notInPlan ? '<div class="hint module-needs"><i class="fa-solid fa-circle-info fa-fw" aria-hidden="true"></i> Not in your plan.</div>' : bundledNeeds(b)}</div>
         <button class="btn btn-primary" data-bundled-action="install" data-bundled-id="${escapeHtml(b.id)}" type="button" ${b.notInPlan ? `disabled title="Your plan does not include this ${escapeHtml(word('module'))}"` : ''}>Install</button>
       </div>`).join('')}`;
     list.appendChild(box);
@@ -1091,13 +1203,13 @@ $('modules-list').addEventListener('click', async (event) => {
   const b = builtinModules.find((x) => x.id === button.dataset.builtinToggle);
   if (!b) return;
   const enable = !b.enabled;
-  if (!enable && !window.confirm(`Turn off ${b.name} for everyone?\n\n${b.turnOff || `It stops working in every ${word('space')} until you enable it again.`}`)) return;
-  if (enable && !window.confirm(`Enable ${b.name}?\n\n${b.turnOn || b.description}`)) return;
+  if (!enable && !window.confirm(`Turn off ${shownName(b)} for everyone?\n\n${b.turnOff || `It stops working in every ${word('space')} until you enable it again.`}`)) return;
+  if (enable && !window.confirm(`Enable ${shownName(b)}?\n\n${b.turnOn || b.description}`)) return;
   button.disabled = true;
   try {
     await api('PATCH', '/api/settings', { [b.setting || `${b.id}Enabled`]: enable });
     await loadModules();
-    say($('modules-status'), `${b.name} ${enable ? 'enabled' : 'disabled'}`);
+    say($('modules-status'), `${shownName(b)} ${enable ? 'enabled' : 'disabled'}`);
   } catch (err) {
     button.disabled = false;
     say($('modules-status'), err.message, true);
@@ -1114,7 +1226,7 @@ $('modules-list').addEventListener('click', async (event) => {
     const { module } = await api('POST', `/api/modules/bundled/${encodeURIComponent(button.dataset.bundledId)}/install`);
     await loadModules();
     await loadRoles();
-    say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
+    say($('modules-status'), `${shownName(module)} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
   } catch (err) {
     say($('modules-status'), err.message, true);
     button.disabled = false;
@@ -1130,7 +1242,7 @@ $('module-install').addEventListener('click', async () => {
     $('module-file').value = '';
     await loadModules();
     await loadRoles(); // a module's permissions join the Roles grid when it is on
-    say($('modules-status'), `${module.name} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
+    say($('modules-status'), `${shownName(module)} ${module.version} installed${module.enabled ? '' : ' -- review it below, then enable'}`);
   } catch (err) {
     say($('modules-status'), err.message, true);
   }
@@ -1142,10 +1254,10 @@ $('modules-list').addEventListener('click', async (event) => {
   const m = installedModules.find((x) => x.id === mode.closest('.module-card').dataset.id);
   const to = mode.dataset.moduleRunmode;
   try {
-    if (to === 'page' && !window.confirm(`Run ${m.name} in the page?\n\n${word('module', { a: true, cap: true })} in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. the host cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
+    if (to === 'page' && !window.confirm(`Run ${shownName(m)} in the page?\n\n${word('module', { a: true, cap: true })} in the page is not walled off. It can read and change everything on the page, act as you, and reach anything you can. the host cannot hold it to its approved permissions.\n\nOnly continue if you trust whoever wrote it.`)) return;
     await api('PATCH', `/api/modules/${m.id}`, { runMode: to, acceptRisk: to === 'page' });
     await loadModules();
-    say($('modules-status'), `${m.name} now runs ${to === 'page' ? 'in the page' : 'sandboxed'}`);
+    say($('modules-status'), `${shownName(m)} now runs ${to === 'page' ? 'in the page' : 'sandboxed'}`);
   } catch (err) {
     say($('modules-status'), err.message, true);
   }
@@ -1160,19 +1272,19 @@ $('modules-list').addEventListener('click', async (event) => {
     if (button.dataset.moduleAction === 'toggle') {
       let force = false;
       if (m.enabled && m.dependents?.length) {
-        const names = m.dependents.map((r) => (installedModules.find((x) => x.id === r) || {}).name || r).join(' and ');
-        if (!window.confirm(`${names} needs ${m.name}. Turn ${m.dependents.length === 1 ? 'it' : 'them'} off too?`)) return;
+        const names = m.dependents.map(shownNameOf).join(' and ');
+        if (!window.confirm(`${names} needs ${shownName(m)}. Turn ${m.dependents.length === 1 ? 'it' : 'them'} off too?`)) return;
         force = true;
       }
       await api('PATCH', `/api/modules/${m.id}`, { enabled: !m.enabled, ...(force ? { force: true } : {}) });
     } else if (button.dataset.moduleAction === 'rollback') {
       const version = card.querySelector('[data-module-version]').value;
       if (version === m.version) return;
-      if (!window.confirm(`Switch ${m.name} to version ${version}? Its data stays as it is.`)) return;
+      if (!window.confirm(`Switch ${shownName(m)} to version ${version}? Its data stays as it is.`)) return;
       await api('POST', `/api/modules/${m.id}/rollback`, { version });
     } else if (button.dataset.moduleAction === 'uninstall') {
-      if (!window.confirm(`Uninstall ${m.name}?${m.dependents?.length ? ' ' + m.dependents.map((r) => (installedModules.find((x) => x.id === r) || {}).name || r).join(' and ') + ' needs it and will be turned off.' : ''}`)) return;
-      const wipe = window.confirm(`Also delete ${m.name}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the ${word('module')}'s own folder (a map file, say) are never deleted.`);
+      if (!window.confirm(`Uninstall ${shownName(m)}?${m.dependents?.length ? ' ' + m.dependents.map(shownNameOf).join(' and ') + ' needs it and will be turned off.' : ''}`)) return;
+      const wipe = window.confirm(`Also delete ${shownName(m)}'s saved data?\n\nOK deletes it for good. Cancel keeps it, so a later reinstall picks up where it left off.\n\nFiles you placed in the ${word('module')}'s own folder (a map file, say) are never deleted.`);
       await api('DELETE', `/api/modules/${m.id}?keepData=${wipe ? 0 : 1}`);
     }
     await loadModules();

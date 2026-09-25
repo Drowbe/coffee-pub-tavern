@@ -4862,6 +4862,22 @@ body.in-space .topbar.menu-open .links .module-nav-link {
 }
 
 .module-runmode { margin: 8px 0; }
+/* Manage > Modules: what this environment calls a module and the icon it wears (the same popover icon picker as a list
+   setting's row), then Save and Reset. On a phone the name field takes its own line under the icon and the buttons. */
+.module-display { display: grid; gap: 4px; margin: 10px 0 12px; }
+.module-display .field-label { margin: 0; }
+.module-display-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.module-display-row input[type="text"] { flex: 1 1 14rem; min-width: 0; max-width: 24rem; }
+.module-display .icon-pick summary { width: 38px; height: 34px; color: var(--accent); }
+.module-display .icon-pick .icon-grid { max-height: 260px; overflow-y: auto; }
+.module-display .icon-pick .icon-grid button.selected { background: var(--accent); color: var(--on-accent); }
+/* the first choice, "Its own icon": marked apart from the icons that replace it */
+.module-display .icon-pick .icon-grid [data-display-icon=""] { border: 1px dashed var(--border); }
+.module-display .status:empty { display: none; }
+@media (max-width: 480px) {
+  .module-display-row input[type="text"] { order: -1; flex-basis: 100%; max-width: none; }
+  .module-display .icon-pick .icon-grid { grid-template-columns: repeat(6, 36px); }
+}
 /* the filters at the top of the Modules tab */
 .module-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .filter-chip { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card); color: var(--text-dim); font: inherit; font-size: 13px; cursor: pointer; }

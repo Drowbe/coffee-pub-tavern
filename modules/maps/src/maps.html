@@ -48,8 +48,8 @@
 
 <!-- states that replace the map; the script puts one of these in #state and un-hides it -->
 <template id="tpl-state-loading"><div class="skel"></div></template>
-<template id="tpl-state-nomap"><span class="ic" data-icon="map"></span><h2>Maps is not set up yet</h2><p><span data-word="owner" data-word-form="a cap"></span> adds map files in Manage. Your places are in the Places <span data-word="module"></span>.</p></template>
-<template id="tpl-state-nowebgl"><span class="ic" data-icon="map"></span><h2>This device cannot draw the map</h2><p>Your places are in the Places <span data-word="module"></span>, and each opens in your own maps app from there.</p></template>
+<template id="tpl-state-nomap"><span class="ic" data-icon="map"></span><h2><span data-slot="own-name">Maps</span> is not set up yet</h2><p><span data-word="owner" data-word-form="a cap"></span> adds map files in Manage. Your places are in the <span data-slot="places-name">Places</span> <span data-word="module"></span>.</p></template>
+<template id="tpl-state-nowebgl"><span class="ic" data-icon="map"></span><h2>This device cannot draw the map</h2><p>Your places are in the <span data-slot="places-name">Places</span> <span data-word="module"></span>, and each opens in your own maps app from there.</p></template>
 <template id="tpl-state-error"><span class="ic" data-icon="triangle-exclamation"></span><h2>The map could not load</h2><p>The map file did not answer. Try again, or ask <span data-word="owner" data-word-form="a"></span> to check it.</p><p><button class="btn" type="button" data-action="retry">Try again</button></p></template>
 
 <script>

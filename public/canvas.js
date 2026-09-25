@@ -1131,12 +1131,30 @@ export function createSpaceModules({ guestToken = null } = {}) {
       try {
         const q = new URLSearchParams({ space: id });
         if (guestToken) q.set('guest', guestToken);
-        available = (await api('GET', `/api/modules/for-space?${q}`)).modules;
+        const answer = await api('GET', `/api/modules/for-space?${q}`);
+        available = answer.modules;
+        showBuiltin(answer.builtin);
       } catch {
         available = [];
       }
     }
     update();
+  }
+
+  // The built-in panes' names and icons as this environment shows them (their display names, else their own), from the
+  // server's `builtin` list; a pane that draws its own header hears it through def.onShown.
+  function showBuiltin(list) {
+    for (const b of Array.isArray(list) ? list : []) {
+      const def = natives.get(b.id);
+      if (!def || typeof b.name !== 'string' || !b.name) continue;
+      const was = def.name;
+      def.name = b.name;
+      if (typeof b.icon === 'string' && /^[a-z0-9-]{1,40}$/.test(b.icon)) def.icon = b.icon;
+      def.onShown?.(def);
+      // A window of its own titled by the pane's name follows it (one titled otherwise, the conference's, keeps its own).
+      const pane = panes.get(b.id);
+      if (pane?.mode === 'window' && pane.win && !pane.win.closed && pane.win.document.title === was) pane.win.document.title = def.name;
+    }
   }
 
   const api_openNative = (id, mode) => {

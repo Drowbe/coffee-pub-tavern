@@ -1,9 +1,9 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.33",
+  "version": "0.7.34",
   "icon": "suitcase-rolling",
-  "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your space already has.",
+  "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your {space} already has.",
   "author": "Coffee Pub",
   "scope": [
     "environment",

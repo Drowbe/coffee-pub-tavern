@@ -21,11 +21,14 @@ const m = data && data.modules.find((x) => x.id === id);
 if (!m) {
   $('cfg-missing').hidden = false;
 } else {
-  document.title = `${document.title.split(' - ')[0]} - ${m.name} configuration`; // the environment's name is in front once branding has loaded
+  // What this environment calls it (its display name and icon, else its own), with its own name beside the version
+  // when the two differ, as its card on the Modules tab shows.
+  const name = m.displayName || m.name;
+  document.title = `${document.title.split(' - ')[0]} - ${name} configuration`; // the environment's name is in front once branding has loaded
   $('config').hidden = false;
-  $('cfg-icon').classList.add(`fa-${m.icon}`);
-  $('cfg-name').textContent = `${m.name} configuration`;
-  $('cfg-version').textContent = `v${m.version}${m.author ? ' by ' + m.author : ''}`;
+  $('cfg-icon').classList.add(`fa-${m.displayIcon || m.icon}`);
+  $('cfg-name').textContent = `${name} configuration`;
+  $('cfg-version').textContent = `${m.displayName ? `${m.name} ` : ''}v${m.version}${m.author ? ' by ' + m.author : ''}`;
   $('cfg-state').textContent = m.enabled ? 'Enabled' : 'Disabled';
   $('cfg-state').classList.add(m.enabled ? 'on' : 'warn');
   $('cfg-desc').textContent = m.description || '';
@@ -35,7 +38,7 @@ if (!m) {
     $('cfg-none').hidden = false;
   } else if (!m.enabled) {
     $('cfg-off').hidden = false;
-    $('cfg-off').textContent = `Turn ${m.name} on (Manage > ${word('module', { many: true, cap: true })}) to change its settings.`;
+    $('cfg-off').textContent = `Turn ${name} on (Manage > ${word('module', { many: true, cap: true })}) to change its settings.`;
   } else {
     await showSettings();
   }

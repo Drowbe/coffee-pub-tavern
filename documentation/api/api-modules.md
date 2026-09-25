@@ -70,7 +70,7 @@ A module zip holds a `module.json` at its root (or inside one wrapping folder). 
 |---|---|
 | `GET /api/modules` | `{ modules, limits }`: installed modules, their state, versions, and what awaits approval |
 | `POST /api/modules` | Body is the zip, sent as `application/zip`. Returns 201 and `{ module }`, disabled until approved |
-| `PATCH /api/modules/:id` | `{ enabled }`, `{ allSpaces }` or `{ spaces: [space ids] }`; returns `{ module }` |
+| `PATCH /api/modules/:id` | `{ enabled }`, `{ allSpaces }`, `{ spaces: [space ids] }`, or `{ displayName, displayIcon }` (either may be `null` or `""` to go back to the module's own); returns `{ module }`. A refused change changes nothing |
 | `POST /api/modules/:id/rollback` | `{ version }`; returns `{ module }` |
 | `DELETE /api/modules/:id?keepData=0` or `=1` | Uninstall; `keepData` defaults to keeping the data |
 
@@ -79,6 +79,9 @@ A module in the list has the manifest fields plus:
 | Field | Meaning |
 |---|---|
 | `enabled` | Whether it is on |
+| `name`, `icon` | The module's own, from its manifest |
+| `displayName`, `displayIcon` | What this environment shows it as: the owner's choice, else the template's (a later step), else the module's own |
+| `ownDisplayName`, `ownDisplayIcon` | The owner's stored choice, even when it can't be drawn now (an icon no longer in the environment's set) |
 | `allSpaces`, `spaces` | Where a space module is available |
 | `outdated`, `outdatedWhy`, `outdatedVersions` | Set when the installed manifest uses an old name, so the module can't run: `outdated` is "This module was built for an older Magpie and needs an update from its author.", `outdatedWhy` the sentence naming the old name, `outdatedVersions` the installed versions that use one |
 | `needsUpdate` | The modules this one requires that are outdated, so this one can't run either. A module runs only while everything it requires is running, at any depth; `enabled` keeps the owner's choice, so it comes back by itself, and `missing` and `needsUpdate` say why it isn't running |
@@ -92,6 +95,19 @@ A module in the list has the manifest fields plus:
 - Enabling a module records that the owner approved the permissions and hooks it lists. An upgrade or
   rollback that asks for anything not yet approved comes back with `enabled: false`.
 - `allSpaces` and `spaces` are refused unless the module has a space scope.
+- **Display names and icons.** An owner may show a module under another name and icon (`PATCH` above; the
+  built-in Conference and Chat too). Refusals (400): "A display name is plain text, without < or >.", "A display
+  name can be at most 40 characters.", "A display name can't hold control or text-direction characters.", "There
+  is no icon called `<id>` in this environment's icons.", "The icon `<id>` is not a solid Font Awesome icon, so it
+  can't be a module's icon.", and for a built-in, "`<name>` is built in, so only its display name and icon can be
+  changed here." A module's own icon is always allowed. The display name and icon are what every page, sentence
+  and notification shows; `GET /api/modules/for-space` gives the built-ins as `builtin: [{ id, name, icon }]`, and
+  `GET /api/notifications` items carry `moduleName` and `icon`. Uninstalling with the data deleted clears them; a
+  plain uninstall keeps them.
+- **Words in the manifest.** The text people read (`description`, the widget's `title`, permission labels,
+  setting labels, `help` and options, event and action labels, and kind names) may use the environment's word
+  placeholders, `{space}`, `{spaces}`, `{Space}`, `{a space}` and the like for each changeable word, and is
+  shown in the environment's own words. `tools/check-names.mjs --words` reads bundled manifests.
 - **Old names are refused.** A manifest using an old name is refused at upload with 400 and one sentence naming
   the new word: a module `scope` of `server` or `room`, a setting's scope, `install.settingsFrom: "server"` or a
   permission default keyed `user` (for example, `module.json uses the old scope "room"; use "space" (Magpie

@@ -28,6 +28,25 @@ registry.json                     what is installed and its state
 the permissions and hooks the admin agreed to. The manifest is read from the version's own
 `module.json` on demand, so the registry cannot drift from the files.
 
+## Display names, icons and words
+
+What a person reads a module called is its **display name** in this environment
+(plan-environment-templates, step 2). `store.moduleDisplay(id)` in `server/store.js` resolves it for any module,
+installed, bundled or built in: the owner's own (`settings.moduleNames`, `settings.moduleIcons`), else the
+template's (step 3), else null, meaning the manifest's own `name` and `icon`. An icon counts only while it can be
+drawn (`displayIconIds()`: the environment's plain solid icons, `fa-solid fa-<id>`, and every installed or built-in
+module's own icon); one that can't be drawn now is kept as the owner's (`ownDisplayIcon`) and the next one down is
+shown. `buildEnvironment()` hands this to the module manager as `modules.displayOf`, and `modules.shownName()`
+is what every sentence, notification and activity line uses. `GET /api/modules` keeps `name` and `icon` as the
+manifest's and adds `displayName`, `displayIcon`, `ownDisplayName` and `ownDisplayIcon`; the module's own page
+gets the display name and icon as `info.module`. On the pages, `refreshModuleNav()` in `public/brand.js` redraws the
+header after a change. A module's display name replaces its name only, never a widget's own title.
+
+The text in a manifest that people read (description, widget title, permission labels, setting labels, help and
+options, event and action labels, kind names) may carry the environment's word placeholders (`{space}`,
+`{a space}`, ...), and is filled from the environment's words wherever it is sent, so it reads in the owner's
+words (see "Words" in [architecture-overview](architecture-overview.md)).
+
 ## Reading the zip
 
 `readZip` in `server/modules.js` uses `yauzl` on the uploaded buffer and builds a map of file name to

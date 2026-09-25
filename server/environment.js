@@ -64,6 +64,10 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   const modules = new ModuleManager(dataDir);
   const moduleData = new ModuleData(modules.dir);
   store.extraPermissions = () => modules.permissionList(); // enabled modules' permissions join the Roles grid
+  // A manifest's text in this environment's words, and a module's display name and icon (server/store.js).
+  modules.wordsOf = () => store.resolvedWords();
+  modules.displayOf = (id) => store.moduleDisplay(id);
+  store.moduleIconIds = () => Object.entries(modules.registry.modules).map(([id, e]) => modules.storedManifestOf(id, e.version)?.icon).filter(Boolean);
 
   // Who a module notification reaches: people who could see that module in that place.
   const moduleHooks = new ModuleHooks(modules.dir, {

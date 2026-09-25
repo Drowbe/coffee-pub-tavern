@@ -1036,6 +1036,87 @@ try {
     server = null;
   });
 
+  // plan-environment-templates step 2: a module's display name and icon in this environment, and a manifest's text in the
+  // environment's words.
+  await liveTest('live: a module\'s display name and icon show wherever its name does; a refused change changes nothing; manifest text follows the words', async () => {
+    const single = path.join(liveDir, 'single-display');
+    server = await startServer(single, { ADMIN_PASSWORD: 'admin-password-1' });
+    const waitFor = async (text) => { for (let i = 0; i < 100 && !server.output().includes(text); i += 1) await new Promise((r) => setTimeout(r, 50)); assert.ok(server.output().includes(text), `${text}\n${server.output()}`); };
+    const admin = cookieOf(await call(server, '', 'POST', '/api/login', { body: { login: 'admin', password: 'admin-password-1' } }));
+    const as = (method, url, body) => call(server, '', method, url, { cookie: admin, body });
+    assert.equal((await as('POST', '/api/modules/bundled/travel/install')).status, 201);
+    await waitFor('Auto-installed and enabled "stream"');
+    assert.equal((await as('PATCH', '/api/modules/travel', { enabled: true, allSpaces: true })).status, 200);
+    const planner = async () => (await as('GET', '/api/modules')).json.modules.find((m) => m.id === 'travel');
+    const before = await planner();
+    assert.deepEqual([before.name, before.displayName, before.displayIcon, before.ownDisplayName, before.ownDisplayIcon], ['Planner', null, null, null, null], 'no display name: reads as today');
+    const stream = async () => (await as('GET', '/api/modules')).json.modules.find((m) => m.id === 'stream');
+    assert.equal((await stream()).settings.find((d) => d.key === 'asideDim').label, 'Aside: dim (%)', 'a placeholder in the default words reads as the text did');
+    assert.match(before.description, /the events, tasks and polls your space already has\.$/);
+
+    const saved = await as('PATCH', '/api/modules/travel', { displayName: '  Itinerary  ', displayIcon: 'compass' });
+    assert.equal(saved.status, 200, saved.text);
+    assert.deepEqual([saved.json.module.name, saved.json.module.version, saved.json.module.icon, saved.json.module.displayName, saved.json.module.displayIcon], ['Planner', before.version, before.icon, 'Itinerary', 'compass'], 'the module\'s own name, version and icon stay beside the display ones');
+    const shown = (list) => list.find((m) => m.id === 'travel');
+    const nav = shown((await as('GET', '/api/modules/nav')).json.modules);
+    assert.deepEqual([nav.name, nav.icon], ['Itinerary', 'compass'], 'the nav');
+    const widget = shown((await as('GET', '/api/modules/widgets')).json.widgets);
+    assert.deepEqual([widget.name, widget.icon, widget.title], ['Itinerary', 'compass', 'Trips'], 'the dashboard: the widget keeps its own title');
+    const canvas = shown((await as('GET', '/api/modules/for-space?space=lobby')).json.modules);
+    assert.deepEqual([canvas.name, canvas.icon], ['Itinerary', 'compass'], 'the canvas');
+    const context = (await as('GET', '/api/modules/travel/context?scope=environment')).json.module;
+    assert.deepEqual([context.name, context.icon, context.version], ['Itinerary', 'compass', before.version], 'host.info.module');
+    assert.ok((await as('GET', '/api/roles')).json.permissions.some((p) => p.key === 'module.travel.view' && p.group === 'Module: Itinerary'), 'the Roles grid');
+
+    const refused = [
+      [{ displayName: '<b>Trips</b>' }, 'A display name is plain text, without < or >.'],
+      [{ displayName: 'x'.repeat(41) }, 'A display name can be at most 40 characters.'],
+      [{ displayName: 7 }, "A display name must be text, or null to use the module's own name."],
+      [{ displayIcon: 'no-such-icon' }, "There is no icon called no-such-icon in this environment's icons."],
+      [{ displayName: 'Changed', spaces: 'lobby' }, 'spaces must be a list'],
+    ];
+    const registryFile = path.join(single, 'modules', 'registry.json');
+    const appBefore = fs.readFileSync(path.join(single, 'app.json'), 'utf8');
+    const registryBefore = fs.readFileSync(registryFile, 'utf8');
+    for (const [body, error] of refused) assert.deepEqual(await as('PATCH', '/api/modules/travel', body).then((r) => [r.status, r.json]), [400, { error }], JSON.stringify(body));
+    assert.equal(fs.readFileSync(path.join(single, 'app.json'), 'utf8'), appBefore, 'a refused change changes nothing');
+    assert.equal(fs.readFileSync(registryFile, 'utf8'), registryBefore);
+    assert.deepEqual(await as('PATCH', '/api/modules/nope', { displayName: 'x' }).then((r) => [r.status, r.json]), [404, { error: 'no such module' }]);
+
+    // A module's own icon, not in the environment's icon list: Planner's, and a built-in's (Chat's), are allowed.
+    assert.equal((await as('PATCH', '/api/modules/places', { displayIcon: 'suitcase-rolling' })).status, 404, 'Places is not installed here');
+    const own = await as('PATCH', '/api/modules/travel', { displayIcon: 'suitcase-rolling' });
+    assert.deepEqual([own.status, own.json.module.displayIcon], [200, 'suitcase-rolling'], own.text);
+    assert.equal((await as('PATCH', '/api/modules/travel', { displayIcon: 'message' })).json.module.displayIcon, 'message', 'Chat\'s own icon');
+    await as('PATCH', '/api/modules/travel', { displayIcon: 'compass' });
+    const conference = await as('PATCH', '/api/modules/conference', { displayName: 'Call', displayIcon: 'video' });
+    assert.deepEqual([conference.status, conference.json.module.name, conference.json.module.displayName], [200, 'Conference', 'Call'], 'a built-in module takes a display name');
+    assert.deepEqual((await as('GET', '/api/modules/for-space?space=lobby')).json.builtin.find((b) => b.id === 'conference'), { id: 'conference', name: 'Call', icon: 'video' });
+    assert.deepEqual(await as('PATCH', '/api/modules/conference', { enabled: false }).then((r) => [r.status, r.json]), [400, { error: 'Call is built in, so only its display name and icon can be changed here.' }]);
+
+    assert.equal((await as('PATCH', '/api/settings', { words: { aside: { one: 'huddle', many: 'huddles' }, space: { one: 'trip', many: 'trips' }, module: { one: 'tool', many: 'tools' } } })).status, 200);
+    assert.equal((await stream()).settings.find((d) => d.key === 'asideDim').label, 'Huddle: dim (%)', 'a manifest\'s placeholders in the owner\'s words');
+    assert.match((await planner()).description, /the events, tasks and polls your trip already has\.$/);
+    assert.ok((await as('GET', '/api/roles')).json.permissions.some((p) => p.group === 'Tool: Itinerary'));
+    assert.match((await as('GET', '/api/modules')).json.bundled.find((m) => m.id === 'places').description, /your trip cares about/, 'the Available list too');
+
+    // Uninstalling with its data clears its display name; a plain uninstall keeps it.
+    assert.equal((await as('PATCH', '/api/modules/stream', { displayName: 'Broadcast' })).status, 200);
+    assert.equal((await as('DELETE', '/api/modules/stream')).status, 200);
+    assert.equal(readJson(path.join(single, 'app.json')).settings.moduleNames.stream, 'Broadcast', 'a plain uninstall keeps it');
+    assert.equal((await as('POST', '/api/modules/bundled/stream/install')).status, 201);
+    assert.equal((await as('DELETE', '/api/modules/stream?keepData=0')).status, 200);
+    assert.equal(readJson(path.join(single, 'app.json')).settings.moduleNames?.stream, undefined, 'uninstalling with its data clears it');
+    const reset = await as('PATCH', '/api/modules/travel', { displayName: null, displayIcon: null });
+    assert.deepEqual([reset.json.module.displayName, reset.json.module.displayIcon], [null, null]);
+    await as('PATCH', '/api/modules/conference', { displayName: '', displayIcon: null });
+    const settings = readJson(path.join(single, 'app.json')).settings;
+    assert.deepEqual(['moduleNames' in settings, 'moduleIcons' in settings], [false, false], 'nothing stored once every display name is cleared');
+    assert.equal(shown((await as('GET', '/api/modules/nav')).json.modules).name, 'Planner');
+    await server.stop();
+    server = null;
+  });
+
   await liveTest('live: a single install whose app.json is not valid JSON stops, naming the file; a missing one starts fresh', async () => {
     const single = path.join(liveDir, 'single-unreadable');
     fs.mkdirSync(single);

@@ -101,7 +101,7 @@
   try {
     await load();
   } catch (err) {
-    $('msg').textContent = 'Polls could not load: ' + err.message;
+    $('msg').textContent = `${info.module.name} could not load: ${err.message}`;
     return;
   }
   render();

@@ -171,7 +171,7 @@ async function loadSpaceModules() {
   $('space-modules').innerHTML = spaceModules.map((m) => {
     const everywhere = m.allSpaces;
     const on = everywhere || m.spaces.includes(space.id);
-    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.name)}${everywhere ? ` <span class="hint">(on for every ${escapeHtml(word('space'))})</span>` : ''}</label>`;
+    return `<label class="check"><input type="checkbox" data-module="${escapeHtml(m.id)}" ${on ? 'checked' : ''} ${everywhere ? 'disabled' : ''}> <i class="fa-solid fa-${escapeHtml(m.displayIcon || m.icon)} fa-fw" aria-hidden="true"></i> ${escapeHtml(m.displayName || m.name)}${everywhere ? ` <span class="hint">(on for every ${escapeHtml(word('space'))})</span>` : ''}</label>`;
   }).join('');
 }
 $('space-modules').addEventListener('change', async (event) => {

@@ -36,6 +36,23 @@ The zip can be up to 10 MB. Magpie refuses a zip that holds files it does not al
 
 A module with a room panel is off in every room until you turn it on. Either tick **Available in every space** on its card here, or open a room's own page from the Rooms tab, go to its **Modules** tab (it appears when there are modules to set) and tick the module. The Modules section of a room only lists modules that are enabled.
 
+## Show a module under another name
+
+Every card on the Modules tab, the built-in Conference and Chat included, has **Shown as**: an icon and a name
+this environment shows the module as, everywhere: the header, the dashboard (beside a widget's own title), the
+Roles grid ("Tool: Itinerary"), a space's module menu and each module's header, **Join with**, pop-out windows,
+Module Configuration, notifications and messages. Only an owner can change it.
+
+1. On Manage > **Modules**, find the module's card and its **Shown as** row.
+2. Choose an icon: **Its own icon** first, then the environment's icons and every module's own icon.
+3. Type a name, up to 40 characters, or leave it blank for the module's own name.
+4. Click **Save**. The line says "Saved. Shown as <name>", and the card's title changes, with the module's own
+   name, version and author beside it ("Chat, built in" for a built-in module).
+
+**Reset** puts back its own name and icon. A refused name or icon is explained and nothing is saved.
+Uninstalling a module and deleting its data clears its display name and icon; uninstalling and keeping the data
+keeps them.
+
 ## Settings
 
 A module can offer settings. There are three kinds. **Environment** settings, for everyone, are chosen by an owner on the module's own page: choose **Module Configuration** on its card on the Modules tab. A module with no environment settings shows the button greyed out, with "No settings" beside it. **Space** settings, for one space, are chosen by an owner (on the **Modules** tab of the space's own page, under the module list) or by a member ticked as a moderator in that space (from the sliders-with-gears button on the space's card on the spaces page). **Your own** settings, how a module behaves for you, are on your profile page under Module settings. Every setting has a default, so nothing needs setting. A change to the server's or a room's settings shows in the Modules tab's recent activity.

@@ -245,4 +245,82 @@ test('a renamed permission carries each role\'s choice for its old key over once
   }
 });
 
+test('a manifest\'s text a person reads is filled with the environment\'s words; one with no placeholder is the same object', () => {
+  const { fillManifest, manifestTexts } = createRequire(import.meta.url)('../server/modules.js');
+  const { resolve } = createRequire(import.meta.url)('../server/words.js');
+  const words = resolve({ space: { one: 'trip', many: 'trips' }, module: { one: 'tool', many: 'tools' } }, null);
+  const plain = { id: 'p', name: 'Plain', description: 'No placeholders here.', permissions: [{ key: 'v', label: 'View' }] };
+  assert.equal(fillManifest(plain, words), plain);
+  const m = {
+    id: 'demo', name: 'The {Space} Tool', description: 'For every {space}.',
+    surfaces: { widget: { title: '{Spaces}' } },
+    permissions: [{ key: 'edit', label: 'Edit {a space}' }],
+    settings: [{ key: 'k', label: 'Per {module}', help: 'Each {space} {x}', options: [{ value: 'a', label: '{Modules}', help: '{an space}' }] }],
+    events: { publishes: [{ name: 'e', label: 'In {a space}' }] },
+    actions: { provides: [{ name: 'a', label: 'Open {a module}' }] },
+    refs: { produces: [{ kind: 'note', name: '{Space} note' }] },
+  };
+  const f = fillManifest(m, words);
+  assert.notEqual(f, m);
+  assert.equal(m.description, 'For every {space}.', 'the stored manifest is untouched');
+  assert.deepEqual(manifestTexts(f).map(([o, k]) => o[k]), ['For every trip.', 'Trips', 'Edit a trip', 'Per tool', 'Each trip {x}', 'Tools', 'a trip', 'In a trip', 'Open a tool', 'Trip note']);
+  assert.equal(f.name, 'The {Space} Tool', 'a name is a name, never filled');
+  assert.equal(fillManifest(m, null).description, 'For every space.', 'no words: the defaults');
+});
+
+test('a display name and icon are checked before anything is saved, each with one sentence', () => {
+  const { Store } = createRequire(import.meta.url)('../server/store.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-modules-display-'));
+  try {
+    const store = new Store(dir);
+    assert.deepEqual(store.moduleDisplay('travel'), { name: null, icon: null, ownName: null, ownIcon: null });
+    assert.deepEqual(store.checkModuleDisplay('travel', { displayName: '  Trip   planner ', displayIcon: 'compass' }), { name: 'Trip planner', icon: 'compass' });
+    assert.deepEqual(store.checkModuleDisplay('travel', { displayName: '', displayIcon: null }), { name: null, icon: null });
+    assert.deepEqual(store.checkModuleDisplay('travel', {}), {});
+    assert.deepEqual(store.checkModuleDisplay('travel', { displayName: 'Trip\tplanner\n' }), { name: 'Trip planner' }, 'tabs and new lines read as spaces');
+    // Only an icon the pages draw as a module's (fa-solid fa-<id>): a brands or regular one on the list is refused.
+    store.updateSettings({ icons: [...store.settings.icons, { id: 'discord', classes: 'fa-brands fa-discord' }, { id: 'my-star', classes: 'fa-regular fa-star' }, { id: 'odd', classes: 'fa-solid fa-star' }] });
+    for (const icon of ['discord', 'my-star', 'odd']) assert.throws(() => store.checkModuleDisplay('travel', { displayIcon: icon }), (err) => err.status === 400 && err.message === `The icon ${icon} is not a solid Font Awesome icon, so it can't be a module's icon.`, icon);
+    for (const [patch, sentence] of [
+      [{ displayName: '<i>x</i>' }, 'A display name is plain text, without < or >.'],
+      [{ displayName: 'a\u0007b' }, "A display name can't hold control or text-direction characters."],
+      [{ displayName: 'Trip\u202eplanner' }, "A display name can't hold control or text-direction characters."],
+      [{ displayName: '\u2066Trips\u2069' }, "A display name can't hold control or text-direction characters."],
+      [{ displayName: 'a\u061cb' }, "A display name can't hold control or text-direction characters."],
+      [{ displayName: 'x'.repeat(41) }, 'A display name can be at most 40 characters.'],
+      [{ displayName: ['x'] }, "A display name must be text, or null to use the module's own name."],
+      [{ displayIcon: 3 }, "An icon must be one of this environment's icons, or null to use the module's own."],
+      [{ displayIcon: 'unicorn-rocket' }, "There is no icon called unicorn-rocket in this environment's icons."],
+    ]) assert.throws(() => store.checkModuleDisplay('travel', patch), (err) => err.status === 400 && err.message === sentence, JSON.stringify(patch));
+    store.applyModuleDisplay('travel', { name: 'Itinerary', icon: 'compass' });
+    assert.deepEqual(store.moduleDisplay('travel'), { name: 'Itinerary', icon: 'compass', ownName: 'Itinerary', ownIcon: 'compass' });
+    store.templateModuleNames = { travel: 'Journey', places: 'Stops' };
+    store.templateModuleIcons = { places: 'map', calendar: 'not-in-the-list' };
+    assert.equal(store.moduleDisplay('travel').name, 'Itinerary', 'the owner\'s, over the template\'s');
+    assert.deepEqual(store.moduleDisplay('places'), { name: 'Stops', icon: 'map', ownName: null, ownIcon: null }, 'else the template\'s');
+    assert.equal(store.moduleDisplay('calendar').icon, null, 'an icon not in the environment\'s icons reads the module\'s own');
+    // Any installed or built-in module's own icon is allowed too, though it is not in the environment's icon list.
+    assert.throws(() => store.checkModuleDisplay('travel', { displayIcon: 'suitcase-rolling' }), /There is no icon called suitcase-rolling/);
+    store.moduleIconIds = () => ['suitcase-rolling', 'video'];
+    assert.deepEqual(store.checkModuleDisplay('travel', { displayIcon: 'suitcase-rolling' }), { icon: 'suitcase-rolling' });
+    // Another module's own icon, chosen, then that module gone: kept as the owner's, not drawn, and accepted back as it is.
+    store.applyModuleDisplay('places', { icon: 'suitcase-rolling' });
+    store.moduleIconIds = () => ['video'];
+    assert.deepEqual([store.moduleDisplay('places').icon, store.moduleDisplay('places').ownIcon], ['map', 'suitcase-rolling'], 'the next one down (the template\'s) is shown');
+    assert.deepEqual(store.checkModuleDisplay('places', { displayName: 'Stops', displayIcon: 'suitcase-rolling' }), { name: 'Stops', icon: 'suitcase-rolling' }, 'saving only the name keeps it');
+    assert.throws(() => store.checkModuleDisplay('travel', { displayIcon: 'suitcase-rolling' }), /There is no icon called suitcase-rolling/, 'but not for another module');
+    store.moduleIconIds = () => ['suitcase-rolling', 'video'];
+    assert.equal(store.moduleDisplay('places').icon, 'suitcase-rolling', 'and it draws again once that module is back');
+    store.applyModuleDisplay('places', { icon: null });
+    store.templateModuleIcons = { calendar: 'video' };
+    assert.equal(store.moduleDisplay('calendar').icon, 'video', 'a template\'s module icon that is a module\'s own');
+    assert.throws(() => store.checkModuleDisplay('travel', { displayIcon: 'unicorn-rocket' }), /There is no icon called unicorn-rocket/);
+    store.applyModuleDisplay('travel', { name: null, icon: null });
+    assert.equal(store.moduleDisplay('travel').name, 'Journey');
+    assert.equal('moduleNames' in store.settings, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 console.log(`check-modules: ${n} groups OK`);

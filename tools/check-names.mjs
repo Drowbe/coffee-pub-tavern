@@ -531,12 +531,40 @@ function vocabularyHits(file, text, allow) {
   return { hits, allowed, keys };
 }
 
+// A module's manifest: the text a person reads from it (server/modules.js's manifestTexts, the same fields the server
+// fills), where every form is a word, never a key.
+function manifestVocabularyHits(file, text, allow) {
+  const { manifestTexts } = require('../server/modules.js');
+  const fileAllow = allow.filter((e) => e.fileRe.test(file));
+  const lines = text.split('\n');
+  const hits = [];
+  let allowed = 0;
+  let manifest;
+  try { manifest = JSON.parse(text); } catch (err) { return { hits: [{ file, line: 1, token: `not JSON (${err.message})` }], allowed, keys: [] }; }
+  for (const [obj, key] of manifestTexts(manifest)) {
+    const value = obj[key];
+    const quoted = JSON.stringify(value).slice(1, -1);
+    const lineNo = Math.max(1, lines.findIndex((l) => l.includes(quoted.slice(0, 60))) + 1);
+    const record = (token) => {
+      const hit = fileAllow.find((e) => (e.level === '*' || e.level === VOCABULARY_LEVEL) && e.re.test(token) && (!e.lineRe || e.lineRe.test(lines[lineNo - 1] || '')));
+      if (hit) { hit.used += 1; allowed += 1; } else hits.push({ file, line: lineNo, token });
+    };
+    for (const m of value.matchAll(VOCABULARY_WORD)) record(m[0]);
+    for (const m of value.matchAll(ARTICLE_PLACEHOLDER)) {
+      const name = m[1].toLowerCase();
+      if (MANY_FORMS.has(name) || !ALL_FORMS.has(name)) record(m[0]);
+    }
+  }
+  return { hits, allowed, keys: [] };
+}
+
 function vocabularyReport(files, allow) {
-  const inScope = files.filter((f) => VOCABULARY_SCOPE.some((d) => f.startsWith(d)) && /\.(js|mjs|html)$/.test(f));
+  const inScope = files.filter((f) => VOCABULARY_SCOPE.some((d) => f.startsWith(d)) && (/\.(js|mjs|html)$/.test(f) || /^modules\/[^/]+\/module\.json$/.test(f)));
   const byFolder = new Map(VOCABULARY_SCOPE.map((d) => [d, { hits: [], allowed: 0 }]));
   const badKeys = [];
   for (const file of inScope) {
-    const { hits, allowed, keys } = vocabularyHits(file, fs.readFileSync(path.join(ROOT, file), 'utf8'), allow);
+    const read = /module\.json$/.test(file) ? manifestVocabularyHits : vocabularyHits;
+    const { hits, allowed, keys } = read(file, fs.readFileSync(path.join(ROOT, file), 'utf8'), allow);
     const bucket = byFolder.get(VOCABULARY_SCOPE.find((d) => file.startsWith(d)));
     bucket.hits.push(...hits);
     bucket.allowed += allowed;
@@ -611,7 +639,7 @@ function wordsCheck() {
     assert.equal(refused({ space: { one: 'trip' } }), 'The word for space needs both its singular and its plural.');
     assert.equal(refused({ space: { one: 'trip', many: 'trips', icon: 'x' } }), 'The word for space takes only one, many and a.');
     assert.equal(refused({ space: { one: 'x'.repeat(31), many: 'trips' } }), 'The word for space can be at most 30 characters.');
-    for (const bad of ['<b>trip</b>', 'trip!', '1st', 'trip  -', '-trip', "trip's'"]) assert.equal(refused({ space: { one: bad, many: 'trips' } }), 'The word for space can use only letters, spaces, hyphens and apostrophes.', bad);
+    for (const bad of ['<b>trip</b>', 'trip!', '1st', 'trip  -', '-trip', "trip's'", 'tr\u202eip', '\u2066trip\u2069', 'trip\u200f', 'tr\u061cip']) assert.equal(refused({ space: { one: bad, many: 'trips' } }), 'The word for space can use only letters, spaces, hyphens and apostrophes.', bad);
     assert.equal(refused({ space: { one: 'trip', many: 'trips', a: 'a journey' } }), 'The word for space with its article must be its singular with the article in front, such as "a trip".');
     assert.equal(refused([]), 'Words must be given by name, each with its singular and plural.');
     for (const good of ['base camp', 'Guild Hall', 'co-op', "people's hall", 'étape']) assert.ok(!refused({ space: { one: good, many: good } }), good);
@@ -692,6 +720,17 @@ function wordsCheck() {
     assert.deepEqual(got, ['1:space', '2:space', '3:members', '4:spaces', '5:space', '6:space', '7:SPACES', '8:Space', '9:owner', '10:guest', '11:member', '12:{a spaces}', '12:{an trip}', '13:space', '14:space', '15:module']);
     const html = '<p>Spaces</p><b title="owner">x</b><script>const t = \'no such space\';</script><p data-fill>{a guests}</p>';
     assert.deepEqual(vocabularyHits('public/scratch.html', html, []).hits.map((h) => h.token), ['Spaces', 'owner', 'space', '{a guests}']);
+  });
+  test('a manifest\'s text a person reads: every form is a word; keys, ids, scopes and placeholders are not', () => {
+    const manifest = JSON.stringify({
+      id: 'demo', name: 'Space Demo', scope: ['space'], description: 'Notes for each space, shared with every {member}.',
+      permissions: [{ key: 'space_edit', label: 'Edit the notes in {a space}' }, { key: 'x', label: 'Invite guests' }],
+      settings: [{ key: 'spaceNote', label: 'Note', help: 'Shown to the moderator.', options: [{ value: 'module', label: 'Per {module}', help: 'One per {a modules}' }] }],
+      surfaces: { widget: { title: 'Your spaces' } },
+      events: { publishes: [{ name: 'space-done', label: 'A {space} finished' }] },
+      refs: { produces: [{ kind: 'note', name: 'Object' }] },
+    }, null, 2);
+    assert.deepEqual(manifestVocabularyHits('modules/demo/module.json', manifest, []).hits.map((h) => h.token), ['space', 'spaces', 'guests', 'moderator', '{a modules}', 'Object']);
   });
   console.log(`check-names: words, ${n} groups OK`);
 }

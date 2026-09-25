@@ -35,7 +35,8 @@ Open, found while building steps 1 to 4:
   Names plan.
 
 Next: [environment templates](plans/plan-environment-templates.md), reworked on top of this plan. Its step 1,
-the words, is **built** (September 25, 2026); step 2, module display names and icons, is next.
+the words, and step 2, module display names and icons, are **built** (September 25, 2026); step 3,
+the templates themselves, is next.
 
 ## Entering a space, and the first time
 

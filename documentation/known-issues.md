@@ -38,14 +38,6 @@ GitHub #20.
 
 Workaround: find the item in the module itself.
 
-## A module's own descriptions and setting labels use the default words
-
-When an owner sets the environment's own words (Manage > Environment > **Words**), everything people read follows,
-except the text in a module's `module.json`: its description, and its settings' labels and help. Those still say
-"space", "member" and the other default words. The next step of the environment templates plan changes this.
-
-Workaround: none.
-
 ## The console's Maps tab is too wide on a phone
 
 On the host console at phone width, the Maps tab runs past the right edge of the screen.

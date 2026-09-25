@@ -12,6 +12,7 @@ const { AccessToken, RoomServiceClient, DataPacket_Kind } = require('livekit-ser
 const QRCode = require('qrcode');
 const { ModuleManager, LIMITS: MODULE_LIMITS, compareVersions, oldNameIn, pendingWidensNothing } = require('./modules');
 const { buildModule, bundledModules, zipFiles } = require('./module-build');
+const { fillManifest } = require('./modules');
 const { ModuleLinks } = require('./module-links');
 const { Backgrounds } = require('./backgrounds');
 const { ModuleBus } = require('./module-bus');
@@ -151,6 +152,13 @@ const DEFAULT_SLUG = '';
 // bundledList()) because environmentFor()'s auto-install needs it, and environmentFor() runs at module load,
 // before that part of the file has executed.
 const BUNDLED_DIR = path.join(__dirname, '..', 'modules');
+// (Up here for the same reason: environmentFor() gives a module's display icon its built-in icons, at module load.)
+// The two panes that ship with the app, listed beside the installed modules. They are always on and
+// cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
+const BUILTIN_MODULES = [
+  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the {space}: the tiles, the toolbar, reactions, {asides} and the OBS views.', permissions: 'Share their screen, Use reactions, and the {Asides} group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every {space}. Chat, presence and {modules} keep working.', turnOn: 'Voice and video for the {space}. It needs a LiveKit server.' },
+  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the {space}, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
+];
 
 function currentEnvironment() {
   const env = envContext.getStore();
@@ -396,6 +404,9 @@ function environmentFor(slug) {
     throw err;
   }
   refusals.delete(key);
+  // A display icon may also be a built-in module's own icon (store.displayIconIds), beside the installed modules' ones.
+  const installedIcons = env.store.moduleIconIds;
+  env.store.moduleIconIds = () => [...installedIcons(), ...BUILTIN_MODULES.map((b) => b.icon)];
   // An environment's own name (settings.environmentName). Still on the shipped sentinel default --
   // a brand new environment, or one never renamed since before this was configurable -- picks its real one up
   // right here: the default environment gets the product's own name, an environment its registry name. Runs on every
@@ -1286,7 +1297,7 @@ function moduleAllowedByPlan(id) {
 }
 function refuseModuleNotInPlan(res, id, name) {
   if (moduleAllowedByPlan(id)) return false;
-  res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${name}.` });
+  res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${store.moduleDisplay(id).name || name}.` });
   return true;
 }
 // The calls cap (plan-tenants.md, "Phase 4"): joining a room already in a call is never refused, so this only
@@ -2528,7 +2539,7 @@ app.get('/api/pages/:path', requireStream, (req, res) => {
   const claimed = modules.keyedFor(req.params.path);
   if (!claimed) return res.status(404).json({ error: 'no such page' });
   const { manifest, entry, runMode } = claimed;
-  res.json({ page: { path: req.params.path, entry: manifest.surfaces.keyed.entry, module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, runMode } } });
+  res.json({ page: { path: req.params.path, entry: manifest.surfaces.keyed.entry, module: { id: manifest.id, ...shownModule(manifest), version: manifest.version, runMode } } });
 });
 
 // Spaces: the Lobby (everyone) plus the spaces an owner curates. Signed-in
@@ -2726,16 +2737,18 @@ app.post('/api/users/:key/mute', requireUser, async (req, res) => {
 // Settings > Roles: the permission list and every role's grid of on/off.
 // Modules (Manage > Modules): upload a zip, approve what it asks for, turn it
 // on, roll back, uninstall. See docs/MODULES.md.
-// The two panes that ship with the app, listed beside the installed modules. They are always on and
-// cannot be removed (for now); their permissions are the built-in ones on the Roles tab.
-const BUILTIN_MODULES = [
-  { id: 'conference', name: 'Conference', icon: 'video', description: 'Voice and video for the {space}: the tiles, the toolbar, reactions, {asides} and the OBS views.', permissions: 'Share their screen, Use reactions, and the {Asides} group', switchable: true, setting: 'conferenceEnabled', needs: 'Needs a LiveKit server.', turnOff: 'Video and audio stop for everyone in every {space}. Chat, presence and {modules} keep working.', turnOn: 'Voice and video for the {space}. It needs a LiveKit server.' },
-  { id: 'chat', name: 'Chat', icon: 'message', description: 'Text chat for the {space}, with pictures and formatting.', permissions: 'Send chat messages and Send pictures in chat' },
-];
+// What a person reads a module called and sees it as in this environment (plan-environment-templates.md, "Module display
+// names and icons"): its display name and icon (the owner's, else the template's), else the manifest's own. For an
+// installed manifest, a bundled one or a built-in module alike ({ id, name, icon }).
+function shownModule(m) {
+  const d = store.moduleDisplay(m.id);
+  return { name: d.name || m.name, icon: d.icon || m.icon };
+}
 // A built-in module as Manage shows it: its sentences in this environment's words ({space} and the like, server/words.js),
 // and whether it is on, for one with an environment-wide switch.
 function builtinView(b) {
-  const view = { ...b };
+  const display = store.moduleDisplay(b.id);
+  const view = { ...b, displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon };
   for (const k of ['description', 'permissions', 'needs', 'turnOff', 'turnOn']) if (typeof view[k] === 'string') view[k] = fillWords(view[k]);
   if (b.setting) view.enabled = store.settings[b.setting] !== false;
   return view;
@@ -2746,10 +2759,13 @@ function builtinView(b) {
 // same approval as any zip (an update that asks for something new waits for the admin).
 function bundledList() {
   const installed = new Map(modules.list().map((m) => [m.id, m.version]));
+  const words = store.resolvedWords();
   return bundledModules(BUNDLED_DIR).map((m) => {
     const have = installed.get(m.id) || null;
+    const display = store.moduleDisplay(m.id);
     return {
-      id: m.id, name: m.name, icon: m.icon, description: m.description, version: m.version, installed: have,
+      id: m.id, name: m.name, icon: m.icon, description: fillManifest(m, words).description, version: m.version, installed: have,
+      displayName: display.name, displayIcon: display.icon, ownDisplayName: display.ownName, ownDisplayIcon: display.ownIcon,
       requires: m.requires || [], // what it needs installed and on (Maps needs Places), so the list can say so before Install
       update: Boolean(have) && compareVersions(m.version, have) > 0 && !modules.view(m.id)?.versions.includes(m.version),
       notInPlan: !moduleAllowedByPlan(m.id), // plan-tenants.md, "Phase 3": the Available list marks these "Not in your plan"
@@ -2782,18 +2798,32 @@ app.post('/api/modules', requireOwner, requireHostTrust, rawZip, async (req, res
   // "Phase 3"). keepData: false since this was never really installed from the plan's point of view.
   if (!moduleAllowedByPlan(installed.id)) {
     modules.uninstall(installed.id, { keepData: false });
-    return res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${installed.name}.` });
+    return res.status(403).json({ error: `This ${word('environment')}'s plan does not include ${installed.displayName || installed.name}.` });
   }
   carryReplacedGrants(currentEnvironment());
   res.status(201).json({ module: installed });
 });
+// displayName and displayIcon: what this environment calls the module and shows it as (null, or '' for the name, goes
+// back to the template's or the module's own). A built-in module (Conference, Chat) takes only these two here. Both
+// are checked before anything else is changed, and saved only once the rest of the change is accepted.
 app.patch('/api/modules/:id', requireOwner, (req, res) => {
-  if (req.body?.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: `only the host may choose to run ${word('module', { a: true })} in the page` });
-  if (req.body?.enabled === true) {
+  const { displayName, displayIcon, ...rest } = req.body || {};
+  const display = store.checkModuleDisplay(req.params.id, { displayName, displayIcon });
+  const builtin = BUILTIN_MODULES.find((b) => b.id === req.params.id);
+  if (builtin) {
+    if (Object.keys(rest).length) return res.status(400).json({ error: `${shownModule(builtin).name} is built in, so only its display name and icon can be changed here.` });
+    store.applyModuleDisplay(builtin.id, display);
+    return res.json({ module: builtinView(builtin) });
+  }
+  if (rest.runMode === 'page' && BASE_DOMAIN && !currentUser(req)?.hostAdmin) return res.status(403).json({ error: `only the host may choose to run ${word('module', { a: true })} in the page` });
+  if (rest.enabled === true) {
     const current = modules.list().find((m) => m.id === req.params.id);
     if (current && refuseModuleNotInPlan(res, current.id, current.name)) return;
   }
-  res.json({ module: modules.update(req.params.id, req.body || {}, { spaceExists: (id) => !!store.spaceById(id) }) });
+  if (Object.keys(rest).length) modules.update(req.params.id, rest, { spaceExists: (id) => !!store.spaceById(id) });
+  else modules.get(req.params.id); // 404 for a module that is not installed
+  store.applyModuleDisplay(req.params.id, display);
+  res.json({ module: modules.view(req.params.id) });
 });
 app.post('/api/modules/:id/rollback', requireOwner, (req, res) => {
   res.json({ module: modules.rollback(req.params.id, String(req.body?.version || '')) });
@@ -2807,6 +2837,7 @@ app.delete('/api/modules/:id', requireOwner, (req, res) => {
     moduleLinks.dropModule(req.params.id);
     moduleBus.dropModule(req.params.id);
     moduleSettings.forgetModule(req.params.id);
+    store.applyModuleDisplay(req.params.id, { name: null, icon: null }); // its display name and icon go with its data
   }
   res.json({ ok: true });
 });
@@ -3098,7 +3129,7 @@ function refCard({ manifest, produce, ref }, id, value, withText = false) {
     kind: produce.kind,
     kindName: produce.name,
     open: produce.open,
-    module: { id: manifest.id, name: manifest.name, icon: manifest.icon },
+    module: { id: manifest.id, ...shownModule(manifest) },
     title: String(text(field('title')) ?? '').trim() || 'Untitled',
   };
   const subtitle = text(field('subtitle'));
@@ -3138,7 +3169,7 @@ function consumableKinds(consumerId) {
   for (const { manifest } of modules.enabledAll()) {
     if (manifest.id === consumerId) continue;
     for (const p of manifest.refs.produces) {
-      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: manifest.name, icon: manifest.icon, kind: p.kind, name: p.name, open: p.open, events: (manifest.events?.publishes || []).filter((e) => e.kind === p.kind).map((e) => ({ name: e.name, label: e.label, data: e.data || {} })) });
+      if (consumerMayLink(consumer, manifest.id, p.kind)) out.push({ module: manifest.id, moduleName: shownModule(manifest).name, icon: shownModule(manifest).icon, kind: p.kind, name: p.name, open: p.open, events: (manifest.events?.publishes || []).filter((e) => e.kind === p.kind).map((e) => ({ name: e.name, label: e.label, data: e.data || {} })) });
     }
   }
   return out;
@@ -3404,7 +3435,7 @@ app.get('/api/bus/actions', busRoute((who, req) => {
           continue;
         }
       }
-      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: manifest.name, icon: manifest.icon, name: a.name, label: a.label, input: a.input, ...(a.needs ? { needs: a.needs } : {}), ...(own ? { own: true } : {}) });
+      actions.push({ action: `${manifest.id}:${a.name}`, module: manifest.id, moduleName: shownModule(manifest).name, icon: shownModule(manifest).icon, name: a.name, label: a.label, input: a.input, ...(a.needs ? { needs: a.needs } : {}), ...(own ? { own: true } : {}) });
     }
   }
   return { actions };
@@ -3526,7 +3557,7 @@ function overLimit(moduleId, by, kind) {
 const limitMessage = () => `this ${word('module')} is doing that too often; try again in a moment`;
 app.get('/api/modules/activity', requireOwner, (_req, res) => {
   res.json({
-    activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? word('guest', { a: true }) : a.by) })),
+    activity: moduleActivity.slice(-100).reverse().map((a) => ({ ...a, moduleName: store.moduleDisplay(a.module).name || modules.enabled(a.module)?.manifest.name || a.module, byName: store.userByKey(a.by)?.displayName || (a.by === 'guest' ? word('guest', { a: true }) : a.by) })),
   });
 });
 
@@ -3548,7 +3579,7 @@ app.get('/api/modules/nav', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest }) => manifest.scope.includes('environment') && manifest.surfaces.page && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget), nav: Boolean(manifest.surfaces.page.nav) })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), page: manifest.surfaces.page.entry, widget: Boolean(manifest.surfaces.widget), nav: Boolean(manifest.surfaces.page.nav) })),
   });
 });
 
@@ -3561,8 +3592,10 @@ app.get('/api/modules/widgets', (req, res) => {
   const widgets = modules.enabledAll()
     .filter(({ manifest }) => manifest.scope.includes('environment') && manifest.surfaces.widget && moduleCan(manifest, perms, 'read'))
     .map(({ manifest, entry }) => ({
-      id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry),
-      title: manifest.surfaces.widget.title || manifest.name, size: manifest.surfaces.widget.size, order: manifest.surfaces.widget.order, entry: manifest.surfaces.widget.entry,
+      id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry),
+      // The widget's own title stays its own (plan decision 9: a display name replaces the module's name, not a widget's
+      // label); a widget with none takes the module's name, as shown.
+      title: manifest.surfaces.widget.title || shownModule(manifest).name, size: manifest.surfaces.widget.size, order: manifest.surfaces.widget.order, entry: manifest.surfaces.widget.entry,
     }))
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   res.json({ widgets });
@@ -4083,7 +4116,7 @@ app.get('/api/module-settings/:scope', (req, res) => {
   const scope = req.params.scope;
   const out = modules.enabledAll()
     .filter(({ manifest, entry }) => manifest.settings.some((d) => d.scope === scope) && (scope !== 'space' || entry.allSpaces || entry.spaces.includes(place.space.id)))
-    .map(({ manifest }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, settings: withValues(manifest, scope, place.ctx) }));
+    .map(({ manifest }) => ({ id: manifest.id, ...shownModule(manifest), settings: withValues(manifest, scope, place.ctx) }));
   res.json({ modules: out });
 });
 app.put('/api/modules/:id/settings/:scope', (req, res) => {
@@ -4119,7 +4152,8 @@ app.get('/api/modules/:id/context', (req, res) => {
     permissions: Object.fromEntries(manifest.permissions.map((p) => [p.key, Boolean(perms[`module.${manifest.id}.${p.key}`])])),
     // `nav`: the admin allowed this module into the primary nav (surfaces.page.nav), which is what lets a system-wide
     // tool of its own into that bar (host.nav.set; see api-module-sdk.md, "Registering into the nav bars").
-    module: { id: manifest.id, name: manifest.name, version: manifest.version, icon: manifest.icon, nav: Boolean(manifest.surfaces.page && manifest.surfaces.page.nav) },
+    // `name` and `icon`: what this environment calls the module and shows it as (its display name and icon, else its own).
+    module: { id: manifest.id, ...shownModule(manifest), version: manifest.version, nav: Boolean(manifest.surfaces.page && manifest.surfaces.page.nav) },
     // How the server shows language, time and money (Manage > Settings), for every module to follow.
     // `currencies`: the codes the server takes (as GET /api/currencies), for a module's currency picker.
     // `words`: every level's and role's words in this environment, as branding()'s (server/words.js), for host.locale().words.
@@ -4137,7 +4171,9 @@ app.get('/api/modules/for-space', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest, entry }) => manifest.scope.includes('space') && manifest.surfaces.panel && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, name: manifest.name, icon: manifest.icon, version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), panel: manifest.surfaces.panel, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+    // The built-in modules' names and icons as this environment shows them (the canvas's Conference and Chat switches).
+    builtin: BUILTIN_MODULES.map((b) => ({ id: b.id, ...shownModule(b) })),
   });
 });
 
@@ -4281,7 +4317,9 @@ app.post('/api/modules/:id/notify', (req, res) => {
 // A signed-in person's own notifications: the list, marking them read, and a
 // live stream so a toast can appear the moment one arrives.
 app.get('/api/notifications', requireUser, (req, res) => {
-  const list = moduleHooks.list(currentUser(req).key).filter((n) => modules.enabled(n.module));
+  // Each with its module's name and icon as this environment shows them, as the live stream sends them.
+  const list = moduleHooks.list(currentUser(req).key).filter((n) => modules.enabled(n.module))
+    .map((n) => ({ ...n, moduleName: shownModule(modules.enabled(n.module).manifest).name, icon: shownModule(modules.enabled(n.module).manifest).icon }));
   const byModule = {};
   for (const n of list) if (!n.read) byModule[n.module] = (byModule[n.module] || 0) + 1;
   res.json({ notifications: list, byModule, unread: Object.values(byModule).reduce((a, b) => a + b, 0) });
@@ -4299,7 +4337,7 @@ app.get('/api/notifications/stream', requireUser, (req, res) => {
   const onNote = ({ userKey, notification }) => {
     if (userKey !== key || !modules.enabled(notification.module)) return;
     const { manifest } = modules.enabled(notification.module);
-    res.write(`event: notification\ndata: ${JSON.stringify({ ...notification, moduleName: manifest.name, icon: manifest.icon })}\n\n`);
+    res.write(`event: notification\ndata: ${JSON.stringify({ ...notification, moduleName: shownModule(manifest).name, icon: shownModule(manifest).icon })}\n\n`);
   };
   moduleHooks.on('notification', onNote);
   const onInvite = (invite) => {
@@ -4566,7 +4604,7 @@ app.get('/:path/:key', (req, res, next) => {
   if (!claimant) return next();
   if (!hasStreamAccess(req)) return res.status(403).send('This page needs the access key (?s=...).');
   const claimed = modules.keyedFor(req.params.path);
-  if (!claimed) return res.status(404).send(`The ${claimant.name} ${word('module')} serves this page and is not enabled.`);
+  if (!claimed) return res.status(404).send(`The ${shownModule(claimant).name} ${word('module')} serves this page and is not enabled.`);
   if (!store.userByKey(req.params.key)) return res.status(404).send('No such user.');
   res.sendFile(page('keyed.html'));
 });

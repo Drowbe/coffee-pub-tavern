@@ -45,7 +45,9 @@ function openRef(ref) {
   return true;
 }
 
-function card({ id, title, icon, href, size }) {
+// `title` is the widget's own; `icon` and `name` are its module's as this environment shows them (its display name and
+// icon, else its own): the icon beside the title, and the name on the link to the module's page.
+function card({ id, title, icon, name, href, size }) {
   const el = document.createElement('article');
   el.className = 'dashboard-widget';
   el.dataset.widget = id;
@@ -53,7 +55,7 @@ function card({ id, title, icon, href, size }) {
   const head = document.createElement('header');
   const label = `<i class="fa-solid fa-${escapeHtml(icon || 'puzzle-piece')} fa-fw" aria-hidden="true"></i> ${escapeHtml(title)}`;
   head.innerHTML = href
-    ? `<a class="dashboard-widget-title" href="${escapeHtml(href)}" title="Open ${escapeHtml(title)}">${label}</a>`
+    ? `<a class="dashboard-widget-title" href="${escapeHtml(href)}" title="Open ${escapeHtml(name || title)}">${label}</a>`
     : `<span class="dashboard-widget-title">${label}</span>`;
   const body = document.createElement('div');
   body.className = 'dashboard-widget-body';
@@ -62,7 +64,7 @@ function card({ id, title, icon, href, size }) {
 }
 
 function mountWidget(w) {
-  const { el, body } = card({ id: w.id, title: w.title, icon: w.icon, href: `/modules/${encodeURIComponent(w.id)}`, size: w.size });
+  const { el, body } = card({ id: w.id, title: w.title, icon: w.icon, name: w.name, href: `/modules/${encodeURIComponent(w.id)}`, size: w.size });
   const inPage = w.runMode === 'page';
   let holder;
   if (inPage) {

@@ -1,9 +1,9 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.12",
+  "version": "1.12.13",
   "icon": "square-poll-vertical",
-  "description": "Quick polls and votes for the whole environment and for each space, with live results.",
+  "description": "Quick polls and votes for the whole {environment} and for each {space}, with live results.",
   "author": "Coffee Pub",
   "scope": [
     "environment",
@@ -74,7 +74,7 @@
       "type": "boolean",
       "scope": "space",
       "default": false,
-      "help": "New polls in this space start with \"let people add options\" ticked."
+      "help": "New polls in this {space} start with \"let people add options\" ticked."
     },
     {
       "key": "closeAfterDays",

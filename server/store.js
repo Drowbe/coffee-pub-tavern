@@ -46,6 +46,8 @@ const STARTER_ICONS = [
 const DEFAULT_ICONS = STARTER_ICONS.map((name) => ({ id: name, classes: `fa-solid fa-${name}`, label: name.replace(/-/g, ' ') }));
 const DEFAULT_SPACE_LINK_ICON = 'link';
 const DEFAULT_HOME_ICON = 'couch';
+// A module's display name (settings.moduleNames), at most this long.
+const MODULE_NAME_MAX = 40;
 const SPACE_PROFILE_SLOTS = {
   roleplaying: [...PARTICIPANT_SLOTS, ...CHARACTER_SLOTS],
   participants: PARTICIPANT_SLOTS,
@@ -455,6 +457,12 @@ class Store {
     // The words this environment's template gives (plan-environment-templates.md): none until templates are built,
     // so every key reads the owner's word or the default.
     this.templateWords = null;
+    // The module display names and icons this environment's template gives, by module id (step 3; none until then).
+    this.templateModuleNames = null;
+    this.templateModuleIcons = null;
+    // The icons installed and built-in modules have of their own (their manifests'), which a display icon may also be;
+    // set by the environment's build (environment.js, index.js).
+    this.moduleIconIds = () => [];
   }
 
   load() {
@@ -722,6 +730,69 @@ class Store {
   // The owner's own words as stored (settings.words), unresolved: { <key>: { one, many, a? } }, {} when none are set.
   ownWords() {
     return words.ownOnly(this.data.settings.words);
+  }
+
+  // --- module display names and icons (plan-environment-templates.md, "Module display names and icons") -------
+  // What a module is called and shown as in this environment, by module id (installed, bundled or built in): the
+  // owner's own (settings.moduleNames / settings.moduleIcons), else the template's, else null, meaning the module's
+  // own name and icon from its manifest. `ownName`/`ownIcon`: the owner's alone, for Manage's fields.
+  moduleDisplay(id) {
+    const own = (map) => { const v = this.data.settings[map]?.[id]; return typeof v === 'string' && v ? v : null; };
+    const from = (map) => { const v = map && typeof map === 'object' ? map[id] : null; return typeof v === 'string' && v ? v : null; };
+    const ownName = own('moduleNames');
+    const ownIcon = own('moduleIcons');
+    // An icon applies only while it can be drawn (displayIconIds); one that cannot now (its module uninstalled, its
+    // entry taken off the icon list) is kept as the owner's, and reported as such, but reads the next one down.
+    const icons = this.displayIconIds();
+    const icon = [ownIcon, from(this.templateModuleIcons)].find((i) => i && icons.includes(i)) || null;
+    return { name: ownName || from(this.templateModuleNames), icon, ownName, ownIcon };
+  }
+
+  // What a display icon may be: one the pages can draw as a module's icon (`fa-solid fa-<id>`), so one of this
+  // environment's icons whose classes are exactly that, or any installed or built-in module's own icon.
+  displayIconIds() {
+    const solid = (this.data.settings.icons || []).filter((i) => i.classes === `fa-solid fa-${i.id}`).map((i) => i.id);
+    return [...new Set([...solid, ...this.moduleIconIds()])];
+  }
+
+  // A change to a module's display name and icon, checked: { displayName?, displayIcon? }, each a value or null (or
+  // '' for the name) to go back to the template's or the module's own. Answers the cleaned change; throws a StoreError
+  // (one sentence) and changes nothing when either is refused. applyModuleDisplay() saves it.
+  // `id`: the module's, so an icon it already has is always accepted back unchanged, even one that cannot be drawn now.
+  checkModuleDisplay(id, { displayName, displayIcon } = {}) {
+    const draft = {};
+    if (displayName !== undefined) {
+      if (displayName === null || displayName === '') draft.name = null;
+      else if (typeof displayName !== 'string') throw new StoreError(`A display name must be text, or null to use the ${this.word('module')}'s own name.`);
+      else {
+        const name = displayName.replace(/\s+/g, ' ').trim(); // tabs and new lines read as spaces
+        if (/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(name)) throw new StoreError("A display name can't hold control or text-direction characters.");
+        if (/[<>]/.test(name)) throw new StoreError('A display name is plain text, without < or >.');
+        if (name.length > MODULE_NAME_MAX) throw new StoreError(`A display name can be at most ${MODULE_NAME_MAX} characters.`);
+        draft.name = name || null;
+      }
+    }
+    if (displayIcon !== undefined) {
+      if (displayIcon === null || displayIcon === '') draft.icon = null;
+      else if (typeof displayIcon !== 'string') throw new StoreError(`An icon must be one of this ${this.word('environment')}'s icons, or null to use the ${this.word('module')}'s own.`);
+      else if (displayIcon === this.data.settings.moduleIcons?.[id] || this.displayIconIds().includes(displayIcon)) draft.icon = displayIcon;
+      else if (this.iconIds().includes(displayIcon)) throw new StoreError(`The icon ${displayIcon.slice(0, 40)} is not a solid Font Awesome icon, so it can't be ${this.word('module', { a: true })}'s icon.`);
+      else throw new StoreError(`There is no icon called ${displayIcon.slice(0, 40)} in this ${this.word('environment')}'s icons.`);
+    }
+    return draft;
+  }
+
+  applyModuleDisplay(id, draft) {
+    const set = (map, value) => {
+      const next = { ...(this.data.settings[map] || {}) };
+      if (value) next[id] = value;
+      else delete next[id];
+      if (Object.keys(next).length) this.data.settings[map] = next;
+      else delete this.data.settings[map];
+    };
+    if (draft.name !== undefined) set('moduleNames', draft.name);
+    if (draft.icon !== undefined) set('moduleIcons', draft.icon);
+    if (draft.name !== undefined || draft.icon !== undefined) this.save();
   }
 
   // One level's or role's word in this environment (server/words.js's format): the defaults while app.json is still

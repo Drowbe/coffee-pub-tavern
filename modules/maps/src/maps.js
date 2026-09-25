@@ -21,7 +21,7 @@
     return;
   }
   if (info.context.scope !== 'space') {
-    $('msg').textContent = `A map belongs to ${word('space', { a: true })}. Open the ${word('space')}, then Maps from its ${word('module', { many: true })}.`;
+    $('msg').textContent = `A map belongs to ${word('space', { a: true })}. Open the ${word('space')}, then ${info.module.name} from its ${word('module', { many: true })}.`;
     return;
   }
 
@@ -375,6 +375,11 @@
     const s = $('state');
     if (!name) { s.hidden = true; s.replaceChildren(); return; }
     s.replaceChildren(...parts(name));
+    // This module's name and the places module's, as this environment shows them (host.info's, and the one that
+    // offers the place actions); the markup's own words until they are known.
+    for (const el of s.querySelectorAll('[data-slot="own-name"]')) el.textContent = info.module.name || el.textContent;
+    const keeper = state.searcher || state.adder;
+    if (keeper && keeper.moduleName) for (const el of s.querySelectorAll('[data-slot="places-name"]')) el.textContent = keeper.moduleName;
     s.hidden = false;
     hydrate(s);
   }
