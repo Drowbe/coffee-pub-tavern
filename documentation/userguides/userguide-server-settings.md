@@ -54,15 +54,9 @@ labels and help) still uses the default words.
 
 ## Theme
 
-- **Theme.** Recolors the app to match your own branding; it changes colors only, never layout. Every theme has a light and a dark version. The **Dark by default** switch sets which one everyone sees until they choose their own with the light or dark switch at the top of any page. **Apply** puts the theme and the default live on every open page at once, with no refresh (a guest's page within about a minute). Pick a
-  theme and **Apply**, or adjust the seven base colors (page background, section background, border, text, dim
-  text, primary accent and text on accent) and save them as a new theme. Under **Header, buttons and
-  icons** you can also set the card background (the small boxes inside a section, such as member
-  tiles), the header background and text, the icon color and its hover, the Primary
-  accent hover, and the Secondary accent with its text and hover. Each of these is on **Auto** by
-  default, which keeps it derived from the base colors; untick Auto to choose the color yourself. The
-  preview, including a sample header, shows the result live before anything is saved. "Default" is how
-  the app has always looked.
+- **Theme.** The environment's colours, in a light and a dark version, with **Dark by default** choosing which one
+  people see until they pick their own. Choose a theme, change its colours, preview, then **Apply**; **Export** and
+  **Import…** share a theme as a file. See [Creating themes](userguide-themes.md).
 - **Default Images.** The Participant pictures a member shows once neither they nor the room they are
   in has set one; the last fallback before the box goes transparent.
 - **Guest images.** The Participant pictures every guest shows, since a guest has no account of their

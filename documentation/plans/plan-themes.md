@@ -2,7 +2,7 @@
 
 **Audience:** Thomas, who decided how themes are shared, and the sessions that build it: server-development (`server/`, the routes, the checks), experience-design (Manage > Theme) and content-manager (the owners' guide to creating themes).
 
-**Status:** approved 2026-09-25; not built. GitHub issue #67. Thomas asked for theme import and export next, and whether the wiki had a place on creating themes (it does not: `userguide-server-settings.md` has one paragraph on Manage > Theme, and `designsystem/design-theme.md` is for people building pages and modules).
+**Status:** approved 2026-09-25; server built (step 1), pages landing (step 2), guide written (step 3, `userguide-themes.md`, ahead of the pages so it is ready when they land). GitHub issue #67. Thomas asked for theme import and export next, and whether the wiki had a place on creating themes (it does not: `userguide-server-settings.md` has one paragraph on Manage > Theme, and `designsystem/design-theme.md` is for people building pages and modules).
 
 ## What it is today
 

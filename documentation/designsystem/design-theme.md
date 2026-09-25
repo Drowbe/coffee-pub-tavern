@@ -16,7 +16,7 @@ untouched server sends only the default theme's light set, so it looks exactly l
 `public/theme-mode.js` sets `data-theme-mode` from the person's own choice (their account's `themeMode`, or
 `app.themeMode` in the browser for a guest), else the environment's default, and swaps it without a reload when
 either changes; `branding()`'s `themeMode` and `themeVersion` and the notifications stream's `theme` and `mode`
-events tell an open page. A person's own choice is `PATCH /api/me` `{ themeMode: 'light' | 'dark' | null }` (`null` follows the environment's default again; anything else answers 400 "the mode is light or dark, or null to follow the environment's default"), shown as `user.themeMode`. Draw every colour from the tokens and both modes follow. Because it is an ordinary stylesheet link, the popped-out
+events tell an open page. A person's own choice is `PATCH /api/me` `{ themeMode: 'light' | 'dark' | null }` (`null` follows the environment's default again; anything else answers 400 "the mode is light or dark, or null to follow the environment's default"), shown as `user.themeMode`. Draw every colour from the tokens and both modes follow. A theme is shared as a `.magpie-theme.json` file (`{ magpieTheme: 1, name, author?, light, dark }`, each set with the 16 stored keys); the routes are in [architecture-overview](../architecture/architecture-overview.md), "Themes", and the owner's steps in [userguide-themes](../userguides/userguide-themes.md). Because it is an ordinary stylesheet link, the popped-out
 call window picks the theme up too, when the page clones its stylesheets into the new window.
 
 ## The tokens

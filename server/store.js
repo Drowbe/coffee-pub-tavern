@@ -366,6 +366,11 @@ function cleanWidth(value) {
   return Number.isFinite(n) ? Math.max(1, Math.min(24, n)) : null;
 }
 
+// A theme's author: plain text (no control characters) up to 60 characters, or '' for none.
+function cleanAuthor(value) {
+  return typeof value === 'string' ? cleanText(value.replace(/\p{Cc}/gu, ' '), 60) : '';
+}
+
 function cleanColor(value) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim().toLowerCase() : '';
 }
@@ -989,7 +994,10 @@ class Store {
       if (colorMode(colors.bg) === 'light') light = colors;
       else dark = colors;
     }
-    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', light, dark };
+    // Who made it, when it came in from a theme file (documentation/plans/plan-themes.md): plain text up to 60
+    // characters, kept so a theme exported again still names them. A theme made in Manage has none.
+    const author = cleanAuthor(t.author);
+    return { id: t.id, name: cleanText(t.name, 40) || 'Theme', ...(author ? { author } : {}), light, dark };
   }
 
   get themes() {
@@ -1038,6 +1046,34 @@ class Store {
     if (changed) theme[mode] = set;
     this.save();
     return theme;
+  }
+
+  // A theme read from a theme file (server/theme-file.js has already checked it: { name, author?, light, dark },
+  // at least one set whole): added as a new theme with a new id, and a name already in use is never overwritten --
+  // it becomes "Name (2)", then "(3)" and so on (plan-themes decision 2). Never changes the active theme or the mode.
+  importTheme(fields) {
+    const clean = this.sanitizeTheme({ id: null, name: fields.name, author: fields.author, light: fields.light, dark: fields.dark });
+    if (!clean || (!clean.light && !clean.dark)) throw new StoreError('This theme has no complete light or dark set: each needs all seven base colors.');
+    let id;
+    do id = randomKey();
+    while (this.data.settings.themes.some((t) => t.id === id));
+    const theme = { ...clean, id, name: this.freeThemeName(clean.name) };
+    this.data.settings.themes.push(theme);
+    this.save();
+    return theme;
+  }
+
+  // `name`, or "name (2)", "(3)"... when a theme (Strong Coffee included) already has it, ignoring case; the
+  // number always fits inside the 40 characters a name may have.
+  freeThemeName(name) {
+    const lower = (x) => String(x || '').trim().toLowerCase();
+    const taken = new Set([...this.data.settings.themes.map((t) => t.name), DEFAULT_THEME.name].map(lower));
+    if (!taken.has(lower(name))) return name;
+    for (let n = 2; ; n += 1) {
+      const suffix = ` (${n})`;
+      const candidate = `${name.slice(0, 40 - suffix.length).trimEnd()}${suffix}`;
+      if (!taken.has(lower(candidate))) return candidate;
+    }
   }
 
   removeTheme(id) {
@@ -1796,5 +1832,6 @@ module.exports = {
   Store, StoreError, SLOTS, PARTICIPANT_SLOTS, CHARACTER_SLOTS, SPACE_PROFILES, SPACE_PROFILE_SLOTS,
   LEGACY_SLOTS, ROLES, ASSIGNABLE_ROLES, hasOwnerRights, ROLE_PERMISSIONS, IMAGE_TYPES, MAX_IMAGE_BYTES, DEFAULT_BORDER_COLOR, LOBBY, randomToken, cleanText, cleanLogin,
   sanitizeMfa, CURRENCIES, QUALITY_OPTIONS, LANGUAGES, BUILTIN_THEME_IDS: BUILTIN_THEMES.map((t) => t.id), displayNameProblem,
+  THEME_BASE, THEME_OPTIONAL, DEFAULT_THEME, cleanColor, cleanAuthor,
   DEFAULT_HOME_ICON,
 };

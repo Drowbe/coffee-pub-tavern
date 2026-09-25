@@ -26,6 +26,7 @@ const { pmtilesZoomRange } = require('./pmtiles-header');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
 const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require('./ai');
+const themeFile = require('./theme-file');
 const { EventEmitter } = require('events');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
@@ -4883,6 +4884,31 @@ app.delete('/api/themes/:id', requireOwner, (req, res) => {
   watchTheme(() => store.removeTheme(req.params.id));
   res.json({ ok: true });
 });
+// A theme as a file (documentation/plans/plan-themes.md; server/theme-file.js). Export: any theme, or `default` for
+// Strong Coffee with its dark palette written out, as a download. Import: the file's JSON as the body (sent as JSON,
+// or as the file's own text with any other type), checked and added as a new theme -- never applied.
+app.get('/api/themes/:id/export', requireOwner, (req, res) => {
+  const theme = req.params.id === 'default' ? null : store.themes.find((t) => t.id === req.params.id);
+  if (theme === undefined) return res.status(404).json({ error: 'no such theme' });
+  const file = themeFile.themeToFile(theme);
+  res.set('Content-Disposition', `attachment; filename="${themeFile.themeFileName(file.name)}"`);
+  res.type('application/json').send(`${JSON.stringify(file, null, 2)}\n`);
+});
+// Its own 16 KB limit: a JSON body is parsed by the app's own parser (64 KB) and measured here by the bytes received;
+// any other type is read as text up to the limit (a bigger one, and one the app's parser can't read, get the same
+// sentence -- see the error handler).
+const themeFileText = express.text({ type: () => true, limit: themeFile.MAX_THEME_FILE_BYTES });
+app.post('/api/themes/import', requireOwner, themeFileText, (req, res) => {
+  try {
+    const given = typeof req.body === 'string' ? req.body : req.body === undefined ? '' : req.body;
+    const read = themeFile.readThemeFile(given, (t) => store.sanitizeTheme(t), { byteLength: req.rawBody ? req.rawBody.length : null });
+    const { dropped, ...fields } = read;
+    res.json({ theme: store.importTheme(fields), dropped });
+  } catch (err) {
+    if (err instanceof themeFile.ThemeFileError) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
 // Site images: icon, background.
 const siteImage = (req, res, next) => (req.params.image === 'icon' || req.params.image === 'background' ? next() : res.status(404).json({ error: 'unknown image' }));
 app.put('/api/settings/:image', requireOwner, siteImage, rawImage, checkStorageCap, (req, res) => {
@@ -4950,6 +4976,10 @@ app.use((err, _req, res, _next) => {
       return res.status(503).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Magpie</title></head><body style="font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 32rem; padding: 0 1rem;"><p>${sentence}</p></body></html>`);
     }
     return res.status(503).json({ error: sentence });
+  }
+  // A theme file too big or not JSON: the one sentence the import gives for anything that isn't a theme file.
+  if (_req.path === '/api/themes/import' && (err.type === 'entity.too.large' || err.type === 'entity.parse.failed')) {
+    return res.status(400).json({ error: themeFile.NOT_A_THEME_FILE });
   }
   if (err.type === 'entity.too.large') {
     if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });

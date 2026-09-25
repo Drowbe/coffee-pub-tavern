@@ -673,6 +673,17 @@ function renderThemeChooser() {
   $('theme-update').hidden = !selected;
   $('theme-delete').hidden = !selected;
   $('theme-apply').disabled = selectedThemeId === activeThemeId && selectedMode === activeMode;
+  // Export: the saved theme in the chooser, as a file (Strong Coffee is "default"). The server names the download.
+  $('theme-export').href = `/api/themes/${encodeURIComponent(selectedThemeId || 'default')}/export`;
+  // Who made an imported theme: shown, never edited here (plan-themes.md).
+  $('theme-author').textContent = selected?.author ? `Made by ${selected.author}` : '';
+  $('theme-author').hidden = !selected?.author;
+}
+// What the last import said: stays until another theme is picked, so a list of what was left out can be read.
+function sayImport(text, error = false) {
+  $('theme-import-status').textContent = text;
+  $('theme-import-status').classList.toggle('error', error);
+  $('theme-import-status').hidden = !text;
 }
 // Picking a theme or a mode: into the editor and the preview, not live until Apply.
 function showSelectedTheme() {
@@ -697,6 +708,7 @@ async function loadThemes() {
 // actually persist and go live, rather than every click through the list
 // changing what everyone else sees.
 $('theme-select').addEventListener('change', () => {
+  sayImport('');
   selectedThemeId = $('theme-select').value || null;
   previewing = true;
   showSelectedTheme();
@@ -719,6 +731,29 @@ $('theme-apply').addEventListener('click', async () => {
   renderThemeChooser();
   const own = themeMode();
   say($('theme-status'), own === selectedMode ? 'applied' : `applied -- you still see ${own}, your own pick (the switch at the top)`);
+});
+// Import…: a theme file (plan-themes.md), read here and sent as its text; the server checks it and adds it as a new
+// theme ("Name (2)" when the name is taken). It is chosen and previewed, never applied: Apply does that, as for any theme.
+$('theme-import').addEventListener('click', () => $('theme-import-file').click());
+$('theme-import-file').addEventListener('change', async () => {
+  const input = $('theme-import-file');
+  const file = input.files[0];
+  input.value = ''; // the same file can be picked again
+  if (!file) return;
+  sayImport('');
+  // Far bigger than any theme (the server takes 16 KB): not read at all.
+  if (file.size > 1024 * 1024) return sayImport("That isn't a Magpie theme file.", true);
+  try {
+    const { theme, dropped } = await api('POST', '/api/themes/import', new Blob([await file.text()], { type: 'text/plain' }));
+    themes.push(theme);
+    selectedThemeId = theme.id;
+    previewing = true;
+    showSelectedTheme();
+    const left = Array.isArray(dropped) && dropped.length ? ` Left out: ${dropped.join(', ')}.` : '';
+    sayImport(`Imported ${theme.name}${theme.author ? ` by ${theme.author}` : ''}.${left} Apply to use it.`);
+  } catch (err) {
+    sayImport(err.message, true);
+  }
 });
 $('theme-save-new').addEventListener('click', async () => {
   const name = window.prompt('Name this theme:');

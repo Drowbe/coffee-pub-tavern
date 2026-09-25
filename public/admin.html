@@ -62,10 +62,15 @@
       <p class="hint">Recolor the app to match your own branding -- this is colors only, nothing about layout changes. Strong Coffee is how the app has always looked. Every theme has a light and a dark version. The switch here picks the default: what everyone sees until they pick their own with the light or dark switch at the top of any page. Apply puts the theme and the default live on every open page.</p>
       <div class="row">
         <select id="theme-select" aria-label="Theme"></select>
+        <a class="btn" id="theme-export" href="/api/themes/default/export" download title="Download the theme in the chooser as a file"><i class="fa-solid fa-file-export fa-fw" aria-hidden="true"></i> Export</a>
+        <button class="btn" id="theme-import" type="button" title="Add a theme from a file"><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i> Import…</button>
+        <input id="theme-import-file" type="file" accept=".json,application/json" hidden>
         <button class="theme-mode" id="theme-mode" type="button" role="switch" aria-checked="true" aria-label="Dark by default" title="The default: light or dark"><i class="fa-solid fa-sun fa-fw" aria-hidden="true"></i><span class="theme-mode-track" aria-hidden="true"><span class="theme-mode-knob"></span></span><i class="fa-solid fa-moon fa-fw" aria-hidden="true"></i></button>
         <button class="btn btn-primary" id="theme-apply" type="button">Apply</button>
         <span class="status" id="theme-status"></span>
       </div>
+      <p class="hint theme-author" id="theme-author" hidden></p>
+      <p class="status theme-import-status" id="theme-import-status" role="status" hidden></p>
       <div class="theme-preview" id="theme-preview">
         <div class="theme-preview-header topbar-sample">
           <span class="theme-preview-brand" data-fill><i class="fa-solid fa-couch fa-fw" aria-hidden="true"></i> {Environment} name</span>
