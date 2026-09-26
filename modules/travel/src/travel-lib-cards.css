@@ -314,7 +314,6 @@
 .day2.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 26px color-mix(in srgb, var(--accent) 22%, transparent); }
 .day2.current .dnum { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 @media (prefers-reduced-motion: reduce) { .day2 { transition: none; } }
-.day2.today .day-head2 { box-shadow: inset 4px 0 0 var(--accent); }
 .day2.today .dmeta h2::after { content: " · today"; color: var(--accent); font-weight: 500; }
 .day2.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .day2.drop-target .day-empty { border-color: var(--accent); color: var(--text); }

@@ -259,6 +259,10 @@
       <header>
         <span data-module-name>Chat</span>
         <span class="chat-tools">
+          <span class="chat-ai-share" id="chat-ai-share" role="group" aria-label="AI replies" hidden>
+            <button class="msg-btn" id="chat-ai-private" type="button" aria-pressed="true">Private</button>
+            <button class="msg-btn" id="chat-ai-shared" type="button" aria-pressed="false">Shared</button>
+          </span>
           <button class="msg-btn" id="chat-save" type="button" title="Save the chat as a text file" aria-label="Save the chat"><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-clear-ai" type="button" title="Clear your AI thread" aria-label="Clear your AI thread" hidden><i class="fa-solid fa-eraser fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-delete" type="button" title="Clear the chat" aria-label="Clear the chat"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></button>
@@ -297,16 +301,12 @@
           <div class="chat-emoji-popup" id="chat-emoji-popup" hidden></div>
         </span>
         <span class="chat-format-spacer"></span>
-        <span class="chat-ai-share" id="chat-ai-share" role="group" aria-label="AI replies">
-          <button class="msg-btn" id="chat-ai-private" type="button" aria-pressed="true">Private</button>
-          <button class="msg-btn" id="chat-ai-shared" type="button" aria-pressed="false">Shared</button>
-        </span>
-        <button class="msg-btn" id="chat-bring" type="button" title="Bring in research" aria-label="Bring in research" hidden><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i></button>
+        <button class="msg-btn" id="chat-bring" type="button" title="Bring in research" aria-label="Bring in research" hidden><i class="fa-solid fa-square-share-nodes fa-fw" aria-hidden="true"></i></button>
         <span class="chat-format-item chat-command-wrap" id="chat-command-wrap">
-          <button class="msg-btn" id="chat-command" type="button" title="Commands" aria-label="Commands" aria-haspopup="true"><i class="fa-solid fa-circle-chevron-up fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="chat-command" type="button" title="Commands" aria-label="Commands" aria-haspopup="true"><i class="fa-solid fa-square-poll-horizontal fa-fw" aria-hidden="true"></i></button>
         </span>
         <span class="chat-format-item">
-          <button class="msg-btn" id="chat-help" type="button" title="Formatting help" aria-label="Formatting help"><i class="fa-solid fa-circle-question fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="chat-help" type="button" title="Formatting help" aria-label="Formatting help"><i class="fa-solid fa-square-pen fa-fw" aria-hidden="true"></i></button>
           <div class="chat-help-popup" id="chat-help-popup" hidden>
             <p><code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, and lines starting with <code>- </code> for a bulleted list all work. Links become clickable automatically. Paste or drop a picture to send it. Shift+Enter starts a new line without sending.</p>
           </div>

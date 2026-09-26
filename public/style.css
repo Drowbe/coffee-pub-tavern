@@ -2440,7 +2440,9 @@ a.crumb-here:hover {
 
 .chat-tools {
   display: flex;
+  align-items: center;
   gap: 2px;
+  min-width: 0;
 }
 
 .msg-btn {
@@ -2762,6 +2764,11 @@ a.crumb-here:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  flex: none;
+}
+
+.chat-ai-share[hidden] {
+  display: none;
 }
 
 .chat-ai-share .msg-btn {
