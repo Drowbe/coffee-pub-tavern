@@ -1,7 +1,7 @@
 {
   "id": "polls",
   "name": "Polls",
-  "version": "1.12.15",
+  "version": "1.12.16",
   "icon": "square-poll-vertical",
   "description": "Quick polls and votes for the whole {environment} and for each {space}, with live results.",
   "author": "Coffee Pub",
@@ -110,10 +110,23 @@
     ]
   },
   "actions": {
+    "provides": [
+      {
+        "name": "addPoll",
+        "label": "Start a poll",
+        "local": true,
+        "input": {
+          "text": "string"
+        }
+      }
+    ],
     "uses": [
       "*"
     ]
   },
+  "commands": [
+    { "name": "v", "label": "Start a poll", "action": "addPoll", "hint": "the question" }
+  ],
   "refs": {
     "produces": [
       {

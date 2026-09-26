@@ -470,4 +470,10 @@ test('commands must name a local action that takes text, and cannot be ai', () =
   refuse([{ name: 'r', action: 'addNote' }], [{ name: 'addNote', local: true, input: { title: 'string' } }], /must accept/);
 });
 
+test('polls ships /v as a local addPoll command', () => {
+  const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules/polls/module.json'), 'utf8'));
+  assert.deepEqual(raw.commands, [{ name: 'v', label: 'Start a poll', action: 'addPoll', hint: 'the question' }]);
+  assert.equal(raw.actions.provides.find((a) => a.name === 'addPoll')?.local, true);
+});
+
 console.log(`check-modules: ${n} groups OK`);
