@@ -172,6 +172,18 @@ try {
   assert.match(unknown.json.error || '', /No command \/zzzz/);
   n += 1;
 
+  assert.equal((await call('POST', '/api/modules/bundled/polls/install', { cookie: owner, body: {} })).status, 201);
+  assert.equal((await call('PATCH', '/api/modules/polls', { cookie: owner, body: { enabled: true, allSpaces: true } })).status, 200);
+  const listed = await call('GET', `/api/modules/for-space?space=${space.id}`, { cookie: pat });
+  assert.equal(listed.status, 200, listed.text);
+  const pollsMod = (listed.json.modules || []).find((m) => m.id === 'polls');
+  assert.ok(pollsMod, 'polls is on the space');
+  assert.ok((pollsMod.commands || []).some((c) => c.name === 'v' && c.action === 'addPoll'));
+  const vote = await call('POST', `/api/spaces/${space.id}/command`, { cookie: pat, body: { name: 'v', text: 'where to stay by sep 29' } });
+  assert.equal(vote.status, 200, vote.text);
+  assert.equal(vote.json.module, 'polls');
+  n += 1;
+
   // chat/ai is 6 per minute; one ask already ran above.
   for (let i = 0; i < 5; i += 1) {
     const extra = await call('POST', `/api/spaces/${space.id}/ai`, { cookie: pat, body: { question: `again ${i}` } });

@@ -728,14 +728,24 @@
     });
   }
   $('add').addEventListener('click', () => openEditor());
-  // The host draws New poll in the module's action bar (in the space's bottom row when docked);
-  // the button in the header stays only for a host without one.
+  // The host draws New poll in the module's action bar; the header button stays only when there is no bar.
+  // Typing is `/v` in Chat, which opens the same form.
   if (host.bar) {
     $('add').classList.add('hosted');
-    host.bar.set(canCreate ? [{ id: 'add', type: 'quickadd', label: 'New poll', placeholder: 'Ask a question: where to stay by sep 29' }] : []).catch(() => $('add').classList.remove('hosted'));
+    host.bar.set(canCreate ? [{ id: 'add', label: 'New poll', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
     host.on('bar', (e) => {
       if (e.id !== 'add' || !canCreate) return;
-      openEditor(e.value ? host.util.parseWhen(e.value) : null);
+      openEditor();
+    });
+  }
+  if (host.actions && host.actions.provide) {
+    host.actions.provide({
+      addPoll: async (input) => {
+        if (!canCreate) throw new Error('this person cannot start a poll here');
+        const parsed = input.text && host.util.parseWhen ? host.util.parseWhen(input.text) : { title: input.text || '' };
+        openEditor(parsed);
+        return {};
+      },
     });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });

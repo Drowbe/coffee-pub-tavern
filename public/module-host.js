@@ -459,11 +459,12 @@ function toggleOverflow(trigger, items) {
 
 // Splits a cleaned item list into what a header/bar/toolbar row shows directly and what collapses into
 // its "..." (an item marked `overflow: true`, or whatever doesn't fit in `max` slots including the "...").
+// Leftovers come off the left of `shown`, so the rightmost (the primary, when there is one) stays.
 function splitOverflow(items, max) {
   const shown = [];
   const hidden = [];
   for (const item of items) (item.overflow ? hidden : shown).push(item);
-  while (shown.length + (hidden.length ? 1 : 0) > max) hidden.unshift(shown.pop());
+  while (shown.length + (hidden.length ? 1 : 0) > max) hidden.push(shown.shift());
   return { shown, hidden };
 }
 
@@ -524,6 +525,97 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
 
   // The nav-bar tools this mount registered (their namespaced ids), so destroy() takes exactly those out.
   const navIds = new Set();
+  let barItems = [];
+  let barObserver = null;
+  let fittingBar = false;
+
+  function drawBarItem(item) {
+    if (item.input) {
+      const form = document.createElement('form');
+      form.className = 'quick-add';
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.maxLength = 200;
+      field.placeholder = item.placeholder;
+      field.setAttribute('aria-label', item.placeholder || 'Quick add');
+      const go = document.createElement('button');
+      go.type = 'submit';
+      go.className = 'btn btn-primary quick-add-go';
+      go.setAttribute('aria-label', item.label || 'Add');
+      go.title = item.label || 'Add';
+      go.disabled = item.disabled;
+      const plus = document.createElement('i');
+      plus.className = `fa-solid fa-${item.icon || 'circle-plus'} fa-fw`;
+      plus.setAttribute('aria-hidden', 'true');
+      go.appendChild(plus);
+      form.append(field, go);
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        send('bar', { id: item.id, value: field.value.trim() });
+        field.value = '';
+      });
+      bar.appendChild(form);
+      return;
+    }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn${item.primary ? ' btn-primary' : ''}${item.iconOnly && item.icon ? ' bar-icon' : ''}`;
+    b.disabled = item.disabled;
+    if (item.iconOnly && item.icon) { b.title = item.label; b.setAttribute('aria-label', item.label); }
+    if (item.icon) {
+      const i = document.createElement('i');
+      i.className = `fa-solid fa-${item.icon} fa-fw`;
+      i.setAttribute('aria-hidden', 'true');
+      b.append(i, ' ');
+    }
+    if (!(item.iconOnly && item.icon)) b.append(item.label);
+    b.addEventListener('click', () => send('bar', { id: item.id }));
+    bar.appendChild(b);
+  }
+
+  function drawBarMore(hidden) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'btn bar-icon bar-more';
+    more.title = 'More';
+    more.setAttribute('aria-label', 'More');
+    more.setAttribute('aria-haspopup', 'menu');
+    const i = document.createElement('i');
+    i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
+    i.setAttribute('aria-hidden', 'true');
+    more.appendChild(i);
+    more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
+    bar.appendChild(more);
+  }
+
+  // Primary on the far right; secondaries to its left. As the bar shrinks, leftovers come off the left into "...".
+  function drawModuleBar() {
+    if (!bar || fittingBar) return;
+    fittingBar = true;
+    try {
+      const quickadds = barItems.filter((i) => i.input);
+      const forced = barItems.filter((i) => !i.input && i.overflow);
+      const primaries = barItems.filter((i) => !i.input && !i.overflow && i.primary);
+      const secondaries = barItems.filter((i) => !i.input && !i.overflow && !i.primary);
+      const hidden = [...forced];
+      const visible = [...secondaries];
+      const paint = () => {
+        bar.textContent = '';
+        for (const item of quickadds) drawBarItem(item);
+        if (hidden.length) drawBarMore(hidden);
+        for (const item of visible) drawBarItem(item);
+        for (const item of primaries) drawBarItem(item);
+      };
+      paint();
+      if (!bar.clientWidth) return;
+      while (visible.length && bar.scrollWidth > bar.clientWidth + 1) {
+        hidden.push(visible.shift());
+        paint();
+      }
+    } finally {
+      fittingBar = false;
+    }
+  }
 
   // Events for the module before its page has said hello wait until it has.
   let ready = false;
@@ -744,7 +836,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     // The module's action bar: the host draws the buttons into `bar` and sends
     // clicks back as a 'bar' event.
     async 'bar.set'({ items }) {
-      const clean = (Array.isArray(items) ? items : []).slice(0, 10).map((i) => ({
+      barItems = (Array.isArray(items) ? items : []).slice(0, 10).map((i) => ({
         id: String(i?.id ?? '').slice(0, 40),
         label: String(i?.label ?? '').slice(0, 30),
         icon: /^[a-z0-9-]{1,40}$/.test(i?.icon || '') ? i.icon : '',
@@ -754,75 +846,17 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
         input: i?.type === 'quickadd',
         iconOnly: Boolean(i?.iconOnly),
         placeholder: String(i?.placeholder ?? '').slice(0, 60),
-        // A quick-add is never collapsed into the "..." -- it doesn't count toward the cap either.
         overflow: Boolean(i?.overflow) && i?.type !== 'quickadd',
       })).filter((i) => i.id && (i.label || i.input));
       if (bar) {
-        bar.textContent = '';
-        const quickadds = clean.filter((i) => i.input);
-        const { shown, hidden } = splitOverflow(clean.filter((i) => !i.input), 5);
-        const draw = (item) => {
-          if (item.input) {
-            const form = document.createElement('form');
-            form.className = 'quick-add';
-            const field = document.createElement('input');
-            field.type = 'text';
-            field.maxLength = 200;
-            field.placeholder = item.placeholder;
-            field.setAttribute('aria-label', item.placeholder || 'Quick add');
-            const go = document.createElement('button');
-            go.type = 'submit';
-            go.className = 'btn btn-primary quick-add-go';
-            go.setAttribute('aria-label', item.label || 'Add');
-            go.title = item.label || 'Add';
-            go.disabled = item.disabled;
-            const plus = document.createElement('i');
-            plus.className = `fa-solid fa-${item.icon || 'circle-plus'} fa-fw`;
-            plus.setAttribute('aria-hidden', 'true');
-            go.appendChild(plus);
-            form.append(field, go);
-            form.addEventListener('submit', (e) => {
-              e.preventDefault();
-              send('bar', { id: item.id, value: field.value.trim() });
-              field.value = '';
-            });
-            bar.appendChild(form);
-            return;
-          }
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.className = `btn${item.primary ? ' btn-primary' : ''}${item.iconOnly && item.icon ? ' bar-icon' : ''}`;
-          b.disabled = item.disabled;
-          if (item.iconOnly && item.icon) { b.title = item.label; b.setAttribute('aria-label', item.label); }
-          if (item.icon) {
-            const i = document.createElement('i');
-            i.className = `fa-solid fa-${item.icon} fa-fw`;
-            i.setAttribute('aria-hidden', 'true');
-            b.append(i, ' ');
-          }
-          if (!(item.iconOnly && item.icon)) b.append(item.label);
-          b.addEventListener('click', () => send('bar', { id: item.id }));
-          bar.appendChild(b);
-        };
-        for (const item of quickadds) draw(item);
-        for (const item of shown) draw(item);
-        if (hidden.length) {
-          const more = document.createElement('button');
-          more.type = 'button';
-          more.className = 'btn bar-icon bar-more';
-          more.title = 'More';
-          more.setAttribute('aria-label', 'More');
-          more.setAttribute('aria-haspopup', 'menu');
-          const i = document.createElement('i');
-          i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-          i.setAttribute('aria-hidden', 'true');
-          more.appendChild(i);
-          more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
-          bar.appendChild(more);
+        bar.hidden = barItems.length === 0;
+        if (!barObserver) {
+          barObserver = new ResizeObserver(() => drawModuleBar());
+          barObserver.observe(bar);
         }
-        bar.hidden = clean.length === 0;
+        drawModuleBar();
       }
-      if (onBar) onBar(clean.length > 0);
+      if (onBar) onBar(barItems.length > 0);
       return true;
     },
     // Icon buttons in the module's titlebar, before the host's own buttons and set off by a pipe. Only a
@@ -842,6 +876,20 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       const { shown, hidden } = splitOverflow(clean, 5);
       header.textContent = '';
       const doc = header.ownerDocument;
+      if (hidden.length) {
+        const more = doc.createElement('button');
+        more.type = 'button';
+        more.className = 'msg-btn';
+        more.title = 'More';
+        more.setAttribute('aria-label', 'More');
+        more.setAttribute('aria-haspopup', 'menu');
+        const i = doc.createElement('i');
+        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
+        i.setAttribute('aria-hidden', 'true');
+        more.appendChild(i);
+        more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
+        header.appendChild(more);
+      }
       for (const item of shown) {
         const b = doc.createElement('button');
         b.type = 'button';
@@ -856,20 +904,6 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
         b.appendChild(i);
         b.addEventListener('click', () => send('header', { id: item.id }));
         header.appendChild(b);
-      }
-      if (hidden.length) {
-        const more = doc.createElement('button');
-        more.type = 'button';
-        more.className = 'msg-btn';
-        more.title = 'More';
-        more.setAttribute('aria-label', 'More');
-        more.setAttribute('aria-haspopup', 'menu');
-        const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-        i.setAttribute('aria-hidden', 'true');
-        more.appendChild(i);
-        more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
-        header.appendChild(more);
       }
       if (clean.length) {
         const pipe = doc.createElement('span');
@@ -934,8 +968,26 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       const buttons = clean.filter((i) => i.type === 'button');
       const { shown, hidden: overflow } = splitOverflow(buttons, 5);
       const shownIds = new Set(shown.map((i) => i.id));
+      let moreDrawn = false;
+      const drawToolbarMore = () => {
+        if (moreDrawn || !overflow.length) return;
+        moreDrawn = true;
+        const more = doc.createElement('button');
+        more.type = 'button';
+        more.className = 'tb-btn tb-more';
+        more.title = 'More';
+        more.setAttribute('aria-label', 'More');
+        more.setAttribute('aria-haspopup', 'menu');
+        const i = doc.createElement('i');
+        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
+        i.setAttribute('aria-hidden', 'true');
+        more.appendChild(i);
+        more.addEventListener('click', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));
+        toolbar.appendChild(more);
+      };
       for (const item of clean) {
         if (item.type === 'button' && !shownIds.has(item.id)) continue;
+        if (item.type === 'button') drawToolbarMore();
         if (item.separator) { const s = doc.createElement('span'); s.className = 'tb-sep'; toolbar.appendChild(s); continue; }
         if (item.type === 'text') { const s = doc.createElement('span'); s.className = 'tb-text'; s.textContent = item.text; toolbar.appendChild(s); continue; }
         if (item.type === 'progress') {
@@ -1011,20 +1063,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
         b.addEventListener('click', () => send('toolbar', { id: item.id }));
         toolbar.appendChild(b);
       }
-      if (overflow.length) {
-        const more = doc.createElement('button');
-        more.type = 'button';
-        more.className = 'tb-btn tb-more';
-        more.title = 'More';
-        more.setAttribute('aria-label', 'More');
-        more.setAttribute('aria-haspopup', 'menu');
-        const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-        i.setAttribute('aria-hidden', 'true');
-        more.appendChild(i);
-        more.addEventListener('click', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));
-        toolbar.appendChild(more);
-      }
+      drawToolbarMore();
       toolbar.hidden = clean.length === 0;
       if (onToolbar) onToolbar(clean.length > 0);
       return true;
@@ -1299,6 +1338,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       if (ptrDrag && ptrDrag.source === mine) ptrEnd();
       for (const id of navIds) navBar.unregister(id); // its nav tools go with it
       navIds.clear();
+      if (barObserver) { barObserver.disconnect(); barObserver = null; }
       leaveStream();
       if (pageMode) container.shadowRoot?.replaceChildren();
       else frame.removeAttribute('src');

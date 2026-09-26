@@ -1410,8 +1410,9 @@
     // The module's action bar: buttons the host draws along the bottom of the
     // module (in the space's bottom row when docked, lined up with the video
     // toolbar and the chat box). set([{ id, label, icon, primary, disabled, overflow }]);
-    // a click arrives as the 'bar' event with the button's id. More than 5 items (or any
-    // item marked `overflow: true`) collapse into a host-drawn "..." at the end.
+    // a click arrives as the 'bar' event with the button's id. The primary button sits on
+    // the far right; the rest sit to its left. As the bar shrinks, leftover buttons come
+    // off the left into a host-drawn "...". An item marked `overflow: true` always goes there.
     bar: {
       // An item { id, type: 'quickadd', placeholder, label } is a text field with a small + button instead; the
       // 'bar' event then carries { id, value }, the text typed (empty if none). A quickadd item is never
