@@ -52,7 +52,30 @@ function findKeepers(actions) {
   return { note, suggestion };
 }
 
-export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, sendChat, resizeChatInput, setStatus, renderMarkup }) {
+// An AI answer as the pieces to draw, in order: { text } and { summary: index }.
+// Same split the Assistant uses, so a {{summary:N}} marker becomes a preview.
+function answerParts(text, summaryCount) {
+  const parts = [];
+  const drawn = new Set();
+  let last = 0;
+  const re = /\{\{summary:(\d+)\}\}/g;
+  let m;
+  const push = (s) => { const t = s.trim(); if (t) parts.push({ text: t }); };
+  const src = String(text || '');
+  while ((m = re.exec(src))) {
+    const n = Number(m[1]);
+    if (!(n < summaryCount) || drawn.has(n)) continue;
+    push(src.slice(last, m.index));
+    parts.push({ summary: n });
+    drawn.add(n);
+    last = m.index + m[0].length;
+  }
+  push(src.slice(last));
+  for (let i = 0; i < summaryCount; i += 1) if (!drawn.has(i)) parts.push({ summary: i });
+  return parts;
+}
+
+export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, sendChat, resizeChatInput, setStatus, renderMarkup, openTools }) {
   const input = () => $('chat-input');
   const note = () => $('chat-note');
   const importBtn = () => $('chat-import');
@@ -101,7 +124,12 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     return commandList().filter((c) => c.name === name);
   }
 
+  function hidePicker() {
+    $('chat-command-wrap')?.querySelector('#chat-command-menu')?.remove();
+  }
+
   function showPicker() {
+    openTools?.();
     const items = commandList();
     const byName = new Map();
     for (const c of items) {
@@ -123,17 +151,17 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
           input().value = `/${name} `;
           input().focus();
           if (c.hint) input().placeholder = c.hint;
-          menu.remove();
+          hidePicker();
           resizeChatInput();
         });
         menu.appendChild(b);
       }
     }
-    $('chat-command-wrap').querySelector('#chat-command-menu')?.remove();
+    hidePicker();
     $('chat-command-wrap').appendChild(menu);
     const close = (ev) => {
       if (ev.target.closest('#chat-command-wrap')) return;
-      menu.remove();
+      hidePicker();
       document.removeEventListener('pointerdown', close, true);
     };
     document.addEventListener('pointerdown', close, true);
@@ -153,19 +181,66 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     }
   }
 
+  function objectPreview(summary, question) {
+    const el = document.createElement('article');
+    el.className = 'chat-object';
+    if (summary.kind) el.dataset.kind = summary.kind;
+    const title = document.createElement('h3');
+    title.textContent = oneLine(summary.title, 120) || 'Untitled';
+    el.appendChild(title);
+    const content = String((summary && summary.content) || '').trim();
+    if (content) {
+      const body = document.createElement('div');
+      body.className = 'chat-object-body';
+      body.innerHTML = renderMarkup(content);
+      el.appendChild(body);
+    }
+    const meta = [];
+    const place = summary.place && (summary.place.name || summary.place);
+    if (place) meta.push(String(place));
+    if (summary.date) meta.push(String(summary.date));
+    if (summary.kind) meta.push(String(summary.kind));
+    if (meta.length) {
+      const line = document.createElement('p');
+      line.className = 'chat-object-meta';
+      line.textContent = meta.join(' · ');
+      el.appendChild(line);
+    }
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.className = 'msg-btn chat-object-keep';
+    keep.textContent = 'Keep';
+    keep.addEventListener('click', () => keepOne(summary, question, keep));
+    el.appendChild(keep);
+    return el;
+  }
+
   function addAiTurn(kind, text, summaries, question) {
     const el = document.createElement('div');
     el.className = `message private-ai ${kind === 'you' ? 'own' : 'msg-ai'}`;
     const who = document.createElement('span');
     who.className = 'who';
-    who.textContent = kind === 'you' ? 'You' : 'AI';
-    const mark = document.createElement('span');
-    mark.className = 'when';
-    mark.textContent = kind === 'ai' ? 'Only you can see this' : '';
-    who.appendChild(mark);
-    const body = document.createElement('span');
+    const name = document.createElement('span');
+    name.textContent = kind === 'you' ? 'You' : 'AI';
+    const badge = document.createElement('span');
+    badge.className = 'msg-badge msg-badge-private';
+    badge.textContent = 'private';
+    who.append(name);
+    const body = document.createElement('div');
     body.className = 'text';
-    body.innerHTML = renderMarkup(String(text || '').replace(/\{\{summary:\d+\}\}/g, ''));
+    const cards = summaries || [];
+    if (kind === 'ai' && cards.length) {
+      for (const p of answerParts(text, cards.length)) {
+        if (p.summary !== undefined) body.appendChild(objectPreview(cards[p.summary], question));
+        else {
+          const t = document.createElement('div');
+          t.innerHTML = renderMarkup(p.text);
+          body.appendChild(t);
+        }
+      }
+    } else {
+      body.innerHTML = renderMarkup(String(text || ''));
+    }
     el.append(who, body);
     if (kind === 'ai') {
       const actions = document.createElement('span');
@@ -187,17 +262,9 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
         sendChat(`${label}\n\n${text || ''}`);
       });
       actions.append(copy, share);
-      if (summaries && summaries.length) {
-        for (const s of summaries) {
-          const keep = document.createElement('button');
-          keep.type = 'button';
-          keep.className = 'msg-btn';
-          keep.textContent = 'Keep';
-          keep.addEventListener('click', () => keepOne(s, question, keep));
-          actions.append(keep);
-        }
-      }
-      el.append(actions);
+      who.append(actions, badge);
+    } else {
+      who.appendChild(badge);
     }
     $('messages').appendChild(el);
     $('messages').scrollTop = $('messages').scrollHeight;
@@ -319,7 +386,11 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
 
   $('chat-command').addEventListener('click', (e) => {
     e.preventDefault();
-    showPicker();
+    e.stopPropagation();
+    $('chat-help-popup').hidden = true;
+    $('chat-emoji-popup').hidden = true;
+    if ($('chat-command-menu')) hidePicker();
+    else showPicker();
   });
   importBtn().addEventListener('click', (e) => {
     e.preventDefault();
@@ -361,5 +432,6 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     },
     loadThread,
     refreshActions,
+    hidePicker,
   };
 }
