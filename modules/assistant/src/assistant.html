@@ -9,104 +9,10 @@
 </style>
 </head>
 <body>
-<!--
-  The page and every piece of markup the script clones (see CONTRACT.md). The script fills a clone by hooks only:
-    [data-slot=name]        set its textContent, or hide it when there is no value
-    [data-icon=name]        replace its content with host.ui.icon(name)
-  and toggles the state classes and data attributes listed in CONTRACT.md. It builds no markup from strings and sets no
-  style. The reference rendering is design/assistant.html (this file, in its harness).
--->
-<div id="app" class="ask" hidden>
-  <!-- New conversation is a titlebar icon (host.header.set) wherever there is a titlebar to draw it in; this
-       stays only as the fallback for the module's own page when it is not popped out (no titlebar there). -->
-  <header class="ask-head">
-    <button class="icon-btn" id="import-open" type="button" title="Bring in research" aria-label="Bring in research" hidden><span class="ic" data-icon="file-import"></span></button>
-    <button class="icon-btn" id="new-chat" type="button" title="New conversation" aria-label="New conversation"><span class="ic" data-icon="rotate-left"></span></button>
-  </header>
-  <p class="error" id="note" hidden></p>
-
-  <!-- what the answer may use besides what the model already knows: objects added by hand, or opened here already carrying some (askAssistant). None is fine: ask anything. -->
-  <div class="ask-context" id="ask-context">
-    <span class="ask-context-label">Use as context</span>
-    <div class="ask-chips" id="ask-chips"></div>
-    <button class="btn" type="button" id="add-context"><span class="ic" data-icon="plus"></span> Add context</button>
-  </div>
-  <div class="ask-picker" id="ask-picker" hidden>
-    <div class="ask-picker-list" id="ask-picker-list"></div>
-    <div class="ask-picker-foot"><span class="hint" id="picker-count"></span><button class="btn btn-primary" id="picker-done" type="button">Done</button></div>
-  </div>
-  <div class="import-panel" id="import-panel" hidden>
-    <button class="btn" type="button" id="import-copy">Copy instructions for another AI</button>
-    <textarea id="import-show" hidden readonly></textarea>
-    <textarea id="import-text" rows="5" placeholder="Paste the whole answer here"></textarea>
-    <input id="import-file" type="file" accept=".json,.md,.txt,application/json,text/plain,text/markdown" hidden>
-    <div class="import-panel-foot">
-      <button class="btn" type="button" id="import-choose">Choose a file</button>
-      <button class="btn btn-primary" type="button" id="import-check">Preview</button>
-      <button class="btn" type="button" id="import-close">Close</button>
-    </div>
-    <p class="hint" id="import-why" hidden></p>
-  </div>
-
-  <div class="thread" id="thread" role="log" aria-live="polite">
-    <p class="ask-empty" id="ask-empty">Ask anything: a place, a plan, a comparison. Add notes, links or other <span data-word="object" data-word-form="many"></span> as context if you want the answer to use them.</p>
-  </div>
-
-  <form class="composer" id="ask-form">
-    <textarea id="ask-input" rows="1" maxlength="1000" placeholder="Ask anything" aria-label="Ask"></textarea>
-    <button class="btn btn-primary" type="submit" id="ask-send" aria-label="Send"><span class="ic" data-icon="paper-plane"></span></button>
-  </form>
+<p id="msg" hidden></p>
+<div id="app" hidden>
+  <p id="note" data-fill>Ask in Chat with /ai. This {module} has no window of its own.</p>
 </div>
-<p id="msg" class="hint msg">Loading...</p>
-
-<!-- ============================ templates ============================ -->
-
-<!-- a context chip (an object the answer may use); the x removes it -->
-<template id="tpl-ask-chip"><span class="ask-chip"><span class="ic" data-icon=""></span><span data-slot="label"></span><button type="button" data-action="remove-context" aria-label="Remove"><span class="ic" data-icon="xmark"></span></button></span></template>
-<!-- a row of the "add context" picker: any object with a summary, from anywhere Assistant can reach -->
-<template id="tpl-pick-row"><label class="pick-row"><input type="checkbox"><span class="ic" data-icon=""></span><span class="pick-title" data-slot="title"></span><span class="pick-kind" data-slot="kind"></span></label></template>
-<!-- a tag on a card, and a source pill (what a card drew on); .gone on a source no longer reachable -->
-<template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
-<template id="tpl-source"><span class="link"><span data-slot="label"></span></span></template>
-<template id="tpl-object-link"><a class="link" target="_blank" rel="noopener noreferrer"><span data-slot="label"></span></a></template>
-<template id="tpl-msg-import"><div class="msg-ai msg-import"><div class="who"><span class="ic" data-icon="file-import"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
-<template id="tpl-import-row"><label class="import-row"><input type="checkbox" checked aria-label="Keep this one"></label></template>
-<template id="tpl-import-foot"><div class="import-foot"><button type="button" class="btn btn-primary" data-action="keep-ticked">Keep ticked (<span data-slot="count"></span>)</button><p class="hint" data-slot="dropped"></p></div></template>
-
-<!-- the conversation: your question, the model's reply (text pieces and cards in order), the placeholder while a card is being written -->
-<template id="tpl-msg-you"><div class="msg-you" data-slot="text"></div></template>
-<template id="tpl-msg-ai"><div class="msg-ai"><div class="who"><span class="ic" data-icon="wand-magic-sparkles"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
-<template id="tpl-msg-text"><div data-slot="text"></div></template>
-<template id="tpl-writing"><div class="thinking"><span class="ic" data-icon="wand-magic-sparkles"></span><span class="thinking-text">Thinking</span><span class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></span></div></template>
-<!-- shown under a reply that has more than one card: sends each the way its own keep button would, one after another -->
-<template id="tpl-send-all"><div class="send-all"><button type="button" data-action="send-all"><span class="ic" data-icon="paper-plane"></span> Send all to plan</button><span class="send-all-count" data-slot="count"></span></div></template>
-<!-- the card the model writes: kept (bookmark) asks whichever module offers to save one; dragged onto a plan or anywhere else that takes a card -->
-<template id="tpl-aicard">
-  <article class="aicard">
-    <span class="badge"><span class="ic" data-icon=""></span></span>
-    <div>
-      <div class="kicker">Answer <span class="ai-mark"><span class="ic" data-icon="wand-magic-sparkles"></span> AI</span></div>
-      <h3 data-slot="title"></h3>
-      <div class="content" data-slot="content"></div>
-      <div class="tags" data-slot="tags"></div>
-      <p class="basis" data-slot="basis-wrap"><span class="ic" data-icon="circle-info"></span> <span data-slot="basis"></span></p>
-      <span class="place" data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>
-      <span class="when" data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span>
-      <div class="object-links" data-slot="links"></div>
-    </div>
-    <div class="actions">
-      <button class="keep" type="button" data-action="keep-card" title="Keep this" aria-label="Keep this"><span class="ic" data-icon="bookmark"></span></button>
-      <button type="button" data-action="copy-card" title="Copy the text" aria-label="Copy the text"><span class="ic" data-icon="copy"></span></button>
-    </div>
-    <div class="sources" data-slot="sources-wrap"><span class="ic" data-icon="link"></span> From: <span class="links" data-slot="sources"></span></div>
-  </article>
-</template>
-
-<!-- states that replace the pane -->
-<template id="tpl-state-loading"><div class="state"><span class="ic" data-icon="wand-magic-sparkles"></span><h2>Loading...</h2></div></template>
-<template id="tpl-state-unavailable"><div class="state" id="state-unavailable"><span class="ic" data-icon="circle-info"></span><h2>The assistant is not available here</h2><p data-slot="why"></p></div></template>
-<template id="tpl-state-nowhere-to-save"><p class="hint">Nothing here can keep an answer yet.</p></template>
-
 <script>
 /*__JS__*/
 </script>

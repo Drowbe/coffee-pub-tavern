@@ -728,6 +728,15 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       return (await api('GET', `/api/bus/actions?${busQuery({ from: module.id, ...extra })}`)).actions;
     },
     async 'actions.request'({ action, input }) {
+      const name = String(action || '');
+      if (name === 'assistant:askAssistant' || name === 'askAssistant') {
+        if (typeof onChatAsk !== 'function') throw Object.assign(new Error(`Ask this from Chat in ${word('space', { a: true })}.`), { status: 400 });
+        const q = String(input?.question || '').trim() || (input?.ref ? 'What should I know about this?' : '');
+        if (!q) throw Object.assign(new Error('Type a question.'), { status: 400 });
+        const refs = input?.ref ? [input.ref] : [];
+        await onChatAsk({ question: q, refs });
+        return { id: 0, status: 'done', result: { ok: true } };
+      }
       const queued = await api('POST', `/api/bus/actions/request${busGuest()}`, { from: module.id, action, input, ...busPlaceBody() });
       // The module that carries an action does it from its own page, so a request waits until that page is open: ask the host to
       // open it here (on the space's canvas) when it is not.

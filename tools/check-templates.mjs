@@ -107,6 +107,7 @@ try {
     assert.deepEqual([once.settings.conferenceEnabled, once.settings.homeIcon, once.settings.spaceDefaults], [true, null, { profile: 'participants' }]);
     assert.ok(once.settings.icons.includes('suitcase-rolling'), 'the home icon joins the icon list');
     for (const id of ['travel', 'places', 'maps', 'research', 'calendar']) assert.deepEqual(once.modules[id].slice(1), [true, true], id);
+    assert.equal(env.modules.isInstalled('assistant'), false, 'a new install leaves the Assistant out');
     assert.equal(env.modules.enabled('maps') !== null, true, 'Maps runs (Places, which it needs, came first)');
     assert.equal(env.store.addSpace({ name: 'Lisbon' }).profile, 'participants', 'a new trip starts with the Participants profile');
     assert.equal(env.store.addSpace({ name: 'Game night', profile: 'roleplaying' }).profile, 'roleplaying', 'unless told otherwise');
@@ -137,6 +138,14 @@ try {
     noPlaces.modules.aiReady = () => true;
     const skipped = await templates.applyTemplate(noPlaces, travel, { allowed: (id) => id !== 'places', name: (id) => ({ places: 'Places' })[id] || id });
     assert.deepEqual(skipped, [{ id: 'places', why: 'not in the plan' }, { id: 'maps', why: 'needs Places, which was skipped' }]);
+  });
+
+  await test('a template that lists the Assistant skips it (retired; ask in Chat with /ai)', async () => {
+    const env = freshEnvironment('no-assistant');
+    env.modules.aiReady = () => true;
+    const skipped = await templates.applyTemplate(env, { ...travel, modules: [...travel.modules, 'assistant'] });
+    assert.ok(skipped.some((x) => x.id === 'assistant' && /retired/.test(x.why)), JSON.stringify(skipped));
+    assert.equal(env.modules.isInstalled('assistant'), false);
   });
 
   await test('a template that leaves the conference out switches it off', async () => {

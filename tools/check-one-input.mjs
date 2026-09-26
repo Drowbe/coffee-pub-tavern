@@ -52,6 +52,14 @@ assert.equal(kept.length, 200);
 assert.equal(kept[0].text, 'm1');
 assert.ok(!kept.some((e) => e.text === 'gone'));
 n += 1;
+const sharedStore = new AiThreads(tmpThreads);
+sharedStore.add('s', 'u2', { role: 'user', text: 'shared q', shared: true });
+sharedStore.add('s', 'u2', { role: 'ai', text: 'shared a', shared: true });
+const shared = sharedStore.list('s', 'u2');
+assert.equal(shared.length, 2);
+assert.equal(shared[0].shared, true);
+assert.equal(shared[1].shared, true);
+n += 1;
 fs.rmSync(tmpThreads, { recursive: true, force: true });
 
 const seen = [];
@@ -146,6 +154,13 @@ try {
   assert.equal((theirs.json.entries || []).length, 0);
   n += 1;
 
+  const cleared = await call('DELETE', `/api/spaces/${space.id}/ai/thread`, { cookie: pat });
+  assert.equal(cleared.status, 200, cleared.text);
+  const empty = await call('GET', `/api/spaces/${space.id}/ai/thread`, { cookie: pat });
+  assert.equal(empty.status, 200, empty.text);
+  assert.equal((empty.json.entries || []).length, 0);
+  n += 1;
+
   const unsigned = await call('POST', `/api/spaces/${space.id}/ai`, { body: { question: 'hello there' } });
   assert.equal(unsigned.status, 401, unsigned.text);
   n += 1;
@@ -165,6 +180,20 @@ try {
   assert.equal(check.status, 200, check.text);
   assert.equal(check.json.objects.length, 1);
   assert.equal(check.json.objects[0].title, 'Faro');
+  n += 1;
+
+  assert.equal((await call('POST', '/api/modules/bundled/assistant/install', { cookie: owner, body: {} })).status, 201);
+  assert.equal((await call('PATCH', '/api/modules/assistant', { cookie: owner, body: { enabled: true, allSpaces: true } })).status, 200);
+  const denied = await call('PATCH', '/api/roles/member', { cookie: owner, body: { 'module.assistant.use': false } });
+  assert.equal(denied.status, 200, denied.text);
+  const noUse = await call('GET', `/api/spaces/${space.id}/objects/check`, { cookie: pat });
+  assert.equal(noUse.status, 200, noUse.text);
+  assert.equal(noUse.json.available, false);
+  const noImport = await call('POST', `/api/spaces/${space.id}/objects/check`, { cookie: pat, raw: fence, type: 'text/plain' });
+  assert.equal(noImport.status, 403, noImport.text);
+  const noAi = await call('POST', `/api/spaces/${space.id}/ai`, { cookie: pat, body: { question: 'hello there' } });
+  assert.equal(noAi.status, 403, noAi.text);
+  await call('PATCH', '/api/roles/member', { cookie: owner, body: { 'module.assistant.use': true } });
   n += 1;
 
   const unknown = await call('POST', `/api/spaces/${space.id}/command`, { cookie: pat, body: { name: 'zzzz', text: 'hi' } });

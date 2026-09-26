@@ -62,12 +62,13 @@ class AiThreads {
     return (this.threads[key] || []).map((m) => ({ ...m, summaries: m.summaries ? m.summaries.map((s) => ({ ...s })) : undefined }));
   }
 
-  add(spaceId, userId, { role, text, summaries }) {
+  add(spaceId, userId, { role, text, summaries, shared }) {
     if (role !== 'user' && role !== 'ai') return null;
     const clean = String(text ?? '').replace(/\p{Cc}/gu, (c) => (c === '\n' || c === '\t' ? c : '')).trim().slice(0, MAX_TEXT);
     if (!clean) return null;
     const entry = { id: crypto.randomBytes(6).toString('hex'), at: Date.now(), role, text: clean };
     if (role === 'ai' && Array.isArray(summaries) && summaries.length) entry.summaries = summaries.slice(0, 20);
+    if (shared) entry.shared = true;
     const key = this.key(spaceId, userId);
     if (!this.threads[key]) this.threads[key] = [];
     this.threads[key].push(entry);

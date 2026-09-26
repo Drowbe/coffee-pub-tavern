@@ -829,6 +829,7 @@ const canvas = createCanvas({
   guestToken,
   onChatAsk: (input) => {
     if (!askInChat) return Promise.reject(Object.assign(new Error('Chat is not ready.'), { status: 400 }));
+    toggleChat(true);
     return askInChat(input);
   },
 });
@@ -1984,6 +1985,8 @@ call
     canvasDoc().querySelectorAll('audio').forEach((el) => el.remove());
     $('messages').textContent = '';
     $('chat-delete-overlay').hidden = true;
+    $('chat-clear-ai-overlay').hidden = true;
+    if ($('chat-clear-ai')) $('chat-clear-ai').hidden = true;
     toggleChat(false);
     toggleTray(false);
     loadPresence();
@@ -2607,6 +2610,8 @@ $('chat-delete-confirm').addEventListener('click', () => {
     }
   }
   $('chat-delete-overlay').hidden = true;
+  $('chat-clear-ai-overlay').hidden = true;
+  if ($('chat-clear-ai')) $('chat-clear-ai').hidden = true;
 });
 $('chat-pic').addEventListener('click', () => { toggleChatTools(false); $('chat-file').click(); });
 $('chat-file').addEventListener('change', () => {

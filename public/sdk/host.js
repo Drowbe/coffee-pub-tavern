@@ -1382,7 +1382,15 @@
       // that owns it, which carries it out the next time a person has it open (or at once if one does).
       // With { wait: true } this waits a few seconds for the answer: { status, result: { ok, ref?, error? } }.
       request: async (action, input, o) => {
+        const name = String(action || '');
+        if (name === 'assistant:askAssistant' || name === 'askAssistant') {
+          const q = String(input?.question || '').trim() || (input?.ref ? 'What should I know about this?' : '');
+          if (!q) throw new Error('Type a question.');
+          await call('chat.ask', { question: q, refs: input?.ref ? [input.ref] : [] });
+          return { status: 'done', id: 0, result: { ok: true } };
+        }
         const queued = await call('actions.request', { action, input });
+        if (queued && queued.status === 'done') return queued;
         if (!(o && o.wait)) return queued;
         for (let i = 0; i < 10; i += 1) {
           await new Promise((resolve) => setTimeout(resolve, 500));
