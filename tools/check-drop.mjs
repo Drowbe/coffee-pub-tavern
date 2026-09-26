@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
-new Function('window', 'document', sdk)(win, {});
+new Function('window', 'document', sdk)(win, { createElement: (tag) => ({ tag }) }); // ready() adds the SDK's shared styles: a <style> stand-in
 
 // A stub host: what actions.list and objects.resolve answer, and what was requested.
 const calls = [];
@@ -26,7 +26,7 @@ const call = async (method, params) => {
   if (method === 'actions.status') return { status: 'done', result: { ok: true } };
   return {};
 };
-const { host, emit } = win.createHost({ call, root: {}, rootElement: {} });
+const { host, emit } = win.createHost({ call, root: { appendChild() {} }, rootElement: {} });
 const { fillFor } = host.objects;
 
 const task = { module: 'todo', kind: 'task', id: 't1', scope: 'space', space: 'r' };

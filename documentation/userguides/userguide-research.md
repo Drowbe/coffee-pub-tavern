@@ -10,12 +10,12 @@ The Research module keeps what a group finds out while it plans: a note, a link 
 2. Tick **Available in every space**, or tick it per space.
 3. On the Roles tab, under **Module: Research**, choose who can **See research**, who can **Add, change and remove research**, and who can **Remove photos other people added** to a space. By default everyone can see it, members and moderators can edit, guests can see but not edit, and only owners can remove another person's photo. Version 0.2.10 adds that last permission, so updating to it waits for an owner's approval once.
 4. **Well-known tags (optional).** Under Research's settings (**Module Configuration**), add tags with a colour each. A tag on the list wears its colour on every card; any other tag stays plain.
-5. **Suggest tags (optional).** In the dialog, this button asks the AI for tags; it appears only when the AI is set up on the Modules tab and the Roles tab lets the person use it ("Use AI in modules", off for everyone until you turn it on; a guest never can). See [Modules](userguide-modules.md). To have a whole conversation with the AI, with research as context, install the **Assistant** module (see [Assistant](userguide-assistant.md)).
+5. **Suggest tags (optional).** In the dialog, this button asks the AI for tags; it appears only when the AI is set up on the Modules tab and the Roles tab lets the person use it ("Use AI in modules", off for everyone until you turn it on; a guest never can). See [Modules](userguide-modules.md). To have a whole conversation with the AI, with research as context, use `/ai` in Chat (see [Chat](userguide-chat.md)).
 
 ## Add things
 
-- Type in the field at the bottom and press Enter or the plus button. A web address becomes a link card; anything else starts a note with what you typed as its title. Press the plus with nothing typed for a blank note.
-- The camera button adds photos: on a phone it offers the camera or the photo library. Several photos queue one row each. The page shrinks each picture to about 2000 pixels and makes a small thumbnail before it uploads, so large phone photos are fine.
+- **Add a note**, **Add a link** and **Add a photo** are in the bar along the bottom; as the module narrows, the ones that don't fit go under **...**. To type instead, use `/r` in Chat while Research is open: a web address opens a link filled in, and anything else starts a note with what you typed as its title. See [Chat](userguide-chat.md), "Commands".
+- **Add a photo** adds photos: on a phone it offers the camera or the photo library. Several photos queue one row each. The page shrinks each picture to about 2000 pixels and makes a small thumbnail before it uploads, so large phone photos are fine.
 - **A photo's position.** If a photo carries the place it was taken, Research asks whether to keep it. It is left out unless you choose **Keep it**, so a shared photo cannot give away a home address by accident. A photo taken on a known day shows on that day.
 - In the dialog, give the object a title, add tags (words separated by commas; the ones already used are suggested), and for a note or a link an optional place (coordinates or a map link) and date.
 
@@ -29,7 +29,7 @@ The search box matches the title, the text, the site and the tags. The row under
 
 ## Research this
 
-A card's menu has **Research this**, which opens the Assistant module (if it is installed) with that object as context, ready to ask about it; see [Assistant](userguide-assistant.md). A summary the AI writes worth keeping is saved back here as an ordinary note. Research brought in from another AI through the Assistant lands here too, as a note, when it is not marked as a kind the Planner takes (a flight, a hotel, a sight and so on), or when the Planner is not installed; its text ends with the line "External source". See [Assistant](userguide-assistant.md), "Bring in research from another AI". An object saved before this changed may still show as an **Answer**, with the question that made it; nothing new is saved that way now.
+A card's menu has **Research this** (not on a photo), which asks in Chat, privately, what you should know about that object, with the object as context; see [Chat](userguide-chat.md), "Ask the AI". It shows only to people who may use AI here. An object in the answer that you **Keep** is saved back here as an ordinary note. Research brought in from another AI through Chat lands here too, as a note, when it is not marked as a kind the Planner takes (a flight, a hotel, a sight and so on), or when the Planner is not installed; its text ends with the line "External source". See [Assistant](userguide-assistant.md), "Bring in research from another AI". An object saved before this changed may still show as an **Answer**, with the question that made it; nothing new is saved that way now.
 
 ## For module authors
 

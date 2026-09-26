@@ -12,7 +12,7 @@ The To-do module keeps a shared task list. There is one for the whole environmen
 
 ## The environment's list
 
-On the spaces page, click the **Due soon** card's heading to open the full list. Type a task in the field at the bottom (with the plus button) to add it, or leave it empty and choose the plus for the full form with notes and a due date. When the page has no bottom bar, the field at the top does the same.
+On the spaces page, click the **Due soon** card's heading to open the full list. Choose **New todo** for the form with notes and a due date. When the page has no bottom bar, the **New todo** button sits at the top.
 
 - Tick the box to mark a task done. **Open**, **Done** and **All** choose what the list shows. Open tasks are ordered by due date, with undated ones after, and done tasks are listed newest first.
 - Click a task's name to change it, or delete it. A due date shows beside the task: Today and Tomorrow in the accent color, and a date in the past in red.
@@ -22,9 +22,9 @@ On the spaces page, click the **Due soon** card's heading to open the full list.
 
 On the spaces page, the dashboard's **Due soon** card lists tasks that are not done and are due within the next week or already overdue, soonest first (up to eight), across every space you are in and the environment's own list. Overdue ones are marked in red, and each shows its space's icon. Clicking a task opens it in its space; the heading opens the full list. Tasks with no due date are not shown. See [Spaces](userguide-spaces.md).
 
-## Add a task quickly
+## Add a task
 
-The field at the bottom of the To-do with a **+** button opens the task form filled in. Type "book flights by sep 25" and the task is "book flights" and its due date is Sep 25; a day such as "tomorrow", "fri" or "9/29" works the same way. Anything it does not understand stays in the title. Clicking **+** with nothing typed opens a blank form. The field at the top adds a task straight away, with no form.
+Choose **New todo** in the bar along the bottom of the To-do for a blank task form. To type it instead, use `/t` in Chat while the To-do is open: `/t book flights by sep 25` opens the form with the task "book flights", due Sep 25. A day such as "tomorrow", "fri" or "9/29" works the same way, and anything it does not understand stays in the title. Nothing is saved until you choose **Save**. See [Chat](userguide-chat.md), "Commands".
 
 ## Open, Done and All
 

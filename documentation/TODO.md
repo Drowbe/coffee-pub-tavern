@@ -56,7 +56,7 @@ side of things.
 - #38 A shorter header.
 - #39 The nav colours in the theme editor.
 - #31 Customising the dashboard's layout, and snapping on the spaces page.
-- #58 One smarter chat.
+- #58 One input in Chat ([plan-one-input](plans/plan-one-input.md)): phases 1 and 2 step 6 are built. Still to come: a shared/private switch for AI replies (step 7), leaving the Assistant out of new installs (step 8), a way to clear one's `/ai` thread on the page, and the plan's live checks in a browser and a real call.
 
 ## Modules
 

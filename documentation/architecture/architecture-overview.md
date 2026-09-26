@@ -49,6 +49,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `server/store.js` | Users, spaces, settings, roles and images on disk |
 | `server/auth.js` | Passwords, signed session cookies, login rate limit |
 | `server/chat-history.js` | A space's recent chat text (500 messages, 30 days), in `chat.json` |
+| `server/ai-threads.js` | Each person's private `/ai` thread per space (200 entries, 30 days), in `ai-threads.json` |
 | `server/modules.js` | Module install and registry; see [architecture-modules](architecture-modules.md) |
 | `public/login.html` | Sign-in page |
 | `public/register.html` | Self sign-up and invite acceptance |
@@ -56,6 +57,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
 | `public/profile.html` | A player's profile: photo, call settings, default images, a section per space |
 | `public/admin.html` | The Manage page |
 | `public/space-settings.html` | A space's own settings page, at `/spaces/<id>` |
+| `public/chat-input.js` | Chat's one input: `/ai`, the command picker and routing, and bringing research in |
 | `public/canvas.js` | The space's canvas: docking, floating, snapping and popping out the conference, the chat and the modules |
 | `public/view.html` | The OBS view |
 | `public/brand.js` | Shared header, branding and icon lookup |
@@ -151,6 +153,7 @@ framework: the pages are plain HTML, CSS and JavaScript served as they are.
   the author to 60 (`cleanThemeText()` in `server/store.js`). `tools/check-themes.mjs` holds the round trip and the
   refusals.
 - **Chat history.** Chat travels live over LiveKit's data channel. The sender also posts the text to `POST /api/spaces/:id/chat`; the server (`server/chat-history.js`) keeps the last 500 text messages per space, none older than 30 days, in `DATA_DIR/chat.json` (under `spaces`), and `GET /api/spaces/:id/chat` returns them to whoever joins. Reading needs the `chatRead` permission and posting `chat`, and the caller must be a member of the space (an owner or the admin, or a guest of that space, also counts). The sender's name is the account's display name as the server knows it; a guest supplies their own. An aside has no chat (its id answers 404), pictures are live only, and one person can post 30 messages in 10 seconds. Deleting a space deletes its history. Browsers that kept history locally under the old scheme still show it when the server has none for the space.
+- **One input in Chat** ([plan-one-input](../plans/plan-one-input.md)). `public/chat-input.js` reads the box before it is sent: `/ai` goes to `POST /api/spaces/:id/ai` and the reply is drawn only on the asker's page, marked private, from a thread `server/ai-threads.js` keeps per person per space in `DATA_DIR/ai-threads.json` (loaded on entering a space, never for an aside). Any other `/<name>` is looked up among the `commands` the space's modules declare (from `/api/modules/for-space`) and sent to `POST /api/spaces/:id/command`, which puts a `local` request on the module bus; Chat names no module in code. A module's question (Research's **Research this**) reaches Chat through `host.chat.ask`, which `public/module-host.js` hands to the page via the canvas's `onChatAsk`. Keeping an object from an answer, and bringing research in, use the space's `actions` and `objects/check` routes. The routes are in [api-modules](../api/api-modules.md), "Chat routes".
 - The server checks permissions on every request that matters (kick, mute, guest links, aside, images).
   The pages also hide controls the person cannot use, but that is convenience, not enforcement.
 

@@ -27,6 +27,7 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Creating themes](userguides/userguide-themes.md) -- the colours, light and dark, and sharing a theme as a file.
 - [Your environment](userguides/userguide-environments.md) -- an owner's view on a hosted server: the plan, the caps, a copy, leaving.
 - [Templates](userguides/userguide-templates.md) -- setting an environment up for one use when it is made, such as Travel.
+- [Chat](userguides/userguide-chat.md) -- one box for messages, `/ai`, module commands and bringing in research.
 - [Modules](userguides/userguide-modules.md) -- adding features with a module zip.
 - [Calendar](userguides/userguide-calendar.md) -- events and reminders, for the environment and for each space.
 

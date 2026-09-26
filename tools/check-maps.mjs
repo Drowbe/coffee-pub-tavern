@@ -11,8 +11,8 @@ const read = (name) => fs.readFileSync(new URL(`../modules/maps/src/${name}`, im
 const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
-new Function('window', 'document', sdk)(win, {});
-const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
+new Function('window', 'document', sdk)(win, { createElement: (tag) => ({ tag }) }); // ready() adds the SDK's shared styles: a <style> stand-in
+const geo = win.createHost({ call: async () => ({}), root: { appendChild() {} }, rootElement: {} }).host.util.geo;
 const names = ['clusterPoints', 'boundsOf', 'rgbOf', 'mixRgb', 'buildStyle'];
 const lib = new Function('geo', `${read('maps-lib-c-geo.js')}\n${read('maps-lib-d-style.js')}\nreturn { ${names.join(', ')} };`)(geo);
 

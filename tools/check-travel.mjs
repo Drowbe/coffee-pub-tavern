@@ -175,7 +175,8 @@ await (async () => {
   const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
   const win = { addEventListener() {}, location: { search: '' } };
   win.parent = win;
-  new Function('window', 'document', sdk)(win, {});
+  // host.ready() adds the SDK's shared styles to the module's root once hello answers, so the stand-ins take a <style>.
+  new Function('window', 'document', sdk)(win, { createElement: (tag) => ({ tag }) });
   const el = (tag) => ({ tag, value: '', textContent: '', label: '', children: [], append(...c) { this.children.push(...c); } });
   const doc = { createElement: el };
   const select = { ownerDocument: doc, children: [], _v: '', listeners: [],
@@ -185,7 +186,7 @@ await (async () => {
     set value(v) { this._v = this.options().some((o) => o.value === v) ? v : ''; },
     addEventListener(_e, fn) { this.listeners.push(fn); }, removeEventListener() {} };
   const locale = { language: 'en', clock: '12', currency: 'USD', currencies: ['EUR', 'JPY', 'USD', 'XAF'] };
-  const { host } = win.createHost({ call: async (m) => (m === 'hello' ? { locale } : {}), root: {}, rootElement: {} });
+  const { host } = win.createHost({ call: async (m) => (m === 'hello' ? { locale } : {}), root: { appendChild() {} }, rootElement: {} });
   await host.ready();
   const pick = host.ui.currencySelect(select, { value: '', empty: true });
   test('the trip Currency picker: empty is the server currency, Common then All, odd codes kept', () => {

@@ -2,7 +2,7 @@
 
 **Audience:** Thomas decides; server-development and experience-design build.
 
-**Status:** Approved 2026-09-25 (GitHub issue #58). Thomas: one text input, in Chat, that replaces the modules' own text boxes, with the Assistant merged into Chat. Not started.
+**Status:** Approved 2026-09-25 (GitHub issue #58). Thomas: one text input, in Chat, that replaces the modules' own text boxes, with the Assistant merged into Chat. **Phase 1 built** (steps 1 to 5) in PRs #77 and #78. **Phase 2, step 6 built** in PRs #79 to #84 (To-do, Calendar, Research, Planner and Polls lost their typed boxes; Polls gained `/v`). Steps 7 (a shared/private switch for AI replies) and 8 (the Assistant left out of new installs) are not built. Verification so far is by tool only (`tools/check-one-input.mjs`, `tools/check-modules.mjs`, `tools/check-module-window.mjs`); none of the "Verified live" list below has been walked in a browser. See "Progress" at the end.
 
 ## What it is today
 
@@ -114,3 +114,11 @@ Phase 2
 - `/ai`: anyone who may use the Assistant (`use`), except guests, and not in a space with AI turned off, the same rule as the #73 import.
 - A command whose module isn't open keeps the typed text in the input and says the module isn't open. Nothing is lost or sent.
 - Two modules registering the same command: the picker shows both, each with its module's name, and the typed command asks which one to use.
+
+## Progress
+
+- **Phase 1** (PR #77, follow-up #78). `commands` validation (`cleanCommands` in `server/modules.js`), `server/ai-threads.js`, the space AI, thread, command, actions and objects-check routes (see [api-modules](../api/api-modules.md), "Chat routes"), `public/chat-input.js`, and commands in Research, To-do, Planner and Calendar. The Assistant (0.1.20) keeps its `use` permission and its `ai` hook but has no window: `surfaces.canvas.menu: false`, a manifest field added for this.
+- **Phase 2, step 6** (PRs #79 to #84). To-do **New todo**, Calendar **Add event**, Research **Add a note** / **Add a link** / **Add a photo**, Planner **Add plan** with Flight, Hotel, Restaurant and Note, Polls **New poll** and `/v`. Research's **Research this** asks in Chat through `host.chat.ask`. **Bring in research** moved from the Assistant into Chat's formatting menu. Action bars now put the primary button on the far right and collapse from the left by width; the "..." is one SDK control, `host.ui.moreButton`.
+- **Versions.** Assistant 0.1.20, To-do 1.11.14, Calendar 1.17.17, Research 0.2.19, Planner (Travel) 0.7.42, Polls 1.12.17, Places 0.8.18.
+- **Differs from the contract above.** An AI reply is marked with a **private** badge, not "Only you can see this". A command whose module is closed says "<module> isn't open" in a note under the input. `/ai` does not require the Roles tab's **Use AI in modules**; it follows the rule decided after drafting (the Assistant's `use` permission when the Assistant is installed). There is no control on the page to clear one's thread yet; `DELETE .../ai/thread` exists. A duplicate command answers 409 with `choices` from the server; the page asks the person to use the picker.
+- **Verified.** Checked by a tool only, as above. Not yet verified live in a browser; sharing a reply to a second person needs a real LiveKit call.

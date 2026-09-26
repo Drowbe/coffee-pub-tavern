@@ -20,7 +20,7 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
 |  Content                                            |  the module's frame; the drop area
 |                                                      |
 +----------------------------------------------------+
-| Action bar                              [Add] [...] |  host.bar.set (optional)
+| Action bar                   [...] [Link] [Add note] |  host.bar.set (optional)
 +----------------------------------------------------+
 ```
 
@@ -42,8 +42,10 @@ titlebar, and it never needs to know whether it is docked, floating, popped out 
   tools" below before building one from raw items.
 - **Content.** The module's frame or in-page root. This is the section that scrolls, and the drop target for
   a dragged ref, either as a whole or onto specific items within it.
-- **Action bar.** Optional, along the bottom: the module's primary inputs and actions -- an Add button, a
-  quick-add field. Set with `host.bar.set`. Docked, it is a cell in the canvas's shared bottom row, lined up
+- **Action bar.** Optional, along the bottom: the module's primary actions -- an Add button and the few
+  that go with it. Set with `host.bar.set`. Typing belongs in Chat, not here: a module registers a command
+  (`commands` in `module.json`) and Chat routes the text to it ([plan-one-input](../plans/plan-one-input.md)).
+  The quick-add field item still exists, but no bundled module uses it since #58. Docked, it is a cell in the canvas's shared bottom row, lined up
   with the call's own control strip and the chat box (see [architecture-canvas](architecture-canvas.md));
   elsewhere it is a strip under the module. The call's own bottom control strip and the chat's input row are
   the same idea as a module's action bar, drawn natively rather than through `bar.set` because they predate
@@ -57,18 +59,23 @@ bar are there regardless), or the module's own standalone page.
 
 ## Overflow
 
-`header.set`, `bar.set` and `toolbar.set` each show at most five items before folding the rest into a
-"..." the host draws and opens (`toggleOverflow` in `public/module-host.js`) -- the host's own analogue of
-`host.menu.show`, needed because that one draws inside a module's own frame and these three are the
-host's chrome, outside it. An item marked `overflow: true` always goes into the "..." regardless of how many
-you set, for something you always want tucked away (a destructive action, say). A `bar.set` quick-add item is
-exempt and never counts toward the five. Only `type: 'button'` toolbar items count; a `text`, `tabs`,
-`progress` or `slider` item always shows, since it says something about the module (or is itself the
-control) rather than being one more action alongside others.
+Each zone folds what it can't show into a "..." the host draws and opens (`toggleOverflow` in
+`public/module-host.js`) -- the host's own analogue of `host.menu.show`, needed because that one draws
+inside a module's own frame and these three are the host's chrome, outside it. The "..." is drawn by
+`drawMoreButton`, the same look as `host.ui.moreButton` (`.sdk-more`) inside a module. In every zone it sits
+on the **left**, and leftover items come off the left, so the rightmost item stays. An item marked
+`overflow: true` always goes into the "...", for something you always want tucked away (a destructive
+action, say).
 
-`splitOverflow(items, max)` in `public/module-host.js` is the one place this is decided; each of the three
-`.set` handlers calls it the same way, so a module cannot get a different overflow rule in one zone than
-another.
+- **Action bar** (`drawModuleBar`). Fitted by width, not by count. The primary item sits on the far right,
+  the other items to its left in the order given, then the "..." at the far left. A `ResizeObserver` on the
+  bar redraws it as the module is resized; while the bar overflows its width, the leftmost remaining
+  secondary moves into the "...". The primary never folds. A quick-add item is drawn first and never folds.
+  At most 10 items are taken.
+- **Titlebar and toolbar.** At most five items, by `splitOverflow(items, max)`, which both handlers call the
+  same way. Only `type: 'button'` toolbar items count; a `text`, `tabs`, `progress` or `slider` item always
+  shows, since it says something about the module (or is itself the control) rather than being one more
+  action alongside others.
 
 ## Reusable toolbar tools
 
@@ -112,8 +119,10 @@ switch would otherwise lose whatever `host.toolbar.set`/`host.bar.set` last drew
 
 ## Rules
 
-- **The "..." is one icon.** Every "more" affordance -- the host's overflow at the end of a titlebar, a toolbar or
-  an action bar, a card's own menu, a day's, the call's More -- is Font Awesome's `ellipsis-vertical`. Not the
+- **The "..." is one icon, and one control.** Every "more" affordance -- the host's overflow in a titlebar, a
+  toolbar or an action bar, a card's own menu, a day's, a place's, a poll's, the call's More -- is Font Awesome's
+  `ellipsis-vertical`, centered. Inside a module it is `host.ui.moreButton` (class `.sdk-more`, styled by the SDK);
+  in the host's chrome it is `drawMoreButton`, with the same class. Not the
   horizontal `ellipsis`, and not a text glyph standing in for it. It opens `host.menu.show` (a module's own) or
   the host's overflow menu; both look the same. Found by hand once (a vertical glyph on a poll, a horizontal
   icon everywhere else), which is what the check below is for.
@@ -121,7 +130,8 @@ switch would otherwise lose whatever `host.toolbar.set`/`host.bar.set` last drew
   and `host.actions.pick` (the drop menu, a choice) draws in `menu.show`'s look. Nothing draws its own list of
   actions.
 
-`tools/check-module-window.mjs` enforces the first rule mechanically, as part of `npm run check`, the way
+`tools/check-module-window.mjs` enforces the first rule mechanically (the icon, and a `<button>` in a module's markup
+with `ellipsis-vertical` must carry `sdk-more`; the call's own More is exempt), as part of `npm run check`, the way
 `check-canvas.mjs` enforces the canvas grid's; add a rule there when the next drift shows the shape of one.
 
 ## What is not built yet

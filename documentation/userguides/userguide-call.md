@@ -57,6 +57,7 @@ Open chat from the **space bar**, under the header, or with **C**. The space bar
 - **Formatting.** The icons button to the left of the box opens a small layer above it with the
   picture button, **bold**, *italic*, code, bullet lists and emoji, and a question mark that shows the
   shortcuts. It closes when you click elsewhere or press Escape, so the chat bar stays one row.
+- **Commands and the AI.** The box reads **Chat or type / for commands...**: `/ai` asks the AI privately, and a module's command (`/t`, `/c`, `/r`, `/p`, `/v`) opens its add form. The formatting layer also has **Commands** and **Bring in research**. See [Chat](userguide-chat.md).
 - **Pictures.** Paste, drop or pick a picture (the picture button is in that layer) to send it. Pictures larger than 1600 px or 1.5 MB are
   shrunk first.
 - **Reply, copy and save.** Hover a message for **Reply** (it quotes the message and puts your cursor

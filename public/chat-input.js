@@ -250,10 +250,10 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     who.append(name);
     const body = document.createElement('div');
     body.className = 'text';
-    const cards = summaries || [];
-    if (kind === 'ai' && cards.length) {
-      for (const p of answerParts(text, cards.length)) {
-        if (p.summary !== undefined) body.appendChild(objectPreview(cards[p.summary], question));
+    const objects = summaries || [];
+    if (kind === 'ai' && objects.length) {
+      for (const p of answerParts(text, objects.length)) {
+        if (p.summary !== undefined) body.appendChild(objectPreview(objects[p.summary], question));
         else {
           const t = document.createElement('div');
           t.innerHTML = renderMarkup(p.text);

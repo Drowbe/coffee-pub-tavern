@@ -10,8 +10,8 @@ import assert from 'node:assert/strict';
 const sdk = fs.readFileSync(new URL('../public/sdk/host.js', import.meta.url), 'utf8');
 const win = { addEventListener() {}, location: { search: '' } };
 win.parent = win;
-new Function('window', 'document', sdk)(win, {});
-const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
+new Function('window', 'document', sdk)(win, { createElement: (tag) => ({ tag }) }); // ready() adds the SDK's shared styles: a <style> stand-in
+const geo = win.createHost({ call: async () => ({}), root: { appendChild() {} }, rootElement: {} }).host.util.geo;
 
 const names = ['answerParts', 'keepInput', 'keptText', 'suggestionInput'];
 const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/assistant/src/assistant-lib.js', import.meta.url), 'utf8')}\nreturn { ${names.join(', ')} };`)(geo);

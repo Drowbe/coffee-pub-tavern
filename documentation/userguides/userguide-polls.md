@@ -22,9 +22,9 @@ An admin can set, on the Modules tab, to **close new polls after** a number of d
 
 ## Start a poll
 
-At the bottom of Polls is a quick-add field with a **+** button. Type the question and press Enter or click **+**, and the New poll form opens with it filled in. A day in what you type, such as "where to stay by sep 29", becomes the closing time (noon that day, or the time you typed) when it is still ahead of you. Clicking **+** with nothing typed opens a blank form.
+To type the question, use `/v` in Chat while Polls is open, and the New poll form opens with it filled in. A day in what you type, such as `/v where to stay by sep 29`, becomes the closing time (noon that day, or the time you typed) when it is still ahead of you. See [Chat](userguide-chat.md), "Commands".
 
-Choose **New poll**. Give the question and at least two options; each option can carry a short detail, such as a price, a place or a date. Then choose:
+Or choose **New poll** in the bar along the bottom of Polls. Give the question and at least two options; each option can carry a short detail, such as a price, a place or a date. Then choose:
 
 - **Allow more than one choice** for a poll where people pick every option they like.
 - **Let people add options**, so anyone who can vote can suggest another option while the poll is open. Good for "where should we go?".

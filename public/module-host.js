@@ -785,7 +785,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     },
     // Ask in this space's Chat (host.chat.ask). Only the canvas host provides it.
     async 'chat.ask'({ question, refs }) {
-      if (typeof onChatAsk !== 'function') throw Object.assign(new Error('Ask this from Chat in a space.'), { status: 400 });
+      if (typeof onChatAsk !== 'function') throw Object.assign(new Error(`Ask this from Chat in ${word('space', { a: true })}.`), { status: 400 });
       const q = String(question || '').trim().slice(0, 1000);
       if (!q) throw Object.assign(new Error('Type a question.'), { status: 400 });
       const list = (Array.isArray(refs) ? refs : []).filter(REF_SHAPE).slice(0, 12).map(cleanPointer);
