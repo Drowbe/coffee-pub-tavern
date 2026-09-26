@@ -96,5 +96,6 @@
   {"file": "public/admin.html", "level": "object", "pattern": "^Card$", "line": "Card background", "reason": "The theme's card colour (--bg-card), a part of the page, not an object."},
   {"file": "public/ai-config.html", "level": "object", "pattern": "^card$", "line": "on its card on the", "reason": "A module's card on the Modules tab, a part of the page, not an object."},
   {"file": "public/host.html", "level": "object", "pattern": "^card$", "line": "on its own card", "reason": "An environment's card in the host console, a part of the page, not an object."},
-  {"file": "public/landing.html", "level": "object", "pattern": "^cards$", "line": "laid out as cards or a list", "reason": "Research's card layout, a way of drawing a list, not an object."}
+  {"file": "public/landing.html", "level": "object", "pattern": "^cards$", "line": "laid out as cards or a list", "reason": "Research's card layout, a way of drawing a list, not an object."},
+  {"file": "server/object-format.js", "level": "word", "pattern": "^objects$", "line": "\\{\"magpieObjects\":1,\"objects\":\\[", "reason": "The objects file's own field name (\"objects\"), part of the format another AI writes, not a word; renaming it would break every file already made."}
 ]

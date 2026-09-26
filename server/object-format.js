@@ -89,7 +89,7 @@ function cleanObject(raw, { count = 0, imported = false } = {}) {
 
 function dropWhy(raw) {
   if (raw && raw.__notJson) return 'not valid JSON';
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return 'not an object';
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return `not ${word('object', { a: true })}`;
   if (!plain(raw.title, MAX_TITLE)) return 'it has no title';
   if (!plain(raw.content, MAX_CONTENT, true)) return 'it has no content';
   return null;
@@ -104,15 +104,15 @@ function objectRule({ fence, noun, max, withProvenance }) {
 }
 
 function instructions(noun) {
-  return `I keep my research in Magpie. When I ask you to find or plan something, answer as you normally would, and put each thing worth keeping in a ${objectRule({ fence: 'magpie', noun, max: MAX_IMPORT_OBJECTS, withProvenance: false })}\nIf I ask for a file instead, write one JSON file named <something>.magpie-objects.json holding {"magpieObjects":1,"objects":[...]}, with the same objects in the list.`;
+  return `I keep my research in Magpie. When I ask you to find or plan something, answer as you normally would, and put each thing worth keeping in a ${objectRule({ fence: 'magpie', noun, max: MAX_IMPORT_OBJECTS, withProvenance: false })}\nIf I ask for a file instead, write one JSON file named <something>.magpie-objects.json holding {"magpieObjects":1,"objects":[...]}, with the same ${word('object', { many: true })} in the list.`;
 }
 
 function schema() {
   return {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $id: 'urn:coffee-pub-magpie:objects:1',
-    title: 'Magpie objects, format 1',
-    description: 'One object, a list of objects, or a .magpie-objects.json file. Other fields are ignored.',
+    title: `Magpie ${word('object', { many: true })}, format 1`,
+    description: `One ${word('object')}, a list of ${word('object', { many: true })}, or a .magpie-objects.json file. Other fields are ignored.`,
     oneOf: [
       { $ref: '#/$defs/object' },
       { type: 'array', items: { $ref: '#/$defs/object' }, maxItems: MAX_IMPORT_OBJECTS },

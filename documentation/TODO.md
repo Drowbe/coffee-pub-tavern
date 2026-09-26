@@ -15,7 +15,7 @@ side of things.
 - #2 The first time: guidance, welcome cards, an owner's setup checklist ([plan-entering](plans/plan-entering.md)).
 - #12 Object status: action required, tentative, confirmed ([plan-object-status](plans/plan-object-status.md)).
 - #13 Planner changes shown in the Calendar.
-- #73 Research from any AI brought in as objects: copy instructions, paste or file import into Research or the Planner ([plan-research-import](plans/plan-research-import.md)).
+- #73 Research from any AI ([plan-research-import](plans/plan-research-import.md)): phase 1 (copy instructions, paste or file import into Research or the Planner) is done. Still to come: To-do and Calendar as destinations through a generic conduit, which needs its own plan; and phase 3, a direct connection for AI apps, which waits on #64.
 - The call-name fallback goes: `server/call-names.js` still reads the call names from before Names step 3 ([plan-names](plans/plan-names.md), step 10).
 
 ## Verify in a real call

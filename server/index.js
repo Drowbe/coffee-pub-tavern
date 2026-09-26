@@ -4312,13 +4312,18 @@ app.get('/api/modules/:id/objects/check', (req, res) => {
   const why = importRefusal(ctx);
   res.json({ available: !why, why });
 });
-app.post('/api/modules/:id/objects/check', (req, res, next) => {
+function objectsFileType(req, res, next) {
   const t = String(req.headers['content-type'] || '');
   if (!t.includes('text/plain') && !t.includes('application/octet-stream')) {
     return res.status(415).json({ error: 'send the text as plain text, or the file as it is' });
   }
   next();
-}, express.text({ type: 'text/plain', limit: objectFormat.MAX_IMPORT_BYTES }), express.raw({ type: 'application/octet-stream', limit: objectFormat.MAX_IMPORT_BYTES }), (req, res) => {
+}
+// A text/plain body is one another site can send without asking first, so sameOriginOnly (see "the app", above) is
+// named on the route as well as run for every write: this route must never lose it.
+const objectsFileText = express.text({ type: 'text/plain', limit: objectFormat.MAX_IMPORT_BYTES });
+const objectsFileRaw = express.raw({ type: 'application/octet-stream', limit: objectFormat.MAX_IMPORT_BYTES });
+app.post('/api/modules/:id/objects/check', sameOriginOnly, objectsFileType, objectsFileText, objectsFileRaw, (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
   const why = importRefusal(ctx);

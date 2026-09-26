@@ -205,7 +205,7 @@
         const out = await host.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
         if (out.status === 'queued') {
           keepBtn.classList.add('queued');
-          keepBtn.title = 'Waiting: it is kept when that module is next open';
+          keepBtn.title = `Waiting: it is kept when that ${word('module')} is next open`;
           return true;
         }
         if (out.status === 'done' && out.result && out.result.ok === false) throw new Error(out.result.error || 'it could not be saved');
@@ -401,7 +401,7 @@
         if (why === 'it has no title') return n === 1 ? '1 had no title' : `${n} had no title`;
         if (why === 'it has no content') return n === 1 ? '1 had no content' : `${n} had no content`;
         if (why === 'not valid JSON') return n === 1 ? '1 was not valid JSON' : `${n} were not valid JSON`;
-        if (why === 'not an object') return n === 1 ? '1 was not an object' : `${n} were not objects`;
+        if (why === `not ${word('object', { a: true })}`) return n === 1 ? `1 was not ${word('object', { a: true })}` : `${n} were not ${word('object', { many: true })}`;
         return `${n} ${why}`;
       };
       parts.push(`${list.length} could not be read: ${[...counts].map(([w, n]) => phrase(w, n)).join(', ')}.`);

@@ -167,6 +167,10 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `GET /api/objects/links?from=&ref=&dir=to\|from` | What points at (`to`, only for a kind with `backlinks`) or is pointed at by (`from`) one of the asking module's own objects: `{ summaries }`, each only for what the viewer may see |
 | `GET /api/objects/search?from=&scope=&space=&q=` | `{ summaries }` for objects `from` may link to in one scope: every kind it was approved to consume, matching `q`, newest `when` first, up to 50 |
 | `GET /api/modules/:id/objects/:kind/:objectId?from=&scope=&space=` | One summary, `{ summary }`, or an error |
+| `GET /api/objects/format` | The published objects format: `{ version: 1, fence: "magpie", fileSuffix: ".magpie-objects.json", instructions, schema }`, `instructions` in this environment's word for object. A signed-in person or a guest with a link; else 401 `sign in first`. See [The objects format](#the-objects-format) |
+| `GET /api/objects/format/schema` | The JSON schema alone, `Content-Type: application/schema+json`. The same callers as above |
+| `GET /api/modules/:id/objects/check?scope=&space=` | Whether this person may bring objects into this place with this module: `{ available, why }`, `why` being `""` or one of the 403 sentences under [The objects format](#the-objects-format). Needs the module's `write` permission |
+| `POST /api/modules/:id/objects/check?scope=&space=` | Reads objects out of a pasted answer (`Content-Type: text/plain`) or a file's bytes (`application/octet-stream`, decoded as UTF-16 by its byte order mark, else UTF-8); stores nothing. Answers `{ version: 1, objects, found, dropped, over }`. Needs the module's `write` permission; the refusals are under [The objects format](#the-objects-format) |
 | `POST /api/modules/bundled/:id/install` | Owners only. Builds one of the modules that ship with this Magpie (a folder under `modules/` next to the server) into a zip and installs it as an upload would be, so it is the same validation, approval and versioning; 404 for anything that is not a bundled module. `GET /api/modules` lists them as `bundled`: `{ id, name, icon, description, version, installed, update }` |
 | `GET /api/modules/:id/spaces-data?prefix=` | For a module's environment page: `{ spaces, items }` across the caller's own spaces (a member, module on for the space, role can read it), each entry with its `spaceId`, each space `{ id, name, icon, svg }`. `?info=1` returns just `{ spaces }`. Guests get 403. (Was `rooms-data`, now 404) |
 | `GET /api/modules/stream?space=` | One server-sent stream for all modules on a page: `change` and `schedule` events with `module`, `scope` (`space`, `environment` and `person` with a space; `environment`, `person` and `spaces` without) and `spaceId`, filtered to what the caller may read |
@@ -178,4 +182,59 @@ These serve a running module. The page hosting a module's frame calls them for i
 | `POST /api/notifications/read` | `{ module }` or `{ id }` marks them read |
 | `GET /api/notifications/stream` | Server-sent events: `notification` |
 
-Limits: a value is at most about 60 KB, a module's data 5 MB, a schedule payload 4 KB, 500 schedules per module and 50 notifications per person. Rate limits, per module and per person over a minute: 240 saves or deletes, 60 events, 60 asked actions, 60 schedules and 20 notifications. Over a limit a call gets 429 with a `Retry-After` header and the module is told to slow down; the first time in a while it also puts a line in the owner's activity list (`GET /api/modules/activity`, admin only), which is kept across a restart.
+Limits: a value is at most about 60 KB, a module's data 5 MB, a schedule payload 4 KB, 500 schedules per module and 50 notifications per person. Rate limits, per module and per person over a minute: 240 saves or deletes, 60 events, 60 asked actions, 60 schedules, 20 notifications and 20 object checks (`POST /api/modules/:id/objects/check`). Over a limit a call gets 429 with a `Retry-After` header and the module is told to slow down; the first time in a while it also puts a line in the owner's activity list (`GET /api/modules/activity`, admin only), which is kept across a restart.
+
+An asked action's input is checked against its declared types: a `string` field is cut at 200 characters and a `text` field at 8000 (it was 1000 before #73).
+
+## The objects format
+
+The format another AI (or the Assistant's own AI) writes objects in, version 1, and how a module reads them. The code is `server/object-format.js`; the reasons are in [Modules architecture](../architecture/architecture-modules.md), "The objects format". Nothing here names a module.
+
+An object is one JSON object. Any other field is ignored; HTML tags and control characters are removed from every text field.
+
+| Field | Required | Kept as |
+|---|---|---|
+| `title` | yes | plain text, at most 80 characters |
+| `content` | yes | plain text or simple Markdown, line breaks kept, at most 6000 characters |
+| `icon` | no | one of the icon names in `ICONS`; anything else becomes `note` |
+| `kind` | no | one of `flight`, `train`, `bus`, `ferry`, `car`, `hotel`, `restaurant`, `cafe`, `bar`, `sight`, `museum`, `tour`, `show`; anything else is left out |
+| `tags` | no | at most 5; each lower-cased, reduced to `a-z`, `0-9` and `-`, at most 24 characters; duplicates and empty ones dropped |
+| `place` | no | `{ name }` (at most 120 characters), plus `lat` and `lng` rounded to 6 places when both are numbers in range; left out without a name |
+| `date` | no | a real calendar date, `YYYY-MM-DD` |
+| `links` | no | at most 5 `{ title, url }`; `url` must be `http:` or `https:`, without a user name or password, at most 500 characters; `title` at most 100 characters, else the address's host name |
+
+An object read by `POST /api/modules/:id/objects/check` always comes back with `basis: "imported"` and never with `sources`, whatever it carried. The Assistant's own answers go through the same checker (`cleanSummary` in `server/ai.js`), keep their `basis` (`general`, `items` or `both`, never `imported`) and `sources`.
+
+**Where objects are found**, in this order:
+
+1. A leading byte order mark is dropped. Text that is only white space is refused.
+2. Trimmed text that starts with `{` or `[` and parses as JSON: an object with a `magpieObjects` key is a file (`{ "magpieObjects": 1, "objects": [...] }`, recognised by its content, not its name); any other object is one candidate; an array gives one candidate per element.
+3. Otherwise, every fenced block whose language is `magpie` or `card` (```` ```magpie ```` then a new line, the JSON, a new line and ```` ``` ````). A block holds one object or an array of them. A block that is not valid JSON is one candidate, dropped as `not valid JSON`.
+4. If there is no such block: every balanced top-level `{...}` span that parses as a JSON object with a string `title` (an answer copied from a chat's formatted view, which loses the fences). Other spans are ignored, not reported.
+
+**Caps.** 256 KB of text or file per request; at most 200 candidates read; at most 50 objects kept. Past those, the rest is counted, never kept.
+
+**The answer.** `found` is the number of candidates read. `objects` are the kept ones, in order. `dropped` is `[{ at, why }]` for each candidate not kept, `at` counting candidates from 1 and `why` one of `not valid JSON`, `not an object`, `it has no title`, `it has no content`. `over` is how many valid objects were past 50. Candidates found but none kept is `200` with `objects: []`.
+
+**Who may.** The module's `write` permission in that place (`moduleAccess`), not a guest, and not in a space with AI turned off. No AI service, no **Use AI in modules** and no new module permission are needed.
+
+**Refusals.** Words in `${}` are this environment's words.
+
+| Status | When | `error` |
+|---|---|---|
+| 401 | not signed in, no guest link | `sign in first` |
+| 404, 403, 400 | `moduleAccess`'s own refusals (no such module, not on in that space, the role may not write) | as for any runtime route |
+| 403 | a guest | `${guests} cannot bring in ${objects}` |
+| 403 | the space has AI turned off | `AI is turned off in this ${space}` |
+| 415 | `POST` with neither `text/plain` nor `application/octet-stream` (checked first, before who is asking) | `send the text as plain text, or the file as it is` |
+| 413 | over 256 KB | `that is over 256 KB; bring it in in parts` |
+| 400 | nothing but white space | `paste an answer or choose a file first` |
+| 400 | `magpieObjects` is an integer above 1 | `that file is format ${n}; this server reads format 1` |
+| 400 | `magpieObjects` is anything else but 1 | `that is not a .magpie-objects.json file` |
+| 400 | a file whose `objects` is not an array | `that file has no list of ${objects}` |
+| 400 | no candidate found at all | `nothing in that could be read as ${objects}: paste the whole answer, with its magpie blocks` |
+| 429 | over 20 checks a minute per module and person | `this ${module} is doing that too often; try again in a moment`, with `Retry-After` |
+
+**The schema.** `GET /api/objects/format/schema` is JSON Schema 2020-12, `$id` `urn:coffee-pub-magpie:objects:1`: one object, an array of at most 50, or a file (`magpieObjects` const `1`, `objects` at most 50). It is built from the same constants as the checker and describes what is kept; the checker is more forgiving (it trims and lower-cases rather than refusing).
+
+**The instructions.** `instructions` asks the other AI to put each thing worth keeping in a `magpie` block (at most 50), names every icon and kind, asks for titles under 80 characters, content under 6000 and links starting with `http://` or `https://`, and offers a `<something>.magpie-objects.json` file. They are built by the same function (`objectRule`) as the Assistant's own prompt rule, so the two cannot drift; the Assistant's rule still asks for `card` blocks, which are still read.

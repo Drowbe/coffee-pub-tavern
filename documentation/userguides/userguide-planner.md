@@ -52,7 +52,8 @@ Objects with no time come first in a day, in the order you put them; objects wit
 - Something from the Calendar, To-do or Polls that is dated on a trip day appears under that day as a suggestion, with an **Add** button that puts it on the plan. An added object shows where it comes from and has an **Open** button that takes you to it. It is read only here: change it where it lives.
 - Drag an object from another module onto a day to put it on that day.
 - Another module can ask Planner to add something: a closed poll's winner can go onto the plan as a stop.
-- A summary the Assistant's AI writes and marks as a flight, a train, a bus, a ferry, a car, a hotel, a restaurant, a cafe, a bar, a sight, a museum, a tour or a show is kept here as that proper kind of object, on the day it names, not just a plain note.
+- An object kept from the Assistant that is marked as a flight, a train, a bus, a ferry, a car, a hotel, a restaurant, a cafe, a bar, a sight, a museum, a tour or a show is kept here as that proper kind of object, on the day it names, not just a plain note. That holds for the Assistant's own answers and for research brought in from another AI (see [Assistant](userguide-assistant.md)). Its text, with its links, goes into the object's notes; research brought in ends with the line "External source".
+- An object's **Notes** hold up to 8000 characters.
 - Objects other modules link to a stop show under it.
 
 ## Bookings

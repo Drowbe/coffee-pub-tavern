@@ -29,7 +29,7 @@ The search box matches the title, the text, the site and the tags. The row under
 
 ## Research this
 
-A card's menu has **Research this**, which opens the Assistant module (if it is installed) with that object as context, ready to ask about it; see [Assistant](userguide-assistant.md). A summary the AI writes worth keeping is saved back here as an ordinary note. An object saved before this changed may still show as an **Answer**, with the question that made it; nothing new is saved that way now.
+A card's menu has **Research this**, which opens the Assistant module (if it is installed) with that object as context, ready to ask about it; see [Assistant](userguide-assistant.md). A summary the AI writes worth keeping is saved back here as an ordinary note. Research brought in from another AI through the Assistant lands here too, as a note, when it is not marked as a kind the Planner takes (a flight, a hotel, a sight and so on), or when the Planner is not installed; its text ends with the line "External source". See [Assistant](userguide-assistant.md), "Bring in research from another AI". An object saved before this changed may still show as an **Answer**, with the question that made it; nothing new is saved that way now.
 
 ## For module authors
 

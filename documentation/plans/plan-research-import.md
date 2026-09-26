@@ -2,7 +2,7 @@
 
 **Audience:** the author deciding how research done in another AI comes into Magpie, and the developers who build parts 1 and 2 from this plan alone: server-development (the format, the check and the routes) and experience-design (the SDK calls and the Assistant's pages).
 
-**Status:** approved 2026-09-25. From GitHub issue #73, in the author's words: "Let people research in Claude Desktop, ChatGPT or any AI and bring the results into Magpie as objects." Nothing here is built. Parts 1 (publish the format) and 2 (import) are phase 1 and are specified to build; part 3 (a direct connection) waits for #64, and more destinations (To-do, Calendar) come soon after phase 1. Both are described only as future work.
+**Status:** approved 2026-09-25; phase 1 (parts 1 and 2, steps 1 to 7) built 2026-09-25 in PR #74 (Assistant 0.1.17, Travel 0.7.38) and documented. Part 3 waits for #64; more destinations are the next plan. From GitHub issue #73, in the author's words: "Let people research in Claude Desktop, ChatGPT or any AI and bring the results into Magpie as objects." Parts 1 (publish the format) and 2 (import) are phase 1 and are specified to build; part 3 (a direct connection) waits for #64, and more destinations (To-do, Calendar) come soon after phase 1. Both are described only as future work.
 
 ## What it is today
 
