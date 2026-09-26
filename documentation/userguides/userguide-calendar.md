@@ -1,6 +1,6 @@
 # Calendar
 
-**Audience:** a player or game master using the Calendar module in a Coffee Pub Magpie environment, and an owner setting it up.
+**Audience:** a player or game master using the Calendar module in a Collaborator environment, and an owner setting it up.
 
 The Calendar keeps sessions and events. There is one for the whole environment, and one for each space. An event can remind people before it starts. Install and enable it first; see [Modules](userguide-modules.md).
 

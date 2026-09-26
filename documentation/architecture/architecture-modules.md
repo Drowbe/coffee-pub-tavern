@@ -1,6 +1,6 @@
 # Modules Architecture
 
-**Audience:** developers changing how Coffee Pub Magpie installs and stores modules.
+**Audience:** developers changing how Collaborator installs and stores modules.
 
 What an admin does with modules is [userguide-modules](../userguides/userguide-modules.md), and the
 routes are [api-modules](../api/api-modules.md). This document is what you can only learn from

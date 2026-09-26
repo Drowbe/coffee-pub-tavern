@@ -1,6 +1,6 @@
 # To do
 
-Work is tracked at <https://github.com/Drowbe/coffee-pub-tavern/issues>. This page is an index of the open
+Work is tracked at <https://github.com/Drowbe/coffee-pub-collaborator/issues>. This page is an index of the open
 issues, grouped, with a few words each; the issue holds the detail. See the Studio repository for that app's
 side of things.
 

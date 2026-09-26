@@ -1,6 +1,6 @@
 # Participant and Character Images
 
-**Audience:** a game master or player setting the pictures that Coffee Pub Magpie and OBS show for
+**Audience:** a game master or player setting the pictures that Collaborator and OBS show for
 each player.
 
 Each user has two things the recording can show, and both react to the same live signal: who is

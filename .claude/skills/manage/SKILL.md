@@ -1,6 +1,6 @@
 ---
 name: manage
-description: Run a piece of Coffee Pub Magpie work through the agent team (planner, builders, QA, docs) with this session as the project manager. Use when Thomas types /manage or asks to hand work to the team.
+description: Run a piece of Collaborator work through the agent team (planner, builders, QA, docs) with this session as the project manager. Use when Thomas types /manage or asks to hand work to the team.
 argument-hint: what you want done
 ---
 

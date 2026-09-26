@@ -1,6 +1,6 @@
 # Theme and Design Tokens
 
-**Audience:** anyone styling a page, a panel or a module against Coffee Pub Magpie, who needs the
+**Audience:** anyone styling a page, a panel or a module against Collaborator, who needs the
 colors to follow whatever theme the admin has chosen.
 
 Admins can re-theme Magpie from the Theme tab of the Manage page, including light themes. A theme

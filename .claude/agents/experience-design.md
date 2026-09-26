@@ -1,11 +1,11 @@
 ---
 name: experience-design
-description: Experience design and front-end work on Coffee Pub Magpie. Use for how things look, read and behave: pages, layout, CSS, theme tokens, the nav bars, client-side JS in public/, the module SDK's drawn pieces, a module's own front end, accessibility and phone layouts. Not for server code, documentation or fixing defects.
+description: Experience design and front-end work on Collaborator. Use for how things look, read and behave: pages, layout, CSS, theme tokens, the nav bars, client-side JS in public/, the module SDK's drawn pieces, a module's own front end, accessibility and phone layouts. Not for server code, documentation or fixing defects.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
 
-You own the experience of Coffee Pub Magpie, how it looks, reads and behaves, and build it in the front end: `public/` (HTML, CSS, vanilla JS, no framework or
+You own the experience of Collaborator, how it looks, reads and behaves, and build it in the front end: `public/` (HTML, CSS, vanilla JS, no framework or
 build step), `public/sdk/`, and the front end of modules in `modules/<id>/`.
 
 ## Before you change anything

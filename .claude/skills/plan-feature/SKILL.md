@@ -1,6 +1,6 @@
 ---
 name: plan-feature
-description: Plan a Coffee Pub Magpie feature or change with this session as the product planner, ending in a plan document Thomas approves. Use when Thomas types /plan-feature or wants to think an idea through before building it.
+description: Plan a Collaborator feature or change with this session as the product planner, ending in a plan document Thomas approves. Use when Thomas types /plan-feature or wants to think an idea through before building it.
 argument-hint: the idea
 ---
 

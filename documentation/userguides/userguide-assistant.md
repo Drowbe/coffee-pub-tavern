@@ -1,6 +1,6 @@
 # Assistant
 
-**Audience:** an owner setting up the AI on a Coffee Pub Magpie server, and anyone asking it questions or bringing in research from another AI.
+**Audience:** an owner setting up the AI on a Collaborator server, and anyone asking it questions or bringing in research from another AI.
 
 The AI is asked from Chat now, with `/ai`; see [Chat](userguide-chat.md), "Ask the AI". The Assistant module (0.1.20) has no window of its own and is not in the space bar. It stays installed for two things: its **Use the assistant** permission, which decides who may use `/ai`, and the AI hook. Research brought in from another AI comes in through Chat too.
 

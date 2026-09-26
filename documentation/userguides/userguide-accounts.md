@@ -1,6 +1,6 @@
 # Accounts, Roles and Permissions
 
-**Audience:** a game master or owner adding players to a Coffee Pub Magpie environment and deciding what
+**Audience:** a game master or owner adding players to a Collaborator environment and deciding what
 each of them can do.
 
 ## Add people

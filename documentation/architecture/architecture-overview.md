@@ -1,9 +1,9 @@
 # Architecture Overview
 
-**Audience:** a developer changing Coffee Pub Magpie, who needs the shape of the whole system and
+**Audience:** a developer changing Collaborator, who needs the shape of the whole system and
 where each part lives.
 
-Magpie is a small Node web app plus a LiveKit media server. There is no build step and no front-end
+Collaborator is a small Node web app plus a LiveKit media server. There is no build step and no front-end
 framework: the pages are plain HTML, CSS and JavaScript served as they are.
 
 ## The pieces
@@ -214,8 +214,8 @@ everyone left behind, `aside-recall` `{ type, spaceId, spaceName }` and `aside-r
 
 `docker-compose.yml` has two services, meant to be pasted into Container Station: `livekit` from the
 official image, configured entirely through an environment variable (keys, TURN, ports 7880 for
-signaling, 7881 TCP and 7882 UDP for media, 3478 for TURN), and `magpie`, the Node app from
-`ghcr.io/drowbe/coffee-pub-tavern`, built by GitHub Actions. A reverse proxy terminates TLS for both
+signaling, 7881 TCP and 7882 UDP for media, 3478 for TURN), and `collaborator`, the Node app from
+`ghcr.io/drowbe/coffee-pub-collaborator`, built by GitHub Actions. A reverse proxy terminates TLS for both
 hostnames, because browsers only allow camera access over HTTPS.
 
 Bandwidth is the real sizing number: eight players at 720p is roughly eight times 1.5 Mbps in and about

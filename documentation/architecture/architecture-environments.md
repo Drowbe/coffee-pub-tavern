@@ -75,7 +75,7 @@ The "door" is one middleware, registered right after `express.json()`, before an
   `public/assets/images/brand/brandmark-color.png` -- the one file a rebrand replaces, not a copy of it);
   `<slug>.<base>` resolves that slug's environment the same way the no-base-domain case resolves the default
   one; anything else is a plain 404. A hostname matching `PREVIOUS_BASE_DOMAINS` 301s to the same path at the
-  current base first. `PRODUCT_NAME` (default "Coffee Pub Magpie") and `CONTACT_EMAIL` (default none) are
+  current base first. `PRODUCT_NAME` (default "Collaborator") and `CONTACT_EMAIL` (default none) are
   configuration, never code, since the product's own name is not settled yet -- `GET /api/product` (registered on
   both the main app and `hostRouter`, never behind a session) answers `{ name, contact, baseDomain, version }`
   wherever it is reached.
