@@ -153,8 +153,7 @@
 .card-more dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0 0 4px; }
 .card-more dt { color: var(--text-dim); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
 .card-more dd { margin: 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-line; }
-.menu-btn { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; color: var(--text-dim); cursor: pointer; }
-.menu-btn:hover { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); }
+.menu-btn { position: absolute; top: 6px; right: 6px; }
 .owners { display: inline-flex; margin-left: auto; }
 .owner { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -4px; border: 2px solid var(--bg-card); border-radius: 50%; background: color-mix(in srgb, var(--tone) 40%, var(--bg-card)); color: var(--text); font-size: 10px; font-weight: 600; }
 .owner:first-child { margin-left: 0; }

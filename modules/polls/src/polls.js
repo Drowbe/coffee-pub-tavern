@@ -271,7 +271,7 @@
     const canManage = mayManage(x);
     const status = closesText(p);
     return `<article class="poll ${closed ? 'closed' : ''}" data-poll="${esc(x.key)}">
-      ${canManage ? `<button class="menu-btn" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">${moreSvg}</button>` : ''}
+      ${canManage ? `<button class="menu-btn sdk-more" type="button" data-menu="${esc(x.key)}" aria-haspopup="menu" aria-label="Poll actions" title="Poll actions">${moreSvg}</button>` : ''}
       <h3 data-drag="${esc(x.key)}" title="Drag onto a to-do to link it">${esc(p.question)}</h3>
       <div class="meta">${p.multi ? 'Pick any' : 'Pick one'} &middot; ${voters} ${voters === 1 ? 'vote' : 'votes'}${status ? `<span class="tag">${esc(status)}</span>` : ''}<br>Started by ${esc(p.by || 'someone')}</div>
       ${opts}

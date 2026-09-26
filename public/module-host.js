@@ -457,6 +457,22 @@ function toggleOverflow(trigger, items) {
   };
 }
 
+// The host's "..." (same look as host.ui.moreButton / .sdk-more inside a module).
+function drawMoreButton(doc, extraClass, onClick) {
+  const more = doc.createElement('button');
+  more.type = 'button';
+  more.className = extraClass ? `sdk-more ${extraClass}` : 'sdk-more';
+  more.title = 'More';
+  more.setAttribute('aria-label', 'More');
+  more.setAttribute('aria-haspopup', 'menu');
+  const i = doc.createElement('i');
+  i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
+  i.setAttribute('aria-hidden', 'true');
+  more.appendChild(i);
+  more.addEventListener('click', onClick);
+  return more;
+}
+
 // Splits a cleaned item list into what a header/bar/toolbar row shows directly and what collapses into
 // its "..." (an item marked `overflow: true`, or whatever doesn't fit in `max` slots including the "...").
 // Leftovers come off the left of `shown`, so the rightmost (the primary, when there is one) stays.
@@ -574,17 +590,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
   }
 
   function drawBarMore(hidden) {
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'btn bar-icon bar-more';
-    more.title = 'More';
-    more.setAttribute('aria-label', 'More');
-    more.setAttribute('aria-haspopup', 'menu');
-    const i = document.createElement('i');
-    i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-    i.setAttribute('aria-hidden', 'true');
-    more.appendChild(i);
-    more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
+    const more = drawMoreButton(document, 'bar-more', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('bar', { id: item.id }) }))));
     bar.appendChild(more);
   }
 
@@ -877,17 +883,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       header.textContent = '';
       const doc = header.ownerDocument;
       if (hidden.length) {
-        const more = doc.createElement('button');
-        more.type = 'button';
-        more.className = 'msg-btn';
-        more.title = 'More';
-        more.setAttribute('aria-label', 'More');
-        more.setAttribute('aria-haspopup', 'menu');
-        const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-        i.setAttribute('aria-hidden', 'true');
-        more.appendChild(i);
-        more.addEventListener('click', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
+        const more = drawMoreButton(doc, '', () => toggleOverflow(more, hidden.map((item) => ({ ...item, onPick: () => send('header', { id: item.id }) }))));
         header.appendChild(more);
       }
       for (const item of shown) {
@@ -972,17 +968,7 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
       const drawToolbarMore = () => {
         if (moreDrawn || !overflow.length) return;
         moreDrawn = true;
-        const more = doc.createElement('button');
-        more.type = 'button';
-        more.className = 'tb-btn tb-more';
-        more.title = 'More';
-        more.setAttribute('aria-label', 'More');
-        more.setAttribute('aria-haspopup', 'menu');
-        const i = doc.createElement('i');
-        i.className = 'fa-solid fa-ellipsis-vertical fa-fw';
-        i.setAttribute('aria-hidden', 'true');
-        more.appendChild(i);
-        more.addEventListener('click', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));
+        const more = drawMoreButton(doc, '', () => toggleOverflow(more, overflow.map((item) => ({ ...item, onPick: () => send('toolbar', { id: item.id }) }))));
         toolbar.appendChild(more);
       };
       for (const item of clean) {

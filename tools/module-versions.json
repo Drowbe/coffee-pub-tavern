@@ -12,16 +12,16 @@
     "hash": "b6e82e1dfe27bf20"
   },
   "places": {
-    "version": "0.8.17",
-    "hash": "cd579e9e73277a85"
+    "version": "0.8.18",
+    "hash": "bf53abeb205448d0"
   },
   "polls": {
-    "version": "1.12.16",
-    "hash": "eb17f7b227c6c228"
+    "version": "1.12.17",
+    "hash": "20d2f0a3cc6e6716"
   },
   "research": {
-    "version": "0.2.18",
-    "hash": "f96396bd3cf39134"
+    "version": "0.2.19",
+    "hash": "70c3ca7f1ad949cc"
   },
   "stream": {
     "version": "0.1.6",
@@ -32,7 +32,7 @@
     "hash": "0866ad66f85443ff"
   },
   "travel": {
-    "version": "0.7.41",
-    "hash": "9f2b1349c5dff55b"
+    "version": "0.7.42",
+    "hash": "8f8e01b5d6b38d00"
   }
 }

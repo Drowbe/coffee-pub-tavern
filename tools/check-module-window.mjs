@@ -8,8 +8,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const files = [];
 const walk = (dir, keep) => {
   for (const name of fs.readdirSync(dir)) {
@@ -34,6 +35,10 @@ for (const file of files) {
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   lines.forEach((line, i) => {
     for (const { re, why } of WRONG) if (re.test(line)) problems.push(`${path.relative(root, file)}:${i + 1}: ${why}`);
+    // A "..." trigger in markup must be the shared button (.sdk-more). The call's More is its own .fbtn.
+    if (/\.html$/.test(file) && /<button\b/.test(line) && /ellipsis-vertical/.test(line) && !/sdk-more/.test(line) && !/\bfbtn\b/.test(line) && !/floatbar-more/.test(line)) {
+      problems.push(`${path.relative(root, file)}:${i + 1}: a "..." button must use the shared sdk-more class`);
+    }
   });
 }
 if (problems.length) {

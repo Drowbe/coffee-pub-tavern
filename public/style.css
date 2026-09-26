@@ -2444,6 +2444,9 @@ a.crumb-here:hover {
 }
 
 .msg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: 0;
   color: var(--icon, var(--text-dim));
@@ -4724,6 +4727,52 @@ body.conference-window {
 
 .tb-btn.tb-more {
   margin-left: auto;
+}
+
+/* The shared "..." button (same rules as .sdk-more in public/sdk/host.js): icon centered. */
+.sdk-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex: none;
+  box-sizing: border-box;
+  font: inherit;
+  line-height: 1;
+}
+.sdk-more:hover,
+.sdk-more:focus-visible {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+  outline: none;
+}
+.sdk-more .ic,
+.sdk-more i,
+.sdk-more svg {
+  display: block;
+  margin: 0;
+}
+.sdk-more svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+.sdk-more i {
+  width: 1em;
+  text-align: center;
+}
+.dock-bar .sdk-more,
+.module-floating-bar .sdk-more,
+.module-bar .sdk-more {
+  width: var(--bar-control-h);
+  height: var(--bar-control-h);
 }
 
 /* The host-drawn "..." for a header, action bar or toolbar row that ran out of room (module-host.js's

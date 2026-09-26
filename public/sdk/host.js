@@ -203,6 +203,12 @@
 .sdk-menu-label { flex: 1; min-width: 0; }
 .sdk-menu-hint { flex-basis: 100%; margin-top: 1px; color: var(--text-dim); font-size: 12px; }
 .sdk-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.sdk-more { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--text-dim); cursor: pointer; flex: none; box-sizing: border-box; font: inherit; line-height: 1; }
+.sdk-more:hover, .sdk-more:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); color: var(--text); outline: none; }
+.sdk-more .ic, .sdk-more i, .sdk-more svg { display: block; margin: 0; }
+.sdk-more svg { width: 1em; height: 1em; fill: currentColor; }
+.sdk-more i { width: 1em; text-align: center; }
+.narrow .sdk-more { width: 40px; height: 40px; }
 `;
 
   // A currency list for a <select> (host.ui.currencySelect, and Manage's Currency, which loads this file for it): the common
@@ -304,6 +310,7 @@
   const readyPromise = call('hello').then((result) => {
     info = result;
     if (env.applyTheme) env.applyTheme(result.theme);
+    ensureUiStyles();
     return result;
   });
 
@@ -774,6 +781,27 @@
       // A button in the same toolbar row as the view switches (a chooser that opens a menu, say: Research's Tags),
       // drawn after the switches made before it. { id, label?, icon?, iconOnly?, on?, onClick }. Returns
       // { set({ label?, icon?, on? }), destroy() }; set() redraws only when something changed.
+      // The shared "..." button (ellipsis-vertical, icon centered): a card's menu, a day's, a poll's, a
+      // place's. Pass a button you already have (its data-action and listeners stay); omit it to make one.
+      // { label } is the accessible name (defaults to the button's aria-label, or "More").
+      moreButton: (el, o) => {
+        ensureUiStyles();
+        const btn = el && el.nodeType === 1 ? el : document.createElement('button');
+        btn.type = 'button';
+        btn.classList.add('sdk-more');
+        const label = String((o && o.label) || btn.getAttribute('aria-label') || 'More');
+        if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', label);
+        if (!btn.title) btn.title = label;
+        btn.setAttribute('aria-haspopup', 'menu');
+        if (!btn.querySelector('[data-icon], .ic, i, svg')) {
+          const ic = document.createElement('span');
+          ic.className = 'ic';
+          ic.setAttribute('aria-hidden', 'true');
+          menuIcon('ellipsis-vertical').then((svg) => { if (svg) ic.innerHTML = svg; });
+          btn.appendChild(ic);
+        }
+        return btn;
+      },
       toolbarButton: ({ id, label, icon, iconOnly, on, onClick }) => {
         let state = { label, icon, iconOnly: Boolean(iconOnly), on: Boolean(on) };
         const off = host.on('toolbar', (e) => {
