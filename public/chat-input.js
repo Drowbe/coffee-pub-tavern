@@ -639,7 +639,7 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
   input().addEventListener('input', () => {
     const parsed = parseCommand(input().value);
     if (input().value.trim() === '/') showPicker();
-    if (!parsed) input().placeholder = 'Say something...';
+    if (!parsed) input().placeholder = 'Chat or type / for commands...';
     else if (parsed.name === 'ai') input().placeholder = 'a question for the AI';
     if (!input().value.trim()) { pendingImport = null; importBtn().hidden = true; setNote(''); }
   });

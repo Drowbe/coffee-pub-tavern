@@ -46,7 +46,7 @@
     editing: null, // { mode: 'item' | 'trip', id, kind, day }
     menuFor: null, // item id
     currentDay: null, // the day in view (where a quick add goes)
-    hosted: Boolean(host.bar), // the host draws the quick-add bar, so the days' own add rows step aside
+    hosted: Boolean(host.bar), // the host draws the add bar, so the days' own add rows step aside
     deleteArmed: null,
     expanded: new Set(), // item ids whose card's "More" is open
     markerTypes: [],
@@ -884,22 +884,8 @@
     syncHeader();
   }
 
-  // Keep what someone is typing in an add row through a redraw.
-  function keepInputs() {
-    const kept = [...root.querySelectorAll('.add-row')].map((f) => [f.dataset.day, f.elements.title.value]).filter(([, v]) => v);
-    const active = root.activeElement && root.activeElement.closest && root.activeElement.closest('.add-row');
-    return { kept, focus: active ? active.dataset.day : null, at: active ? active.elements.title.selectionStart : 0 };
-  }
-  function restoreInputs({ kept, focus, at }) {
-    for (const [day, value] of kept) {
-      const f = [...root.querySelectorAll('.add-row')].find((x) => x.dataset.day === day);
-      if (f) f.elements.title.value = value;
-    }
-    if (focus !== null) {
-      const f = [...root.querySelectorAll('.add-row')].find((x) => x.dataset.day === focus);
-      if (f) { f.elements.title.focus(); try { f.elements.title.setSelectionRange(at, at); } catch (err) { /* not a text field */ } }
-    }
-  }
+  function keepInputs() { return {}; }
+  function restoreInputs() {}
 
   let scrolled = false;
   function render() {
@@ -1489,7 +1475,7 @@
       $('editor-title').textContent = item ? 'Edit' : 'Add to the plan';
       hide($('f-types'), Boolean(item) && isLink);
       hide($('f-delete'), !item);
-      applyType(item ? tileOf(item) || 'sight' : 'sight');
+      applyType(item ? tileOf(item) || 'sight' : (place && place.tile) || 'sight');
       $('f-date').value = placeValue(item ? placeOf(item) : place);
       checkoutMin();
       const v = item || {};
@@ -1847,37 +1833,40 @@
     addDays(form.closest('.dayedge').dataset.edge, Number(form.elements.count.value));
   });
 
-  // The add row: a title (and a time, if typed: "dinner at 7pm") on that day.
+  // The add row (only when the host has no bar): opens the same form Chat `/p` opens.
   root.addEventListener('submit', (e) => {
     const form = e.target.closest('.add-row');
     if (!form) return;
     e.preventDefault();
-    const text = form.elements.title.value.trim();
-    if (!text) return openEditor('item', null, { date: form.dataset.day });
-    const parsed = host.util.parseWhen ? host.util.parseWhen(text) : { title: text };
-    form.elements.title.value = '';
-    attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || text, date: form.dataset.day || null, time: parsed.time || null }));
+    if (!canEdit) return;
+    openEditor('item', null, { date: form.dataset.day });
   });
 
   // --- what other modules may ask, and the first load ---------------------------------------------------------
 
-  // The shared bar at the bottom of the pane (as the To-do, Polls and Calendar have): what is typed becomes a stop on the day
-  // in view, or on the day it names when that is a day of the trip.
+  // The shared bar: Add plan, and icon-only Flight / Hotel / Restaurant / Note. Typing is `/p` in Chat.
   const defaultDay = () => {
     const days = plan.days();
     const today = ymd(new Date());
     return days.includes(state.currentDay) ? state.currentDay : days.includes(today) ? today : days[0] || null;
   };
+  const addFromBar = (tile) => {
+    if (!canEdit) return;
+    if (!plan.days().length) return openEditor('trip');
+    openEditor('item', null, { date: defaultDay(), tile });
+  };
   if (host.bar) {
-    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add to the plan', placeholder: 'Add to the trip: lunch at noon' }] : []).catch(() => { state.hosted = false; redraw(); });
+    host.bar.set(canEdit ? [
+      { id: 'add', label: 'Add plan', primary: true },
+      { id: 'flight', icon: 'plane', iconOnly: true, label: 'Flight' },
+      { id: 'hotel', icon: 'bed', iconOnly: true, label: 'Hotel' },
+      { id: 'restaurant', icon: 'utensils', iconOnly: true, label: 'Restaurant' },
+      { id: 'note', icon: 'note-sticky', iconOnly: true, label: 'Note' },
+    ] : []).catch(() => { state.hosted = false; redraw(); });
     host.on('bar', (e) => {
-      if (e.id !== 'add' || !canEdit) return;
-      if (!plan.days().length) return openEditor('trip');
-      const day = defaultDay();
-      if (!e.value) return openEditor('item', null, { date: day });
-      const parsed = host.util.parseWhen ? host.util.parseWhen(e.value) : { title: e.value };
-      const named = parsed.date && plan.days().includes(parsed.date) ? parsed.date : day;
-      attempt(() => plan.addItem({ kind: 'stop', title: parsed.title || e.value, date: named, time: parsed.time || null }));
+      if (!canEdit) return;
+      if (e.id === 'add') return addFromBar();
+      if (e.id === 'flight' || e.id === 'hotel' || e.id === 'restaurant' || e.id === 'note') return addFromBar(e.id);
     });
   }
 
