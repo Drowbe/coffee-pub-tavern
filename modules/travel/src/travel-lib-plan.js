@@ -314,7 +314,7 @@
     function fromSuggestion(input) {
       const title = clip(input.title, 120);
       if (!title) throw new Error('that needs a title');
-      const fields = { title, ...placeFields(input), notes: clip(input.content, 2000), place: clip(input.place, 120) };
+      const fields = { title, ...placeFields(input), notes: clip(input.content, 8000), place: clip(input.place, 120) };
       const kindWord = typeof input.kind === 'string' ? input.kind : '';
       if (MODES.includes(kindWord)) { fields.kind = 'journey'; fields.mode = kindWord; }
       else if (STAY_TYPES.includes(kindWord)) { fields.kind = 'stay'; fields.type = kindWord; }

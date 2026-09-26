@@ -13,7 +13,7 @@ win.parent = win;
 new Function('window', 'document', sdk)(win, {});
 const geo = win.createHost({ call: async () => ({}), root: {}, rootElement: {} }).host.util.geo;
 
-const names = ['answerParts', 'keepInput'];
+const names = ['answerParts', 'keepInput', 'keptText', 'suggestionInput'];
 const lib = new Function('geo', `${fs.readFileSync(new URL('../modules/assistant/src/assistant-lib.js', import.meta.url), 'utf8')}\nreturn { ${names.join(', ')} };`)(geo);
 
 let n = 0;
@@ -59,6 +59,68 @@ test('keeping a card: a title, a body that reads the provenance, tags as one str
   // A long or missing title falls back sensibly.
   assert.equal(lib.keepInput({ content: 'x' }, '', label).title, 'Untitled');
   assert.equal(lib.keepInput({ title: 'z'.repeat(200), content: 'x' }, '', label).title.length, 120);
+});
+
+test('kept text: an answer with no links keeps Asked and From, and never External source', () => {
+  const ref1 = { module: 'places', kind: 'place', id: 'p1' };
+  const summary = { title: 'Hotel', content: 'Near the station.', sources: [ref1] };
+  const text = lib.keptText(summary, { question: 'Where is the hotel?', sourceNames: ['The Pier'] });
+  assert.match(text, /Near the station\./);
+  assert.match(text, /Asked: Where is the hotel\?/);
+  assert.match(text, /From: The Pier/);
+  assert.ok(!text.includes('External source'));
+  assert.ok(!text.includes('Links:'));
+  assert.equal(lib.keepInput(summary, 'Where is the hotel?', () => 'The Pier').body, text);
+  assert.equal(lib.suggestionInput(summary, 'Where is the hotel?', () => 'The Pier').content, text);
+});
+
+test('kept text: an answer with two links lists them, and never External source', () => {
+  const summary = {
+    title: 'Walk',
+    content: 'Along the river.',
+    links: [{ title: 'Map', url: 'https://example.com/map' }, { title: 'Guide', url: 'http://example.com/guide' }],
+  };
+  const text = lib.keptText(summary, { question: 'What to see?', sourceNames: [] });
+  assert.match(text, /Along the river\./);
+  assert.match(text, /Asked: What to see\?/);
+  assert.match(text, /^Links:$/m);
+  assert.match(text, /^- Map: https:\/\/example.com\/map$/m);
+  assert.match(text, /^- Guide: http:\/\/example.com\/guide$/m);
+  assert.ok(!text.includes('External source'));
+  assert.equal(lib.keepInput(summary, 'What to see?', () => '').body, text);
+  assert.equal(lib.suggestionInput(summary, 'What to see?', () => '').content, text);
+});
+
+test('kept text: an imported object ends with External source and never Asked or From', () => {
+  const summary = {
+    title: 'Cafe',
+    content: 'Open late.',
+    basis: 'imported',
+    links: [{ title: 'Menu', url: 'https://example.com/menu' }],
+    sources: [{ module: 'places', kind: 'place', id: 'p1' }],
+  };
+  const text = lib.keptText(summary, { question: 'Where to eat?', sourceNames: ['The Pier'] });
+  assert.match(text, /Open late\./);
+  assert.ok(!text.includes('Asked:'));
+  assert.ok(!text.includes('From:'));
+  assert.match(text, /^- Menu: https:\/\/example.com\/menu$/m);
+  assert.ok(text.endsWith('External source'));
+  assert.equal(lib.keepInput(summary, 'Where to eat?', () => 'The Pier').body, text);
+  assert.equal(lib.suggestionInput(summary, 'Where to eat?', () => 'The Pier').content, text);
+});
+
+test('kept text: 6000 characters and five long links stay at most 8000, with every link and External source whole', () => {
+  const links = ['A', 'B', 'C', 'D', 'E'].map((title) => ({ title, url: `https://example.com/${'u'.repeat(481)}` }));
+  const summary = { title: 'Long', content: 'x'.repeat(6000), basis: 'imported', links };
+  const text = lib.keptText(summary, {});
+  assert.ok(text.length <= 8000);
+  assert.match(text, /…/);
+  for (const l of links) {
+    assert.ok(text.includes(`- ${l.title}: ${l.url}`), `missing whole link ${l.title}`);
+  }
+  assert.ok(text.endsWith('External source'));
+  assert.equal(lib.keepInput(summary, '', () => '').body, text);
+  assert.equal(lib.suggestionInput(summary, '', () => '').content, text);
 });
 
 console.log(`check-assistant: OK (${n} checks)`);

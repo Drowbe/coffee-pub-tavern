@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { encryptSecret, decryptSecret } = require('./auth');
+const { ICONS, KINDS, cleanObject, objectRule } = require('./object-format');
 
 // A key kept at rest is encrypted (AES-256-GCM, server/auth.js's encryptSecret: 'aesgcm$...'). The sentence shown
 // when a saved one can't be read with this server's key -- data restored onto a different host, say, which has a
@@ -47,10 +48,6 @@ const HOSTS = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.ant
 const DEFAULT_MODELS = { openai: 'gpt-4o-mini', anthropic: 'claude-haiku-4-5-20251001' };
 const TASKS = ['summarise', 'ask', 'tags'];
 const MAX_ITEMS = 12;
-const BASES = ['general', 'items', 'both'];
-// A summary's optional everyday-word kind, so a summary that is plainly a flight, a hotel or a sight can be placed as one, not just kept
-// as a note. Ordinary domain language (what a plan, or a places list, already groups things as), not a module's own names.
-const KINDS = ['flight', 'train', 'bus', 'ferry', 'car', 'hotel', 'restaurant', 'cafe', 'bar', 'sight', 'museum', 'tour', 'show'];
 const MAX_SUMMARIES = 20;
 const MAX_ITEM_CHARS = 8000;
 const MAX_PROMPT_CHARS = 60000;
@@ -58,8 +55,6 @@ const MAX_QUESTION = 1000;
 const MAX_ANSWER_TOKENS = 1200;
 const FETCH_MS = 90000;
 const MAX_BODY = 1024 * 1024;
-// The icons a summary may name (Font Awesome names, as the rest of the app uses); the first is the fallback.
-const ICONS = ['note', 'lightbulb', 'location-dot', 'calendar-days', 'link', 'star', 'bed', 'hotel', 'utensils', 'ticket', 'train', 'plane', 'car', 'ship', 'bus', 'camera', 'circle-info', 'mug-hot', 'landmark', 'mountain', 'umbrella-beach', 'sun', 'moon', 'bell', 'clock', 'wallet', 'triangle-exclamation', 'circle-check', 'heart', 'users', 'bag-shopping', 'music', 'map', 'suitcase', 'hourglass-half', 'flag', 'magnifying-glass', 'list-check', 'scale-balanced', 'coins'];
 
 const oneLine = (s, n) => String(s == null ? '' : s).replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 const month = () => new Date().toISOString().slice(0, 7);
@@ -562,51 +557,17 @@ function buildPrompt(task, items, question) {
 // What the model is asked to write inside its answer: the part worth keeping, as a summary in a fenced block. Everything else in the
 // conversation is chatter and is not kept. The model's own instructions call a summary a "card" and its fence ```card: that is
 // between the server and the model only, never an answer's field, so the prompt the model has always had is kept as it was.
-const SUMMARY_RULE = 'Always include at least one card: the part of your answer worth keeping, written as a fenced block in exactly this form (at most ' + MAX_SUMMARIES + ', one block per card):\n```card\n{"icon":"note","kind":"optional","title":"a short title","content":"the text to keep; plain prose, or simple Markdown (headings, **bold**, *italic*, lists, links) if that reads better","tags":["one","word"],"place":{"name":"optional"},"date":"optional YYYY-MM-DD","links":[{"title":"optional","url":"https://..."}],"basis":"general","sources":[1]}\n```\nThe icon is one of: ' + ICONS.join(', ') + '. If the card is plainly one of these everyday things, set "kind" to it (leave it out otherwise): ' + KINDS.join(', ') + '. When asked for several distinct things (an itinerary, a list of options, "find me three hotels"), write one card per thing instead of folding them into prose; a single question still gets one card. "basis" says where the card comes from: "general" (your own knowledge), "items" (the material) or "both". "sources" are the item numbers you used. Leave out the optional parts you do not need.';
+const SUMMARY_RULE = 'Always include at least one card: the part of your answer worth keeping, written as a ' + objectRule({ fence: 'card', noun: 'card', max: MAX_SUMMARIES, withProvenance: true });
 
-// A summary is checked field by field; anything that does not fit is dropped, and a block that is not a valid one stays as ordinary text.
-const plain = (s, n, lines) => String(s == null ? '' : s).replace(/<[^>]*>/g, ' ').replace(lines ? /(?!\n)\p{Cc}/gu : /\p{Cc}/gu, ' ').replace(lines ? /[ \t]+/g : /\s+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, n);
 function cleanSummary(raw, count) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const title = plain(raw.title, 80);
-  const content = plain(raw.content, 2000, true);
-  if (!title || !content) return null;
-  const summary = { icon: ICONS.includes(raw.icon) ? raw.icon : ICONS[0], title, content, basis: BASES.includes(raw.basis) ? raw.basis : count > 0 ? 'items' : 'general' };
-  if (KINDS.includes(raw.kind)) summary.kind = raw.kind;
-  const tags = [];
-  for (const t of Array.isArray(raw.tags) ? raw.tags : []) {
-    const tag = String(t == null ? '' : t).toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24);
-    if (tag && !tags.includes(tag) && tags.length < 5) tags.push(tag);
-  }
-  if (tags.length) summary.tags = tags;
-  const pl = raw.place;
-  if (pl && typeof pl === 'object') {
-    const name = plain(pl.name, 120);
-    if (name) {
-      summary.place = { name };
-      if (Number.isFinite(pl.lat) && Number.isFinite(pl.lng) && Math.abs(pl.lat) <= 90 && Math.abs(pl.lng) <= 180) { summary.place.lat = Math.round(pl.lat * 1e6) / 1e6; summary.place.lng = Math.round(pl.lng * 1e6) / 1e6; }
-    }
-  }
-  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw.date || ''));
-  if (d) { const t = new Date(Date.UTC(+d[1], +d[2] - 1, +d[3])); if (t.getUTCFullYear() === +d[1] && t.getUTCMonth() === +d[2] - 1 && t.getUTCDate() === +d[3]) summary.date = raw.date; }
-  const links = [];
-  for (const l of Array.isArray(raw.links) ? raw.links.slice(0, 5) : []) {
-    let u;
-    try { u = new URL(String((l && l.url) || '')); } catch { continue; }
-    if (u.protocol !== 'https:' || u.username || u.password || u.href.length > 500) continue;
-    links.push({ title: plain(l.title, 100) || u.hostname, url: u.href });
-  }
-  if (links.length) summary.links = links;
-  const sources = [...new Set((Array.isArray(raw.sources) ? raw.sources : []).filter((n) => Number.isInteger(n) && n >= 1 && n <= count))].slice(0, MAX_ITEMS);
-  if (sources.length) summary.sources = sources;
-  return summary;
+  return cleanObject(raw, { count });
 }
 
 // The answer with its valid summaries taken out and each replaced by a marker line {{summary:0}}, {{summary:1}} for the page to
 // draw in place, and the summaries. (A block still being written is never one: it has no closing fence yet, so it stays text.)
 function parseSummaries(text, count) {
   const summaries = [];
-  const out = String(text).replace(/```(?:card|summary|json)?[ \t]*\n([\s\S]*?)\n?```/g, (whole, body) => {
+  const out = String(text).replace(/```(?:card|summary|json|magpie)?[ \t]*\n([\s\S]*?)\n?```/g, (whole, body) => {
     if (summaries.length >= MAX_SUMMARIES) return whole;
     let summary = null;
     try { summary = cleanSummary(JSON.parse(body), count); } catch { /* not JSON */ }

@@ -73,6 +73,7 @@
     context: [], // [{ ref, title, icon }]
     saveAction: null, // a note-shaped action (a title, a body of text) to keep an answer's summary with, or null when nothing offers one
     suggestAction: null, // a suggestion-shaped action (a title, a kind) that places a typed summary properly, or null when nothing offers one
+    importOk: false,
   };
   host.util.fillWords($('ask-empty')); // its data-word marks, in this environment's words
   const emptyNode = $('ask-empty'); // the "ask anything" line, moved back into #thread by New conversation
@@ -144,7 +145,7 @@
 
   const thread = () => $('thread');
   const scrollDown = () => { thread().scrollTop = thread().scrollHeight; };
-  const BASIS_TEXT = { general: 'From general knowledge: check it before you rely on it', items: 'From your notes', both: 'From your notes and general knowledge' };
+  const BASIS_TEXT = { general: 'From general knowledge: check it before you rely on it', items: 'From your notes', both: 'From your notes and general knowledge', imported: 'From another AI: check it before you rely on it' };
 
   // A source of an answer as a pill: Assistant keeps nothing of its own to look a title up in, so it resolves the pointer live,
   // starting with a plain placeholder and filling it in once the lookup answers; `.gone` when it can no longer be read.
@@ -174,6 +175,17 @@
     const srcs = slot(el, 'sources');
     srcs.replaceChildren(...(c.sources || []).map(sourcePill));
     hide(slot(el, 'sources-wrap'), !(c.sources || []).length);
+    const links = slot(el, 'links');
+    if (links) {
+      links.replaceChildren(...(c.links || []).map((l) => {
+        const a = clone('tpl-object-link');
+        a.href = l.url;
+        a.title = l.url;
+        fill(a, { label: l.title || l.url });
+        return a;
+      }));
+      links.hidden = !(c.links || []).length;
+    }
     const keepBtn = el.querySelector('[data-action="keep-card"]');
     // A card plainly a flight, a hotel, a sight... is placed properly by whichever module recognises its `kind` (a plan, say),
     // found generically; anything else, or nothing recognising it, falls back to an ordinary saved note.
@@ -186,11 +198,17 @@
     // Keep this one card: used by its own button, and by Send all's per-card loop. Returns true once it is kept (already
     // kept counts too), false when nothing can place it or it failed.
     async function keepOne() {
-      if (keepBtn.classList.contains('kept')) return true;
+      if (keepBtn.classList.contains('kept') || keepBtn.classList.contains('queued')) return true;
       if (!placer || keepBtn.disabled) return false;
       keepBtn.disabled = true;
       try {
         const out = await host.actions.request(placer.action, await placeInput(placer, c, question), { wait: true });
+        if (out.status === 'queued') {
+          keepBtn.classList.add('queued');
+          keepBtn.title = 'Waiting: it is kept when that module is next open';
+          return true;
+        }
+        if (out.status === 'done' && out.result && out.result.ok === false) throw new Error(out.result.error || 'it could not be saved');
         if (out.status !== 'done' || !out.result || !out.result.ok) throw new Error((out.result && out.result.error) || 'it could not be saved');
         keepBtn.classList.add('kept');
         return true;
@@ -217,7 +235,10 @@
   // plain text, no sources: acceptSuggestion-like) or the note shape (keepInput's, with sources named and folded into the body).
   async function placeInput(action, c, question) {
     if (action === state.suggestAction) {
-      return { title: c.title, kind: c.kind || '', content: c.content, place: c.place && c.place.name ? c.place.name : '', date: c.date || '' };
+      const sources = c.sources || [];
+      const named = new Map();
+      await Promise.all(sources.map(async (r) => { try { const summary = await host.objects.resolve(r); named.set(r, summary && !summary.error ? summary.title : ''); } catch (err) { named.set(r, ''); } }));
+      return suggestionInput(c, question, (r) => named.get(r) || '');
     }
     // Name the sources for real (the pills above resolve the same way), so the kept object's own words read as the card does.
     const sources = c.sources || [];
@@ -245,7 +266,10 @@
   function sendAllNode(cardEls) {
     const el = clone('tpl-send-all');
     const btn = el.querySelector('[data-action="send-all"]');
-    const notKept = () => cardEls.filter((c) => !c.querySelector('[data-action="keep-card"]').classList.contains('kept'));
+    const notKept = () => cardEls.filter((c) => {
+      const b = c.querySelector('[data-action="keep-card"]');
+      return b && !b.classList.contains('kept') && !b.classList.contains('queued');
+    });
     const refresh = () => {
       fill(el, { count: `${cardEls.length} in all` });
       hide(el, !notKept().length);
@@ -297,24 +321,41 @@
   const newChat = () => thread().replaceChildren(emptyNode);
   $('new-chat').addEventListener('click', newChat);
 
-  // New conversation is a titlebar icon wherever there is a titlebar (a pane, or the module's own window);
-  // on the environment page there is none, and the fallback button in .ask-head stays.
+  const canImport = () => state.importOk && Boolean(state.saveAction || state.suggestAction);
+  function openImport(yes) {
+    if (yes == null) yes = $('import-panel').hidden;
+    hide($('import-panel'), !yes);
+    if (yes) hide($('ask-picker'), true);
+  }
+  function setImportWhy(text) {
+    $('import-why').textContent = text || '';
+    hide($('import-why'), !text);
+  }
+
+  // New conversation (and Bring in research) are titlebar icons wherever there is a titlebar (a pane, or the
+  // module's own window); on the environment page there is none, and the fallback buttons in .ask-head stay.
   let headerSig = '';
   async function syncHeader() {
     if (!host.header) return;
-    const sig = state.ai ? '1' : '0';
+    const sig = `${state.ai ? '1' : '0'}:${canImport() ? '1' : '0'}`;
     if (sig === headerSig) return;
     headerSig = sig;
+    const items = [];
+    if (canImport()) items.push({ id: 'import', icon: 'file-import', title: 'Bring in research' });
+    if (state.ai) items.push({ id: 'new-chat', icon: 'rotate-left', title: 'New conversation' });
     let hosted = false;
     try {
-      hosted = await host.header.set(state.ai ? [{ id: 'new-chat', icon: 'rotate-left', title: 'New conversation' }] : []);
+      hosted = await host.header.set(items);
     } catch (err) {
       hosted = false;
     }
     $('app').classList.toggle('hosted-header', Boolean(hosted));
   }
   if (host.header) {
-    host.on('header', (e) => { if (e.id === 'new-chat') newChat(); });
+    host.on('header', (e) => {
+      if (e.id === 'new-chat') newChat();
+      if (e.id === 'import') openImport();
+    });
   }
 
   // --- availability: whether this person may use the AI here, and what can save a kept card ---------------------------------
@@ -339,6 +380,132 @@
       hydrate(thread());
     }
   }
+  async function checkImport() {
+    try {
+      const a = await host.objects.checkAvailable();
+      state.importOk = Boolean(a.available);
+    } catch (err) {
+      state.importOk = false;
+    }
+    hide($('import-open'), !canImport());
+    if (!canImport()) hide($('import-panel'), true);
+    syncHeader();
+  }
+  function droppedLine(dropped, over) {
+    const parts = [];
+    const list = Array.isArray(dropped) ? dropped : [];
+    if (list.length) {
+      const counts = new Map();
+      for (const d of list) counts.set(d.why, (counts.get(d.why) || 0) + 1);
+      const phrase = (why, n) => {
+        if (why === 'it has no title') return n === 1 ? '1 had no title' : `${n} had no title`;
+        if (why === 'it has no content') return n === 1 ? '1 had no content' : `${n} had no content`;
+        if (why === 'not valid JSON') return n === 1 ? '1 was not valid JSON' : `${n} were not valid JSON`;
+        if (why === 'not an object') return n === 1 ? '1 was not an object' : `${n} were not objects`;
+        return `${n} ${why}`;
+      };
+      parts.push(`${list.length} could not be read: ${[...counts].map(([w, n]) => phrase(w, n)).join(', ')}.`);
+    }
+    if (over) parts.push(`${over} more were left out: at most 50 at a time.`);
+    return parts.join(' ');
+  }
+  const isKept = (card) => {
+    const b = card.querySelector('[data-action="keep-card"]');
+    return Boolean(b && (b.classList.contains('kept') || b.classList.contains('queued')));
+  };
+  function showImport(result) {
+    const msg = clone('tpl-msg-import');
+    fill(msg, { who: 'Brought in' });
+    const parts = msg.querySelector('.parts');
+    const rows = [];
+    for (const obj of result.objects || []) {
+      const row = clone('tpl-import-row');
+      const card = aiCard(obj, '');
+      const box = row.querySelector('input');
+      row.append(card);
+      const orig = card.keepOne;
+      card.keepOne = async () => {
+        const ok = await orig();
+        if (ok) box.disabled = true;
+        refresh();
+        return ok;
+      };
+      rows.push({ row, box, card });
+      parts.append(row);
+    }
+    const foot = clone('tpl-import-foot');
+    const dropped = droppedLine(result.dropped || [], result.over || 0);
+    const ticked = () => rows.filter((r) => r.box.checked && !isKept(r.card));
+    const refresh = () => {
+      fill(foot, { count: String(ticked().length), dropped });
+    };
+    refresh();
+    msg.addEventListener('change', refresh);
+    foot.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-action="keep-ticked"]');
+      if (!b) return;
+      const left = ticked();
+      if (!left.length) return;
+      const counts = new Map();
+      for (const r of left) {
+        const k = r.card.keepCard.kind && state.suggestAction ? r.card.keepCard.kind : 'note';
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const what = [...counts].map(([k, n]) => `${n} ${n === 1 ? k : (KIND_PLURAL[k] || `${k}s`)}`).join(' and ');
+      if (!window.confirm(`Keep ${what}?`)) return;
+      b.disabled = true;
+      let ok = 0;
+      for (const r of left) if (await r.card.keepOne()) ok += 1;
+      b.disabled = false;
+      refresh();
+      say(ok === left.length ? `Kept ${ok}.` : `Kept ${ok} of ${left.length}; the rest could not be kept.`, 3000);
+    });
+    parts.append(foot);
+    thread().append(msg);
+    hydrate(thread());
+    scrollDown();
+  }
+  async function checkObjects(input) {
+    setImportWhy('');
+    try {
+      const result = await host.objects.check(input);
+      hide($('import-panel'), true);
+      $('import-text').value = '';
+      $('import-file').value = '';
+      showImport(result);
+    } catch (err) {
+      setImportWhy(message(err));
+    }
+  }
+  $('import-open').addEventListener('click', () => openImport());
+  $('import-close').addEventListener('click', () => openImport(false));
+  $('import-copy').addEventListener('click', async () => {
+    setImportWhy('');
+    hide($('import-show'), true);
+    try {
+      const fmt = await host.objects.format();
+      const text = (fmt && fmt.instructions) || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        say('Copied. Paste it into the other AI first.', 4000);
+      } catch (err) {
+        const show = $('import-show');
+        show.value = text;
+        hide(show, false);
+        show.focus();
+        show.select();
+        say('Select all and copy it.', 4000);
+      }
+    } catch (err) {
+      setImportWhy(message(err));
+    }
+  });
+  $('import-check').addEventListener('click', () => checkObjects($('import-text').value));
+  $('import-choose').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', () => {
+    const file = $('import-file').files && $('import-file').files[0];
+    if (file) checkObjects(file);
+  });
   // A note-shaped save action (a title, a body of text), and a suggestion-shaped one that places a card properly by its `kind`
   // (a title and a kind), each found by name and input shape, never by naming a module.
   async function findSaveAction() {
@@ -418,6 +585,7 @@
   $('msg').hidden = true;
   $('app').hidden = false;
   await Promise.all([checkAi(), findSaveAction()]);
+  await checkImport();
   await Promise.all([...root.querySelectorAll('[data-icon]'), ...[...root.querySelectorAll('template')].flatMap((t) => [...t.content.querySelectorAll('[data-icon]')])].map((n) => n.dataset.icon).filter(Boolean).map(wantIcon));
   hydrate(root);
   drawContext();

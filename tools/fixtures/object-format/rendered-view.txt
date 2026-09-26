@@ -1,0 +1,5 @@
+I looked around and found this:
+
+{"icon":"hotel","kind":"hotel","title":"Hotel Nova","content":"Near the station, about 110 a night."}
+
+And also {"title":"Museum card","content":"Closed Mondays."} which is worth keeping.

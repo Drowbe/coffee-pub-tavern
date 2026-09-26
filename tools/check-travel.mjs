@@ -804,6 +804,18 @@ const roundTrips = async () => {
 };
 await roundTrips();
 
+const longNotes = async () => {
+  const f = fakeHost();
+  const plan = lib.createPlan(f.t);
+  await plan.load();
+  await plan.saveTrip({ title: 'Trip', start: '2026-10-01', end: '2026-10-03' });
+  const fields = plan.fromSuggestion({ title: 'Hotel', content: 'x'.repeat(7000) });
+  assert.equal(fields.notes.length, 7000);
+  assert.equal(lib.cleanItem({ id: 'n', kind: 'stop', title: 'Hotel', notes: fields.notes }).notes.length, 7000);
+  n += 1;
+};
+await longNotes();
+
 test('the page: the round trip switch, its mark on a card, and the delete question', () => {
   const html = read('travel.html');
   const js = read('travel.js');

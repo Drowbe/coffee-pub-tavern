@@ -20,6 +20,7 @@
   <!-- New conversation is a titlebar icon (host.header.set) wherever there is a titlebar to draw it in; this
        stays only as the fallback for the module's own page when it is not popped out (no titlebar there). -->
   <header class="ask-head">
+    <button class="icon-btn" id="import-open" type="button" title="Bring in research" aria-label="Bring in research" hidden><span class="ic" data-icon="file-import"></span></button>
     <button class="icon-btn" id="new-chat" type="button" title="New conversation" aria-label="New conversation"><span class="ic" data-icon="rotate-left"></span></button>
   </header>
   <p class="error" id="note" hidden></p>
@@ -33,6 +34,18 @@
   <div class="ask-picker" id="ask-picker" hidden>
     <div class="ask-picker-list" id="ask-picker-list"></div>
     <div class="ask-picker-foot"><span class="hint" id="picker-count"></span><button class="btn btn-primary" id="picker-done" type="button">Done</button></div>
+  </div>
+  <div class="import-panel" id="import-panel" hidden>
+    <button class="btn" type="button" id="import-copy">Copy instructions for another AI</button>
+    <textarea id="import-show" hidden readonly></textarea>
+    <textarea id="import-text" rows="5" placeholder="Paste the whole answer here"></textarea>
+    <input id="import-file" type="file" accept=".json,.md,.txt,application/json,text/plain,text/markdown" hidden>
+    <div class="import-panel-foot">
+      <button class="btn" type="button" id="import-choose">Choose a file</button>
+      <button class="btn btn-primary" type="button" id="import-check">Preview</button>
+      <button class="btn" type="button" id="import-close">Close</button>
+    </div>
+    <p class="hint" id="import-why" hidden></p>
   </div>
 
   <div class="thread" id="thread" role="log" aria-live="polite">
@@ -55,6 +68,10 @@
 <!-- a tag on a card, and a source pill (what a card drew on); .gone on a source no longer reachable -->
 <template id="tpl-tag"><span class="tag"><span data-slot="label"></span></span></template>
 <template id="tpl-source"><span class="link"><span data-slot="label"></span></span></template>
+<template id="tpl-object-link"><a class="link" target="_blank" rel="noopener noreferrer"><span data-slot="label"></span></a></template>
+<template id="tpl-msg-import"><div class="msg-ai msg-import"><div class="who"><span class="ic" data-icon="file-import"></span> <span data-slot="who"></span></div><div class="parts"></div></div></template>
+<template id="tpl-import-row"><label class="import-row"><input type="checkbox" checked aria-label="Keep this one"></label></template>
+<template id="tpl-import-foot"><div class="import-foot"><button type="button" class="btn btn-primary" data-action="keep-ticked">Keep ticked (<span data-slot="count"></span>)</button><p class="hint" data-slot="dropped"></p></div></template>
 
 <!-- the conversation: your question, the model's reply (text pieces and cards in order), the placeholder while a card is being written -->
 <template id="tpl-msg-you"><div class="msg-you" data-slot="text"></div></template>
@@ -75,6 +92,7 @@
       <p class="basis" data-slot="basis-wrap"><span class="ic" data-icon="circle-info"></span> <span data-slot="basis"></span></p>
       <span class="place" data-slot="place-wrap"><span class="ic" data-icon="location-dot"></span> <span data-slot="place"></span></span>
       <span class="when" data-slot="when-wrap"><span class="ic" data-icon="calendar-days"></span> <span data-slot="when"></span></span>
+      <div class="object-links" data-slot="links"></div>
     </div>
     <div class="actions">
       <button class="keep" type="button" data-action="keep-card" title="Keep this" aria-label="Keep this"><span class="ic" data-icon="bookmark"></span></button>

@@ -26,6 +26,7 @@ const { pmtilesZoomRange } = require('./pmtiles-header');
 const { ModuleUploads } = require('./module-uploads');
 const { inspectHead } = require('./image-clean');
 const { Ai, AiError, listModelsFor, managedOffer, MANAGED_PROVIDERS } = require('./ai');
+const objectFormat = require('./object-format');
 const themeFile = require('./theme-file');
 const templateFile = require('./template-file');
 const { EventEmitter } = require('events');
@@ -3851,6 +3852,22 @@ app.get('/api/objects/search', (req, res) => {
   res.json({ summaries: summaries.slice(0, 50) });
 });
 
+// The published objects format: instructions (this environment's word for object) and the schema.
+app.get('/api/objects/format', (req, res) => {
+  if (!moduleViewer(req)) return res.status(401).json({ error: 'sign in first' });
+  res.json({
+    version: objectFormat.FORMAT_VERSION,
+    fence: 'magpie',
+    fileSuffix: '.magpie-objects.json',
+    instructions: objectFormat.instructions(word('object')),
+    schema: objectFormat.schema(),
+  });
+});
+app.get('/api/objects/format/schema', (req, res) => {
+  if (!moduleViewer(req)) return res.status(401).json({ error: 'sign in first' });
+  res.status(200).type('application/schema+json').send(JSON.stringify(objectFormat.schema()));
+});
+
 // One object, by address (the same answer the batch gives).
 app.get('/api/modules/:id/objects/:kind/:objectId', (req, res) => {
   const who = moduleViewer(req);
@@ -4076,7 +4093,7 @@ function busInput(who, shape, input) {
     }
     if (base === 'string' || base === 'text') {
       if (typeof v !== 'string') throw refError(400, `${field} must be text`);
-      out[field] = v.replace(/\p{Cc}/gu, ' ').trim().slice(0, base === 'string' ? 200 : 1000);
+      out[field] = v.replace(/\p{Cc}/gu, ' ').trim().slice(0, base === 'string' ? 200 : 8000);
       if (!out[field] && !optional) throw refError(400, `${field} is needed`);
     } else if (base === 'date') {
       if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(`${v}T00:00:00Z`).getTime())) throw refError(400, `${field} must be a date`);
@@ -4280,6 +4297,42 @@ app.get('/api/modules/:id/ai', (req, res) => {
   if (!ctx || !requireHook(ctx, res, 'ai')) return;
   const a = aiAllowed(ctx);
   res.json({ available: a.ok, why: a.why || '' });
+});
+
+// Whether this person may bring objects into this place with this module, and reading them out of a paste or file.
+function importRefusal(ctx) {
+  if (!ctx.who.user) return `${word('guest', { many: true })} cannot bring in ${word('object', { many: true })}`;
+  const space = ctx.spaceId ? store.spaceById(ctx.spaceId) : null;
+  if (space && space.aiOff) return `AI is turned off in this ${word('space')}`;
+  return '';
+}
+app.get('/api/modules/:id/objects/check', (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx) return;
+  const why = importRefusal(ctx);
+  res.json({ available: !why, why });
+});
+app.post('/api/modules/:id/objects/check', (req, res, next) => {
+  const t = String(req.headers['content-type'] || '');
+  if (!t.includes('text/plain') && !t.includes('application/octet-stream')) {
+    return res.status(415).json({ error: 'send the text as plain text, or the file as it is' });
+  }
+  next();
+}, express.text({ type: 'text/plain', limit: objectFormat.MAX_IMPORT_BYTES }), express.raw({ type: 'application/octet-stream', limit: objectFormat.MAX_IMPORT_BYTES }), (req, res) => {
+  const ctx = moduleAccess(req, res, 'write');
+  if (!ctx) return;
+  const why = importRefusal(ctx);
+  if (why) return res.status(403).json({ error: why });
+  const limited = overLimit(ctx.manifest.id, ctx.by, 'check');
+  if (limited) return res.status(429).set('Retry-After', String(limited.retrySeconds)).json({ error: limitMessage() });
+  const text = Buffer.isBuffer(req.body) ? objectFormat.decodeBytes(req.body) : String(req.body ?? '');
+  try {
+    const out = objectFormat.readObjects(text);
+    res.json({ version: objectFormat.FORMAT_VERSION, ...out });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 app.post('/api/modules/:id/ai', async (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
@@ -5359,6 +5412,7 @@ app.use((err, _req, res, _next) => {
     return res.status(400).json({ error: templateFile.NOT_A_TEMPLATE_FILE });
   }
   if (err.type === 'entity.too.large') {
+    if (/^\/api\/modules\/[^/]+\/objects\/check$/.test(_req.path)) return res.status(413).json({ error: 'that is over 256 KB; bring it in in parts' });
     if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });
     const limit = _req.path.startsWith('/api/modules') ? MODULE_LIMITS.zipBytes : MAX_IMAGE_BYTES;
     return res.status(413).json({ error: `${_req.path.startsWith('/api/modules') ? 'the zip' : 'image'} is larger than ${limit / (1024 * 1024)} MB` });

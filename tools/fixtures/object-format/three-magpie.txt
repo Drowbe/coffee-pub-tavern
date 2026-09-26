@@ -1,0 +1,17 @@
+Here are some places I found.
+
+```magpie
+{"icon":"hotel","kind":"hotel","title":"Casa do Largo","content":"Small guesthouse in the old town.","tags":["faro","stay"],"place":{"name":"Faro"},"date":"2026-10-03","links":[{"title":"Casa","url":"https://example.com/casa"}]}
+```
+
+A bit of prose in between.
+
+```magpie
+{"icon":"utensils","kind":"restaurant","title":"Bar do Peixe","content":"Grilled fish on the harbour.","place":{"name":"Faro"}}
+```
+
+And one more.
+
+```magpie
+{"icon":"note","title":"Visa reminder","content":"Check passport validity before you book."}
+```

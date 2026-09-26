@@ -1007,6 +1007,16 @@
       // Objects this module may link to (kinds it consumes), matching the text, in this place
       // or (from a space) { scope: 'environment' }. Each is a summary with its pointer in summary.ref.
       search: (text, o) => call('objects.search', { q: text || '', ...opts(o) }),
+      // The published objects format (instructions in this environment's words, and the schema).
+      format: () => call('objects.format', {}),
+      // Whether this person may bring objects into this place with this module.
+      checkAvailable: () => call('objects.checkAvailable', {}),
+      // Read objects out of a pasted answer (a string) or a file (a Blob or File). Stores nothing.
+      check: (input) => {
+        if (typeof input === 'string') return call('objects.check', { text: input });
+        if (typeof Blob !== 'undefined' && input instanceof Blob) return call('objects.check', { file: input });
+        return Promise.reject(Object.assign(new Error('paste an answer or choose a file first'), { status: 400 }));
+      },
       // Start a drag carrying a pointer to one of this module's objects: call it from a dragstart handler.
       drag: (event, kind, id, o) => {
         const ref = host.objects.make(kind, id, o);
