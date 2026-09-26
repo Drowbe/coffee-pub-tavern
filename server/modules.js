@@ -521,6 +521,12 @@ function cleanManifest(raw, files) {
         if (c.lobby !== undefined && typeof c.lobby !== 'boolean') throw new ModuleError('module.json: surfaces.canvas.lobby must be true or false');
         return c.lobby === true;
       })(),
+      // Whether the canvas menu offers it to open. A module can be on in a space (permissions, hooks)
+      // without a window of its own. Absent or true: listed. False: not offered, not restored.
+      menu: (() => {
+        if (c.menu !== undefined && typeof c.menu !== 'boolean') throw new ModuleError('module.json: surfaces.canvas.menu must be true or false');
+        return c.menu !== false;
+      })(),
     };
   }
   if (raw.surfaces?.widget) {

@@ -2641,6 +2641,7 @@ const chatInput = attachChatInput({
   resizeChatInput,
   setStatus,
   renderMarkup,
+  openTools: () => toggleChatTools(true),
 });
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -2717,7 +2718,11 @@ function toggleChatTools(open) {
   bar.hidden = !show;
   $('chat-tools').setAttribute('aria-expanded', String(show));
   $('chat-tools').classList.toggle('on', show);
-  if (!show) { $('chat-help-popup').hidden = true; $('chat-emoji-popup').hidden = true; }
+  if (!show) {
+    $('chat-help-popup').hidden = true;
+    $('chat-emoji-popup').hidden = true;
+    if (chatInput) chatInput.hidePicker();
+  }
 }
 $('chat-tools').addEventListener('click', (e) => {
   e.stopPropagation();
@@ -2732,11 +2737,13 @@ $('chat-format-bar').addEventListener('keydown', (e) => {
 $('chat-help').addEventListener('click', (e) => {
   e.stopPropagation();
   $('chat-emoji-popup').hidden = true;
+  if (chatInput) chatInput.hidePicker();
   $('chat-help-popup').hidden = !$('chat-help-popup').hidden;
 });
 document.addEventListener('click', (e) => {
   if (!$('chat-help-popup').hidden && !e.target.closest('#chat-help-popup')) $('chat-help-popup').hidden = true;
   if (!$('chat-emoji-popup').hidden && !e.target.closest('#chat-emoji-popup')) $('chat-emoji-popup').hidden = true;
+  if (chatInput && !e.target.closest('#chat-command-wrap')) chatInput.hidePicker();
 });
 
 // The chat's emoji picker offers the same list as the reaction tray (the admin
@@ -2766,6 +2773,7 @@ function renderChatEmoji(reactions) {
 $('chat-emoji').addEventListener('click', (e) => {
   e.stopPropagation();
   $('chat-help-popup').hidden = true;
+  if (chatInput) chatInput.hidePicker();
   $('chat-emoji-popup').hidden = !$('chat-emoji-popup').hidden;
 });
 

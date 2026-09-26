@@ -45,7 +45,9 @@ test('a manifest\'s scopes are environment, space and person', () => {
   const both = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html', width: 500, height: 9999, mode: ['dock', 'sideways'] } };
   const m = cleanManifest({ ...base(), scope: ['environment', 'space', 'person'], surfaces: both, settings: [{ key: 'a', label: 'A', type: 'boolean', scope: 'space' }, { key: 'b', label: 'B', type: 'boolean' }, { key: 'c', label: 'C', type: 'boolean', scope: 'person' }], install: { auto: true, settingsFrom: 'environment' } }, files);
   assert.deepEqual(m.scope, ['environment', 'space', 'person']);
-  assert.deepEqual(m.surfaces.canvas, { entry: 'canvas.html', width: 500, height: 1000, mode: ['dock'], lobby: false }, 'surfaces.canvas: its size kept within bounds, its modes only dock and float, not in the Lobby unless it says so');
+  assert.deepEqual(m.surfaces.canvas, { entry: 'canvas.html', width: 500, height: 1000, mode: ['dock'], lobby: false, menu: true }, 'surfaces.canvas: its size kept within bounds, its modes only dock and float, not in the Lobby unless it says so, listed in the menu unless it says not');
+  assert.equal(cleanManifest({ ...base(), scope: ['environment', 'space'], surfaces: { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html', menu: false } } }, files).surfaces.canvas.menu, false);
+  assert.throws(() => cleanManifest({ ...base(), scope: ['environment', 'space'], surfaces: { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html', menu: 'no' } } }, files), /surfaces.canvas.menu must be true or false/);
   assert.deepEqual(m.settings.map((d) => d.scope), ['space', 'environment', 'person'], 'a setting with no scope is the environment\'s');
   assert.equal(m.install.settingsFrom, 'environment');
   assert.throws(() => cleanManifest({ ...base(), scope: ['nowhere'] }, files), /"scope" must include "environment", "space", or both/);

@@ -753,9 +753,9 @@ export function createCanvas({ guestToken = null } = {}) {
       def.onWindow?.(win);
       // Popups the chat opens (emoji, formatting help) close on a click elsewhere.
       win.document.addEventListener('click', (e) => {
-        for (const id of ['chat-help-popup', 'chat-emoji-popup']) {
+        for (const id of ['chat-help-popup', 'chat-emoji-popup', 'chat-command-menu']) {
           const p = win.document.getElementById(id);
-          if (p && !p.hidden && !e.target.closest(`#${id}`) && !e.target.closest('#chat-help, #chat-emoji')) p.hidden = true;
+          if (p && !p.hidden && !e.target.closest(`#${id}`) && !e.target.closest('#chat-help, #chat-emoji, #chat-command')) p.hidden = true;
         }
       });
       win.addEventListener('resize', () => {
@@ -1133,7 +1133,7 @@ export function createCanvas({ guestToken = null } = {}) {
         const q = new URLSearchParams({ space: id });
         if (guestToken) q.set('guest', guestToken);
         const answer = await api('GET', `/api/modules/for-space?${q}`);
-        available = answer.modules;
+        available = (answer.modules || []).filter((m) => !m.canvas || m.canvas.menu !== false);
         showBuiltin(answer.builtin);
       } catch {
         available = [];

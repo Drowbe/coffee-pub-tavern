@@ -2534,9 +2534,30 @@ a.crumb-here:hover {
 }
 
 .message .who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--accent);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* Short marks on a message (private now; others later). White-on-colour, little rounded corners. */
+.msg-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+.msg-badge-private {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .message.own .who {
@@ -2622,14 +2643,15 @@ a.crumb-here:hover {
 .chat-command-menu {
   position: absolute;
   z-index: 12;
-  left: 0;
-  bottom: calc(100% + 6px);
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
   min-width: 220px;
   max-height: 240px;
   overflow: auto;
   padding: 6px;
-  border-radius: 10px;
-  background: var(--bg-section);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-section) 97%, transparent);
   border: 1px solid var(--border);
   box-shadow: 0 8px 30px color-mix(in srgb, var(--text) 20%, transparent);
 }
@@ -2659,13 +2681,60 @@ a.crumb-here:hover {
   font-size: 0.85em;
 }
 
-.message.private-ai .when {
-  color: var(--text-dim);
+.message.private-ai .who .msg-badge {
+  margin-left: auto;
+}
+
+.message.private-ai .actions {
+  position: static;
+  display: none;
+  margin-left: auto;
+  background: none;
+}
+
+.message.private-ai:hover .actions,
+.message.private-ai:focus-within .actions {
+  display: flex;
+}
+
+.message.private-ai:hover .who .msg-badge,
+.message.private-ai:focus-within .who .msg-badge {
+  margin-left: 0;
 }
 
 .message.private-ai .msg-btn.kept,
 .message.private-ai .msg-btn.queued {
   color: var(--accent);
+}
+
+.message .chat-object {
+  white-space: normal;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+
+.message .chat-object h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.message .chat-object-body {
+  margin: 0 0 6px;
+  line-height: 1.45;
+}
+
+.message .chat-object-meta {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.message .chat-object-keep {
+  display: inline-flex;
 }
 
 .chat-format-bar {

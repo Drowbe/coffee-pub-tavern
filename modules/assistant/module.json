@@ -1,9 +1,9 @@
 {
   "id": "assistant",
   "name": "Assistant",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "icon": "wand-magic-sparkles",
-  "description": "Retired: ask the AI from Chat with /ai. This {module} is kept for {spaces} that still have it open.",
+  "description": "Ask the AI from Chat with /ai. This {module} has no window of its own.",
   "author": "Coffee Pub",
   "scope": [
     "space"
@@ -16,7 +16,8 @@
       "mode": [
         "dock",
         "float"
-      ]
+      ],
+      "menu": false
     }
   },
   "permissions": [
