@@ -78,7 +78,7 @@ Do not change the volume path until you have moved the folder: the data lives th
 
 In Container Station, pull the new image for the `collaborator` application
 (`ghcr.io/drowbe/coffee-pub-collaborator`) and recreate it. Users, images and settings live in the
-folder the volume names (`/share/appdata/collaborator` on a new install).
+folder the volume names (`/share/appdata/coffee-pub-collaborator` on a new install).
 
 Take a copy of that data folder before you update. An update can bring the data up to date for the
 new version, and an older version then refuses to open it rather than misread it: going back to an older
