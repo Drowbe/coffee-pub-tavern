@@ -200,10 +200,30 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     btn.hidden = !$('messages')?.querySelector('.message.private-ai:not(.chat-import-msg)');
   }
 
+  function setShareVisible(on) {
+    const g = $('chat-ai-share');
+    if (g) g.hidden = !on;
+  }
+
+  async function refreshShareVisible() {
+    const id = spaceId();
+    if (!id || !getMe()) { setShareVisible(false); return; }
+    try {
+      const avail = await api('GET', `/api/spaces/${encodeURIComponent(id)}/ai`);
+      setShareVisible(Boolean(avail.available));
+    } catch {
+      setShareVisible(false);
+    }
+  }
+
   async function loadThread() {
     const id = spaceId();
-    if (!id || !getMe()) return;
+    if (!id || !getMe()) {
+      setShareVisible(false);
+      return;
+    }
     loadShare();
+    await refreshShareVisible();
     try {
       const { entries } = await api('GET', `/api/spaces/${encodeURIComponent(id)}/ai/thread`);
       for (const e of entries || []) {

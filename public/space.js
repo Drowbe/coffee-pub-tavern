@@ -1987,6 +1987,7 @@ call
     $('chat-delete-overlay').hidden = true;
     $('chat-clear-ai-overlay').hidden = true;
     if ($('chat-clear-ai')) $('chat-clear-ai').hidden = true;
+    if ($('chat-ai-share')) $('chat-ai-share').hidden = true;
     toggleChat(false);
     toggleTray(false);
     loadPresence();
