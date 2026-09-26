@@ -161,9 +161,9 @@ await test('Store.importTheme: the 101st theme is refused with its sentence, and
 
 // Only these parsers in the app read a body a page on another origin can send without asking first (text/plain, a
 // form, multipart): the sign-in form, which signs in rather than trusting a cookie, and the theme, template and
-// objects imports, which refuse anything but their own origin. Every other body is JSON, which the browser won't send cross-origin without a
+// objects imports (a module's check, and Chat's), which refuse anything but their own origin. Every other body is JSON, which the browser won't send cross-origin without a
 // preflight the server never answers. A new parser taking one of those types must be added here, with its guard.
-await test('only /login, /api/themes/import, the two template imports and the objects check read a body another origin can send; each import is behind sameOriginOnly', () => {
+await test('only /login, /api/themes/import, the two template imports and the objects checks read a body another origin can send; each import is behind sameOriginOnly', () => {
   const src = fs.readFileSync(path.join(ROOT, 'server', 'index.js'), 'utf8');
   const SIMPLE = /text\/|x-www-form-urlencoded|multipart\/form-data|\*\/\*|=>/;
   const found = [];
@@ -176,9 +176,10 @@ await test('only /login, /api/themes/import, the two template imports and the ob
   assert.deepEqual(found.sort(), ['loginForm', 'objectsFileText', 'templateFileText', 'themeFileText']);
   const uses = [...src.matchAll(/(?:app|hostRouter)\.(?:post|put|patch|delete)\(([^\n]*?\b(?:loginForm|themeFileText|templateFileText|objectsFileText)\b[^\n]*)/g)].map((m) => m[1]);
   assert.equal(uses.filter((u) => u.includes('templateFileText')).length, 2, 'the template file parser is used by the two imports only');
+  assert.equal(uses.filter((u) => u.includes('objectsFileText')).length, 2, 'the objects file parser is used by the module and Chat checks only');
   for (const u of uses) {
     if (u.includes('themeFileText')) assert.match(u, /^'\/api\/themes\/import', requireOwner, sameOriginOnly, themeFileText,/);
-    else if (u.includes('objectsFileText')) assert.match(u, /^'\/api\/modules\/:id\/objects\/check', sameOriginOnly, objectsFileType, objectsFileText,/);
+    else if (u.includes('objectsFileText')) assert.match(u, /^'\/api\/(modules|spaces)\/:id\/objects\/check', sameOriginOnly, objectsFileType, objectsFileText,/);
     else if (u.includes('templateFileText')) assert.match(u, /^'\/api\/(templates\/import', requireOwner|host\/templates\/import', requireHostAdmin), sameOriginOnly, templateFileText,/);
     else assert.match(u, /^'\/login', loginForm,/);
   }

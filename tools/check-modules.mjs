@@ -452,4 +452,20 @@ test('the Lobby: surfaces.canvas.lobby is checked, the one check keeps other mod
   }
 });
 
+test('commands must name a local action that takes text, and cannot be ai', () => {
+  const both = { page: { entry: 'page.html' }, canvas: { entry: 'canvas.html' } };
+  const local = [{ name: 'addNote', label: 'Add a note', local: true, input: { text: 'string' } }];
+  const ok = cleanManifest({ ...base(), scope: ['environment', 'space'], surfaces: both, actions: { provides: local }, commands: [{ name: 'r', label: 'Add a research note', action: 'addNote', hint: "the note's text" }] }, files);
+  assert.deepEqual(ok.commands, [{ name: 'r', label: 'Add a research note', action: 'addNote', hint: "the note's text" }]);
+  assert.deepEqual(cleanManifest({ ...base(), scope: ['environment', 'space'], surfaces: both }, files).commands, []);
+  const refuse = (commands, actions, re) => {
+    assert.throws(() => cleanManifest({ ...base(), scope: ['environment', 'space'], surfaces: both, actions: { provides: actions || local }, commands }, files), re);
+  };
+  refuse([{ name: 'Research', action: 'addNote' }], local, /1 to 12 lowercase letters or digits/);
+  refuse([{ name: 'ai', action: 'addNote' }], local, /reserved/);
+  refuse([{ name: 'r', action: 'missing' }], local, /not in actions.provides/);
+  refuse([{ name: 'r', action: 'saveNote' }], [{ name: 'saveNote', input: { title: 'string' } }], /must be local/);
+  refuse([{ name: 'r', action: 'addNote' }], [{ name: 'addNote', local: true, input: { title: 'string' } }], /must accept/);
+});
+
 console.log(`check-modules: ${n} groups OK`);

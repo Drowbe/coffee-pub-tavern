@@ -187,6 +187,9 @@
     }
 
     // What other modules may ask of this one: save a note or a link, optionally about an object of theirs.
+    let composeFromText = null;
+    function onCompose(fn) { composeFromText = fn; }
+
     function provide(me) {
       if (!host.actions || !host.actions.provide) return;
       const link = (item, ref) => { if (ref && scope !== 'person') host.objects.setLinks(refOf(item.kind, item.id), [ref]).catch(() => {}); };
@@ -209,8 +212,13 @@
           link(item, i.ref);
           return { ref: refOf('link', item.id) };
         },
+        addNote: async (input) => {
+          if (!composeFromText) throw new Error('Research is not open');
+          composeFromText(String(input.text || ''));
+          return {};
+        },
       });
     }
 
-    return { load, list, get, versionOf, save, remove, provide, refOf, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); } };
+    return { load, list, get, versionOf, save, remove, provide, onCompose, refOf, subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); } };
   }

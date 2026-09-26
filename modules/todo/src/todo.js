@@ -760,6 +760,12 @@
         render();
         return { ref: myRef(x.id) };
       },
+      addTask: async (input) => {
+        if (!canEdit) throw new Error('this person cannot add tasks here');
+        const parsed = input.text && host.util.parseWhen ? host.util.parseWhen(input.text) : { title: input.text || '' };
+        openEditor(null, parsed);
+        return {};
+      },
     });
   }
 

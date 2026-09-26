@@ -314,8 +314,15 @@
           const item = await addItem(fromSuggestion(input));
           return { ref: host.objects.make('plan', item.id) };
         },
+        addFromText: async (input) => {
+          if (!composeFromText) throw new Error('the Planner is not open');
+          composeFromText(String(input.text || ''));
+          return {};
+        },
       });
     }
+    let composeFromText = null;
+    function onFromText(fn) { composeFromText = fn; }
     // The item a suggestion becomes ({ title, kind?, content?, place?, date? }, an AI's summary or a summary dropped here):
     // the right kind when `kind` is one of the everyday words a journey, a stay or a stop already knows, else a stop.
     function fromSuggestion(input) {
@@ -331,7 +338,7 @@
     }
 
     return {
-      refreshSummaries: () => resolveSummaries(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, summaries, suggest, provide, saveTrip, addItem, updateItem, removeItem, addRoundTrip, returnFor, outboundFor, extraReturns, removeLeg, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
+      refreshSummaries: () => resolveSummaries(true), load, list, onLine, atJoint, sortable, days, byDay, dayOf, jointOf, summaries, suggest, provide, onFromText, saveTrip, addItem, updateItem, removeItem, addRoundTrip, returnFor, outboundFor, extraReturns, removeLeg, applyChanges, moveTo, moveToJoint, nudgeItem, addLink, fromSuggestion,
       get trip() { return trip; },
       get suggestions() { return suggested; },
       versionOf: (id) => (items.get(id) || {}).version,

@@ -619,6 +619,12 @@
         if (!canEdit) throw new Error('this person cannot add events here');
         return createEventOn(input.title, input.date, input.ref);
       },
+      addEvent: async (input) => {
+        if (!canEdit) throw new Error('this person cannot add events here');
+        const parsed = input.text && host.util.parseWhen ? host.util.parseWhen(input.text) : { title: input.text || '' };
+        openEditor(null, parsed.date, parsed);
+        return {};
+      },
     });
   }
   $('body').addEventListener('click', (e) => {

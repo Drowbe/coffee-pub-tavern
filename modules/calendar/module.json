@@ -1,7 +1,7 @@
 {
   "id": "calendar",
   "name": "Calendar",
-  "version": "1.17.15",
+  "version": "1.17.16",
   "icon": "calendar-days",
   "description": "Sessions and events for the whole {environment} and for each {space}, with reminders.",
   "author": "Coffee Pub",
@@ -108,12 +108,23 @@
           "date": "date",
           "ref": "ref?"
         }
+      },
+      {
+        "name": "addEvent",
+        "label": "Add an event",
+        "local": true,
+        "input": {
+          "text": "string"
+        }
       }
     ],
     "uses": [
       "*"
     ]
   },
+  "commands": [
+    { "name": "c", "label": "Add an event", "action": "addEvent", "hint": "the event" }
+  ],
   "refs": {
     "produces": [
       {

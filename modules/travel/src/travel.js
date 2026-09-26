@@ -1891,6 +1891,15 @@
   new ResizeObserver(fit).observe(host.rootElement);
 
   plan.provide();
+  plan.onFromText((text) => {
+    if (!canEdit) return;
+    if (!plan.days().length) return openEditor('trip');
+    const parsed = host.util.parseWhen ? host.util.parseWhen(text) : { title: text };
+    const day = parsed.date && plan.days().includes(parsed.date) ? parsed.date : defaultDay();
+    openEditor('item', null, { date: day });
+    if ($('f-title')) $('f-title').value = parsed.title || text;
+    if (parsed.time && $('f-time')) $('f-time').value = parsed.time;
+  });
   plan.subscribe(() => { if (state.loaded) redraw(); });
   // What the plan points at can change or go where it lives without telling this page, so look again now and then and when the
   // page comes back into view (until the server announces it).

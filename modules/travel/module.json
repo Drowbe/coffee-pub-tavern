@@ -1,7 +1,7 @@
 {
   "id": "travel",
   "name": "Planner",
-  "version": "0.7.39",
+  "version": "0.7.40",
   "icon": "suitcase-rolling",
   "description": "Plan together: a day-by-day itinerary that draws in the events, tasks and polls your {space} already has.",
   "author": "Coffee Pub",
@@ -88,12 +88,23 @@
           "place": "string?",
           "date": "date?"
         }
+      },
+      {
+        "name": "addFromText",
+        "label": "Add to the trip from text",
+        "local": true,
+        "input": {
+          "text": "string"
+        }
       }
     ],
     "uses": [
       "*"
     ]
   },
+  "commands": [
+    { "name": "p", "label": "Add to the trip", "action": "addFromText", "hint": "something on the trip" }
+  ],
   "storage": {
     "renamed": [
       { "from": "item:", "to": "plan:" }

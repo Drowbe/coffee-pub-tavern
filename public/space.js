@@ -5,6 +5,7 @@ import { createCanvas, joinModules, setJoinModules } from '/canvas.js';
 import { hotkeyMatches, formatHotkey } from '/hotkeys.js';
 import { initDashboard } from '/dashboard.js';
 import { nav } from '/nav-bar.js';
+import { attachChatInput } from '/chat-input.js';
 
 // Elements by id, wherever the canvas currently lives (the page or the pop-out
 // window, which takes the whole canvas with it).
@@ -2227,7 +2228,10 @@ async function connectAndSetup(token, livekitUrl) {
     document.body.classList.add('in-space');
     wake();
     setStatus(`in ${spaceName}`);
-    if (!currentSpace.isAside) renderChatHistory(currentSpace.id);
+    if (!currentSpace.isAside) {
+      renderChatHistory(currentSpace.id);
+      if (chatInput) chatInput.loadThread();
+    }
     canvas.updateMenu();
     canvas.restore(); // the modules this space had open last time, or the conference the first time
     syncSnapBar(); // and this space's canvas-level snap
@@ -2618,10 +2622,36 @@ $('chat').addEventListener('drop', (event) => {
   $('chat').classList.remove('drop');
   for (const f of imageFiles(event.dataTransfer?.files)) sendImage(f);
 });
+const chatInput = attachChatInput({
+  $,
+  api,
+  word,
+  getSpace: () => currentSpace,
+  getMe: () => me,
+  canvas,
+  canDo,
+  sendChat: async (text) => {
+    try {
+      if (call && call.localParticipant) await call.localParticipant.sendChatMessage(text);
+    } catch {
+      // no live call: history still gets it
+    }
+    postChatMessage(text);
+  },
+  resizeChatInput,
+  setStatus,
+  renderMarkup,
+});
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
   if (!text || !canDo('chat')) return;
+  if (chatInput && await chatInput.handleSubmit(text)) {
+    $('chat-input').value = '';
+    resizeChatInput();
+    return;
+  }
+  if (/^\//.test(text)) return;
   $('chat-input').value = '';
   resizeChatInput();
   try {

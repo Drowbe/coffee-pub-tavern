@@ -194,6 +194,7 @@ const modules = proxyFor('modules');
 const moduleData = proxyFor('moduleData');
 const moduleHooks = proxyFor('moduleHooks');
 const chatHistory = proxyFor('chatHistory');
+const aiThreads = proxyFor('aiThreads');
 const chatPosts = proxyFor('chatPosts');
 const moduleLinks = proxyFor('moduleLinks');
 const moduleBus = proxyFor('moduleBus');
@@ -3168,6 +3169,7 @@ app.delete('/api/spaces/:id', requireOwner, (req, res) => {
   store.removeSpace(req.params.id);
   moduleSettings.forgetSpace(req.params.id);
   chatHistory.forgetSpace(req.params.id);
+  aiThreads.forgetSpace(req.params.id);
   res.json({ ok: true });
 });
 app.put('/api/spaces/:id/image', requireOwner, rawImage, checkStorageCap, (req, res) => {
@@ -3596,6 +3598,198 @@ app.post('/api/spaces/:id/chat', (req, res) => {
     text: req.body?.text,
   });
   res.json({ message });
+});
+
+// --- Chat /ai and commands (plan-one-input, #58) ----------------------------------------------------------------
+// Same people as #73 import: signed in, not a guest, not in a space with AI turned off. If the Assistant
+// is installed, its `use` permission is also required. The environment's `useAi` flag is not.
+function chatAiRefusal(who, space) {
+  if (!who.user) return `${word('guest', { many: true })} cannot use AI`;
+  if (space && space.aiOff) return `AI is turned off in this ${word('space')}`;
+  const assistant = modules.enabled('assistant');
+  if (assistant) {
+    const perms = store.spacePermissions(who.user.key, space.id);
+    if (!moduleCan(assistant.manifest, perms, 'write')) return `your role can't do that in this ${word('module')}`;
+  }
+  return '';
+}
+
+function chatAiSpace(req, res) {
+  const who = moduleViewer(req);
+  if (!who) { res.status(401).json({ error: 'sign in first' }); return null; }
+  if (!who.user) { res.status(403).json({ error: `${word('guest', { many: true })} cannot use AI` }); return null; }
+  const space = store.spaceById(req.params.id);
+  if (!space) { res.status(404).json({ error: `no such ${word('space')}` }); return null; }
+  const allowed = hasOwnerRights(who.user) || space.members.includes(who.user.key);
+  if (!allowed) { res.status(403).json({ error: `you are not in that ${word('space')}` }); return null; }
+  return { who, space };
+}
+
+app.get('/api/spaces/:id/ai', (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  const why = chatAiRefusal(found.who, found.space);
+  if (why) return res.json({ available: false, why });
+  if (!ai.ready() && ai.view().keyUnreadable && ai.view().enabled) return res.json({ available: false, why: `the AI key can't be read on this server; ${word('owner', { a: true })} needs to enter it again` });
+  if (!ai.ready()) return res.json({ available: false, why: 'AI is not set up on this server' });
+  res.json({ available: true, why: '' });
+});
+
+app.get('/api/spaces/:id/ai/thread', (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  if (req.query.user) return res.status(403).json({ error: 'that thread is not yours' });
+  res.json({ entries: aiThreads.list(found.space.id, found.who.user.key) });
+});
+
+app.delete('/api/spaces/:id/ai/thread', (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  aiThreads.clear(found.space.id, found.who.user.key);
+  res.json({ ok: true });
+});
+
+app.post('/api/spaces/:id/ai', async (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  const why = chatAiRefusal(found.who, found.space);
+  if (why) return res.status(403).json({ error: why });
+  if (!ai.ready() && ai.view().keyUnreadable && ai.view().enabled) return res.status(503).json({ error: `the AI key can't be read on this server; ${word('owner', { a: true })} needs to enter it again` });
+  if (!ai.ready()) return res.status(503).json({ error: 'AI is not set up on this server' });
+  if (refuseOverAiCalls(res)) return;
+  if (overLimit('chat', found.who.user.key, 'ai')) return res.status(429).json({ error: limitMessage() });
+  const question = String(req.body?.question || '').trim();
+  const refs = Array.isArray(req.body?.refs) ? req.body.refs.slice(0, 12) : (Array.isArray(req.body?.objects) ? req.body.objects.slice(0, 12) : []);
+  const material = [];
+  const given = [];
+  for (const ref of refs) {
+    try {
+      const summary = resolveRef(found.who, ref, null, { withText: true, skipConsumer: true });
+      const bits = [summary.subtitle, summary.when ? `date: ${summary.when}` : '', summary.place && summary.place.name ? `place: ${summary.place.name}` : ''].filter(Boolean);
+      material.push({ title: summary.title, text: [summary.text, ...bits].filter(Boolean).join('\n') || summary.title });
+      given.push(summary.ref);
+    } catch {
+      // gone or invisible: left out
+    }
+  }
+  try {
+    const out = await ai.run('ask', material, question);
+    if (BASE_DOMAIN && hostRegistry) {
+      const slug = currentEnvironment().slug;
+      if (slug) hostRegistry.recordAiCall(slug);
+    }
+    const summaries = (out.summaries || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) }));
+    aiThreads.add(found.space.id, found.who.user.key, { role: 'user', text: question });
+    aiThreads.add(found.space.id, found.who.user.key, { role: 'ai', text: out.text, summaries });
+    noteActivity('chat', `asked the AI (${out.tokens} tokens)`, found.who.user.key, found.space.id);
+    res.json({ text: out.text, summaries, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
+  } catch (err) {
+    sendAiError(err, res);
+  }
+});
+
+// Paste import from Chat: the same checker as a module's objects/check, without naming a module.
+app.get('/api/spaces/:id/objects/check', (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  const why = importRefusal({ who: found.who, spaceId: found.space.id });
+  res.json({ available: !why, why });
+});
+
+// Chat routes `/<name> <text>` to the module that registered that command. The module must be placed in the
+// space; whether it is open is the page's to check. Two modules with the same name: `module` picks one.
+app.post('/api/spaces/:id/command', (req, res) => {
+  const found = chatSpaceFor(req, res, 'chat');
+  if (!found) return;
+  const name = String(req.body?.name || '').trim();
+  const text = String(req.body?.text || '');
+  const want = String(req.body?.module || '').trim();
+  if (!/^[a-z0-9]{1,12}$/.test(name) || name === 'ai') return res.status(400).json({ error: `No command /${name}` });
+  const who = found.who;
+  const space = found.space;
+  const perms = modulePerms(who, space.id);
+  const matches = modules.enabledAll()
+    .filter(({ manifest, entry }) => manifest.scope.includes('space') && ModuleManager.onInSpace(entry, manifest, space.id) && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
+    .flatMap(({ manifest }) => (manifest.commands || []).filter((c) => c.name === name).map((c) => ({ module: manifest.id, moduleName: shownModule(manifest).name || manifest.name, action: c.action, label: c.label })));
+  if (!matches.length) return res.status(404).json({ error: `No command /${name}` });
+  const pick = want ? matches.filter((m) => m.module === want) : matches;
+  if (pick.length > 1) {
+    return res.status(409).json({ error: `which ${word('module')}`, choices: pick.map((m) => ({ module: m.module, name: m.moduleName })) });
+  }
+  if (!pick.length) return res.status(404).json({ error: `No command /${name}` });
+  const chosen = pick[0];
+  const provider = busPlace(who, chosen.module, 'space', space.id, 'read');
+  const def = provider.found.manifest.actions.provides.find((a) => a.name === chosen.action);
+  if (!def || !def.local) return res.status(404).json({ error: `that ${word('module')} does not offer that action` });
+  const request = moduleBus.request({
+    from: chosen.module,
+    provider: chosen.module,
+    action: chosen.action,
+    input: busInput(who, def.input, { text }),
+    scopeKey: provider.scopeKey,
+    by: who.user?.key || 'guest',
+    local: true,
+  });
+  res.json({ id: request.id, status: request.status, module: chosen.module, moduleName: chosen.moduleName });
+});
+
+// Actions placed modules offer in this space, so Chat can Keep and route without naming a module.
+app.get('/api/spaces/:id/actions', (req, res) => {
+  const found = chatSpaceFor(req, res, 'chatRead');
+  if (!found) return;
+  const who = found.who;
+  const space = found.space;
+  const perms = modulePerms(who, space.id);
+  const actions = [];
+  for (const { manifest, entry } of modules.enabledAll()) {
+    if (!manifest.scope.includes('space') || !ModuleManager.onInSpace(entry, manifest, space.id)) continue;
+    if (!moduleSpaceAccess(entry, who, space) || !moduleCan(manifest, perms, 'read')) continue;
+    const shown = shownModule(manifest);
+    for (const a of manifest.actions.provides) {
+      actions.push({
+        action: `${manifest.id}:${a.name}`,
+        module: manifest.id,
+        moduleName: shown.name || manifest.name,
+        name: a.name,
+        label: a.label,
+        input: a.input,
+        local: Boolean(a.local),
+      });
+    }
+  }
+  res.json({ actions });
+});
+
+app.post('/api/spaces/:id/action', (req, res) => {
+  const found = chatSpaceFor(req, res, 'chat');
+  if (!found) return;
+  const [providerId, name] = String(req.body?.action || '').split(':');
+  if (!providerId || !name) return res.status(400).json({ error: `that ${word('module')} does not offer that action` });
+  const who = found.who;
+  const space = found.space;
+  let provider;
+  try {
+    provider = busPlace(who, providerId, 'space', space.id, 'read');
+  } catch (err) {
+    return res.status(err.status || 404).json({ error: err.message });
+  }
+  const def = provider.found.manifest.actions.provides.find((a) => a.name === name);
+  if (!def) return res.status(404).json({ error: `that ${word('module')} does not offer that action` });
+  if (!def.local) {
+    try { busPlace(who, providerId, 'space', space.id, 'write'); } catch (err) {
+      return res.status(err.status || 403).json({ error: err.message });
+    }
+  }
+  const request = moduleBus.request({
+    from: providerId,
+    provider: providerId,
+    action: name,
+    input: busInput(who, def.input, req.body?.input),
+    scopeKey: provider.scopeKey,
+    by: who.user?.key || 'guest',
+    local: def.local,
+  });
+  res.json({ id: request.id, status: request.status });
 });
 
 // --- a module's page reading every space the viewer belongs to ---------------
@@ -4323,6 +4517,22 @@ function objectsFileType(req, res, next) {
 // named on the route as well as run for every write: this route must never lose it.
 const objectsFileText = express.text({ type: 'text/plain', limit: objectFormat.MAX_IMPORT_BYTES });
 const objectsFileRaw = express.raw({ type: 'application/octet-stream', limit: objectFormat.MAX_IMPORT_BYTES });
+app.post('/api/spaces/:id/objects/check', sameOriginOnly, objectsFileType, objectsFileText, objectsFileRaw, (req, res) => {
+  const found = chatAiSpace(req, res);
+  if (!found) return;
+  const why = importRefusal({ who: found.who, spaceId: found.space.id });
+  if (why) return res.status(403).json({ error: why });
+  const limited = overLimit('chat', found.who.user.key, 'check');
+  if (limited) return res.status(429).set('Retry-After', String(limited.retrySeconds)).json({ error: limitMessage() });
+  const text = Buffer.isBuffer(req.body) ? objectFormat.decodeBytes(req.body) : String(req.body ?? '');
+  try {
+    const out = objectFormat.readObjects(text);
+    res.json({ version: objectFormat.FORMAT_VERSION, ...out });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
 app.post('/api/modules/:id/objects/check', sameOriginOnly, objectsFileType, objectsFileText, objectsFileRaw, (req, res) => {
   const ctx = moduleAccess(req, res, 'write');
   if (!ctx) return;
@@ -4854,7 +5064,7 @@ app.get('/api/modules/for-space', (req, res) => {
   res.json({
     modules: modules.enabledAll()
       .filter(({ manifest, entry }) => manifest.scope.includes('space') && manifest.surfaces.canvas && moduleSpaceAccess(entry, who, space) && moduleCan(manifest, perms, 'read'))
-      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), canvas: manifest.surfaces.canvas, permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
+      .map(({ manifest, entry }) => ({ id: manifest.id, ...shownModule(manifest), version: manifest.version, scope: manifest.scope, runMode: modules.runModeOf(entry), canvas: manifest.surfaces.canvas, commands: manifest.commands || [], permissions: manifest.permissions.map((p) => `module.${manifest.id}.${p.key}`).filter((k) => perms[k]) })),
     // The built-in modules' names and icons as this environment shows them (the canvas's Conference and Chat switches).
     builtin: BUILTIN_MODULES.map((b) => ({ id: b.id, ...shownModule(b) })),
   });
@@ -5417,7 +5627,7 @@ app.use((err, _req, res, _next) => {
     return res.status(400).json({ error: templateFile.NOT_A_TEMPLATE_FILE });
   }
   if (err.type === 'entity.too.large') {
-    if (/^\/api\/modules\/[^/]+\/objects\/check$/.test(_req.path)) return res.status(413).json({ error: 'that is over 256 KB; bring it in in parts' });
+    if (/^\/api\/(modules\/[^/]+|spaces\/[^/]+)\/objects\/check$/.test(_req.path)) return res.status(413).json({ error: 'that is over 256 KB; bring it in in parts' });
     if (/^\/api\/modules\/[^/]+\/uploads/.test(_req.path)) return res.status(413).json({ error: 'that file is over the size limit' });
     const limit = _req.path.startsWith('/api/modules') ? MODULE_LIMITS.zipBytes : MAX_IMAGE_BYTES;
     return res.status(413).json({ error: `${_req.path.startsWith('/api/modules') ? 'the zip' : 'image'} is larger than ${limit / (1024 * 1024)} MB` });
