@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
- * check-object-format.mjs -- the Magpie objects format on its own: the Assistant's rule stays what it was,
- * the published instructions and schema match the checker, and readObjects keeps what it should.
+ * check-object-format.mjs -- the Magpie objects format on its own: the Assistant's rule and the
+ * published instructions ask for one fenced JSON array, the schema matches the checker, and readObjects keeps what it should.
  */
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
@@ -19,20 +19,24 @@ const fixtures = (name) => fs.readFileSync(new URL(`./fixtures/object-format/${n
 let n = 0;
 const test = (name, fn) => { fn(); n += 1; };
 
-const ASSISTANT_RULE_BEFORE = 'Always include at least one card: the part of your answer worth keeping, written as a fenced block in exactly this form (at most 20, one block per card):\n```card\n{"icon":"note","kind":"optional","title":"a short title","content":"the text to keep; plain prose, or simple Markdown (headings, **bold**, *italic*, lists, links) if that reads better","tags":["one","word"],"place":{"name":"optional"},"date":"optional YYYY-MM-DD","links":[{"title":"optional","url":"https://..."}],"basis":"general","sources":[1]}\n```\nThe icon is one of: ' + ICONS.join(', ') + '. If the card is plainly one of these everyday things, set "kind" to it (leave it out otherwise): ' + KINDS.join(', ') + '. When asked for several distinct things (an itinerary, a list of options, "find me three hotels"), write one card per thing instead of folding them into prose; a single question still gets one card. "basis" says where the card comes from: "general" (your own knowledge), "items" (the material) or "both". "sources" are the item numbers you used. Leave out the optional parts you do not need.';
-
-test('SUMMARY_RULE equals the rule before this work', () => {
+test('SUMMARY_RULE asks for one array in one card fence', () => {
   const rule = 'Always include at least one card: the part of your answer worth keeping, written as a ' + objectRule({ fence: 'card', noun: 'card', max: MAX_SUMMARIES, withProvenance: true });
-  assert.equal(rule, ASSISTANT_RULE_BEFORE);
+  assert.match(rule, /```card\n\[/);
+  assert.match(rule, /exactly one, never one per card/);
+  assert.match(rule, /at most 20/);
+  assert.ok(!rule.includes('one block per card'));
   assert.equal(MAX_SUMMARIES, 20);
 });
 
-test('published instructions: magpie fence, icons, kinds, 50, file paragraph, no provenance', () => {
+test('published instructions: one magpie array, icons, kinds, 50, file paragraph, no provenance', () => {
   const text = instructions('object');
-  assert.match(text, /```magpie\n/);
+  assert.match(text, /```magpie\n\[/);
+  assert.match(text, /exactly one, never one per object/);
   assert.match(text, /at most 50/);
   assert.match(text, /<something>\.magpie-objects\.json/);
   assert.match(text, /magpieObjects/);
+  assert.match(text, /Do not write a separate file or a separate fenced block/);
+  assert.ok(!text.includes('one block per'));
   assert.ok(!text.includes('basis'));
   assert.ok(!text.includes('sources'));
   for (const name of ICONS) assert.ok(text.includes(name), name);
@@ -191,6 +195,14 @@ test('parseSummaries still reads a magpie block', () => {
   const out = parseSummaries('```magpie\n{"title":"T","content":"c"}\n```', 0);
   assert.equal(out.summaries.length, 1);
   assert.equal(out.summaries[0].title, 'T');
+});
+
+test('parseSummaries reads one fence holding an array', () => {
+  const out = parseSummaries('```card\n[{"title":"A","content":"one"},{"title":"B","content":"two"}]\n```', 0);
+  assert.equal(out.summaries.length, 2);
+  assert.equal(out.summaries[0].title, 'A');
+  assert.equal(out.summaries[1].title, 'B');
+  assert.equal(out.text, '{{summary:0}}\n{{summary:1}}');
 });
 
 console.log(`check-object-format: OK (${n} checks)`);

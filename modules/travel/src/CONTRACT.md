@@ -29,9 +29,10 @@ Other states replace the header and body: see "States".
 
 | Element | Meaning |
 |---|---|
-| `[data-slot=title]` | the destination or trip name |
+| `[data-slot=title]` | the trip name (the Name field when editing); hidden when `host.setTitle` put it in the titlebar |
 | `[data-slot=dates]` | "Sat 3 – Fri 9 Oct 2026", already formatted |
-| `[data-slot=summary]` | `.trip-facts` spans: days, travellers, open decisions; a `<b>` is the number |
+| `.trip-sep` | `|` between the dates and the facts; hidden when there are no facts |
+| `[data-slot=summary]` | `.trip-facts` spans on the same line as the dates: days, travellers, open decisions; a `<b>` is the number |
 
 The four views (Days/Decisions/Bookings/Money) are the toolbar's view switch (`host.ui.viewSwitch`), not markup in `#trip` -- see `architecture-module-window.md`. `state.view` still drives which of the four bodies below renders.
 

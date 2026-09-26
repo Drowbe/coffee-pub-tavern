@@ -554,9 +554,9 @@ function buildPrompt(task, items, question) {
   return { system: task === 'ask' ? ASK_FRAME : FRAME, prompt: `${material}${material ? '\n\n' : ''}${job}` };
 }
 
-// What the model is asked to write inside its answer: the part worth keeping, as a summary in a fenced block. Everything else in the
+// What the model is asked to write inside its answer: the part worth keeping, as summaries in one fenced JSON array. Everything else in the
 // conversation is chatter and is not kept. The model's own instructions call a summary a "card" and its fence ```card: that is
-// between the server and the model only, never an answer's field, so the prompt the model has always had is kept as it was.
+// between the server and the model only, never an answer's field.
 const SUMMARY_RULE = 'Always include at least one card: the part of your answer worth keeping, written as a ' + objectRule({ fence: 'card', noun: 'card', max: MAX_SUMMARIES, withProvenance: true });
 
 function cleanSummary(raw, count) {
@@ -569,11 +569,17 @@ function parseSummaries(text, count) {
   const summaries = [];
   const out = String(text).replace(/```(?:card|summary|json|magpie)?[ \t]*\n([\s\S]*?)\n?```/g, (whole, body) => {
     if (summaries.length >= MAX_SUMMARIES) return whole;
-    let summary = null;
-    try { summary = cleanSummary(JSON.parse(body), count); } catch { /* not JSON */ }
-    if (!summary) return whole;
-    summaries.push(summary);
-    return `\n{{summary:${summaries.length - 1}}}\n`;
+    let parsed;
+    try { parsed = JSON.parse(body); } catch { return whole; }
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    const start = summaries.length;
+    for (const raw of list) {
+      if (summaries.length >= MAX_SUMMARIES) break;
+      const summary = cleanSummary(raw, count);
+      if (summary) summaries.push(summary);
+    }
+    if (summaries.length === start) return whole;
+    return '\n' + summaries.slice(start).map((_, i) => `{{summary:${start + i}}}`).join('\n') + '\n';
   });
   return { text: out.trim(), summaries };
 }

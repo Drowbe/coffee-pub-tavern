@@ -100,11 +100,11 @@ function objectRule({ fence, noun, max, withProvenance }) {
   const tail = withProvenance
     ? ` "basis" says where the ${noun} comes from: "general" (your own knowledge), "items" (the material) or "both". "sources" are the item numbers you used. Leave out the optional parts you do not need.`
     : ` Keep each title under 80 characters and each content under 6000. Links must start with http:// or https://. Leave out the optional parts you do not need, and add no other fields.`;
-  return `fenced block in exactly this form (at most ${max}, one block per ${noun}):\n\`\`\`${fence}\n${example}\n\`\`\`\nThe icon is one of: ${ICONS.join(', ')}. If the ${noun} is plainly one of these everyday things, set "kind" to it (leave it out otherwise): ${KINDS.join(', ')}. When asked for several distinct things (an itinerary, a list of options, "find me three hotels"), write one ${noun} per thing instead of folding them into prose; a single question still gets one ${noun}.${tail}`;
+  return `single fenced block (exactly one, never one per ${noun}) whose JSON is an array of every ${noun} worth keeping (at most ${max}):\n\`\`\`${fence}\n[${example}]\n\`\`\`\nThe icon is one of: ${ICONS.join(', ')}. If the ${noun} is plainly one of these everyday things, set "kind" to it (leave it out otherwise): ${KINDS.join(', ')}. When asked for several distinct things (an itinerary, a list of options, "find me three hotels"), put one ${noun} in that array per thing instead of folding them into prose or writing another fence; a single question still gets one ${noun} in the array.${tail}`;
 }
 
 function instructions(noun) {
-  return `I keep my research in Magpie. When I ask you to find or plan something, answer as you normally would, and put each thing worth keeping in a ${objectRule({ fence: 'magpie', noun, max: MAX_IMPORT_OBJECTS, withProvenance: false })}\nIf I ask for a file instead, write one JSON file named <something>.magpie-objects.json holding {"magpieObjects":1,"objects":[...]}, with the same ${word('object', { many: true })} in the list.`;
+  return `I keep my research in Magpie. When I ask you to find or plan something, answer as you normally would, then put every thing worth keeping in one JSON array inside one ${objectRule({ fence: 'magpie', noun, max: MAX_IMPORT_OBJECTS, withProvenance: false })}\nIf I ask for a file instead, write one JSON file named <something>.magpie-objects.json holding {"magpieObjects":1,"objects":[...]}, with the same ${word('object', { many: true })} in that one list. Do not write a separate file or a separate fenced block for each ${noun}.`;
 }
 
 function schema() {

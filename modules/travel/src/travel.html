@@ -20,7 +20,11 @@
   <header id="trip" class="trip">
     <div>
       <h1 class="trip-title" data-slot="title"></h1>
-      <div class="trip-when" data-slot="dates"></div>
+      <div class="trip-meta">
+        <div class="trip-when" data-slot="dates"></div>
+        <span class="trip-sep" hidden>|</span>
+        <div class="trip-facts" data-slot="summary"></div>
+      </div>
     </div>
     <!-- icons with tooltips: the trip's own actions. The four views live in the toolbar (see syncHeader). -->
     <div class="tools" role="toolbar" aria-label="Trip">
@@ -29,7 +33,6 @@
         <button class="btn tool tool-edit" type="button" data-action="edit-trip" title="Edit trip" aria-label="Edit trip" hidden><span class="ic" data-icon="pen"></span></button>
       </div>
     </div>
-    <div class="trip-facts" data-slot="summary"></div>
   </header>
   <p class="error" id="note" hidden></p>
   <div id="stripbar" class="stripbar">
