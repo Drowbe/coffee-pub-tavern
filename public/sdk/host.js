@@ -845,6 +845,12 @@
       },
     },
 
+    // Ask in Chat on a space's canvas: posts a private /ai question (the reply shows only to the person who asked).
+    // `refs` are optional objects the answer may use, the same pointers host.ai.ask takes as `objects`.
+    chat: {
+      ask: (o) => call('chat.ask', { question: o && o.question, refs: o && o.refs }),
+    },
+
     // Pictures people add (a module declares `uploads` in module.json). The server checks each from its own bytes and takes out
     // what rides along (text, thumbnails, maker notes); a photo's position is dropped unless `keepPosition` is true. Make the
     // picture the size you want first (about 2000 px on the long edge) and a thumbnail (about 400 px) in the page.

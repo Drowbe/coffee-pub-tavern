@@ -474,7 +474,7 @@ function splitOverflow(items, max) {
 //
 // `scope` is 'environment' (the module's own page) or 'space' (on a space's canvas, with `spaceId`). Returns
 // { destroy, send, deliver }. The module hears the same names the server uses (plan-names step 5c).
-export function mountModule({ module, frame = null, container = null, scope = 'environment', spaceId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, keyed = null }) {
+export function mountModule({ module, frame = null, container = null, scope = 'environment', spaceId = null, guestToken = null, entry, onTitle, onResize, bar = null, onBar, header = null, toolbar = null, onToolbar, onOpenRef = null, onOpenPage = null, onOpenModule = null, onChatAsk = null, keyed = null }) {
   const base = `/api/modules/${encodeURIComponent(module.id)}`;
   let contextInfo = null;
   // A keyed page (public/keyed.js): the module's page about one person, opened with the access key and no
@@ -684,6 +684,14 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     },
     async 'ai.ask'({ task, question, objects }) {
       return api('POST', url('/ai', scopeOf()), { task: String(task ?? ''), question: String(question ?? '').slice(0, 1000), objects: Array.isArray(objects) ? objects.slice(0, 12) : [] });
+    },
+    // Ask in this space's Chat (host.chat.ask). Only the canvas host provides it.
+    async 'chat.ask'({ question, refs }) {
+      if (typeof onChatAsk !== 'function') throw Object.assign(new Error('Ask this from Chat in a space.'), { status: 400 });
+      const q = String(question || '').trim().slice(0, 1000);
+      if (!q) throw Object.assign(new Error('Type a question.'), { status: 400 });
+      const list = (Array.isArray(refs) ? refs : []).filter(REF_SHAPE).slice(0, 12).map(cleanPointer);
+      return onChatAsk({ question: q, refs: list });
     },
     // Uploaded pictures (a module whose manifest declares `uploads`): kept per scope, checked and cleaned by the server.
     async 'uploads.put'({ file, name, keepPosition, scope: s }) {

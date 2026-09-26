@@ -289,6 +289,7 @@
           <div class="chat-emoji-popup" id="chat-emoji-popup" hidden></div>
         </span>
         <span class="chat-format-spacer"></span>
+        <button class="msg-btn" id="chat-bring" type="button" title="Bring in research" aria-label="Bring in research" hidden><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i></button>
         <span class="chat-format-item chat-command-wrap" id="chat-command-wrap">
           <button class="msg-btn" id="chat-command" type="button" title="Commands" aria-label="Commands" aria-haspopup="true"><i class="fa-solid fa-circle-chevron-up fa-fw" aria-hidden="true"></i></button>
         </span>
@@ -298,6 +299,18 @@
             <p><code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>, and lines starting with <code>- </code> for a bulleted list all work. Links become clickable automatically. Paste or drop a picture to send it. Shift+Enter starts a new line without sending.</p>
           </div>
         </span>
+      </div>
+      <div class="chat-import-panel" id="chat-import-panel" hidden>
+        <button class="btn btn-small" type="button" id="chat-import-copy">Copy instructions for another AI</button>
+        <textarea id="chat-import-show" hidden readonly></textarea>
+        <textarea id="chat-import-text" rows="5" placeholder="Paste the whole answer here"></textarea>
+        <input id="chat-import-file" type="file" accept=".json,.md,.txt,application/json,text/plain,text/markdown" hidden>
+        <div class="chat-import-panel-foot">
+          <button class="btn btn-small" type="button" id="chat-import-choose">Choose a file</button>
+          <button class="btn btn-primary btn-small" type="button" id="chat-import-check">Preview</button>
+          <button class="btn btn-small" type="button" id="chat-import-close">Close</button>
+        </div>
+        <p class="chat-import-why" id="chat-import-why" hidden></p>
       </div>
       <form id="chat-form">
         <button class="msg-btn" id="chat-tools" type="button" title="Formatting, emoji, pictures and commands" aria-label="Formatting, emoji, pictures and commands" aria-expanded="false" aria-controls="chat-format-bar"><i class="fa-solid fa-icons fa-fw" aria-hidden="true"></i></button>
