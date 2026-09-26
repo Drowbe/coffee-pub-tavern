@@ -10,7 +10,8 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .body { flex: 1; min-height: 0; overflow: auto; }
 .error { margin: 0; color: var(--danger); }
 
-.quick input { width: 100%; padding: 8px 10px; color: var(--text); }
+.quick { display: flex; }
+.quick .btn { width: 100%; }
 
 /* the tasks */
 .group h4 { display: flex; align-items: center; gap: 4px; margin: 12px 0 4px; font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
