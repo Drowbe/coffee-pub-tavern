@@ -139,6 +139,11 @@
       return trip;
     }
 
+    async function stretchFor(item) {
+      const span = coverTrip(trip, coverDaysOf(item));
+      if (span) await saveTrip(span);
+    }
+
     async function addItem(fields) {
       const id = host.util.id();
       const onTheLine = !fields.date && (fields.after === '' || isYmd(fields.after) || fields.kind === 'lane');
@@ -149,6 +154,7 @@
       items.set(id, { item, version: saved.version, key: PLAN_PREFIX + id });
       changed();
       if (item.ref) resolveSummaries().catch(() => {});
+      await stretchFor(item);
       return item;
     }
 
@@ -165,6 +171,7 @@
         if (moving) await host.storage.delete(cur.key).catch(() => {});
         items.set(id, { item, version: saved.version, key: PLAN_PREFIX + id });
         changed();
+        await stretchFor(item);
         return item;
       } catch (err) {
         if (err && err.status === 409) {

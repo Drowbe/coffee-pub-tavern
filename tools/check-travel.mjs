@@ -12,7 +12,7 @@ const src = read('travel-lib.js') + '\n' + read('travel-lib-plan.js');
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = (s) => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
-const names = ['bookings', 'balances', 'summaryWhen', 'TRIP_KEY', 'PLAN_PREFIX', 'OLD_PLAN_PREFIX', 'MOVED_KEY', 'planIdOf', 'createPlan', 'cleanTrip', 'cleanItem', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems', 'MAX_MINUTES', 'arrivalOf', 'laterText'];
+const names = ['bookings', 'balances', 'summaryWhen', 'TRIP_KEY', 'PLAN_PREFIX', 'OLD_PLAN_PREFIX', 'MOVED_KEY', 'planIdOf', 'createPlan', 'cleanTrip', 'cleanItem', 'coverTrip', 'coverDaysOf', 'tripDays', 'dayLabel', 'daysUntil', 'sortDay', 'itemsByDay', 'orderBetween', 'renumber', 'placeUntimed', 'nudge', 'gapMinutes', 'gapText', 'stayNights', 'MODES', 'STOP_TYPES', 'STAY_TYPES', 'TRAVEL_MODES', 'jointOrder', 'lineOf', 'joints', 'sortLine', 'placeFields', 'tripBounds', 'tileOf', 'fromTile', 'cardOf', 'TILES', 'LEG_ICONS', 'JOURNEY_TILES', 'KICKERS', 'BADGES', 'splitMinutes', 'joinMinutes', 'legsOf', 'returnOf', 'outboundOf', 'returnBefore', 'costItems', 'MAX_MINUTES', 'arrivalOf', 'laterText'];
 const lib = new Function('ymd', 'parseYmd', `${src}\nreturn { ${names.join(', ')} };`)(ymd, parseYmd);
 
 let n = 0;
@@ -47,6 +47,21 @@ test('tripDays runs from start to end, across a month, and is capped', () => {
   assert.deepEqual(lib.tripDays({ start: '2026-10-02', end: '2026-10-01' }), []);
   assert.deepEqual(lib.tripDays({}), []);
   assert.equal(lib.tripDays({ start: '2026-01-01', end: '2027-12-31' }).length, 60);
+});
+
+test('coverTrip grows the first and last day to include given dates, and never shrinks', () => {
+  const trip = { start: '2026-10-03', end: '2026-10-05' };
+  assert.deepEqual(lib.coverTrip(trip, ['2026-10-01']), { start: '2026-10-01', end: '2026-10-05' });
+  assert.deepEqual(lib.coverTrip(trip, ['2026-10-07']), { start: '2026-10-03', end: '2026-10-07' });
+  assert.deepEqual(lib.coverTrip(trip, ['2026-10-01', '2026-10-08']), { start: '2026-10-01', end: '2026-10-08' });
+  assert.equal(lib.coverTrip(trip, ['2026-10-03', '2026-10-05', '2026-10-04']), null);
+  assert.equal(lib.coverTrip(trip, [null, 'not-a-day', '']), null);
+  assert.equal(lib.coverTrip(null, ['2026-10-01']), null);
+  assert.equal(lib.coverTrip({}, ['2026-10-01']), null);
+  const stay = lib.cleanItem({ id: 's', kind: 'stay', title: 'Hotel', date: '2026-10-05', checkOut: '2026-10-08' });
+  assert.deepEqual(lib.coverDaysOf(stay), ['2026-10-05', '2026-10-08']);
+  const flight = lib.cleanItem({ id: 'f', kind: 'journey', title: 'Night flight', date: '2026-10-05', time: '22:00', minutes: 180 });
+  assert.deepEqual(lib.coverDaysOf(flight), ['2026-10-05', '2026-10-06']);
 });
 
 test('dayLabel says which day of how many', () => {
@@ -815,6 +830,36 @@ const longNotes = async () => {
   n += 1;
 };
 await longNotes();
+
+const coverDates = async () => {
+  const f = fakeHost();
+  const plan = lib.createPlan(f.t);
+  await plan.load();
+  await plan.saveTrip({ title: 'Faro', start: '2026-10-03', end: '2026-10-05' });
+  plan.provide();
+  await f.provided.acceptSuggestion({ title: 'LIS to FAO', kind: 'flight', date: '2026-10-01' });
+  assert.equal(plan.trip.start, '2026-10-01');
+  assert.equal(plan.trip.end, '2026-10-05');
+  assert.ok(plan.days().includes('2026-10-01'));
+  await f.provided.acceptSuggestion({ title: 'Dinner in town', kind: 'restaurant', date: '2026-10-07' });
+  assert.equal(plan.trip.start, '2026-10-01');
+  assert.equal(plan.trip.end, '2026-10-07');
+  await plan.addItem({ kind: 'stay', title: 'Seaside Inn', type: 'hotel', date: '2026-10-06', checkOut: '2026-10-09' });
+  assert.equal(plan.trip.end, '2026-10-09');
+  const dinner = plan.list().find((i) => i.title === 'Dinner in town');
+  await plan.updateItem(dinner.id, { date: '2026-09-30' });
+  assert.equal(plan.trip.start, '2026-09-30');
+  assert.equal(plan.trip.end, '2026-10-09');
+  const inside = plan.trip;
+  await plan.addItem({ kind: 'stop', title: 'A walk', date: '2026-10-04' });
+  assert.equal(plan.trip.start, inside.start);
+  assert.equal(plan.trip.end, inside.end);
+  await plan.addItem({ kind: 'note', title: 'Packing list' });
+  assert.equal(plan.trip.start, inside.start);
+  assert.equal(plan.trip.end, inside.end);
+  n += 1;
+};
+await coverDates();
 
 test('the page: the round trip switch, its mark on a card, and the delete question', () => {
   const html = read('travel.html');

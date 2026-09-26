@@ -301,6 +301,32 @@
     return { title: clip(r.title, 80), destination: clip(r.destination, 80), start, end, notes: clip(r.notes, 2000), currency, by: clip(r.by, 40) };
   }
 
+  // The days an object occupies on the plan: its own day, a stay's check-out, and the day a journey arrives.
+  function coverDaysOf(item) {
+    if (!item) return [];
+    const days = [];
+    if (item.date) days.push(item.date);
+    if (item.checkOut) days.push(item.checkOut);
+    const a = arrivalOf(item);
+    if (a && a.day) days.push(a.day);
+    return days;
+  }
+
+  // Move the trip's first or last day out so every given day sits on it. Only grows; never shrinks. Null when
+  // there is no trip yet, or when the trip already covers them.
+  function coverTrip(trip, dates) {
+    if (!trip || !isYmd(trip.start)) return null;
+    let start = trip.start;
+    let end = isYmd(trip.end) ? trip.end : trip.start;
+    let changed = false;
+    for (const d of dates || []) {
+      if (!isYmd(d)) continue;
+      if (d < start) { start = d; changed = true; }
+      if (d > end) { end = d; changed = true; }
+    }
+    return changed ? { start, end } : null;
+  }
+
   // When an object's summary says it is: its `when` may be a day ("2026-10-03"), a moment (ISO text) or milliseconds (a poll's
   // closing time). Returns { day, time } with the time as "HH:MM" (empty for a whole day), or null.
   // A summary that says it is all day, or whose moment is exactly local midnight (what a date with no time turns into),
