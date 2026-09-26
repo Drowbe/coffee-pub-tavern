@@ -87,6 +87,7 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
   let pendingImport = null;
   let aiContext = [];
   let lastActions = [];
+  let shareMode = 'private';
 
   function spaceId() {
     const s = getSpace();
@@ -172,18 +173,47 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     document.addEventListener('pointerdown', close, true);
   }
 
+  function setShare(mode) {
+    shareMode = mode === 'shared' ? 'shared' : 'private';
+    const id = spaceId();
+    if (id) {
+      try { sessionStorage.setItem(`chat-ai-share:${id}`, shareMode); } catch { /* not remembered */ }
+    }
+    const priv = $('chat-ai-private');
+    const pub = $('chat-ai-shared');
+    if (priv) priv.setAttribute('aria-pressed', shareMode === 'private' ? 'true' : 'false');
+    if (pub) pub.setAttribute('aria-pressed', shareMode === 'shared' ? 'true' : 'false');
+  }
+
+  function loadShare() {
+    const id = spaceId();
+    let next = 'private';
+    if (id) {
+      try { if (sessionStorage.getItem(`chat-ai-share:${id}`) === 'shared') next = 'shared'; } catch { /* default */ }
+    }
+    setShare(next);
+  }
+
+  function refreshClearAi() {
+    const btn = $('chat-clear-ai');
+    if (!btn) return;
+    btn.hidden = !$('messages')?.querySelector('.message.private-ai:not(.chat-import-msg)');
+  }
+
   async function loadThread() {
     const id = spaceId();
     if (!id || !getMe()) return;
+    loadShare();
     try {
       const { entries } = await api('GET', `/api/spaces/${encodeURIComponent(id)}/ai/thread`);
       for (const e of entries || []) {
-        if (e.role === 'user') addAiTurn('you', e.text);
-        else addAiTurn('ai', e.text, e.summaries || [], e.text);
+        if (e.role === 'user') addAiTurn('you', e.text, [], '', { shared: Boolean(e.shared) });
+        else addAiTurn('ai', e.text, e.summaries || [], e.text, { shared: Boolean(e.shared) });
       }
     } catch {
       // no thread, or not allowed
     }
+    refreshClearAi();
     await refreshImport();
   }
 
@@ -237,7 +267,7 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     return el;
   }
 
-  function addAiTurn(kind, text, summaries, question) {
+  function addAiTurn(kind, text, summaries, question, { shared } = {}) {
     const el = document.createElement('div');
     el.className = `message private-ai ${kind === 'you' ? 'own' : 'msg-ai'}`;
     const who = document.createElement('span');
@@ -245,8 +275,8 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     const name = document.createElement('span');
     name.textContent = kind === 'you' ? 'You' : 'AI';
     const badge = document.createElement('span');
-    badge.className = 'msg-badge msg-badge-private';
-    badge.textContent = 'private';
+    badge.className = shared ? 'msg-badge msg-badge-shared' : 'msg-badge msg-badge-private';
+    badge.textContent = shared ? 'shared' : 'private';
     who.append(name);
     const body = document.createElement('div');
     body.className = 'text';
@@ -273,23 +303,28 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
       copy.title = 'Copy';
       copy.textContent = 'Copy';
       copy.addEventListener('click', () => navigator.clipboard.writeText(text || '').catch(() => {}));
-      const share = document.createElement('button');
-      share.type = 'button';
-      share.className = 'msg-btn';
-      share.title = `Share to the ${word('space')}`;
-      share.textContent = `Share to the ${word('space')}`;
-      share.addEventListener('click', () => {
-        const me = getMe();
-        const label = `AI answer shared by ${me?.displayName || 'someone'}`;
-        sendChat(`${label}\n\n${text || ''}`);
-      });
-      actions.append(copy, share);
+      if (!shared) {
+        const share = document.createElement('button');
+        share.type = 'button';
+        share.className = 'msg-btn';
+        share.title = `Share to the ${word('space')}`;
+        share.textContent = `Share to the ${word('space')}`;
+        share.addEventListener('click', () => {
+          const me = getMe();
+          const label = `AI answer shared by ${me?.displayName || 'someone'}`;
+          sendChat(`${label}\n\n${text || ''}`);
+        });
+        actions.append(copy, share);
+      } else {
+        actions.append(copy);
+      }
       who.append(actions, badge);
     } else {
       who.appendChild(badge);
     }
     $('messages').appendChild(el);
     $('messages').scrollTop = $('messages').scrollHeight;
+    refreshClearAi();
   }
 
   async function refreshActions() {
@@ -336,13 +371,19 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
   async function runAi(question) {
     const id = spaceId();
     if (!id) { setNote(`AI is only in ${word('space', { a: true })}.`); return false; }
-    addAiTurn('you', question);
+    const shared = shareMode === 'shared';
+    addAiTurn('you', question, [], '', { shared });
     try {
       const reply = await api('POST', `/api/spaces/${encodeURIComponent(id)}/ai`, {
         question,
         refs: aiContext.map((c) => c.ref).filter(Boolean),
+        share: shared,
       });
-      addAiTurn('ai', reply.text, reply.summaries || [], question);
+      addAiTurn('ai', reply.text, reply.summaries || [], question, { shared });
+      if (shared) {
+        const me = getMe();
+        sendChat(`AI answer shared by ${me?.displayName || 'someone'}\n\n${reply.text || ''}`);
+      }
       return true;
     } catch (err) {
       setNote(err.message || 'The AI could not answer.');
@@ -567,6 +608,33 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     }
   }
 
+  $('chat-ai-private')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    setShare('private');
+  });
+  $('chat-ai-shared')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    setShare('shared');
+  });
+  $('chat-clear-ai')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    $('chat-clear-ai-overlay').hidden = false;
+  });
+  $('chat-clear-ai-cancel')?.addEventListener('click', () => { $('chat-clear-ai-overlay').hidden = true; });
+  $('chat-clear-ai-confirm')?.addEventListener('click', async () => {
+    const id = spaceId();
+    if (!id) return;
+    try {
+      await api('DELETE', `/api/spaces/${encodeURIComponent(id)}/ai/thread`);
+    } catch (err) {
+      setNote(err.message || 'The thread could not be cleared.');
+      return;
+    }
+    for (const el of [...($('messages')?.querySelectorAll('.message.private-ai:not(.chat-import-msg)') || [])]) el.remove();
+    $('chat-clear-ai-overlay').hidden = true;
+    refreshClearAi();
+  });
+  loadShare();
   $('chat-command').addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();

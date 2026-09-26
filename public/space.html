@@ -260,6 +260,7 @@
         <span data-module-name>Chat</span>
         <span class="chat-tools">
           <button class="msg-btn" id="chat-save" type="button" title="Save the chat as a text file" aria-label="Save the chat"><i class="fa-solid fa-download fa-fw" aria-hidden="true"></i></button>
+          <button class="msg-btn" id="chat-clear-ai" type="button" title="Clear your AI thread" aria-label="Clear your AI thread" hidden><i class="fa-solid fa-eraser fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-delete" type="button" title="Clear the chat" aria-label="Clear the chat"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i></button>
           <button class="msg-btn" id="chat-close" type="button" title="Close" aria-label="Close chat"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>
         </span>
@@ -273,6 +274,13 @@
         <div class="chat-delete-overlay-actions">
           <button class="btn btn-danger btn-small" id="chat-delete-confirm" type="button"><i class="fa-solid fa-trash-can fa-fw" aria-hidden="true"></i> Clear chat</button>
           <button class="btn btn-small" id="chat-delete-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+      <div class="chat-delete-overlay" id="chat-clear-ai-overlay" hidden>
+        <p>Clear your AI thread? Only you see this. Shared answers already in the chat stay there.</p>
+        <div class="chat-delete-overlay-actions">
+          <button class="btn btn-danger btn-small" id="chat-clear-ai-confirm" type="button"><i class="fa-solid fa-eraser fa-fw" aria-hidden="true"></i> Clear AI thread</button>
+          <button class="btn btn-small" id="chat-clear-ai-cancel" type="button">Cancel</button>
         </div>
       </div>
       </div>
@@ -289,6 +297,10 @@
           <div class="chat-emoji-popup" id="chat-emoji-popup" hidden></div>
         </span>
         <span class="chat-format-spacer"></span>
+        <span class="chat-ai-share" id="chat-ai-share" role="group" aria-label="AI replies">
+          <button class="msg-btn" id="chat-ai-private" type="button" aria-pressed="true">Private</button>
+          <button class="msg-btn" id="chat-ai-shared" type="button" aria-pressed="false">Shared</button>
+        </span>
         <button class="msg-btn" id="chat-bring" type="button" title="Bring in research" aria-label="Bring in research" hidden><i class="fa-solid fa-file-import fa-fw" aria-hidden="true"></i></button>
         <span class="chat-format-item chat-command-wrap" id="chat-command-wrap">
           <button class="msg-btn" id="chat-command" type="button" title="Commands" aria-label="Commands" aria-haspopup="true"><i class="fa-solid fa-circle-chevron-up fa-fw" aria-hidden="true"></i></button>

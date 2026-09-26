@@ -3607,7 +3607,7 @@ function chatAiRefusal(who, space) {
   if (!who.user) return `${word('guest', { many: true })} cannot use AI`;
   if (space && space.aiOff) return `AI is turned off in this ${word('space')}`;
   const assistant = modules.enabled('assistant');
-  if (assistant) {
+  if (assistant && space) {
     const perms = store.spacePermissions(who.user.key, space.id);
     if (!moduleCan(assistant.manifest, perms, 'write')) return `your role can't do that in this ${word('module')}`;
   }
@@ -3679,10 +3679,11 @@ app.post('/api/spaces/:id/ai', async (req, res) => {
       if (slug) hostRegistry.recordAiCall(slug);
     }
     const summaries = (out.summaries || []).map((c) => ({ ...c, sources: (c.sources || []).map((n) => given[n - 1]).filter(Boolean) }));
-    aiThreads.add(found.space.id, found.who.user.key, { role: 'user', text: question });
-    aiThreads.add(found.space.id, found.who.user.key, { role: 'ai', text: out.text, summaries });
+    const shared = req.body?.share === true;
+    aiThreads.add(found.space.id, found.who.user.key, { role: 'user', text: question, shared });
+    aiThreads.add(found.space.id, found.who.user.key, { role: 'ai', text: out.text, summaries, shared });
     noteActivity('chat', `asked the AI (${out.tokens} tokens)`, found.who.user.key, found.space.id);
-    res.json({ text: out.text, summaries, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens });
+    res.json({ text: out.text, summaries, used: out.used.map((n) => given[n - 1]).filter(Boolean), tokens: out.tokens, shared });
   } catch (err) {
     sendAiError(err, res);
   }
@@ -4497,8 +4498,8 @@ app.get('/api/modules/:id/ai', (req, res) => {
 function importRefusal(ctx) {
   if (!ctx.who.user) return `${word('guest', { many: true })} cannot bring in ${word('object', { many: true })}`;
   const space = ctx.spaceId ? store.spaceById(ctx.spaceId) : null;
-  if (space && space.aiOff) return `AI is turned off in this ${word('space')}`;
-  return '';
+  // Same rule as /ai (plan-one-input): space AI off, and if the Assistant is installed, its Use.
+  return chatAiRefusal(ctx.who, space);
 }
 app.get('/api/modules/:id/objects/check', (req, res) => {
   const ctx = moduleAccess(req, res, 'write');

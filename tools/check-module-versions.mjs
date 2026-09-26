@@ -24,7 +24,12 @@ const fingerprint = (id) => {
   const h = crypto.createHash('sha256');
   const base = path.join(dir, id);
   const files = ['module.json', ...fs.readdirSync(path.join(base, 'src')).filter((f) => !f.endsWith('.md')).sort().map((f) => `src/${f}`)];
-  for (const f of files) h.update(f).update('\0').update(fs.readFileSync(path.join(base, f)));
+  for (const f of files) {
+    // Hash as git stores the file (LF). A Windows working copy may have CRLF; recording that
+    // breaks the Linux check, which is what merges run.
+    const body = fs.readFileSync(path.join(base, f)).toString('utf8').replace(/\r\n/g, '\n');
+    h.update(f).update('\0').update(body);
+  }
   return h.digest('hex').slice(0, 16);
 };
 const current = {};

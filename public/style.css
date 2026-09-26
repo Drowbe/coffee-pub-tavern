@@ -2754,8 +2754,33 @@ a.crumb-here:hover {
   font-size: 0.85em;
 }
 
+.chat-ai-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-right: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chat-ai-share .msg-btn {
+  border-radius: 0;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.chat-ai-share .msg-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .message.private-ai .who .msg-badge {
   margin-left: auto;
+}
+
+.message.private-ai .msg-badge-shared {
+  color: var(--accent);
 }
 
 .message.private-ai .actions {
