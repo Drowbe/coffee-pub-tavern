@@ -524,16 +524,19 @@
   $('prev').addEventListener('click', () => step(-1));
   $('next').addEventListener('click', () => step(1));
   $('today').addEventListener('click', () => { anchor = new Date(); cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1); render(); });
-  $('add').addEventListener('click', () => openEditor(null));
-  // The host draws the Add button in the module's action bar (in the space's bottom row when
-  // docked); the button in the header stays only for a host without one.
+  function startNew() {
+    if (!canEdit) return;
+    openEditor(null);
+  }
+  $('add').addEventListener('click', startNew);
+  // Typed text goes through Chat `/c` (addEvent): parseWhen, then this same editor, nothing saved until Save.
+  // The host draws Add event in the module's action bar when docked; the header button stays for a host without one.
   if (host.bar) {
     $('add').classList.add('hosted');
-    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add event', placeholder: 'Add an event: lunch fri at noon' }] : []).catch(() => $('add').classList.remove('hosted'));
+    host.bar.set(canEdit ? [{ id: 'add', label: 'Add event', primary: true }] : []).catch(() => $('add').classList.remove('hosted'));
     host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
-      const q = e.value ? host.util.parseWhen(e.value) : {};
-      openEditor(null, q.date, q);
+      startNew();
     });
   }
   // An event can be dragged onto another module that links to events (a to-do, say): it carries a

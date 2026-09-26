@@ -328,16 +328,6 @@
   }
 
 
-  async function quickAdd(title) {
-    const t = { id: newId(), title, notes: '', due: null, remind: false, done: false, doneAt: null, createdAt: Date.now(), by: info.user.name };
-    try {
-      await put(null, t);
-      render();
-    } catch (err) {
-      showNote(err.message);
-    }
-  }
-
   async function tick(key, done) {
     const x = tasks.get(key);
     if (!x || !canEdit || x.scope !== 'own') return;
@@ -636,37 +626,30 @@
     const box = e.target.closest('[data-tick]');
     if (box) tick(box.dataset.tick, box.checked);
   });
-  // Enter in the box adds the task. (The frame's own form-submit is not relied on, so this
-  // works wherever a sandboxed frame blocks submitting.)
-  function submitQuick() {
-    const title = $('quick').value.trim();
-    if (!title) return;
-    $('quick').value = '';
-    quickAdd(title);
+  function startNew() {
+    if (!canEdit) return;
+    openEditor(null);
   }
-  $('quick-form').addEventListener('submit', (e) => { e.preventDefault(); submitQuick(); });
-  $('quick').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    submitQuick();
-  });
-  $('add').addEventListener('click', () => openEditor(null));
-  // The host draws Add task in the module's action bar (in the space's bottom row when docked);
-  // the button and the quick-add field at the top stay only for a host without one.
+  $('add').addEventListener('click', startNew);
+  $('new-todo').addEventListener('click', startNew);
+  // Typed text goes through Chat `/t` (addTask): parseWhen, then this same editor, nothing saved until Save.
+  // The host draws New todo in the module's action bar when docked; the in-page button stays for a host without one.
   if (host.bar) {
-    // Then the quick-add field at the top is not needed either: there is one place to add a task, the bar.
     $('add').classList.add('hosted');
-    $('quick-form').classList.add('hosted');
-    host.bar.set(canEdit ? [{ id: 'add', type: 'quickadd', label: 'Add task', placeholder: 'Add a task: book flights by sep 25' }] : []).catch(() => { $('add').classList.remove('hosted'); $('quick-form').classList.remove('hosted'); });
+    $('new-form').classList.add('hosted');
+    host.bar.set(canEdit ? [{ id: 'add', label: 'New todo', primary: true }] : []).catch(() => {
+      $('add').classList.remove('hosted');
+      $('new-form').classList.remove('hosted');
+    });
     host.on('bar', (e) => {
       if (e.id !== 'add' || !canEdit) return;
-      openEditor(null, e.value ? host.util.parseWhen(e.value) : null);
+      startNew();
     });
   }
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('editor').hidden) closeEditor(); });
 
   $('add').hidden = !canEdit;
-  $('quick-form').hidden = !canEdit;
+  $('new-form').hidden = !canEdit;
   try {
     await loadKinds();
     await loadAskable();
