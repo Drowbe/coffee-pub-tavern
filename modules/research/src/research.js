@@ -644,15 +644,14 @@
 
   if (host.bar) {
     host.bar.set(canEdit ? [
-      { id: 'add', type: 'quickadd', label: 'Add a note', placeholder: 'Write a note, or paste a link' },
+      { id: 'add', label: 'Add a note', primary: true },
       { id: 'photo', iconOnly: true, icon: 'camera', label: 'Add a photo' },
     ] : []).catch(() => {});
     host.on('bar', (e) => {
       if (!canEdit) return;
       if (e.id === 'photo') return choosePhotos();
       if (e.id !== 'add') return;
-      const entry = readEntry(e.value);
-      openEditor(null, entry || { kind: 'note' });
+      openEditor(null, { kind: 'note' });
     });
   }
   // Something from another module dropped on the pane: what can be done with it is the shared decision

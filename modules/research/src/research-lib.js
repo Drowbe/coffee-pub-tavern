@@ -95,7 +95,7 @@
     return v;
   }
 
-  // What was typed into the quick-add field: a web address alone is a link (its title and note are for the person to fill in);
+  // What was typed in Chat `/r` (or the old quick-add): a web address alone is a link (its title and note are for the person to fill in);
   // anything else is a note whose title is its first line and whose body is the rest (or, for one short line, nothing).
   function readEntry(text) {
     const t = String(text || '').trim();
