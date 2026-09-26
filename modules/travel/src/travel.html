@@ -152,7 +152,7 @@
       <label>Last day<input id="f-end" name="end" type="date"></label>
       <label>Currency<select id="f-currency" name="currency"></select></label>
     </div>
-    <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="2000"></textarea></label>
+    <label>Notes<textarea id="f-notes" name="notes" rows="3" maxlength="8000"></textarea></label>
     <p class="hint" id="f-by"></p>
     <p class="error" id="f-error" hidden></p>
     <div class="editor-buttons"><button class="btn btn-primary" type="submit" id="f-save">Save</button><button class="btn" type="button" id="f-cancel">Cancel</button></div>
@@ -196,7 +196,7 @@
 
     <div class="fieldgroup" data-types="flight train ferry bus car taxi rideshare shuttle hotel restaurant cafe bar sight museum tour show"><div class="fieldgroup-title">Booking</div><p class="hint" id="f-booking-both" hidden>The reference, cost and payer cover both legs.</p><div class="editor-row"><label>Reference<input id="f-confirm" name="confirm" class="mono" maxlength="40"></label><label>Cost<input id="f-cost" name="cost" type="number" min="0" step="0.01"></label><label>Paid by<select id="f-paidBy" name="paidBy"></select></label></div></div>
 
-    <label data-types="lane block note flight train ferry bus car taxi rideshare shuttle hotel restaurant cafe bar sight museum tour show">Notes<textarea id="f-notes" name="notes" rows="3" maxlength="2000"></textarea></label>
+    <label data-types="lane block note flight train ferry bus car taxi rideshare shuttle hotel restaurant cafe bar sight museum tour show">Notes<textarea id="f-notes" name="notes" rows="3" maxlength="8000"></textarea></label>
 
     <div class="fieldgroup" data-types="flight train ferry bus car taxi rideshare shuttle hotel restaurant cafe bar sight museum tour show"><div class="fieldgroup-title">Getting to this stop</div><div class="gettingthere"><div class="modes" id="f-travelMode" role="group" aria-label="How you get there"><button class="mode" type="button" data-mode="walk" aria-label="Walk"><span class="ic" data-icon="person-walking"></span></button><button class="mode" type="button" data-mode="drive" aria-label="Drive"><span class="ic" data-icon="car"></span></button><button class="mode" type="button" data-mode="transit" aria-label="Transit"><span class="ic" data-icon="bus"></span></button><button class="mode" type="button" data-mode="bike" aria-label="Bike"><span class="ic" data-icon="bicycle"></span></button><button class="mode" type="button" data-mode="taxi" aria-label="Taxi"><span class="ic" data-icon="taxi"></span></button><button class="mode" type="button" data-mode="rideshare" aria-label="Ride share"><span class="ic" data-icon="car-side"></span></button></div><label class="minutes"><span>How long from the stop before</span><span class="hm"><input id="f-travelHours" name="travelHours" type="number" min="0" step="1" inputmode="numeric" aria-label="Hours"><span>h</span><input id="f-travelMinutes" name="travelMinutes" type="number" min="0" step="1" inputmode="numeric" aria-label="Minutes"><span>min</span></span></label></div></div>
 

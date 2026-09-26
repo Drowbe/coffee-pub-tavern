@@ -648,6 +648,16 @@ export function mountModule({ module, frame = null, container = null, scope = 'e
     async 'actions.status'({ id }) {
       return api('GET', `/api/bus/actions/status?${busQuery({ from: module.id, id: String(id) })}`);
     },
+    async 'objects.format'() {
+      return api('GET', '/api/objects/format');
+    },
+    async 'objects.checkAvailable'() {
+      return api('GET', url('/objects/check', scopeOf()));
+    },
+    async 'objects.check'({ text, file }) {
+      const body = file instanceof Blob ? file : new Blob([String(text ?? '')], { type: 'text/plain' });
+      return api('POST', url('/objects/check', scopeOf()), body, file instanceof Blob ? 'application/octet-stream' : 'text/plain');
+    },
     async 'objects.search'({ q, scope: s }) {
       const sc = s === 'person' ? 'person' : scopeOf(s); // anyone may look at their own private objects of a kind they may link to
       if (sc === 'spaces') throw Object.assign(new Error('search one place at a time'), { status: 400 });

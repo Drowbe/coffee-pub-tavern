@@ -50,7 +50,7 @@
       category: CATEGORIES.includes(raw.category) ? raw.category : kind === 'stay' ? 'stay' : kind === 'journey' ? 'travel' : 'do',
       place: clip(raw.place, 120),
       address: clip(raw.address, 200),
-      notes: clip(raw.notes, 2000),
+      notes: clip(raw.notes, 8000),
       confirm: clip(raw.confirm, 60),
       from: clip(raw.from, 80),
       to: clip(raw.to, 80),

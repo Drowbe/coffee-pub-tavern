@@ -221,7 +221,7 @@ await test('summaries are checked field by field', () => {
   assert.deepEqual(k.tags, ['oneword', 'xy', 'a', 'b', 'c']);
   assert.deepEqual(k.place, { name: 'Cafe' }); // the position was out of range
   assert.equal(k.date, undefined);
-  assert.deepEqual(k.links, [{ title: 'ok', url: 'https://a.example/x' }]);
+  assert.deepEqual(k.links, [{ title: 'ok', url: 'https://a.example/x' }, { title: 'plain.example', url: 'http://plain.example/' }]);
   assert.deepEqual(k.sources, [1, 2]);
   assert.equal(c.text, 'intro\n\n{{summary:0}}\n\noutro');
   // Not a summary: it stays as text. An unfinished block is never one.

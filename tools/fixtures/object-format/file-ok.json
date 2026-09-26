@@ -1,0 +1,7 @@
+{
+  "magpieObjects": 1,
+  "objects": [
+    { "title": "File one", "content": "From a file." },
+    { "title": "File two", "content": "Also from a file." }
+  ]
+}

@@ -1,0 +1,3 @@
+```magpie
+[{"title":"First","content":"One"},{"title":"Second","content":"Two"}]
+```
