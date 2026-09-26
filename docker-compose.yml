@@ -79,4 +79,4 @@ services:
       # HOST_MFA_REQUIRED: "true"   # with environments: every host admin must use it
       PORT: "3000"
     volumes:
-      - /share/appdata/collaborator:/app/data # users, settings and images
+      - /share/appdata/coffee-pub-collaborator:/app/data # users, settings and images
