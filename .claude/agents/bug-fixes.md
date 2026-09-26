@@ -1,11 +1,11 @@
 ---
 name: bug-fixes
-description: Finds and fixes defects in Coffee Pub Magpie, in any layer (pages, server, modules, checks). Use for errors, regressions, wrong results, failing checks and anything that used to work. Owns the whole bug front to back.
+description: Finds and fixes defects in Collaborator, in any layer (pages, server, modules, checks). Use for errors, regressions, wrong results, failing checks and anything that used to work. Owns the whole bug front to back.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
 
-You fix defects in Coffee Pub Magpie, wherever they are: `public/`, `server/`, `modules/` or
+You fix defects in Collaborator, wherever they are: `public/`, `server/`, `modules/` or
 `tools/`.
 
 ## How you work

@@ -1,6 +1,6 @@
-# Coffee Pub Magpie
+# Collaborator
 
-**Audience:** anyone deciding whether to run Coffee Pub Magpie, or looking for where to read more
+**Audience:** anyone deciding whether to run Collaborator, or looking for where to read more
 about it.
 
 Self-hosted voice and video for a tabletop game. Each player signs in once with a login and password, or
@@ -11,7 +11,7 @@ Coffee Pub Studio, and it runs on your own server; nothing about your calls is s
 
 Known defects and their workarounds are in [Known issues](known-issues.md).
 
-## Running Magpie
+## Running Collaborator
 
 - [Getting started](userguides/userguide-getting-started.md) -- running the server and signing in
   for the first time.
@@ -22,7 +22,7 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Spaces](userguides/userguide-spaces.md) -- the Lobby, a space's settings, members, and stepping aside.
 - [Participant and Character images](userguides/userguide-images.md) -- the pictures OBS shows for
   each player.
-- [Magpie in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
+- [Collaborator in OBS](userguides/userguide-obs.md) -- adding a player to OBS by hand.
 - [Manage](userguides/userguide-environment-settings.md) -- every tab of the Manage page, where an environment is set up.
 - [Creating themes](userguides/userguide-themes.md) -- the colours, light and dark, and sharing a theme as a file.
 - [Your environment](userguides/userguide-environments.md) -- an owner's view on a hosted server: the plan, the caps, a copy, leaving.
@@ -51,5 +51,5 @@ Known defects and their workarounds are in [Known issues](known-issues.md).
 - [Environments architecture](architecture/architecture-environments.md) -- one host, many environments:
   the seam, the host console, the roles and the Names migration.
 
-See the [repository README](https://github.com/Drowbe/coffee-pub-tavern) for requirements and the
+See the [repository README](https://github.com/Drowbe/coffee-pub-collaborator) for requirements and the
 short install summary.

@@ -1,11 +1,11 @@
 ---
 name: server-development
-description: Server work on Coffee Pub Magpie. Use for server/ (Express routes, the API, module host contracts, storage, environments, auth, LiveKit tokens), docker-compose.yml and the tools/check-*.mjs checks. Not for page UI, documentation or fixing defects.
+description: Server work on Collaborator. Use for server/ (Express routes, the API, module host contracts, storage, environments, auth, LiveKit tokens), docker-compose.yml and the tools/check-*.mjs checks. Not for page UI, documentation or fixing defects.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: inherit
 ---
 
-You build the server side of Coffee Pub Magpie: `server/` (Node 20+, Express 5, `livekit-server-sdk`),
+You build the server side of Collaborator: `server/` (Node 20+, Express 5, `livekit-server-sdk`),
 `docker-compose.yml` and `Dockerfile`, and the checks in `tools/`.
 
 ## Before you change anything

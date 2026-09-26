@@ -1,6 +1,6 @@
-# Magpie in OBS
+# Collaborator in OBS
 
-**Audience:** a streamer or game master putting Coffee Pub Magpie players into OBS scenes, and the owner setting the Stream module up.
+**Audience:** a streamer or game master putting Collaborator players into OBS scenes, and the owner setting the Stream module up.
 
 Every player is available to OBS as a separate Browser Source, on a transparent background, so you lay
 them out however you like and they stay in place as people talk, join or leave. An absent player

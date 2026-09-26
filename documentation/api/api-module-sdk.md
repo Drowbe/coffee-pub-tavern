@@ -1,6 +1,6 @@
 # Module SDK
 
-**Audience:** someone writing a Coffee Pub Magpie module: what a module is made of, what it can ask Magpie to do, and what it is not allowed to.
+**Audience:** someone writing a Collaborator module: what a module is made of, what it can ask Magpie to do, and what it is not allowed to.
 
 To install and manage modules as an owner, read [userguide-modules](../userguides/userguide-modules.md). The server routes behind all of this are in [api-modules](api-modules.md), and how it is built is in [architecture-modules](../architecture/architecture-modules.md).
 

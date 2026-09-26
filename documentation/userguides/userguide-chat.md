@@ -1,6 +1,6 @@
 # Chat
 
-**Audience:** anyone in a space on a Coffee Pub Magpie server who types in Chat: to talk, to ask the AI, to add something to a module, or to bring in research from another AI.
+**Audience:** anyone in a space on a Collaborator server who types in Chat: to talk, to ask the AI, to add something to a module, or to bring in research from another AI.
 
 Chat has one box, **Chat or type / for commands...**. Plain text is a message to the space. Text that starts with a command does something else: `/ai` asks the AI privately, and a module's command opens that module's add form. Opening Chat, formatting, pictures and history are covered in [The call](userguide-call.md), "Chat".
 

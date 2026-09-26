@@ -1,6 +1,6 @@
 # Planner
 
-**Audience:** a player or game master planning a trip with the Planner module on a Coffee Pub Magpie server, and an owner setting it up.
+**Audience:** a player or game master planning a trip with the Planner module on a Collaborator server, and an owner setting it up.
 
 The Planner module plans one trip for a space, day by day. The space's Calendar events, to-dos and polls that fall on the trip's days join the plan, and the module adds what a trip needs on top: stops, stays, journeys and notes. Install and enable it first; see [Modules](userguide-modules.md).
 

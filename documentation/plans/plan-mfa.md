@@ -1,6 +1,6 @@
 # Two-Step Sign-in Plan
 
-**Audience:** the author deciding how Coffee Pub Magpie adds a second factor to signing in, and the two sessions that build it (the server half and the pages half).
+**Audience:** the author deciding how Collaborator adds a second factor to signing in, and the two sessions that build it (the server half and the pages half).
 
 **Status:** planned 2026-09-24 at the author's request ("how can we support mfa?", "plan it") and built the same day; the switches were simplified after the first build (below). The first phase is codes from an authenticator app; passkeys are the named second phase.
 

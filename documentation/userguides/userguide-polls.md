@@ -1,6 +1,6 @@
 # Polls
 
-**Audience:** a player or game master using the Polls module on a Coffee Pub Magpie server, and an owner setting it up.
+**Audience:** a player or game master using the Polls module on a Collaborator server, and an owner setting it up.
 
 Polls lets a group decide something together: where to go on a trip, where to stay, what to do on Saturday. There is one set of polls for the whole environment and one for each space. Install and enable it first; see [Modules](userguide-modules.md).
 

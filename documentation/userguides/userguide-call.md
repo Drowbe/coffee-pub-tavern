@@ -1,6 +1,6 @@
 # The Call
 
-**Audience:** a player using Coffee Pub Magpie in a browser: joining a space, talking, chatting, and
+**Audience:** a player using Collaborator in a browser: joining a space, talking, chatting, and
 stepping away.
 
 The words here are the defaults. An environment set up from a template, or renamed by its owner, may call a space,

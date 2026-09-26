@@ -1,7 +1,7 @@
 # Creating Themes
 
 **Audience:** an owner who wants an environment in their own colours, and anyone sharing a theme with another
-Coffee Pub Magpie environment.
+Collaborator environment.
 
 A theme changes colours only, never the layout. Every page and every module follows it, so one theme recolours the
 whole environment. Themes are made on Manage > **Theme**; only owners (and the admin) can change them.

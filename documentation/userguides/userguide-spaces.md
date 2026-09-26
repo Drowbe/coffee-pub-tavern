@@ -1,6 +1,6 @@
 # Spaces
 
-**Audience:** a game master or owner setting up spaces in Coffee Pub Magpie, and players moving between
+**Audience:** a game master or owner setting up spaces in Collaborator, and players moving between
 them.
 
 Each space is its own conversation. After signing in, a player sees the spaces they belong to, each

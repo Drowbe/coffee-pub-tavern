@@ -58,7 +58,7 @@ const {
   BASE_DOMAIN = '',
   PREVIOUS_BASE_DOMAINS = '',
   MIGRATE_ENVIRONMENT_SLUG = '',
-  PRODUCT_NAME = 'Coffee Pub Magpie', // the product's own name, still being chosen -- configuration, never code
+  PRODUCT_NAME = 'Collaborator', // the product's own name -- configuration, never code
   CONTACT_EMAIL = '',
   // Seed the host's managed AI service, per company (documentation/plans/plan-environments.md, "Managed AI, per
   // company"): AI_OPENAI_KEY/AI_ANTHROPIC_KEY name a company's key directly; AI_PROVIDER (with AI_ADDRESS,

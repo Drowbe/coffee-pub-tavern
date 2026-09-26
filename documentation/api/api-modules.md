@@ -1,6 +1,6 @@
 # Modules API
 
-**Audience:** someone scripting the installation and management of Coffee Pub Magpie modules, or
+**Audience:** someone scripting the installation and management of Collaborator modules, or
 building a tool that talks to a running module.
 
 The install and management routes below are owner-only: a request without an owner session gets 401 or 403. The runtime routes at the end are for a running module. For how modules

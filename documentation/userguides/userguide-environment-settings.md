@@ -1,6 +1,6 @@
 # Manage
 
-**Audience:** an owner or the admin running a Coffee Pub Magpie environment, working through the Manage page.
+**Audience:** an owner or the admin running a Collaborator environment, working through the Manage page.
 
 Open the Manage page with the gear icon in the header. It has seven tabs, in this order: **Environment**,
 **Template**, **Theme**, **Spaces**, **Roles**, **Users** and **Modules**, plus **About**. On a phone the row of tabs scrolls sideways within itself. (Old addresses still work: `/admin#server` and `#settings` open Environment, `#rooms` opens Spaces, and `#words` and `#home-icon` open the Template tab at that section.) The header's crumb on the pages reached from here (a space's settings, a person's profile, a module's configuration, the AI configuration) says **Manage**. Only owners and the admin (on a hosted server, the host admin) see it; anyone else asking for it is told "Owners only."

@@ -1,6 +1,6 @@
 # Navigation Architecture
 
-**Audience:** developers changing the header on any page of Coffee Pub Magpie (`public/brand.js`, `public/space.js`, `public/style.css`), or adding a control to it.
+**Audience:** developers changing the header on any page of Collaborator (`public/brand.js`, `public/space.js`, `public/style.css`), or adding a control to it.
 
 The header is two rows, and each row is three zones. The rows are about different things and never borrow from each other; a control belongs to exactly one zone, chosen by what it is about and what it does, never by where it happens to fit.
 

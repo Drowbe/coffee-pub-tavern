@@ -1,6 +1,6 @@
 # To-do
 
-**Audience:** a player or game master using the To-do module on a Coffee Pub Magpie server, and an owner setting it up.
+**Audience:** a player or game master using the To-do module on a Collaborator server, and an owner setting it up.
 
 The To-do module keeps a shared task list. There is one for the whole environment and one for each space. A task can have notes, a due date and a reminder. Install and enable it first; see [Modules](userguide-modules.md).
 

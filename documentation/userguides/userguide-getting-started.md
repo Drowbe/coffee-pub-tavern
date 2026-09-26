@@ -1,16 +1,16 @@
 # Getting Started
 
-**Audience:** someone setting up a Coffee Pub Magpie server for the first time and signing in as its
+**Audience:** someone setting up a Collaborator server for the first time and signing in as its
 admin.
 
-Magpie is two services: the Magpie web app and a LiveKit media server that carries the video and
+Collaborator is two services: the Collaborator web app and a LiveKit media server that carries the video and
 audio. This guide sets both up on a QNAP NAS with Container Station and Nginx Proxy Manager, then
 signs in. Any machine that runs Docker works the same way; only the router and proxy steps differ.
 
 ## Set it up
 
 Everything the NAS needs is in `docker-compose.yml`, which you paste into Container Station. The app
-image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
+image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-collaborator`.
 
 1. **Make the secrets** in Terminal on your Mac and keep them in a note:
    ```bash
@@ -19,17 +19,17 @@ image is built by GitHub and pulled from `ghcr.io/drowbe/coffee-pub-tavern`.
    openssl rand -hex 8    # the server admin's password
    ```
 2. **DNS.** Add two records at your DNS provider pointing at your public IP, the same address your
-   Foundry hostname uses: `magpie.<domain>` and `livekit.<domain>`. If the provider offers proxying
+   Foundry hostname uses: `collaborator.<domain>` and `livekit.<domain>`. If the provider offers proxying
    (Cloudflare's orange cloud), turn it off for these two: media has to reach the NAS directly.
 3. **Router.** Forward to the NAS's LAN address: `7881` TCP, `7882` UDP, `3478` UDP. Ports 80 and 443
    already reach Nginx Proxy Manager.
-4. **Container Station.** Applications, Create, give it the name `magpie`, paste the contents of
+4. **Container Station.** Applications, Create, give it the name `collaborator`, paste the contents of
    `docker-compose.yml`, replace the `CHANGE_ME` values (domain, API key, API secret, the
    admin's login and password), and click Create. Both containers should show green within a minute.
 5. **Nginx Proxy Manager.** Two proxy hosts, each with a Let's Encrypt certificate and Force SSL:
    - `livekit.<domain>` to scheme http, forward host = NAS LAN address, port `7880`, **Websockets
      Support on**.
-   - `magpie.<domain>` to scheme http, NAS LAN address, port `3000`.
+   - `collaborator.<domain>` to scheme http, NAS LAN address, port `3000`.
 
 Camera access requires HTTPS, which the proxy provides. Players need nothing but a browser. LiveKit
 1.12 or newer is required; the compose file pulls the latest release.
@@ -37,7 +37,7 @@ Camera access requires HTTPS, which the proxy provides. Players need nothing but
 ## Sign in as the admin
 
 The compose file holds one account, the server's **admin**: `ADMIN_LOGIN` and `ADMIN_PASSWORD`. Open
-`https://magpie.<domain>/`, sign in with them, and choose the gear icon to open the Manage page. Add your
+`https://collaborator.<domain>/`, sign in with them, and choose the gear icon to open the Manage page. Add your
 players under **Users** and send each of them a login and password, or a personal link; see
 [Accounts, roles and permissions](userguide-accounts.md). If someone else will run the server day to day, make
 them an **Owner** there; owners are made in Manage, never in the compose file, and a server doesn't need one.
@@ -70,16 +70,17 @@ the owners run the server and there is no admin.
 
 ## Update it later
 
-An install made before the product's rename keeps its old names: the containers `tavern-app` and
-`tavern-livekit` and the data path `/share/appdata/tavern` all still work (the old session cookie and data file
-are carried over on start). The `TAVERN_ADMIN_*` variables do not: see **Older names** above.
-Do not change the volume path of an existing install: the data lives there.
+An install made before the product's rename keeps its old names: the containers `tavern-app` /
+`magpie-app` and `tavern-livekit` / `magpie-livekit`, and the data paths `/share/appdata/tavern` or
+`/share/appdata/magpie`, all still work if the compose volume still points at that folder. The
+`TAVERN_ADMIN_*` variables do not: see **Older names** above.
+Do not change the volume path until you have moved the folder: the data lives there.
 
+In Container Station, pull the new image for the `collaborator` application
+(`ghcr.io/drowbe/coffee-pub-collaborator`) and recreate it. Users, images and settings live in the
+folder the volume names (`/share/appdata/collaborator` on a new install).
 
-In Container Station, pull the new image for the `magpie` application and recreate it. Users,
-images and settings live in `/share/appdata/magpie`, so nothing is lost.
-
-Take a copy of `/share/appdata/magpie` before you update. An update can bring the data up to date for the
+Take a copy of that data folder before you update. An update can bring the data up to date for the
 new version, and an older version then refuses to open it rather than misread it: going back to an older
 image means putting back that copy as well.
 
@@ -102,10 +103,10 @@ To switch environments on, with the server already running as above:
    is not in the list, name each environment explicitly on the certificate instead (`admin.<base>`,
    `<slug>.<base>`, one per environment) with the ordinary challenge, and add a name whenever you create one.
    Force SSL and HTTP/2 as before.
-3. **The container, for one start.** Take a copy of `/share/appdata/magpie` first. Keep `ADMIN_LOGIN` and
+3. **The container, for one start.** Take a copy of the data folder first. Keep `ADMIN_LOGIN` and
    `ADMIN_PASSWORD`: with a base domain they are the **host admin**, who signs in to the host console. Add:
    ```yaml
-   BASE_DOMAIN: "magpie.example.com"
+   BASE_DOMAIN: "collaborator.example.com"
    MIGRATE_ENVIRONMENT_SLUG: "thepub" # what your existing server becomes; used once
    ```
    Recreate the container. On that start the existing data moves into `environments/<slug>/` on the same

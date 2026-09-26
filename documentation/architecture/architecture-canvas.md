@@ -1,6 +1,6 @@
 # Canvas Architecture
 
-**Audience:** developers changing the space page in Coffee Pub Magpie: the canvas, and the modules on it (the conference, the chat and installed modules).
+**Audience:** developers changing the space page in Collaborator: the canvas, and the modules on it (the conference, the chat and installed modules).
 
 How a space's canvas is built and the rules that keep it predictable. The conference and the chat are built-in modules, handled the same way as an installed one. What a player sees is in [userguide-call](../userguides/userguide-call.md); colors are in [design-theme](../designsystem/design-theme.md).
 

@@ -1,6 +1,6 @@
 # Places
 
-**Audience:** a player or game master keeping a space's places with the Places module on a Coffee Pub Magpie server, and an owner setting it up.
+**Audience:** a player or game master keeping a space's places with the Places module on a Collaborator server, and an owner setting it up.
 
 The Places module keeps the places your space cares about: where you are staying, where to eat, what to see. Each has a name, a category, an address, an optional position, notes and the people it belongs to. It needs no map. Other modules link to a place (a trip stop, an event, a task), and a place with a position shows on the map when the Maps module is installed. Install and enable it first; see [Modules](userguide-modules.md).
 
