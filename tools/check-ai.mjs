@@ -233,10 +233,14 @@ await test('summaries are checked field by field', () => {
   assert.equal(parseSummaries('```card\n{"title":"","content":"x"}\n```', 1).summaries.length, 0);
   assert.equal(parseSummaries('```card\n{"title":"T","content":"still writing', 1).summaries.length, 0);
   assert.equal(parseSummaries('```card\n{"title":"T","content":"c","date":"2026-02-28"}\n```', 1).summaries[0].date, '2026-02-28');
-  // The model is asked for ```card (its own instructions, unchanged); a ```summary or ```json fence is read the same way.
+  // The model is asked for one ```card fence holding an array; a ```summary or ```json fence, or a lone object, is read the same way.
   assert.equal(parseSummaries('```summary\n{"title":"T","content":"c"}\n```', 1).text, '{{summary:0}}');
   assert.equal(parseSummaries('```json\n{"title":"T","content":"c"}\n```', 1).summaries.length, 1);
-  assert.match(buildPrompt('ask', [], 'Why?').prompt, /```card\n/);
+  assert.match(buildPrompt('ask', [], 'Why?').prompt, /```card\n\[/);
+  assert.match(buildPrompt('ask', [], 'Why?').prompt, /exactly one, never one per card/);
+  const packed = parseSummaries('```card\n[{"title":"A","content":"one"},{"title":"B","content":"two"}]\n```', 1);
+  assert.equal(packed.summaries.length, 2);
+  assert.equal(packed.text, '{{summary:0}}\n{{summary:1}}');
   const many = Array(MAX_SUMMARIES + 5).fill('```card\n{"title":"T","content":"c"}\n```').join('\n');
   assert.equal(parseSummaries(many, 1).summaries.length, MAX_SUMMARIES);
 });

@@ -851,7 +851,12 @@
     const trip = plan.trip;
     const head = $('trip');
     const days = plan.days();
-    fill(head, { title: trip.title || trip.destination || 'Trip' });
+    const tripName = trip.title || trip.destination || 'Trip';
+    fill(head, { title: tripName });
+    if (host.setTitle) {
+      host.setTitle(tripName);
+      hide(slot(head, 'title'), true);
+    }
     const a = parseYmd(trip.start);
     const b = parseYmd(trip.end || trip.start);
     const part = (d, o) => d.toLocaleDateString([], o);
@@ -869,6 +874,8 @@
       s.append(b2, document.createTextNode(` ${label}`));
       summary.append(s);
     }
+    const sep = head.querySelector('.trip-sep');
+    if (sep) sep.hidden = !summary.children.length;
     const openCount = openDecisions().length;
     viewSwitch.set(state.view, VIEWS.map((v) => (v.id === 'decisions' && openCount ? { ...v, label: `Decisions (${openCount} open)` } : v)));
     hide(head.querySelector('[data-action="edit-trip"]'), !canEdit);
@@ -899,6 +906,7 @@
       return;
     }
     if (!plan.trip || !plan.days().length) {
+      if (host.setTitle) host.setTitle(info.module.name);
       $('trip').hidden = true;
       $('stripbar').hidden = true;
       const s = clone('tpl-state-empty-trip');

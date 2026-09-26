@@ -202,10 +202,23 @@
     hydrate(body);
   }
 
+  function syncTitle(n) {
+    const name = info.module.name;
+    const title = n ? `${name} ${n}` : name;
+    const head = $('app').querySelector('.rs-head');
+    if (host.setTitle) {
+      host.setTitle(title);
+      if (head) head.hidden = true;
+    } else if (head) {
+      fill(head, { count: n ? String(n) : '' });
+      head.hidden = false;
+    }
+  }
+
   function render() {
     const all = research.list();
     const empty = state.loaded && !all.length && !state.uploads.length;
-    fill($('app').querySelector('.rs-head'), { count: all.length ? String(all.length) : '' });
+    syncTitle(all.length);
     for (const n of [$('kinds'), $('tag-chips'), $('app').querySelector('.rs-tools')]) hide(n, empty || !state.loaded);
     const body = $('body');
     if (!state.loaded) { body.replaceChildren(clone('tpl-state-loading')); return; }

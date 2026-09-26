@@ -8,7 +8,7 @@
 
 ```
 <div class="rs [narrow]">                     narrow under 720 px (the script sets it from the pane's width)
-  <header class="rs-head">                    h1[data-slot=own-name] (the name host.info gives, "Research" until then), .count (the Mine/This space switch is in the toolbar, not here)
+  <header class="rs-head">                    hidden when the host titlebar is there: the name and count go in host.setTitle ("Research 6"). Kept for a harness with no titlebar: h1[data-slot=own-name], .count (the Mine/This space switch is in the toolbar, not here)
   <div class="rs-tools">                      .rs-search (input[type=search])
   <div class="rs-chips">                      kind chips: All, Notes, Links, Photos, Answers (.rs-chip.on)
   <div class="rs-chips">                      the tags chosen as filters, only those (.rs-chip.tag[style=--tag], each with an .x to drop it); the chooser itself is the toolbar's Tags button (host.ui.toolbarButton), a menu of every tag in use with a count

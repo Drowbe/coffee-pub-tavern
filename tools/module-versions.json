@@ -20,8 +20,8 @@
     "hash": "20d2f0a3cc6e6716"
   },
   "research": {
-    "version": "0.2.19",
-    "hash": "70c3ca7f1ad949cc"
+    "version": "0.2.20",
+    "hash": "ac0110eb9065cfbd"
   },
   "stream": {
     "version": "0.1.6",
@@ -32,7 +32,7 @@
     "hash": "0866ad66f85443ff"
   },
   "travel": {
-    "version": "0.7.42",
-    "hash": "8f8e01b5d6b38d00"
+    "version": "0.7.43",
+    "hash": "db9194cd5bd9aac0"
   }
 }
