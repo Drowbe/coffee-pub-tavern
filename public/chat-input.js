@@ -2,6 +2,11 @@
 // Chat never names a module; commands and Keep actions come from the space APIs.
 
 const OBJECT_MIME = 'application/x-host-object';
+const KIND_PLURAL = {
+  flight: 'flights', train: 'trains', bus: 'buses', ferry: 'ferries', car: 'cars',
+  hotel: 'hotels', restaurant: 'restaurants', cafe: 'cafes', bar: 'bars',
+  sight: 'sights', museum: 'museums', tour: 'tours', show: 'shows', note: 'notes',
+};
 
 function oneLine(s, n) {
   return String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -75,7 +80,7 @@ function answerParts(text, summaryCount) {
   return parts;
 }
 
-export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, sendChat, resizeChatInput, setStatus, renderMarkup, openTools }) {
+export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, sendChat, resizeChatInput, setStatus, renderMarkup, openTools, closeTools }) {
   const input = () => $('chat-input');
   const note = () => $('chat-note');
   const importBtn = () => $('chat-import');
@@ -179,9 +184,10 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     } catch {
       // no thread, or not allowed
     }
+    await refreshImport();
   }
 
-  function objectPreview(summary, question) {
+  function objectPreview(summary, question, onKept) {
     const el = document.createElement('article');
     el.className = 'chat-object';
     if (summary.kind) el.dataset.kind = summary.kind;
@@ -206,11 +212,27 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
       line.textContent = meta.join(' · ');
       el.appendChild(line);
     }
+    const links = (summary && summary.links) || [];
+    if (links.length) {
+      const list = document.createElement('p');
+      list.className = 'chat-object-meta';
+      list.textContent = links.map((l) => l.title || l.url).filter(Boolean).join(' · ');
+      el.appendChild(list);
+    }
+    if (summary && summary.basis === 'imported') {
+      const basis = document.createElement('p');
+      basis.className = 'chat-object-meta';
+      basis.textContent = 'From another AI: check it before you rely on it';
+      el.appendChild(basis);
+    }
     const keep = document.createElement('button');
     keep.type = 'button';
     keep.className = 'msg-btn chat-object-keep';
     keep.textContent = 'Keep';
-    keep.addEventListener('click', () => keepOne(summary, question, keep));
+    keep.addEventListener('click', async () => {
+      await keepOne(summary, question, keep);
+      if (onKept) onKept(keep);
+    });
     el.appendChild(keep);
     return el;
   }
@@ -297,6 +319,20 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     }
   }
 
+  async function askAbout({ question, refs } = {}) {
+    const q = String(question || '').trim();
+    if (!q) { setNote('Type a question after /ai.'); return { ok: false }; }
+    const prev = aiContext;
+    aiContext = (refs || []).filter((r) => r && r.module && r.id).map((ref) => ({ ref }));
+    try {
+      input().focus();
+      const ok = await runAi(q);
+      return { ok };
+    } finally {
+      aiContext = prev;
+    }
+  }
+
   async function runAi(question) {
     const id = spaceId();
     if (!id) { setNote(`AI is only in ${word('space', { a: true })}.`); return false; }
@@ -349,39 +385,186 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     }
   }
 
+  function droppedLine(dropped, over) {
+    const parts = [];
+    const list = Array.isArray(dropped) ? dropped : [];
+    if (list.length) {
+      const counts = new Map();
+      for (const d of list) counts.set(d.why, (counts.get(d.why) || 0) + 1);
+      const phrase = (why, n) => {
+        if (why === 'it has no title') return n === 1 ? '1 had no title' : `${n} had no title`;
+        if (why === 'it has no content') return n === 1 ? '1 had no content' : `${n} had no content`;
+        if (why === 'not valid JSON') return n === 1 ? '1 was not valid JSON' : `${n} were not valid JSON`;
+        if (why === `not ${word('object', { a: true })}`) return n === 1 ? `1 was not ${word('object', { a: true })}` : `${n} were not ${word('object', { many: true })}`;
+        return `${n} ${why}`;
+      };
+      parts.push(`${list.length} could not be read: ${[...counts].map(([w, n]) => phrase(w, n)).join(', ')}.`);
+    }
+    if (over) parts.push(`${over} more were left out: at most 50 at a time.`);
+    return parts.join(' ');
+  }
+
+  function setImportWhy(text) {
+    const el = $('chat-import-why');
+    if (!el) return;
+    el.textContent = text || '';
+    el.hidden = !text;
+  }
+
+  function setImportOpen(yes) {
+    const panel = $('chat-import-panel');
+    if (!panel) return;
+    panel.hidden = !yes;
+    if (yes) {
+      hidePicker();
+      $('chat-help-popup').hidden = true;
+      $('chat-emoji-popup').hidden = true;
+      setImportWhy('');
+    }
+  }
+
+  function isKept(btn) {
+    return Boolean(btn && (btn.classList.contains('kept') || btn.classList.contains('queued')));
+  }
+
+  function showImport(result) {
+    const objects = (result && result.objects) || [];
+    const dropped = droppedLine(result && result.dropped, result && result.over);
+    if (!objects.length) {
+      setImportWhy(dropped || 'Nothing in that could be read.');
+      return;
+    }
+    setImportOpen(false);
+    setImportWhy('');
+    const wrap = document.createElement('div');
+    wrap.className = 'message private-ai msg-ai chat-import-msg';
+    const who = document.createElement('span');
+    who.className = 'who';
+    const name = document.createElement('span');
+    name.textContent = 'Brought in';
+    who.appendChild(name);
+    const body = document.createElement('div');
+    body.className = 'text';
+    const rows = [];
+    for (const obj of objects) {
+      const row = document.createElement('label');
+      row.className = 'chat-import-row';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = true;
+      box.setAttribute('aria-label', 'Keep this one');
+      const preview = objectPreview({ ...obj, basis: 'imported' }, '', (btn) => {
+        if (isKept(btn)) box.disabled = true;
+        refresh();
+      });
+      const keepBtn = preview.querySelector('.chat-object-keep');
+      row.append(box, preview);
+      rows.push({ box, keepBtn, obj });
+      body.appendChild(row);
+    }
+    const foot = document.createElement('div');
+    foot.className = 'chat-import-foot';
+    const keepTicked = document.createElement('button');
+    keepTicked.type = 'button';
+    keepTicked.className = 'btn btn-primary btn-small';
+    const droppedEl = document.createElement('p');
+    droppedEl.className = 'chat-import-dropped';
+    droppedEl.textContent = dropped;
+    const ticked = () => rows.filter((r) => r.box.checked && !isKept(r.keepBtn));
+    const refresh = () => {
+      keepTicked.textContent = `Keep ticked (${ticked().length})`;
+    };
+    refresh();
+    wrap.addEventListener('change', refresh);
+    keepTicked.addEventListener('click', async () => {
+      const left = ticked();
+      if (!left.length) return;
+      const counts = new Map();
+      for (const r of left) {
+        const k = r.obj.kind && findKeepers(lastActions).suggestion ? r.obj.kind : 'note';
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const what = [...counts].map(([k, n]) => `${n} ${n === 1 ? k : (KIND_PLURAL[k] || `${k}s`)}`).join(' and ');
+      if (!window.confirm(`Keep ${what}?`)) return;
+      keepTicked.disabled = true;
+      await refreshActions();
+      for (const r of left) {
+        await keepOne({ ...r.obj, basis: 'imported' }, '', r.keepBtn);
+        if (isKept(r.keepBtn)) r.box.disabled = true;
+      }
+      keepTicked.disabled = false;
+      refresh();
+    });
+    foot.append(keepTicked, droppedEl);
+    body.appendChild(foot);
+    wrap.append(who, body);
+    $('messages').appendChild(wrap);
+    $('messages').scrollTop = $('messages').scrollHeight;
+  }
+
+  async function postCheck(body, type) {
+    const id = spaceId();
+    if (!id) throw new Error(`Bring research in from ${word('space', { a: true })}.`);
+    const result = await fetch(`/api/spaces/${encodeURIComponent(id)}/objects/check`, {
+      method: 'POST',
+      headers: { 'content-type': type, accept: 'application/json' },
+      body,
+    });
+    const json = await result.json();
+    if (!result.ok) throw new Error(json.error || 'That could not be read.');
+    return json;
+  }
+
+  async function checkObjects(input) {
+    setImportWhy('');
+    try {
+      const result = typeof input === 'string'
+        ? await postCheck(input, 'text/plain')
+        : await postCheck(input, 'application/octet-stream');
+      pendingImport = null;
+      importBtn().hidden = true;
+      showImport(result);
+    } catch (err) {
+      setImportWhy(err.message || 'That could not be read.');
+      setImportOpen(true);
+    }
+  }
+
+  async function refreshImport() {
+    await refreshActions();
+    const { note, suggestion } = findKeepers(lastActions);
+    let ok = false;
+    try {
+      const id = spaceId();
+      if (id && getMe() && (note || suggestion)) {
+        const avail = await api('GET', `/api/spaces/${encodeURIComponent(id)}/objects/check`);
+        ok = Boolean(avail.available);
+      }
+    } catch {
+      ok = false;
+    }
+    const btn = $('chat-bring');
+    if (btn) btn.hidden = !ok;
+    if (!ok) setImportOpen(false);
+  }
+
   async function offerImport(text) {
     const id = spaceId();
     if (!id || !getMe()) return;
     try {
       const avail = await api('GET', `/api/spaces/${encodeURIComponent(id)}/objects/check`);
       if (!avail.available) return;
-      const result = await fetch(`/api/spaces/${encodeURIComponent(id)}/objects/check`, {
-        method: 'POST',
-        headers: { 'content-type': 'text/plain', accept: 'application/json' },
-        body: text,
-      });
-      const json = await result.json();
-      if (!result.ok || !json.objects || !json.objects.length) return;
+      const json = await postCheck(text, 'text/plain');
+      if (!json.objects || !json.objects.length) return;
       pendingImport = json;
       const btn = importBtn();
       btn.hidden = false;
       btn.textContent = `Bring in ${json.objects.length} ${word('object', { many: json.objects.length !== 1 })}`;
+      const panelText = $('chat-import-text');
+      if (panelText && !panelText.value.trim()) panelText.value = text;
     } catch {
       // not an import
     }
-  }
-
-  async function keepImport() {
-    if (!pendingImport) return;
-    await refreshActions();
-    for (const obj of pendingImport.objects) {
-      await keepOne({ ...obj, basis: 'imported' }, '', null);
-    }
-    pendingImport = null;
-    importBtn().hidden = true;
-    input().value = '';
-    resizeChatInput();
-    setNote('');
   }
 
   $('chat-command').addEventListener('click', (e) => {
@@ -392,9 +575,66 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     if ($('chat-command-menu')) hidePicker();
     else showPicker();
   });
+  $('chat-bring')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const panel = $('chat-import-panel');
+    const opening = panel.hidden;
+    setImportOpen(opening);
+    if (opening) closeTools?.();
+  });
+  $('chat-import-close')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    setImportOpen(false);
+  });
+  $('chat-import-copy')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    setImportWhy('');
+    const show = $('chat-import-show');
+    if (show) show.hidden = true;
+    try {
+      const fmt = await api('GET', '/api/objects/format');
+      const text = (fmt && fmt.instructions) || '';
+      try {
+        await navigator.clipboard.writeText(text);
+        setNote('Copied. Paste it into the other AI first.');
+      } catch {
+        if (show) {
+          show.value = text;
+          show.hidden = false;
+          show.focus();
+          show.select();
+        }
+        setNote('Select all and copy it.');
+      }
+    } catch (err) {
+      setImportWhy(err.message || 'The instructions could not be copied.');
+    }
+  });
+  $('chat-import-check')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    checkObjects($('chat-import-text').value);
+  });
+  $('chat-import-choose')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    $('chat-import-file').click();
+  });
+  $('chat-import-file')?.addEventListener('change', () => {
+    const file = $('chat-import-file').files && $('chat-import-file').files[0];
+    if (file) checkObjects(file);
+  });
+  $('chat-import-panel')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      setImportOpen(false);
+      input().focus();
+    }
+  });
   importBtn().addEventListener('click', (e) => {
     e.preventDefault();
-    keepImport();
+    if (pendingImport) showImport(pendingImport);
+    pendingImport = null;
+    importBtn().hidden = true;
   });
   input().addEventListener('input', () => {
     const parsed = parseCommand(input().value);
@@ -433,5 +673,7 @@ export function attachChatInput({ $, api, word, getSpace, getMe, canvas, canDo, 
     loadThread,
     refreshActions,
     hidePicker,
+    hideImport: () => setImportOpen(false),
+    askAbout,
   };
 }

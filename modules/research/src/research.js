@@ -2,8 +2,7 @@
 // linked from anywhere and dragged onto a plan. The objects live in the module's store (see research-lib.js). This page draws into
 // the markup in research.html by cloning its templates and filling their [data-slot] and [data-icon] hooks, and toggles the state
 // classes and data attributes CONTRACT.md lists. It builds no markup from strings and sets no style (a tag's colour, --tag, and the
-// object menu's position are the exceptions). Nothing here names another module: "Ask about this" requests the generic askAssistant
-// action of whichever module offers it (found by name and input shape), never Assistant by name.
+// object menu's position are the exceptions). "Research this" asks in Chat (`host.chat.ask`) with that object as context.
 (async () => {
   'use strict';
 
@@ -53,8 +52,7 @@
     armed: null,
     uploads: [], // { el, file, step, progress, error, posAsk }
     tagColors: new Map(), // a well-known tag -> its colour
-    ai: false, // whether this person may use AI here (for Suggest tags)
-    askAssistant: null, // the generic action that opens a conversation about an object, if some module offers one
+    ai: false, // whether this person may use AI here (for Suggest tags, and Research this)
     thumbs: new Map(), // photo id -> address of its thumbnail in the view it was asked for
   };
   const nameOf = (key) => (state.people.find((p) => p.key === key) || {}).name || (key === me && info.user ? info.user.displayName : '') || '';
@@ -213,7 +211,7 @@
     if (!state.loaded) { body.replaceChildren(clone('tpl-state-loading')); return; }
     if (empty) {
       body.replaceChildren(clone('tpl-state-empty'));
-      for (const b of body.querySelectorAll('[data-action="new-note"], [data-action="add-photo"]')) hide(b, !canEdit);
+      for (const b of body.querySelectorAll('[data-action="new-note"], [data-action="new-link"], [data-action="add-photo"]')) hide(b, !canEdit);
       hydrate(root);
       return;
     }
@@ -323,12 +321,18 @@
         },
       });
     }
-    if (state.askAssistant && it.kind !== 'photo') {
+    if (state.ai && it.kind !== 'photo') {
       items.push({
         id: 'ask-about',
         label: 'Research this',
         icon: 'wand-magic-sparkles',
-        onClick: () => { host.actions.request(state.askAssistant.action, { ref: research.refOf(it.kind, it.id) }).catch((err) => say('It could not be opened: ' + message(err), 4000)); },
+        onClick: () => {
+          const title = it.title || KIND_LABEL[it.kind] || 'this';
+          host.chat.ask({
+            question: `What should I know about ${title}?`,
+            refs: [research.refOf(it.kind, it.id)],
+          }).catch((err) => say(err.message || 'The AI could not answer.', 4000));
+        },
       });
     }
     if (mayRemove(it)) {
@@ -580,16 +584,6 @@
   async function checkAi() {
     try { state.ai = Boolean((await host.ai.available()).available); } catch (err) { state.ai = false; }
   }
-  // The generic action that opens a conversation with the AI about an object, found by name and input shape, never by naming a
-  // module: any module could offer this, and Research asks for it the same way Places asks Maps to show something.
-  async function findAssistant() {
-    try {
-      const list = await host.actions.list();
-      state.askAssistant = list.find((a) => a.name === 'askAssistant' && a.input && 'ref' in a.input) || null;
-    } catch (err) {
-      state.askAssistant = null;
-    }
-  }
 
   // Suggest tags for the object in the dialog (a saved one: the server reads it as the person asking). The words go into the tags field
   // for the person to keep or change; nothing is saved until they save.
@@ -619,6 +613,7 @@
     if (t && t.dataset.action === 'open-backlink') { ev.stopPropagation(); const ref = linkTarget.get(t); if (ref) host.objects.open(ref).catch(() => say('That could not be opened.', 3000)); return; }
     if (t && t.dataset.action === 'suggest-tags') return suggestTags();
     if (t && t.dataset.action === 'new-note') return openEditor(null, { kind: 'note' });
+    if (t && t.dataset.action === 'new-link') return openEditor(null, { kind: 'link' });
     if (t && t.dataset.action === 'add-photo') return choosePhotos();
     if (t && t.dataset.action === 'clear-filter') { state.filter = ''; state.kind = ''; state.tags = []; $('filter').value = ''; return render(); }
     if (cardEl && !ev.target.closest('.menu')) openEditor(cardEl.dataset.id);
@@ -644,12 +639,14 @@
 
   if (host.bar) {
     host.bar.set(canEdit ? [
-      { id: 'add', label: 'Add a note', primary: true },
-      { id: 'photo', iconOnly: true, icon: 'camera', label: 'Add a photo' },
+      { id: 'add', label: 'Add a note', icon: 'note-sticky', primary: true },
+      { id: 'link', label: 'Add a link', icon: 'link' },
+      { id: 'photo', label: 'Add a photo', icon: 'camera' },
     ] : []).catch(() => {});
     host.on('bar', (e) => {
       if (!canEdit) return;
       if (e.id === 'photo') return choosePhotos();
+      if (e.id === 'link') return openEditor(null, { kind: 'link' });
       if (e.id !== 'add') return;
       openEditor(null, { kind: 'note' });
     });
@@ -752,7 +749,6 @@
     render();
     loadLinks().catch(() => {});
     checkAi();
-    findAssistant();
     if (state.openWanted) { const f = state.openWanted; state.openWanted = null; f(); }
   } catch (err) {
     $('app').hidden = true;

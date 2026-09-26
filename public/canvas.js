@@ -69,7 +69,7 @@ const toolsHtml = ({ mode, canDock, canFloat, closable = true, snap = false }) =
   ${mode !== 'window' ? '<button class="msg-btn" data-popout type="button" title="Open in its own window" aria-label="Open in its own window"><i class="fa-solid fa-up-right-from-square fa-fw" aria-hidden="true"></i></button>' : ''}
   ${closable ? '<button class="msg-btn" data-close type="button" title="Close" aria-label="Close"><i class="fa-solid fa-xmark fa-fw" aria-hidden="true"></i></button>' : ''}`;
 
-export function createCanvas({ guestToken = null } = {}) {
+export function createCanvas({ guestToken = null, onChatAsk = null } = {}) {
   const toggle = document.getElementById('modules-toggle');
   const menu = document.getElementById('modules-menu');
   // An inline menu (the module buttons sit in a bar in the space header) is always shown: it is never hidden
@@ -516,6 +516,7 @@ export function createCanvas({ guestToken = null } = {}) {
       onOpenRef: openRef,
       // A request for an action waits for the page of the module that carries it: open that module if it is on here.
       onOpenModule: (id) => { const target = available.find((x) => x.id === id); if (target && !opened.has(id)) openModule(target); },
+      onChatAsk,
       scope: 'space',
       spaceId,
       guestToken,

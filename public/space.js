@@ -824,7 +824,14 @@ const DEFAULT_PREFS = {
 const PREFS_KEY = 'app.call';
 const prefs = loadPrefs();
 // The space's canvas: the Modules menu and every module open on it, docked, floating or in a window.
-const canvas = createCanvas({ guestToken });
+let askInChat = null;
+const canvas = createCanvas({
+  guestToken,
+  onChatAsk: (input) => {
+    if (!askInChat) return Promise.reject(Object.assign(new Error('Chat is not ready.'), { status: 400 }));
+    return askInChat(input);
+  },
+});
 window.hostModules = canvas; // for debugging and tests
 
 // The space's actions, in the secondary nav's right zone (built at the top of this file): one group in the bands
@@ -2642,7 +2649,9 @@ const chatInput = attachChatInput({
   setStatus,
   renderMarkup,
   openTools: () => toggleChatTools(true),
+  closeTools: () => toggleChatTools(false),
 });
+askInChat = (input) => chatInput.askAbout(input);
 $('chat-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = $('chat-input').value.trim();
@@ -2732,7 +2741,7 @@ document.addEventListener('click', (e) => {
   if (!$('chat-format-bar').hidden && !e.target.closest('#chat-format-bar, #chat-tools')) toggleChatTools(false);
 });
 $('chat-format-bar').addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { toggleChatTools(false); $('chat-input').focus(); }
+  if (e.key === 'Escape') { toggleChatTools(false); if (chatInput) chatInput.hideImport(); $('chat-input').focus(); }
 });
 $('chat-help').addEventListener('click', (e) => {
   e.stopPropagation();
