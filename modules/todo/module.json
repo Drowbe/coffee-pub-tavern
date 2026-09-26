@@ -1,7 +1,7 @@
 {
   "id": "todo",
   "name": "To-do",
-  "version": "1.11.12",
+  "version": "1.11.13",
   "icon": "list-check",
   "description": "A shared to-do list for the whole {environment} and for each {space}, with due dates and reminders.",
   "author": "Coffee Pub",
@@ -88,12 +88,23 @@
           "task": "ref:todo:task",
           "date": "date"
         }
+      },
+      {
+        "name": "addTask",
+        "label": "Add a task",
+        "local": true,
+        "input": {
+          "text": "string"
+        }
       }
     ],
     "uses": [
       "*"
     ]
   },
+  "commands": [
+    { "name": "t", "label": "Add a task", "action": "addTask", "hint": "the task" }
+  ],
   "refs": {
     "produces": [
       {

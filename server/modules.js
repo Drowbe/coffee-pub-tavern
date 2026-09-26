@@ -323,6 +323,34 @@ function cleanBus(rawEvents, rawActions, id) {
   return { events, actions };
 }
 
+// Commands Chat lists and routes: each names a local action that takes `{ text }`. `ai` is reserved by the host.
+const COMMAND_NAME_RE = /^[a-z0-9]{1,12}$/;
+function cleanCommands(raw, actions) {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new ModuleError('module.json: "commands" must be a list');
+  if (raw.length > 20) throw new ModuleError('module.json: "commands" can list at most 20 commands');
+  const out = [];
+  const seen = new Set();
+  for (const c of raw) {
+    const name = typeof c?.name === 'string' ? c.name.trim() : '';
+    if (!COMMAND_NAME_RE.test(name)) throw new ModuleError(`module.json: command name "${name}" must be 1 to 12 lowercase letters or digits`);
+    if (name === 'ai') throw new ModuleError('module.json: command name "ai" is reserved');
+    if (seen.has(name)) throw new ModuleError(`module.json: command "${name}" is listed twice`);
+    seen.add(name);
+    const action = typeof c?.action === 'string' ? c.action.trim() : '';
+    const def = (actions.provides || []).find((a) => a.name === action);
+    if (!action || !def) throw new ModuleError(`module.json: command "${name}" action "${action || ''}" is not in actions.provides`);
+    if (!def.local) throw new ModuleError(`module.json: command "${name}" action "${action}" must be local`);
+    const textType = def.input && def.input.text;
+    const textBase = typeof textType === 'string' ? textType.replace(/\?$/, '') : '';
+    if (textBase !== 'string' && textBase !== 'text') throw new ModuleError(`module.json: command "${name}" action "${action}" must accept { "text": "string" }`);
+    const label = String(c.label ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 60) || name;
+    const hint = String(c.hint ?? '').replace(/\p{Cc}/gu, ' ').trim().slice(0, 80);
+    out.push({ name, label, action, ...(hint ? { hint } : {}) });
+  }
+  return out;
+}
+
 // The settings a module declares: up to 40, each with a scope (who chooses it), a type and a default.
 const SETTING_TYPES = ['boolean', 'choice', 'number', 'text', 'url', 'file', 'files', 'list', 'color', 'note'];
 const SETTING_SCOPES = ['environment', 'space', 'person'];
@@ -545,6 +573,7 @@ function cleanManifest(raw, files) {
   const refs = cleanRefs(raw.refs, id);
   const storage = cleanStorage(raw.storage);
   const { events, actions } = cleanBus(raw.events, raw.actions, id);
+  const commands = cleanCommands(raw.commands, actions);
 
   // Which of the module's own permissions guards reading and writing its data.
   const access = {};
@@ -578,7 +607,7 @@ function cleanManifest(raw, files) {
     ? { auto: raw.install.auto === true, settingsFrom: raw.install.settingsFrom === 'environment' ? 'environment' : null }
     : null;
 
-  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, storage, events, actions, access, settings, requires, geocoder, uploads, regionSource, install };
+  return { id, name, version, description: text(raw.description, 200), author: text(raw.author, 60), icon, scope, surfaces, permissions, hooks, refs, storage, events, actions, commands, access, settings, requires, geocoder, uploads, regionSource, install };
 }
 
 // --- the registry ---------------------------------------------------------
@@ -730,6 +759,11 @@ class ModuleManager {
       } catch {
         manifest.events = { publishes: [], subscribes: [] };
         manifest.actions = { provides: [], uses: [] };
+      }
+      try {
+        manifest.commands = cleanCommands(manifest.commands, manifest.actions);
+      } catch {
+        manifest.commands = [];
       }
       try {
         manifest.settings = cleanSettings(manifest.settings);
@@ -1173,4 +1207,4 @@ class ModuleManager {
   }
 }
 
-module.exports = { ModuleManager, ModuleError, fillManifest, manifestTexts, cleanManifest, cleanStorage, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };
+module.exports = { ModuleManager, ModuleError, fillManifest, manifestTexts, cleanManifest, cleanCommands, cleanStorage, oldNameIn, OUTDATED, permissionDefaults, pendingWidensNothing, PERMISSION_KEY_RE, readZip, compareVersions, LIMITS };

@@ -2614,6 +2614,60 @@ a.crumb-here:hover {
   position: relative;
 }
 
+.chat-command-wrap {
+  position: relative;
+  display: flex;
+}
+
+.chat-command-menu {
+  position: absolute;
+  z-index: 12;
+  left: 0;
+  bottom: calc(100% + 6px);
+  min-width: 220px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+.chat-command-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-command-item:hover,
+.chat-command-item:focus {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.chat-note {
+  margin: 0;
+  padding: 4px 12px 8px;
+  color: var(--text-dim);
+  font-size: 0.85em;
+}
+
+.message.private-ai .when {
+  color: var(--text-dim);
+}
+
+.message.private-ai .msg-btn.kept,
+.message.private-ai .msg-btn.queued {
+  color: var(--accent);
+}
+
 .chat-format-bar {
   position: absolute;
   z-index: 9;

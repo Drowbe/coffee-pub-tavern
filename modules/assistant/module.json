@@ -1,9 +1,9 @@
 {
   "id": "assistant",
   "name": "Assistant",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "icon": "wand-magic-sparkles",
-  "description": "An open-ended conversation with the AI the {owner} set up. Add a note, a link or anything else as context if you want the answer to use it; an answer worth keeping can be saved and dragged like anything else.",
+  "description": "Retired: ask the AI from Chat with /ai. This {module} is kept for {spaces} that still have it open.",
   "author": "Coffee Pub",
   "scope": [
     "space"

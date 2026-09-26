@@ -687,7 +687,10 @@
       },
     });
   }
-  if (inSpace) stores.space.provide(me); // other modules' requests to save a note or a link go to the space's research
+  if (inSpace) {
+    stores.space.provide(me); // other modules' requests to save a note or a link go to the space's research
+    stores.space.onCompose((text) => openEditor(null, readEntry(text) || { kind: 'note' }));
+  }
   if (host.objects && host.objects.onOpen) {
     host.objects.onOpen((ref) => {
       if (ref.module !== info.module.id || !KINDS.includes(ref.kind)) return;

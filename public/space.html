@@ -298,10 +298,15 @@
       </div>
       <form id="chat-form">
         <button class="msg-btn" id="chat-tools" type="button" title="Formatting, emoji and pictures" aria-label="Formatting, emoji and pictures" aria-expanded="false" aria-controls="chat-format-bar"><i class="fa-solid fa-icons fa-fw" aria-hidden="true"></i></button>
-        <textarea id="chat-input" maxlength="500" placeholder="Say something..." rows="1"></textarea>
+        <span class="chat-command-wrap" id="chat-command-wrap">
+          <button class="msg-btn" id="chat-command" type="button" title="Commands" aria-label="Commands" aria-haspopup="true"><i class="fa-solid fa-slash fa-fw" aria-hidden="true"></i></button>
+        </span>
+        <textarea id="chat-input" maxlength="1000" placeholder="Say something..." rows="1"></textarea>
+        <button class="btn btn-small" id="chat-import" type="button" hidden data-fill>Bring in {objects}</button>
         <button class="btn btn-primary btn-small" type="submit" title="Send" aria-label="Send"><i class="fa-solid fa-right-from-bracket fa-fw" aria-hidden="true"></i></button>
         <input type="file" id="chat-file" accept="image/*" hidden>
       </form>
+      <p class="chat-note" id="chat-note" hidden></p>
       </div>
     </aside>
 

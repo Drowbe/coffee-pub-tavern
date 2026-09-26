@@ -1,11 +1,11 @@
 {
   "assistant": {
-    "version": "0.1.18",
-    "hash": "1b4c8dd0999e4ccb"
+    "version": "0.1.19",
+    "hash": "0936a3adbbc92a83"
   },
   "calendar": {
-    "version": "1.17.15",
-    "hash": "c31f4fbdd6fa1c2e"
+    "version": "1.17.16",
+    "hash": "7d7abab483d36fcf"
   },
   "maps": {
     "version": "0.7.18",
@@ -20,19 +20,19 @@
     "hash": "9fffa0c016d81a73"
   },
   "research": {
-    "version": "0.2.15",
-    "hash": "9e1100ac574a189b"
+    "version": "0.2.16",
+    "hash": "fb186feaf8c9385c"
   },
   "stream": {
     "version": "0.1.6",
     "hash": "866a2b8c2d3f6153"
   },
   "todo": {
-    "version": "1.11.12",
-    "hash": "244ee12ebdfed906"
+    "version": "1.11.13",
+    "hash": "ca9a0aa5956afa28"
   },
   "travel": {
-    "version": "0.7.39",
-    "hash": "8866ab0e358b4b0f"
+    "version": "0.7.40",
+    "hash": "80a4fc4400e61a55"
   }
 }

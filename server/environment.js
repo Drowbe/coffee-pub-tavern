@@ -21,6 +21,7 @@ const { ModuleManager } = require('./modules');
 const { ModuleData } = require('./module-data');
 const { ModuleHooks } = require('./module-hooks');
 const { ChatHistory } = require('./chat-history');
+const { AiThreads } = require('./ai-threads');
 const { ModuleLinks } = require('./module-links');
 const { ModuleBus } = require('./module-bus');
 const { ModuleSettings } = require('./module-settings');
@@ -132,6 +133,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
   themeEvents.setMaxListeners(0);
 
   const chatHistory = new ChatHistory(dataDir);
+  const aiThreads = new AiThreads(dataDir);
   const chatPosts = new Map(); // who -> recent post times, to keep one person from flooding a space's history
 
   const moduleLinks = new ModuleLinks(modules.dir);
@@ -190,7 +192,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
 
   return {
     slug, dataDir,
-    store, modules, moduleData, moduleHooks, chatHistory, moduleLinks, moduleBus, moduleSettings, ai, moduleUploads,
+    store, modules, moduleData, moduleHooks, chatHistory, aiThreads, moduleLinks, moduleBus, moduleSettings, ai, moduleUploads,
     geocodeCache, regionCutJobs, moduleLimits, limiter, presence, invites, inviteEvents, themeEvents, chatPosts, iconSvgs,
     moduleActivity, noteActivity, saveActivity,
   };
@@ -201,6 +203,7 @@ function buildEnvironment(dataDir, { slug = null, admin = null, log = console.lo
 // four, which only debounce and flush on the way out.
 function flushEnvironment(env) {
   env.chatHistory.flush();
+  env.aiThreads.flush();
   env.ai.flush();
   env.geocodeCache.flush();
   env.saveActivity();
